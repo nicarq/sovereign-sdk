@@ -22,11 +22,11 @@ generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 fn test_value_setter_tx_success() {
     let value_to_set = 18;
     let assertion = Box::new(
-        move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+        move |state: &mut UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
                 .value
-                .get(&mut state)
+                .get(state)
                 .unwrap_infallible()
                 .expect("We should be able to get a value from the state");
             assert_eq!(value, value_to_set);
@@ -44,11 +44,11 @@ fn test_value_setter_tx_success() {
 fn test_value_setter_tx_bad_assertion() {
     let value_to_set = 18;
     let bad_assertion = Box::new(
-        move |mut state: UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+        move |state: &mut UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
                 .value
-                .get(&mut state)
+                .get(state)
                 .unwrap_infallible()
                 .expect("We should be able to get a value from the state");
             assert_eq!(value, value_to_set + 1); // This will fail!

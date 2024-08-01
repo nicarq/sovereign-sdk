@@ -175,7 +175,7 @@ fn test_burn_on_invalid_attestation() {
             genesis_attester.test_process_attestation(Err(
                 TestAttestationMessageError::InvalidInitialStateRoot,
             )),
-            Box::new(move |mut state| {
+            Box::new(move |state| {
                 // Check that the attestation resulted in slashing
                 assert!(state.inner().events().iter().any(|event| matches!(
                     event.downcast_ref::<Event<S>>(),
@@ -184,7 +184,7 @@ fn test_burn_on_invalid_attestation() {
                 // Assert that the attester was slashed
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, &mut state)
+                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
                         .unwrap_infallible()
                         .value,
                     0,
@@ -194,7 +194,7 @@ fn test_burn_on_invalid_attestation() {
                 assert!(
                     AttesterIncentives::<S, MockDaSpec>::default()
                         .bad_transition_pool
-                        .get(&2, &mut state)
+                        .get(&2, state)
                         .unwrap_infallible()
                         .is_none(),
                     "The transition should not exist in the pool"
@@ -208,14 +208,14 @@ fn test_burn_on_invalid_attestation() {
             genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
                 CallMessage::BondAttester(genesis_attester.bond),
             ),
-            Box::new(move |mut state| {
+            Box::new(move |state| {
                 assert!(state.inner().events().iter().any(|event| matches!(
                     event.downcast_ref::<Event<S>>(),
                     Some(Event::BondedAttester { .. })
                 )));
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, &mut state)
+                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
                         .unwrap_infallible()
                         .value,
                     TEST_DEFAULT_USER_STAKE,
@@ -228,7 +228,7 @@ fn test_burn_on_invalid_attestation() {
         TxTestCase::<RT, _, _>::applied_with_hook(
             genesis_attester
                 .test_process_attestation(Err(TestAttestationMessageError::InvalidPostStateRoot)),
-            Box::new(move |mut state| {
+            Box::new(move |state| {
                 // Check that the attestation resulted in slashing
                 assert!(state.inner().events().iter().any(|event| matches!(
                     event.downcast_ref::<Event<S>>(),
@@ -237,7 +237,7 @@ fn test_burn_on_invalid_attestation() {
                 // Assert that the attester was slashed
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, &mut state)
+                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
                         .unwrap_infallible()
                         .value,
                     0,
@@ -246,7 +246,7 @@ fn test_burn_on_invalid_attestation() {
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
                         .bad_transition_pool
-                        .get(&2, &mut state)
+                        .get(&2, state)
                         .unwrap_infallible(),
                     Some(genesis_attester_bond),
                     "The transition should exist in the pool"
