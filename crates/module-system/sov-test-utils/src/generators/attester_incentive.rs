@@ -85,7 +85,7 @@ pub mod framework {
     use sov_state::jmt::RootHash;
     use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
 
-    use crate::{AsUser, IntoCallMessage, MessageType, TestAttester, TestSpec};
+    use crate::{AsUser, FromState, MessageType, TestAttester, TestSpec};
 
     type TestAttesterIncentives = AttesterIncentives<TestSpec, MockDaSpec>;
 
@@ -125,11 +125,10 @@ pub mod framework {
         attester: TestAttester<TestSpec>,
     }
 
-    impl IntoCallMessage<TestAttesterIncentives, TestSpec> for TestProcessAttestationMessage {
-        fn into_call_message(
-            self: Box<Self>,
-            state: &mut ApiStateAccessor<TestSpec>,
-        ) -> <TestAttesterIncentives as sov_modules_api::Module>::CallMessage {
+    impl FromState<TestSpec> for TestProcessAttestationMessage {
+        type Output = <TestAttesterIncentives as sov_modules_api::Module>::CallMessage;
+
+        fn from_state(self: Box<Self>, state: &mut ApiStateAccessor<TestSpec>) -> Self::Output {
             let mut attestation = self
                 .attester
                 .create_attestation(self.slot_height, state)
@@ -169,17 +168,16 @@ pub mod framework {
         challenger: Generator,
     }
 
-    impl<Generator: TestChallengeGenerator> IntoCallMessage<TestAttesterIncentives, TestSpec>
+    impl<Generator: TestChallengeGenerator> FromState<TestSpec>
         for TestProcessChallengeMessage<Generator>
     {
+        type Output = <TestAttesterIncentives as sov_modules_api::Module>::CallMessage;
+
         /// Create a transaction setup function which overwrites dummy [`TestProcessChallengeMessage`] with a valid challenge (ie a
         /// [`CallMessage::ProcessChallenge`]).
         /// We have to use the test frawework's setup hook to do this, since we don't know the correct state
         /// roots in advance.
-        fn into_call_message(
-            self: Box<Self>,
-            state: &mut ApiStateAccessor<TestSpec>,
-        ) -> <TestAttesterIncentives as sov_modules_api::Module>::CallMessage {
+        fn from_state(self: Box<Self>, state: &mut ApiStateAccessor<TestSpec>) -> Self::Output {
             let proof = {
                 let mut challenge = self
                     .challenger
