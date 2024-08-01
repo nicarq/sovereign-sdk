@@ -40,16 +40,22 @@ pub mod zk;
 use traits::{MinimalGenesis, PostTxHookRegistry};
 pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 
+#[cfg(test)]
+mod tests;
+
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
-/// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s.
-pub type SlotReceipt = Vec<BatchReceipt>;
+/// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
+pub struct SlotReceipt<Da: DaSpec> {
+    block_header: Da::BlockHeader,
+    batch_receipts: Vec<BatchReceipt>,
+}
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
 pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     stf: StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    slot_receipts: Vec<SlotReceipt>,
+    slot_receipts: Vec<SlotReceipt<MockDaSpec>>,
     state_root: <S::Storage as Storage>::Root,
     storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<DefaultSpecWithHasher<S>>>,
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
@@ -84,6 +90,31 @@ where
     /// Returns the current slot number. The genesis slot is 0 but since genesis doesn't generate a receipt, we need to return the length of the execution slot receipts + 1.
     pub fn curr_slot_number(&self) -> u64 {
         self.slot_receipts.len() as u64 + 1
+    }
+
+    /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
+    /// This method does not commit any changes to the state, it simply queries the state and discards the changes
+    /// like what would happen by sending RPC/REST requests.
+    ///
+    /// ## Note
+    /// We are using a closure here to ensure that we are accessing the most recent state of the rollup.
+    /// Simply returning the [`ApiStateAccessor`] would not be sufficient because the state may be updated while
+    /// the [`ApiStateAccessor`] still exists.
+    pub fn query_state<Output>(
+        &mut self,
+        query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
+    ) -> Output {
+        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
+            self.storage_manager
+                .create_state_after(&slot_receipt.block_header)
+        } else {
+            self.storage_manager.create_bootstrap_state()
+        }
+        .expect("Impossible to create queryiable state. This is a bug.");
+
+        let mut api_state_accessor = ApiStateAccessor::<S>::new(stf_state);
+
+        query(&mut api_state_accessor)
     }
 
     /// Builds a new test runner and runs genesis.
@@ -196,18 +227,23 @@ where
         expected_slot_results: SlotExpectedReceipt,
         result: TestApplySlotOutput<RT, S>,
     ) {
-        let slot_receipts = result.batch_receipts;
+        let slot_receipt = SlotReceipt {
+            block_header,
+            batch_receipts: result.batch_receipts,
+        };
 
         assert_eq!(
             expected_slot_results.len(),
-            slot_receipts.len(),
+            slot_receipt.batch_receipts.len(),
             "Slot receipts length mismatch! This should not happen, this means that some batches were not executed. Expected length: {}, observed length: {}",
             expected_slot_results.len(),
-            slot_receipts.len(),
+            slot_receipt.batch_receipts.len(),
         );
 
-        for (batch_receipt, expected_batch_results) in
-            slot_receipts.iter().zip(expected_slot_results)
+        for (batch_receipt, expected_batch_results) in slot_receipt
+            .batch_receipts
+            .iter()
+            .zip(expected_slot_results)
         {
             assert_eq!(
                 expected_batch_results.batch_outcome, batch_receipt.inner,
@@ -239,10 +275,14 @@ where
         }
 
         self.storage_manager
-            .save_change_set(&block_header, result.change_set, SchemaBatch::new())
+            .save_change_set(
+                &slot_receipt.block_header,
+                result.change_set,
+                SchemaBatch::new(),
+            )
             .unwrap();
 
-        self.slot_receipts.push(slot_receipts);
+        self.slot_receipts.push(slot_receipt);
 
         self.state_root = result.state_root;
     }
