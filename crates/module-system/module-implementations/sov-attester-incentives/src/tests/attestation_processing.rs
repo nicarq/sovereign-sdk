@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, GasMeter, StateCheckpoint};
+use sov_modules_api::{Error, GasMeter};
 use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role,
@@ -33,11 +33,12 @@ fn test_process_valid_attestation() {
     let expected_balance_ref_2 = expected_balance.clone();
     let expected_balance_ref_3 = expected_balance.clone();
 
-    // We run a test with 5 slots (plus genesis). The first slot is empty and is executed in the setup function.
-    // The second slot is also empty. The third and fourth slots attest to the first two empty slots. The last
+    // We run a test with 5 slots (plus genesis).
+    // The first two slots are empty. The third and fourth slots attest to the first two empty slots. The last
     // slot attest to the first slot that contains a transaction. This allows us to test that gas metering is done correctly.
     runner.execute_slots(vec![
-        // Run an empty slot
+        // Run two empty slots
+        SlotTestCase::empty(),
         SlotTestCase::empty(),
         // Attest to the first slot. Check that a ProcessedValidAttestation attestation
         // event is emitted and do necessary accounting to check the attester's balance later
@@ -131,19 +132,7 @@ fn test_burn_on_invalid_attestation() {
 
     runner.execute_slots(vec![
         // Run any empty slot, and check that the attester has the correct bond amount from genesis
-        SlotTestCase::<_, TestAttesterIncentives, _>::empty().with_end_slot_hook(Box::new(
-            move |ws: &mut StateCheckpoint<S>| {
-                // Assert that genesis yielded the expected bond amount
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .bonded_attesters
-                        .get(&genesis_attester_address, ws)
-                        .unwrap_infallible()
-                        .unwrap_or_default(),
-                    genesis_attester_bond,
-                );
-            },
-        )),
+        SlotTestCase::<_, TestAttesterIncentives, _>::empty(),
         // Run an empty slot
         SlotTestCase::empty(),
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(

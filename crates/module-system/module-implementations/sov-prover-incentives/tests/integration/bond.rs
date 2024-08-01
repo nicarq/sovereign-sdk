@@ -16,25 +16,23 @@ pub(crate) type S = sov_test_utils::TestSpec;
 fn test_genesis_bond() {
     let (mut runner, genesis_prover, _) = setup();
 
-    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::empty().with_end_slot_hook(
-        Box::new(move |state| {
-            assert_eq!(
-                TestProverIncentives::default()
-                    .bonded_provers
-                    .get(&genesis_prover.user_info.address(), state)
-                    .unwrap(),
-                Some(genesis_prover.bond),
-                "The genesis prover should be bonded"
-            );
-            assert_eq!(
-                Bank::<S>::default()
-                    .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
-                    .unwrap_infallible(),
-                Some(genesis_prover.user_info.available_balance),
-                "The balance of the prover should be equal to the free balance"
-            );
-        }),
-    )]);
+    runner.query_state(|state| {
+        assert_eq!(
+            TestProverIncentives::default()
+                .bonded_provers
+                .get(&genesis_prover.user_info.address(), state)
+                .unwrap(),
+            Some(genesis_prover.bond),
+            "The genesis prover should be bonded"
+        );
+        assert_eq!(
+            Bank::<S>::default()
+                .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
+                .unwrap_infallible(),
+            Some(genesis_prover.user_info.available_balance),
+            "The balance of the prover should be equal to the free balance"
+        );
+    });
 }
 
 #[test]

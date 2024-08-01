@@ -3,9 +3,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::runtime::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, Bank, TestRunner};
-use sov_test_utils::{
-    generate_optimistic_runtime, SlotTestCase, TestAttester, TestChallenger, TestUser,
-};
+use sov_test_utils::{generate_optimistic_runtime, TestAttester, TestChallenger, TestUser};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -44,30 +42,26 @@ pub(crate) fn setup() -> SetupParams {
     let mut runner =
         TestRunner::new_with_genesis(genesis.into_genesis_params(), AttesterRuntime::default());
 
-    // Execute an empty slot to make sure the genesis is valid
-    runner.execute_slots::<TestAttesterIncentives>(vec![
-        // Start by checking the attester balance and bond.
-        SlotTestCase::empty().with_end_slot_hook(Box::new(move |state| {
-            // Check that the attester account is bonded
-            assert_eq!(
-                TestAttesterIncentives::default()
-                    .bonded_attesters
-                    .get(&attester_address, state)
-                    .unwrap(),
-                Some(attester_bond),
-                "The genesis attester should be bonded"
-            );
+    runner.query_state(|state| {
+        // Check that the attester account is bonded
+        assert_eq!(
+            TestAttesterIncentives::default()
+                .bonded_attesters
+                .get(&attester_address, state)
+                .unwrap(),
+            Some(attester_bond),
+            "The genesis attester should be bonded"
+        );
 
-            // Check the balance of the attester is equal to the free balance
-            assert_eq!(
-                Bank::<S>::default()
-                    .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
-                    .unwrap_infallible(),
-                Some(attester_balance),
-                "The balance of the attester should be equal to the free balance"
-            );
-        })),
-    ]);
+        // Check the balance of the attester is equal to the free balance
+        assert_eq!(
+            Bank::<S>::default()
+                .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
+                .unwrap_infallible(),
+            Some(attester_balance),
+            "The balance of the attester should be equal to the free balance"
+        );
+    });
 
     (
         runner,
