@@ -11,12 +11,6 @@ pub type SlotMessages<M, S> = Vec<BatchMessages<M, S>>;
 /// A list of messages that are contained in a batch.
 pub type BatchMessages<M, S> = Vec<MessageType<M, S>>;
 
-/// A special configuration trait for messages that need to be configured before they can be sent.
-pub trait IntoCallMessage<M: Module, S: Spec> {
-    /// Executes the configuration logic and returns the associated call message.
-    fn into_call_message(self: Box<Self>, state: &mut ApiStateAccessor<S>) -> M::CallMessage;
-}
-
 /// Defines the type of a message that can be sent to the runtime.
 pub enum MessageType<M: Module, S: Spec> {
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
@@ -27,7 +21,7 @@ pub enum MessageType<M: Module, S: Spec> {
     Plain(M::CallMessage, <S::CryptoSpec as CryptoSpec>::PrivateKey),
     /// A message type that needs to be configured before it can be sent
     Configuration(
-        Box<dyn IntoCallMessage<M, S>>,
+        Box<dyn crate::FromState<S, Output = M::CallMessage>>,
         <S::CryptoSpec as CryptoSpec>::PrivateKey,
     ),
 }
@@ -47,7 +41,7 @@ impl<M: Module, S: Spec> MessageType<M, S> {
                 Self::sign_with_defaults(msg, key, nonces)
             }
             MessageType::Configuration(msg, key) => {
-                let msg = msg.into_call_message(state);
+                let msg = msg.from_state(state);
                 let msg = <RT as EncodeCall<M>>::encode_call(msg);
                 Self::sign_with_defaults(msg, key, nonces)
             }
