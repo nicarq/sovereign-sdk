@@ -33,7 +33,7 @@ use super::traits::{
 /// A closure that takes an [`UnmeteredStateWrapper`] around a [`TxHooks::TxState`]. This is used within the
 /// testing framework to override the post dispatch tx hook.
 pub type WorkingSetClosure<T> =
-    Box<dyn FnOnce(UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
+    Box<dyn FnOnce(&mut UnmeteredStateWrapper<<T as TxHooks>::TxState>) + Send + Sync>;
 /// A closure that takes a mutable reference to a state accessor (usually a [`StateCheckpoint`]).
 /// This is used within the testing framework to override the end slot hook.
 pub type EndSlotClosure<T> = Box<dyn FnMut(&mut T) + Send + Sync>;
@@ -148,7 +148,7 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> TestRuntimeHookOverrides<S,
                 .expect("There is no closure left in the queue. Each successful transaction must have an associated closure. 
                 This means that there is some transactions in the batch that were expected to revert but that were successful");
 
-            closure(state.to_unmetered());
+            closure(&mut state.to_unmetered());
         }
         Ok(())
     }
