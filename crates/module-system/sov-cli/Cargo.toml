@@ -19,6 +19,7 @@ workspace = true
 
 [dependencies]
 base64 = { workspace = true }
+derive_more = { workspace = true, features = ["display"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-nonces = { workspace = true, features = ["native"] }

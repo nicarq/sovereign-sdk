@@ -53,21 +53,14 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> Tx
 #[derive(Debug, Error)]
 pub enum RlpConversionError {
     /// Raw transaction is empty.
+    #[error("Empty raw transaction")]
     EmptyRawTx,
     /// Deserialization has failed.
+    #[error("Deserialization failed")]
     DeserializationFailed,
 }
 
-impl core::fmt::Display for RlpConversionError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            RlpConversionError::EmptyRawTx => write!(f, "Empty raw transaction"),
-            RlpConversionError::DeserializationFailed => write!(f, "Deserialization failed"),
-        }
-    }
-}
 // And convert it to original EthApiError ourselves or directly to RPC
-
 impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
     type Error = RlpConversionError;
 

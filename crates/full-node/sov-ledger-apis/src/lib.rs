@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Range;
 use std::sync::OnceLock;
@@ -661,7 +660,9 @@ impl From<IncludeChildren> for QueryMode {
 }
 
 #[serde_with::serde_as]
-#[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, derive_more::Display,
+)]
 #[serde(untagged)]
 enum NumberOrHash {
     Number(#[serde_as(as = "serde_with::DisplayFromStr")] u64),
@@ -673,15 +674,6 @@ impl NumberOrHash {
         match self {
             NumberOrHash::Number(number) => Some(*number),
             _ => None,
-        }
-    }
-}
-
-impl Display for NumberOrHash {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NumberOrHash::Number(number) => number.fmt(f),
-            NumberOrHash::Hash(hash) => hash.fmt(f),
         }
     }
 }
@@ -905,6 +897,15 @@ struct AggregatedProofPublicData {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn number_or_hash_to_string() {
+        assert_eq!(NumberOrHash::Number(0).to_string(), "0");
+        assert_eq!(
+            NumberOrHash::Hash(HexHash::new([0; 32])).to_string(),
+            "0x0000000000000000000000000000000000000000000000000000000000000000",
+        );
+    }
 
     #[test]
     fn openapi_spec_is_valid() {

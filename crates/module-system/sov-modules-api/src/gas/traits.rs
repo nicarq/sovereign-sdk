@@ -77,12 +77,47 @@ pub trait Gas: GasArray {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, BorshSerialize, BorshDeserialize)]
 /// A multi-dimensional gas unit.
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    BorshSerialize,
+    BorshDeserialize,
+    derive_more::Display,
+)]
+#[display(fmt = "GasUnit{:?}", "self.0")]
 pub struct GasUnit<const N: usize>([u64; N]);
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, BorshSerialize, BorshDeserialize)]
+
+impl<const N: usize> Debug for GasUnit<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
 /// A gas price for multi-dimensional gas.
+#[derive(
+    Clone,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    BorshSerialize,
+    BorshDeserialize,
+    derive_more::Display,
+)]
+#[display(fmt = "GasPrice{:?}", "self.0")]
 pub struct GasPrice<const N: usize>([u64; N]);
+
+impl<const N: usize> Debug for GasPrice<N> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
 
 macro_rules! impl_gas_dimensions {
     ($t: ty, $n: expr) => {
@@ -205,34 +240,6 @@ macro_rules! impl_gas_unit {
 
         impl_gas_dimensions!(GasUnit<$n>, $n);
         impl_gas_dimensions!(GasPrice<$n>, $n);
-
-        impl fmt::Display for GasUnit<$n> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(
-                    f,
-                    "GasUnit[{}]",
-                    self.0
-                        .iter()
-                        .map(|g| g.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-        }
-
-        impl fmt::Display for GasPrice<$n> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                write!(
-                    f,
-                    "GasPrice[{}]",
-                    self.as_slice()
-                        .iter()
-                        .map(|g| g.to_string())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            }
-        }
     };
 }
 

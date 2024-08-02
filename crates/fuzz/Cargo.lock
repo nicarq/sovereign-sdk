@@ -5777,6 +5777,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 1.5.1",
+ "derive_more",
  "jsonrpsee 0.22.5",
  "schemars",
  "serde",
@@ -5828,6 +5829,7 @@ dependencies = [
  "celestia-tendermint",
  "celestia-tendermint-proto",
  "celestia-types",
+ "derive_more",
  "futures",
  "hex",
  "jsonrpsee 0.20.3",
@@ -5897,6 +5899,7 @@ dependencies = [
  "anyhow",
  "axum",
  "borsh 1.5.1",
+ "derive_more",
  "futures",
  "hex",
  "serde",

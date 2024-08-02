@@ -31,6 +31,7 @@ nmt-rs = { version = "0.1.0", features = [
 # Convenience
 async-trait = { workspace = true }
 anyhow = { workspace = true }
+derive_more = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 jsonrpsee = { version = "0.20", features = ["http-client"], optional = true }

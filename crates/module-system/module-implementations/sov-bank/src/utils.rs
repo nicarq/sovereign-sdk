@@ -70,7 +70,9 @@ impl<'a, S: Spec> Payable<S> for TokenHolderRef<'a, S> {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, serde::Deserialize, BorshDeserialize)]
+#[derive(
+    Debug, Clone, Eq, PartialEq, serde::Deserialize, BorshDeserialize, derive_more::Display,
+)]
 /// The identifier of a a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolder<S: Spec> {
     /// A external address the rollup.
@@ -96,17 +98,8 @@ impl<S: Spec> borsh::BorshSerialize for TokenHolder<S> {
     }
 }
 
-impl<S: Spec> std::fmt::Display for TokenHolder<S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenHolder::User(addr) => write!(f, "{}", addr),
-            TokenHolder::Module(id) => write!(f, "{}", id),
-        }
-    }
-}
-
-#[derive(Debug, serde::Serialize, borsh::BorshSerialize)]
 /// A reference to a payable entity on the rollup. This can be either a user or a module.
+#[derive(Debug, serde::Serialize, borsh::BorshSerialize, derive_more::Display)]
 pub enum TokenHolderRef<'a, S: Spec> {
     /// A reference to a user's address
     User(&'a S::Address),
@@ -175,15 +168,6 @@ impl<'a, S: Spec> Clone for TokenHolderRef<'a, S> {
 
 // Manually implement Copy because derive infurs a spurious `Spec: Copy` bound
 impl<S: Spec> Copy for TokenHolderRef<'_, S> {}
-
-impl<S: Spec> std::fmt::Display for TokenHolderRef<'_, S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TokenHolderRef::User(addr) => write!(f, "{}", addr),
-            TokenHolderRef::Module(id) => write!(f, "{}", id),
-        }
-    }
-}
 
 impl<'a, S: Spec> From<&'a TokenHolder<S>> for TokenHolderRef<'a, S> {
     fn from(item: &'a TokenHolder<S>) -> TokenHolderRef<'a, S> {
