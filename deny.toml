@@ -1,7 +1,5 @@
 [licenses]
-# Deny crates that do not have a license.
-unlicensed = "deny"
-copyleft = "deny"
+version = 2
 allow = [
     "Apache-2.0",
     "MIT",
