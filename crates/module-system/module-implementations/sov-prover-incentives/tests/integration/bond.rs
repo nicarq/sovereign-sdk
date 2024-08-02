@@ -36,6 +36,123 @@ fn test_genesis_bond() {
 }
 
 #[test]
+fn test_topup_existing_bond() {
+    let (mut runner, genesis_prover, _) = setup();
+
+    let starting_free_balance = genesis_prover.user_info.balance();
+    let starting_bond = genesis_prover.bond;
+    let extra_bond_amount = 50;
+    let prover_key = genesis_prover.user_info.private_key();
+    let prover_address = genesis_prover.user_info.address();
+    let gas_cost = Arc::new(AtomicU64::new(0));
+    let gas_cost_ref1 = gas_cost.clone();
+
+    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
+        TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
+            MessageType::Plain(
+                CallMessage::BondProver(extra_bond_amount),
+                prover_key.clone(),
+            ),
+            Box::new(move |ws| {
+                {
+                    gas_cost.fetch_add(
+                        ws.inner().gas_used_value(),
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
+                }
+                assert!(
+                    ws.inner().events().iter().any(|event| matches!(
+                        event.downcast_ref::<Event<S>>(),
+                        Some(Event::BondedProver {
+                            prover,
+                            deposit,
+                            total_balance,
+                        }) if *prover == prover_address
+                            && *deposit == extra_bond_amount
+                            && *total_balance == (starting_bond + extra_bond_amount)
+                    )),
+                    "Event with expected bonding values not found"
+                );
+            }),
+        ),
+    ])
+    .with_end_slot_hook(Box::new(move |state| {
+        assert_eq!(
+            TestProverIncentives::default()
+                .bonded_provers
+                .get(&genesis_prover.user_info.address(), state)
+                .unwrap(),
+            Some(starting_bond + extra_bond_amount),
+        );
+        let total_gas_cost = gas_cost_ref1.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            Bank::<S>::default()
+                .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
+                .unwrap_infallible(),
+            Some(starting_free_balance - extra_bond_amount - total_gas_cost),
+        );
+    }))]);
+}
+
+// Note: we are bonding less than `minimum_bond` amount, currently this is allowed
+// as users are able to deposit more bond and we check the user is sufficiently
+// bonded when processing submitted proofs.
+#[test]
+fn test_bonding_new_prover() {
+    let (mut runner, _, unbonded_user) = setup();
+
+    let starting_free_balance = unbonded_user.balance();
+    let bond_amount = 5000;
+    let user_key = unbonded_user.private_key();
+    let user_address = unbonded_user.address();
+    let gas_cost = Arc::new(AtomicU64::new(0));
+    let gas_cost_ref1 = gas_cost.clone();
+
+    runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
+        TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
+            MessageType::Plain(CallMessage::BondProver(bond_amount), user_key.clone()),
+            Box::new(move |ws| {
+                {
+                    gas_cost.fetch_add(
+                        ws.inner().gas_used_value(),
+                        std::sync::atomic::Ordering::SeqCst,
+                    );
+                }
+                assert!(
+                    ws.inner().events().iter().any(|event| matches!(
+                        event.downcast_ref::<Event<S>>(),
+                        Some(Event::BondedProver {
+                            prover,
+                            deposit,
+                            total_balance,
+                        }) if *prover == user_address
+                            && *deposit == bond_amount
+                            && *total_balance == bond_amount
+                    )),
+                    "Event with expected bonding values not found"
+                );
+            }),
+        ),
+    ])
+    .with_end_slot_hook(Box::new(move |state| {
+        assert_eq!(
+            TestProverIncentives::default()
+                .bonded_provers
+                .get(&unbonded_user.address(), state)
+                .unwrap(),
+            Some(bond_amount),
+        );
+        let total_gas_cost = gas_cost_ref1.load(std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(
+            Bank::<S>::default()
+                .get_balance_of(&unbonded_user.address(), GAS_TOKEN_ID, state)
+                .unwrap_infallible(),
+            Some(starting_free_balance - bond_amount - total_gas_cost),
+        );
+    }))]);
+}
+
+#[test]
 fn test_unbonding() {
     let (mut runner, genesis_prover, _) = setup();
 
