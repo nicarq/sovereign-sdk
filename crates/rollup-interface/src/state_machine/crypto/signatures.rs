@@ -76,6 +76,7 @@ pub trait PrivateKey:
     PartialEq,
     Clone,
     Eq,
+    derive_more::Display,
 )]
 #[serde(try_from = "String", into = "String")]
 pub struct PublicKeyHex {
@@ -121,16 +122,18 @@ impl From<PublicKeyHex> for String {
     }
 }
 
-impl core::fmt::Display for PublicKeyHex {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", self.hex)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::alloc::string::ToString;
     use crate::crypto::PublicKeyHex;
+
+    #[test]
+    fn to_string() {
+        let key = PublicKeyHex {
+            hex: "foobar".to_string(),
+        };
+        assert_eq!(key.to_string(), "foobar");
+    }
 
     #[test]
     fn test_bad_pub_key_hex_str() {

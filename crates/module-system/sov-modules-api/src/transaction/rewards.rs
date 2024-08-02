@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::fmt::{Display, Formatter};
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_macros::config_value;
@@ -12,7 +11,8 @@ use crate::{Gas, GasArray, Spec};
 ///
 /// ## Type safety
 /// To build this data structure outside of `sov-modules-api`, one would need to call [`crate::WorkingSet::finalize`] or [`crate::WorkingSet::checkpoint`]
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Debug, derive_more::Display)]
+#[display(fmt = "{:?}", self)]
 pub struct TransactionConsumption<GU: Gas> {
     /// The amount of funds locked in the transaction that remains after transaction is executed and tip is processed.
     /// This amount includes the `base_fee` and the `priority_fee` gas token consumption
@@ -63,16 +63,6 @@ impl<GU: Gas> TransactionConsumption<GU> {
     }
 }
 
-impl<GU: Gas> Display for TransactionConsumption<GU> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "TransactionConsumption {{ remaining_funds: {}, base_fee: {}, priority_fee: {}, gas_price: {} }}",
-            self.remaining_funds, self.base_fee, self.priority_fee, self.gas_price
-        )
-    }
-}
-
 /// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
 #[derive(
     Copy,
@@ -84,7 +74,10 @@ impl<GU: Gas> Display for TransactionConsumption<GU> {
     serde::Deserialize,
     BorshSerialize,
     BorshDeserialize,
+    derive_more::Into,
+    derive_more::Display,
 )]
+#[display(fmt = "SequencerReward({})", "self.0")]
 pub struct SequencerReward(pub u64);
 
 impl SequencerReward {
@@ -101,18 +94,6 @@ impl SequencerReward {
 impl<GU: Gas> From<TransactionConsumption<GU>> for SequencerReward {
     fn from(value: TransactionConsumption<GU>) -> Self {
         Self(value.priority_fee())
-    }
-}
-
-impl From<SequencerReward> for u64 {
-    fn from(val: SequencerReward) -> Self {
-        val.0
-    }
-}
-
-impl Display for SequencerReward {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "SequencerReward({})", self.0)
     }
 }
 

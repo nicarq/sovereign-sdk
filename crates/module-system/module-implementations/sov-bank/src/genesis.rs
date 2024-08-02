@@ -24,13 +24,14 @@ pub struct BankConfig<S: sov_modules_api::Spec> {
 
 /// [`TokenConfig`] specifies a configuration used when generating a token for the bank
 /// module.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, derive_more::Display)]
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
     schemars(bound = "S: ::sov_modules_api::Spec", rename = "TokenConfig")
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+#[display(fmt = "{:?}", self)]
 pub struct TokenConfig<S: sov_modules_api::Spec> {
     /// The name of the token.
     pub token_name: String,
@@ -40,33 +41,6 @@ pub struct TokenConfig<S: sov_modules_api::Spec> {
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
     pub authorized_minters: Vec<S::Address>,
-}
-
-impl<S: sov_modules_api::Spec> core::fmt::Display for TokenConfig<S> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let address_and_balances = self
-            .address_and_balances
-            .iter()
-            .map(|(address, balance)| format!("({}, {})", address, balance))
-            .collect::<Vec<String>>()
-            .join(", ");
-
-        let authorized_minters = self
-            .authorized_minters
-            .iter()
-            .map(|minter| minter.to_string())
-            .collect::<Vec<String>>()
-            .join(", ");
-
-        write!(
-            f,
-            "TokenConfig {{ token_name: {}, token_id: {}, address_and_balances: [{}], authorized_minters: [{}] }}",
-            self.token_name,
-            self.token_id,
-            address_and_balances,
-            authorized_minters,
-        )
-    }
 }
 
 /// [`GasTokenConfig`] specifies a configuration for the rollup's gas token.

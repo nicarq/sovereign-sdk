@@ -17,6 +17,7 @@ workspace = true
 anyhow = { version = "1" }
 axum = { workspace = true, features = ["http1", "http2", "ws", "json"] }
 borsh = { workspace = true }
+derive_more = { workspace = true, features = ["display"] }
 futures = { workspace = true }
 hex = { workspace = true }
 serde = "1"

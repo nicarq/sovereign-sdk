@@ -3409,6 +3409,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh 1.4.0",
+ "derive_more",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3457,6 +3458,7 @@ dependencies = [
  "celestia-tendermint",
  "celestia-tendermint-proto",
  "celestia-types",
+ "derive_more",
  "hex",
  "nmt-rs",
  "prost",

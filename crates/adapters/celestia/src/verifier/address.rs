@@ -1,4 +1,3 @@
-use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 use anyhow::Context;
@@ -6,7 +5,7 @@ use celestia_types::state::{AccAddress, AddressKind, AddressTrait};
 // use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize, Hash)] // TODO: , BorshDeserialize, BorshSerialize)]
+#[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize, Hash, derive_more::Display)] // TODO: , BorshDeserialize, BorshSerialize)]
 pub struct CelestiaAddress(AccAddress);
 
 impl AsRef<[u8]> for CelestiaAddress {
@@ -33,12 +32,6 @@ impl<'a> TryFrom<&'a [u8]> for CelestiaAddress {
             let id = celestia_tendermint::account::Id::new(array);
             Ok(Self(AccAddress::new(id)))
         }
-    }
-}
-
-impl Display for CelestiaAddress {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
     }
 }
 

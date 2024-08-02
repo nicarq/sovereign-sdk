@@ -76,14 +76,15 @@ impl TryFrom<Vec<u8>> for MockHash {
 impl BlockHashTrait for MockHash {}
 
 /// A mock block header used for testing.
-#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone, derive_more::Display)]
+#[display(fmt = "{:?}", self)]
 pub struct MockBlockHeader {
+    /// The height of this block.
+    pub height: u64,
     /// The hash of the previous block.
     pub prev_hash: MockHash,
     /// The hash of this block.
     pub hash: MockHash,
-    /// The height of this block.
-    pub height: u64,
     /// The time at which this block was created.
     pub time: Time,
 }
@@ -95,9 +96,9 @@ impl MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
         MockBlockHeader {
-            prev_hash: MockHash(prev_hash),
-            hash: MockHash(hash),
             height,
+            hash: MockHash(hash),
+            prev_hash: MockHash(prev_hash),
             time: Time::now(),
         }
     }
@@ -106,18 +107,6 @@ impl MockBlockHeader {
 impl Default for MockBlockHeader {
     fn default() -> Self {
         MockBlockHeader::from_height(0)
-    }
-}
-
-impl std::fmt::Display for MockBlockHeader {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "MockBlockHeader {{ height: {}, prev_hash: {}, next_hash: {} }}",
-            self.height,
-            hex::encode(self.prev_hash),
-            hex::encode(self.hash)
-        )
     }
 }
 
@@ -342,4 +331,23 @@ fn u64_to_bytes(value: u64) -> [u8; 32] {
     let mut result = [0u8; 32];
     result[..value.len()].copy_from_slice(&value);
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn header_to_string() {
+        let header = MockBlockHeader {
+            prev_hash: MockHash([1; 32]),
+            hash: MockHash([2; 32]),
+            height: 1,
+            time: Time::from_secs(1672531200),
+        };
+
+        let expected = "MockBlockHeader { height: 1, prev_hash: 0x0101010101010101010101010101010101010101010101010101010101010101, hash: 0x0202020202020202020202020202020202020202020202020202020202020202, time: Time { secs: 1672531200, nanos: 0 } }";
+
+        assert_eq!(expected, header.to_string());
+    }
 }

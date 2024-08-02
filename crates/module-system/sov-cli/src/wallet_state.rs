@@ -307,7 +307,7 @@ impl<S: sov_modules_api::Spec> AddressEntry<S> {
 }
 
 /// An identifier for a key in the wallet
-#[derive(Debug, clap::Subcommand, Clone)]
+#[derive(Debug, clap::Subcommand, Clone, derive_more::Display)]
 pub enum KeyIdentifier<S: sov_modules_api::Spec> {
     /// Select a key by nickname
     ByNickname {
@@ -319,15 +319,6 @@ pub enum KeyIdentifier<S: sov_modules_api::Spec> {
         /// The address
         address: S::Address,
     },
-}
-
-impl<S: sov_modules_api::Spec> std::fmt::Display for KeyIdentifier<S> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            KeyIdentifier::ByNickname { nickname } => nickname.fmt(f),
-            KeyIdentifier::ByAddress { address } => address.fmt(f),
-        }
-    }
 }
 
 mod pubkey_serde {
@@ -363,9 +354,30 @@ mod pubkey_serde {
 
 #[cfg(test)]
 mod tests {
+    use sov_modules_api::Address;
+
     use super::*;
 
     type S = sov_test_utils::TestSpec;
+
+    #[test]
+    fn to_string() {
+        assert_eq!(
+            KeyIdentifier::<S>::ByNickname {
+                nickname: "test".to_string()
+            }
+            .to_string(),
+            "test"
+        );
+
+        assert_eq!(
+            KeyIdentifier::<S>::ByAddress {
+                address: Address::from([0; 32])
+            }
+            .to_string(),
+            "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn"
+        );
+    }
 
     #[test]
     fn test_private_key_and_address() {

@@ -17,6 +17,7 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
+derive_more = { workspace = true, features = ["display"] }
 jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }

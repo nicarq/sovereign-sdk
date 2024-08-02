@@ -72,7 +72,5 @@ fn test_display_transaction_reward() {
 
 #[test]
 fn test_display_sequencer_reward() {
-    let seq_reward = SequencerReward(100);
-
-    assert_eq!(format!("{}", seq_reward), "SequencerReward(100)");
+    assert_eq!(SequencerReward(100).to_string(), "SequencerReward(100)");
 }
