@@ -160,19 +160,14 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// - If the minimum bond is not set.
     /// - If the sender's account does not have enough funds to register itself as a sequencer.
     /// - If the sequencer is already registered.
-    pub(crate) fn register_sequencer(
+    pub(crate) fn register_sequencer<ST: StateAccessor + EventContainer>(
         &self,
         da_address: &Da::Address,
         address: &S::Address,
         amount: Amount,
-        state: &mut (impl StateAccessor + EventContainer),
-    ) -> Result<(), SequencerRegistryError<S, Da>> {
-        if self
-            .allowed_sequencers
-            .get(da_address, state)
-            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?
-            .is_some()
-        {
+        state: &mut ST,
+    ) -> Result<(), SequencerRegistryError<S, Da, <ST as StateReader<User>>::Error>> {
+        if self.allowed_sequencers.get(da_address, state)?.is_some() {
             return Err(SequencerRegistryError::SequencerAlreadyRegistered(
                 address.clone(),
             ));
@@ -180,8 +175,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
         let minimum_bond = self
             .minimum_bond
-            .get(state)
-            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?
+            .get(state)?
             .ok_or(SequencerRegistryError::NoMinimumBondSet)?;
 
         if amount < minimum_bond {
@@ -200,18 +194,16 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
         self.bank
             .transfer_from(address, locker.to_payable(), coins, state)
-            .map_err(|_| SequencerRegistryError::<S, Da>::InsufficientFundsToRegister(amount))?;
+            .map_err(|_| SequencerRegistryError::InsufficientFundsToRegister(amount))?;
 
-        self.allowed_sequencers
-            .set(
-                da_address,
-                &AllowedSequencer {
-                    address: address.clone(),
-                    balance: amount,
-                },
-                state,
-            )
-            .map_err(|e| SequencerRegistryError::StateAccessorError(e.to_string()))?;
+        self.allowed_sequencers.set(
+            da_address,
+            &AllowedSequencer {
+                address: address.clone(),
+                balance: amount,
+            },
+            state,
+        )?;
 
         self.emit_event(
             state,
