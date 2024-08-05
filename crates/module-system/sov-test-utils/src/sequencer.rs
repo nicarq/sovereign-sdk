@@ -10,7 +10,9 @@ use sov_modules_stf_blueprint::GenesisParams;
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
+use sov_sequencer::{
+    FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb, TxStatusNotifier,
+};
 use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use tempfile::TempDir;
@@ -76,6 +78,7 @@ where
         dir: TempDir,
         da_service: MockDaService,
         batch_builder: B,
+        tx_status_notifier: TxStatusNotifier<MockDaSpec>,
     ) -> anyhow::Result<Self> {
         // Use "same" bytes for sequencer address and rollup address.
         let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
@@ -117,7 +120,7 @@ where
 
         storage_manager.save_change_set(&genesis_block_header, change_set, SchemaBatch::new())?;
 
-        let sequencer = Sequencer::new(batch_builder, da_service.clone());
+        let sequencer = Sequencer::new(batch_builder, da_service.clone(), tx_status_notifier);
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));
@@ -155,9 +158,12 @@ where
 }
 
 impl TestSequencerSetup<TestFairBatchBuilder> {
-    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`NativeStorageManager`], executes genesis
-    /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
-    pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
+    /// Like [`TestSequencerSetup::with_real_batch_builder`], but allows to
+    /// specify the maximum number of transactions in the mempool before
+    /// eviction.
+    pub async fn with_real_batch_builder_and_mempool_max_txs_count(
+        mempool_max_txs_count: usize,
+    ) -> anyhow::Result<Self> {
         let dir = tempfile::tempdir()?;
 
         // Use "same" bytes for sequencer address and rollup address.
@@ -204,20 +210,23 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let (stf_state, _ledger_storage) = storage_manager.create_state_for(&first_block)?;
 
         let batch_builder_config = FairBatchBuilderConfig {
-            mempool_max_txs_count: usize::MAX,
+            mempool_max_txs_count,
             max_batch_size_bytes: usize::MAX,
             sequencer_address: SEQUENCER_ADDR.into(),
         };
+
+        let notifier = TxStatusNotifier::default();
         let batch_builder = FairBatchBuilder::new(
             runtime,
             BasicKernel::default(),
+            notifier.clone(),
             watch::Sender::new(stf_state).subscribe(),
             sequencer_db,
             batch_builder_config,
         )?;
 
         let da_service = MockDaService::new(SEQUENCER_ADDR.into());
-        let sequencer = Sequencer::new(batch_builder, da_service.clone());
+        let sequencer = Sequencer::new(batch_builder, da_service.clone(), notifier);
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));
@@ -246,5 +255,11 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             axum_server_handle: sequencer_axum_server,
             axum_addr,
         })
+    }
+
+    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`NativeStorageManager`], executes genesis
+    /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
+    pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
+        Self::with_real_batch_builder_and_mempool_max_txs_count(usize::MAX).await
     }
 }

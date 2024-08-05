@@ -3,28 +3,54 @@ use std::collections::{BTreeMap, HashMap};
 use std::ops::Bound;
 use std::sync::Arc;
 
+use anyhow::Context;
+use sov_modules_api::DaSpec;
+use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::services::batch_builder::TxHash;
+use tracing::debug;
 
 use crate::db::{MempoolTx, SequencerDb};
+use crate::tx_status::TxStatusNotifier;
+use crate::TxStatus;
 
-/// The mempool MUST ALWAYS persist changes before modifying the in-memory state,
-/// otherwise a DB error would leave the two out of sync. (Unlike DB operations
-/// which can fail, we know that mempool state changes are infallible.)
-#[derive(Debug)]
-pub struct FairMempool {
-    pub mempool_max_txs_count: usize,
+/// Transactions within the mempool are identified by a monotonically increasing
+/// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
+/// which is then converted to a [`u128`].
+pub type TxIdWithinMempool = u128;
+
+/// The mempool **MUST ALWAYS** persist changes before modifying the in-memory
+/// state, otherwise a DB error would leave the two out of sync. (Unlike DB
+/// operations which can fail, we know that in-memory mempool state changes are
+/// infallible.)
+#[derive(derivative::Derivative)]
+#[derivative(Debug)]
+pub struct FairMempool<Da: DaSpec> {
+    max_txs_count: usize,
+    #[derivative(Debug = "ignore")] // Way too noisy.
+    notifier: TxStatusNotifier<Da>,
     sequencer_db: SequencerDb,
     // Transaction data
     // ----------------
     txs_ordered_by_most_fair_fit: BTreeMap<MempoolCursor, Arc<MempoolTx>>,
-    txs_ordered_by_incremental_id: BTreeMap<u128, Arc<MempoolTx>>,
+    txs_ordered_by_incremental_id: BTreeMap<TxIdWithinMempool, Arc<MempoolTx>>,
     txs_by_hash: HashMap<TxHash, Arc<MempoolTx>>,
 }
 
-impl FairMempool {
-    pub fn new(sequencer_db: SequencerDb, mempool_max_txs_count: usize) -> anyhow::Result<Self> {
+impl<Da: DaSpec> FairMempool<Da> {
+    pub fn new(
+        sequencer_db: SequencerDb,
+        notifier: TxStatusNotifier<Da>,
+        max_txs_count: usize,
+    ) -> anyhow::Result<Self> {
+        if max_txs_count == 0 {
+            return Err(anyhow::anyhow!(
+                "Max mempool size must be greater than zero"
+            ));
+        }
+
         let mut mempool = Self {
-            mempool_max_txs_count,
+            max_txs_count,
+            notifier,
             sequencer_db,
             txs_ordered_by_incremental_id: BTreeMap::new(),
             txs_ordered_by_most_fair_fit: BTreeMap::new(),
@@ -33,7 +59,9 @@ impl FairMempool {
 
         let txs = mempool.sequencer_db.read_all()?;
         for (_, tx) in txs.into_iter() {
-            mempool.add(Arc::new(tx))?;
+            mempool
+                .add(Arc::new(tx))
+                .context("Error while restoring mempool from DB")?;
         }
 
         Ok(mempool)
@@ -65,7 +93,9 @@ impl FairMempool {
     }
 
     fn remove_tx_from_memory(&mut self, hash: &TxHash) {
-        let tx = self.txs_by_hash.remove(hash).unwrap();
+        const ERR: &str = "Removing tx from mempool but it is not in the mempool; this is a bug, please report it";
+
+        let tx = self.txs_by_hash.remove(hash).expect(ERR);
         let cursor = MempoolCursor {
             tx_size_in_bytes: tx.tx_bytes.len(),
             incremental_id: tx.incremental_id,
@@ -73,23 +103,40 @@ impl FairMempool {
 
         self.txs_ordered_by_incremental_id
             .remove(&tx.incremental_id)
-            .unwrap();
-        self.txs_ordered_by_most_fair_fit.remove(&cursor).unwrap();
+            .expect(ERR);
+        self.txs_ordered_by_most_fair_fit
+            .remove(&cursor)
+            .expect(ERR);
     }
 
-    fn evict(&mut self) -> anyhow::Result<()> {
-        while self.len() > self.mempool_max_txs_count {
+    fn make_space_for_tx(&mut self) -> anyhow::Result<()> {
+        while self.len() >= self.max_txs_count {
             let tx_hash = self
                 // We always evict the oldest transaction first.
                 .txs_ordered_by_incremental_id
                 .first_key_value()
-                .expect("Mempool is empty but it doesn't have size zero; this is a bug")
+                .expect("Mempool is empty but it doesn't have size zero; this is a bug, please report it")
                 .1
                 .hash;
+
+            debug!(
+                mempool_max_txs_count = self.max_txs_count,
+                mempool_current_txs_count = self.len(),
+                tx_hash = %HexString::new(tx_hash),
+                "Evicting transaction from the mempool to make space for a new one"
+            );
 
             // We always persist changes to the DB first.
             self.sequencer_db.remove(&[tx_hash])?;
             self.remove_tx_from_memory(&tx_hash);
+
+            // Notify listeners about the eviction.
+            self.notifier.notify(
+                tx_hash,
+                TxStatus::Dropped {
+                    reason: "Mempool is full".to_string(),
+                },
+            );
         }
 
         Ok(())
@@ -113,13 +160,17 @@ impl FairMempool {
         }
 
         let tx = Arc::new(MempoolTx::new(hash, raw));
-
         self.add(tx.clone())?;
 
         Ok(tx)
     }
 
     pub fn add(&mut self, tx: Arc<MempoolTx>) -> anyhow::Result<()> {
+        // If this fails, we're potentially left with a SequencerDb with more
+        // transactions that it should have. Not a problem because eviction is
+        // on a best-effort basis, but good to keep it in mind.
+        self.make_space_for_tx()?;
+
         // We always persist changes to the DB first.
         self.sequencer_db.insert(&tx)?;
 
@@ -133,11 +184,6 @@ impl FairMempool {
         self.txs_ordered_by_most_fair_fit.insert(cursor, tx.clone());
         self.txs_by_hash.insert(tx.hash, tx.clone());
 
-        // If this fails, we're potentially left with a SequencerDb with more
-        // transactions that it should have. Not a problem because eviction is
-        // on a best-effort basis, but good to keep it in mind.
-        self.evict()?;
-
         Ok(())
     }
 }
@@ -147,7 +193,7 @@ impl FairMempool {
 #[cfg_attr(test, derive(proptest_derive::Arbitrary))]
 pub struct MempoolCursor {
     tx_size_in_bytes: usize,
-    incremental_id: u128,
+    incremental_id: TxIdWithinMempool,
 }
 
 impl MempoolCursor {

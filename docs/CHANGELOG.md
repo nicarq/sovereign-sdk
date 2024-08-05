@@ -1,5 +1,6 @@
 - #1104 Add `deposit` method to prover incentives module.
 - #1003 Removes the `BlobData` enum, requiring sequencers to post the `Batch` struct directly on chain.
+- #1076 turns the `FullNoteBlueprint::create_endpoints` and `register_endpoints` functions async. It also modifies the sequencer to emit a new tx status event when transactions are dropped from the mempool.
 - #1062 Adds `remove` method to `StateVec`
 - #978 Upgrades rust toolchain to 1.79.
 - #1047 Use ProverIncentive module in the StfBlueprint for proof verification.
