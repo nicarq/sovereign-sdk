@@ -8046,6 +8046,7 @@ dependencies = [
  "borsh 1.5.0",
  "byteorder",
  "criterion",
+ "futures",
  "hex",
  "jmt",
  "proptest",
@@ -8062,6 +8063,7 @@ dependencies = [
  "tempfile",
  "test-log",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 
@@ -8240,7 +8242,6 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "tokio",
- "tokio-stream",
  "tracing",
  "utoipa-swagger-ui",
 ]

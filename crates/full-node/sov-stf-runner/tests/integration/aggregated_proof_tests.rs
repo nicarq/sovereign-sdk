@@ -46,7 +46,7 @@ async fn run_make_proof_sync(
 
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
-        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
+        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
         let pub_data = resp.proof.public_data();
         init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }
@@ -84,7 +84,7 @@ async fn run_make_proof_async(
 
     let mut init_slot = 1;
     for _ in (0..nb_of_batches).step_by(jump) {
-        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await?;
+        let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
         let pub_data = resp.proof.public_data();
         init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
     }

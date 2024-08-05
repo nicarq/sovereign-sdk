@@ -2,9 +2,9 @@
 //! via an RPC interface.
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use futures::stream::BoxStream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use tokio::sync::broadcast;
 
 use crate::common::hex_string_serde;
 use crate::stf::{EventKey, StoredEvent, TxEffect, TxReceiptContents};
@@ -499,14 +499,12 @@ pub trait LedgerStateProvider {
     async fn get_latest_aggregated_proof(&self) -> anyhow::Result<Option<AggregatedProofResponse>>;
 
     /// Get a notification each time a slot is processed
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
-    fn subscribe_slots(&self) -> broadcast::Receiver<u64>;
+    fn subscribe_slots(&self) -> BoxStream<'static, u64>;
 
     /// Get a notification each time a slot is finalized
-    // TODO https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
-    fn subscribe_finalized_slots(&self) -> tokio::sync::watch::Receiver<u64>;
+    fn subscribe_finalized_slots(&self) -> BoxStream<'static, u64>;
 
     /// Get a notification each time an aggregated proof is processed
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/1161
-    fn subscribe_proof_saved(&self) -> broadcast::Receiver<AggregatedProofResponse>;
+    fn subscribe_proof_saved(&self) -> BoxStream<'static, AggregatedProofResponse>;
 }
