@@ -58,25 +58,23 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
     /// The provided address is not an allowed sequencer.
     IsNotRegisteredSequencer(Da::Address),
 
-    /// The sequencer tried to unregister itself during the execution of its own batch.
-    #[error("Sequencers may not unregister during execution of their own batch")]
-    CannotUnregisterDuringOwnBatch(Da::Address),
-
-    #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
-    /// The address provided as a parameter to the `exit` method does not match the transaction sender.
-    SuppliedAddressDoesNotMatchTxSender {
-        /// The address provided as a parameter to the `exit` method.
-        parameter: S::Address,
-        /// The address of the transaction sender.
-        sender: S::Address,
+    #[error("Insufficient funds on the sender's account to top up it's staked balance")]
+    /// Insufficient funds on the sender's account to top up it's staked balance
+    InsufficientFundsToTopUpAccount {
+        /// The address of the sequencer's account.
+        address: S::Address,
+        /// The amount to add to the balance of the sequencer's account.
+        amount_to_add: u64,
     },
 
-    #[error("The module account does not have enough funds to refund the sequencer's staked amount. This is a bug")]
-    /// The module account does not have enough funds to refund the sequencer's staked amount.
-    InsufficientFundsToRefundStakedAmount(
-        // The amount of gas tokens to refund
-        u64,
-    ),
+    #[error("Stake amount below the minimum needed to register a sequencer")]
+    /// Stake amount below the minimum needed to register a sequencer.
+    InsufficientStakeAmount {
+        /// The amount of gas tokens the sender is trying to stake.
+        bond_amount: u64,
+        /// The minimum amount of gas tokens to stake.
+        minimum_bond_amount: u64,
+    },
 
     #[error("The provided amount makes the balance of the sequencer's account overflow.")]
     /// The provided amount makes the balance of the sequencer's account overflow.
@@ -89,33 +87,22 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
         amount_to_add: u64,
     },
 
-    #[error("Insufficient funds on the sender's account to top up it's staked balance")]
-    /// Insufficient funds on the sender's account to top up it's staked balance
-    InsufficientFundsToTopUpAccount {
-        /// The address of the sequencer's account.
-        address: S::Address,
-        /// The amount to add to the balance of the sequencer's account.
-        amount_to_add: u64,
-    },
-
-    #[error("The sequencer is already registered")]
-    /// The sequencer is already registered.
-    SequencerAlreadyRegistered(S::Address),
-
-    #[error("Stake amount below the minimum needed to register a sequencer")]
-    /// Stake amount below the minimum needed to register a sequencer.
-    InsufficientStakeAmount {
-        /// The amount of gas tokens the sender is trying to stake.
-        bond_amount: u64,
-        /// The minimum amount of gas tokens to stake.
-        minimum_bond_amount: u64,
-    },
+    #[error("The module account does not have enough funds to refund the sequencer's staked amount. This is a bug")]
+    /// The module account does not have enough funds to refund the sequencer's staked amount.
+    InsufficientFundsToRefundStakedAmount(
+        // The amount of gas tokens to refund
+        u64,
+    ),
 
     #[error(
         "The minimum bond is not set. This is a bug - the minimum bond should be set at genesis"
     )]
     /// The minimum bond is not set. This is a bug - the minimum bond should be set at genesis
     NoMinimumBondSet,
+
+    #[error("The sequencer is already registered")]
+    /// The sequencer is already registered.
+    SequencerAlreadyRegistered(S::Address),
 
     #[error("The sender's account does not have enough funds to register itself as a sequencer")]
     /// The sender's account does not have enough funds to register itself as a sequencer.
@@ -127,6 +114,19 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
     /// An error occurred when accessing the state
     #[error("An error occurred when accessing the state, error: {0}")]
     StateAccessorError(String),
+
+    /// The sequencer tried to unregister itself during the execution of its own batch.
+    #[error("Sequencers may not unregister during execution of their own batch")]
+    CannotUnregisterDuringOwnBatch(Da::Address),
+
+    #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
+    /// The address provided as a parameter to the `exit` method does not match the transaction sender.
+    SuppliedAddressDoesNotMatchTxSender {
+        /// The address provided as a parameter to the `exit` method.
+        parameter: S::Address,
+        /// The address of the transaction sender.
+        sender: S::Address,
+    },
 }
 
 impl<S: Spec, Da: DaSpec> From<StateAccessorError<S::Gas>> for SequencerRegistryError<S, Da> {
