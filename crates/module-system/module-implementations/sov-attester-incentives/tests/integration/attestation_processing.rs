@@ -1,6 +1,7 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
+use sov_attester_incentives::AttesterIncentiveErrors;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, GasMeter};
@@ -8,11 +9,10 @@ use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role,
 };
+use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, SlotTestCase, TxTestCase, TEST_DEFAULT_USER_STAKE};
 
-use super::helpers_framework::TestAttesterIncentives;
-use crate::tests::helpers_framework::{setup, RT, S};
-use crate::AttesterIncentiveErrors;
+use super::helpers::{setup, RT, S};
 
 /// Start by testing the positive case where the attestations are valid. We check that...
 /// valid attestations are processed correctly
@@ -100,15 +100,8 @@ fn test_process_valid_attestation() {
         )])
         .with_end_slot_hook(Box::new(move |state_checkpoint| {
             assert_eq!(
-                sov_bank::Bank::<S>::default()
-                    .get_balance_of(
-                        &genesis_attester_address,
-                        sov_bank::GAS_TOKEN_ID,
-                        state_checkpoint
-                    )
-                    .unwrap_infallible()
-                    .unwrap(),
-                expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst)
+                TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state_checkpoint),
+                Some(expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst))
             );
 
             // Check that the attester still has their full bond
@@ -132,7 +125,7 @@ fn test_burn_on_invalid_attestation() {
 
     runner.execute_slots(vec![
         // Run any empty slot, and check that the attester has the correct bond amount from genesis
-        SlotTestCase::<_, TestAttesterIncentives, _>::empty(),
+        SlotTestCase::empty(),
         // Run an empty slot
         SlotTestCase::empty(),
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(

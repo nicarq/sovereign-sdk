@@ -1,8 +1,6 @@
-use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::runtime::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{AttesterIncentives, Bank, TestRunner};
+use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{generate_optimistic_runtime, TestAttester, TestChallenger, TestUser};
 
 pub(crate) type S = sov_test_utils::TestSpec;
@@ -55,9 +53,7 @@ pub(crate) fn setup() -> SetupParams {
 
         // Check the balance of the attester is equal to the free balance
         assert_eq!(
-            Bank::<S>::default()
-                .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
-                .unwrap_infallible(),
+            TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
             Some(attester_balance),
             "The balance of the attester should be equal to the free balance"
         );
