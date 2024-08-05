@@ -53,7 +53,7 @@ pub enum CallMessage {
 
 /// Errors that can be raised by the `SequencerRegistry` module
 #[derive(Debug, Error, PartialEq, Eq)]
-pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
+pub enum SequencerRegistryError<S: Spec, Da: DaSpec, AccessorError> {
     #[error("The provided address is not an allowed sequencer")]
     /// The provided address is not an allowed sequencer.
     IsNotRegisteredSequencer(Da::Address),
@@ -113,7 +113,7 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
 
     /// An error occurred when accessing the state
     #[error("An error occurred when accessing the state, error: {0}")]
-    StateAccessorError(String),
+    StateAccessorError(#[from] AccessorError),
 
     /// The sequencer tried to unregister itself during the execution of its own batch.
     #[error("Sequencers may not unregister during execution of their own batch")]
@@ -127,12 +127,6 @@ pub enum SequencerRegistryError<S: Spec, Da: DaSpec> {
         /// The address of the transaction sender.
         sender: S::Address,
     },
-}
-
-impl<S: Spec, Da: DaSpec> From<StateAccessorError<S::Gas>> for SequencerRegistryError<S, Da> {
-    fn from(value: StateAccessorError<S::Gas>) -> Self {
-        SequencerRegistryError::StateAccessorError(value.to_string())
-    }
 }
 
 impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
@@ -152,7 +146,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         amount: Amount,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da, StateAccessorError<S::Gas>>> {
         let sequencer = context.sender();
         self.register_sequencer(da_address, sequencer, amount, state)?;
         Ok(CallResponse::default())
@@ -173,7 +167,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         da_address: &Da::Address,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da, StateAccessorError<S::Gas>>> {
         let sender = context.sender();
 
         let belongs_to = self
@@ -256,7 +250,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         sender: &Da::Address,
         amount: Amount,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da, StateAccessorError<S::Gas>>> {
         let AllowedSequencer { address, balance } =
             self.allowed_sequencers.get(sender, state)?.ok_or(
                 SequencerRegistryError::IsNotRegisteredSequencer(sender.clone()),
@@ -278,7 +272,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         self.bank
             .transfer_from(&address, self.id().to_payable(), coins, state)
             .map_err(
-                |_| SequencerRegistryError::<S, Da>::InsufficientFundsToTopUpAccount {
+                |_| SequencerRegistryError::InsufficientFundsToTopUpAccount {
                     address: address.clone(),
                     amount_to_add: amount,
                 },
