@@ -251,7 +251,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
     /// - The provided sender is not allowed.
     /// - The provided sender doesn't have enough funds to increase its balance.
     /// - The amount overflows.
-    pub(crate) fn increase_sender_balance(
+    pub(crate) fn deposit(
         &self,
         sender: &Da::Address,
         amount: Amount,

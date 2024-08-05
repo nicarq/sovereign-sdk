@@ -46,7 +46,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         self.last_claimed_reward.set(&0, state)?;
 
         for (prover, bond) in config.initial_provers.iter() {
-            self.bond_prover_helper(*bond, prover, state)?;
+            self.register_prover(*bond, prover, state)?;
         }
 
         Ok(())

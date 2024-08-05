@@ -187,7 +187,7 @@ fn check_unbonding(
 ) -> Result<StateCheckpoint<S>, Infallible> {
     let mut state = state.to_working_set_unmetered();
     module
-        .unbond_prover(&prover_address, &mut state)
+        .exit(&prover_address, &mut state)
         .expect("The proof should not be rejected");
 
     let (mut checkpoint, _, mut events) = state.checkpoint();
@@ -196,7 +196,7 @@ fn check_unbonding(
     let event: Event<S> = events.pop().unwrap().downcast().unwrap();
     assert_eq!(
         event,
-        Event::UnBondedProver {
+        Event::Exited {
             prover: prover_address,
             amount_withdrawn: expected_amount_withdrawn
         }

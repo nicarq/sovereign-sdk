@@ -37,7 +37,7 @@ impl<S: Spec, Da: DaSpec> Iterator for ProverIncentivesMessageGenerator<S, Da> {
         let account_pool_index = self.account_pool_index;
 
         let prepared_call_message = PreparedCallMessage::<S, ProverIncentives<S, Da>> {
-            call_message: sov_prover_incentives::CallMessage::BondProver(self.message_count),
+            call_message: sov_prover_incentives::CallMessage::Register(self.message_count),
             account_pool_index,
             max_fee: DEFAULT_MAX_FEE,
         };

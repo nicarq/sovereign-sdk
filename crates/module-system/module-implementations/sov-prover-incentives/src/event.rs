@@ -66,16 +66,22 @@ pub enum PenalizationReason {
 /// Events for prover incentives
 pub enum Event<S: sov_modules_api::Spec> {
     /// The prover has been bonded. The deposit is the amount of the bond and the total balance is the total amount staked.
-    BondedProver {
+    Registered {
         /// The address of the prover that was bonded.
         prover: S::Address,
         /// The amount deposited by the prover for bond.
-        deposit: u64,
-        /// The total amount bonded for the prover.
-        total_balance: u64,
+        amount: u64,
     },
+    /// A sequencer deposited funds to stake.
+    Deposited {
+        /// The address of the sequencer that was deposited to.
+        prover: S::Address,
+        /// The amount of the deposit.
+        deposit: u64,
+    },
+
     /// The prover has been unbonded. The amount withdrawn is the amount of the bond that was withdrawn.
-    UnBondedProver {
+    Exited {
         /// The address of the prover that was unbonded.
         prover: S::Address,
         /// The amount that was withdrawn from the provers bond.
