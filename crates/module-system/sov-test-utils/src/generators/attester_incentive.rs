@@ -338,12 +338,15 @@ pub mod framework {
             &self,
             content: Result<(), TestChallengeMessageError>,
             challenge_slot: u64,
-        ) -> TestProcessChallengeMessage<Self> {
-            TestProcessChallengeMessage {
-                slot_height: challenge_slot,
-                content,
-                challenger: self.clone(),
-            }
+        ) -> MessageType<TestAttesterIncentives, TestSpec> {
+            MessageType::Configuration(
+                Box::new(TestProcessChallengeMessage {
+                    slot_height: challenge_slot,
+                    content,
+                    challenger: self.clone(),
+                }),
+                self.as_user().private_key.clone(),
+            )
         }
     }
 }

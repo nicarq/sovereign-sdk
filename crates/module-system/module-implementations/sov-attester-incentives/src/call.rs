@@ -569,7 +569,7 @@ where
 
             self.emit_event(
                 state,
-                Event::<S>::UnbondedChallenger {
+                Event::<S>::UnbondedAttester {
                     amount_withdrawn: unbonding_info.amount,
                 },
             );

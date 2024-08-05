@@ -9,9 +9,6 @@ mod genesis;
 pub use call::*;
 pub use genesis::*;
 
-#[cfg(test)]
-mod tests;
-
 #[cfg(feature = "native")]
 mod query;
 

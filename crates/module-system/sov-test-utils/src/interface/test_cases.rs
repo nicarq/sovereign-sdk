@@ -30,6 +30,11 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
         }
     }
 
+    /// Creates a vector of [`SlotTestCase`]s with empty slots.
+    pub fn empty_slots(num_slots: usize) -> Vec<Self> {
+        (0..num_slots).map(|_| Self::empty()).collect()
+    }
+
     /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Rewarded`].
     /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
     pub fn from_rewarded_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {

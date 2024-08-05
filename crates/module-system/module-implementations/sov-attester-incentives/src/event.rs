@@ -25,6 +25,11 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The total bond of the attester after succesfully processing the call.
         total_bond: u64,
     },
+    /// Event for Unbonding
+    UnbondedAttester {
+        /// The number of tokens returned to the caller's bank balance.
+        amount_withdrawn: u64,
+    },
     /// Event for a new deposit.
     BondedChallenger {
         /// The amount of tokens deposited by this call.

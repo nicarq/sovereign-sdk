@@ -4,15 +4,17 @@ pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
 };
+use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Genesis, Module,
-    SlotData, Spec,
+    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Genesis,
+    InfallibleStateAccessor, Module, SlotData, Spec,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime, StfBlueprint};
@@ -90,6 +92,17 @@ where
     /// Returns the current slot number. The genesis slot is 0 but since genesis doesn't generate a receipt, we need to return the length of the execution slot receipts + 1.
     pub fn curr_slot_number(&self) -> u64 {
         self.slot_receipts.len() as u64 + 1
+    }
+
+    /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
+    /// This can be used to check the balance of an address in closures.
+    pub fn bank_gas_balance(
+        address: &S::Address,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> Option<u64> {
+        sov_bank::Bank::<S>::default()
+            .get_balance_of(address, GAS_TOKEN_ID, state)
+            .unwrap_infallible()
     }
 
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
