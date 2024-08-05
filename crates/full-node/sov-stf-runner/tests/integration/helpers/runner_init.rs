@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
@@ -48,7 +50,7 @@ pub type MockProverService = ParallelProverService<
 /// TestNode simulates a full-node.
 pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
-    agg_proof_saved_in_db_sub: Receiver<AggregatedProofResponse>,
+    agg_proof_saved_in_db_sub: BoxStream<'static, AggregatedProofResponse>,
     da: Arc<DaServiceWithRetries<MockDaService>>,
     inner_vm: MockZkvm,
     _outer_vm: MockZkvm,
@@ -88,10 +90,11 @@ impl TestNode {
     }
 
     /// The aggregated proof was saved in the db.
-    pub async fn wait_for_aggregated_proof_saved_in_db(
-        &mut self,
-    ) -> anyhow::Result<AggregatedProofResponse> {
-        Ok(self.agg_proof_saved_in_db_sub.recv().await?)
+    pub async fn wait_for_aggregated_proof_saved_in_db(&mut self) -> AggregatedProofResponse {
+        self.agg_proof_saved_in_db_sub
+            .next()
+            .await
+            .expect("No more aggregated proofs; this is a bug, please report it")
     }
 
     pub async fn get_latest_public_data(

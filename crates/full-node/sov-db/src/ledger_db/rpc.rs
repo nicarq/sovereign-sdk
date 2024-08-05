@@ -1,5 +1,7 @@
 use anyhow::{bail, Context};
 use async_trait::async_trait;
+use futures::stream::BoxStream;
+use futures::StreamExt;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{Schema, SeekKeyEncoder};
 use serde::de::DeserializeOwned;
@@ -9,7 +11,8 @@ use sov_rollup_interface::rpc::{
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::{StoredEvent, TxReceiptContents};
-use tokio::sync::broadcast::Receiver;
+use tokio_stream::wrappers::{BroadcastStream, WatchStream};
+use tracing::error;
 
 use crate::ledger_db::rpc_constants::{
     MAX_BATCHES_PER_REQUEST, MAX_EVENTS_PER_REQUEST, MAX_SLOTS_PER_REQUEST,
@@ -847,18 +850,35 @@ impl LedgerStateProvider for LedgerDb {
         }
     }
 
-    fn subscribe_slots(&self) -> Receiver<u64> {
-        self.notification_service.slot_subscriptions.subscribe()
+    fn subscribe_slots(&self) -> BoxStream<'static, u64> {
+        BroadcastStream::new(self.notification_service.slot_subscriptions.subscribe())
+            .filter_map(|data| async move {
+                data.map_err(|error| {
+                    error!(%error, "Failed to receive slot notification from Tokio channel; this is a bug, please report it");
+                })
+                .ok()
+            })
+        .boxed()
     }
 
-    fn subscribe_finalized_slots(&self) -> tokio::sync::watch::Receiver<u64> {
-        self.notification_service
-            .finalized_slot_subscriptions
-            .subscribe()
+    fn subscribe_finalized_slots(&self) -> BoxStream<'static, u64> {
+        WatchStream::new(
+            self.notification_service
+                .finalized_slot_subscriptions
+                .subscribe(),
+        )
+        .boxed()
     }
 
-    fn subscribe_proof_saved(&self) -> Receiver<AggregatedProofResponse> {
-        self.notification_service.proof_subscriptions.subscribe()
+    fn subscribe_proof_saved(&self) -> BoxStream<'static, AggregatedProofResponse> {
+        BroadcastStream::new(self.notification_service.proof_subscriptions.subscribe())
+            .filter_map(|data| async move {
+                data.map_err(|error| {
+                    error!(%error, "Failed to receive proof notification from Tokio channel; this is a bug, please report it");
+                })
+                .ok()
+            })
+            .boxed()
     }
 }
 

@@ -31,7 +31,6 @@ use sov_rollup_interface::rpc::{
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::TxReceiptContents;
-use tokio_stream::wrappers::{BroadcastStream, WatchStream};
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
@@ -560,12 +559,9 @@ where
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let subscription = BroadcastStream::new(ledger.subscribe_proof_saved()).map(|data| {
-                data.context("Failed to subscribe to proofs")
-                    .and_then(|data| {
-                        AggregatedProof::try_from(data)
-                            .context("Failed to convert proof to REST API representation")
-                    })
+            let subscription = ledger.subscribe_proof_saved().map(|data| {
+                AggregatedProof::try_from(data)
+                    .context("Failed to convert proof to REST API representation")
             });
             serve_generic_ws_subscription(socket, subscription).await;
         })
@@ -573,16 +569,19 @@ where
 
     async fn subscribe_to_head(State(ledger): State<T>, ws: WebSocketUpgrade) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let subscription = BroadcastStream::new(ledger.subscribe_slots())
-                .then(|slot_num_res| async {
-                    let slot_num = slot_num_res?;
-                    let Ok(Some(slot)) = ledger
-                        .get_slot_by_number::<B, TxReceipt>(slot_num, QueryMode::Compact)
-                        .await
-                    else {
-                        anyhow::bail!("Slot with number {} does not exist", slot_num);
-                    };
-                    Ok(Slot::<B, TxReceipt, E>::new(slot))
+            let subscription = ledger
+                .subscribe_slots()
+                .then(|slot_num| {
+                    let ledger = ledger.clone();
+                    async move {
+                        let Ok(Some(slot)) = ledger
+                            .get_slot_by_number::<B, TxReceipt>(slot_num, QueryMode::Compact)
+                            .await
+                        else {
+                            anyhow::bail!("Slot with number {} does not exist", slot_num);
+                        };
+                        Ok(Slot::<B, TxReceipt, E>::new(slot))
+                    }
                 })
                 .boxed();
 
@@ -599,30 +598,33 @@ where
                 return;
             };
 
-            let subscription = WatchStream::new(ledger.subscribe_finalized_slots())
-                .zip(futures::stream::repeat((ledger, last_notified_slot)))
-                .then(move |(slot_num, (ledger, last_notified_slot))| async move {
-                    let mut slots = vec![];
-                    for slot_number in last_notified_slot..=slot_num {
-                        let slot_result = match ledger
-                            .get_slot_by_number::<B, TxReceipt>(slot_number, QueryMode::Compact)
-                            .await
-                        {
-                            Ok(Some(slot)) => Ok(slot),
-                            Ok(None) => Err(anyhow::anyhow!(
-                                "Slot with number {} does not exist",
-                                slot_number
-                            )),
-                            Err(err) => Err(anyhow::anyhow!(
-                                "Failed to query slot with number: {}",
-                                err.to_string()
-                            )),
-                        };
+            let subscription = ledger
+                .subscribe_finalized_slots()
+                .then(|slot_num| {
+                    let ledger = ledger.clone();
+                    async move {
+                        let mut slots = vec![];
+                        for slot_number in last_notified_slot..=slot_num {
+                            let slot_result = match ledger
+                                .get_slot_by_number::<B, TxReceipt>(slot_number, QueryMode::Compact)
+                                .await
+                            {
+                                Ok(Some(slot)) => Ok(slot),
+                                Ok(None) => Err(anyhow::anyhow!(
+                                    "Slot with number {} does not exist",
+                                    slot_number
+                                )),
+                                Err(err) => Err(anyhow::anyhow!(
+                                    "Failed to query slot with number: {}",
+                                    err.to_string()
+                                )),
+                            };
 
-                        slots.push(slot_result);
+                            slots.push(slot_result);
+                        }
+
+                        (slot_num, futures::stream::iter(slots))
                     }
-
-                    (slot_num, futures::stream::iter(slots))
                 })
                 .map(|tuple| tuple.1)
                 .flatten()

@@ -184,7 +184,7 @@ jsonrpsee = { version = "0.22.5", features = ["jsonrpsee-types"] }
 schemars = { version = "0.8.16", features = ["derive"] }
 tempfile = "3.8"
 tokio = { version = "1.35", default-features = false }
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1.9", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.
 lazy_static = "1.4.0"
 num_cpus = "1.0"

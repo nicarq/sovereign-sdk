@@ -1,3 +1,4 @@
+use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvm;
@@ -45,14 +46,14 @@ async fn get_filtered_slot_events() {
     assert_eq!(events[1].key, "bar");
 }
 
-#[test]
-fn test_slot_subscription() {
+#[tokio::test]
+async fn test_slot_subscription() {
     let temp_dir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
     let ledger_storage = storage_manager.create_ledger_storage();
     let ledger_db = LedgerDb::with_reader(ledger_storage).unwrap();
 
-    let mut rx = ledger_db.subscribe_slots();
+    let mut slots_subscription = ledger_db.subscribe_slots();
     let _ = ledger_db
         .materialize_slot(
             SlotCommit::<_, MockBlob, ()>::new(MockBlock::default()),
@@ -61,7 +62,7 @@ fn test_slot_subscription() {
         .unwrap();
     ledger_db.send_notifications();
 
-    assert_eq!(rx.blocking_recv().unwrap(), 0);
+    assert_eq!(slots_subscription.next().await.unwrap(), 0);
 }
 
 #[tokio::test(flavor = "multi_thread")]

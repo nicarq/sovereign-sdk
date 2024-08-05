@@ -5869,6 +5869,7 @@ dependencies = [
  "bincode",
  "borsh 1.5.1",
  "byteorder",
+ "futures",
  "hex",
  "jmt",
  "proptest",
@@ -5878,6 +5879,7 @@ dependencies = [
  "sov-rollup-interface",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 
@@ -5911,7 +5913,6 @@ dependencies = [
  "sov-rest-utils",
  "sov-rollup-interface",
  "tokio",
- "tokio-stream",
  "tracing",
  "utoipa-swagger-ui",
 ]
