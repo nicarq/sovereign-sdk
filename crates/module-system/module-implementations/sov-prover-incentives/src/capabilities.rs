@@ -7,20 +7,15 @@ use sov_modules_api::{
 use thiserror::Error;
 
 use crate::event::SlashingReason;
-use crate::{Event, ProverIncentiveError, ProverIncentives};
+use crate::{Event, ProverIncentives};
 
-enum ErrorOrSlashed {
-    Error(ProverIncentiveError),
+#[derive(Debug, Error)]
+enum ErrorOrSlashed<S: Spec> {
+    Error(#[from] StateAccessorError<S::Gas>),
     Slashed(SlashingReason),
 }
 
-impl<GU: Gas> From<StateAccessorError<GU>> for ErrorOrSlashed {
-    fn from(value: StateAccessorError<GU>) -> Self {
-        ErrorOrSlashed::Error(ProverIncentiveError::StateAccessorError(value.to_string()))
-    }
-}
-
-impl From<SlashingReason> for ErrorOrSlashed {
+impl<S: Spec> From<SlashingReason> for ErrorOrSlashed<S> {
     fn from(value: SlashingReason) -> Self {
         ErrorOrSlashed::Slashed(value)
     }
@@ -28,12 +23,14 @@ impl From<SlashingReason> for ErrorOrSlashed {
 
 /// Error raised while processing the aggregated proof.
 #[derive(Debug, Error)]
-pub enum ProcessProofError<GU: Gas> {
+pub enum ProcessProofError<S: Spec> {
+    #[error(
+        "Error occurred when rewarding the prover. This module's account may not have enough funds. This is a bug. Error: {0}"
+    )]
+    TransferFailure(String),
+
     #[error("The aggregated proof is invalid")]
     InvalidProof,
-
-    #[error("Unable to reward sequencer: {0}")]
-    ProverIncentiveError(#[from] ProverIncentiveError),
 
     #[error("Prover is not bonded at the time of the transaction")]
     ProverNotBonded,
@@ -42,7 +39,7 @@ pub enum ProcessProofError<GU: Gas> {
     BondNotHighEnough,
 
     #[error("An error occurred when trying to access the state, error: {0}")]
-    StateAccessorError(#[from] StateAccessorError<GU>),
+    StateAccessorError(#[from] StateAccessorError<S::Gas>),
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
@@ -52,7 +49,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         proof: &[u8],
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<AggregatedProofPublicData, ProcessProofError<S::Gas>> {
+    ) -> Result<AggregatedProofPublicData, ProcessProofError<S>> {
         // Get the prover's old balance.
         // Revert if they aren't bonded
         let old_balance = match self.bonded_provers.get(prover_address, state)? {
@@ -141,7 +138,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         old_balance: u64,
         sender: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<u64, ProverIncentiveError> {
+    ) -> Result<u64, ProcessProofError<S>> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
@@ -208,7 +205,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         self.bank
             .transfer_from(self.id.to_payable(), sender, coins, state)
-            .map_err(|err| ProverIncentiveError::TransferFailure(err.to_string()))?;
+            .map_err(|err| ProcessProofError::TransferFailure(err.to_string()))?;
 
         self.emit_event(
             state,
@@ -226,7 +223,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         public_outputs: &AggregatedProofPublicData,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ErrorOrSlashed> {
+    ) -> Result<(), ErrorOrSlashed<S>> {
         let expected_genesis_hash = self
             .chain_state
             .get_genesis_hash(state)?

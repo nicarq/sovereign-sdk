@@ -1,3 +1,4 @@
+- #1108 improve error handling in `ProverIncentives` module.
 - #1104 Add `deposit` method to prover incentives module.
 - #1003 Removes the `BlobData` enum, requiring sequencers to post the `Batch` struct directly on chain.
 - #1076 turns the `FullNoteBlueprint::create_endpoints` and `register_endpoints` functions async. It also modifies the sequencer to emit a new tx status event when transactions are dropped from the mempool.
