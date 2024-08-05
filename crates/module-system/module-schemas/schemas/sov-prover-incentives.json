@@ -4,13 +4,28 @@
   "description": "This enumeration represents the available call messages for interacting with the `ExampleModule` module.",
   "oneOf": [
     {
-      "description": "Bonds the prover with provided bond.",
+      "description": "Add a new prover as a bonded prover.",
       "type": "object",
       "required": [
-        "BondProver"
+        "Register"
       ],
       "properties": {
-        "BondProver": {
+        "Register": {
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "description": "Increases the balance of the prover, transferring the funds from the prover account to the rollup.",
+      "type": "object",
+      "required": [
+        "Deposit"
+      ],
+      "properties": {
+        "Deposit": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
@@ -22,7 +37,7 @@
       "description": "Unbonds the prover.",
       "type": "string",
       "enum": [
-        "UnbondProver"
+        "Exit"
       ]
     }
   ]

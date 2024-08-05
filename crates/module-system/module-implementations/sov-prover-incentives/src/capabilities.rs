@@ -1,5 +1,6 @@
 use std::cmp::max;
 
+use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, EventEmitter, Gas, Spec, StateAccessorError, TxState, Zkvm,
 };
@@ -199,7 +200,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         // We only reward a portion of the total reward - we burn some of it
         // to avoid the provers to collude to prove empty blocks.
         let reward_amount = self.burn_rate().apply(total_reward);
-        self.transfer_to_prover(reward_amount, sender, state)?;
+
+        let coins = Coins {
+            token_id: GAS_TOKEN_ID,
+            amount: reward_amount,
+        };
+
+        self.bank
+            .transfer_from(self.id.to_payable(), sender, coins, state)
+            .map_err(|err| ProverIncentiveError::TransferFailure(err.to_string()))?;
 
         self.emit_event(
             state,

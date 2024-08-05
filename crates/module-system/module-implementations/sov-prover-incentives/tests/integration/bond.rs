@@ -49,10 +49,7 @@ fn test_topup_existing_bond() {
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(
-                CallMessage::BondProver(extra_bond_amount),
-                prover_key.clone(),
-            ),
+            MessageType::Plain(CallMessage::Deposit(extra_bond_amount), prover_key.clone()),
             Box::new(move |ws| {
                 {
                     gas_cost.fetch_add(
@@ -63,13 +60,12 @@ fn test_topup_existing_bond() {
                 assert!(
                     ws.inner().events().iter().any(|event| matches!(
                         event.downcast_ref::<Event<S>>(),
-                        Some(Event::BondedProver {
+                        Some(Event::Deposited {
                             prover,
                             deposit,
-                            total_balance,
                         }) if *prover == prover_address
                             && *deposit == extra_bond_amount
-                            && *total_balance == (starting_bond + extra_bond_amount)
+
                     )),
                     "Event with expected bonding values not found"
                 );
@@ -102,7 +98,7 @@ fn test_bonding_new_prover() {
     let (mut runner, _, unbonded_user) = setup();
 
     let starting_free_balance = unbonded_user.balance();
-    let bond_amount = 5000;
+    let bond_amount = 100000001;
     let user_key = unbonded_user.private_key();
     let user_address = unbonded_user.address();
     let gas_cost = Arc::new(AtomicU64::new(0));
@@ -110,7 +106,7 @@ fn test_bonding_new_prover() {
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(CallMessage::BondProver(bond_amount), user_key.clone()),
+            MessageType::Plain(CallMessage::Register(bond_amount), user_key.clone()),
             Box::new(move |ws| {
                 {
                     gas_cost.fetch_add(
@@ -121,13 +117,12 @@ fn test_bonding_new_prover() {
                 assert!(
                     ws.inner().events().iter().any(|event| matches!(
                         event.downcast_ref::<Event<S>>(),
-                        Some(Event::BondedProver {
+                        Some(Event::Registered {
                             prover,
-                            deposit,
-                            total_balance,
+                            amount,
+
                         }) if *prover == user_address
-                            && *deposit == bond_amount
-                            && *total_balance == bond_amount
+                            && *amount == bond_amount
                     )),
                     "Event with expected bonding values not found"
                 );
@@ -142,6 +137,7 @@ fn test_bonding_new_prover() {
                 .unwrap(),
             Some(bond_amount),
         );
+
         let total_gas_cost = gas_cost_ref1.load(std::sync::atomic::Ordering::SeqCst);
         assert_eq!(
             Bank::<S>::default()
@@ -165,7 +161,7 @@ fn test_unbonding() {
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(CallMessage::UnbondProver, genesis_prover_key.clone()),
+            MessageType::Plain(CallMessage::Exit, genesis_prover_key.clone()),
             Box::new(move |ws| {
                 {
                     // Pay for gas from the provers balance
@@ -179,7 +175,7 @@ fn test_unbonding() {
                 }
                 assert!(ws.inner().events().iter().any(|event| matches!(
                     event.downcast_ref::<Event<S>>(),
-                    Some(Event::UnBondedProver { .. })
+                    Some(Event::Exited { .. })
                 )));
             }),
         ),

@@ -85,10 +85,13 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
         state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         match msg {
-            call::CallMessage::BondProver(bond_amount) => {
-                self.bond_prover(bond_amount, context.sender(), state)
+            call::CallMessage::Register(bond_amount) => {
+                self.register(bond_amount, context.sender(), state)
             }
-            call::CallMessage::UnbondProver => self.unbond_prover(context.sender(), state),
+            call::CallMessage::Exit => self.exit(context.sender(), state),
+            call::CallMessage::Deposit(bond_amount) => {
+                self.deposit(bond_amount, context.sender(), state)
+            }
         }
         .map_err(|e| Error::ModuleError(e.into()))
     }
