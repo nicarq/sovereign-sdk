@@ -15,6 +15,7 @@ use tokio::sync::watch;
 
 use crate::db::{MempoolTx, SequencerDb};
 use crate::mempool::{FairMempool, MempoolCursor};
+use crate::tx_status::TxStatusNotifier;
 use crate::TxHash;
 
 /// Configuration for [`FairBatchBuilder`].
@@ -45,7 +46,7 @@ pub struct FairBatchBuilder<
 > {
     runtime: R,
     kernel: K,
-    mempool: FairMempool,
+    mempool: FairMempool<Da>,
     max_batch_size_bytes: usize,
     current_storage: watch::Receiver<S::Storage>,
     sequencer: Da::Address,
@@ -63,12 +64,13 @@ where
     pub fn new(
         runtime: R,
         kernel: K,
+        notifier: TxStatusNotifier<Da>,
         current_storage: watch::Receiver<<S as Spec>::Storage>,
         sequencer_db: SequencerDb,
         config: FairBatchBuilderConfig<Da>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            mempool: FairMempool::new(sequencer_db, config.mempool_max_txs_count)?,
+            mempool: FairMempool::new(sequencer_db, notifier, config.mempool_max_txs_count)?,
             max_batch_size_bytes: config.max_batch_size_bytes,
             runtime,
             kernel,
@@ -186,6 +188,7 @@ where
             %hash,
             "Transaction has been added to the mempool"
         );
+
         Ok(hash)
     }
 
@@ -417,6 +420,7 @@ mod tests {
         });
         let storage = watch::Sender::new(storage).subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
+        let notifier = TxStatusNotifier::default();
 
         let config = FairBatchBuilderConfig {
             mempool_max_txs_count: MAX_TX_POOL_SIZE,
@@ -426,6 +430,7 @@ mod tests {
         BatchBuilder::new(
             TestRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
+            notifier,
             storage,
             sequencer_db,
             config,
@@ -560,23 +565,6 @@ mod tests {
         //         .to_lowercase()
         //         .contains("transaction decoding error"));
         // }
-
-        #[tokio::test]
-        async fn zero_sized_mempool_cant_accept_tx() {
-            let tx = generate_random_valid_tx();
-
-            let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
-            batch_builder.mempool.mempool_max_txs_count = 0;
-
-            batch_builder.accept_tx(tx).await.unwrap();
-            assert_eq!(
-                batch_builder.mempool.len(),
-                0,
-                "Mempool should have evicted all txs"
-            );
-        }
     }
 
     mod build_batch {

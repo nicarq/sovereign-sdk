@@ -11,6 +11,8 @@ use sov_db::{
 use sov_rollup_interface::services::batch_builder::TxHash;
 use uuid::Uuid;
 
+use crate::mempool::TxIdWithinMempool;
+
 /// A database holding transactions that have been submitted to the sequencer
 /// and other related data.
 #[derive(Clone, Debug)]
@@ -73,7 +75,7 @@ pub struct MempoolTx {
     pub hash: TxHash,
     /// A monotonically increasing counter used to order transactions by
     /// insertion time. Gaps are allowed.
-    pub incremental_id: u128,
+    pub incremental_id: TxIdWithinMempool,
 }
 
 impl MempoolTx {

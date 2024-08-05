@@ -8385,6 +8385,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "tracing-test",
  "unwrap-infallible",
  "utoipa",
  "utoipa-swagger-ui",
@@ -8620,7 +8621,7 @@ dependencies = [
  "base64 0.22.1",
  "bincode",
  "borsh 1.5.0",
- "dashmap",
+ "derivative",
  "futures",
  "hex",
  "jsonrpsee 0.22.5",
@@ -9906,6 +9907,27 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "tracing-test"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "557b891436fe0d5e0e363427fc7f217abf9ccd510d5136549847bdcbcd011d68"
+dependencies = [
+ "tracing-core",
+ "tracing-subscriber 0.3.18",
+ "tracing-test-macro",
+]
+
+[[package]]
+name = "tracing-test-macro"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04659ddb06c87d233c566112c1c9c5b9e98256d9af50ec3bc9c8327f873a7568"
+dependencies = [
+ "quote",
+ "syn 2.0.68",
 ]
 
 [[package]]

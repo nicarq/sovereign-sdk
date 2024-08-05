@@ -36,6 +36,7 @@ proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, optional = true }
 tracing = { workspace = true }
+tracing-test = { workspace = true, optional = true }
 sha2 = { workspace = true }
 bech32 = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -110,5 +111,5 @@ native = [
     "sov-risc0-adapter/native"
 
 ]
-test-utils = []
+test-utils = ["dep:tracing-test"]
 evm = []

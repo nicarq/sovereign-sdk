@@ -171,6 +171,7 @@ thiserror = "1.0.50"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
+tracing-test = { version = "0.2.5", features = ["no-env-filter"] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
 utoipa = "4.2"
 utoipa-swagger-ui = { version = "6", features = ["axum"] }
 unwrap-infallible = "0.1.5"

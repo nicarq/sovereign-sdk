@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::capabilities::FatalError;
 use crate::transaction::SequencerReward;
+
 /// RawTx represents a serialized rollup transaction received from the DA.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct RawTx {

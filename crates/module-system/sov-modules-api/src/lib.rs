@@ -173,6 +173,10 @@ pub mod prelude {
     #[cfg(feature = "native")]
     pub extern crate utoipa_swagger_ui;
 
+    #[cfg(feature = "test-utils")]
+    pub extern crate tracing_test;
+    #[cfg(feature = "test-utils")]
+    pub use tracing_test::traced_test;
     pub use unwrap_infallible::UnwrapInfallible;
 }
 

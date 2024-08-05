@@ -21,7 +21,7 @@ axum = { workspace = true, features = ["http1", "http2", "ws", "json", "query"] 
 base64 = { workspace = true }
 bincode = { workspace = true }
 borsh = { workspace = true }
-dashmap = "5"
+derivative = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["client", "server"] }
@@ -52,6 +52,7 @@ reltester = { workspace = true }
 rockbound = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true, features = ["native"] }
+sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-rollup-interface = { workspace = true }
 sov-sequencer-json-client = { workspace = true }
 sov-test-utils = { workspace = true }

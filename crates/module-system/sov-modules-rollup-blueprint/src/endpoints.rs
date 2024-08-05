@@ -6,7 +6,9 @@ use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb};
+use sov_sequencer::{
+    FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb, TxStatusNotifier,
+};
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
 
@@ -50,16 +52,19 @@ where
             max_batch_size_bytes: 1024 * 100,
             sequencer_address: sequencer.clone(),
         };
+
+        let notifier = TxStatusNotifier::default();
         let batch_builder =
             FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>::new(
                 B::Runtime::default(),
                 B::Kernel::default(),
+                notifier.clone(),
                 storage,
                 sequencer_db.clone(),
                 config,
             )?;
 
-        let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone());
+        let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone(), notifier);
 
         endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",

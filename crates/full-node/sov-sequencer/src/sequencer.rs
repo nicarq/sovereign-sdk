@@ -32,7 +32,7 @@ where
 struct Inner<B: BatchBuilder, Da: DaService, Auth: Authenticator> {
     batch_builder: Mutex<B>,
     da_service: Da,
-    tx_status_notifier: Arc<TxStatusNotifier<Da::Spec>>,
+    tx_status_notifier: TxStatusNotifier<Da::Spec>,
     _phantom: PhantomData<Auth>,
 }
 
@@ -43,16 +43,22 @@ where
     Auth: Authenticator,
 {
     /// Creates new Sequencer from BatchBuilder and DaService
-    pub fn new(batch_builder: B, da_service: Da) -> Self {
+    pub fn new(
+        batch_builder: B,
+        da_service: Da,
+        tx_status_notifier: TxStatusNotifier<Da::Spec>,
+    ) -> Self {
         Self(Arc::new(Inner {
             batch_builder: Mutex::new(batch_builder),
             da_service,
-            tx_status_notifier: Arc::new(TxStatusNotifier::new()),
+            tx_status_notifier,
             _phantom: PhantomData,
         }))
     }
 
-    async fn submit_batch(&self, txs: Vec<Vec<u8>>) -> anyhow::Result<SubmittedBatchInfo> {
+    /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
+    /// [`BatchBuilder::get_next_blob`].
+    pub async fn submit_batch(&self, txs: Vec<Vec<u8>>) -> anyhow::Result<SubmittedBatchInfo> {
         // Acquire the lock before any DA operation, to avoid out-of-order
         // batches and other potential issues.
         let mut batch_builder = self.0.batch_builder.lock().await;
@@ -60,11 +66,13 @@ where
         let mut accept_tx_results = vec![];
         for tx in txs {
             let result = batch_builder.accept_tx(tx.clone()).await.map(|tx_hash| {
+                // Send notification.
                 self.0
                     .tx_status_notifier
                     .notify(tx_hash, TxStatus::Submitted);
                 AcceptTxResponse { tx, tx_hash }
             });
+
             accept_tx_results.push(result);
         }
 
@@ -121,7 +129,8 @@ where
         Ok(SubmittedBatchInfo { da_height, num_txs })
     }
 
-    async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
+    /// See [`BatchBuilder::accept_tx`].
+    pub async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
         let mut batch_builder = self.0.batch_builder.lock().await;
 
         tracing::info!(tx = hex::encode(&tx), "Accepting transaction");
@@ -133,7 +142,9 @@ where
         Ok(tx_hash)
     }
 
-    async fn tx_status(
+    /// Queries the latest known status of the given transaction. Best-effort,
+    /// can't promise to always know the status.
+    pub async fn tx_status(
         &self,
         tx_hash: &TxHash,
     ) -> anyhow::Result<Option<TxStatus<DaBlobHash<Da::Spec>>>> {
@@ -252,21 +263,50 @@ mod axum_router {
             ws: ws::WebSocketUpgrade,
         ) -> impl IntoResponse {
             let notifier = sequencer.0 .0.tx_status_notifier.clone();
-            let sub = notifier.subscription(tx_hash.0);
 
             ws.on_upgrade(move |mut socket| async move {
+                let (_dropper, receiver) = notifier.subscribe(tx_hash.0);
+
+                // After "terminal" tx status updates (i.e. after which
+                // we'll no longer send any new notifications), we close the
+                // connection.
+                let subscription = futures::stream::unfold(
+                    // We use the state to keep track of whether or not the last notification
+                    // was terminal.
+                    //
+                    // By wrapping the `receiver` in a `BroadcastStream`, we
+                    // ensure it'll be dropped before `_dropper`.
+                    (false, BroadcastStream::new(receiver)),
+                    |(terminated, mut stream)| async move {
+                        if terminated {
+                            None
+                        } else {
+                            let next = stream.next().await?;
+                            let is_terminal: bool = next
+                                .as_ref()
+                                .map(|status| status.is_terminal())
+                                // Errors result in WebSocket connection termination.
+                                .unwrap_or(true);
+                            Some((next, (is_terminal, stream)))
+                        }
+                    },
+                )
+                // Finally, convert the data into the type that we want to
+                // serialize over the WS connection.
+                .map(|data| {
+                    data.context("Failed to subscribe to tx status updates")
+                        .map(|status| TxInfo {
+                            id: tx_hash.0,
+                            status,
+                        })
+                })
+                .boxed();
+
                 sequencer
                     .send_initial_status_to_ws(tx_hash.0, &mut socket)
                     .await
                     .ok();
 
-                let subscription = BroadcastStream::new(sub.sender.subscribe()).map(|data| {
-                    data.context("Failed to subscribe to proofs")
-                        .map(|status| TxInfo {
-                            id: tx_hash.0,
-                            status,
-                        })
-                });
                 serve_generic_ws_subscription(socket, subscription).await;
             })
         }
@@ -364,7 +404,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let da_service = MockDaService::new(MockAddress::default());
 
-        TestSequencerSetup::new(dir, da_service, batch_builder)
+        TestSequencerSetup::new(dir, da_service, batch_builder, Default::default())
             .await
             .unwrap()
     }
@@ -462,6 +502,7 @@ mod tests {
             tempfile::tempdir().unwrap(),
             da_service.clone(),
             batch_builder,
+            Default::default(),
         )
         .await
         .unwrap();

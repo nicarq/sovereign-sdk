@@ -1,13 +1,13 @@
-use std::sync::Arc;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 
-use dashmap::mapref::entry::Entry;
-use dashmap::DashMap;
 use mini_moka::sync::Cache as MokaCache;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::DaBlobHash;
 use sov_rollup_interface::services::batch_builder::TxHash;
 use tokio::sync::broadcast;
-use tracing::warn;
+use tracing::{debug, error, trace};
 
 /// A rollup transaction status.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -15,30 +15,74 @@ use tracing::warn;
 pub enum TxStatus<BlobHash> {
     /// The sequencer has no knowledge of this transaction's status.
     Unknown,
+    /// The sequencer dropped the transaction from the mempool and it has to be
+    /// re-submitted, potentially after fixing some issue.
+    ///
+    /// Note that [`TxStatus::Submitted`] **MAY** or **MAY NOT** be produced
+    /// before [`TxStatus::Dropped`], depending on whether or not the issue that
+    /// caused the transaction to be dropped is detected or arised immediately.
+    Dropped {
+        /// A short, human-readable description of the reason why the sequencer
+        /// dropped the transaction.
+        reason: String,
+    },
     /// The transaction was successfully submitted to a sequencer and it's
     /// sitting in the mempool waiting to be included in a batch.
     Submitted,
     /// The transaction was published to the DA as part of a batch, but it may
     /// not be finalized yet.
     Published {
-        /// The ID of the DA transaction that included the rollup transaction to
-        /// which this [`TxStatus`] refers.
+        #[allow(missing_docs)]
         da_transaction_id: BlobHash,
     },
     /// The transaction was published to the DA as part of a batch that is
     /// considered finalized.
     Finalized {
-        /// The ID of the DA transaction that included the rollup transaction to
-        /// which this [`TxStatus`] refers.
+        #[allow(missing_docs)]
         da_transaction_id: BlobHash,
     },
 }
 
+impl<B> TxStatus<B> {
+    /// After a terminal status is reached, the WebSocket connection will be
+    /// closed becaus no more events will be sent.
+    pub fn is_terminal(&self) -> bool {
+        // FIXME: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1088
+        // Right now, "published" is considered to be terminal because the
+        // sequencer never sends finalized status events. "published" MUST be
+        // removed from this list once the issue is resolved, because it's not
+        // truly terminal.
+        matches!(
+            self,
+            TxStatus::Published { .. } | TxStatus::Finalized { .. } | TxStatus::Dropped { .. }
+        )
+    }
+}
+
+/// A [`broadcast::Sender`] should be removed from this map when all receivers
+/// have been dropped.
+type TxStatusSenders<Da> = HashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash<Da>>>>;
+
+/// Manages subscriptions to sequencer events and dispatches new events to
+/// subscribers.
+///
+/// Cheaply-cloneable.
+#[derive(Debug, Clone)]
 pub struct TxStatusNotifier<Da: DaSpec> {
+    // `MokaCache` is cheaply-cloneable, no need to wrap it in `Arc`.
     cache: MokaCache<TxHash, TxStatus<DaBlobHash<Da>>>,
     // **Note:** `DashMap` can deadlock on mutable operations, so make sure to
     // read the docs for all methods that you're using.
-    senders: DashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash<Da>>>>,
+    senders: Arc<RwLock<TxStatusSenders<Da>>>,
+}
+
+impl<Da: DaSpec> Default for TxStatusNotifier<Da> {
+    fn default() -> Self {
+        Self {
+            cache: MokaCache::new(Self::CACHE_CAPACITY),
+            senders: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
 }
 
 impl<Da: DaSpec> TxStatusNotifier<Da> {
@@ -50,98 +94,117 @@ impl<Da: DaSpec> TxStatusNotifier<Da> {
     // transaction. If not, some clients may not receive all notifications.
     const CHANNEL_CAPACITY: usize = 10;
 
-    pub fn new() -> Self {
-        Self {
-            cache: MokaCache::new(Self::CACHE_CAPACITY),
-            senders: DashMap::new(),
-        }
-    }
+    const LOCK_ERR: &'static str =
+        "Failed to acquire lock for tx status notifier; this is a bug, please report it";
 
+    /// Returns the latest known status of the transaction associated with a [`TxHash`].
     pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<DaBlobHash<Da>>> {
         self.cache.get(tx_hash)
     }
 
+    /// Notifies all subscribers about the new status of a transaction.
     pub fn notify(&self, tx_hash: TxHash, status: TxStatus<DaBlobHash<Da>>) {
-        self.get_or_create_sender(tx_hash)
-            .send(status)
-            .map_err(|error| warn!(%error, "Failed to send tx status update"))
-            // Failing to send a notification is symptomatic of a bigger issue, but
-            // we don't want to e.g. fail the whole batch submission because of it.
-            .ok();
-    }
+        let mut senders = self.senders.write().expect(Self::LOCK_ERR);
 
-    pub fn subscription(self: Arc<Self>, tx_hash: TxHash) -> TxStatusSubscription<Da> {
-        let sender = self.get_or_create_sender(tx_hash);
+        debug!(%tx_hash, ?status, senders_count = senders.len(), "Notifying subscribers about tx status update");
 
-        TxStatusSubscription {
-            sender,
-            tx_hash,
-            notifier: self.clone(),
-        }
-    }
+        // Updating the cache is done very intentionally *after* acquiring a
+        // lock, otherwise race conditions may result in a stale cache entry
+        // when two notifications are sent in quick succession.
+        //
+        // Without a lock, the following may happen:
+        //
+        //            (A)            |            (B)
+        //      Enters function      |      Enters function
+        // ------------------------- | ---------------------------
+        //       Updates cache       |             .
+        //             .             |       Updates cache
+        //             .             |       Acquires lock
+        //             .             |        Notification
+        //             .             |       Releases lock
+        //       Acquires lock       |             .
+        //       Notification        |             .
+        //       Releases lock       |             .
+        //
+        // Final result: last sent notification is (A), but the cache contains (B).
+        //
+        // Acquiring the lock before updating the cache also helps with sending
+        // notifications as quickly as possible after the cache is updated.
+        self.cache.insert(tx_hash, status.clone());
 
-    fn get_or_create_sender(&self, tx_hash: TxHash) -> broadcast::Sender<TxStatus<DaBlobHash<Da>>> {
-        match self.senders.entry(tx_hash) {
-            Entry::Occupied(entry) => entry.get().clone(),
-            Entry::Vacant(entry) => {
-                // There is no sender for this transaction hash yet, so we need
-                // to create one.
-                let (sender, mut recv) =
-                    broadcast::channel::<TxStatus<DaBlobHash<Da>>>(Self::CHANNEL_CAPACITY);
-
-                let cache = self.cache.clone();
-
-                // Spawn a task that will listen for updates on the receiver and
-                // update the cache.
-                tokio::task::spawn(async move {
-                    // The task will exit when `.recv()` fails i.e. the sender
-                    // is closed.
-                    while let Ok(status) = recv.recv().await {
-                        cache.insert(tx_hash, status);
-                    }
-                });
-                entry.insert(sender.clone());
-
-                assert_eq!(sender.receiver_count(), 1);
-                sender
+        match senders.entry(tx_hash) {
+            Entry::Vacant { .. } => {
+                trace!(%tx_hash, "No subscribers for tx status updates; ignoring notification");
+            }
+            Entry::Occupied(entry) => {
+                if let Err(error) = entry.get().send(status) {
+                    // Failing to send a notification is symptomatic of a bigger issue, but
+                    // we don't want to e.g. fail the whole batch submission because of it.
+                    error!(%error, "Failed to send tx status update over channel; this is a bug, please report it");
+                    // We shouldn't try to send notifications for this tx again.
+                    entry.remove();
+                }
             }
         }
     }
+
+    /// Subscribes to the status updates of a transaction.
+    pub fn subscribe(
+        &self,
+        tx_hash: TxHash,
+    ) -> (
+        SubscriptionDropper<Da>,
+        broadcast::Receiver<TxStatus<DaBlobHash<Da>>>,
+    ) {
+        let dropper = SubscriptionDropper {
+            tx_hash,
+            notifier: self.clone(),
+        };
+
+        let mut senders = self.senders.write().expect(Self::LOCK_ERR);
+
+        let receiver = if let Some(sender) = senders.get(&tx_hash) {
+            sender.subscribe()
+        } else {
+            trace!(%tx_hash, "Creating new Tokio channel for tx status updates");
+            let (sender, receiver) = broadcast::channel(Self::CHANNEL_CAPACITY);
+            senders.insert(tx_hash, sender);
+            receiver
+        };
+
+        (dropper, receiver)
+    }
 }
 
-/// A wrapper around [`broadcast::Receiver`] that runs some cleanup logic on the
-/// original [`TxStatusNotifier`] upon dropping.
+/// Hold on to this as long as you consume the [`broadcast::Receiver`] returned by
+/// [`TxStatusNotifier::subscribe`]. This will ensure proper cleanup and avoid
+/// memory leaks.
 ///
-/// # Important note
+/// Must be dropped *after* [`broadcast::Receiver`] has been dropped.
 ///
-/// To avoid memory leaks, the [`TxStatusNotifier`] should be dropped **after**
-/// all receivers obtained through [`TxStatusReceiver::subscribe`] have been
-/// dropped.
-pub struct TxStatusSubscription<Da: DaSpec> {
-    /// The WebSocket Axum handler function needs to take ownership over the
-    /// [`broadcast::Receiver`] so that it can call
-    /// [`tokio_stream::wrappers::BroadcastStream::new()`].
-    ///
-    /// Unfortunately, it'd be impossible to move a receiver out of
-    /// [`TxStatusSubscription`] because it implements [`Drop`]. By storing the
-    /// sender here instead, it's possible to easily take ownership over
-    /// new receivers while keeping [`TxStatusSubscription`] in scope,
-    /// which is needed for proper cleanup logic.
-    pub sender: broadcast::Sender<TxStatus<DaBlobHash<Da>>>,
+/// # Alternative approaches
+///
+/// A small, custom GC loop might be a more proper approach. Possibly TODO?
+pub struct SubscriptionDropper<Da: DaSpec> {
     tx_hash: TxHash,
-    notifier: Arc<TxStatusNotifier<Da>>,
+    notifier: TxStatusNotifier<Da>,
 }
 
-impl<Da: DaSpec> Drop for TxStatusSubscription<Da> {
+impl<Da: DaSpec> Drop for SubscriptionDropper<Da> {
     fn drop(&mut self) {
-        match self.notifier.senders.entry(self.tx_hash) {
-            Entry::Vacant(_) => {}
-            Entry::Occupied(entry) => {
-                // If this is the last receiver (besides the one that is used to update
-                // the cache), remove the sender from the map.
-                if entry.get().receiver_count() <= 2 {
-                    entry.remove();
-                }
+        let mut senders = self
+            .notifier
+            .senders
+            .write()
+            .expect(TxStatusNotifier::<Da>::LOCK_ERR);
+
+        let entry = senders.entry(self.tx_hash);
+
+        // No need to do anything if the entry is absent.
+        if let Entry::Occupied(entry) = entry {
+            // We only ever remove senders when they have no receivers.
+            if entry.get().receiver_count() == 0 {
+                entry.remove();
             }
         }
     }
@@ -149,7 +212,6 @@ impl<Da: DaSpec> Drop for TxStatusSubscription<Da> {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::time::Duration;
 
     use sov_mock_da::{MockDaSpec, MockHash};
@@ -162,8 +224,9 @@ mod tests {
 
     #[tokio::test]
     async fn get_cached() {
-        let notifier = TxStatusNotifier::<MockDaSpec>::new();
+        let notifier = TxStatusNotifier::<MockDaSpec>::default();
 
+        // After sending two notifications for two different txs...
         notifier.notify(TxHash::new([1; 32]), TxStatus::Submitted);
         notifier.notify(
             TxHash::new([2; 32]),
@@ -174,6 +237,8 @@ mod tests {
 
         wait().await;
 
+        // ...the cache will know the status of both txs (and, most
+        // importantly, have the *correct* tx status!).
         assert_eq!(
             notifier.get_cached(&TxHash::new([1; 32])),
             Some(TxStatus::Submitted)
@@ -187,19 +252,41 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn multiple_subscribers() {
-        let notifier = Arc::new(TxStatusNotifier::<MockDaSpec>::new());
-
-        let sub1a = notifier.clone().subscription(TxHash::new([1; 32]));
-        let sub1b = notifier.clone().subscription(TxHash::new([1; 32]));
-        let sub2 = notifier.clone().subscription(TxHash::new([2; 32]));
+    async fn multiple_subscribers_to_same_tx_dont_leak_memory() {
+        let notifier = TxStatusNotifier::<MockDaSpec>::default();
 
         {
-            let mut sub1a = sub1a.sender.subscribe();
-            let mut sub1b = sub1b.sender.subscribe();
-            let sub2 = sub2.sender.subscribe();
+            // Subscribing twice to the same tx will result in a single sender.
+            let tx_hash = TxHash::new([1; 32]);
+            let (dropper_1, recv_1) = notifier.subscribe(tx_hash);
+            let (_dropper_2, _recv_2) = notifier.subscribe(tx_hash);
 
-            assert_eq!(notifier.senders.len(), 2);
+            // After subscribing, the notifier contains a single sender.
+            assert_eq!(notifier.senders.read().unwrap().len(), 1);
+
+            // After dropping only one of the subscriptions, the notifier still
+            // contains a single sender.
+            drop(recv_1);
+            drop(dropper_1);
+            assert_eq!(notifier.senders.read().unwrap().len(), 1);
+        }
+
+        wait().await;
+
+        // Both subscriptions have been dropped, so the sender should be gone.
+        assert_eq!(notifier.senders.read().unwrap().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn multiple_subscribers() {
+        let notifier = TxStatusNotifier::<MockDaSpec>::default();
+
+        {
+            let (_dropper1a, mut sub1a) = notifier.subscribe(TxHash::new([1; 32]));
+            let (_dropper1b, mut sub1b) = notifier.subscribe(TxHash::new([1; 32]));
+            let (_dropper2, sub2) = notifier.subscribe(TxHash::new([2; 32]));
+
+            assert_eq!(notifier.senders.read().unwrap().len(), 2);
 
             // No notifications yet.
             assert_eq!(sub1a.len(), 0);
@@ -238,14 +325,14 @@ mod tests {
                 })
             );
             assert_eq!(notifier.get_cached(&TxHash::new([2; 32])), None);
+
+            // Before cleanup, the senders should still be present.
+            assert!(notifier.senders.read().unwrap().len() > 0);
         }
 
-        // Mix up the order of dropping the subscribers to catch any potential
-        // funny business.
-        drop(sub1a);
-        drop(sub2);
-        drop(sub1b);
+        wait().await;
 
-        assert_eq!(notifier.senders.len(), 0);
+        // After cleanup, all senders should be gone.
+        assert_eq!(notifier.senders.read().unwrap().len(), 0);
     }
 }

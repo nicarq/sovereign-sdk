@@ -46,7 +46,7 @@ use tower_http::compression::CompressionLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
-use tracing::{error_span, warn};
+use tracing::{error, error_span, trace, warn};
 
 /// The standard response type used by the utilities in this crate.
 pub type ApiResult<T, E = Response> = Result<ResponseObject<T>, E>;
@@ -209,42 +209,49 @@ where
             msg = socket.recv() => {
                 match msg {
                     Some(Err(error)) => {
-                        warn!(?error, "Websocket error");
-                        return;
+                        warn!(?error, "WebSocket error");
+                        break;
                     },
                     None => {
                         // The client disconnected.
-                        return;
+                        break;
                     },
                     Some(Ok(_)) => {
                         // Ignore incoming messages.
+                        trace!("Incoming WebSocket message but none was expected; ignoring");
                     },
                 }
             },
             data_res = subscription.next() => {
                 match data_res {
                     Some(Ok(data)) => {
-                        let Ok(serialized) = serde_json::to_string(&data) else {
-                            return
+                        let serialized = match serde_json::to_string(&data) {
+                            Ok(serialized) => serialized,
+                            Err(err) => {
+                                error!(?err, "Failed to serialize data for WebSocket; this is a bug, please report it");
+                                break;
+                            }
                         };
                         let message = ws::Message::Text(serialized);
                         if let Err(err) = socket.send(message).await {
-                            warn!(?err, "Websocket error while sending data");
+                            warn!(?err, "WebSocket error while sending data");
                             // Keep the loop going.
                         }
                     },
                     Some(Err(err)) => {
-                        warn!(?err, "Webocket error while receiving data from internal Tokio channel");
-                        return;
+                        warn!(?err, "WebSocket error while receiving data from internal Tokio channel");
+                        break;
                     },
                     None => {
                         // No more data to send.
-                        return;
+                        break;
                     },
                 }
             }
         }
     }
+
+    socket.close().await.ok();
 }
 
 #[cfg(test)]
