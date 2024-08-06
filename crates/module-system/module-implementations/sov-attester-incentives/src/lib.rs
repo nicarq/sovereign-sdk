@@ -5,7 +5,8 @@
 mod call;
 /// Methods used to instantiate the module
 mod genesis;
-
+mod process_message;
+mod registration;
 pub use call::*;
 pub use genesis::*;
 
