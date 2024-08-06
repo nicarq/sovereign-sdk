@@ -133,7 +133,7 @@ impl StateThing for StateVecSet {
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(&mut state.to_unmetered()).collect()
+        self.0.collect_infallible(&mut state.to_unmetered())
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
@@ -162,7 +162,7 @@ impl StateThing for StateVecPush {
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        self.0.iter(&mut state.to_unmetered()).collect()
+        self.0.collect_infallible(&mut state.to_unmetered())
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {
@@ -191,8 +191,7 @@ impl StateThing for StateVecRemove {
     }
 
     fn value<S: Spec>(&self, state: &mut WorkingSet<S>) -> Self::Value {
-        let mut unmetered_ws = state.to_unmetered();
-        self.0.iter(&mut unmetered_ws).collect()
+        self.0.collect_infallible(&mut state.to_unmetered())
     }
 
     fn change<S: Spec>(&self, state: &mut WorkingSet<S>) {

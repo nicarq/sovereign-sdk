@@ -94,7 +94,7 @@ where
         );
 
         let pending_transactions: Vec<PendingTransaction> =
-            self.pending_transactions.iter(state).collect();
+            self.pending_transactions.collect_infallible(state);
 
         self.pending_transactions.clear(state).unwrap_infallible();
 

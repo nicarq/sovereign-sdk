@@ -86,8 +86,7 @@ fn call_test() -> Result<(), Infallible> {
     assert_eq!(U256::from(set_arg), storage_value);
     assert_eq!(
         evm.receipts
-            .iter(&mut state_checkpoint.accessory_state())
-            .collect::<Vec<_>>(),
+            .collect_infallible::<Vec<_>, _>(&mut state_checkpoint.accessory_state()),
         [
             Receipt {
                 receipt: reth_primitives::Receipt {
@@ -146,7 +145,9 @@ fn failed_transaction_test() -> Result<(), Infallible> {
 
     // assert no pending transaction
     let mut unmetered_ws = working_set.to_unmetered();
-    let pending_txs = evm.pending_transactions.iter(&mut unmetered_ws);
+    let pending_txs = evm
+        .pending_transactions
+        .collect_infallible::<Vec<_>, _>(&mut unmetered_ws);
     assert_eq!(pending_txs.len(), 0);
 
     let state_checkpoint = &mut working_set.checkpoint().0;
