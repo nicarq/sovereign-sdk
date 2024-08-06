@@ -15,8 +15,8 @@ use sov_bank::{BalanceResponse, BankRpcClient, TokenId};
 use sov_ledger_json_client::Client as LedgerClient;
 use sov_modules_api::{clap, CryptoSpec, PublicKey};
 use sov_nonces::NoncesRpcClient;
-use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::TxHash;
 use sov_sequencer_json_client::types;
 
 use crate::wallet_state::{AddressEntry, KeyIdentifier, WalletState};
@@ -230,7 +230,8 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
                 for (i, tx) in txs.iter().enumerate() {
-                    let tx_hash = HexString::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx));
+                    let tx_hash =
+                        TxHash::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx).into());
                     println!("Submitting tx: {}: {}", i, tx_hash);
                     let response = sequencer_client
                         .accept_tx(&types::AcceptTxBody {

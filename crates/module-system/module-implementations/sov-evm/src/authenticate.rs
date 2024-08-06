@@ -7,6 +7,7 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
 use sov_modules_api::{CredentialId, GasMeter, PreExecWorkingSet, Spec};
+use sov_rollup_interface::TxHash;
 
 use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};
@@ -50,7 +51,7 @@ pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
     };
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
-        raw_tx_hash: tx_hash.into(),
+        raw_tx_hash: TxHash::new(tx_hash.into()),
         authenticated_tx,
     };
 

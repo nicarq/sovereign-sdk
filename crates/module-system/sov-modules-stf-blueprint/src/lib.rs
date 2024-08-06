@@ -22,9 +22,9 @@ use sov_modules_api::{
     WorkingSet,
 };
 pub use sov_modules_api::{BatchWithId, BlobData};
-use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
+use sov_rollup_interface::TxHash;
 use sov_state::storage::StateUpdate;
 use sov_state::Storage;
 pub use stf_blueprint::StfBlueprint;
@@ -118,29 +118,29 @@ pub enum TxProcessingErrorReason {
     /// The transaction was not applied because it didn't pass the pre-execution gas checks
     /// (from the `GasEnforcer::try_reserve_gas` capability).
     /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
-    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
+    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {}.", raw_tx_hash)]
     CannotReserveGas {
         /// The reason why this error was raised.
         reason: String,
         /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: [u8; 32],
+        raw_tx_hash: TxHash,
     },
     /// The transaction was not applied because it was a duplicate.
-    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
+    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {}.", raw_tx_hash)]
     Nonce {
         /// The reason why this error was raised.
         reason: String,
         /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: [u8; 32],
+        raw_tx_hash: TxHash,
     },
 
     /// The transaction was not applied because the `Context` could not be resolved.
-    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {}.", HexHash::new(*raw_tx_hash))]
+    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {}.", raw_tx_hash)]
     CannotResolveContext {
         /// The reason why this error was raised.
         reason: String,
         /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: [u8; 32],
+        raw_tx_hash: TxHash,
     },
     /// Transaction from unregistered sequencer was rejected.
     /// These transactions can be processed in the case of direct sequencer registration.
@@ -148,9 +148,10 @@ pub enum TxProcessingErrorReason {
     InvalidUnregisteredTx(String),
 }
 
-impl TryInto<(SkippedReason, [u8; 32])> for TxProcessingErrorReason {
+impl TryInto<(SkippedReason, TxHash)> for TxProcessingErrorReason {
     type Error = anyhow::Error;
-    fn try_into(self) -> Result<(SkippedReason, [u8; 32]), Self::Error> {
+
+    fn try_into(self) -> Result<(SkippedReason, TxHash), Self::Error> {
         match self {
             TxProcessingErrorReason::Nonce {
                 reason,

@@ -12,7 +12,7 @@ pub use db::{MempoolTx, SequencerDb};
 pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
-use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::TxHash;
 pub use tx_status::TxStatusNotifier;
 
 pub use crate::tx_status::TxStatus;

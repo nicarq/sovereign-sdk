@@ -5,7 +5,7 @@ use std::sync::{Arc, RwLock};
 use mini_moka::sync::Cache as MokaCache;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::da::DaBlobHash;
-use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::TxHash;
 use tokio::sync::broadcast;
 use tracing::{debug, error, trace};
 

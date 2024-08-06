@@ -5,7 +5,7 @@ use base64::prelude::*;
 use borsh::BorshSerialize;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 

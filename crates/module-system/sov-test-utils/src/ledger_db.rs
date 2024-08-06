@@ -14,6 +14,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
+use sov_rollup_interface::TxHash;
 use tempfile::{tempdir, TempDir};
 
 use crate::storage::SimpleLedgerStorageManager;
@@ -33,7 +34,7 @@ pub async fn materialize_simple_ledger_db_data(
     let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
 
     let tx_receipts = vec![TransactionReceipt {
-        tx_hash: [1; 32],
+        tx_hash: TxHash::new([1; 32]),
         body_to_save: Some(b"tx-body".to_vec()),
         events: events(),
         receipt: TxEffect::Successful(0),

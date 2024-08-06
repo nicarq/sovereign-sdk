@@ -6,6 +6,7 @@ use proptest::prelude::{any, Arbitrary};
 use proptest::strategy::{BoxedStrategy, Strategy};
 
 use super::{BatchReceipt, StoredEvent, TransactionReceipt, TxEffect, TxReceiptContents};
+use crate::TxHash;
 
 /// An object-safe hashing trait, which is blanket implemented for all
 /// [`digest::Digest`] implementors.
@@ -126,7 +127,7 @@ where
                     .boxed(),
             };
             (
-                any::<[u8; 32]>(),
+                any::<TxHash>(),
                 tx_body_strategy,
                 proptest::collection::vec(any::<StoredEvent>(), 0..args.max_events),
                 any::<TxEffect<T>>(),
@@ -135,7 +136,7 @@ where
                 .prop_map(
                     move |(tx_hash, body_to_save, events, receipt, mut gas_used)| {
                         let tx_hash = match (args.hasher.as_ref(), body_to_save.as_ref()) {
-                            (Some(hasher), Some(body)) => hasher.hash(body),
+                            (Some(hasher), Some(body)) => TxHash::new(hasher.hash(body)),
                             _ => tx_hash,
                         };
                         gas_used.resize(args.gas_unit_dimensions, 0);

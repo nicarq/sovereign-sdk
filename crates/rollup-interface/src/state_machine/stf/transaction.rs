@@ -4,6 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::StoredEvent;
+use crate::TxHash;
 
 /// A receipt for a single transaction. These receipts are stored in the rollup's database
 /// and may be queried via RPC. Receipts are generic over a type `R` which the rollup can use to
@@ -13,7 +14,7 @@ use super::StoredEvent;
 #[serde(bound = "T: TxReceiptContents")]
 pub struct TransactionReceipt<T: TxReceiptContents> {
     /// The canonical hash of this transaction
-    pub tx_hash: [u8; 32],
+    pub tx_hash: TxHash,
     /// The canonically serialized body of the transaction, if it should be persisted
     /// in the database
     pub body_to_save: Option<Vec<u8>>,

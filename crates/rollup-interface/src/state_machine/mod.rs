@@ -9,8 +9,13 @@ pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::common::HexHash;
+
 pub mod optimistic;
 pub mod storage;
+
+/// A rollup transaction hash.
+pub type TxHash = HexHash;
 
 /// Defines types and traits distingushing between "native" (full node) and "zk" execution.
 ///

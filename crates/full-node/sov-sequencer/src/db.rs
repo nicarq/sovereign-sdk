@@ -8,7 +8,7 @@ use sov_db::rocks_db_config::gen_rocksdb_options;
 use sov_db::{
     define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
 };
-use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::TxHash;
 use uuid::Uuid;
 
 use crate::mempool::TxIdWithinMempool;

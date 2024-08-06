@@ -147,7 +147,7 @@ pub fn split_tx_for_storage<T: TxReceiptContents>(
     let event_range =
         EventNumber(event_offset)..EventNumber(event_offset.saturating_add(tx.events.len() as u64));
     let tx_for_storage = StoredTransaction {
-        hash: tx.tx_hash,
+        hash: tx.tx_hash.into(),
         events: event_range,
         body: tx.body_to_save,
         receipt: DbBytes::new(
