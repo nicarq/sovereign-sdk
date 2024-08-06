@@ -8,7 +8,7 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{DaSpec, GenesisState, Spec};
 use sov_state::Storage;
 
-use crate::{AttesterIncentives, Role};
+use crate::AttesterIncentives;
 
 /// Configuration of the attester incentives module
 #[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
@@ -59,7 +59,7 @@ where
             .set(&config.rollup_finality_period, state)?;
 
         for (attester, bond) in config.initial_attesters.iter() {
-            self.bond_user_helper(*bond, attester, Role::Attester, state)?;
+            self.bond_attester(*bond, attester, state)?;
         }
 
         self.maximum_attested_height

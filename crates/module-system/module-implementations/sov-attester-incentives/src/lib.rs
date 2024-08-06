@@ -135,7 +135,7 @@ where
     ) -> Result<sov_modules_api::CallResponse, Error> {
         let res = match msg {
             call::CallMessage::BondAttester(bond_amount) => self
-                .bond_user_helper(bond_amount, context.sender(), Role::Attester, state)
+                .bond_attester(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
             call::CallMessage::BeginUnbondingAttester => self
                 .begin_unbond_attester(context, state)
@@ -144,7 +144,7 @@ where
                 .end_unbond_attester(context, state)
                 .map_err(|error| error.into()),
             call::CallMessage::BondChallenger(bond_amount) => self
-                .bond_user_helper(bond_amount, context.sender(), Role::Challenger, state)
+                .bond_challenger(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
             call::CallMessage::UnbondChallenger => self.unbond_challenger(context, state),
             call::CallMessage::ProcessAttestation(attestation) => self
