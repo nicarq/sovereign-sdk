@@ -14,14 +14,13 @@ use serde::{Deserialize, Serialize};
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;
 use sov_rollup_interface::zk::CryptoSpec;
+use sov_rollup_interface::TxHash;
 use thiserror::Error;
 
 use crate::{Gas, GasMeter, GasMeteringError, MeteredSigVerificationError, MeteredSignature, Spec};
 
 #[cfg(test)]
 mod tests;
-
-type RawTxHash = [u8; 32];
 
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(
@@ -211,7 +210,7 @@ impl<S: Spec> UnsignedTransaction<S> {
 /// A struct containing an authenticated transaction and its associated hash.
 pub struct AuthenticatedTransactionAndRawHash<S: Spec> {
     /// Hash of raw bytes.
-    pub raw_tx_hash: RawTxHash,
+    pub raw_tx_hash: TxHash,
     /// Authenticated transaction data.
     pub authenticated_tx: AuthenticatedTransactionData<S>,
 }

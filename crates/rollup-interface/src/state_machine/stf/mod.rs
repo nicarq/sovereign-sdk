@@ -17,7 +17,7 @@ use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
 use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
 
-#[cfg(any(all(test, feature = "sha2"), feature = "arbitrary"))]
+#[cfg(any(test, feature = "arbitrary"))]
 pub mod fuzzing;
 
 /// The configuration of a full node of the rollup which creates zk proofs.

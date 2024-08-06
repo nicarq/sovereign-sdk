@@ -7,8 +7,9 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{Batch, RawTx};
 use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
-use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxHash};
+use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::TxHash;
 use tokio::sync::Mutex;
 use tokio_stream::wrappers::BroadcastStream;
 

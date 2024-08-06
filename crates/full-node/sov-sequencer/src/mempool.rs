@@ -6,7 +6,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::common::HexString;
-use sov_rollup_interface::services::batch_builder::TxHash;
+use sov_rollup_interface::TxHash;
 use tracing::debug;
 
 use crate::db::{MempoolTx, SequencerDb};

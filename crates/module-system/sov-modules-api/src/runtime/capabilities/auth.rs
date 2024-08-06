@@ -33,6 +33,7 @@ use sov_modules_macros::config_value;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::TxHash;
 use thiserror::Error;
 
 use crate::transaction::{
@@ -237,7 +238,7 @@ pub struct AuthorizationData<S: Spec> {
 }
 
 fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
-    raw_tx_hash: [u8; 32],
+    raw_tx_hash: TxHash,
     tx: Transaction<S>,
     meter: &mut impl GasMeter<S::Gas>,
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, AuthenticationError> {
@@ -261,7 +262,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
         AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
             e.to_string(),
-            HexHash::new(raw_tx_hash),
+            raw_tx_hash,
         ))
     })?;
 
@@ -298,6 +299,7 @@ pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>
         PreExecWorkingSet<S, Meter>,
         <S::CryptoSpec as CryptoSpec>::Hasher,
     >::digest(raw_tx, state)
+    .map(TxHash::new)
     .map_err(|e| AuthenticationError::Invalid(e.to_string()))?;
 
     let tx = <Transaction<S> as MeteredBorshDeserialize<S::Gas>>::deserialize(&mut raw_tx, state)

@@ -10,7 +10,7 @@ pub type HexHash = HexString<[u8; 32]>;
 
 /// A [`serde`]-compatible newtype wrapper around [`Vec<u8>`] or other
 /// bytes-like types, which is serialized as a 0x-prefixed hex string.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef)]
+#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct HexString<T = Vec<u8>>(pub T);
 
@@ -104,6 +104,12 @@ impl<T: BorshDeserialize> BorshDeserialize for HexString<T> {
 }
 
 impl BlockHashTrait for HexHash {}
+
+impl From<sha2::digest::Output<sha2::Sha256>> for HexHash {
+    fn from(value: sha2::digest::Output<sha2::Sha256>) -> Self {
+        Self(value.into())
+    }
+}
 
 /// [`serde`] (de)serialization functions for [`HexString`], to be used with
 /// `#[serde(with = "...")]`.

@@ -14,6 +14,7 @@ use sov_modules_api::{
     GasMeter, PreExecWorkingSet, RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
     WorkingSet,
 };
+use sov_rollup_interface::TxHash;
 use tracing::{debug, error, info, warn};
 
 use crate::stf_blueprint::convert_to_runtime_events;
@@ -169,7 +170,7 @@ where
 
                     // In these cases the sequencer is penalized and we can just ignore the outcome
                     err => {
-                        match TryInto::<(SkippedReason, [u8; 32])>::try_into(err) {
+                        match TryInto::<(SkippedReason, TxHash)>::try_into(err) {
                             Ok((reason, raw_tx_hash)) => {
                                 warn!(
                                     error = %reason,
@@ -287,7 +288,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             Ok((tx, auth_data, message)) => (tx, auth_data, message),
         };
 
-    let raw_tx_hash = &tx.raw_tx_hash;
+    let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
     let maybe_ctx = runtime.capabilities().resolve_context(
@@ -311,7 +312,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 tx_scratchpad,
                 reason: TxProcessingErrorReason::CannotResolveContext {
                     reason: err_string,
-                    raw_tx_hash: *raw_tx_hash,
+                    raw_tx_hash,
                 },
             });
         }
@@ -336,7 +337,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             tx_scratchpad,
             reason: TxProcessingErrorReason::Nonce {
                 reason: err_string,
-                raw_tx_hash: *raw_tx_hash,
+                raw_tx_hash,
             },
         });
     }
@@ -363,7 +364,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     tx_scratchpad,
                     reason: TxProcessingErrorReason::CannotReserveGas {
                         reason: reason_string,
-                        raw_tx_hash: *raw_tx_hash,
+                        raw_tx_hash,
                     },
                 });
             }
@@ -424,7 +425,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         }
     };
 
-    let raw_tx_hash = &tx.raw_tx_hash;
+    let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
     let ctx = match runtime.capabilities().resolve_unregistered_context(
@@ -438,7 +439,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 tx_scratchpad: pre_exec_working_set.into(),
                 reason: TxProcessingErrorReason::CannotResolveContext {
                     reason: e.to_string(),
-                    raw_tx_hash: *raw_tx_hash,
+                    raw_tx_hash,
                 },
             });
         }
@@ -454,7 +455,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             tx_scratchpad: pre_exec_working_set.into(),
             reason: TxProcessingErrorReason::Nonce {
                 reason: e.to_string(),
-                raw_tx_hash: *raw_tx_hash,
+                raw_tx_hash,
             },
         });
     }
@@ -464,7 +465,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             tx_scratchpad: pre_exec_working_set.into(),
             reason: TxProcessingErrorReason::CannotReserveGas {
                 reason: e.to_string(),
-                raw_tx_hash: *raw_tx_hash,
+                raw_tx_hash,
             },
         });
     }
@@ -483,7 +484,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     tx_scratchpad: pre_exec_working_set.into(),
                     reason: TxProcessingErrorReason::CannotReserveGas {
                         reason: reason.to_string(),
-                        raw_tx_hash: *raw_tx_hash,
+                        raw_tx_hash,
                     },
                 });
             }
@@ -526,7 +527,7 @@ fn apply_tx<S, RT, Da>(
     ctx: Context<S>,
     tx: &AuthenticatedTransactionData<S>,
     auth_data: &<RT as RuntimeAuthenticator<S>>::AuthorizationData,
-    raw_tx_hash: &[u8; 32],
+    raw_tx_hash: TxHash,
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
     sequencer: &Da::Address,
@@ -544,7 +545,7 @@ where
             (
                 tx_scratchpad,
                 TransactionReceipt {
-                    tx_hash: *raw_tx_hash,
+                    tx_hash: raw_tx_hash,
                     body_to_save: None,
                     events: convert_to_runtime_events::<S, RT, Da>(events),
                     receipt: TxEffect::Successful(()),
@@ -553,11 +554,11 @@ where
                 transaction_consumption,
             )
         }
-        Err(e) => {
+        Err(error) => {
             // It's expected that transactions will revert, so we log them at the info level.
             info!(
-                error = %e,
-                raw_tx_hash = hex::encode(raw_tx_hash),
+                %error,
+                %raw_tx_hash,
                 "Tx was reverted",
             );
             // the transaction causing invalid state transition is reverted,
@@ -566,10 +567,10 @@ where
             let (tx_scratchpad, transaction_consumption) = working_set.revert();
 
             let receipt = TransactionReceipt {
-                tx_hash: *raw_tx_hash,
+                tx_hash: raw_tx_hash,
                 body_to_save: None,
                 events: vec![], // As in Ethereum, reverted transactions don't emit events
-                receipt: TxEffect::Reverted(e),
+                receipt: TxEffect::Reverted(error),
                 gas_used: transaction_consumption.base_fee().to_vec(),
             };
 
