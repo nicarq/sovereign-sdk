@@ -1,4 +1,4 @@
-- #1120 Improve error handling in SequencerRegistry.
+- #1129 changes `StateVec::iter` to return `Result`s to account for state reading errors. The new method `StateVec::collect_infallible` can be used in tests and for infallible state accessors.
 - #1108 improve error handling in `ProverIncentives` module.
 - #1104 Add `deposit` method to prover incentives module.
 - #1003 Removes the `BlobData` enum, requiring sequencers to post the `Batch` struct directly on chain.

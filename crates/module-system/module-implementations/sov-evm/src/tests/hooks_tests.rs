@@ -134,15 +134,13 @@ fn end_slot_hook_moves_transactions_and_receipts() -> Result<(), Infallible> {
 
     assert_eq!(
         evm.transactions
-            .iter(&mut state_checkpoint.accessory_state())
-            .collect::<Vec<_>>(),
+            .collect_infallible::<Vec<_>, _>(&mut state_checkpoint.accessory_state()),
         [tx1.transaction, tx2.transaction]
     );
 
     assert_eq!(
         evm.receipts
-            .iter(&mut state_checkpoint.accessory_state())
-            .collect::<Vec<_>>(),
+            .collect_infallible::<Vec<_>, _>(&mut state_checkpoint.accessory_state()),
         [tx1.receipt, tx2.receipt]
     );
 

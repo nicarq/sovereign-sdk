@@ -278,18 +278,34 @@ where
     }
 
     /// Returns an iterator over all the values in the vector.
-    pub fn iter<'a, 'ws, W>(&'a self, state: &'ws mut W) -> StateVecIter<'a, 'ws, N, V, Codec, W>
+    pub fn iter<'a, 'ws, W>(
+        &'a self,
+        state: &'ws mut W,
+    ) -> Result<StateVecIter<'a, 'ws, N, V, Codec, W>, <W as StateWriter<N>>::Error>
     where
-        W: InfallibleStateReaderAndWriter<N>,
+        W: StateReaderAndWriter<N>,
     {
-        let len = self.len(state).unwrap_infallible();
-        StateVecIter {
+        let len = self.len(state)?;
+        Ok(StateVecIter {
             state_vec: self,
             state,
             len,
             next_i: 0,
             _phantom: Default::default(),
-        }
+        })
+    }
+
+    /// Collects all items returned by [`StateVec::iter`] into a collection. Only available with
+    /// [`ApiStateAccessor`](crate::ApiStateAccessor) and other infallible state accessors.
+    pub fn collect_infallible<B, W>(&self, state: &mut W) -> B
+    where
+        B: FromIterator<V>,
+        W: InfallibleStateReaderAndWriter<N>,
+    {
+        self.iter(state)
+            .unwrap_infallible()
+            .map(|res| res.unwrap_infallible())
+            .collect()
     }
 }
 
@@ -302,7 +318,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: InfallibleStateReaderAndWriter<N>,
+    W: StateReaderAndWriter<N>,
 {
     state_vec: &'a NamespacedStateVec<N, V, Codec>,
     state: &'ws mut W,
@@ -317,20 +333,19 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: InfallibleStateReaderAndWriter<N>,
+    W: StateReaderAndWriter<N>,
 {
-    type Item = V;
+    type Item = Result<V, <W as StateWriter<N>>::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let elem = self
-            .state_vec
-            .get(self.next_i, self.state)
-            .unwrap_infallible();
-        if elem.is_some() {
-            self.next_i += 1;
+        match self.state_vec.get(self.next_i, self.state) {
+            Err(e) => Some(Err(e)),
+            Ok(None) => None,
+            Ok(Some(elem)) => {
+                self.next_i += 1;
+                Some(Ok(elem))
+            }
         }
-
-        elem
     }
 }
 
@@ -363,7 +378,7 @@ where
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
     Codec::KeyCodec: StateItemCodec<usize>,
     N: CompileTimeNamespace,
-    W: InfallibleStateReaderAndWriter<N>,
+    W: StateReaderAndWriter<N>,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
         if self.len == 0 {
@@ -371,7 +386,7 @@ where
         }
 
         self.len -= 1;
-        self.state_vec.get(self.len, self.state).unwrap_infallible()
+        self.state_vec.get(self.len, self.state).transpose()
     }
 }
 
@@ -404,7 +419,6 @@ mod test {
             check_test_case_action(&state_vec, test_case_action, &mut state);
         }
     }
-
     enum TestCaseAction<T> {
         Push(T),
         Pop(T),
@@ -467,7 +481,7 @@ mod test {
     {
         match action {
             TestCaseAction::CheckContents(expected) => {
-                let contents: Vec<T> = state_vec.iter(state).collect();
+                let contents: Vec<T> = state_vec.collect_infallible(state);
                 assert_eq!(expected, contents);
             }
             TestCaseAction::CheckLen(expected) => {
@@ -502,7 +516,8 @@ mod test {
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::CheckContentsReverse(expected) => {
-                let contents: Vec<T> = state_vec.iter(state).rev().collect();
+                let mut contents = state_vec.collect_infallible::<Vec<T>, _>(state);
+                contents.reverse();
                 assert_eq!(expected, contents);
             }
             TestCaseAction::Remove(index, expected) => {
