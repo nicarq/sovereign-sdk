@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sov_attester_incentives::{AttesterIncentiveErrors, Event, UnbondingInfo};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::GasMeter;
+use sov_modules_api::{GasMeter, Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     AsUser, SlotTestCase, TestAttester, TxTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
@@ -162,7 +162,9 @@ fn try_unbond_too_early() {
             attester.create_plain_message::<TestAttesterIncentives>(
                 sov_attester_incentives::CallMessage::EndUnbondingAttester,
             ),
-            ModuleError(AttesterIncentiveErrors::UnbondingNotFinalized.into()),
+            ModuleError(
+                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::UnbondingNotFinalized.into(),
+            ),
         ),
     ])]);
 }
@@ -214,7 +216,9 @@ fn try_skip_two_phase_unbonding() {
             attester.create_plain_message::<TestAttesterIncentives>(
                 sov_attester_incentives::CallMessage::EndUnbondingAttester,
             ),
-            ModuleError(AttesterIncentiveErrors::AttesterIsNotUnbonding.into()),
+            ModuleError(
+                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsNotUnbonding.into(),
+            ),
         ),
     ])]);
 }
@@ -259,7 +263,9 @@ fn try_bond_while_unbonding() {
         // The attester shouldn't be able to bond while unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
             attester.create_plain_message(sov_attester_incentives::CallMessage::BondAttester(100)),
-            ModuleError(AttesterIncentiveErrors::AttesterIsUnbonding.into()),
+            ModuleError(
+                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsUnbonding.into(),
+            ),
         )]),
     ]);
 }

@@ -7,8 +7,8 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    CallResponse, Context, EventEmitter, Gas, StateAccessor, StateTransitionPublicData,
-    StateWriter, TxState, Zkvm,
+    CallResponse, Context, EventEmitter, Gas, StateAccessor, StateAccessorError,
+    StateTransitionPublicData, StateWriter, TxState, Zkvm,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
@@ -91,7 +91,7 @@ where
         role: Role,
         reason: SlashingReason,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         if let Err(e) = self.slash_user(user, role, reason, state) {
             error!(
                 error = ?e,
@@ -123,7 +123,10 @@ where
         height: TransitionHeight,
         reason: SlashingReason,
         state: &mut TxStateAccessor,
-    ) -> Result<AttesterIncentiveErrors, <TxStateAccessor as StateWriter<User>>::Error> {
+    ) -> Result<
+        AttesterIncentiveErrors<StateAccessorError<S::Gas>>,
+        <TxStateAccessor as StateWriter<User>>::Error,
+    > {
         let reward = self.slash_user(attester, Role::Attester, reason, state)?;
 
         let curr_reward_value = self
@@ -144,7 +147,7 @@ where
         context: &Context<S>,
         amount: u64,
         state: &mut impl StateAccessor,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         self.transfer_tokens_to_sender(
             context,
             // Note: if we have an empty block, the attester will pay more than the reward (because of the transaction cost)
@@ -158,7 +161,7 @@ where
         context: &Context<S>,
         amount: u64,
         state: &mut impl StateAccessor,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
             amount,
@@ -185,7 +188,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> Result<(), AttesterIncentiveErrors> {
+    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
@@ -246,7 +249,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         if let Some(curr_tx) = self
             .chain_state
             .get_historical_transitions(claimed_transition_height, state)?
@@ -313,7 +316,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         // Normal state
         if let Some(transition) = self
             .chain_state
@@ -382,7 +385,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         let attestation = attestation.inner;
         // We first need to check that the attester is still in the bonding set
         if self
@@ -501,11 +504,13 @@ where
         public_outputs: StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), AttesterIncentiveErrors> {
+    ) -> anyhow::Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         let transition = self
             .chain_state
             .get_historical_transitions(*height, state)?
-            .ok_or(SlashingReason::TransitionInvalid)?;
+            .ok_or(AttesterIncentiveErrors::slashed(
+                SlashingReason::TransitionInvalid,
+            ))?;
 
         let initial_hash = {
             if let Some(prev_transition) = self
@@ -521,15 +526,21 @@ where
         };
 
         if public_outputs.initial_state_root != initial_hash {
-            return Err(SlashingReason::InvalidInitialHash.into());
+            return Err(AttesterIncentiveErrors::slashed(
+                SlashingReason::InvalidInitialHash,
+            ));
         }
 
         if &public_outputs.slot_hash != transition.slot_hash() {
-            return Err(SlashingReason::TransitionInvalid.into());
+            return Err(AttesterIncentiveErrors::slashed(
+                SlashingReason::TransitionInvalid,
+            ));
         }
 
         if public_outputs.validity_condition != *transition.validity_condition() {
-            return Err(SlashingReason::TransitionInvalid.into());
+            return Err(AttesterIncentiveErrors::slashed(
+                SlashingReason::TransitionInvalid,
+            ));
         }
 
         Ok(())
@@ -544,7 +555,7 @@ where
         proof: &[u8],
         transition_num: &TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self

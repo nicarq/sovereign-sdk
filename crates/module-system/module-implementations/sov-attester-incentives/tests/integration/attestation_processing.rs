@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sov_attester_incentives::AttesterIncentiveErrors;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, GasMeter};
+use sov_modules_api::{Error, GasMeter, Spec, StateAccessorError};
 use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
 use sov_test_utils::runtime::sov_attester_incentives::{
     AttesterIncentives, CallMessage, Event, Role,
@@ -131,7 +131,9 @@ fn test_burn_on_invalid_attestation() {
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
             genesis_attester
                 .test_process_attestation(Err(TestAttestationMessageError::InvalidProofOfBond)),
-            Error::ModuleError(AttesterIncentiveErrors::InvalidBondingProof.into()),
+            Error::ModuleError(
+                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidBondingProof.into(),
+            ),
         )])
         .with_end_slot_hook(Box::new(move |state| {
             // Assert that the attester was not slashed

@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{DaSpec, Gas, StateAccessorError};
+use sov_modules_api::DaSpec;
 use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
 use tracing::error;
@@ -161,7 +161,7 @@ pub enum SlashingReason {
 
 /// Error raised while processing the attester incentives
 #[derive(Debug, Error, PartialEq, Eq)]
-pub enum AttesterIncentiveErrors {
+pub enum AttesterIncentiveErrors<AccessorError> {
     #[error("Attester slashed")]
     /// The user was slashed. Reason specified by [`SlashingReason`]
     UserSlashed(#[source] SlashingReason),
@@ -210,17 +210,11 @@ pub enum AttesterIncentiveErrors {
 
     /// An error occurred when accessing the state
     #[error("Error occurred when accessing the state, error: {0}")]
-    StateAccessError(String),
+    StateAccessError(#[from] AccessorError),
 }
 
-impl<GU: Gas> From<StateAccessorError<GU>> for AttesterIncentiveErrors {
-    fn from(value: StateAccessorError<GU>) -> Self {
-        Self::StateAccessError(value.to_string())
-    }
-}
-
-impl From<SlashingReason> for AttesterIncentiveErrors {
-    fn from(value: SlashingReason) -> Self {
+impl<AccessorError> AttesterIncentiveErrors<AccessorError> {
+    pub(crate) fn slashed(value: SlashingReason) -> Self {
         Self::UserSlashed(value)
     }
 }

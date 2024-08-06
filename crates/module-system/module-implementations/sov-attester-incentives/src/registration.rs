@@ -1,37 +1,69 @@
 use core::result::Result::Ok;
 
 use anyhow::Context as AnyhowContext;
-use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
-use sov_state::EventContainer;
+use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_modules_api::{
+    CallResponse, Context, EventEmitter, StateAccessor, StateAccessorError, StateReader, TxState,
+};
+use sov_state::{EventContainer, User};
 
-use crate::{AttesterIncentiveErrors, AttesterIncentives, Event, Role, UnbondingInfo};
+use crate::{AttesterIncentiveErrors, AttesterIncentives, Event, UnbondingInfo};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
 {
-    /// A helper function for the `bond_challenger/attester` call. Also used to bond challengers/attesters
-    /// during genesis when no context is available.
-    pub(super) fn bond_user_helper(
+    pub(crate) fn bond_attester<ST: StateAccessor + EventContainer>(
         &self,
         bond_amount: u64,
         user_address: &S::Address,
-        role: Role,
-        state: &mut (impl StateAccessor + EventContainer),
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
-        // If the user is an attester, we have to check that he's not trying to unbond
-        if role == Role::Attester
-            && self
-                .unbonding_attesters
-                .get(user_address, state)
-                .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?
-                .is_some()
-        {
+        state: &mut ST,
+    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+        // If the user is an attester, we have to check that he's not trying to unbond.
+        if self.unbonding_attesters.get(user_address, state)?.is_some() {
             return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
         }
 
+        let balances = &self.bonded_attesters;
+        let total_balance =
+            self.bond_user_helper::<ST>(bond_amount, user_address, balances, state)?;
+
+        let event = Event::<S>::BondedAttester {
+            new_deposit: bond_amount,
+            total_bond: total_balance,
+        };
+
+        self.emit_event(state, event);
+        Ok(CallResponse::default())
+    }
+
+    pub(crate) fn bond_challenger<ST: StateAccessor + EventContainer>(
+        &self,
+        bond_amount: u64,
+        user_address: &S::Address,
+        state: &mut ST,
+    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+        let balances = &self.bonded_challengers;
+        let total_balance =
+            self.bond_user_helper::<ST>(bond_amount, user_address, balances, state)?;
+
+        let event = Event::<S>::BondedChallenger {
+            new_deposit: bond_amount,
+            total_bond: total_balance,
+        };
+
+        self.emit_event(state, event);
+        Ok(CallResponse::default())
+    }
+
+    fn bond_user_helper<ST: StateAccessor + EventContainer>(
+        &self,
+        bond_amount: u64,
+        user_address: &S::Address,
+        balances: &sov_modules_api::StateMap<S::Address, Amount>,
+        state: &mut ST,
+    ) -> Result<Amount, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
         // Transfer the bond amount from the sender to the module's id.
         // On failure, no state is changed
         let coins = Coins {
@@ -43,46 +75,20 @@ where
             .transfer_from(user_address, self.id.to_payable(), coins, state)
             .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
 
-        let balances = match role {
-            Role::Attester => &self.bonded_attesters,
-            Role::Challenger => &self.bonded_challengers,
-        };
-
         // Update our record of the total bonded amount for the sender.
         // This update is infallible, so no value can be destroyed.
-        let old_balance = balances
-            .get(user_address, state)
-            .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?
-            .unwrap_or_default();
+        let old_balance = balances.get(user_address, state)?.unwrap_or_default();
+
         let total_balance = old_balance
             .checked_add(bond_amount)
             .with_context(|| {
                 anyhow::anyhow!("The total balance overflows with the given operation")
             })
             .map_err(|_| AttesterIncentiveErrors::BondTransferFailure)?;
-        balances
-            .set(user_address, &total_balance, state)
-            .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?;
 
-        // Emit the bonding event
-        match role {
-            Role::Attester => self.emit_event(
-                state,
-                Event::<S>::BondedAttester {
-                    new_deposit: bond_amount,
-                    total_bond: total_balance,
-                },
-            ),
-            Role::Challenger => self.emit_event(
-                state,
-                Event::<S>::BondedChallenger {
-                    new_deposit: bond_amount,
-                    total_bond: total_balance,
-                },
-            ),
-        }
+        balances.set(user_address, &total_balance, state)?;
 
-        Ok(CallResponse::default())
+        Ok(total_balance)
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
@@ -117,7 +123,7 @@ where
         &self,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         // First get the bonded attester
         if let Some(bond) = self.bonded_attesters.get(context.sender(), state)? {
             let finalized_height = self
@@ -146,24 +152,19 @@ where
         &self,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors> {
+    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
         // We have to ensure that the attester is unbonding, and that the unbonding transaction
         // occurred at least `finality_period` blocks ago to let the attester unbond
-        if let Some(unbonding_info) = self
-            .unbonding_attesters
-            .get(context.sender(), state)
-            .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?
-        {
+        if let Some(unbonding_info) = self.unbonding_attesters.get(context.sender(), state)? {
             // These two constants should always be set beforehand, hence we can panic if they're not set
             let curr_height = self
                 .light_client_finalized_height
-                .get(state)
-                .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?
+                .get(state)?
                 .expect("Should be defined at genesis");
+
             let finality_period = self
                 .rollup_finality_period
-                .get(state)
-                .map_err(|e| AttesterIncentiveErrors::StateAccessError(e.to_string()))?
+                .get(state)?
                 .expect("Should be defined at genesis");
 
             if unbonding_info
