@@ -128,6 +128,16 @@ pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 5;
 /// The default name to use for the gas token.
 pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 
+/// Generates a default [`TxDetails`] for testing.
+pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
+    TxDetails {
+        max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
+        max_fee: TEST_DEFAULT_MAX_FEE,
+        gas_limit: None,
+        chain_id: config_value!("CHAIN_ID"),
+    }
+}
+
 /// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
 /// a `u32` as the receipt contents.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]

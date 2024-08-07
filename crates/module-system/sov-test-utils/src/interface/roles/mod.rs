@@ -7,7 +7,8 @@ pub use attester_incentives::*;
 pub use prover::{TestProver, TestProverConfig};
 pub use sequencer::{TestSequencer, TestSequencerConfig};
 
-use super::MessageType;
+use super::TransactionType;
+use crate::default_test_tx_details;
 
 /// A representation of a simple user that is not staked at genesis.
 #[derive(Debug, Clone)]
@@ -73,7 +74,11 @@ pub trait AsUser<S: Spec> {
     fn create_plain_message<M: Module<Spec = S>>(
         &self,
         message: M::CallMessage,
-    ) -> MessageType<M, S> {
-        MessageType::Plain(message, self.as_user().private_key().clone())
+    ) -> TransactionType<M, S> {
+        TransactionType::Plain {
+            message,
+            key: self.as_user().private_key().clone(),
+            details: default_test_tx_details::<S>(),
+        }
     }
 }
