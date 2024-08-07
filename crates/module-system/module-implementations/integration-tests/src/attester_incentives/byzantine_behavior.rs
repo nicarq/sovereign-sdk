@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
+use sov_attester_incentives::{CallMessage, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_mock_da::{MockAddress, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
@@ -23,7 +23,7 @@ use crate::helpers::{Da, ExecutionSimulationVars, TestRollup, S};
 impl AttesterIncentivesTestHandler {
     fn check_attester_bonded(&self, rollup: &mut TestRollup) -> Result<(), Infallible> {
         assert_eq!(
-            rollup.get_user_bond(Role::Attester, self.attester_addr())?,
+            rollup.get_attester_bond(self.attester_addr())?,
             self.attester_stake
         );
 
@@ -95,8 +95,7 @@ impl AttesterIncentivesTestHandler {
             assert_eq!(rollup.get_bad_transition_reward(1)?, self.attester_stake);
 
             assert_eq!(
-                rollup.get_user_bond(
-                    Role::Attester,
+                rollup.get_attester_bond(
                     self.attester_private_key
                         .to_address::<<S as Spec>::Address>()
                 )?,
@@ -176,8 +175,7 @@ impl AttesterIncentivesTestHandler {
 
             // The challenger has bonded
             assert_eq!(
-                rollup.get_user_bond(
-                    Role::Challenger,
+                rollup.get_challenger_bond(
                     self.challenger_private_key
                         .to_address::<<S as Spec>::Address>()
                 )?,

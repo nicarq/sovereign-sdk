@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::vec;
 
-use sov_attester_incentives::{CallMessage, Role, WrappedAttestation};
+use sov_attester_incentives::{CallMessage, WrappedAttestation};
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Batch, StateCheckpoint};
@@ -24,7 +24,7 @@ impl AttesterIncentivesTestHandler {
         assert_eq!(rollup.get_maximum_attested_height()?, 0);
 
         assert_eq!(
-            rollup.get_user_bond(Role::Attester, self.attester_addr())?,
+            rollup.get_attester_bond(self.attester_addr())?,
             self.attester_stake
         );
 
