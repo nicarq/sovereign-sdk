@@ -6,6 +6,7 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_wallet_format::UniversalWallet;
 
 use crate::bytes::Prefix;
 use crate::codec::{EncodeKeyLike, StateItemCodec};
@@ -27,8 +28,10 @@ use crate::{StateAccesses, Witness};
     serde::Deserialize,
     BorshDeserialize,
     BorshSerialize,
+    UniversalWallet,
 )]
 pub struct SlotKey {
+    #[sov_wallet(hidden)]
     key: Arc<Vec<u8>>,
 }
 
@@ -115,8 +118,10 @@ impl SlotKey {
     serde::Deserialize,
     BorshDeserialize,
     BorshSerialize,
+    UniversalWallet,
 )]
 pub struct SlotValue {
+    #[sov_wallet(hidden)]
     value: Arc<Vec<u8>>,
 }
 
@@ -147,15 +152,26 @@ impl SlotValue {
 }
 
 #[derive(
-    Debug, Clone, PartialEq, Eq, Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
+    UniversalWallet,
 )]
 /// A proof that a particular storage key has a particular value, or is absent.
+// Note: This type intentionally does not derive `UniveralWallet` because the slotkey and slotvalue
+// can't be displayed meaningfully without additional context
 pub struct StorageProof<P> {
     /// The key which is proven
     pub key: SlotKey,
     /// The value, if any, which is proven
     pub value: Option<SlotValue>,
     /// The cryptographic proof
+    #[sov_wallet(hidden)]
     pub proof: P,
     /// The namespace of the key.
     pub namespace: ProvableNamespace,

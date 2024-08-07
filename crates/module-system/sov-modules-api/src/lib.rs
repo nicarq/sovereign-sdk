@@ -99,6 +99,7 @@ pub use sov_rollup_interface::zk::{
 };
 pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::Storage;
+pub use sov_wallet_format;
 pub use state::*;
 
 pub use crate::common::ModuleError as Error;
@@ -166,6 +167,7 @@ pub mod prelude {
     pub extern crate serde_json;
     #[cfg(feature = "native")]
     pub extern crate sov_rest_utils;
+    pub extern crate sov_wallet_format;
     #[cfg(feature = "native")]
     pub extern crate tokio;
     #[cfg(feature = "native")]

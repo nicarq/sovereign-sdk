@@ -2,6 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_wallet_format::UniversalWallet;
 
 #[derive(
     Clone,
@@ -41,6 +42,7 @@ pub enum Namespace {
     BorshDeserialize,
     Serialize,
     Deserialize,
+    UniversalWallet,
 )]
 /// Namespaces which can be merkle proven.
 pub enum ProvableNamespace {

@@ -75,7 +75,7 @@ pub mod framework {
 
     use borsh::{BorshDeserialize, BorshSerialize};
     use serde::{Deserialize, Serialize};
-    use sov_attester_incentives::{AttesterIncentives, CallMessage, WrappedAttestation};
+    use sov_attester_incentives::{AttesterIncentives, CallMessage};
     use sov_chain_state::ChainState;
     use sov_mock_da::{MockDaSpec, MockHash};
     use sov_mock_zkvm::MockZkvm;
@@ -156,7 +156,7 @@ pub mod framework {
                 };
             }
 
-            CallMessage::ProcessAttestation(WrappedAttestation { inner: attestation })
+            CallMessage::ProcessAttestation(attestation)
         }
     }
 

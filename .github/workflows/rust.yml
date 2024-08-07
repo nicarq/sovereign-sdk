@@ -54,6 +54,7 @@ env:
   RUSTFLAGS: -D warnings
   # This is faster for CI: https://github.com/dtolnay/rust-toolchain/issues/26.
   CARGO_INCREMENTAL: "0"
+  CARGO_NET_GIT_FETCH_WITH_CLI: true
 
 # Automatically cancels a job if a new commit if pushed to the same PR, branch, or tag.
 # Source: <https://stackoverflow.com/a/72408109/5148606>
@@ -105,6 +106,9 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 60
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -154,6 +158,9 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -190,6 +197,9 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -226,6 +236,9 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -268,6 +281,9 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -302,6 +318,9 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -329,6 +348,9 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -363,6 +385,9 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -397,6 +422,9 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc
@@ -432,6 +460,9 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
         with:
           submodules: true
@@ -473,6 +504,9 @@ jobs:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     timeout-minutes: 30
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: taiki-e/install-action@cargo-deny
       - run: make cargo-deny-check-licenses
@@ -489,6 +523,9 @@ jobs:
       S3_BUCKET_NAME: "sovlabs-ci-rustdoc-artifacts"
       AWS_REGION: "us-east-1"
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
         # Not sure installing `mold` is actually needed, but it's what the
         # `check` job, and we'd rather keep things as similar as possible.
@@ -554,6 +591,9 @@ jobs:
   check-demo-rollup-table-of-contents:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
       - run: npm install -g doctoc
@@ -580,6 +620,9 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - name: Login to Docker Hub
         if: github.event.pull_request.head.repo.full_name == github.repository
@@ -625,6 +668,9 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Install Protoc

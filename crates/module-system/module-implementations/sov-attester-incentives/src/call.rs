@@ -3,7 +3,6 @@ use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
@@ -14,67 +13,16 @@ use tracing::error;
 
 use crate::Amount;
 
-/// A wrapper for attestations which implements `borsh` serialization. This is necessary since
-/// Attestations are treated as `CallMessage`s, and we only support borsh encoding for transactions.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WrappedAttestation<Da: DaSpec, StorageProof, Root> {
-    #[serde(
-        bound = "Da::SlotHash: Serialize + DeserializeOwned, StorageProof: Serialize + DeserializeOwned, Root: Serialize + DeserializeOwned"
-    )]
-    /// The inner attestation
-    pub inner: Attestation<Da, StorageProof, Root>,
-}
-
-impl<Da: DaSpec, StorageProof: Debug, Root: Debug> Debug
-    for WrappedAttestation<Da, StorageProof, Root>
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("WrappedAttestation")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-impl<Da: DaSpec, StorageProof, Root> From<Attestation<Da, StorageProof, Root>>
-    for WrappedAttestation<Da, StorageProof, Root>
-{
-    fn from(value: Attestation<Da, StorageProof, Root>) -> Self {
-        Self { inner: value }
-    }
-}
-
-impl<Da: DaSpec, StorageProof: Serialize, Root: Serialize> BorshSerialize
-    for WrappedAttestation<Da, StorageProof, Root>
-{
-    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        // TODO: Implement bcs `to_writer`
-        let value = bcs::to_bytes(&self.inner).map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::Other, "Failed to serialize attestation")
-        })?;
-        writer.write_all(&value)?;
-        Ok(())
-    }
-}
-
-impl<
-        Da: DaSpec,
-        StorageProof: Serialize + DeserializeOwned,
-        Root: Serialize + DeserializeOwned,
-    > BorshDeserialize for WrappedAttestation<Da, StorageProof, Root>
-{
-    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        bcs::from_reader(reader)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-    }
-
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        bcs::from_bytes(buf)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))
-    }
-}
-
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
-#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+#[derive(
+    Derivative,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    Clone,
+    sov_modules_api::macros::UniversalWallet,
+)]
 #[derivative(
     PartialEq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq"),
     Eq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq")
@@ -93,7 +41,7 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
     /// Processes an attestation.
     ProcessAttestation(
         #[allow(clippy::type_complexity)]
-        WrappedAttestation<
+        Attestation<
             Da,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,

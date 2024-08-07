@@ -198,7 +198,7 @@ pub trait BlobReaderTrait: Serialize + DeserializeOwned + Send + Sync + 'static 
 /// Trait with a collection of trait bounds for a block hash.
 pub trait BlockHashTrait:
     // so it is compatible with StorageManager implementation?
-    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + AsRef<[u8]> + core::hash::Hash + core::fmt::Display {
+    Serialize + DeserializeOwned + PartialEq + Debug + Send + Sync + Clone + Eq + Into<[u8; 32]> + AsRef<[u8]> + core::hash::Hash + core::fmt::Display + BorshDeserialize + BorshSerialize {
 }
 
 /// A block header, typically used in the context of an underlying DA blockchain.
@@ -246,7 +246,16 @@ impl<T: BlockHeaderTrait> core::fmt::Display for BlockHeaderDisplay<'_, T> {
 }
 
 #[derive(
-    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Default,
+    Serialize,
+    Deserialize,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    BorshDeserialize,
+    BorshSerialize,
+    Default,
+    sov_wallet_format::UniversalWallet,
 )]
 /// A timestamp, represented as seconds since the unix epoch.
 pub struct Time {

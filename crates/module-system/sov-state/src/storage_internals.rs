@@ -8,6 +8,7 @@ use jmt::{RootHash, SimpleHasher};
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
+use sov_wallet_format::UniversalWallet;
 
 use crate::namespaces::Namespaced;
 use crate::MerkleProofSpec;
@@ -17,7 +18,14 @@ use crate::MerkleProofSpec;
 /// correct hash.
 /// We use the generic `S: MerkleProofSpec` to specify the hash function used to compute the global root hash.
 /// The global root hash is computed by hashing the user hash and the kernel hash together.
-#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(
+    Derivative,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    sov_wallet_format::UniversalWallet,
+)]
 #[derivative(
     Debug(bound = "S: MerkleProofSpec"),
     Eq(bound = "S: MerkleProofSpec"),
@@ -124,7 +132,7 @@ impl From<VisibleHash> for [u8; 32] {
 }
 
 /// A storage proof that is used to verify the existence of a key in the storage.
-#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize, UniversalWallet)]
 #[derivative(
     PartialEq(bound = "H: SimpleHasher"),
     Eq(bound = "H: SimpleHasher"),
@@ -134,8 +142,43 @@ impl From<VisibleHash> for [u8; 32] {
 pub struct SparseMerkleProof<H: SimpleHasher>(
     #[serde(bound(serialize = "", deserialize = ""))]
     #[borsh(bound(serialize = "", deserialize = ""))]
+    #[sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")]
     jmt::proof::SparseMerkleProof<H>,
 );
+
+// The types in this module aren't actually dead code, they are used as placeholders in the wallet
+// However, since they only appear in the Schema (which isn't Rust code), Rustc doesn't know that.
+#[allow(dead_code)]
+mod wallet_placeholders {
+    use sov_wallet_format::UniversalWallet;
+    #[derive(UniversalWallet)]
+    pub struct MerkleDisplayPlaceholder {
+        leaf: Option<SparseMerkleLeafNodePlacholder>,
+        siblings: Vec<SparseMerkleNodePlaceholder>,
+    }
+
+    #[derive(UniversalWallet)]
+    struct SparseMerkleInternalNodePlaceholder {
+        left_child: [u8; 32],
+        right_child: [u8; 32],
+    }
+
+    #[derive(UniversalWallet)]
+    enum SparseMerkleNodePlaceholder {
+        // The default sparse node
+        Null,
+        // The internal sparse merkle tree node
+        Internal(SparseMerkleInternalNodePlaceholder),
+        // The leaf sparse merkle tree node
+        Leaf(SparseMerkleLeafNodePlacholder),
+    }
+
+    #[derive(UniversalWallet)]
+    pub struct SparseMerkleLeafNodePlacholder {
+        key_hash: [u8; 32],
+        value_hash: [u8; 32],
+    }
+}
 
 impl<H: SimpleHasher> SparseMerkleProof<H> {
     /// Returns the underlying proof.

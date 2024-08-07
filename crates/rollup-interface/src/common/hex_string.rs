@@ -10,7 +10,18 @@ pub type HexHash = HexString<[u8; 32]>;
 
 /// A [`serde`]-compatible newtype wrapper around [`Vec<u8>`] or other
 /// bytes-like types, which is serialized as a 0x-prefixed hex string.
-#[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    derive_more::AsRef,
+    sov_wallet_format::UniversalWallet,
+)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct HexString<T = Vec<u8>>(pub T);
 

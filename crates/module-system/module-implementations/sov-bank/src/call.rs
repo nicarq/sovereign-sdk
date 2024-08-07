@@ -12,6 +12,7 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     feature = "native",
     derive(CliWalletArg),
     derive(schemars::JsonSchema),
+    derive(sov_modules_api::macros::UniversalWallet),
     schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
 )]
 #[derive(

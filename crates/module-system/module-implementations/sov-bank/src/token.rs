@@ -61,7 +61,12 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
 /// Structure that stores information specifying
 /// a given `amount` (type [`Amount`]) of coins stored at a `token_id`
 /// (type [`crate::TokenId`]).
-#[cfg_attr(feature = "native", derive(clap::Parser), derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "native",
+    derive(clap::Parser),
+    derive(schemars::JsonSchema),
+    derive(sov_modules_api::macros::UniversalWallet)
+)]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,

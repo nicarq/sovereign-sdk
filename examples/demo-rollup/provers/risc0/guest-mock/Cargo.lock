@@ -2876,9 +2876,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.115"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12dc5c46daa8e9fdf4f5e71b6cf9a53f2487da0e86e55808e2d35539666497dd"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",
@@ -3128,6 +3128,7 @@ dependencies = [
  "serde",
  "sha2",
  "sov-rollup-interface",
+ "sov-wallet-format",
  "tracing",
 ]
 
@@ -3166,6 +3167,7 @@ dependencies = [
  "sov-modules-macros",
  "sov-rollup-interface",
  "sov-state",
+ "sov-wallet-format",
  "thiserror",
  "tracing",
  "unwrap-infallible",
@@ -3185,6 +3187,7 @@ dependencies = [
  "prettier-please",
  "proc-macro2",
  "quote",
+ "sov-wallet-format-macro-helpers",
  "syn 1.0.109",
  "toml",
 ]
@@ -3277,6 +3280,7 @@ dependencies = [
  "hex",
  "serde",
  "sha2",
+ "sov-wallet-format",
  "thiserror",
 ]
 
@@ -3311,6 +3315,7 @@ dependencies = [
  "serde-big-array",
  "sha2",
  "sov-rollup-interface",
+ "sov-wallet-format",
  "thiserror",
 ]
 
@@ -3339,6 +3344,41 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
+]
+
+[[package]]
+name = "sov-wallet-format"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "bech32",
+ "hex",
+ "serde",
+ "serde_json",
+ "sov-wallet-format-macros",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-wallet-format-macro-helpers"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "convert_case 0.6.0",
+ "darling 0.20.8",
+ "hex",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.55",
+ "syn_derive",
+]
+
+[[package]]
+name = "sov-wallet-format-macros"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "sov-wallet-format-macro-helpers",
 ]
 
 [[package]]
@@ -3476,18 +3516,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.58"
+version = "1.0.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03468839009160513471e86a034bb2c5c0e4baae3b43f79ffc55c4a5427b3297"
+checksum = "c546c80d6be4bc6a00c0f01730c08df82eaa7a7a61f11d656526506112cc1709"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.58"
+version = "1.0.61"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
+checksum = "46c3384250002a6d5af4d114f2845d37b57521033f30d5c3f46c4d70e1197533"
 dependencies = [
  "proc-macro2",
  "quote",

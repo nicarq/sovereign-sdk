@@ -19,6 +19,7 @@ pub use signatures::*;
     Eq,
     Clone,
     Copy,
+    sov_wallet_format::UniversalWallet,
 )]
 pub struct CredentialId(pub [u8; 32]);
 

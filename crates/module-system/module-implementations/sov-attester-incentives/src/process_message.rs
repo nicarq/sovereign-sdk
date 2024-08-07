@@ -16,7 +16,7 @@ use sov_state::User;
 use thiserror::Error;
 use tracing::{debug, error};
 
-use super::call::{SlashingReason, WrappedAttestation};
+use super::call::SlashingReason;
 use crate::{AttesterIncentives, Event};
 
 /// Error raised while processing the attester incentives.
@@ -423,14 +423,13 @@ where
     pub(crate) fn process_attestation(
         &self,
         context: &Context<S>,
-        attestation: WrappedAttestation<
+        attestation: Attestation<
             Da,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
-        let attestation = attestation.inner;
         // We first need to check that the attester is still in the bonding set
         if self
             .bonded_attesters
