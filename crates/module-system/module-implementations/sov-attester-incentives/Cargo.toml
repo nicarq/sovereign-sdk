@@ -27,7 +27,6 @@ sov-rollup-interface = { workspace = true }
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-bcs = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
 derivative = { workspace = true }

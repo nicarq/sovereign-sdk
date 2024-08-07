@@ -251,6 +251,16 @@ pub fn config_value(item: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), make_const_value(&constant_name).map(Into::into))
 }
 
+#[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
+pub fn derive_wallet(input: TokenStream) -> TokenStream {
+    sov_wallet_format_macro_helpers::derive_wallet(
+        input,
+        Some(sov_wallet_format_macro_helpers::syn::parse_quote!(
+            sov_modules_api
+        )),
+    )
+}
+
 #[proc_macro_attribute]
 #[cfg(feature = "native")]
 pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {

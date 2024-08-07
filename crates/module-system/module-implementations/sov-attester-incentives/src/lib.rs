@@ -20,6 +20,7 @@ pub use process_message::{ProcessAttestationErrors, ProcessChallengeErrors};
 pub use query::*;
 use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
+pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
 
 pub use crate::event::Event;

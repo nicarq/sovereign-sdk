@@ -28,13 +28,15 @@ tokio = { workspace = true, optional = true, features = ["test-util"] }
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
 sov-rollup-interface = { workspace = true }
+sov-wallet-format = { workspace = true, features = ["macros"] }
 
 # For storable service
 sea-orm = { version = "0.12", features = [
 	"sqlx-sqlite",
 	"runtime-tokio-rustls",
 	"macros",
-	"with-chrono"], default-features = false, optional = true }
+	"with-chrono",
+], default-features = false, optional = true }
 chrono = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -60,4 +62,4 @@ native = [
 	"sov-mock-da/native",
 	"sov-rollup-interface/native",
 ]
-postgres = [ "native", "sea-orm/sqlx-postgres" ]
+postgres = ["native", "sea-orm/sqlx-postgres"]

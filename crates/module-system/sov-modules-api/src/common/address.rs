@@ -8,6 +8,7 @@ use sha2::digest::typenum::U32;
 use sha2::Digest;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
+use sov_wallet_format::schema::Schema;
 
 /// Implement type conversions between a `\[u8;32\]` wrapper and a bech32 string representation.
 /// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8; 32]` as
@@ -185,10 +186,16 @@ macro_rules! impl_hash32_type {
         #[derive(
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
         )]
-        #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+        #[cfg_attr(
+            feature = "native",
+            derive(schemars::JsonSchema),
+            derive(sov_modules_api::macros::UniversalWallet)
+        )]
         #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
         /// A globally unique identifier.
-        pub struct $id([u8; 32]);
+        pub struct $id(
+            #[cfg_attr(feature ="native", sov_wallet(display(bech32m(prefix = $human_readable_prefix))))] [u8; 32],
+        );
 
         impl From<[u8; 32]> for $id {
             fn from(inner: [u8; 32]) -> Self {
@@ -242,6 +249,12 @@ macro_rules! impl_hash32_type {
     };
 }
 
+// A hack to ensure that the path to `sov_modules_api::macros` is valid
+// since we're inside sov_modules_api
+#[doc(hidden)]
+mod sov_modules_api {
+    pub use sov_wallet_format;
+}
 impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 
 /// Module ID representation.
@@ -253,6 +266,18 @@ pub struct Address<H> {
     #[derivative(Hash = "ignore", PartialEq = "ignore")]
     phantom: std::marker::PhantomData<H>,
 }
+
+// Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
+// to just `sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx`
+impl<H: 'static> sov_wallet_format::traits::SchemaGenerator for Address<H> {
+    fn write_schema(output: &mut Schema) {
+        output.register_proxy::<Self, AddressSchema>();
+    }
+}
+
+#[derive(crate::macros::UniversalWallet)]
+#[allow(dead_code)]
+struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "sov")))] [u8; 32]);
 
 // We manually implement clone so that we can silence this clippy warning.
 // Derivative has o facility to enable that.
@@ -395,6 +420,7 @@ mod test {
     use sha2::Sha256;
     use sov_risc0_adapter::crypto::Risc0PublicKey;
     use sov_rollup_interface::crypto::PublicKeyHex;
+    use sov_wallet_format::compiled_schema::CompiledSchema;
 
     use super::*;
 
@@ -407,6 +433,16 @@ mod test {
         assert_eq!(address, deserialized_address);
         assert_eq!(
             deserialized_address.to_string(),
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
+        );
+    }
+
+    #[test]
+    fn test_address_schema() {
+        let address: Address<Sha256> = Address::from([11; 32]);
+        let schema = CompiledSchema::of::<Address<Sha256>>();
+        assert_eq!(
+            schema.display(&borsh::to_vec(&address).unwrap()).unwrap(),
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
         );
     }

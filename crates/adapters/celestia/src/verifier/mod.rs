@@ -68,6 +68,24 @@ impl BlobReaderTrait for BlobWithSender {
 #[repr(transparent)]
 pub struct TmHash(pub celestia_tendermint::Hash);
 
+impl BorshSerialize for TmHash {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
+        BorshSerialize::serialize(self.inner(), writer)
+    }
+}
+
+impl BorshDeserialize for TmHash {
+    fn deserialize(buf: &mut &[u8]) -> Result<Self, std::io::Error> {
+        let bytes = <[u8; 32] as BorshDeserialize>::deserialize(buf)?;
+        Ok(Self(celestia_tendermint::Hash::Sha256(bytes)))
+    }
+
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bytes = <[u8; 32]>::deserialize_reader(reader)?;
+        Ok(Self(celestia_tendermint::Hash::Sha256(bytes)))
+    }
+}
+
 impl AsRef<[u8]> for TmHash {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()

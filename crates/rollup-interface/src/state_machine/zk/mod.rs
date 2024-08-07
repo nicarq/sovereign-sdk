@@ -144,7 +144,17 @@ pub trait ValidityCondition:
 /// if and only if the condition `validity_condition` is satisfied.
 ///
 /// The period of time covered by a state transition proof may be a single slot, or a range of slots on the DA layer.
-#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[derive(
+    Clone,
+    Debug,
+    Serialize,
+    Deserialize,
+    BorshSerialize,
+    BorshDeserialize,
+    PartialEq,
+    Eq,
+    sov_wallet_format::UniversalWallet,
+)]
 pub struct StateTransitionPublicData<Address, Da: DaSpec, Root> {
     /// The state of the rollup before the transition
     #[borsh(bound(
@@ -191,7 +201,9 @@ pub trait Matches<T> {
     fn matches(&self, other: &T) -> bool;
 }
 
-#[derive(Serialize, BorshDeserialize, BorshSerialize, Deserialize)]
+#[derive(
+    Serialize, BorshDeserialize, BorshSerialize, Deserialize, sov_wallet_format::UniversalWallet,
+)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
@@ -219,7 +231,9 @@ pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     pub witness: Witness,
 }
 
-#[derive(Serialize, BorshDeserialize, BorshSerialize, Deserialize)]
+#[derive(
+    Serialize, BorshDeserialize, BorshSerialize, Deserialize, sov_wallet_format::UniversalWallet,
+)]
 #[serde(
     bound = "Address: Serialize + DeserializeOwned, StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned"
 )]

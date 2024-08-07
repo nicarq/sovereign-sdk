@@ -14,6 +14,7 @@ use sov_rollup_interface::da::{
 #[cfg(feature = "native")]
 use sov_rollup_interface::services::da::SlotData;
 use sov_rollup_interface::Bytes;
+use sov_wallet_format::UniversalWallet;
 
 #[cfg(feature = "native")]
 use crate::storable::service::BlockProducing;
@@ -41,6 +42,7 @@ pub struct Proof(pub(crate) Vec<u8>);
     BorshSerialize,
     derive_more::From,
     derive_more::Into,
+    UniversalWallet,
 )]
 pub struct MockHash(pub [u8; 32]);
 

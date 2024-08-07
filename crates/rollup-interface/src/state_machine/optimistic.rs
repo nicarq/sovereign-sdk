@@ -8,18 +8,37 @@ use crate::zk::StateTransitionPublicData;
 /// A proof that the attester was bonded at the transition num `transition_num`.
 /// For rollups using the `jmt`, this will be a `jmt::SparseMerkleProof`
 #[derive(
-    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+    Default,
+    PartialEq,
+    Eq,
+    sov_wallet_format::UniversalWallet,
 )]
 pub struct ProofOfBond<StateProof> {
     /// The transition number for which the proof of bond applies
     pub claimed_transition_num: u64,
     /// The actual state proof that the attester was bonded
+    #[sov_wallet(hidden)]
     pub proof: StateProof,
 }
 
 /// An attestation that a particular DA layer block transitioned the rollup state to some value
 #[derive(
-    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
+    Debug,
+    Clone,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+    Default,
+    PartialEq,
+    Eq,
+    sov_wallet_format::UniversalWallet,
 )]
 pub struct Attestation<Da: DaSpec, StateProof, StateRoot> {
     /// The alleged state root before applying the contents of the da block
@@ -34,7 +53,17 @@ pub struct Attestation<Da: DaSpec, StateProof, StateRoot> {
 
 /// The contents of a challenge to an attestation, which are contained as a public output of the proof
 /// Generic over an address type and a validity condition
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    BorshSerialize,
+    BorshDeserialize,
+    Serialize,
+    Deserialize,
+    sov_wallet_format::UniversalWallet,
+)]
 pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     /// The rollup address of the originator of this challenge
     pub challenger_address: Address,
@@ -46,6 +75,15 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     pub state_transition: StateTransitionPublicData<Address, Da, Root>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    sov_wallet_format::UniversalWallet,
+)]
 /// This struct contains the challenge as a raw blob
 pub struct Challenge<'a>(&'a [u8]);

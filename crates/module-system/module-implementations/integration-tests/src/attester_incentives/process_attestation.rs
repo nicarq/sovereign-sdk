@@ -1,9 +1,8 @@
 use std::convert::Infallible;
 use std::vec;
 
-use sov_attester_incentives::{CallMessage, WrappedAttestation};
+use sov_attester_incentives::{Attestation, CallMessage};
 use sov_bank::GAS_TOKEN_ID;
-use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{Batch, StateCheckpoint};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
@@ -97,7 +96,7 @@ impl AttesterIncentivesTestHandler {
 
         let txs = AttesterIncentivesMessageGenerator::from(vec![(
             self.attester_private_key.clone(),
-            CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(attestation)),
+            CallMessage::ProcessAttestation::<S, Da>(attestation),
         )])
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
@@ -220,11 +219,11 @@ impl AttesterIncentivesTestHandler {
         let txs = AttesterIncentivesMessageGenerator::from(vec![
             (
                 self.attester_private_key.clone(),
-                CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(fst_attestation)),
+                CallMessage::ProcessAttestation::<S, Da>(fst_attestation),
             ),
             (
                 self.attester_private_key.clone(),
-                CallMessage::ProcessAttestation::<S, Da>(WrappedAttestation::from(snd_attestation)),
+                CallMessage::ProcessAttestation::<S, Da>(snd_attestation),
             ),
         ])
         .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();

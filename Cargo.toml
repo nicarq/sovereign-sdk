@@ -51,7 +51,7 @@ members = [
     "crates/module-system/module-implementations/module-template",
     "crates/module-system/module-implementations/integration-tests",
     "crates/module-system/sov-capabilities",
-    "crates/module-system/module-implementations/sov-nonces"
+    "crates/module-system/module-implementations/sov-nonces",
 ]
 
 [workspace.package]
@@ -77,7 +77,7 @@ manual_ok_or = "deny"
 doc_link_with_quotes = "deny"
 match_same_arms = "deny"
 semicolon_if_nothing_returned = "deny"
-float_arithmetic = "deny" # Can cause subtle bugs due to different behavior between native and zkVM execution.
+float_arithmetic = "deny"              # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 #map_err_ignore = "warn"
 #doc_markdown = "warn"
@@ -126,6 +126,7 @@ test-harness-lib = { path = "crates/utils/test-harness/test-harness-lib" }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6209abff72929f5ba41614f5cea3e4a748428c3" }
 rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "d640252e19c08ff47ce1dc2c209b9b1ba2bf9343" }
+sov-wallet-format = { git = "ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git", rev = "0860de2877084066477d0157a0f5a311bd1be919" }
 # External dependencies
 async-trait = "0.1.71"
 anyhow = { version = "1.0.68" }
@@ -149,7 +150,7 @@ futures = { version = "0.3", default-features = false }
 hex = { version = "0.4.3" }
 insta = { version = "1.39", features = ["json"] }
 once_cell = { version = "1.19.0", default-features = false, features = [
-    "alloc"
+    "alloc",
 ] }
 prometheus = { version = "0.13.3", default-features = false }
 proptest = { version = "1.3", default-features = false, features = ["alloc"] }
@@ -157,11 +158,11 @@ proptest-derive = "0.5.0"
 rand = "0.8"
 rayon = "1.9.0"
 reqwest = { version = "0.12", features = [
-    "rustls-tls"
+    "rustls-tls",
 ], default-features = false }
 serde = { version = "1.0.196", default-features = false, features = [
     "alloc",
-    "derive"
+    "derive",
 ] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_yaml = { version = "0.9", default-features = false }
@@ -171,7 +172,9 @@ thiserror = "1.0.50"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
-tracing-test = { version = "0.2.5", features = ["no-env-filter"] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
+tracing-test = { version = "0.2.5", features = [
+    "no-env-filter",
+] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
 utoipa = "4.2"
 utoipa-swagger-ui = { version = "6", features = ["axum"] }
 unwrap-infallible = "0.1.5"
@@ -212,7 +215,7 @@ revm = { version = "12.1.0", features = ["serde"], default-features = false }
 revm-inspectors = { version = "0.5" }
 secp256k1 = { version = "0.29.0", default-features = false, features = [
     "global-context",
-    "recovery"
+    "recovery",
 ] }
 
 # End of EVM dependencies
@@ -226,3 +229,8 @@ secp256k1 = { version = "0.29.0", default-features = false, features = [
 # Uncomment to apply local changes
 # tendermint = { path = "../celestia-tendermint-rs/tendermint" }
 # tendermint-proto = { path = "../celestia-tendermint-rs/proto" }
+
+[profile.dev.package.sov-modules-macros]
+# Set the optimization level to 3 for the sov-modules-macros crate. This
+# should reduce build times for other packages.
+opt-level = 3

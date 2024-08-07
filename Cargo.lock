@@ -7828,9 +7828,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.116"
+version = "1.0.120"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e17db7126d17feb94eb3fad46bf1a96b034e8aacbc2e775fe81505f8b0b2813"
+checksum = "4e0d21c9a8cae1235ad58a00c11cb40d4b1e5c784f1ef2c537876ed6ffd8b7c5"
 dependencies = [
  "indexmap 2.2.6",
  "itoa",
@@ -8179,7 +8179,6 @@ name = "sov-attester-incentives"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "bcs",
  "borsh 1.5.0",
  "derivative",
  "serde",
@@ -8593,6 +8592,7 @@ dependencies = [
  "sha2 0.10.8",
  "sov-mock-da",
  "sov-rollup-interface",
+ "sov-wallet-format",
  "tempfile",
  "testcontainers",
  "testcontainers-modules",
@@ -8679,6 +8679,7 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-test-utils",
+ "sov-wallet-format",
  "tempfile",
  "thiserror",
  "tokio",
@@ -8713,6 +8714,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
+ "sov-wallet-format-macro-helpers",
  "syn 1.0.109",
  "tempfile",
  "toml 0.8.12",
@@ -8904,6 +8906,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-rollup-interface",
+ "sov-wallet-format",
  "thiserror",
  "tokio",
  "tracing",
@@ -9021,6 +9024,7 @@ dependencies = [
  "sha2 0.10.8",
  "sov-db",
  "sov-rollup-interface",
+ "sov-wallet-format",
  "tempfile",
  "thiserror",
 ]
@@ -9125,6 +9129,41 @@ dependencies = [
  "sov-value-setter",
  "tempfile",
  "thiserror",
+]
+
+[[package]]
+name = "sov-wallet-format"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "bech32 0.11.0",
+ "hex",
+ "serde",
+ "serde_json",
+ "sov-wallet-format-macros",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-wallet-format-macro-helpers"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "convert_case 0.6.0",
+ "darling 0.20.8",
+ "hex",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.68",
+ "syn_derive",
+]
+
+[[package]]
+name = "sov-wallet-format-macros"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
+dependencies = [
+ "sov-wallet-format-macro-helpers",
 ]
 
 [[package]]
