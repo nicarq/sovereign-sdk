@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_attester_incentives::AttesterIncentiveErrors;
+use sov_attester_incentives::ProcessAttestationErrors;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, GasMeter, Spec, StateAccessorError};
@@ -130,7 +130,7 @@ fn test_burn_on_invalid_attestation() {
             genesis_attester
                 .test_process_attestation(Err(TestAttestationMessageError::InvalidProofOfBond)),
             Error::ModuleError(
-                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidBondingProof.into(),
+                ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidBondingProof.into(),
             ),
         )])
         .with_end_slot_hook(Box::new(move |state| {

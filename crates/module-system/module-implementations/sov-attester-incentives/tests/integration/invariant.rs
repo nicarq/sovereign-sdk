@@ -1,7 +1,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use sov_attester_incentives::{AttesterIncentiveErrors, Event};
+use sov_attester_incentives::{Event, ProcessAttestationErrors};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{Spec, StateAccessorError};
@@ -74,7 +74,7 @@ fn test_cannot_attest_below_max_attested_height() {
     runner.execute_slots(
         vec![SlotTestCase::from_rewarded_batch(
             vec![TxTestCase::reverted(genesis_attester.test_process_attestation_at_slot(Ok(()), 1),
-            ModuleError(AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into())
+            ModuleError(ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into())
         )]
         ).with_end_slot_hook(
             Box::new(move |state| {
@@ -113,7 +113,7 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
         vec![SlotTestCase::from_rewarded_batch(
             vec![TxTestCase::reverted(
                 genesis_attester.test_process_attestation_at_slot(Ok(()), expected_max_attested_height + 2),
-                ModuleError(AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into())
+                ModuleError(ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into())
             )]
         ).with_end_slot_hook(
             Box::new(move |state| {

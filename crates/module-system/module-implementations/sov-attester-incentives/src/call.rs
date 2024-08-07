@@ -162,14 +162,6 @@ pub enum SlashingReason {
 /// Error raised while processing the attester incentives
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum AttesterIncentiveErrors<AccessorError> {
-    #[error("Attester slashed")]
-    /// The user was slashed. Reason specified by [`SlashingReason`]
-    UserSlashed(#[source] SlashingReason),
-
-    #[error("Invalid bonding proof")]
-    /// The bonding proof was invalid
-    InvalidBondingProof,
-
     #[error("The sender key doesn't match the attester key provided in the proof")]
     /// The sender key doesn't match the attester key provided in the proof
     InvalidSender,
@@ -186,18 +178,6 @@ pub enum AttesterIncentiveErrors<AccessorError> {
     /// The attester is trying to finish the two-phase unbonding too soon
     UnbondingNotFinalized,
 
-    #[error("The bond is not a 64-bit number")]
-    /// The bond is not a 64-bit number
-    InvalidBondFormat,
-
-    #[error("User is not bonded at the time of the transaction")]
-    /// User is not bonded at the time of the transaction
-    UserNotBonded,
-
-    #[error("Transition invariant isn't respected")]
-    /// Transition invariant isn't respected
-    InvalidTransitionInvariant,
-
     #[error("Error occurred when transferred bonding funds. The user's account may not have enough funds")]
     /// An error occurred when transferred funds
     BondTransferFailure,
@@ -211,10 +191,4 @@ pub enum AttesterIncentiveErrors<AccessorError> {
     /// An error occurred when accessing the state
     #[error("Error occurred when accessing the state, error: {0}")]
     StateAccessError(#[from] AccessorError),
-}
-
-impl<AccessorError> AttesterIncentiveErrors<AccessorError> {
-    pub(crate) fn slashed(value: SlashingReason) -> Self {
-        Self::UserSlashed(value)
-    }
 }

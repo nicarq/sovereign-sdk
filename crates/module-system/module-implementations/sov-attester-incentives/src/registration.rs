@@ -178,7 +178,8 @@ where
             // Get the user's old balance.
             // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, unbonding_info.amount, state)?;
+            self.transfer_tokens_to_sender(context, unbonding_info.amount, state)
+                .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
 
             // Update our internal tracking of the total bonded amount for the sender.
             self.bonded_attesters.remove(context.sender(), state)?;

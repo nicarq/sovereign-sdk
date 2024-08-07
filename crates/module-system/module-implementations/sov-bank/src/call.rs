@@ -327,6 +327,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         token
             .transfer(from, to, coins.amount, state)
             .with_context(context_logger)?;
+
         Ok(CallResponse::default())
     }
 
