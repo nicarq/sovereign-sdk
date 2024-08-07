@@ -27,7 +27,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
-use crate::{MessageType, SlotExpectedReceipt, SlotMessages, SlotTestCase, TestStfBlueprint};
+use crate::{SlotExpectedReceipt, SlotMessages, SlotTestCase, TestStfBlueprint, TransactionType};
 
 pub(crate) mod macros;
 
@@ -215,7 +215,7 @@ where
         let blobs: Vec<_> = slot_messages
             .into_iter()
             .map(|batch_messages| {
-                let build_batch_txs = |message: MessageType<M, S>| {
+                let build_batch_txs = |message: TransactionType<M, S>| {
                     message.to_raw_tx::<RT>(&mut self.nonces, &mut state)
                 };
 

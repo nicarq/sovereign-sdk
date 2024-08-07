@@ -85,7 +85,9 @@ pub mod framework {
     use sov_state::jmt::RootHash;
     use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
 
-    use crate::{AsUser, FromState, MessageType, TestAttester, TestSpec};
+    use crate::{
+        default_test_tx_details, AsUser, FromState, TestAttester, TestSpec, TransactionType,
+    };
 
     type TestAttesterIncentives = AttesterIncentives<TestSpec, MockDaSpec>;
 
@@ -262,15 +264,16 @@ pub mod framework {
             &self,
             content: Result<(), TestAttestationMessageError>,
             attestation_slot: u64,
-        ) -> MessageType<TestAttesterIncentives, TestSpec> {
-            MessageType::Configuration(
-                Box::new(TestProcessAttestationMessage {
+        ) -> TransactionType<TestAttesterIncentives, TestSpec> {
+            TransactionType::Configuration {
+                message: Box::new(TestProcessAttestationMessage {
                     slot_height: attestation_slot,
                     content,
                     attester: self.clone(),
                 }),
-                self.user_info.private_key().clone(),
-            )
+                key: self.user_info.private_key().clone(),
+                details: default_test_tx_details(),
+            }
         }
 
         /// Generates a [`TestProcessAttestationMessage`] at the `self.slot_to_attest`, contained inside [`TestAttester`].
@@ -280,7 +283,7 @@ pub mod framework {
         pub fn test_process_attestation(
             &mut self,
             content: Result<(), TestAttestationMessageError>,
-        ) -> MessageType<TestAttesterIncentives, TestSpec> {
+        ) -> TransactionType<TestAttesterIncentives, TestSpec> {
             let is_successful = content.is_ok();
             let res = self.test_process_attestation_at_slot(content, self.slot_to_attest);
 
@@ -338,15 +341,16 @@ pub mod framework {
             &self,
             content: Result<(), TestChallengeMessageError>,
             challenge_slot: u64,
-        ) -> MessageType<TestAttesterIncentives, TestSpec> {
-            MessageType::Configuration(
-                Box::new(TestProcessChallengeMessage {
+        ) -> TransactionType<TestAttesterIncentives, TestSpec> {
+            TransactionType::Configuration {
+                message: Box::new(TestProcessChallengeMessage {
                     slot_height: challenge_slot,
                     content,
                     challenger: self.clone(),
                 }),
-                self.as_user().private_key.clone(),
-            )
+                key: self.as_user().private_key.clone(),
+                details: default_test_tx_details(),
+            }
         }
     }
 }

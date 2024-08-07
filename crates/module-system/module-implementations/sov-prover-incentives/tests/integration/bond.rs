@@ -6,7 +6,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasMeter;
 use sov_prover_incentives::{CallMessage, Event};
-use sov_test_utils::{MessageType, SlotTestCase, TxTestCase};
+use sov_test_utils::{AsUser, SlotTestCase, TxTestCase};
 
 use crate::helpers::{setup, ProverRuntime, TestProverIncentives};
 
@@ -42,14 +42,15 @@ fn test_topup_existing_bond() {
     let starting_free_balance = genesis_prover.user_info.balance();
     let starting_bond = genesis_prover.bond;
     let extra_bond_amount = 50;
-    let prover_key = genesis_prover.user_info.private_key();
     let prover_address = genesis_prover.user_info.address();
     let gas_cost = Arc::new(AtomicU64::new(0));
     let gas_cost_ref1 = gas_cost.clone();
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(CallMessage::Deposit(extra_bond_amount), prover_key.clone()),
+            genesis_prover.create_plain_message::<TestProverIncentives>(CallMessage::Deposit(
+                extra_bond_amount,
+            )),
             Box::new(move |ws| {
                 {
                     gas_cost.fetch_add(
@@ -99,14 +100,14 @@ fn test_bonding_new_prover() {
 
     let starting_free_balance = unbonded_user.balance();
     let bond_amount = 100000001;
-    let user_key = unbonded_user.private_key();
     let user_address = unbonded_user.address();
     let gas_cost = Arc::new(AtomicU64::new(0));
     let gas_cost_ref1 = gas_cost.clone();
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(CallMessage::Register(bond_amount), user_key.clone()),
+            unbonded_user
+                .create_plain_message::<TestProverIncentives>(CallMessage::Register(bond_amount)),
             Box::new(move |ws| {
                 {
                     gas_cost.fetch_add(
@@ -157,11 +158,10 @@ fn test_unbonding() {
     let expected_balance_ref1 = expected_final_balance.clone();
     let genesis_prover_address = genesis_prover.user_info.address();
     let genesis_prover_bond = genesis_prover.bond;
-    let genesis_prover_key = genesis_prover.user_info.private_key();
 
     runner.execute_slots::<TestProverIncentives>(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<ProverRuntime<S, MockDaSpec>, _, _>::applied_with_hook(
-            MessageType::Plain(CallMessage::Exit, genesis_prover_key.clone()),
+            genesis_prover.create_plain_message::<TestProverIncentives>(CallMessage::Exit),
             Box::new(move |ws| {
                 {
                     // Pay for gas from the provers balance

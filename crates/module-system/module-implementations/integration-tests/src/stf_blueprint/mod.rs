@@ -17,7 +17,7 @@ use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, Test
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch_deprecated, BatchSequencerOutcome,
-    MessageGenerator, MessageType, SlotTestCase, TestHasher, TestUser, TxTestCase,
+    MessageGenerator, SlotTestCase, TestHasher, TestUser, TransactionType, TxTestCase,
     TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
@@ -215,7 +215,10 @@ fn test_enforces_chain_id() {
             genesis.into_genesis_params(),
             vec![SlotTestCase::from_batch_with_outcome(
                 vec![TxTestCase::from_expected_outcome(
-                    MessageType::<ValueSetter<S>, S>::pre_signed(utx, admin_account.private_key()),
+                    TransactionType::<ValueSetter<S>, S>::pre_signed(
+                        utx,
+                        admin_account.private_key(),
+                    ),
                     maybe_tx_effect,
                 )],
                 batch_expected_outcome,

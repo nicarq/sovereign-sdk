@@ -3,7 +3,7 @@ use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::{Module, ModuleError, Spec, StateCheckpoint, TxEffect};
 use sov_modules_stf_blueprint::{Runtime, SkippedReason, TxReceiptContents};
 
-use super::messages::{BatchMessages, MessageType};
+use super::messages::{BatchMessages, TransactionType};
 use super::{BatchExpectedReceipt, BatchSequencerOutcome};
 use crate::runtime::wrapper::EndSlotClosure;
 use crate::runtime::WorkingSetClosure;
@@ -136,7 +136,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
         }
     }
 
-    /// Splits a [`BatchTestCase`] into a list of [`MessageType`], closures to be executed in the post_dispatch_hook, and an expected [`BatchExpectedReceipt`].
+    /// Splits a [`BatchTestCase`] into a list of [`TransactionType`], closures to be executed in the post_dispatch_hook, and an expected [`BatchExpectedReceipt`].
     /// We are
     pub fn split(
         self,
@@ -188,14 +188,14 @@ pub enum TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     /// The transaction should be applied successfully and the `post_dispatch_hook` should be executed.
     Applied {
         /// The message to be sent to the runtime.
-        message: MessageType<M, S>,
+        message: TransactionType<M, S>,
         /// A post_dispatch_hook closure to be executed if the transaction is applied successfully.
         post_dispatch_hook: WorkingSetClosure<RT>,
     },
     /// The transaction should be reverted.
     Reverted {
         /// The message to be sent to the runtime.
-        message: MessageType<M, S>,
+        message: TransactionType<M, S>,
         /// The reason why the transaction should be reverted.
         reason: ModuleError,
     },
@@ -203,17 +203,17 @@ pub enum TxTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     /// the transaction was never executed.
     Skipped {
         /// The message to be sent to the runtime.
-        message: MessageType<M, S>,
+        message: TransactionType<M, S>,
         /// The reason why the transaction should be skipped.
         skipped_reason: SkippedReason,
     },
     /// The transaction should be dropped from the batch. Ie, the transaction should not generate a receipt.
-    Dropped(MessageType<M, S>),
+    Dropped(TransactionType<M, S>),
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
     /// Creates a new [`TxTestCase::Applied`]. This set the `post_dispatch_hook` to a no-op closure. To specify a post_dispatch_hook, use [`TxTestCase::applied_with_hook`].
-    pub fn applied(message: MessageType<M, S>) -> Self {
+    pub fn applied(message: TransactionType<M, S>) -> Self {
         Self::Applied {
             message,
             post_dispatch_hook: Box::new(|_| {}),
@@ -222,7 +222,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
 
     /// Creates a new [`TxTestCase::Applied`] with a post_dispatch_hook.
     pub fn applied_with_hook(
-        message: MessageType<M, S>,
+        message: TransactionType<M, S>,
         post_dispatch_hook: WorkingSetClosure<RT>,
     ) -> Self {
         Self::Applied {
@@ -233,12 +233,12 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
 
     /// Creates a new [`TxTestCase::Reverted`].
     /// Since the transaction is supposed to revert, there is no need to provide a post_dispatch_hook.
-    pub fn reverted(message: MessageType<M, S>, reason: ModuleError) -> Self {
+    pub fn reverted(message: TransactionType<M, S>, reason: ModuleError) -> Self {
         Self::Reverted { message, reason }
     }
 
     /// Creates a new [`TxTestCase::Skipped`] which is skipped.
-    pub fn skipped(message: MessageType<M, S>, skipped_reason: SkippedReason) -> Self {
+    pub fn skipped(message: TransactionType<M, S>, skipped_reason: SkippedReason) -> Self {
         Self::Skipped {
             message,
             skipped_reason,
@@ -246,14 +246,14 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> TxTestCase<RT, M, S> {
     }
 
     /// Creates a new [`TxTestCase`] which is dropped.
-    pub fn dropped(message: MessageType<M, S>) -> Self {
+    pub fn dropped(message: TransactionType<M, S>) -> Self {
         Self::Dropped(message)
     }
 
     /// Creates a new [`TxTestCase`] from an expected outcome. Doesn't include a post_dispatch_hook in the successful case.
     /// If the effect is [`None`], the transaction is dropped.
     pub fn from_expected_outcome(
-        message: MessageType<M, S>,
+        message: TransactionType<M, S>,
         effect: Option<TxEffect<TxReceiptContents>>,
     ) -> Self {
         match effect {
