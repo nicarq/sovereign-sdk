@@ -1,6 +1,7 @@
 - #1129 changes `StateVec::iter` to return `Result`s to account for state reading errors. The new method `StateVec::collect_infallible` can be used in tests and for infallible state accessors.
 - #1108 improve error handling in `ProverIncentives` module.
 - #1104 Add `deposit` method to prover incentives module.
+- #1106 Upgrades [`reth`](https://github.com/paradigmxyz/reth/) dependencies to `1.0.3`. Still based on Sovereign fork.
 - #1003 Removes the `BlobData` enum, requiring sequencers to post the `Batch` struct directly on chain.
 - #1076 turns the `FullNoteBlueprint::create_endpoints` and `register_endpoints` functions async. It also modifies the sequencer to emit a new tx status event when transactions are dropped from the mempool.
 - #1062 Adds `remove` method to `StateVec`

@@ -1,11 +1,12 @@
+use alloy_eips::eip2930::AccessList;
+use alloy_primitives::{TxKind as PrimitiveTransactionKind, TxKind};
 use alloy_rpc_types::AccessListItem;
+use reth_primitives::revm_primitives::BlockEnv;
 use reth_primitives::{
-    BlockNumber, Transaction as PrimitiveTransaction, TransactionKind as PrimitiveTransactionKind,
-    TransactionSignedEcRecovered, TxType, U128, U64,
+    BlockNumber, Transaction as PrimitiveTransaction, TransactionSignedEcRecovered, TxType,
 };
 use reth_rpc_types::{Header, Parity, Signature, TransactionRequest};
-use revm::primitives::{TransactTo, TxEnv, B256, U256};
-use revm_primitives::BlockEnv;
+use revm::primitives::{TxEnv, B256, U256};
 
 use crate::rpc::error::{EthApiError, EthResult, RpcInvalidTransactionError};
 
@@ -32,9 +33,9 @@ impl CallFees {
     ///
     /// EIP-4844 transactions are not supported by the rollup by design.
     fn ensure_fees(
-        call_gas_price: Option<U256>,
-        call_max_fee: Option<U256>,
-        call_priority_fee: Option<U256>,
+        call_gas_price: Option<u128>,
+        call_max_fee: Option<u128>,
+        call_priority_fee: Option<u128>,
         block_base_fee: U256,
     ) -> EthResult<CallFees> {
         /// Ensures that the transaction's max fee is lower than the priority fee, if any.
@@ -54,18 +55,19 @@ impl CallFees {
             Ok(())
         }
 
+        let call_priority_fee: Option<U256> = call_priority_fee.map(U256::from);
         match (call_gas_price, call_max_fee, call_priority_fee) {
             (gas_price, None, None) => {
                 // either legacy transaction or no fee fields are specified
                 // when no fields are specified, set gas price to zero
-                let gas_price = gas_price.unwrap_or(U256::ZERO);
+                let gas_price = gas_price.map(U256::from).unwrap_or(U256::ZERO);
                 Ok(CallFees {
                     gas_price,
                     max_priority_fee_per_gas: None,
                 })
             }
             (None, max_fee_per_gas, max_priority_fee_per_gas) => {
-                let max_fee = max_fee_per_gas.unwrap_or(block_base_fee);
+                let max_fee = max_fee_per_gas.map(U256::from).unwrap_or(block_base_fee);
                 ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas)?;
 
                 Ok(CallFees {
@@ -109,32 +111,29 @@ pub(crate) fn prepare_call_env(
         gas_price,
         max_fee_per_gas,
         max_priority_fee_per_gas,
-        U256::from(block_env.basefee),
+        block_env.basefee,
     )?;
 
-    let gas_limit = gas.unwrap_or(U256::from(block_env.gas_limit.min(U256::MAX)));
+    let gas_limit = gas.unwrap_or_else(|| block_env.gas_limit.min(U256::from(u64::MAX)).to());
 
     let env = TxEnv {
         gas_limit: gas_limit
             .try_into()
             .map_err(|_| RpcInvalidTransactionError::GasUintOverflow)?,
-        nonce: nonce
-            .map(|n| {
-                n.try_into()
-                    .map_err(|_| RpcInvalidTransactionError::NonceTooHigh)
-            })
-            .transpose()?,
+        nonce,
         caller: from.unwrap_or_default(),
         gas_price,
         gas_priority_fee: max_priority_fee_per_gas,
-        transact_to: to.map(TransactTo::Call).unwrap_or_else(TransactTo::create),
+        transact_to: to.unwrap_or(TxKind::Create),
         value: value.unwrap_or_default(),
         data: input.try_into_unique_input()?.unwrap_or_default(),
-        chain_id: chain_id.map(|c| c.to()),
-        access_list: access_list.map(|x| x.flattened()).unwrap_or_default(),
+        chain_id,
+        access_list: access_list.unwrap_or_default().into(),
         // EIP-4844 related fields:
         blob_hashes: Default::default(),
         max_fee_per_blob_gas: None,
+        // EIP-7702: TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1132
+        authorization_list: None,
     };
 
     Ok(env)
@@ -158,6 +157,7 @@ pub(crate) fn from_primitive_with_hash(primitive_header: reth_primitives::Sealed
         mix_hash,
         nonce,
         base_fee_per_gas,
+        requests_root,
         extra_data,
         withdrawals_root,
         blob_gas_used,
@@ -174,20 +174,21 @@ pub(crate) fn from_primitive_with_hash(primitive_header: reth_primitives::Sealed
         transactions_root,
         receipts_root,
         withdrawals_root,
-        number: Some(U256::from(number)),
-        gas_used: U256::from(gas_used),
-        gas_limit: U256::from(gas_limit),
+        number: Some(number),
+        gas_used: gas_used as u128,
+        gas_limit: gas_limit as u128,
         extra_data,
         logs_bloom,
-        timestamp: U256::from(timestamp),
+        timestamp,
         difficulty,
         mix_hash: Some(mix_hash),
         nonce: Some(nonce.to_be_bytes().into()),
-        base_fee_per_gas: base_fee_per_gas.map(U256::from),
-        blob_gas_used: blob_gas_used.map(U64::from),
-        excess_blob_gas: excess_blob_gas.map(U64::from),
+        base_fee_per_gas: base_fee_per_gas.map(u128::from),
+        blob_gas_used: blob_gas_used.map(u128::from),
+        excess_blob_gas: excess_blob_gas.map(u128::from),
         parent_beacon_block_root,
         total_difficulty: None,
+        requests_root,
     }
 }
 
@@ -201,18 +202,18 @@ pub fn from_recovered_with_block_context(
 ) -> alloy_rpc_types::Transaction {
     let block_hash = Some(block_hash);
     let block_number = Some(block_number);
-    let transaction_index = Some(tx_index);
+    let transaction_index = Some(tx_index.to::<u64>());
 
     let signer = tx.signer();
     let mut signed_tx = tx.into_signed();
 
     let to = match signed_tx.kind() {
         PrimitiveTransactionKind::Create => None,
-        PrimitiveTransactionKind::Call(to) => Some(*to),
+        PrimitiveTransactionKind::Call(to) => Some(reth_primitives::Address(*to)),
     };
 
     let (gas_price, max_fee_per_gas) = match signed_tx.tx_type() {
-        TxType::Legacy | TxType::Eip2930 => (Some(U128::from(signed_tx.max_fee_per_gas())), None),
+        TxType::Legacy | TxType::Eip2930 => (Some(signed_tx.max_fee_per_gas()), None),
         TxType::Eip1559 => {
             // the gas price field for EIP-1559 is set to
             // `min(tip, gasFeeCap - baseFee) + baseFee`
@@ -224,19 +225,20 @@ pub fn from_recovered_with_block_context(
                 })
                 .unwrap_or_else(|| signed_tx.max_fee_per_gas());
 
-            (
-                Some(U128::from(gas_price)),
-                Some(U128::from(signed_tx.max_fee_per_gas())),
-            )
+            (Some(gas_price), Some(signed_tx.max_fee_per_gas()))
         }
         TxType::Eip4844 => {
             panic!("EIP-4844 transactions are not supported by the rollup")
         }
+        TxType::Eip7702 => {
+            // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1132
+            panic!("EIP-7702 transactions are not yet supported by the rollup")
+        }
     };
 
-    let chain_id = signed_tx.chain_id().map(U64::from);
+    let chain_id = signed_tx.chain_id();
 
-    let access_list = match &mut signed_tx.transaction {
+    let access_list: Option<Vec<AccessListItem>> = match &mut signed_tx.transaction {
         PrimitiveTransaction::Legacy(_) => None,
         PrimitiveTransaction::Eip2930(tx) => Some(
             tx.access_list
@@ -261,6 +263,10 @@ pub fn from_recovered_with_block_context(
         PrimitiveTransaction::Eip4844(_tx) => {
             panic!("EIP-4844 transactions are not supported by the rollup");
         }
+        PrimitiveTransaction::Eip7702(_tx) => {
+            // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1132
+            panic!("EIP-7702 transactions are not yet supported by the rollup")
+        }
     };
 
     let signature = from_primitive_signature(
@@ -271,29 +277,31 @@ pub fn from_recovered_with_block_context(
 
     alloy_rpc_types::Transaction {
         hash: signed_tx.hash(),
-        nonce: U64::from(signed_tx.nonce()),
+        nonce: signed_tx.nonce(),
         from: signer,
         to,
         value: signed_tx.value(),
-        gas_price,
-        max_fee_per_gas,
-        max_priority_fee_per_gas: signed_tx.max_priority_fee_per_gas().map(U128::from),
+        gas_price: gas_price.map(u128::from),
+        max_fee_per_gas: max_fee_per_gas.map(u128::from),
+        max_priority_fee_per_gas: signed_tx.max_priority_fee_per_gas(),
         signature: Some(signature),
-        gas: U256::from(signed_tx.gas_limit()),
+        gas: u128::from(signed_tx.gas_limit()),
         input: signed_tx.input().clone(),
         chain_id,
-        access_list,
-        transaction_type: Some(U64::from(signed_tx.tx_type() as u8)),
+        access_list: access_list.map(AccessList::from),
+        transaction_type: Some(signed_tx.tx_type() as u8),
 
         // These fields are set to None because they are not stored as part of the transaction
         block_hash,
-        block_number: block_number.map(U256::from),
+        block_number,
         transaction_index,
         // EIP-4844 fields
         max_fee_per_blob_gas: Default::default(),
         blob_versioned_hashes: Default::default(),
         // Other fields
         other: Default::default(),
+        // EIP-7702: TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1132
+        authorization_list: None,
     }
 }
 

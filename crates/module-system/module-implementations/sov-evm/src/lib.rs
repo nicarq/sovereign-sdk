@@ -25,9 +25,9 @@ mod event;
 mod helpers;
 
 pub use authenticate::authenticate;
+use reth_primitives::revm_primitives::BlockEnv;
 use revm::primitives::Address;
 pub use revm::primitives::SpecId;
-use revm_primitives::BlockEnv;
 use sov_modules_api::{
     Context, Error, GenesisState, ModuleId, ModuleInfo, StateAccessor, TxState,
     UnmeteredStateWrapper,

@@ -1,6 +1,7 @@
+use alloy_primitives::TxKind;
 use ethers_core::rand::rngs::StdRng;
 use ethers_core::rand::SeedableRng;
-use reth_primitives::{Address, Bytes as RethBytes, TransactionKind, U256, U64};
+use reth_primitives::{Address, Bytes as RethBytes, U256};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
 use secp256k1::{PublicKey, SecretKey};
@@ -41,20 +42,17 @@ impl TestSigner {
     /// Signs default Eip1559 transaction with to, data chain-id, and nonce overridden.
     pub(crate) fn sign_default_transaction(
         &self,
-        kind: TransactionKind,
+        kind: TxKind,
         data: Vec<u8>,
         nonce: u64,
     ) -> Result<(RlpEvmTransaction, Address), SignError> {
         let reth_tx = EIP1559TransactionRequest {
             chain_id: config_value!("CHAIN_ID"),
-            nonce: U64::from(nonce),
+            nonce,
             max_priority_fee_per_gas: Default::default(),
             max_fee_per_gas: U256::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
             gas_limit: U256::from(1_000_000u64),
-            kind: match kind {
-                TransactionKind::Create => reth_rpc_types::TransactionKind::Create,
-                TransactionKind::Call(addr) => reth_rpc_types::TransactionKind::Call(addr),
-            },
+            kind,
             value: Default::default(),
             input: RethBytes::from(data),
             access_list: Default::default(),

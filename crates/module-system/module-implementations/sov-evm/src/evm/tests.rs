@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
-use reth_primitives::{Bytes, TransactionKind};
+use alloy_primitives::TxKind;
+use reth_primitives::Bytes;
 use revm::primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, KECCAK_EMPTY, U256,
 };
@@ -50,7 +51,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     // https://github.com/Sovereign-Labs/sovereign-sdk/issues/912
     let mut cfg_env_with_handler = CfgEnvWithHandlerCfg::new(
         CfgEnv::default(),
-        revm_primitives::HandlerCfg {
+        reth_primitives::revm_primitives::HandlerCfg {
             spec_id: SpecId::SHANGHAI,
         },
     );
@@ -58,7 +59,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
     let contract_address: Address = {
         let (tx, signer) = dev_signer
-            .sign_default_transaction(TransactionKind::Create, contract.byte_code().to_vec(), 1)
+            .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), 1)
             .unwrap();
 
         let tx = &tx.try_into().unwrap();
@@ -85,7 +86,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let (tx, signer) = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 2,
             )
@@ -107,7 +108,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let (tx, signer) = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&call_data)).unwrap(),
                 3,
             )
@@ -134,7 +135,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
 
         let (tx, signer) = dev_signer
             .sign_default_transaction(
-                TransactionKind::Call(contract_address),
+                TxKind::Call(contract_address),
                 hex::decode(hex::encode(&failing_call_data)).unwrap(),
                 4,
             )

@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 
+use alloy_primitives::TxKind;
 use reth_primitives::hex_literal::hex;
 use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
@@ -104,6 +105,7 @@ fn end_slot_hook_sets_head() -> Result<(), Infallible> {
                 blob_gas_used: None,
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
+                requests_root: None,
             },
             transactions: 0..2
         }
@@ -176,7 +178,7 @@ fn create_pending_transaction(hash: B256, index: u64) -> PendingTransaction {
                     gas_limit: 1000u64,
                     max_fee_per_gas: 2000u64 as u128,
                     max_priority_fee_per_gas: 3000u64 as u128,
-                    to: reth_primitives::TransactionKind::Call(Address::from([3u8; 20])),
+                    to: TxKind::Call(Address::from([3u8; 20])),
                     value: U256::from(4000u64),
                     access_list: reth_primitives::AccessList::default(),
                     input: Bytes::from([4u8; 20]),
@@ -234,50 +236,49 @@ fn finalize_hook_creates_final_block() -> Result<(), Infallible> {
 
     let parent_block = evm.blocks.get(0usize, &mut accessory_state)?.unwrap();
     let parent_hash = parent_block.header.hash();
-    let block = evm.blocks.get(1usize, &mut accessory_state)?.unwrap();
-
-    assert_eq!(
-        block,
-        SealedBlock {
-            header: SealedHeader::new(
-                Header {
-                    parent_hash,
-                    ommers_hash: EMPTY_OMMER_ROOT_HASH,
-                    beneficiary: TEST_CONFIG.coinbase,
-                    state_root: B256::from(root_hash),
-                    transactions_root: B256::from(hex!(
-                        "9c3857045a725a519d5328ba197188bceacc6178760c4f7eac7a423666320104"
-                    )),
-                    receipts_root: B256::from(hex!(
-                        "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
-                    )),
-                    withdrawals_root: None,
-                    logs_bloom: Bloom::default(),
-                    difficulty: U256::ZERO,
-                    number: 1,
-                    gas_limit: 30000000,
-                    gas_used: 200,
-                    timestamp: 52,
-                    mix_hash: DA_ROOT_HASH,
-                    nonce: 0,
-                    base_fee_per_gas: Some(62),
-                    extra_data: Bytes::default(),
-                    blob_gas_used: None,
-                    excess_blob_gas: None,
-                    parent_beacon_block_root: None,
-                },
-                B256::from(hex!(
-                    // This hash changes because the header is different
-                    "2dc597cf3b00b4af7c30e0cfd4f26340557543d0e2f168f96b8dfe1546b0699c"
+    let actual_block = evm.blocks.get(1usize, &mut accessory_state)?.unwrap();
+    let expected_block = SealedBlock {
+        header: SealedHeader::new(
+            Header {
+                parent_hash,
+                ommers_hash: EMPTY_OMMER_ROOT_HASH,
+                beneficiary: TEST_CONFIG.coinbase,
+                state_root: B256::from(root_hash),
+                transactions_root: B256::from(hex!(
+                    "9c3857045a725a519d5328ba197188bceacc6178760c4f7eac7a423666320104"
                 )),
-            ),
-            transactions: 0..2
-        }
-    );
+                receipts_root: B256::from(hex!(
+                    "27036187b3f5e87d4306b396cf06c806da2cc9a0fef9b07c042e3b4304e01c64"
+                )),
+                withdrawals_root: None,
+                logs_bloom: Bloom::default(),
+                difficulty: U256::ZERO,
+                number: 1,
+                gas_limit: 30000000,
+                gas_used: 200,
+                timestamp: 52,
+                mix_hash: DA_ROOT_HASH,
+                nonce: 0,
+                base_fee_per_gas: Some(62),
+                extra_data: Bytes::default(),
+                blob_gas_used: None,
+                excess_blob_gas: None,
+                parent_beacon_block_root: None,
+                requests_root: None,
+            },
+            B256::from(hex!(
+                // This hash changes because the header is different
+                "a36b4575131da91b5da5f25b37715d3b29659f4d8415ea5f885b6fe31b126a3a"
+            )),
+        ),
+        transactions: 0..2,
+    };
+
+    assert_eq!(expected_block, actual_block,);
 
     assert_eq!(
         evm.block_hashes
-            .get(&block.header.hash(), &mut accessory_state)?
+            .get(&actual_block.header.hash(), &mut accessory_state)?
             .unwrap(),
         1u64
     );

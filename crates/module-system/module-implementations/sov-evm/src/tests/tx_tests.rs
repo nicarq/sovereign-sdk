@@ -1,10 +1,11 @@
 use std::str::FromStr;
 
+use alloy_primitives::TxKind;
 use ethers_core::types::transaction::eip2718::TypedTransaction;
 use ethers_core::types::{Bytes, Eip1559TransactionRequest};
 use ethers_core::utils::rlp::Rlp;
 use ethers_signers::{LocalWallet, Signer};
-use reth_primitives::{Address, TransactionSignedEcRecovered, U256, U64, U8};
+use reth_primitives::{Address, TransactionSignedEcRecovered, U256};
 use reth_rpc_types::request::TransactionInput;
 use reth_rpc_types::TransactionRequest;
 use revm::primitives::{BlockEnv, TransactTo, TxEnv};
@@ -72,17 +73,17 @@ fn prepare_call_env_conversion() {
     let to = Address::random();
     let request = TransactionRequest {
         from: Some(from),
-        to: Some(to),
-        gas_price: Some(U256::from(100u64)),
+        to: Some(TxKind::Call(to)),
+        gas_price: Some(100),
         max_fee_per_gas: None,
         max_priority_fee_per_gas: None,
-        gas: Some(U256::from(200u64)),
+        gas: Some(200),
         value: Some(U256::from(300u64)),
         input: TransactionInput::default(),
-        nonce: Some(U64::from(1u64)),
-        chain_id: Some(U64::from(1u64)),
+        nonce: Some(1),
+        chain_id: Some(1),
         access_list: None,
-        transaction_type: Some(U8::from(2u8)),
+        transaction_type: Some(2),
         blob_versioned_hashes: Default::default(),
         max_fee_per_blob_gas: None,
         ..Default::default()
@@ -104,6 +105,7 @@ fn prepare_call_env_conversion() {
         access_list: vec![],
         blob_hashes: vec![],
         max_fee_per_blob_gas: None,
+        authorization_list: None,
     };
 
     assert_eq!(tx_env.caller, expected.caller);

@@ -1,7 +1,7 @@
 use anyhow::Result;
+use reth_primitives::revm_primitives::{BlockEnv, HandlerCfg};
 use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
 use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
-use revm_primitives::BlockEnv;
 use sov_modules_api::{CallResponse, Context, TxState};
 
 use crate::evm::db::EvmDb;
@@ -133,7 +133,7 @@ pub(crate) fn get_cfg_env_with_handler(
     cfg_env.chain_id = cfg.chain_id;
     cfg_env.limit_contract_code_size = cfg.limit_contract_code_size;
     let spec_id = get_spec_id(cfg.spec, block_env.number.to());
-    CfgEnvWithHandlerCfg::new(cfg_env, revm_primitives::HandlerCfg { spec_id })
+    CfgEnvWithHandlerCfg::new(cfg_env, HandlerCfg { spec_id })
 }
 
 /// Get spec id for a given block number
@@ -159,7 +159,6 @@ pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId
 pub fn into_reth_log(log: Log) -> RethLog {
     RethLog {
         address: Address(log.address.0),
-        topics: log.topics().to_vec(),
-        data: log.data.data,
+        data: log.data,
     }
 }

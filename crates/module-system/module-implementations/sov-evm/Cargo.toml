@@ -34,7 +34,10 @@ jsonrpsee = { workspace = true, features = [
 tracing = { workspace = true }
 secp256k1 = { workspace = true }
 
-alloy-sol-types = { version = "0.6", default-features = false }
+alloy-sol-types = { version = "0.7.2", default-features = false }
+alloy-eips = { version = "0.2", default-features = false }
+alloy-primitives = { version = "0.7.2", default-features = false }
+
 alloy-rpc-types = { workspace = true, optional = true }
 revm = { workspace = true, features = [
     "optional_block_gas_limit",
@@ -46,7 +49,6 @@ revm = { workspace = true, features = [
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
 revm-inspectors = { workspace = true, optional = true }
-revm-primitives = { workspace = true }
 
 [dev-dependencies]
 sov-evm = { path = ".", features = ["native"] }
@@ -69,11 +71,15 @@ native = [
     "alloy-rpc-types",
     "jsonrpsee",
     "revm-inspectors",
+    "alloy-primitives/std",
+    "reth-primitives/std",
+    "reth-rpc-types/default",
     # Optional for speed up in native mode
     # "revm/asm-keccak"
     "sov-evm/native",
     "sov-mock-da/native",
     "sov-modules-api/native",
     "sov-state/native",
-    "sov-rollup-interface/native"
+    "sov-rollup-interface/native",
+
 ]

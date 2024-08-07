@@ -1,12 +1,14 @@
+use alloy_primitives::TxKind;
 use error::{ensure_success, RevertError};
 pub use error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::{TransactionKind, TransactionSignedEcRecovered, U128, U64};
+use reth_primitives::revm_primitives::BlockEnv;
+use reth_primitives::{TransactionSignedEcRecovered, U64};
+use reth_rpc_types::{ReceiptEnvelope, ReceiptWithBloom};
 use revm::primitives::{
     Address, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, B256,
     KECCAK_EMPTY, U256,
 };
-use revm_primitives::BlockEnv;
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor};
@@ -437,7 +439,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         // get the highest possible gas limit, either the request's set value or the currently
         // configured gas limit
-        let mut highest_gas_limit = request.gas.unwrap_or(U256::from(env_gas_limit));
+        let mut highest_gas_limit = request.gas.map(U256::from).unwrap_or(env_gas_limit);
 
         let account = self
             .accounts
@@ -665,7 +667,7 @@ fn get_cfg_env_template() -> revm::primitives::CfgEnv {
     cfg_env
 }
 
-// modified from: https://github.com/paradigmxyz/reth/blob/cc576bc8690a3e16e6e5bf1cbbbfdd029e85e3d4/crates/rpc/rpc/src/eth/api/transactions.rs#L849
+// modified from: https://github.com/paradigmxyz/reth many times
 pub(crate) fn build_rpc_receipt(
     block: SealedBlock,
     tx: TransactionSignedAndRecovered,
@@ -673,61 +675,59 @@ pub(crate) fn build_rpc_receipt(
     receipt: Receipt,
 ) -> reth_rpc_types::TransactionReceipt {
     let transaction: TransactionSignedEcRecovered = tx.into();
-    let transaction_kind = transaction.kind();
+    let from = transaction.signer();
 
+    let block_hash = Some(block.header.hash());
+    let block_number = Some(block.header.number);
     let transaction_hash = Some(transaction.hash);
     let transaction_index = tx_number - block.transactions.start;
-    let block_hash = Some(block.header.hash());
-    let block_number = Some(U256::from(block.header.number));
+
+    let logs: Vec<reth_rpc_types::Log> = receipt
+        .receipt
+        .logs
+        .iter()
+        .enumerate()
+        .map(|(tx_log_idx, log)| reth_rpc_types::Log {
+            inner: log.clone(),
+            block_hash,
+            block_number,
+            block_timestamp: Some(block.header.timestamp),
+            transaction_hash,
+            transaction_index: Some(transaction_index),
+            log_index: Some(receipt.log_index_start + tx_log_idx as u64),
+            removed: false,
+        })
+        .collect();
+
+    let logs_bloom = receipt.receipt.bloom_slow();
+
+    let rpc_receipt = reth_rpc_types::Receipt {
+        status: receipt.receipt.success.into(),
+        cumulative_gas_used: receipt.receipt.cumulative_gas_used as u128,
+        logs,
+    };
+
+    let (contract_address, to) = match transaction.transaction.kind() {
+        TxKind::Create => (Some(from.create(transaction.transaction.nonce())), None),
+        TxKind::Call(addr) => (None, Some(Address(*addr))),
+    };
 
     reth_rpc_types::TransactionReceipt {
-        transaction_hash,
-        transaction_index: U64::from(transaction_index),
+        inner: ReceiptEnvelope::Eip1559(ReceiptWithBloom::new(rpc_receipt, logs_bloom)),
+        transaction_hash: transaction.hash,
+        transaction_index: Some(transaction_index),
         block_hash,
         block_number,
-        from: transaction.signer(),
-        to: match transaction_kind {
-            TransactionKind::Create => None,
-            TransactionKind::Call(addr) => Some(*addr),
-        },
-        cumulative_gas_used: U256::from(receipt.receipt.cumulative_gas_used),
-        gas_used: Some(U256::from(receipt.gas_used)),
-        // EIP-4844 related
+        gas_used: receipt.gas_used as u128,
+        effective_gas_price: transaction.effective_gas_price(block.header.base_fee_per_gas),
         blob_gas_used: None,
         blob_gas_price: None,
-        contract_address: match transaction_kind {
-            TransactionKind::Create => Some(transaction.signer().create(transaction.nonce())),
-            TransactionKind::Call(_) => None,
-        },
-        effective_gas_price: U128::from(
-            transaction.effective_gas_price(block.header.base_fee_per_gas),
-        ),
-        transaction_type: transaction.tx_type().into(),
-        logs_bloom: receipt.receipt.bloom_slow(),
-        status_code: if receipt.receipt.success {
-            Some(U64::from(1))
-        } else {
-            Some(U64::from(0))
-        },
-        state_root: None, // Pre https://eips.ethereum.org/EIPS/eip-658 (pre-byzantium) and won't be used
-        logs: receipt
-            .receipt
-            .logs
-            .into_iter()
-            .enumerate()
-            .map(|(idx, log)| reth_rpc_types::Log {
-                address: log.address,
-                topics: log.topics,
-                data: log.data,
-                block_hash,
-                block_number,
-                transaction_hash,
-                transaction_index: Some(U256::from(transaction_index)),
-                log_index: Some(U256::from(receipt.log_index_start + idx as u64)),
-                removed: false,
-            })
-            .collect(),
-        other: Default::default(),
+        from,
+        to,
+        contract_address,
+        // TODO pre-byzantium receipts have a post-transaction state root
+        state_root: None,
+        authorization_list: transaction.authorization_list().map(|l| l.to_vec()),
     }
 }
 

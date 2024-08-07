@@ -2,7 +2,7 @@
 // similar as possible to upstream than clean it up.
 #![allow(clippy::match_same_arms)]
 
-use reth_primitives::BaseFeeParams;
+use alloy_eips::eip1559::BaseFeeParams;
 use revm::primitives::specification::SpecId;
 use revm::primitives::{AccountInfo, Address, U256};
 use serde::{Deserialize, Serialize};
