@@ -15,6 +15,7 @@ mod query;
 
 mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
+pub use process_message::{ProcessAttestationErrors, ProcessChallengeErrors};
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_bank::{Amount, BurnRate};

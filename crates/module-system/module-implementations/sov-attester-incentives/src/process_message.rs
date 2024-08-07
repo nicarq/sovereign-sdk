@@ -1,3 +1,4 @@
+//! Methods used to process attestations and challenges.
 use core::result::Result::Ok;
 
 use anyhow::ensure;
@@ -12,10 +13,73 @@ use sov_modules_api::{
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
+use thiserror::Error;
 use tracing::{debug, error};
 
-use super::call::{AttesterIncentiveErrors, SlashingReason, WrappedAttestation};
+use super::call::{SlashingReason, WrappedAttestation};
 use crate::{AttesterIncentives, Event};
+
+/// Error raised while processing the attester incentives.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ProcessAttestationErrors<AccessorError> {
+    #[error("Attester is not bonded at the time of the transaction")]
+    /// Attester is not bonded at the time of the transaction
+    AttesterSlashed(SlashingReason),
+
+    #[error("Attester slashed")]
+    /// Attester slashed
+    AttesterNotBonded,
+
+    #[error("Invalid bonding proof")]
+    /// The bonding proof was invalid
+    InvalidBondingProof,
+
+    #[error("The bond is not a 64-bit number")]
+    /// The bond is not a 64-bit number
+    InvalidBondFormat,
+
+    #[error("Transition invariant isn't respected")]
+    /// Transition invariant isn't respected
+    InvalidTransitionInvariant,
+
+    #[error(
+        "Error occurred when trying to reward a user. The `AttesterIncentives` module may not have enough funds. This is a bug."
+    )]
+    /// An error occurred when transferred funds
+    RewardTransferFailure,
+
+    #[error("Error occurred when accessing the state, error: {0}")]
+    /// An error occurred when accessing the state
+    StateAccessError(#[from] AccessorError),
+}
+
+/// Error raised while processing the attester incentives.
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum ProcessChallengeErrors<AccessorError> {
+    #[error("Challenger slashed")]
+    /// The user was slashed. Reason specified by [`SlashingReason`]
+    ChallengerSlashed(#[source] SlashingReason),
+
+    #[error("Challenger is not bonded at the time of the transaction")]
+    /// User is not bonded at the time of the transaction
+    ChallengerNotBonded,
+
+    #[error(
+        "Error occurred when trying to reward a user. The `AttesterIncentives` module may not have enough funds. This is a bug."
+    )]
+    /// An error occurred when transferred funds
+    RewardTransferFailure,
+
+    #[error("Error occurred when accessing the state, error: {0}")]
+    /// An error occurred when accessing the state
+    StateAccessError(#[from] AccessorError),
+}
+
+impl<AccessorError> ProcessChallengeErrors<AccessorError> {
+    pub(crate) fn slashed(value: SlashingReason) -> Self {
+        Self::ChallengerSlashed(value)
+    }
+}
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
@@ -83,7 +147,7 @@ where
         user: &S::Address,
         reason: SlashingReason,
         state: &mut impl TxState<S>,
-    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         if let Err(e) = self.slash_attester(user, reason, state) {
             error!(
                 error = ?e,
@@ -99,7 +163,7 @@ where
         user: &S::Address,
         reason: SlashingReason,
         state: &mut impl TxState<S>,
-    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         self.bonded_challengers.remove(user, state)?;
 
         self.emit_event(
@@ -125,7 +189,7 @@ where
         reason: SlashingReason,
         state: &mut TxStateAccessor,
     ) -> Result<
-        AttesterIncentiveErrors<StateAccessorError<S::Gas>>,
+        ProcessAttestationErrors<StateAccessorError<S::Gas>>,
         <TxStateAccessor as StateWriter<User>>::Error,
     > {
         let reward = self.slash_attester(attester, reason, state)?;
@@ -138,23 +202,7 @@ where
         let new_value = curr_reward_value.saturating_add(reward);
         self.bad_transition_pool.set(&height, &new_value, state)?;
 
-        Ok(AttesterIncentiveErrors::UserSlashed(reason))
-    }
-
-    /// A helper function that rewards the sender with a given amount of tokens
-    /// Some of the tokens need to be burnt to avoid the system participants to be incentivized to prove and submit empty blocks.
-    fn reward_sender(
-        &self,
-        context: &Context<S>,
-        amount: u64,
-        state: &mut impl StateAccessor,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
-        self.transfer_tokens_to_sender(
-            context,
-            // Note: if we have an empty block, the attester will pay more than the reward (because of the transaction cost)
-            self.burn_rate().apply(amount),
-            state,
-        )
+        Ok(ProcessAttestationErrors::AttesterSlashed(reason))
     }
 
     pub(crate) fn transfer_tokens_to_sender(
@@ -162,7 +210,7 @@ where
         context: &Context<S>,
         amount: u64,
         state: &mut impl StateAccessor,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<()> {
         let coins = Coins {
             token_id: GAS_TOKEN_ID,
             amount,
@@ -170,10 +218,9 @@ where
 
         // The reward tokens are unlocked from the module's id.
         self.bank
-            .transfer_from(self.id.to_payable(), context.sender(), coins, state)
-            .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
+            .transfer_from(self.id.to_payable(), context.sender(), coins, state)?;
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// The bonding proof is now a proof that an attester was bonded during the last `finality_period` range.
@@ -189,7 +236,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
@@ -220,11 +267,11 @@ where
                 attestation.proof_of_bond.proof.clone(),
                 context.sender(),
             )
-            .map_err(|_err| AttesterIncentiveErrors::InvalidBondingProof)?;
+            .map_err(|_err| ProcessAttestationErrors::InvalidBondingProof)?;
 
-        let bond = bond_opt.ok_or(AttesterIncentiveErrors::UserNotBonded)?;
+        let bond = bond_opt.ok_or(ProcessAttestationErrors::AttesterNotBonded)?;
         let bond: u64 = BorshDeserialize::deserialize(&mut bond.value())
-            .map_err(|_err| AttesterIncentiveErrors::InvalidBondFormat)?;
+            .map_err(|_err| ProcessAttestationErrors::InvalidBondFormat)?;
 
         let minimum_bond = self
             .minimum_attester_bond
@@ -233,7 +280,7 @@ where
 
         // We then have to check that the bond was greater than the minimum bond
         if bond < minimum_bond {
-            return Err(AttesterIncentiveErrors::UserNotBonded);
+            return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 
         Ok(())
@@ -250,7 +297,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         if let Some(curr_tx) = self
             .chain_state
             .get_historical_transitions(claimed_transition_height, state)?
@@ -277,7 +324,6 @@ where
                         error!(
                             error = ?e,
                             "An error occurred while slashing the attester. Attester not slashed and transaction reverted");
-
                         return Err(e.into());
                     }
 
@@ -313,7 +359,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         // Normal state
         if let Some(transition) = self
             .chain_state
@@ -383,7 +429,7 @@ where
             <S::Storage as Storage>::Root,
         >,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         let attestation = attestation.inner;
         // We first need to check that the attester is still in the bonding set
         if self
@@ -391,7 +437,7 @@ where
             .get(context.sender(), state)?
             .is_none()
         {
-            return Err(AttesterIncentiveErrors::UserNotBonded);
+            return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 
         // If the bonding proof in the attestation is invalid, light clients will ignore the attestation. In that case, we should too.
@@ -433,7 +479,7 @@ where
         if !(min_height <= attestation.proof_of_bond.claimed_transition_num
             && attestation.proof_of_bond.claimed_transition_num <= new_height_to_attest)
         {
-            return Err(AttesterIncentiveErrors::InvalidTransitionInvariant);
+            return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
 
         // From this point below, the attester has been correctly authenticated -
@@ -490,7 +536,13 @@ where
             self.maximum_attested_height
                 .set(&(new_height_to_attest), state)?;
 
-            self.reward_sender(context, reward, state)?;
+            self.transfer_tokens_to_sender(context, self.burn_rate().apply(reward), state)
+                .map_err(|err| {
+                    error!(
+                        error = ?err,
+                        "Error raised transferring reward to the attester");
+                    ProcessAttestationErrors::RewardTransferFailure
+                })?;
         }
 
         // Then we can optimistically process the transaction
@@ -502,11 +554,11 @@ where
         public_outputs: StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: &TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         let transition = self
             .chain_state
             .get_historical_transitions(*height, state)?
-            .ok_or(AttesterIncentiveErrors::slashed(
+            .ok_or(ProcessChallengeErrors::slashed(
                 SlashingReason::TransitionInvalid,
             ))?;
 
@@ -524,19 +576,19 @@ where
         };
 
         if public_outputs.initial_state_root != initial_hash {
-            return Err(AttesterIncentiveErrors::slashed(
+            return Err(ProcessChallengeErrors::slashed(
                 SlashingReason::InvalidInitialHash,
             ));
         }
 
         if &public_outputs.slot_hash != transition.slot_hash() {
-            return Err(AttesterIncentiveErrors::slashed(
+            return Err(ProcessChallengeErrors::slashed(
                 SlashingReason::TransitionInvalid,
             ));
         }
 
         if public_outputs.validity_condition != *transition.validity_condition() {
-            return Err(AttesterIncentiveErrors::slashed(
+            return Err(ProcessChallengeErrors::slashed(
                 SlashingReason::TransitionInvalid,
             ));
         }
@@ -553,13 +605,13 @@ where
         proof: &[u8],
         transition_num: &TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<CallResponse, ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self
             .bonded_challengers
             .get_or_err(context.sender(), state)?
-            .map_err(|_| AttesterIncentiveErrors::UserNotBonded)?;
+            .map_err(|_| ProcessChallengeErrors::ChallengerNotBonded)?;
 
         // Check that the challenger has enough balance to process the proof.
         let minimum_bond = self
@@ -568,7 +620,7 @@ where
             .expect("Should be set at genesis");
 
         if old_balance < minimum_bond {
-            return Err(AttesterIncentiveErrors::UserNotBonded);
+            return Err(ProcessChallengeErrors::ChallengerNotBonded);
         }
 
         let code_commitment = self
@@ -605,7 +657,7 @@ where
                     transition_num,
                     state,
                 ) {
-                    if let AttesterIncentiveErrors::UserSlashed(err) = err {
+                    if let ProcessChallengeErrors::ChallengerSlashed(err) = err {
                         self.slash_challenger_burn_reward(context.sender(), err, state)?;
                         return Ok(CallResponse::default());
                     }
@@ -614,7 +666,17 @@ where
                 };
 
                 // Reward the sender
-                self.reward_sender(context, attestation_reward, state)?;
+                self.transfer_tokens_to_sender(
+                    context,
+                    self.burn_rate().apply(attestation_reward),
+                    state,
+                )
+                .map_err(|err| {
+                    error!(
+                            error = ?err,
+                            "Error raised transferring reward to the challenger");
+                    ProcessChallengeErrors::RewardTransferFailure
+                })?;
 
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(transition_num, state)?;
