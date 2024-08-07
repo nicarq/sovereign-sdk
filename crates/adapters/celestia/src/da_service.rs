@@ -61,8 +61,10 @@ const GAS_PRICE_NANO_TIA: u64 = 1000;
 
 #[derive(Debug, Clone)]
 pub struct CelestiaService {
-    // https://github.com/celestiaorg/celestia-node/issues/3192
-    client: Arc<Mutex<HttpClient>>,
+    // Client is used for submit queries, where we want to have consistent ordering
+    submit_client: Arc<Mutex<HttpClient>>,
+    // Client used for queries, where it is not important to have ordering
+    read_client: Arc<HttpClient>,
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
 }
@@ -74,7 +76,8 @@ impl CelestiaService {
         rollup_proof_namespace: Namespace,
     ) -> Self {
         Self {
-            client: Arc::new(Mutex::new(client)),
+            submit_client: Arc::new(Mutex::new(client.clone())),
+            read_client: Arc::new(client),
             rollup_batch_namespace,
             rollup_proof_namespace,
         }
@@ -98,7 +101,7 @@ impl CelestiaService {
         );
 
         let tx_response = self
-            .client
+            .submit_client
             .lock()
             .await
             .state_submit_pay_for_blob(fee.get_fee(), fee.gas_limit, &[blob])
@@ -234,7 +237,7 @@ impl DaService for CelestiaService {
 
     #[instrument]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let client = self.client.lock().await;
+        let client = &self.read_client;
 
         // Fetch the header and relevant shares via RPC
         let header = client
@@ -295,9 +298,7 @@ impl DaService for CelestiaService {
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
         Ok(self
-            .client
-            .lock()
-            .await
+            .read_client
             .header_subscribe()
             .await
             .map_err(|e| MaybeRetryable::Transient(e.into()))?
@@ -313,9 +314,7 @@ impl DaService for CelestiaService {
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
         let header = self
-            .client
-            .lock()
-            .await
+            .read_client
             .header_network_head()
             .await
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
@@ -401,9 +400,7 @@ impl DaService for CelestiaService {
     #[instrument(err)]
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self
-            .client
-            .lock()
-            .await
+            .read_client
             .blob_get_all(height, &[self.rollup_proof_namespace])
             .await;
 
