@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use sov_attester_incentives::{CallMessage, Role, UnbondingInfo};
+use sov_attester_incentives::{CallMessage, UnbondingInfo};
 use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::{Batch, StateCheckpoint};
 use sov_test_utils::auth::TestAuth;
@@ -29,7 +29,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
 
     // Let's check that the attester is bonded
     assert_eq!(
-        rollup.get_user_bond(Role::Attester, test_handler.attester_addr())?,
+        rollup.get_attester_bond(test_handler.attester_addr())?,
         test_handler.attester_stake
     );
 
@@ -134,10 +134,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
 
         assert!(!rollup.is_attester_unbonding(test_handler.attester_addr())?);
 
-        assert_eq!(
-            rollup.get_user_bond(Role::Attester, test_handler.attester_addr())?,
-            0
-        );
+        assert_eq!(rollup.get_attester_bond(test_handler.attester_addr())?, 0);
 
         // We have to check that the attester has received the stake amount back
         // We have to substract 2 * gas_per_transaction because the attester has to pay for the gas
@@ -219,7 +216,7 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
 
     // Let's check that the attester is bonded
     assert_eq!(
-        rollup.get_user_bond(Role::Attester, test_handle.attester_addr())?,
+        rollup.get_attester_bond(test_handle.attester_addr())?,
         test_handle.attester_stake
     );
 

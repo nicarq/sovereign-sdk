@@ -218,12 +218,3 @@ impl<AccessorError> AttesterIncentiveErrors<AccessorError> {
         Self::UserSlashed(value)
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-/// A role in the attestation process
-pub enum Role {
-    /// A user who attests to new state transitions
-    Attester,
-    /// A user who challenges attestations
-    Challenger,
-}

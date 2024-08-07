@@ -5,7 +5,6 @@ use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
 use super::AttesterIncentives;
-use crate::call::Role;
 
 /// The response type to the `getBondAmount` query.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -21,25 +20,31 @@ where
     Da: sov_modules_api::DaSpec,
 {
     /// Queries the state of the module.
-    pub fn get_bond_amount<Reader: StateReader<User>>(
+    pub fn get_attester_bond_amount<Reader: StateReader<User>>(
         &self,
         address: S::Address,
-        role: Role,
         state: &mut Reader,
     ) -> Result<BondAmountResponse, Reader::Error> {
-        Ok(match role {
-            Role::Attester => BondAmountResponse {
-                value: self
-                    .bonded_attesters
-                    .get(&address, state)?
-                    .unwrap_or_default(),
-            },
-            Role::Challenger => BondAmountResponse {
-                value: self
-                    .bonded_challengers
-                    .get(&address, state)?
-                    .unwrap_or_default(),
-            },
+        Ok(BondAmountResponse {
+            value: self
+                .bonded_attesters
+                .get(&address, state)?
+                .unwrap_or_default(),
+        })
+    }
+
+    /// Queries the state of the module.
+    pub fn get_challenger_bond_amount<Reader: StateReader<User>>(
+        &self,
+        address: S::Address,
+
+        state: &mut Reader,
+    ) -> Result<BondAmountResponse, Reader::Error> {
+        Ok(BondAmountResponse {
+            value: self
+                .bonded_challengers
+                .get(&address, state)?
+                .unwrap_or_default(),
         })
     }
 

@@ -6,9 +6,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, GasMeter, Spec, StateAccessorError};
 use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
-use sov_test_utils::runtime::sov_attester_incentives::{
-    AttesterIncentives, CallMessage, Event, Role,
-};
+use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, SlotTestCase, TxTestCase, TEST_DEFAULT_USER_STAKE};
 
@@ -107,7 +105,7 @@ fn test_process_valid_attestation() {
             // Check that the attester still has their full bond
             assert_eq!(
                 AttesterIncentives::<S, MockDaSpec>::default()
-                    .get_bond_amount(genesis_attester_address, Role::Attester, state_checkpoint)
+                    .get_attester_bond_amount(genesis_attester_address, state_checkpoint)
                     .unwrap_infallible()
                     .value,
                 genesis_attester_bond,
@@ -139,7 +137,7 @@ fn test_burn_on_invalid_attestation() {
             // Assert that the attester was not slashed
             assert_eq!(
                 AttesterIncentives::<S, MockDaSpec>::default()
-                    .get_bond_amount(genesis_attester_address, Role::Attester, state)
+                    .get_attester_bond_amount(genesis_attester_address, state)
                     .unwrap_infallible()
                     .value,
                 genesis_attester_bond,
@@ -168,7 +166,7 @@ fn test_burn_on_invalid_attestation() {
                 // Assert that the attester was slashed
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
+                        .get_attester_bond_amount(genesis_attester_address, state)
                         .unwrap_infallible()
                         .value,
                     0,
@@ -199,7 +197,7 @@ fn test_burn_on_invalid_attestation() {
                 )));
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
+                        .get_attester_bond_amount(genesis_attester_address, state)
                         .unwrap_infallible()
                         .value,
                     TEST_DEFAULT_USER_STAKE,
@@ -221,7 +219,7 @@ fn test_burn_on_invalid_attestation() {
                 // Assert that the attester was slashed
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
+                        .get_attester_bond_amount(genesis_attester_address, state)
                         .unwrap_infallible()
                         .value,
                     0,

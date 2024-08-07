@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_attester_incentives::{CallMessage, Event, Role, SlashingReason};
+use sov_attester_incentives::{CallMessage, Event, SlashingReason};
 use sov_bank::Amount;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasMeter;
@@ -52,7 +52,7 @@ fn setup_with_wrong_attestation() -> (
             Box::new(move |state| {
                 assert_eq!(
                     TestAttesterIncentives::default()
-                        .get_bond_amount(genesis_challenger_address, Role::Challenger, state)
+                        .get_challenger_bond_amount(genesis_challenger_address, state)
                         .unwrap_infallible()
                         .value,
                     genesis_challenger_bond,
@@ -107,7 +107,7 @@ fn setup_with_wrong_attestation() -> (
                 // Check that the attester was slashed
                 assert_eq!(
                     TestAttesterIncentives::default()
-                        .get_bond_amount(genesis_attester_address, Role::Attester, state)
+                        .get_attester_bond_amount(genesis_attester_address, state)
                         .unwrap_infallible()
                         .value,
                     0,

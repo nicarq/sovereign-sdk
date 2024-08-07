@@ -14,7 +14,7 @@ use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
 use tracing::{debug, error};
 
-use super::call::{AttesterIncentiveErrors, Role, SlashingReason, WrappedAttestation};
+use super::call::{AttesterIncentiveErrors, SlashingReason, WrappedAttestation};
 use crate::{AttesterIncentives, Event};
 
 impl<S, Da> AttesterIncentives<S, Da>
@@ -50,24 +50,17 @@ where
     }
 
     /// A helper function that simply slashes an attester and returns a reward value
-    fn slash_user<TxStateAccessor: TxState<S>>(
+    fn slash_attester<TxStateAccessor: TxState<S>>(
         &self,
         user: &S::Address,
-        role: Role,
         reason: SlashingReason,
         state: &mut TxStateAccessor,
     ) -> Result<u64, <TxStateAccessor as StateWriter<User>>::Error> {
-        let bonded_set = match role {
-            Role::Attester => {
-                // We have to remove the attester from the unbonding set
-                // to prevent him from skipping the first phase
-                // unbonding if he bonds himself again.
-                self.unbonding_attesters.remove(user, state)?;
-
-                &self.bonded_attesters
-            }
-            Role::Challenger => &self.bonded_challengers,
-        };
+        // We have to remove the attester from the unbonding set
+        // to prevent him from skipping the first phase
+        // unbonding if he bonds himself again.
+        self.unbonding_attesters.remove(user, state)?;
+        let bonded_set = &self.bonded_attesters;
 
         // We have to deplete the attester's bonded account, it amounts to removing the attester from the bonded set
         let reward = bonded_set.get(user, state)?.unwrap_or_default();
@@ -85,20 +78,29 @@ where
         Ok(reward)
     }
 
-    fn slash_burn_reward(
+    fn slash_attester_burn_reward(
         &self,
         user: &S::Address,
-        role: Role,
         reason: SlashingReason,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
-        if let Err(e) = self.slash_user(user, role, reason, state) {
+    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+        if let Err(e) = self.slash_attester(user, reason, state) {
             error!(
                 error = ?e,
                 "Error raised when trying to slash the attester. Attester not slashed and transaction reverted"
             );
             return Err(e.into());
         };
+        Ok(())
+    }
+
+    fn slash_challenger_burn_reward(
+        &self,
+        user: &S::Address,
+        reason: SlashingReason,
+        state: &mut impl TxState<S>,
+    ) -> Result<(), AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+        self.bonded_challengers.remove(user, state)?;
 
         self.emit_event(
             state,
@@ -110,10 +112,9 @@ where
 
         error!(
             error = ?reason,
-            ?role,
             "The user was slashed");
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// A helper function that is used to slash an attester, and put the associated attestation in the slashed pool
@@ -127,7 +128,7 @@ where
         AttesterIncentiveErrors<StateAccessorError<S::Gas>>,
         <TxStateAccessor as StateWriter<User>>::Error,
     > {
-        let reward = self.slash_user(attester, Role::Attester, reason, state)?;
+        let reward = self.slash_attester(attester, reason, state)?;
 
         let curr_reward_value = self
             .bad_transition_pool
@@ -296,12 +297,8 @@ where
             Ok(CallResponse::default())
         } else {
             // Case where we cannot get the transition from the chain state historical transitions.
-            self.slash_burn_reward(
-                attester,
-                Role::Attester,
-                SlashingReason::TransitionNotFound,
-                state,
-            )
+            self.slash_attester_burn_reward(attester, SlashingReason::TransitionNotFound, state)?;
+            Ok(CallResponse::default())
         }
     }
 
@@ -324,12 +321,12 @@ where
         {
             if transition.post_state_root() != &attestation.initial_state_root {
                 // The initial root hashes don't match, just slash the attester
-                return self.slash_burn_reward(
+                self.slash_attester_burn_reward(
                     attester,
-                    Role::Attester,
                     SlashingReason::InvalidInitialHash,
                     state,
-                );
+                )?;
+                return Ok(CallResponse::default());
             }
         } else {
             // Genesis state
@@ -343,12 +340,13 @@ where
                 .checked_sub(1)
                 .expect("Transition height must be > 0");
             if genesis_height != previous {
-                return self.slash_burn_reward(
+                self.slash_attester_burn_reward(
                     attester,
-                    Role::Attester,
                     SlashingReason::TransitionNotFound,
                     state,
-                );
+                )?;
+
+                return Ok(CallResponse::default());
             }
 
             if self
@@ -358,14 +356,14 @@ where
                 != attestation.initial_state_root
             {
                 // Slash the attester, and burn the fees
-                return self.slash_burn_reward(
+                self.slash_attester_burn_reward(
                     attester,
-                    Role::Attester,
                     SlashingReason::InvalidInitialHash,
                     state,
-                );
-            }
+                )?;
 
+                return Ok(CallResponse::default());
+            }
             // Normal state
         }
 
@@ -583,12 +581,13 @@ where
             match self.bad_transition_pool.get_or_err(transition_num, state)? {
                 Ok(reward) => reward,
                 Err(_err) => {
-                    return self.slash_burn_reward(
+                    self.slash_challenger_burn_reward(
                         context.sender(),
-                        Role::Challenger,
                         SlashingReason::NoInvalidTransition,
                         state,
-                    );
+                    )?;
+
+                    return Ok(CallResponse::default());
                 }
             };
 
@@ -607,12 +606,8 @@ where
                     state,
                 ) {
                     if let AttesterIncentiveErrors::UserSlashed(err) = err {
-                        return self.slash_burn_reward(
-                            context.sender(),
-                            Role::Challenger,
-                            err,
-                            state,
-                        );
+                        self.slash_challenger_burn_reward(context.sender(), err, state)?;
+                        return Ok(CallResponse::default());
                     }
 
                     return Err(err);
@@ -633,12 +628,12 @@ where
             }
             Err(_err) => {
                 // Slash the challenger
-                return self.slash_burn_reward(
+                self.slash_challenger_burn_reward(
                     context.sender(),
-                    Role::Challenger,
                     SlashingReason::InvalidProofOutputs,
                     state,
-                );
+                )?;
+                return Ok(CallResponse::default());
             }
         }
 

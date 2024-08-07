@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 use std::rc::Rc;
 
-use sov_attester_incentives::Role;
 use sov_bank::BurnRate;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
@@ -66,25 +65,30 @@ impl TestRollup {
         Ok(new_state_root)
     }
 
-    pub(crate) fn get_user_bond(
+    pub(crate) fn get_attester_bond(
         &mut self,
-        role: Role,
         user_addr: <S as Spec>::Address,
     ) -> Result<u64, Infallible> {
         let mut state = StateCheckpoint::<S>::new(self.storage());
 
-        Ok(match role {
-            Role::Attester => self
-                .attester_incentives()
-                .bonded_attesters
-                .get(&user_addr, &mut state)?
-                .unwrap_or_default(),
-            Role::Challenger => self
-                .attester_incentives()
-                .bonded_challengers
-                .get(&user_addr, &mut state)?
-                .unwrap_or_default(),
-        })
+        Ok(self
+            .attester_incentives()
+            .bonded_attesters
+            .get(&user_addr, &mut state)?
+            .unwrap_or_default())
+    }
+
+    pub(crate) fn get_challenger_bond(
+        &mut self,
+        user_addr: <S as Spec>::Address,
+    ) -> Result<u64, Infallible> {
+        let mut state = StateCheckpoint::<S>::new(self.storage());
+
+        Ok(self
+            .attester_incentives()
+            .bonded_challengers
+            .get(&user_addr, &mut state)?
+            .unwrap_or_default())
     }
 
     pub(crate) fn get_bad_transition_reward(&mut self, height: u64) -> Result<u64, Infallible> {
