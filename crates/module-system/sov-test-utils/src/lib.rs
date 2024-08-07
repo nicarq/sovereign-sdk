@@ -240,7 +240,7 @@ pub fn new_test_blob_for_direct_registration(
 ///
 /// ## Deprecated
 /// This function is deprecated and will be removed in the future to use the testing framework. Please refrain from using it in new tests.
-pub fn has_tx_events_deprecated(apply_blob_outcome: &BatchReceipt) -> bool {
+pub fn has_tx_events_deprecated<Da: DaSpec>(apply_blob_outcome: &BatchReceipt<Da>) -> bool {
     let events = apply_blob_outcome
         .tx_receipts
         .iter()

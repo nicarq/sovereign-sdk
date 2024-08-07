@@ -5,7 +5,7 @@ use sov_bank::{Bank, Payable};
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchSequencerOutcome, BatchWithId, Context, DaSpec, DispatchCall, Genesis,
+    BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall, Genesis,
     RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_sequencer_registry::SequencerRegistry;
@@ -116,8 +116,7 @@ pub trait TestRuntimeHookOverrides<S: Spec, Da: DaSpec>:
     /// The contents of this method are used to override the `end_batch_hook` of the runtime.
     fn end_batch_hook_override(
         &self,
-        _result: &BatchSequencerOutcome,
-        _sender: &Da::Address,
+        _result: &BatchSequencerReceipt<Da>,
         _state_checkpoint: &mut StateCheckpoint<S>,
     ) {
     }

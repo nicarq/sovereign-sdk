@@ -97,7 +97,7 @@ pub(crate) type TestKernel<S, Da> = BasicKernel<S, Da>;
 #[derive(Clone, Debug)]
 pub(crate) struct ExecutionSimulationVars {
     pub state_root: <<S as Spec>::Storage as Storage>::Root,
-    pub batch_receipts: Vec<BatchReceipt>,
+    pub batch_receipts: Vec<BatchReceipt<MockDaSpec>>,
     pub state_proof: Option<StorageProof<<<S as Spec>::Storage as Storage>::Proof>>,
     gas_consumed_slot: Vec<<S as Spec>::Gas>,
 }

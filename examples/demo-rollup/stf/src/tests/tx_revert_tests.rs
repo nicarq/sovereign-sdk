@@ -75,7 +75,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
         assert_eq!(
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-            apply_blob_outcome.inner,
+            apply_blob_outcome.inner.outcome,
             "Unexpected outcome: Batch execution should have succeeded",
         );
 
@@ -180,7 +180,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
                     "Signature verification error: Bad signature error: signature error: Verification equation was not satisfied".to_string()
                 ),
             ),
-            apply_blob_outcome.inner,
+            apply_blob_outcome.inner.outcome,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
         );
 
@@ -278,7 +278,7 @@ fn test_tx_bad_nonce() {
         // We're asserting that here to track if the logic changes
 
         // Since the sequencer is penalized, he is rewarded with 0 tokens.
-        let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone();
+        let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone().outcome;
         assert_eq!(
             sequencer_outcome,
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
@@ -360,7 +360,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
         assert!(
             matches!(
-                apply_blob_outcome.inner,
+                apply_blob_outcome.inner.outcome,
                 BatchSequencerOutcome::Slashed(FatalError::MessageDecodingFailed(_, _))
             ),
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"

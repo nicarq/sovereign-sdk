@@ -122,7 +122,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64) -> Result
         .apply(total_gas_used.value(&rollup.initial_base_fee_per_gas()))
         .expect("Should not overflow");
 
-    match batch_receipt.inner.clone() {
+    match batch_receipt.inner.outcome.clone() {
         BatchSequencerOutcome::Rewarded(amount) => {
             assert_eq!(
                 Into::<u64>::into(amount),

@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Batch, TxScratchpad};
+use sov_modules_api::{Batch, BatchSequencerReceipt, TxScratchpad};
 mod batch_processing;
 mod proof_processing;
 #[cfg(feature = "test-utils")]
@@ -16,12 +16,11 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{
-    BatchSequencerOutcome, BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis,
-    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
-    WorkingSet,
-};
 pub use sov_modules_api::{BatchWithId, BlobData};
+use sov_modules_api::{
+    BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
+};
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::TxHash;
@@ -46,7 +45,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + TxHooks<Spec = S, TxState = WorkingSet<S>>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerOutcome>
+    + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerReceipt<Da>>
     + Default
     + RuntimeEventProcessor
 {
@@ -278,7 +277,7 @@ where
 
     type TxReceiptContents = TxReceiptContents;
 
-    type BatchReceiptContents = BatchSequencerOutcome;
+    type BatchReceiptContents = BatchSequencerReceipt<Da>;
 
     type ProofReceiptContents = ();
 
@@ -379,14 +378,14 @@ where
 
         let mut total_gas = S::Gas::zero();
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
-            let mut apply_batch = |batch, is_registered, checkpoint| {
+            let mut apply_batch = |batch, sender, is_registered, checkpoint| {
                 let batch_with_id = BatchWithId { batch, id: blob.id };
 
                 let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
                     batch_with_id,
                     checkpoint,
                     blob_idx,
-                    &sender,
+                    sender,
                     &gas_price,
                     visible_height,
                     is_registered,
@@ -398,11 +397,12 @@ where
             };
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let next_checkpoint = apply_batch(batch, true, checkpoint);
+                    let next_checkpoint = apply_batch(batch, sender, true, checkpoint);
                     checkpoint = next_checkpoint;
                 }
                 BlobData::EmergencyRegistration(tx) => {
-                    let next_checkpoint = apply_batch(Batch { txs: vec![tx] }, false, checkpoint);
+                    let next_checkpoint =
+                        apply_batch(Batch { txs: vec![tx] }, sender, false, checkpoint);
                     checkpoint = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {

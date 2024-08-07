@@ -69,7 +69,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
         let apply_blob_outcome = result.batch_receipts[0].clone();
         assert_eq!(
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-            apply_blob_outcome.inner,
+            apply_blob_outcome.inner.outcome,
             "Sequencer execution should have succeeded but failed "
         );
 
@@ -144,7 +144,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     assert_eq!(
         BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-        apply_blob_outcome.inner,
+        apply_blob_outcome.inner.outcome,
         "Sequencer execution should have succeeded but failed"
     );
 
@@ -226,7 +226,10 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 
     assert_eq!(2, apply_block_result.batch_receipts.len());
     for batch_receipt in apply_block_result.batch_receipts.iter() {
-        assert_eq!(batch_receipt.inner, BatchSequencerOutcome::NotRewardable);
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            BatchSequencerOutcome::NotRewardable
+        );
         let tx_receipt = &batch_receipt.tx_receipts;
 
         assert_eq!(1, tx_receipt.len());
@@ -359,7 +362,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     assert_eq!(1, apply_block_result.batch_receipts.len());
     let receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
-        receipt.inner,
+        receipt.inner.outcome,
         BatchSequencerOutcome::Ignored(
             "The runtime call included in the transaction was invalid.".to_string()
         )
@@ -456,7 +459,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     // check the first blob, that contained a valid register tx
     let first_registered_receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
-        first_registered_receipt.inner,
+        first_registered_receipt.inner.outcome,
         BatchSequencerOutcome::NotRewardable
     );
 
@@ -464,7 +467,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     for i in 1..unregistered_blobs_per_slot {
         let receipt = &apply_block_result.batch_receipts[i];
         assert_eq!(
-            receipt.inner,
+            receipt.inner.outcome,
             BatchSequencerOutcome::Ignored(
                 "The runtime call included in the transaction was invalid.".to_string()
             )

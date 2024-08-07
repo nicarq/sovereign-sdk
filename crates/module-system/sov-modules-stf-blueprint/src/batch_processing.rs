@@ -10,9 +10,9 @@ use sov_modules_api::transaction::{
     forced_sequencer_registration_cost, AuthenticatedTransactionData, SequencerReward,
 };
 use sov_modules_api::{
-    BatchSequencerOutcome, BatchWithId, Context, DaSpec, DispatchCall, Error, Gas, GasArray,
-    GasMeter, PreExecWorkingSet, RawTx, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
-    WorkingSet,
+    BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall,
+    Error, Gas, GasArray, GasMeter, PreExecWorkingSet, RawTx, Spec, StateCheckpoint, TxScratchpad,
+    UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, error, info, warn};
@@ -27,8 +27,8 @@ use crate::{
 pub type TransactionReceipt = sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents>;
 
 /// The receipt for a batch using the STF blueprint.
-pub type BatchReceipt =
-    sov_rollup_interface::stf::BatchReceipt<BatchSequencerOutcome, TxReceiptContents>;
+pub type BatchReceipt<Da> =
+    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<Da>, TxReceiptContents>;
 
 const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
@@ -38,11 +38,11 @@ pub(crate) fn apply_batch<S, Da, RT, K>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S>,
     batch_with_id: BatchWithId,
-    sequencer_da_address: &Da::Address,
+    sequencer_da_address: Da::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     is_registered_sequencer: bool,
-) -> (BatchReceipt, StateCheckpoint<S>, S::Gas)
+) -> (BatchReceipt<Da>, StateCheckpoint<S>, S::Gas)
 where
     S: Spec,
     Da: DaSpec,
@@ -57,7 +57,7 @@ where
     );
 
     // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&batch_with_id, sequencer_da_address, &mut checkpoint)
+    if let Err(e) = runtime.begin_batch_hook(&batch_with_id, &sequencer_da_address, &mut checkpoint)
     {
         error!(
             error = %e,
@@ -69,7 +69,10 @@ where
             BatchReceipt {
                 batch_hash: batch_with_id.id,
                 tx_receipts: Vec::new(),
-                inner: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
+                inner: BatchSequencerReceipt {
+                    da_address: sequencer_da_address,
+                    outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
+                },
                 gas_price: Vec::new(),
             },
             checkpoint,
@@ -95,7 +98,7 @@ where
             process_tx(
                 runtime,
                 raw_tx,
-                sequencer_da_address,
+                &sequencer_da_address,
                 gas_price,
                 height,
                 tx_scratchpad,
@@ -104,7 +107,7 @@ where
             process_unauthorized_tx(
                 runtime,
                 raw_tx,
-                sequencer_da_address,
+                &sequencer_da_address,
                 gas_price,
                 height,
                 tx_scratchpad,
@@ -142,7 +145,10 @@ where
                             BatchReceipt {
                                 batch_hash: batch_with_id.id,
                                 tx_receipts,
-                                inner: BatchSequencerOutcome::Slashed(err),
+                                inner: BatchSequencerReceipt {
+                                    da_address: sequencer_da_address,
+                                    outcome: BatchSequencerOutcome::Slashed(err),
+                                },
                                 gas_price: gas_price.to_vec(),
                             },
                             checkpoint,
@@ -160,7 +166,10 @@ where
                             BatchReceipt {
                                 batch_hash: batch_with_id.id,
                                 tx_receipts: Vec::new(),
-                                inner: BatchSequencerOutcome::Ignored(reason),
+                                inner: BatchSequencerReceipt {
+                                    da_address: sequencer_da_address,
+                                    outcome: BatchSequencerOutcome::Ignored(reason),
+                                },
                                 gas_price: Vec::new(),
                             },
                             checkpoint,
@@ -222,7 +231,10 @@ where
         BatchReceipt {
             batch_hash: batch_with_id.id,
             tx_receipts,
-            inner: sequencer_outcome,
+            inner: BatchSequencerReceipt {
+                da_address: sequencer_da_address,
+                outcome: sequencer_outcome,
+            },
             gas_price: gas_price.to_vec(),
         },
         checkpoint,
