@@ -99,6 +99,9 @@ pub enum EthApiError {
     /// Evm generic purpose error.
     #[error("Revm error: {0}")]
     EvmCustom(String),
+    /// Evm precompile error
+    #[error("Revm precompile error: {0}")]
+    EvmPrecompile(String),
 }
 
 impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
@@ -119,6 +122,7 @@ impl From<EthApiError> for jsonrpsee::types::ErrorObject<'static> {
             | EthApiError::InvalidBlockData(_)
             | EthApiError::TransactionNotFound
             | EthApiError::EvmCustom(_)
+            | EthApiError::EvmPrecompile(_)
             | EthApiError::InvalidRewardPercentiles => internal_rpc_err(error.to_string()),
             EthApiError::UnknownBlockNumber | EthApiError::UnknownBlockOrTxIndex => {
                 rpc_error_with_code(
@@ -157,6 +161,7 @@ impl From<EVMError<Infallible>> for EthApiError {
                 panic!("Infallible error triggered")
             }
             EVMError::Custom(data) => EthApiError::EvmCustom(data),
+            EVMError::Precompile(data) => EthApiError::EvmPrecompile(data),
         }
     }
 }
@@ -286,6 +291,15 @@ pub enum RpcInvalidTransactionError {
     /// Blob transaction is a create transaction
     #[error("blob transaction is a create transaction")]
     BlobTransactionIsCreate,
+    /// EOF crate should have `to` address
+    #[error("EOF crate should have `to` address")]
+    EofCrateShouldHaveToAddress,
+    /// EIP-7702 is not enabled.
+    #[error("EIP-7702 authorization list not supported")]
+    AuthorizationListNotSupported,
+    /// EIP-7702 transaction has invalid fields set.
+    #[error("EIP-7702 authorization list has invalid fields")]
+    AuthorizationListInvalidFields,
 }
 
 impl RpcInvalidTransactionError {
@@ -398,9 +412,18 @@ impl From<revm::primitives::InvalidTransaction> for RpcInvalidTransactionError {
             InvalidTransaction::BlobVersionNotSupported => {
                 RpcInvalidTransactionError::BlobHashVersionMismatch
             }
-            InvalidTransaction::TooManyBlobs => RpcInvalidTransactionError::TooManyBlobs,
             InvalidTransaction::BlobCreateTransaction => {
                 RpcInvalidTransactionError::BlobTransactionIsCreate
+            }
+            InvalidTransaction::TooManyBlobs { .. } => RpcInvalidTransactionError::TooManyBlobs,
+            InvalidTransaction::EofCrateShouldHaveToAddress { .. } => {
+                RpcInvalidTransactionError::EofCrateShouldHaveToAddress
+            }
+            InvalidTransaction::AuthorizationListNotSupported { .. } => {
+                RpcInvalidTransactionError::AuthorizationListNotSupported
+            }
+            InvalidTransaction::AuthorizationListInvalidFields { .. } => {
+                RpcInvalidTransactionError::AuthorizationListInvalidFields
             }
         }
     }
@@ -424,6 +447,7 @@ impl From<reth_primitives::InvalidTransactionError> for RpcInvalidTransactionErr
             InvalidTransactionError::Eip2930Disabled
             | InvalidTransactionError::Eip1559Disabled
             | InvalidTransactionError::Eip4844Disabled
+            | InvalidTransactionError::Eip7702Disabled
             | InvalidTransactionError::TxTypeNotSupported => {
                 RpcInvalidTransactionError::TxTypeNotSupported
             }

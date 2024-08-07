@@ -1,8 +1,9 @@
+use alloy_primitives::TxKind;
+use reth_primitives::revm_primitives::{Address, BlockEnv};
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
-use revm::primitives::{CreateScheme, TransactTo, TxEnv, U256};
-use revm_primitives::{Address, BlockEnv};
+use revm::primitives::{TxEnv, U256};
 use thiserror::Error;
 
 use super::primitive_types::SealedBlock;
@@ -27,8 +28,8 @@ impl From<SealedBlock> for BlockEnv {
 
 pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> TxEnv {
     let to = match tx.to() {
-        Some(addr) => TransactTo::Call(addr),
-        None => TransactTo::Create(CreateScheme::Create),
+        Some(addr) => TxKind::Call(addr),
+        None => TxKind::Create,
     };
 
     TxEnv {
@@ -46,6 +47,8 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> Tx
         // EIP-4844 related fields
         blob_hashes: Default::default(),
         max_fee_per_blob_gas: None,
+        // tODO: What/
+        authorization_list: None,
     }
 }
 

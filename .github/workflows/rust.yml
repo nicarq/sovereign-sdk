@@ -185,7 +185,7 @@ jobs:
     name: bench_check
     needs: check
     runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-ubuntu-20.04-amd64-8x64-with-cache
       - nscloud-cache-tag-cache-bench
       - nscloud-cache-size-100gb
     timeout-minutes: 120

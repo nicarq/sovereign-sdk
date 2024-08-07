@@ -1,9 +1,9 @@
 use std::convert::Infallible;
 
+use reth_primitives::revm_primitives::{Address, BlockEnv};
 use reth_primitives::TransactionSignedNoHash;
 use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, EnvWithHandlerCfg, ExecutionResult};
 use revm::{Database, DatabaseCommit, EvmBuilder};
-use revm_primitives::{Address, BlockEnv};
 
 use crate::evm::conversions::create_tx_env;
 

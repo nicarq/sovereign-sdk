@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
-use reth_primitives::{Address, Bytes, TransactionKind};
+use alloy_primitives::TxKind;
+use reth_primitives::{Address, Bytes};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::Credentials;
@@ -167,11 +168,7 @@ fn failed_transaction_test() -> Result<(), Infallible> {
 fn create_contract_message(dev_signer: &TestSigner, nonce: u64) -> (CallMessage, Address) {
     let contract = SimpleStorageContract::default();
     let (signed_tx, signer) = dev_signer
-        .sign_default_transaction(
-            TransactionKind::Create,
-            contract.byte_code().to_vec(),
-            nonce,
-        )
+        .sign_default_transaction(TxKind::Create, contract.byte_code().to_vec(), nonce)
         .unwrap();
     (CallMessage { rlp: signed_tx }, signer)
 }
@@ -185,7 +182,7 @@ fn set_arg_message(
     let contract = SimpleStorageContract::default();
     let (signed_tx, signer) = dev_signer
         .sign_default_transaction(
-            TransactionKind::Call(contract_addr),
+            TxKind::Call(contract_addr),
             hex::decode(hex::encode(&contract.set_call_data(set_arg))).unwrap(),
             nonce,
         )

@@ -1,11 +1,12 @@
 use std::convert::Infallible;
 
+use alloy_eips::eip1559::BaseFeeParams;
 use lazy_static::lazy_static;
-use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT};
-use reth_primitives::hex_literal::hex;
-use reth_primitives::{
-    Address, BaseFeeParams, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH,
+use reth_primitives::constants::{
+    EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT,
 };
+use reth_primitives::hex_literal::hex;
+use reth_primitives::{Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH};
 use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::{KernelWorkingSet, Module, StateCheckpoint};
 use sov_state::VisibleHash;
@@ -41,7 +42,7 @@ lazy_static! {
 }
 
 pub(crate) const GENESIS_HASH: B256 = B256::new(hex!(
-    "3441c3084e43183a53aabbbe3e94512bb3db4aca826af8f23b38f0613811571d"
+    "9cc575109514e0de4968fef3b4d7601a853de666e402766a3f0c495d0c216565"
 ));
 
 pub(crate) const GENESIS_STATE_ROOT: B256 = B256::new(hex!(
@@ -192,6 +193,7 @@ fn genesis_block() -> Result<(), Infallible> {
         blob_gas_used: None,
         excess_blob_gas: None,
         parent_beacon_block_root: None,
+        requests_root: Some(EMPTY_ROOT_HASH),
     };
 
     let expected_block = SealedBlock {
@@ -235,6 +237,7 @@ fn genesis_head() -> Result<(), Infallible> {
                 blob_gas_used: None,
                 excess_blob_gas: None,
                 parent_beacon_block_root: None,
+                requests_root: Some(EMPTY_ROOT_HASH),
             },
             transactions: 0u64..0u64,
         }

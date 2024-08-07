@@ -1,6 +1,6 @@
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::U256;
+use reth_primitives::{TxKind, U256};
 use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
@@ -48,7 +48,7 @@ pub(crate) fn register_signer_rpc_methods<
                     .get_transaction_count(from, None, &mut state)
                     .unwrap_or_default();
 
-                transaction_request.nonce = Some(nonce);
+                transaction_request.nonce = Some(nonce.to());
             }
 
             let transaction = to_typed_transaction_request(transaction_request, &evm, &mut state)?;
@@ -101,7 +101,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             value: transaction_request.value,
             input: transaction_request.input.clone(),
             nonce: transaction_request.nonce,
-            chain_id: Some(reth_primitives::U64::from(chain_id)),
+            chain_id: Some(chain_id),
             access_list: transaction_request.access_list.clone(),
             max_priority_fee_per_gas: None,
             transaction_type: None,
@@ -145,11 +145,11 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             Some(reth_rpc_types::TypedTransactionRequest::Legacy(
                 reth_rpc_types::transaction::LegacyTransactionRequest {
                     nonce: nonce.unwrap_or_default(),
-                    gas_price: gas_price.unwrap_or_default(),
-                    gas_limit: gas.unwrap_or_default(),
+                    gas_price: U256::from(gas_price.unwrap_or_default()),
+                    gas_limit: U256::from(gas.unwrap_or_default()),
                     value: value.unwrap_or_default(),
                     input: data.into_input().unwrap_or_default(),
-                    kind: address_to_tx_kind(to),
+                    kind: to.unwrap_or(TxKind::Create),
                     chain_id: None,
                 },
             ))
@@ -160,11 +160,11 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             Some(reth_rpc_types::TypedTransactionRequest::EIP2930(
                 reth_rpc_types::transaction::EIP2930TransactionRequest {
                     nonce: nonce.unwrap_or_default(),
-                    gas_price: gas_price.unwrap_or_default(),
-                    gas_limit: gas.unwrap_or_default(),
+                    gas_price: U256::from(gas_price.unwrap_or_default()),
+                    gas_limit: U256::from(gas.unwrap_or_default()),
                     value: value.unwrap_or_default(),
                     input: data.into_input().unwrap_or_default(),
-                    kind: address_to_tx_kind(to),
+                    kind: to.unwrap_or(TxKind::Create),
                     chain_id: config_value!("CHAIN_ID"),
                     access_list,
                 },
@@ -180,12 +180,14 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             Some(reth_rpc_types::TypedTransactionRequest::EIP1559(
                 reth_rpc_types::transaction::EIP1559TransactionRequest {
                     nonce: nonce.unwrap_or_default(),
-                    max_fee_per_gas: max_fee_per_gas.unwrap_or_default(),
-                    max_priority_fee_per_gas: max_priority_fee_per_gas.unwrap_or_default(),
-                    gas_limit: gas.unwrap_or_default(),
+                    max_fee_per_gas: U256::from(max_fee_per_gas.unwrap_or_default()),
+                    max_priority_fee_per_gas: U256::from(
+                        max_priority_fee_per_gas.unwrap_or_default(),
+                    ),
+                    gas_limit: U256::from(gas.unwrap_or_default()),
                     value: value.unwrap_or_default(),
                     input: data.into_input().unwrap_or_default(),
-                    kind: address_to_tx_kind(to),
+                    kind: to.unwrap_or(TxKind::Create),
                     chain_id: config_value!("CHAIN_ID"),
                     access_list: access_list.unwrap_or_default(),
                 },
@@ -202,21 +204,21 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
         Some(reth_rpc_types::TypedTransactionRequest::Legacy(mut m)) => {
             m.chain_id = Some(chain_id);
             m.gas_limit = gas_limit;
-            m.gas_price = gas_price.unwrap_or_default();
+            m.gas_price = U256::from(gas_price.unwrap_or_default());
 
             reth_rpc_types::TypedTransactionRequest::Legacy(m)
         }
         Some(reth_rpc_types::TypedTransactionRequest::EIP2930(mut m)) => {
             m.chain_id = chain_id;
             m.gas_limit = gas_limit;
-            m.gas_price = gas_price.unwrap_or_default();
+            m.gas_price = U256::from(gas_price.unwrap_or_default());
 
             reth_rpc_types::TypedTransactionRequest::EIP2930(m)
         }
         Some(reth_rpc_types::TypedTransactionRequest::EIP1559(mut m)) => {
             m.chain_id = chain_id;
             m.gas_limit = gas_limit;
-            m.max_fee_per_gas = max_fee_per_gas.unwrap_or_default();
+            m.max_fee_per_gas = U256::from(max_fee_per_gas.unwrap_or_default());
 
             reth_rpc_types::TypedTransactionRequest::EIP1559(m)
         }
@@ -225,11 +227,4 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
         }
         None => return Err(sov_evm::EthApiError::ConflictingFeeFieldsInRequest.into()),
     })
-}
-
-fn address_to_tx_kind(to: Option<reth_primitives::Address>) -> reth_rpc_types::TransactionKind {
-    match to {
-        Some(addr) => reth_rpc_types::TransactionKind::Call(addr),
-        None => reth_rpc_types::TransactionKind::Create,
-    }
 }

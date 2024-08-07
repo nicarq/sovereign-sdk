@@ -143,6 +143,8 @@ where
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
+            // EIP-7685: TODO: Sovereign does not yet support it: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1131
+            requests_root: None,
         };
 
         let block = Block {

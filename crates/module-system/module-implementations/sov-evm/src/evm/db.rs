@@ -72,7 +72,7 @@ impl<Ws: InfallibleStateAccessor> Database for EvmDb<Ws> {
         Ok(storage_value)
     }
 
-    fn block_hash(&mut self, _number: U256) -> Result<B256, Self::Error> {
+    fn block_hash(&mut self, _number: u64) -> Result<B256, Self::Error> {
         todo!("block_hash not yet implemented")
     }
 }

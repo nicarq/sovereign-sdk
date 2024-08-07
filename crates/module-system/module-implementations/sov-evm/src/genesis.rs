@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_TRANSACTIONS};
+use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACTIONS};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
 use revm::primitives::{AccountInfo, Address, SpecId, B256, U256};
 use sov_modules_api::macros::config_value;
@@ -61,7 +61,7 @@ pub struct EvmConfig {
     /// Delta to add to parent block timestamp,
     pub block_timestamp_delta: u64,
     /// Base fee params.
-    pub base_fee_params: reth_primitives::BaseFeeParams,
+    pub base_fee_params: alloy_eips::eip1559::BaseFeeParams,
 }
 
 impl Default for EvmConfig {
@@ -76,7 +76,7 @@ impl Default for EvmConfig {
             block_gas_limit: reth_primitives::constants::ETHEREUM_BLOCK_GAS_LIMIT,
             block_timestamp_delta: reth_primitives::constants::SLOT_DURATION.as_secs(),
             genesis_timestamp: 0,
-            base_fee_params: reth_primitives::BaseFeeParams::ethereum(),
+            base_fee_params: alloy_eips::eip1559::BaseFeeParams::ethereum(),
         }
     }
 }
@@ -163,6 +163,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             // EIP-4788 related field
             // unrelated for rollups
             parent_beacon_block_root: None,
+            // If Prague is activated at genesis we set requests root to an empty trie root.
+            requests_root: Some(EMPTY_ROOT_HASH),
         };
 
         let block = Block {

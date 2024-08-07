@@ -184,13 +184,14 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
                 .unwrap();
 
             let evm = Evm::<S>::default();
-            let base_fee = evm
-                .get_block_by_number(None, None, &mut state)
-                .unwrap()
-                .unwrap()
-                .header
-                .base_fee_per_gas
-                .unwrap_or_default();
+            let base_fee = U256::from(
+                evm.get_block_by_number(None, None, &mut state)
+                    .unwrap()
+                    .unwrap()
+                    .header
+                    .base_fee_per_gas
+                    .unwrap_or_default(),
+            );
 
             suggested_tip + base_fee
         };

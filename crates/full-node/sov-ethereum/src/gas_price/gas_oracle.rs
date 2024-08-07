@@ -4,7 +4,7 @@
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
 use reth_primitives::constants::GWEI_TO_WEI;
-use reth_primitives::{B256, U256, U64};
+use reth_primitives::{B256, U256};
 use reth_rpc_types::BlockTransactions;
 use serde::{Deserialize, Serialize};
 use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
@@ -23,7 +23,7 @@ pub const DEFAULT_MAX_PRICE: U256 = U256::from_limbs([500_000_000_000u64, 0, 0, 
 /// The default minimum gas price, under which the sample will be ignored
 pub const DEFAULT_IGNORE_PRICE: U256 = U256::from_limbs([2u64, 0, 0, 0]);
 
-const EIP_1559_TX_TYPE: U64 = U64::from_limbs([2]);
+const EIP_1559_TX_TYPE: u8 = 2;
 
 /// Settings for the gas price oracle configured by node operators
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
@@ -141,7 +141,7 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
         let mut results = Vec::new();
         let mut populated_blocks = 0;
 
-        let header_number = convert_u256_to_u64(header.number.unwrap());
+        let header_number = header.number.unwrap();
 
         // we only check a maximum of 2 * max_block_history, or the number of blocks in the chain
         let max_blocks = if self.oracle_config.max_block_history * 2 > header_number {
@@ -227,7 +227,8 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
             .iter()
             .filter(|tx| {
                 if let Some(ignore_under) = self.oracle_config.ignore_price {
-                    let effective_gas_tip = effective_gas_tip(tx, block.header.base_fee_per_gas);
+                    let effective_gas_tip =
+                        effective_gas_tip(tx, block.header.base_fee_per_gas).map(U256::from);
                     if effective_gas_tip < Some(ignore_under) {
                         return false;
                     }
@@ -279,18 +280,18 @@ impl Default for GasPriceOracleResult {
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/primitives/src/transaction/mod.rs#L297
 fn effective_gas_tip(
     transaction: &reth_rpc_types::Transaction,
-    base_fee: Option<U256>,
-) -> Option<U256> {
-    let priority_fee_or_price = U256::from(match transaction.transaction_type {
+    base_fee: Option<u128>,
+) -> Option<u128> {
+    let priority_fee_or_price = match transaction.transaction_type {
         Some(EIP_1559_TX_TYPE) => transaction.max_priority_fee_per_gas.unwrap(),
         _ => transaction.gas_price.unwrap(),
-    });
+    };
 
     if let Some(base_fee) = base_fee {
-        let max_fee_per_gas = U256::from(match transaction.transaction_type {
+        let max_fee_per_gas = match transaction.transaction_type {
             Some(EIP_1559_TX_TYPE) => transaction.max_fee_per_gas.unwrap(),
             _ => transaction.gas_price.unwrap(),
-        });
+        };
 
         if max_fee_per_gas < base_fee {
             None
@@ -303,15 +304,6 @@ fn effective_gas_tip(
     }
 }
 
-/// Takes only 8 least significant bytes
-fn convert_u256_to_u64(u256: U256) -> u64 {
-    let bytes: [u8; 32] = u256.to_be_bytes();
-    // 32 - 24 = 8, so it should always fit into destination array.
-    // Unless allocation or something weird
-    let bytes: [u8; 8] = bytes[24..].try_into().unwrap();
-    u64::from_be_bytes(bytes)
-}
-
 #[cfg(test)]
 mod tests {
     use proptest::arbitrary::any;
@@ -319,6 +311,11 @@ mod tests {
     use reth_primitives::constants::GWEI_TO_WEI;
 
     use super::*;
+
+    /// Takes only 8 least significant bytes
+    fn convert_u256_to_u64(u256: U256) -> u64 {
+        u256.wrapping_to()
+    }
 
     #[test]
     fn max_price_sanity() {

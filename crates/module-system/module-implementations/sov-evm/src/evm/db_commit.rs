@@ -37,7 +37,7 @@ impl<Ws: InfallibleStateAccessor> DatabaseCommit for EvmDb<Ws> {
                 if !code.is_empty() {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                     self.code
-                        .set(&account_info.code_hash, &code.bytecode, &mut self.state)
+                        .set(&account_info.code_hash, code.bytecode(), &mut self.state)
                         .unwrap_infallible();
                 }
             }
