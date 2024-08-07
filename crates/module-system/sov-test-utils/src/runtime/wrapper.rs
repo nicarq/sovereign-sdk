@@ -13,7 +13,7 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    BatchSequencerOutcome, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
+    BatchSequencerReceipt, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
     GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, RawTx,
     RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
     UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
@@ -241,7 +241,7 @@ where
     T: MinimalRuntime<S, Da>,
 {
     type Spec = S;
-    type BatchResult = BatchSequencerOutcome;
+    type BatchResult = BatchSequencerReceipt<Da>;
 
     fn begin_batch_hook(
         &self,
@@ -255,10 +255,9 @@ where
     fn end_batch_hook(
         &self,
         result: &Self::BatchResult,
-        sender: &Da::Address,
         state_checkpoint: &mut StateCheckpoint<S>,
     ) {
-        self.end_batch_hook_override(result, sender, state_checkpoint);
+        self.end_batch_hook_override(result, state_checkpoint);
     }
 }
 

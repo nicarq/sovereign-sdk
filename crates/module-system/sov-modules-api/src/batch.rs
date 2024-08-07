@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::DaSpec;
 
 use crate::capabilities::FatalError;
 use crate::transaction::SequencerReward;
@@ -90,4 +91,13 @@ pub enum BatchSequencerOutcome {
     /// This occurs when an unregistered sequencer submits a batch directly to the DA.
     /// The batch might be applied but there is nobody to reward.
     NotRewardable,
+}
+
+/// A receipt for a batch that was submitted by a sequencer to the DA layer.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BatchSequencerReceipt<Da: DaSpec> {
+    /// The da address of the sequencer that submitted the batch.
+    pub da_address: Da::Address,
+    /// The sequencer outcome for this batch.
+    pub outcome: BatchSequencerOutcome,
 }

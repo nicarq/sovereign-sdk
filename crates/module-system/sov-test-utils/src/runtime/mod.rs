@@ -50,7 +50,7 @@ type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as C
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<Da: DaSpec> {
     block_header: Da::BlockHeader,
-    batch_receipts: Vec<BatchReceipt>,
+    batch_receipts: Vec<BatchReceipt<Da>>,
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -259,7 +259,7 @@ where
             .zip(expected_slot_results)
         {
             assert_eq!(
-                expected_batch_results.batch_outcome, batch_receipt.inner,
+                expected_batch_results.batch_outcome, batch_receipt.inner.outcome,
                 "The observed batch outcome does not match the expected outcome. Expected outcome: {:?}, observed outcome: {:?}",
                 expected_batch_results.batch_outcome,
                 batch_receipt.inner

@@ -93,7 +93,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
 
         assert_eq!(
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-            apply_blob_outcome.inner,
+            apply_blob_outcome.inner.outcome,
             "Sequencer execution should have succeeded but failed "
         );
 
@@ -156,7 +156,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
         let apply_blob_outcome = batch_receipts[0].clone();
         assert_eq!(
             BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-            apply_blob_outcome.inner,
+            apply_blob_outcome.inner.outcome,
             "Sequencer execution should have succeeded but failed "
         );
 
