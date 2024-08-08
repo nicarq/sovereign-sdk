@@ -1,10 +1,10 @@
 use std::convert::Infallible;
 
 use alloy_primitives::TxKind;
-use reth_primitives::Bytes;
-use revm::primitives::{
+use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult, Output, KECCAK_EMPTY, U256,
 };
+use reth_primitives::Bytes;
 use revm::{Database, DatabaseCommit};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::WorkingSet;
@@ -37,7 +37,7 @@ fn simple_contract_execution<DB: Database<Error = Infallible> + DatabaseCommit +
     let caller = dev_signer.address();
     evm_db.insert_account_info(
         caller,
-        revm::primitives::AccountInfo {
+        reth_primitives::revm_primitives::AccountInfo {
             balance: U256::from(1000000000),
             code_hash: KECCAK_EMPTY,
             nonce: 1,

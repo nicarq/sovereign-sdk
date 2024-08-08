@@ -4,8 +4,11 @@ use std::convert::Infallible;
 use std::time::Duration;
 
 use alloy_sol_types::decode_revert_reason;
+use reth_primitives::revm_primitives::{
+    Address, EVMError, ExecutionResult, HaltReason, InvalidHeader, InvalidTransaction,
+    OutOfGasError, U256,
+};
 use reth_rpc_types::request::TransactionInputError;
-use revm::primitives::{Address, EVMError, HaltReason, InvalidHeader, U256};
 use sov_rollup_interface::common::HexString;
 
 use crate::evm::conversions::RlpConversionError;
@@ -330,20 +333,15 @@ impl RpcInvalidTransactionError {
     }
 
     /// Converts the out of gas error
-    pub(crate) fn out_of_gas(reason: revm::primitives::OutOfGasError, gas_limit: u64) -> Self {
+    pub(crate) fn out_of_gas(reason: OutOfGasError, gas_limit: u64) -> Self {
         let gas_limit = U256::from(gas_limit);
         match reason {
-            revm::primitives::OutOfGasError::Basic => {
-                RpcInvalidTransactionError::BasicOutOfGas(gas_limit)
-            }
-            revm::primitives::OutOfGasError::Memory
-            | revm::primitives::OutOfGasError::MemoryLimit => {
+            OutOfGasError::Basic => RpcInvalidTransactionError::BasicOutOfGas(gas_limit),
+            OutOfGasError::Memory | OutOfGasError::MemoryLimit => {
                 RpcInvalidTransactionError::MemoryOutOfGas(gas_limit)
             }
-            revm::primitives::OutOfGasError::Precompile => {
-                RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit)
-            }
-            revm::primitives::OutOfGasError::InvalidOperand => {
+            OutOfGasError::Precompile => RpcInvalidTransactionError::PrecompileOutOfGas(gas_limit),
+            OutOfGasError::InvalidOperand => {
                 RpcInvalidTransactionError::InvalidOperandOutOfGas(gas_limit)
             }
         }
@@ -367,8 +365,7 @@ impl From<RpcInvalidTransactionError> for jsonrpsee::types::ErrorObject<'static>
 }
 
 impl From<revm::primitives::InvalidTransaction> for RpcInvalidTransactionError {
-    fn from(err: revm::primitives::InvalidTransaction) -> Self {
-        use revm::primitives::InvalidTransaction;
+    fn from(err: InvalidTransaction) -> Self {
         match err {
             InvalidTransaction::InvalidChainId => RpcInvalidTransactionError::InvalidChainId,
             InvalidTransaction::PriorityFeeGreaterThanMaxFee => {
@@ -571,15 +568,13 @@ pub enum SignError {
 
 /// Converts the evm [ExecutionResult] into a result where `Ok` variant is the output bytes if it is
 /// [ExecutionResult::Success].
-pub(crate) fn ensure_success(
-    result: revm::primitives::ExecutionResult,
-) -> EthResult<reth_primitives::Bytes> {
+pub(crate) fn ensure_success(result: ExecutionResult) -> EthResult<reth_primitives::Bytes> {
     match result {
-        revm::primitives::ExecutionResult::Success { output, .. } => Ok(output.into_data()),
-        revm::primitives::ExecutionResult::Revert { output, .. } => {
+        ExecutionResult::Success { output, .. } => Ok(output.into_data()),
+        ExecutionResult::Revert { output, .. } => {
             Err(RpcInvalidTransactionError::Revert(RevertError::new(output.into())).into())
         }
-        revm::primitives::ExecutionResult::Halt { reason, gas_used } => {
+        ExecutionResult::Halt { reason, gas_used } => {
             Err(RpcInvalidTransactionError::halt(reason, gas_used).into())
         }
     }

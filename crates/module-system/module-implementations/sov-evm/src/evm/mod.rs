@@ -3,8 +3,7 @@
 #![allow(clippy::match_same_arms)]
 
 use alloy_eips::eip1559::BaseFeeParams;
-use revm::primitives::specification::SpecId;
-use revm::primitives::{AccountInfo, Address, U256};
+use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, U256};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::StateMap;

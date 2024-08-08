@@ -1,9 +1,8 @@
 use alloy_primitives::TxKind;
-use reth_primitives::revm_primitives::{Address, BlockEnv};
+use reth_primitives::revm_primitives::{Address, BlockEnv, TxEnv, U256};
 use reth_primitives::{
     Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
 };
-use revm::primitives::{TxEnv, U256};
 use thiserror::Error;
 
 use super::primitive_types::SealedBlock;

@@ -1,4 +1,4 @@
-use revm::primitives::{Account, Address, HashMap};
+use reth_primitives::revm_primitives::{Account, Address, HashMap};
 use revm::DatabaseCommit;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::InfallibleStateAccessor;

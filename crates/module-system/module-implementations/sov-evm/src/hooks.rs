@@ -1,5 +1,5 @@
+use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
-use revm::primitives::{B256, U256};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{AccessoryStateReaderAndWriter, StateCheckpoint};
 use sov_state::Storage;

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
+use reth_primitives::revm_primitives::{Address, EVMError};
 use reth_primitives::{Header, SealedHeader, TransactionSigned, TransactionSignedEcRecovered};
-use revm::primitives::{Address, EVMError};
 
 /// RLP encoded evm transaction.
 #[derive(

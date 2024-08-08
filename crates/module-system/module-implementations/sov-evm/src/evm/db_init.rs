@@ -1,7 +1,5 @@
+use reth_primitives::revm_primitives::{AccountInfo, Address, B256};
 use reth_primitives::Bytes;
-#[cfg(test)]
-use revm::db::{CacheDB, EmptyDB};
-use revm::primitives::{AccountInfo, Address, B256};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::InfallibleStateAccessor;
 
@@ -32,13 +30,15 @@ impl<Accessor: InfallibleStateAccessor> InitEvmDb for EvmDb<Accessor> {
 }
 
 #[cfg(test)]
-impl InitEvmDb for CacheDB<EmptyDB> {
+impl InitEvmDb for revm::db::CacheDB<revm::db::EmptyDB> {
     fn insert_account_info(&mut self, sender: Address, acc: AccountInfo) {
         self.insert_account_info(sender, acc);
     }
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
-        self.contracts
-            .insert(code_hash, revm::primitives::Bytecode::new_raw(code));
+        self.contracts.insert(
+            code_hash,
+            reth_primitives::revm_primitives::Bytecode::new_raw(code),
+        );
     }
 }
