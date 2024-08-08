@@ -4,6 +4,7 @@
     - Remove the sender's `Da::Address` field from the `end_batch_hook` because it is now accessible from `BatchResult`
     - Minor stylistic improvements in the `StfBlueprint`.
 - #1120 Improve error handling in SequencerRegistry.
+- #1135 Removes need for a `secp256k1` patch for risc0, as `k256` crate is used in guest context. Also switches to upstream reth from Sovereign fork
 - #1129 changes `StateVec::iter` to return `Result`s to account for state reading errors. The new method `StateVec::collect_infallible` can be used in tests and for infallible state accessors.
 - #1108 improve error handling in `ProverIncentives` module.
 - #1104 Add `deposit` method to prover incentives module.

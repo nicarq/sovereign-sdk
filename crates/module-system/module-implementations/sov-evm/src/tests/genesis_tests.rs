@@ -6,8 +6,8 @@ use reth_primitives::constants::{
     EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACTIONS, ETHEREUM_BLOCK_GAS_LIMIT,
 };
 use reth_primitives::hex_literal::hex;
+use reth_primitives::revm_primitives::{SpecId, KECCAK_EMPTY, U256};
 use reth_primitives::{Address, Bloom, Bytes, Header, SealedHeader, B256, EMPTY_OMMER_ROOT_HASH};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::{KernelWorkingSet, Module, StateCheckpoint};
 use sov_state::VisibleHash;
 use sov_test_utils::storage::new_finalized_storage;
@@ -73,7 +73,7 @@ fn genesis_data() -> Result<(), Infallible> {
         DbAccount::new_with_info(
             evm_db.accounts.prefix(),
             TEST_CONFIG.data[0].address,
-            revm::primitives::AccountInfo {
+            reth_primitives::revm_primitives::AccountInfo {
                 balance: account.balance,
                 code_hash: account.code_hash,
                 nonce: account.nonce,

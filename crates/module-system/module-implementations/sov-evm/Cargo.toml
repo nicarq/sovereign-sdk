@@ -32,7 +32,6 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 tracing = { workspace = true }
-secp256k1 = { workspace = true }
 
 alloy-sol-types = { version = "0.7.2", default-features = false }
 alloy-eips = { version = "0.2", default-features = false }
@@ -44,7 +43,6 @@ revm = { workspace = true, features = [
     "optional_eip3607",
     "optional_no_base_fee",
     "std",
-    "secp256k1",
 ] }
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
@@ -81,5 +79,4 @@ native = [
     "sov-modules-api/native",
     "sov-state/native",
     "sov-rollup-interface/native",
-
 ]

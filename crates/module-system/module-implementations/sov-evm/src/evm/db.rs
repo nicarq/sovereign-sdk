@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
+use reth_primitives::revm_primitives::{AccountInfo, Address, Bytecode, B256, U256};
 use reth_primitives::Bytes;
-use revm::primitives::{Address, Bytecode, B256, U256};
 use revm::Database;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::InfallibleStateAccessor;
@@ -32,10 +32,7 @@ impl<Ws> EvmDb<Ws> {
 impl<Ws: InfallibleStateAccessor> Database for EvmDb<Ws> {
     type Error = Infallible;
 
-    fn basic(
-        &mut self,
-        address: Address,
-    ) -> Result<Option<revm::primitives::AccountInfo>, Self::Error> {
+    fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let db_account = self
             .accounts
             .get(&address, &mut self.state)

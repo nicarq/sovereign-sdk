@@ -206,10 +206,9 @@ ethers-contract = { version = "=2.0.14", default-features = false }
 ethers-providers = { version = "=2.0.14", default-features = false }
 ethers-signers = { version = "=2.0.14", default-features = false }
 ethers-middleware = { version = "=2.0.14", default-features = false }
-#reth-primitives = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.3", default-features = false }
-reth-primitives = { git = "https://github.com/Sovereign-Labs/reth.git", rev = "d537941365261a0580f0f98d286f3cb27152e37b", default-features = false }
-#reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", tag = "v1.0.3", default-features = false }
-reth-rpc-types = { git = "https://github.com/Sovereign-Labs/reth.git", rev = "d537941365261a0580f0f98d286f3cb27152e37b", default-features = false }
+# 4107df8148f9409d8681f990f47ff3dbfb3f0e88 just after 1.0.4
+reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "4107df8148f9409d8681f990f47ff3dbfb3f0e88", default-features = false }
+reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "4107df8148f9409d8681f990f47ff3dbfb3f0e88", default-features = false }
 alloy-rpc-types = { version = "0.2", default-features = false }
 revm = { version = "12.1.0", features = ["serde"], default-features = false }
 revm-inspectors = { version = "0.5" }

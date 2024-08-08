@@ -1,7 +1,8 @@
 use anyhow::Result;
-use reth_primitives::revm_primitives::{BlockEnv, HandlerCfg};
+use reth_primitives::revm_primitives::{
+    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg, Log,
+};
 use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
-use revm::primitives::{Address, CfgEnv, CfgEnvWithHandlerCfg, EVMError, Log};
 use sov_modules_api::{CallResponse, Context, TxState};
 
 use crate::evm::db::EvmDb;

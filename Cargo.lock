@@ -4592,19 +4592,6 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.23.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9c465fbe385238e861fdc4d1c85e04ada6c1fd246161d26385c1b311724d2af"
-dependencies = [
- "beef",
- "http 1.1.0",
- "serde",
- "serde_json",
- "thiserror",
-]
-
-[[package]]
-name = "jsonrpsee-types"
 version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98deeee954567f75632fa40666ac93a66d4f9f4ed4ca15bd6b7ed0720b53e761"
@@ -6592,8 +6579,8 @@ checksum = "4389f1d5789befaf6029ebd9f7dac4af7f7e3d61b69d4f30e2ac02b57e7712b0"
 
 [[package]]
 name = "reth-codecs"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6608,8 +6595,8 @@ dependencies = [
 
 [[package]]
 name = "reth-codecs-derive"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -6619,8 +6606,8 @@ dependencies = [
 
 [[package]]
 name = "reth-ethereum-forks"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-chains",
  "alloy-primitives",
@@ -6636,8 +6623,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-eips",
  "alloy-genesis",
@@ -6645,6 +6632,7 @@ dependencies = [
  "alloy-rlp",
  "bytes",
  "derive_more",
+ "k256",
  "once_cell",
  "rayon",
  "reth-ethereum-forks",
@@ -6659,8 +6647,8 @@ dependencies = [
 
 [[package]]
 name = "reth-primitives-traits"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -6679,8 +6667,8 @@ dependencies = [
 
 [[package]]
 name = "reth-rpc-types"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types",
@@ -6692,13 +6680,13 @@ dependencies = [
  "alloy-rpc-types-trace",
  "alloy-rpc-types-txpool",
  "alloy-serde",
- "jsonrpsee-types 0.23.2",
+ "jsonrpsee-types 0.24.2",
 ]
 
 [[package]]
 name = "reth-static-file-types"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-primitives",
  "derive_more",
@@ -6708,8 +6696,8 @@ dependencies = [
 
 [[package]]
 name = "reth-trie-common"
-version = "1.0.3"
-source = "git+https://github.com/Sovereign-Labs/reth.git?rev=d537941365261a0580f0f98d286f3cb27152e37b#d537941365261a0580f0f98d286f3cb27152e37b"
+version = "1.0.4"
+source = "git+https://github.com/paradigmxyz/reth?rev=4107df8148f9409d8681f990f47ff3dbfb3f0e88#4107df8148f9409d8681f990f47ff3dbfb3f0e88"
 dependencies = [
  "alloy-consensus",
  "alloy-genesis",

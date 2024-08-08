@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use alloy_primitives::TxKind;
+use reth_primitives::revm_primitives::{SpecId, KECCAK_EMPTY, U256};
 use reth_primitives::{Address, Bytes};
-use revm::primitives::{SpecId, KECCAK_EMPTY, U256};
 use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::Credentials;
 use sov_modules_api::{

@@ -25,9 +25,8 @@ mod event;
 mod helpers;
 
 pub use authenticate::authenticate;
-use reth_primitives::revm_primitives::BlockEnv;
-use revm::primitives::Address;
-pub use revm::primitives::SpecId;
+pub use reth_primitives::revm_primitives::SpecId;
+use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 use sov_modules_api::{
     Context, Error, GenesisState, ModuleId, ModuleInfo, StateAccessor, TxState,
     UnmeteredStateWrapper,
@@ -64,8 +63,7 @@ pub struct Evm<S: sov_modules_api::Spec> {
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
-    pub(crate) code:
-        sov_modules_api::StateMap<revm::primitives::B256, reth_primitives::Bytes, BcsCodec>,
+    pub(crate) code: sov_modules_api::StateMap<B256, reth_primitives::Bytes, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]
@@ -98,8 +96,7 @@ pub struct Evm<S: sov_modules_api::Spec> {
 
     /// Used only by the RPC: block_hash => block_number mapping.
     #[state]
-    pub(crate) block_hashes:
-        sov_modules_api::AccessoryStateMap<revm::primitives::B256, u64, BcsCodec>,
+    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
 
     /// Used only by the RPC: List of processed transactions.
     #[state]
@@ -108,8 +105,7 @@ pub struct Evm<S: sov_modules_api::Spec> {
 
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[state]
-    pub(crate) transaction_hashes:
-        sov_modules_api::AccessoryStateMap<revm::primitives::B256, u64, BcsCodec>,
+    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
 
     /// Used only by the RPC: Receipts.
     #[state]

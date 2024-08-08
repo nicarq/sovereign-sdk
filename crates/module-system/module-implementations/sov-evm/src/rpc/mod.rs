@@ -2,13 +2,12 @@ use alloy_primitives::TxKind;
 use error::{ensure_success, RevertError};
 pub use error::{EthApiError, EthResult, RpcInvalidTransactionError};
 use jsonrpsee::core::RpcResult;
-use reth_primitives::revm_primitives::BlockEnv;
+use reth_primitives::revm_primitives::{
+    Address, AnalysisKind, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult,
+    HaltReason, InvalidTransaction, TransactTo, TxEnv, B256, KECCAK_EMPTY, U256,
+};
 use reth_primitives::{TransactionSignedEcRecovered, U64};
 use reth_rpc_types::{ReceiptEnvelope, ReceiptWithBloom};
-use revm::primitives::{
-    Address, EVMError, ExecutionResult, HaltReason, InvalidTransaction, TransactTo, B256,
-    KECCAK_EMPTY, U256,
-};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor};
@@ -654,15 +653,15 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     }
 }
 
-fn get_cfg_env_template() -> revm::primitives::CfgEnv {
-    let mut cfg_env = revm::primitives::CfgEnv::default();
+fn get_cfg_env_template() -> CfgEnv {
+    let mut cfg_env = CfgEnv::default();
     // Reth sets this to true and uses only timeout, but other clients use this as a part of DOS attacks protection, with 100mln gas limit
     // https://github.com/paradigmxyz/reth/blob/62f39a5a151c5f4ddc9bf0851725923989df0412/crates/rpc/rpc/src/eth/revm_utils.rs#L215
     cfg_env.disable_block_gas_limit = false;
     cfg_env.disable_eip3607 = true;
     cfg_env.disable_base_fee = true;
     cfg_env.chain_id = config_value!("CHAIN_ID");
-    cfg_env.perf_analyse_created_bytecodes = revm::primitives::AnalysisKind::Analyse;
+    cfg_env.perf_analyse_created_bytecodes = AnalysisKind::Analyse;
     cfg_env.limit_contract_code_size = None;
     cfg_env
 }
@@ -733,8 +732,8 @@ pub(crate) fn build_rpc_receipt(
 
 fn map_out_of_gas_err<Ws: InfallibleStateAccessor>(
     block_env: BlockEnv,
-    mut tx_env: revm::primitives::TxEnv,
-    cfg_env_with_handler: revm::primitives::CfgEnvWithHandlerCfg,
+    mut tx_env: TxEnv,
+    cfg_env_with_handler: CfgEnvWithHandlerCfg,
     db: EvmDb<Ws>,
 ) -> EthApiError {
     let req_gas_limit = tx_env.gas_limit;

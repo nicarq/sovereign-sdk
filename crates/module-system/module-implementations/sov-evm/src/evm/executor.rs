@@ -1,8 +1,9 @@
 use std::convert::Infallible;
 
-use reth_primitives::revm_primitives::{Address, BlockEnv};
+use reth_primitives::revm_primitives::{
+    Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EnvWithHandlerCfg, ExecutionResult,
+};
 use reth_primitives::TransactionSignedNoHash;
-use revm::primitives::{CfgEnvWithHandlerCfg, EVMError, Env, EnvWithHandlerCfg, ExecutionResult};
 use revm::{Database, DatabaseCommit, EvmBuilder};
 
 use crate::evm::conversions::create_tx_env;
@@ -40,9 +41,9 @@ pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
 pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
-    tx: revm::primitives::TxEnv,
+    tx: reth_primitives::revm_primitives::TxEnv,
     config_env: CfgEnvWithHandlerCfg,
-) -> Result<revm::primitives::ResultAndState, EVMError<Infallible>> {
+) -> Result<reth_primitives::revm_primitives::ResultAndState, EVMError<Infallible>> {
     let CfgEnvWithHandlerCfg {
         cfg_env,
         handler_cfg,

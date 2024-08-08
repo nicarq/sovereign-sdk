@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACTIONS};
+use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, B256, U256};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
-use revm::primitives::{AccountInfo, Address, SpecId, B256, U256};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::GenesisState;
 
@@ -186,8 +186,8 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 mod tests {
     use std::str::FromStr;
 
+    use reth_primitives::revm_primitives::{Address, SpecId};
     use reth_primitives::Bytes;
-    use revm::primitives::{Address, SpecId};
     use sov_modules_api::prelude::serde_json;
 
     use crate::{AccountData, EvmConfig};

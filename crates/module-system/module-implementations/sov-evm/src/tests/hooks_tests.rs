@@ -2,11 +2,11 @@ use std::convert::Infallible;
 
 use alloy_primitives::TxKind;
 use reth_primitives::hex_literal::hex;
+use reth_primitives::revm_primitives::BlockEnv;
 use reth_primitives::{
     Address, Bloom, Bytes, Header, SealedHeader, Signature, TransactionSigned, B256,
     EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY, U256,
 };
-use revm::primitives::BlockEnv;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{KernelWorkingSet, StateCheckpoint, VersionedStateReadWriter};
 use sov_state::VisibleHash;
