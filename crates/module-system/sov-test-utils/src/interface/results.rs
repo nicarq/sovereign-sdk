@@ -21,6 +21,8 @@ pub enum BatchSequencerOutcome {
     /// This occurs when an unregistered sequencer submits a batch directly to the DA.
     /// The batch might be applied but there is nobody to reward.
     NotRewardable,
+    /// The batch was dropped and should not be included in the slot receipt. This can happen if the sequencer is not registered.
+    Dropped,
 }
 
 impl PartialEq<sov_modules_api::BatchSequencerOutcome> for BatchSequencerOutcome {

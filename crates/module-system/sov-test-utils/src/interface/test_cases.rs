@@ -1,12 +1,12 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::FatalError;
-use sov_modules_api::{Module, ModuleError, Spec, StateCheckpoint, TxEffect};
+use sov_modules_api::{DaSpec, Module, ModuleError, Spec, StateCheckpoint, TxEffect};
 use sov_modules_stf_blueprint::{Runtime, SkippedReason, TxReceiptContents};
 
-use super::messages::{BatchMessages, TransactionType};
+use super::messages::TransactionType;
 use super::{BatchExpectedReceipt, BatchSequencerOutcome};
 use crate::runtime::wrapper::EndSlotClosure;
-use crate::runtime::WorkingSetClosure;
+use crate::runtime::{MockBlobData, WorkingSetClosure};
 
 /// Defines a test case at the slot level. This can be used to describe a rollup's test. It contains a list of [`BatchTestCase`]s and a post slot hook closure to
 /// be run after the slot has been executed.
@@ -62,8 +62,22 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
         Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::NotRewardable)
     }
 
-    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome `batch_outcome`.
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome [`BatchSequencerOutcome::Dropped`].
     /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
+    /// All the transactions in the batch will be dropped so their outcome should all be [`TxTestCase::Dropped`].
+    pub fn from_dropped_batch(tx_test_cases: Vec<TxTestCase<RT, M, S>>) -> Self {
+        assert!(tx_test_cases
+            .iter()
+            .all(|tx_test_case| matches!(tx_test_case, TxTestCase::Dropped(_))), "Test format error: if the batch is dropped, all transactions in the batch must have the dropped outcome as well");
+
+        Self::from_batch_with_outcome(tx_test_cases, BatchSequencerOutcome::Dropped)
+    }
+
+    /// Creates a [`SlotTestCase`] from a list of [`TxTestCase`]s for a batch having the outcome `batch_outcome`.
+    ///
+    /// ## Usage notes
+    /// This doesn't set any end_slot-slot hook. To set a end_slot-slot hook, use [`SlotTestCase::with_end_slot_hook`].
+    /// This also uses a default sequencer. To set a non-default sequencer, use [`SlotTestCase::with_sequencer`].
     pub fn from_batch_with_outcome(
         tx_test_cases: Vec<TxTestCase<RT, M, S>>,
         batch_outcome: BatchSequencerOutcome,
@@ -72,9 +86,20 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
             batch_test_cases: vec![BatchTestCase {
                 tx_test_cases,
                 outcome: batch_outcome,
+                sequencer: None,
             }],
             end_slot_hook: Box::new(|_| {}),
         }
+    }
+
+    /// Specifies, in-place, a non default sequencer for each batch in the slot.
+    pub fn with_sequencer(mut self, sequencer: <MockDaSpec as DaSpec>::Address) -> Self {
+        self.batch_test_cases = self
+            .batch_test_cases
+            .into_iter()
+            .map(|batch| batch.with_sequencer(sequencer))
+            .collect();
+        self
     }
 
     /// Converts a list of [`BatchTestCase`] into a [`SlotTestCase`] without any end_slot-hook.
@@ -99,6 +124,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> SlotTestCase<RT, M, S> {
 pub struct BatchTestCase<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> {
     pub(crate) tx_test_cases: Vec<TxTestCase<RT, M, S>>,
     pub(crate) outcome: BatchSequencerOutcome,
+    pub(crate) sequencer: Option<<MockDaSpec as DaSpec>::Address>,
 }
 
 impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
@@ -126,6 +152,7 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
     }
 
     /// Creates a new [`BatchTestCase`] with a custom outcome.
+    /// The sequencer is set to the default sequencer, to specify a different sequencer use [`BatchTestCase::with_sequencer`].
     pub fn with_outcome(
         tx_test_cases: Vec<TxTestCase<RT, M, S>>,
         outcome: BatchSequencerOutcome,
@@ -133,17 +160,23 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
         Self {
             tx_test_cases,
             outcome,
+            sequencer: None,
         }
     }
 
+    /// Specifies, in-place, a non default sequencer for the batch.
+    pub fn with_sequencer(mut self, sequencer: <MockDaSpec as DaSpec>::Address) -> Self {
+        self.sequencer = Some(sequencer);
+        self
+    }
+
     /// Splits a [`BatchTestCase`] into a list of [`TransactionType`], closures to be executed in the post_dispatch_hook, and an expected [`BatchExpectedReceipt`].
-    /// We are
-    pub fn split(
+    pub(crate) fn split(
         self,
     ) -> (
-        BatchMessages<M, S>,
+        MockBlobData<M, S>,
         Vec<WorkingSetClosure<RT>>,
-        BatchExpectedReceipt,
+        Option<BatchExpectedReceipt>,
     ) {
         let (messages_and_post_dispatch_closures, maybe_expected_tx_receipts): (Vec<_>, Vec<_>) =
             self.tx_test_cases
@@ -167,16 +200,23 @@ impl<RT: Runtime<S, MockDaSpec>, M: Module, S: Spec> BatchTestCase<RT, M, S> {
                 })
                 .unzip();
 
-        let batch_receipt = BatchExpectedReceipt {
-            tx_receipts: maybe_expected_tx_receipts.into_iter().flatten().collect(),
-            batch_outcome: self.outcome,
+        let batch_receipt = if BatchSequencerOutcome::Dropped == self.outcome {
+            None
+        } else {
+            Some(BatchExpectedReceipt {
+                tx_receipts: maybe_expected_tx_receipts.into_iter().flatten().collect(),
+                batch_outcome: self.outcome,
+            })
         };
 
         let (messages, post_dispatch_closures): (Vec<_>, Vec<_>) =
             messages_and_post_dispatch_closures.into_iter().unzip();
 
         (
-            messages,
+            MockBlobData {
+                messages,
+                sequencer: self.sequencer,
+            },
             post_dispatch_closures.into_iter().flatten().collect(),
             batch_receipt,
         )

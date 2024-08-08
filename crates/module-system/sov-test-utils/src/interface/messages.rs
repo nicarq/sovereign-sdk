@@ -3,11 +3,6 @@ use std::collections::HashMap;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
 
-/// A list of messages that are contained in a slot.
-pub type SlotMessages<M, S> = Vec<BatchMessages<M, S>>;
-/// A list of messages that are contained in a batch.
-pub type BatchMessages<M, S> = Vec<TransactionType<M, S>>;
-
 /// Defines the type of a message that can be sent to the runtime.
 pub enum TransactionType<M: Module, S: Spec> {
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
