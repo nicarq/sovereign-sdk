@@ -139,6 +139,10 @@ where
             call::CallMessage::BondAttester(bond_amount) => self
                 .bond_attester(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
+            call::CallMessage::DepositAttester(amount) => self
+                .deposit_attester(amount, context.sender(), state)
+                .map_err(|err| err.into()),
+
             call::CallMessage::BeginUnbondingAttester => self
                 .begin_unbond_attester(context, state)
                 .map_err(|error| error.into()),
