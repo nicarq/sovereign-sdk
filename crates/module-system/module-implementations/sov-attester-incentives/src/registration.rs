@@ -20,9 +20,24 @@ where
         user_address: &S::Address,
         state: &mut ST,
     ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
-        // If the user is an attester, we have to check that he's not trying to unbond.
         if self.unbonding_attesters.get(user_address, state)?.is_some() {
             return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
+        }
+
+        if self.bonded_attesters.get(user_address, state)?.is_some() {
+            return Err(AttesterIncentiveErrors::AlreadyRegistered);
+        }
+
+        let minimum_bond = self
+            .minimum_attester_bond
+            .get(state)?
+            .ok_or(AttesterIncentiveErrors::NoMinimumBondSet)?;
+
+        if bond_amount < minimum_bond {
+            return Err(AttesterIncentiveErrors::InsufficientStakeAmount {
+                bond_amount,
+                minimum_bond_amount: minimum_bond,
+            });
         }
 
         let balances = &self.bonded_attesters;
@@ -38,12 +53,69 @@ where
         Ok(CallResponse::default())
     }
 
+    pub(crate) fn deposit_attester<ST: StateAccessor + EventContainer>(
+        &self,
+        amount: u64,
+        attester_address: &S::Address,
+        state: &mut ST,
+    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+        if self
+            .unbonding_attesters
+            .get(attester_address, state)?
+            .is_some()
+        {
+            return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
+        }
+
+        let bonded_amount = self
+            .bonded_attesters
+            .get(attester_address, state)?
+            .ok_or(AttesterIncentiveErrors::IsNotRegistered)?;
+
+        let balance = bonded_amount.checked_add(amount).ok_or(
+            AttesterIncentiveErrors::ToppingAccountMakesBalanceOverflow {
+                existing_balance: bonded_amount,
+                amount_to_add: amount,
+            },
+        )?;
+
+        let coins = Coins {
+            amount,
+            token_id: GAS_TOKEN_ID,
+        };
+
+        self.bank
+            .transfer_from(attester_address, self.id.to_payable(), coins, state)
+            .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
+
+        self.bonded_attesters
+            .set(attester_address, &balance, state)?;
+
+        Ok(CallResponse::default())
+    }
+
     pub(crate) fn bond_challenger<ST: StateAccessor + EventContainer>(
         &self,
         bond_amount: u64,
         user_address: &S::Address,
         state: &mut ST,
     ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+        if self.bonded_challengers.get(user_address, state)?.is_some() {
+            return Err(AttesterIncentiveErrors::AlreadyRegistered);
+        }
+
+        let minimum_bond = self
+            .minimum_challenger_bond
+            .get(state)?
+            .ok_or(AttesterIncentiveErrors::NoMinimumBondSet)?;
+
+        if bond_amount < minimum_bond {
+            return Err(AttesterIncentiveErrors::InsufficientStakeAmount {
+                bond_amount,
+                minimum_bond_amount: minimum_bond,
+            });
+        }
+
         let balances = &self.bonded_challengers;
         let total_balance =
             self.bond_user_helper::<ST>(bond_amount, user_address, balances, state)?;

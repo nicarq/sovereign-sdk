@@ -49,6 +49,8 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
     ),
     /// Processes a challenge. The challenge is encoded as a [`Vec<u8>`]. The second parameter is the transition number
     ProcessChallenge(Vec<u8>, TransitionHeight),
+    /// Increases the balance of the attester.    
+    DepositAttester(Amount),
 }
 
 // Manually implement Debug to remove spurious Debug bound on S::Storage
@@ -56,6 +58,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Debug for CallMessage<S, Da> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BondAttester(arg0) => f.debug_tuple("BondAttester").field(arg0).finish(),
+            Self::DepositAttester(arg0) => f.debug_tuple("DepositAttester").field(arg0).finish(),
             Self::BeginUnbondingAttester => write!(f, "BeginUnbondingAttester"),
             Self::EndUnbondingAttester => write!(f, "EndUnbondingAttester"),
             Self::BondChallenger(arg0) => f.debug_tuple("BondChallenger").field(arg0).finish(),
@@ -110,9 +113,37 @@ pub enum SlashingReason {
 /// Error raised while processing the attester incentives
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum AttesterIncentiveErrors<AccessorError> {
-    #[error("The sender key doesn't match the attester key provided in the proof")]
-    /// The sender key doesn't match the attester key provided in the proof
-    InvalidSender,
+    #[error("The user is already registered")]
+    /// The user is already registered.
+    AlreadyRegistered,
+
+    #[error("The user is not registered.")]
+    /// The user is not registered.
+    IsNotRegistered,
+
+    #[error("The provided amount makes the balance of the attester's account overflow.")]
+    /// The provided amount makes the balance of the attester's account overflow.
+    ToppingAccountMakesBalanceOverflow {
+        /// The existing staked balance of the attester's account.
+        existing_balance: Amount,
+        /// The amount to add to the balance of the attester's account.
+        amount_to_add: Amount,
+    },
+
+    #[error(
+        "The minimum bond is not set. This is a bug - the minimum bond should be set at genesis"
+    )]
+    /// The minimum bond is not set. This is a bug - the minimum bond should be set at genesis
+    NoMinimumBondSet,
+
+    #[error("Stake amount below the minimum needed to register a attester")]
+    /// Stake amount below the minimum needed to register a attester.
+    InsufficientStakeAmount {
+        /// The amount of gas tokens the sender is trying to stake.
+        bond_amount: Amount,
+        /// The minimum amount of gas tokens to stake.
+        minimum_bond_amount: Amount,
+    },
 
     #[error("Attester is unbonding")]
     /// The attester is in the first unbonding phase
