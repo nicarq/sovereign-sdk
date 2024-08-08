@@ -1,3 +1,5 @@
+use std::convert::Infallible;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_types::nmt::{Namespace, NS_SIZE};
 use celestia_types::{Commitment, DataAvailabilityHeader, NamespacedShares};
@@ -123,6 +125,14 @@ impl BlockHash for TmHash {}
 impl From<TmHash> for [u8; 32] {
     fn from(val: TmHash) -> Self {
         *val.inner()
+    }
+}
+
+impl TryFrom<[u8; 32]> for TmHash {
+    type Error = Infallible;
+
+    fn try_from(value: [u8; 32]) -> Result<Self, Self::Error> {
+        Ok(Self(celestia_tendermint::Hash::Sha256(value)))
     }
 }
 

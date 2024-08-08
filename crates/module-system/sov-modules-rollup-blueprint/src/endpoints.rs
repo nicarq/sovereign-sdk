@@ -6,13 +6,11 @@ use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-use sov_sequencer::{
-    FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb, TxStatusNotifier,
-};
+use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, SequencerDb, TxStatusNotifier};
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
 
-use crate::FullNodeBlueprint;
+use crate::{FullNodeBlueprint, SequencerBlueprint};
 
 /// Register rollup's default RPC methods and Axum router.
 pub fn register_endpoints<B, M, Auth>(
@@ -64,7 +62,12 @@ where
                 config,
             )?;
 
-        let sequencer = Sequencer::<_, _, Auth>::new(batch_builder, da_service.clone(), notifier);
+        let sequencer = SequencerBlueprint::<B, M, Auth>::new(
+            batch_builder,
+            da_service.clone(),
+            notifier,
+            ledger_db.clone(),
+        );
 
         endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",

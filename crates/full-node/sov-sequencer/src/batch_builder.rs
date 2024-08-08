@@ -150,8 +150,8 @@ impl<S, Da, R, K, Auth> BatchBuilder for FairBatchBuilder<S, Da, R, K, Auth>
 where
     S: Spec,
     Da: DaSpec,
-    R: Runtime<S, Da>,
-    K: Kernel<S, Da> + Send + Sync,
+    R: Runtime<S, Da> + 'static,
+    K: Kernel<S, Da> + 'static,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     /// Attempt to add transaction to the mempool.

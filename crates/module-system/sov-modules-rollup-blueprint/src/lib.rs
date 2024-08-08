@@ -43,22 +43,24 @@ pub use blueprint::*;
 
 #[cfg(feature = "native")]
 mod blueprint {
+    use std::marker::PhantomData;
     use std::net::SocketAddr;
     use std::sync::Arc;
 
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
     use sov_db::schema::{DeltaReader, SchemaBatch};
+    use sov_modules_api::capabilities::Authenticator;
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::runtime::capabilities::Kernel;
-    use sov_modules_api::{ProofSerializer, Spec, Zkvm};
+    use sov_modules_api::{BatchSequencerOutcome, ProofSerializer, Spec, Zkvm};
     use sov_modules_stf_blueprint::{
-        GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint,
+        GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
     use sov_rollup_interface::services::da::DaService;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-    use sov_sequencer::SequencerDb;
+    use sov_sequencer::{FairBatchBuilder, Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
     use sov_stf_runner::{
@@ -332,5 +334,32 @@ mod blueprint {
             runner.run_in_process().await?;
             Ok(())
         }
+    }
+
+    /// A [`Sequencer`] that for a rollup built with [`RollupBlueprint`].
+    pub type SequencerBlueprint<B, M, Auth> = Sequencer<RollupBlueprintSequencerSpec<B, M, Auth>>;
+
+    /// The [`SequencerSpec`] of a [`SequencerBlueprint`].
+    #[derive(derivative::Derivative)]
+    #[derivative(Clone(bound = ""))]
+    pub struct RollupBlueprintSequencerSpec<B, M, Auth>(PhantomData<(B, M, Auth)>);
+
+    impl<B, M, Auth> SequencerSpec for RollupBlueprintSequencerSpec<B, M, Auth>
+    where
+        B: FullNodeBlueprint<M> + Send + Sync + 'static,
+        M: ExecutionMode + Send + Sync + 'static,
+        Auth: Authenticator<Spec = B::Spec, DispatchCall = B::Runtime> + Send + Sync + 'static,
+        // Bounds required by `FullNodeBlueprint`:
+        // --------------------------
+        <B::InnerZkvmHost as ZkvmHost>::Guest:
+            ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
+        <B::OuterZkvmHost as ZkvmHost>::Guest:
+            ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
+    {
+        type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>;
+        type Da = B::DaService;
+        type Auth = Auth;
+        type BatchReceipt = BatchSequencerOutcome;
+        type TxReceipt = TxReceiptContents;
     }
 }

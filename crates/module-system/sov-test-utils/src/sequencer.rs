@@ -1,17 +1,19 @@
 use std::net::SocketAddr;
 
+use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::{Address, PrivateKey};
-use sov_modules_stf_blueprint::GenesisParams;
+use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::{
-    FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb, TxStatusNotifier,
+    FairBatchBuilder, FairBatchBuilderConfig, GenericSequencerSpec, Sequencer, SequencerDb,
+    TxStatusNotifier,
 };
 use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -25,8 +27,16 @@ use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageM
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
+type TestSequencerSpec<B> = GenericSequencerSpec<
+    B,
+    MockDaService,
+    TestAuth<TestSpec, MockDaSpec>,
+    BatchReceipt<MockDaSpec>,
+    TxReceiptContents,
+>;
+
 /// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions and a [`TestAuth`] for authentication.
-pub type TestSequencer<B> = Sequencer<B, MockDaService, TestAuth<TestSpec, MockDaSpec>>;
+pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 
 /// The default test fair batch builder type.
 /// An alias for a [`FairBatchBuilder`] with a [`TestSpec`],
@@ -63,10 +73,7 @@ impl<B: BatchBuilder> Drop for TestSequencerSetup<B> {
     }
 }
 
-impl<B> TestSequencerSetup<B>
-where
-    B: BatchBuilder + Send + Sync + 'static,
-{
+impl<B: BatchBuilder> TestSequencerSetup<B> {
     /// Instantiates a new [`Sequencer`] with a [`TestRuntime`] and an empty
     /// [`MockDaService`].
     ///
@@ -90,7 +97,8 @@ where
             ProverStorage<DefaultStorageSpec<TestHasher>>,
         >::new(dir.path())?;
         let genesis_block_header = MockBlockHeader::from_height(0);
-        let (stf_state, _) = storage_manager.create_state_for(&genesis_block_header)?;
+        let (stf_state, ledger_state) = storage_manager.create_state_for(&genesis_block_header)?;
+        let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
         let genesis_config = create_genesis_config(
             (&admin_pkey.pub_key()).into(),
@@ -120,7 +128,12 @@ where
 
         storage_manager.save_change_set(&genesis_block_header, change_set, SchemaBatch::new())?;
 
-        let sequencer = Sequencer::new(batch_builder, da_service.clone(), tx_status_notifier);
+        let sequencer = Sequencer::new(
+            batch_builder,
+            da_service.clone(),
+            tx_status_notifier,
+            ledger_db,
+        );
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));
@@ -173,7 +186,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
 
         let mut storage_manager: TestStorageManager = NativeStorageManager::new(dir.path())?;
         let genesis_block_header = MockBlockHeader::from_height(0);
-        let (stf_state, _) = storage_manager.create_state_for(&genesis_block_header)?;
+        let (stf_state, _ledger_state) = storage_manager.create_state_for(&genesis_block_header)?;
 
         let genesis_config = create_genesis_config(
             (&admin_pkey.pub_key()).into(),
@@ -207,7 +220,8 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
 
         let sequencer_db = SequencerDb::new(dir.path())?;
 
-        let (stf_state, _ledger_storage) = storage_manager.create_state_for(&first_block)?;
+        let (stf_state, ledger_storage) = storage_manager.create_state_for(&first_block)?;
+        let ledger_db = LedgerDb::with_reader(ledger_storage)?;
 
         let batch_builder_config = FairBatchBuilderConfig {
             mempool_max_txs_count,
@@ -226,7 +240,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         )?;
 
         let da_service = MockDaService::new(SEQUENCER_ADDR.into());
-        let sequencer = Sequencer::new(batch_builder, da_service.clone(), notifier);
+        let sequencer = Sequencer::new(batch_builder, da_service.clone(), notifier, ledger_db);
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));

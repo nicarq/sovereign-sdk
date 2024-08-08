@@ -9,7 +9,7 @@ mod tx_status;
 
 pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
 pub use db::{MempoolTx, SequencerDb};
-pub use sequencer::Sequencer;
+pub use sequencer::{GenericSequencerSpec, Sequencer, SequencerSpec};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::TxHash;

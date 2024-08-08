@@ -19,10 +19,12 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<(TxHash, Transacti
     let mut txs = Vec::default();
     for message in messages_iter {
         let tx = message.to_tx::<TestRuntime<TestSpec, MockDaSpec>>();
-        let tx_hash = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
-            borsh::to_vec(&tx).unwrap(),
-        )
-        .into();
+        let tx_hash = TxHash::new(
+            <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
+                borsh::to_vec(&tx).unwrap(),
+            )
+            .into(),
+        );
 
         txs.push((tx_hash, tx));
     }

@@ -5859,6 +5859,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-cli"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.0",
+ "borsh 1.5.1",
+ "derive_more",
+ "directories",
+ "hex",
+ "jsonrpsee 0.22.5",
+ "semver 1.0.22",
+ "serde",
+ "serde_json",
+ "sov-bank",
+ "sov-ledger-json-client",
+ "sov-modules-api",
+ "sov-nonces",
+ "sov-rollup-interface",
+ "sov-sequencer-json-client",
+]
+
+[[package]]
 name = "sov-db"
 version = "0.3.0"
 dependencies = [
@@ -6040,6 +6062,30 @@ dependencies = [
  "sov-wallet-format-macro-helpers",
  "syn 1.0.109",
  "toml 0.8.12",
+]
+
+[[package]]
+name = "sov-modules-rollup-blueprint"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh 1.5.1",
+ "derivative",
+ "serde",
+ "serde_json",
+ "sov-cli",
+ "sov-db",
+ "sov-ledger-apis",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
+ "sov-sequencer",
+ "sov-sequencer-registry",
+ "sov-state",
+ "sov-stf-runner",
+ "tokio",
+ "tower-http",
 ]
 
 [[package]]
@@ -6235,14 +6281,27 @@ name = "sov-stf-runner"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "async-trait",
+ "axum",
+ "backon",
  "borsh 1.5.1",
+ "derivative",
+ "futures",
  "hex",
+ "jsonrpsee 0.22.5",
  "num_cpus",
+ "rayon",
  "schemars",
  "serde",
  "serde_json",
+ "sov-db",
  "sov-metrics",
  "sov-rollup-interface",
+ "strum 0.26.2",
+ "thiserror",
+ "tokio",
+ "toml 0.8.12",
+ "tracing",
 ]
 
 [[package]]
@@ -6272,6 +6331,7 @@ dependencies = [
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
  "sov-prover-incentives",
  "sov-rollup-interface",

@@ -3,57 +3,107 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use futures::StreamExt;
+use serde::de::DeserializeOwned;
+use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::{Batch, RawTx};
+use sov_modules_api::{Batch, RawTx, TxReceiptContents};
 use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
+use sov_rollup_interface::rpc::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::TxHash;
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio_stream::wrappers::BroadcastStream;
+use tracing::info;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, SubmittedBatchInfo};
 
-/// Single data structure that manages mempool and batch producing.
-pub struct Sequencer<B: BatchBuilder, Da: DaService, Auth: Authenticator>(Arc<Inner<B, Da, Auth>>);
+/// A bunch of associated types that define the behavior of a [`Sequencer`].
+pub trait SequencerSpec: Clone + Send + Sync + 'static {
+    /// The [`BatchBuilder`] that the sequencer uses to process submitted
+    /// transactions and assemble them into batches.
+    type BatchBuilder: BatchBuilder;
+    /// The [`DaService`] that the sequencer uses to communicate with the DA
+    /// layer.
+    type Da: DaService;
+    /// What [`Authenticator`] the sequencer uses to authenticate submitted
+    /// transactions.
+    type Auth: Authenticator;
+    /// The type of the batch receipt that the rollup stores in the [`LedgerDb`].
+    type BatchReceipt: DeserializeOwned + Send + Sync;
+    /// The type of the transaction receipt that the rollup stores in the
+    /// [`LedgerDb`].
+    type TxReceipt: TxReceiptContents;
+}
 
-impl<B, Da, Auth> Clone for Sequencer<B, Da, Auth>
+/// A [`SequencerSpec`] with explicit generic types.
+#[derive(derivative::Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>(
+    PhantomData<(B, Da, Auth, BatchReceipt, TxReceipt)>,
+);
+
+impl<B, Da, Auth, BatchReceipt, TxReceipt> SequencerSpec
+    for GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>
 where
     B: BatchBuilder,
     Da: DaService,
     Auth: Authenticator,
+    BatchReceipt: DeserializeOwned + Send + Sync + 'static,
+    TxReceipt: TxReceiptContents,
 {
-    fn clone(&self) -> Self {
-        Self(self.0.clone())
+    type BatchBuilder = B;
+    type Da = Da;
+    type Auth = Auth;
+    type BatchReceipt = BatchReceipt;
+    type TxReceipt = TxReceipt;
+}
+
+/// Single data structure that manages mempool and batch producing.
+#[derive(Clone)]
+pub struct Sequencer<Ss: SequencerSpec>(Arc<Inner<Ss>>);
+
+struct Inner<Ss: SequencerSpec> {
+    batch_builder: Mutex<Ss::BatchBuilder>,
+    da_service: Ss::Da,
+    tx_status_notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    dropper: Option<oneshot::Sender<()>>,
+}
+
+impl<Ss: SequencerSpec> Drop for Inner<Ss> {
+    fn drop(&mut self) {
+        // `send` takes ownership over the sender, but we can't do that within
+        // `drop`. So we use `Option::take` as a hack instead.
+        self.dropper.take().map(|dropper| dropper.send(()));
     }
 }
 
-struct Inner<B: BatchBuilder, Da: DaService, Auth: Authenticator> {
-    batch_builder: Mutex<B>,
-    da_service: Da,
-    tx_status_notifier: TxStatusNotifier<Da::Spec>,
-    _phantom: PhantomData<Auth>,
-}
-
-impl<B, Da, Auth> Sequencer<B, Da, Auth>
-where
-    B: BatchBuilder + Send + Sync + 'static,
-    Da: DaService,
-    Auth: Authenticator,
-{
-    /// Creates new Sequencer from BatchBuilder and DaService
+impl<Ss: SequencerSpec> Sequencer<Ss> {
+    /// Creates a new [`Sequencer`] from a [`BatchBuilder`] and a [`DaService`].
     pub fn new(
-        batch_builder: B,
-        da_service: Da,
-        tx_status_notifier: TxStatusNotifier<Da::Spec>,
+        batch_builder: Ss::BatchBuilder,
+        da_service: Ss::Da,
+        tx_status_notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+        ledger_db: LedgerDb,
     ) -> Self {
+        let (dropper, drop_receiver) = oneshot::channel();
+
+        tokio::spawn({
+            let notifier = tx_status_notifier.clone();
+            async move {
+                listen_for_slots_and_notify::<Ss>(ledger_db, notifier, drop_receiver)
+                    .await
+                    .ok();
+            }
+        });
+
         Self(Arc::new(Inner {
             batch_builder: Mutex::new(batch_builder),
             da_service,
             tx_status_notifier,
-            _phantom: PhantomData,
+            dropper: Some(dropper),
         }))
     }
 
@@ -148,7 +198,7 @@ where
     pub async fn tx_status(
         &self,
         tx_hash: &TxHash,
-    ) -> anyhow::Result<Option<TxStatus<DaBlobHash<Da::Spec>>>> {
+    ) -> anyhow::Result<Option<TxStatus<DaBlobHash<<Ss::Da as DaService>::Spec>>>> {
         let is_in_mempool = self.0.batch_builder.lock().await.contains(tx_hash).await?;
 
         if is_in_mempool {
@@ -157,6 +207,60 @@ where
             Ok(self.0.tx_status_notifier.get_cached(tx_hash))
         }
     }
+}
+
+async fn notify_processed_slot<Ss: SequencerSpec>(
+    ledger_db: &LedgerDb,
+    notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    slot_number: u64,
+) -> anyhow::Result<()> {
+    let slot = ledger_db
+        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt>(slot_number, QueryMode::Full)
+        .await?;
+    for batch in slot.unwrap().batches.unwrap_or_default().iter() {
+        let ItemOrHash::Full(batch) = batch else {
+            continue;
+        };
+        for tx in batch.txs.as_deref().unwrap_or_default().iter() {
+            let ItemOrHash::Full(tx) = tx else {
+                continue;
+            };
+
+            let da_transaction_id =
+                <DaBlobHash<<Ss::Da as DaService>::Spec>>::try_from(batch.hash)?;
+            let tx_hash = TxHash::new(tx.hash);
+
+            notifier.notify(tx_hash, TxStatus::Published { da_transaction_id });
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn listen_for_slots_and_notify<Ss: SequencerSpec>(
+    ledger_db: LedgerDb,
+    notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    mut drop_receiver: oneshot::Receiver<()>,
+) -> anyhow::Result<()> {
+    let mut sub = ledger_db.subscribe_slots();
+
+    loop {
+        tokio::select! {
+            _ = &mut drop_receiver => {
+                info!("Sequencer was dropped, stopping listener for new slots");
+                break;
+            },
+            slot_number_opt = sub.next() => {
+                if let Some(slot_number) = slot_number_opt {
+                    notify_processed_slot::<Ss>(&ledger_db, notifier.clone(), slot_number).await?;
+                } else {
+                    break;
+                }
+            }
+        }
+    }
+
+    Ok(())
 }
 
 mod axum_router {
@@ -215,12 +319,7 @@ mod axum_router {
     }
 
     // Web server and Axum-related methods.
-    impl<B, Da, Auth> Sequencer<B, Da, Auth>
-    where
-        B: BatchBuilder + Send + Sync + 'static,
-        Da: DaService,
-        Auth: Authenticator + Send + Sync + 'static,
-    {
+    impl<Ss: SequencerSpec + Clone + Send + Sync + 'static> Sequencer<Ss> {
         /// Creates an Axum router for the sequencer.
         pub fn axum_router(&self, path_prefix: &str) -> axum::Router<Self> {
             preconfigured_router_layers(
@@ -315,7 +414,7 @@ mod axum_router {
         async fn axum_get_tx(
             sequencer: State<Self>,
             tx_hash: Path<TxHash>,
-        ) -> ApiResult<TxInfo<DaBlobHash<Da::Spec>>> {
+        ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
             let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0);
 
             if let Some(tx_status) = tx_status {
@@ -332,9 +431,9 @@ mod axum_router {
         async fn axum_accept_tx(
             sequencer: State<Self>,
             tx: Json<AcceptTx>,
-        ) -> ApiResult<TxInfo<DaBlobHash<Da::Spec>>> {
+        ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
             let tx = tx.0.body.blob;
-            let authed_tx = Auth::encode(tx)
+            let authed_tx = Ss::Auth::encode(tx)
                 .map_err(|e| errors::bad_request_400("Failed to encode transaction", e))?;
 
             let tx_hash = match sequencer.accept_tx(authed_tx.data).await {
@@ -366,7 +465,7 @@ mod axum_router {
                 .0
                 .transactions
                 .into_iter()
-                .map(|tx| Ok(Auth::encode(tx.blob)?.data))
+                .map(|tx| Ok(Ss::Auth::encode(tx.blob)?.data))
                 .collect::<anyhow::Result<Vec<_>>>()
                 .map_err(|e| errors::bad_request_400("Failed to encode transaction(s)", e))?;
 
@@ -387,10 +486,13 @@ mod axum_router {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use async_trait::async_trait;
     use base64::prelude::*;
     use borsh::BorshDeserialize;
     use sov_mock_da::{MockAddress, MockDaService};
+    use sov_modules_api::prelude::*;
     use sov_rollup_interface::da::BlobReaderTrait;
     use sov_rollup_interface::services::batch_builder::TxWithHash;
     use sov_sequencer_json_client::types;
@@ -448,6 +550,19 @@ mod tests {
     #[test]
     fn openapi_spec_is_valid() {
         let _spec = openapi_spec();
+    }
+
+    #[tokio::test]
+    #[traced_test]
+    async fn dropping_sequencer_stops_listener() {
+        let sequencer = new_sequencer(MockBatchBuilder::default()).await;
+
+        assert!(!logs_contain("stopping listener"));
+
+        drop(sequencer);
+        tokio::time::sleep(Duration::from_millis(20)).await;
+
+        assert!(logs_contain("stopping listener"));
     }
 
     #[tokio::test]
