@@ -1,14 +1,20 @@
 use sov_bank::ReserveGasErrorReason;
+use sov_mock_da::MockAddress;
 use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{BatchReceipt, BatchSequencerReceipt, DaSpec};
 use sov_modules_stf_blueprint::SkippedReason;
+use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::interface::AsUser;
 use crate::runtime::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::TestRunner;
-use crate::{generate_optimistic_runtime, MockDaSpec, SlotTestCase, TestUser, TxTestCase};
+use crate::{
+    generate_optimistic_runtime, MockDaSpec, SlotTestCase, TestSequencer, TestUser, TxTestCase,
+    TEST_DEFAULT_USER_STAKE,
+};
 
 type S = crate::TestSpec;
 
@@ -76,6 +82,105 @@ fn test_query_runtime() {
     });
 
     assert_eq!(state_value, Some(1), "The value should be set to 1");
+}
+
+/// Tests that the batch is rewarded if the default sequencer is used
+#[test]
+fn test_default_sequencer() {
+    let (admin, mut runner) = setup();
+
+    runner.execute_slots(vec![
+        // If no sequencer is specified, the default one should be used and the batch should be rewarded
+        SlotTestCase::from_rewarded_batch(vec![
+            TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::applied(
+                admin.create_plain_message::<ValueSetter<S>>(
+                    sov_value_setter::CallMessage::SetValue(1),
+                ),
+            ),
+        ]),
+    ]);
+
+    // Check that the last receipt is from the default sequencer
+    let last_receipt: &BatchReceipt<BatchSequencerReceipt<MockDaSpec>, _> =
+        runner.slot_receipts.last().unwrap().last_batch_receipt();
+
+    assert_eq!(
+        last_receipt.inner.da_address,
+        runner.default_sequencer_da_address
+    );
+}
+
+/// Tests that the batch is dropped if the specified sequencer is not registered
+#[test]
+fn test_specify_non_default_sequencer_errors_if_not_registered() {
+    let (admin, mut runner) = setup();
+
+    runner.execute_slots(vec![
+        // If a sequencer is specified, it should be used. This should fail because this sequencer is not registered
+        SlotTestCase::from_dropped_batch(vec![
+            TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::dropped(
+                admin.create_plain_message::<ValueSetter<S>>(
+                    sov_value_setter::CallMessage::SetValue(10),
+                ),
+            ),
+        ])
+        .with_sequencer(<MockDaSpec as DaSpec>::Address::from([42; 32])),
+    ]);
+
+    // Check that there is no receipt available
+    assert_eq!(
+        runner.slot_receipts.last().unwrap().batch_receipts.len(),
+        0,
+        "The last slot receipt should be empty because the batch was dropped"
+    );
+}
+
+/// Tests that we can register and use another sequencer
+#[test]
+fn test_register_sequencer() {
+    let (additional_user, mut runner) = setup();
+
+    let sequencer_address = MockAddress::from([42; 32]);
+
+    let sequencer = TestSequencer::<S, MockDaSpec> {
+        user_info: additional_user,
+        da_address: sequencer_address,
+        bond: TEST_DEFAULT_USER_STAKE,
+    };
+
+    // We first bond the sequencer
+    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![TxTestCase::<
+        TestRuntime<S, MockDaSpec>,
+        _,
+        _,
+    >::applied(
+        sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: sequencer.da_address.as_ref().to_vec(),
+                amount: sequencer.bond,
+            },
+        ),
+    )])]);
+
+    // Then we use the non-default sequencer to set a value
+    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![TxTestCase::<
+        TestRuntime<S, MockDaSpec>,
+        _,
+        _,
+    >::applied(
+        sequencer
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+    )])
+    .with_sequencer(sequencer.da_address)]);
+
+    // Check that the last receipt is from the non-default sequencer
+    let last_receipt: &BatchReceipt<BatchSequencerReceipt<MockDaSpec>, _> =
+        runner.slot_receipts.last().unwrap().last_batch_receipt();
+
+    assert_eq!(
+        last_receipt.inner.da_address, sequencer_address,
+        "The last receipt should be from the non-default sequencer"
+    );
 }
 
 /// Checks that the chain id of a transaction can be overridden.
