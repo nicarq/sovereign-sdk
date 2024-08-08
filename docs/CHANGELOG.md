@@ -1,3 +1,4 @@
+- #1146 Adds `DEFAULT_SOV_ROLLUP_LOGGING` constant in `sov-modules-rollup-blueprint` that should be used for default tracing-subscriber setup.
 - #1121 changes the `BatchReceipt`'s `inner` default field and adds the `sequencer_da_address` to it. In particular:
     - Add a new `BatchSequencerReceipt` struct which contains the sequencer's `da_address` and `BatchSequencerOutcome`.
     - Change the `BatchResult` type from `BatchSequencerOutcome` to `BatchSequencerReceipt`.
