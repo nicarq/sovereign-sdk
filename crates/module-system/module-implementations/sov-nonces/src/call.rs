@@ -12,7 +12,10 @@ pub enum NotInstantiable {}
 impl borsh::BorshDeserialize for NotInstantiable {
     // It is impossible to deserialize to NotInstantiable.
     fn deserialize_reader<R: std::io::prelude::Read>(_reader: &mut R) -> Result<Self> {
-        panic!("NotInstantiable type cannot be deserialized")
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "NotInstantiable is not instantiable",
+        ))
     }
 }
 
