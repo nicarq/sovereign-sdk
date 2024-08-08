@@ -6,7 +6,7 @@ use crate::TxHash;
 
 /// BlockBuilder trait is responsible for managing mempool and building batches.
 #[async_trait]
-pub trait BatchBuilder {
+pub trait BatchBuilder: Send + Sync + 'static {
     /// Accept a new transaction.
     /// Can return error if transaction is invalid or mempool is full.
     async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash>;

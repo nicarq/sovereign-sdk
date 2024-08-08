@@ -30,14 +30,14 @@ pub enum TxStatus<BlobHash> {
     /// sitting in the mempool waiting to be included in a batch.
     Submitted,
     /// The transaction was published to the DA as part of a batch, but it may
-    /// not be finalized yet.
+    /// not be finalized or processed by the rollup node yet.
     Published {
         #[allow(missing_docs)]
         da_transaction_id: BlobHash,
     },
-    /// The transaction was published to the DA as part of a batch that is
-    /// considered finalized.
-    Finalized {
+    /// The transaction was published to the DA and the rollup node has
+    /// processed it.
+    Processed {
         #[allow(missing_docs)]
         da_transaction_id: BlobHash,
     },
@@ -47,15 +47,7 @@ impl<B> TxStatus<B> {
     /// After a terminal status is reached, the WebSocket connection will be
     /// closed becaus no more events will be sent.
     pub fn is_terminal(&self) -> bool {
-        // FIXME: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1088
-        // Right now, "published" is considered to be terminal because the
-        // sequencer never sends finalized status events. "published" MUST be
-        // removed from this list once the issue is resolved, because it's not
-        // truly terminal.
-        matches!(
-            self,
-            TxStatus::Published { .. } | TxStatus::Finalized { .. } | TxStatus::Dropped { .. }
-        )
+        matches!(self, TxStatus::Processed { .. } | TxStatus::Dropped { .. })
     }
 }
 
@@ -71,8 +63,6 @@ type TxStatusSenders<Da> = HashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash
 pub struct TxStatusNotifier<Da: DaSpec> {
     // `MokaCache` is cheaply-cloneable, no need to wrap it in `Arc`.
     cache: MokaCache<TxHash, TxStatus<DaBlobHash<Da>>>,
-    // **Note:** `DashMap` can deadlock on mutable operations, so make sure to
-    // read the docs for all methods that you're using.
     senders: Arc<RwLock<TxStatusSenders<Da>>>,
 }
 
@@ -80,7 +70,7 @@ impl<Da: DaSpec> Default for TxStatusNotifier<Da> {
     fn default() -> Self {
         Self {
             cache: MokaCache::new(Self::CACHE_CAPACITY),
-            senders: Arc::new(RwLock::new(HashMap::new())),
+            senders: Default::default(),
         }
     }
 }
