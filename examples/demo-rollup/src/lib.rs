@@ -17,6 +17,7 @@ use tracing_subscriber::{fmt, EnvFilter};
 mod celestia_rollup;
 
 pub use celestia_rollup::*;
+use sov_modules_rollup_blueprint::DEFAULT_SOV_ROLLUP_LOGGING;
 
 mod eth;
 
@@ -32,10 +33,9 @@ pub fn initialize_logging() {
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(
-            EnvFilter::from_str(&env::var("RUST_LOG").unwrap_or_else(|_| {
-                "debug,hyper=info,risc0_zkvm=warn,jmt=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tower_http=info,tungstenite=info"
-                    .to_string()
-            }))
+            EnvFilter::from_str(
+                &env::var("RUST_LOG").unwrap_or_else(|_| DEFAULT_SOV_ROLLUP_LOGGING.to_string()),
+            )
             .unwrap(),
         )
         .init();

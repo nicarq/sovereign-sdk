@@ -91,6 +91,12 @@ fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
             tracing::error!(value, ?error, "Unknown `SOV_PROVER_MODE` value; aborting");
             error
         })?;
+        #[cfg(debug_assertions)]
+        {
+            if config == RollupProverConfig::Prove {
+                tracing::warn!(prover_config = ?config, "Given RollupProverConfig might cause slow rollup progression if not compiled in release mode.");
+            }
+        }
         Ok(Some(config))
     } else {
         Ok(None)

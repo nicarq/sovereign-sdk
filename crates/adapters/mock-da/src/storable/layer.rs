@@ -74,7 +74,7 @@ impl StorableMockDaLayer {
 
     /// Saves new block header into a database.
     pub(crate) async fn produce_block(&mut self) -> anyhow::Result<()> {
-        tracing::debug!(
+        tracing::trace!(
             next_height = self.next_height,
             "Start producing a new block at"
         );
@@ -124,7 +124,11 @@ impl StorableMockDaLayer {
             ..Default::default()
         };
         block.insert(&self.conn).await?;
-        tracing::debug!(blobs_count, "New block has been produced");
+        tracing::debug!(
+            blobs_count,
+            height = self.next_height,
+            "New block has been produced"
+        );
 
         self.next_height += 1;
 
