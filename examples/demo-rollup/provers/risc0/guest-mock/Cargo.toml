@@ -39,5 +39,5 @@ lto = true
 opt-level = 3
 
 [features]
-bench = ["sov-modules-api/bench", "sov-state/bench", "sov-modules-stf-blueprint/bench"]
+bench = ["sov-modules-api/bench", "sov-state/bench", "sov-modules-stf-blueprint/bench", "sov-risc0-adapter/bench"]
 bincode = ["sov-risc0-adapter/bincode"]

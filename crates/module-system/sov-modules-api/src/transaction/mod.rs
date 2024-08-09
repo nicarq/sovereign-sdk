@@ -7,9 +7,9 @@ pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDet
 pub(crate) use gas_metering::TxGasMeter;
 pub(crate) use rewards::transaction_consumption_helper;
 pub use rewards::{forced_sequencer_registration_cost, SequencerReward, TransactionConsumption};
-#[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
 use serde::{Deserialize, Serialize};
+#[cfg(all(target_os = "zkvm", feature = "bench"))]
+use sov_cycle_utils::macros::cycle_tracker;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::crypto::SigVerificationError;

@@ -197,8 +197,8 @@ risc0-zkvm-platform = "1.0.5"
 risc0-zkp = "1.0.5"
 risc0-circuit-rv32im = "1.0.5"
 risc0-build = "1.0.5"
-risc0-cycle-macros = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "ec6491423ba7376651211b79a934cd1d8a132aad" }
-risc0-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "ec6491423ba7376651211b79a934cd1d8a132aad" }
+sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86" }
+
 # EVM dependencies
 ethereum-types = "0.14.1"
 ethers-core = { version = "=2.0.14", default-features = false }

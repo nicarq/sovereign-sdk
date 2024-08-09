@@ -860,9 +860,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.15.4"
+version = "3.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ff69b9dd49fd426c69a0db9fc04dd934cdb6645ff000864d98f7e2af8830eaa"
+checksum = "79296716171880943b8470b5f8d03aa55eb2e645a4874bdbb28adb49162e012c"
 
 [[package]]
 name = "byte-slice-cast"
@@ -3068,25 +3068,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "risc0-cycle-macros"
-version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=ec6491423ba7376651211b79a934cd1d8a132aad#ec6491423ba7376651211b79a934cd1d8a132aad"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.55",
-]
-
-[[package]]
-name = "risc0-cycle-utils"
-version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=ec6491423ba7376651211b79a934cd1d8a132aad#ec6491423ba7376651211b79a934cd1d8a132aad"
-dependencies = [
- "risc0-zkvm",
- "risc0-zkvm-platform",
-]
-
-[[package]]
 name = "risc0-groth16"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3636,11 +3617,11 @@ dependencies = [
  "hex",
  "nmt-rs",
  "prost",
- "risc0-cycle-macros",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
  "sha2 0.10.8",
+ "sov-cycle-utils",
  "sov-rollup-interface",
  "thiserror",
  "tracing",
@@ -3658,6 +3639,26 @@ dependencies = [
  "sov-state",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "sov-cycle-macros"
+version = "0.4.0"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.55",
+]
+
+[[package]]
+name = "sov-cycle-utils"
+version = "0.4.0"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+dependencies = [
+ "risc0-zkvm",
+ "risc0-zkvm-platform",
+ "sov-cycle-macros",
 ]
 
 [[package]]
@@ -3854,11 +3855,13 @@ dependencies = [
  "digest 0.10.7",
  "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
  "hex",
- "risc0-cycle-utils",
+ "once_cell",
+ "parking_lot",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
  "sha2 0.10.8",
+ "sov-cycle-utils",
  "sov-rollup-interface",
  "thiserror",
 ]

@@ -27,10 +27,15 @@ sov-state = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-jsonrpsee = { workspace = true, features = ["macros", "client-core", "server"], optional = true }
-risc0-cycle-macros = { workspace = true, optional = true }
-risc0-cycle-utils = { workspace = true, optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+jsonrpsee = { workspace = true, features = [
+    "macros",
+    "client-core",
+    "server",
+], optional = true }
+sov-cycle-utils = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 tracing = { workspace = true }
 
@@ -43,8 +48,7 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 
 [features]
 bench = [
-    "risc0-cycle-macros",
-    "risc0-cycle-utils",
+    "sov-cycle-utils",
     "risc0-zkvm",
     "risc0-zkvm-platform",
     "sov-modules-api/bench",
@@ -63,7 +67,7 @@ arbitrary = [
 ]
 native = [
     "jsonrpsee",
-    "risc0-cycle-utils?/native",
+    "sov-cycle-utils?/native",
     "schemars",
     # This:
     "sov-bank/native",
