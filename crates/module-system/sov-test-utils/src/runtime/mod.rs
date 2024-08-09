@@ -14,10 +14,10 @@ use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Genesis,
-    InfallibleStateAccessor, Module, SlotData, Spec,
+    InfallibleStateAccessor, Module, RuntimeEventProcessor, SlotData, Spec,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
-use sov_modules_stf_blueprint::{BatchReceipt, Runtime, StfBlueprint};
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -27,7 +27,11 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
-use crate::{SlotExpectedReceipt, SlotTestCase, TestStfBlueprint, TransactionType};
+use crate::tests::TransactionAssertContext;
+use crate::{
+    BatchReceipt, SlotExpectedReceipt, SlotTestCase, TestStfBlueprint, TransactionTestCase,
+    TransactionType,
+};
 
 pub(crate) mod macros;
 
@@ -261,6 +265,32 @@ where
         blobs
     }
 
+    fn next_header(&self) -> MockBlockHeader {
+        MockBlockHeader::from_height(self.curr_slot_number() + 1)
+    }
+
+    fn batch_to_blob<M: Module>(
+        &mut self,
+        stf_state: &ProverStorage<
+            DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+        >,
+        batch: Vec<TransactionType<M, S>>,
+    ) -> MockBlob
+    where
+        RT: EncodeCall<M>,
+    {
+        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
+        let raw_txns = batch
+            .into_iter()
+            .map(|msg| msg.to_raw_tx::<RT>(&mut self.nonces, &mut state))
+            .collect::<Vec<_>>();
+        let batch = Batch::new(raw_txns);
+        MockBlob::new_with_hash(
+            borsh::to_vec(&batch).unwrap(),
+            self.default_sequencer_da_address,
+        )
+    }
+
     /// Checks the slot results and apply the changes to the state
     fn check_and_apply_slot_result(
         &mut self,
@@ -388,6 +418,98 @@ where
                 "The slot hook must have run! This should be unreachable!"
             );
         }
+    }
+
+    fn apply_slot_and_commit<'a, I>(
+        &mut self,
+        stf_state: &ProverStorage<
+            DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+        >,
+        block_header: &MockBlockHeader,
+        slot_input: RelevantBlobIters<I>,
+    ) -> (TestApplySlotOutput<RT, S>, ApiStateAccessor<S>)
+    where
+        I: IntoIterator<Item = &'a mut MockBlob>,
+    {
+        let result = self.stf.apply_slot(
+            self.state_root(),
+            stf_state.clone(),
+            Default::default(),
+            block_header,
+            &Default::default(),
+            slot_input,
+        );
+        self.storage_manager
+            .save_change_set(block_header, result.change_set.clone(), SchemaBatch::new())
+            .unwrap();
+        self.slot_receipts.push(SlotReceipt {
+            block_header: block_header.clone(),
+            batch_receipts: result.batch_receipts.clone(),
+        });
+        let (stf_state, _) = self
+            .storage_manager
+            .create_state_for(&self.next_header())
+            .expect("Failed to create state");
+        (result, ApiStateAccessor::<S>::new(stf_state))
+    }
+
+    /// Execute a [`TransactionTestCase`] against the current state of the test runtime.
+    ///
+    /// Under the hood this will execute a slot with a single batch containing a single
+    /// transaction.
+    pub fn execute_transaction<M: Module>(
+        &mut self,
+        transaction_test: TransactionTestCase<S, RT, M>,
+    ) -> &mut Self
+    where
+        RT: EncodeCall<M> + RuntimeEventProcessor,
+    {
+        let block_header = self.next_header();
+        let (stf_state, _) = self
+            .storage_manager
+            .create_state_for(&block_header)
+            .expect("Block builds on height zero");
+        let blob = self.batch_to_blob(&stf_state, vec![transaction_test.input]);
+        let mut blobs = [blob];
+        let slot_input = RelevantBlobIters {
+            proof_blobs: vec![],
+            batch_blobs: blobs.iter_mut().collect(),
+        };
+        let (result, mut new_state) =
+            self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+        let batch_receipt = result.batch_receipts[0].clone();
+        let tx_receipt = batch_receipt.tx_receipts[0].clone();
+        let ctx = TransactionAssertContext::from_receipt::<S, MockDaSpec>(tx_receipt);
+        (transaction_test.assert)(&ctx, &mut new_state);
+        self
+    }
+
+    /// Execute a BatchTestCase against the current state of the runtime.
+    ///
+    /// Under the hood this will execute a slot with the provided batch.
+    pub fn execute_batch<M: Module>(
+        &mut self,
+        batch_test: super::interface::tests::BatchTestCase<S, M>,
+    ) -> &mut Self
+    where
+        RT: EncodeCall<M>,
+    {
+        let block_header = self.next_header();
+        let (stf_state, _) = self
+            .storage_manager
+            .create_state_for(&block_header)
+            .expect("Block builds on height zero");
+        let blob = self.batch_to_blob(&stf_state, batch_test.input);
+        let mut blobs = [blob];
+        let slot_input = RelevantBlobIters {
+            proof_blobs: vec![],
+            batch_blobs: blobs.iter_mut().collect(),
+        };
+        let (result, mut new_state) =
+            self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+        let batch_receipt = result.batch_receipts[0].clone();
+        (batch_test.assert)(&batch_receipt, &mut new_state);
+        self
     }
 
     /// Run a test on the given runtime
