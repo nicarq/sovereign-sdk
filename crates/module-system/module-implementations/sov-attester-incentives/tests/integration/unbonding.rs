@@ -50,7 +50,7 @@ fn check_attester_bonded_and_start_unbond(
         // Initiate unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
             attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginUnbondingAttester,
+                sov_attester_incentives::CallMessage::BeginExitAttester,
             ),
             Box::new(move |state| {
                 // Check that the attester is part of the unbonding set
@@ -102,13 +102,13 @@ fn try_unbond_successful() {
         // Finalize unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
             attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::EndUnbondingAttester,
+                sov_attester_incentives::CallMessage::ExitAttester,
             ),
             Box::new(move |state| {
                 // Test that the unbonding attester event is emitted
                 assert!(state.inner().events().iter().any(|event| {
                     event.downcast_ref::<Event<S>>()
-                        == Some(&Event::UnbondedAttester {
+                        == Some(&Event::ExitedAttester {
                             amount_withdrawn: attester_bond,
                         })
                 }));
@@ -160,7 +160,7 @@ fn try_unbond_too_early() {
     runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::reverted(
             attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::EndUnbondingAttester,
+                sov_attester_incentives::CallMessage::ExitAttester,
             ),
             ModuleError(
                 AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::UnbondingNotFinalized.into(),
@@ -190,7 +190,7 @@ fn try_unbond_without_bonding() {
         })),
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
             additional_account.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginUnbondingAttester,
+                sov_attester_incentives::CallMessage::BeginExitAttester,
             ),
             Box::new(move |state| {
                 assert_eq!(
@@ -214,7 +214,7 @@ fn try_skip_two_phase_unbonding() {
     runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::reverted(
             attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::EndUnbondingAttester,
+                sov_attester_incentives::CallMessage::ExitAttester,
             ),
             ModuleError(
                 AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsNotUnbonding.into(),
@@ -234,7 +234,7 @@ fn try_bond_while_unbonding() {
         // The attester starts unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
             attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginUnbondingAttester,
+                sov_attester_incentives::CallMessage::BeginExitAttester,
             ),
             Box::new(move |state| {
                 // Check that the state has been updated correctly
@@ -262,7 +262,7 @@ fn try_bond_while_unbonding() {
         )]),
         // The attester shouldn't be able to bond while unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
-            attester.create_plain_message(sov_attester_incentives::CallMessage::BondAttester(100)),
+            attester.create_plain_message(sov_attester_incentives::CallMessage::RegisterAttester(100)),
             ModuleError(
                 AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsUnbonding.into(),
             ),

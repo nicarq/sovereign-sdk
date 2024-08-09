@@ -28,16 +28,16 @@ use crate::Amount;
     Eq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq")
 )]
 pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
-    /// Bonds an attester, the parameter is the bond amount
-    BondAttester(Amount),
-    /// Start the first phase of the two-phase unbonding process
-    BeginUnbondingAttester,
-    /// Finish the two phase unbonding
-    EndUnbondingAttester,
-    /// Bonds a challenger, the parameter is the bond amount
-    BondChallenger(Amount),
-    /// Unbonds a challenger
-    UnbondChallenger,
+    /// Register an attester, the parameter is the bond amount
+    RegisterAttester(Amount),
+    /// Start the first phase of the two-phase exit process
+    BeginExitAttester,
+    /// Finish the two phase exit
+    ExitAttester,
+    /// Register a challenger, the parameter is the bond amount
+    RegisterChallenger(Amount),
+    /// Exit a challenger
+    ExitChallenger,
     /// Processes an attestation.
     ProcessAttestation(
         #[allow(clippy::type_complexity)]
@@ -57,12 +57,14 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
 impl<S: sov_modules_api::Spec, Da: DaSpec> Debug for CallMessage<S, Da> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::BondAttester(arg0) => f.debug_tuple("BondAttester").field(arg0).finish(),
+            Self::RegisterAttester(arg0) => f.debug_tuple("RegisterAttester").field(arg0).finish(),
             Self::DepositAttester(arg0) => f.debug_tuple("DepositAttester").field(arg0).finish(),
-            Self::BeginUnbondingAttester => write!(f, "BeginUnbondingAttester"),
-            Self::EndUnbondingAttester => write!(f, "EndUnbondingAttester"),
-            Self::BondChallenger(arg0) => f.debug_tuple("BondChallenger").field(arg0).finish(),
-            Self::UnbondChallenger => write!(f, "UnbondChallenger"),
+            Self::BeginExitAttester => write!(f, "BeginExitAttester"),
+            Self::ExitAttester => write!(f, "ExitAttester"),
+            Self::RegisterChallenger(arg0) => {
+                f.debug_tuple("RegisterChallenger").field(arg0).finish()
+            }
+            Self::ExitChallenger => write!(f, "ExitChallenger"),
             Self::ProcessAttestation(arg0) => {
                 f.debug_tuple("ProcessAttestation").field(arg0).finish()
             }

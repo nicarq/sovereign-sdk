@@ -18,15 +18,20 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The reason the user was slashed.
         reason: SlashingReason,
     },
-    /// Event for a new deposit
-    BondedAttester {
+    /// Event for registration of a new attester.
+    RegisteredAttester {
         /// The amount of tokens deposited by this call.
-        new_deposit: u64,
-        /// The total bond of the attester after succesfully processing the call.
-        total_bond: u64,
+        amount: u64,
     },
-    /// Event for Unbonding
-    UnbondedAttester {
+
+    /// Event for registration of a new challenger.
+    RegisteredChallenger {
+        /// The amount of tokens deposited by this call.
+        amount: u64,
+    },
+
+    /// Event for exiting an attester.
+    ExitedAttester {
         /// The number of tokens returned to the caller's bank balance.
         amount_withdrawn: u64,
     },
@@ -44,8 +49,8 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The total bond of the challenger after this call.
         total_bond: u64,
     },
-    /// Event for Unbonding
-    UnbondedChallenger {
+    /// Event for exiting a challenger.
+    ExitedChallenger {
         /// The number of tokens returned to the caller's bank balance.
         amount_withdrawn: u64,
     },

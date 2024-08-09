@@ -47,7 +47,7 @@ fn setup_with_wrong_attestation() -> (
     let mut bond_challenger = vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<RT, _, _>::applied_with_hook(
             genesis_challenger.create_plain_message::<TestAttesterIncentives>(
-                CallMessage::BondChallenger(genesis_challenger_bond),
+                CallMessage::RegisterChallenger(genesis_challenger_bond),
             ),
             Box::new(move |state| {
                 assert_eq!(

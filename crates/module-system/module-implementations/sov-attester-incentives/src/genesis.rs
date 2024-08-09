@@ -59,7 +59,7 @@ where
             .set(&config.rollup_finality_period, state)?;
 
         for (attester, bond) in config.initial_attesters.iter() {
-            self.bond_attester(*bond, attester, state)?;
+            self.register_attester(*bond, attester, state)?;
         }
 
         self.maximum_attested_height
