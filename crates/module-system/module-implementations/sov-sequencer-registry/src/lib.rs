@@ -14,6 +14,7 @@ mod genesis;
 mod tests;
 
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::registration_lib::RegistrationError;
 #[cfg(feature = "native")]
 mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -26,8 +27,9 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
-    CallResponse, Context, Error, EventEmitter, GenesisState, InfallibleStateAccessor, ModuleId,
-    ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue, TxState,
+    BasicAddress, CallResponse, Context, DaSpec, Error, EventEmitter, GenesisState,
+    InfallibleStateAccessor, ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap,
+    StateReader, StateValue, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::{EventContainer, User};
@@ -92,6 +94,30 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     #[state]
     pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
 }
+
+#[derive(Debug, Error, PartialEq, Eq)]
+enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
+    /// The sequencer tried to unregister itself during the execution of its own batch.
+    #[error("Sequencers may not unregister during execution of their own batch")]
+    CannotUnregisterDuringOwnBatch(DaAddress),
+
+    #[error("The address provided as a parameter to the `exit` method does not match the transaction sender")]
+    /// The address provided as a parameter to the `exit` method does not match the transaction sender.
+    SuppliedAddressDoesNotMatchTxSender {
+        /// The address provided as a parameter to the `exit` method.
+        parameter: RollupAddress,
+        /// The address of the transaction sender.
+        sender: RollupAddress,
+    },
+}
+
+#[allow(type_alias_bounds)]
+type SequencerRegistryError<S: Spec, Da: DaSpec, ST: StateAccessor> = RegistrationError<
+    S::Address,
+    Da::Address,
+    <ST as StateReader<User>>::Error,
+    CustomError<S::Address, Da::Address>,
+>;
 
 impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for SequencerRegistry<S, Da> {
     type Spec = S;
@@ -166,20 +192,19 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         address: &S::Address,
         amount: Amount,
         state: &mut ST,
-    ) -> Result<(), SequencerRegistryError<S, Da, <ST as StateReader<User>>::Error>> {
+    ) -> Result<(), SequencerRegistryError<S, Da, ST>> {
         if self.allowed_sequencers.get(da_address, state)?.is_some() {
-            return Err(SequencerRegistryError::SequencerAlreadyRegistered(
-                address.clone(),
-            ));
+            return Err(RegistrationError::AlreadyRegistered(address.clone()));
         }
 
         let minimum_bond = self
             .minimum_bond
             .get(state)?
-            .ok_or(SequencerRegistryError::NoMinimumBondSet)?;
+            .ok_or(RegistrationError::NoMinimumBondSet(address.clone()))?;
 
         if amount < minimum_bond {
-            return Err(SequencerRegistryError::InsufficientStakeAmount {
+            return Err(RegistrationError::InsufficientStakeAmount {
+                address: address.clone(),
                 bond_amount: amount,
                 minimum_bond_amount: minimum_bond,
             });
@@ -194,7 +219,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
         self.bank
             .transfer_from(address, locker.to_payable(), coins, state)
-            .map_err(|_| SequencerRegistryError::InsufficientFundsToRegister(amount))?;
+            .map_err(|_| RegistrationError::InsufficientFundsToRegister {
+                address: address.clone(),
+                amount,
+            })?;
 
         self.allowed_sequencers.set(
             da_address,
