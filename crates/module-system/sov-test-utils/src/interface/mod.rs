@@ -2,11 +2,13 @@ mod messages;
 mod results;
 mod roles;
 mod test_cases;
+pub(crate) mod tests;
 
 pub use messages::*;
 pub use results::*;
 pub use roles::*;
 pub use test_cases::*;
+pub use tests::TransactionTestCase;
 
 /// A special configuration trait for types that need to be configured before they can be used.
 /// Such types are typically constructed from state that cannot be known ahead of time.
