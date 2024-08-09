@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
+use sov_cycle_utils::macros::cycle_tracker;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::jmt::KeyHash;

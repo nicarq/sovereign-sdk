@@ -40,5 +40,5 @@ lto = true
 opt-level = 3
 
 [features]
-bench = ["sov-celestia-adapter/bench"]
+bench = ["sov-celestia-adapter/bench", "sov-risc0-adapter/bench"]
 bincode = ["sov-risc0-adapter/bincode"]

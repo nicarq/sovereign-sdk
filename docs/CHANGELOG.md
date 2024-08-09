@@ -1,3 +1,4 @@
+- #1141 Renames `risc0-cycle-macros` to `sov-cycle-macros` and changes the usage pattern. Callers should typically import the `sov-cycle-utils` crateand use its `macros` module rather than importing `sov-cycle-macros` directly.
 - #1109 removes the sequencer tx status notifications `published` and `finalized`, and replaces them with `processed` instead. A `processed` notification instructs the client that the ledger has processed the transaction and it's ready to serve finality data, its receipt, and its events.
 - #1146 Adds `DEFAULT_SOV_ROLLUP_LOGGING` constant in `sov-modules-rollup-blueprint` that should be used for default tracing-subscriber setup.
 - #1121 changes the `BatchReceipt`'s `inner` default field and adds the `sequencer_da_address` to it. In particular:

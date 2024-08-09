@@ -23,10 +23,7 @@ celestia-rpc = { version = "0.2.0", default-features = false, optional = true }
 celestia-types = { version = "0.2.0", default-features = false }
 celestia-tendermint = { version = "0.32.1", default-features = false }
 celestia-tendermint-proto = { version = "0.32.1" }
-nmt-rs = { version = "0.1.0", features = [
-    "serde",
-    "borsh",
-] }
+nmt-rs = { version = "0.1.0", features = ["serde", "borsh"] }
 
 # Convenience
 async-trait = { workspace = true }
@@ -41,8 +38,10 @@ tokio = { workspace = true, optional = true, features = ["sync"] }
 futures = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
-risc0-cycle-macros = { workspace = true, optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = ["std"], optional = true }
+sov-cycle-utils = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true }
 
@@ -59,18 +58,22 @@ risc0-zkvm-platform = { workspace = true }
 [features]
 default = []
 native = [
-    "celestia-tendermint/default",
-    "dep:celestia-rpc",
-    "dep:futures",
-    "dep:jsonrpsee",
-    "dep:serde_json",
-    "dep:tokio",
-    "sov-celestia-adapter/native",
-    "sov-rollup-interface/native",
+	"celestia-tendermint/default",
+	"dep:celestia-rpc",
+	"dep:futures",
+	"dep:jsonrpsee",
+	"dep:serde_json",
+	"dep:tokio",
+	"sov-celestia-adapter/native",
+	"sov-rollup-interface/native",
+	"sov-cycle-utils?/native"
 ]
-risc0 = ["sov-celestia-adapter/risc0"]
+risc0 = [
+	"sov-celestia-adapter/risc0",
+	"sov-cycle-utils?/risc0"
+]
 bench = [
-    "dep:risc0-cycle-macros",
+    "dep:sov-cycle-utils",
     "dep:risc0-zkvm",
     "dep:risc0-zkvm-platform",
     "sov-celestia-adapter/bench",

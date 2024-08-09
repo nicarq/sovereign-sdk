@@ -4746,15 +4746,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "risc0-cycle-utils"
-version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=ec6491423ba7376651211b79a934cd1d8a132aad#ec6491423ba7376651211b79a934cd1d8a132aad"
-dependencies = [
- "risc0-zkvm",
- "risc0-zkvm-platform",
-]
-
-[[package]]
 name = "risc0-groth16"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5837,6 +5828,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
+ "sov-cycle-utils",
  "sov-rollup-interface",
  "thiserror",
  "tokio",
@@ -5878,6 +5870,25 @@ dependencies = [
  "sov-nonces",
  "sov-rollup-interface",
  "sov-sequencer-json-client",
+]
+
+[[package]]
+name = "sov-cycle-macros"
+version = "0.4.0"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.60",
+]
+
+[[package]]
+name = "sov-cycle-utils"
+version = "0.4.0"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+dependencies = [
+ "risc0-zkvm",
+ "sov-cycle-macros",
 ]
 
 [[package]]
@@ -6030,6 +6041,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2 0.10.8",
+ "sov-cycle-utils",
  "sov-db",
  "sov-modules-macros",
  "sov-rest-utils",
@@ -6098,6 +6110,7 @@ dependencies = [
  "hex",
  "jsonrpsee 0.22.5",
  "serde",
+ "sov-cycle-utils",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
@@ -6244,10 +6257,10 @@ dependencies = [
  "jsonrpsee 0.22.5",
  "proptest",
  "proptest-derive",
- "risc0-cycle-utils",
  "schemars",
  "serde",
  "sov-bank",
+ "sov-cycle-utils",
  "sov-modules-api",
  "sov-state",
  "thiserror",
@@ -6270,6 +6283,7 @@ dependencies = [
  "serde",
  "serde-big-array",
  "sha2 0.10.8",
+ "sov-cycle-utils",
  "sov-db",
  "sov-rollup-interface",
  "sov-wallet-format",

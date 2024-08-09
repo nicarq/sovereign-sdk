@@ -21,7 +21,7 @@ pub mod guest;
 #[cfg(feature = "native")]
 pub mod host;
 
-#[cfg(feature = "bench")]
+#[cfg(all(feature = "native", feature = "bench"))]
 pub mod metrics;
 
 /// Uniquely identifies a Risc0 binary. Roughly equivalent to

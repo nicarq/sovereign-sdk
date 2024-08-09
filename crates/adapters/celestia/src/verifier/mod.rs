@@ -18,7 +18,7 @@ pub mod address;
 pub mod proofs;
 
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
+use sov_cycle_utils::macros::cycle_tracker;
 use tracing::debug;
 
 use self::address::CelestiaAddress;

@@ -1,5 +1,5 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
-use risc0_cycle_macros::cycle_tracker;
+use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationResult, AuthorizeSequencerError, GasEnforcer,
     HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,

@@ -5,6 +5,8 @@ use anyhow::Context;
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use risc0_zkvm::Bytes;
+/// The name of the syscall we use to collect metrics from the Risc0 VM.
+pub use sov_cycle_utils::risc0::SYSCALL_NAME_METRICS;
 
 /// A global hashmap mapping metric names to their values.
 pub static GLOBAL_HASHMAP: Lazy<Mutex<HashMap<String, (u64, u64)>>> =
