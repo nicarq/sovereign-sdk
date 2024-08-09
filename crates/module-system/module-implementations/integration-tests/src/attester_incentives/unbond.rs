@@ -35,7 +35,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handler.attester_private_key.clone(),
-        CallMessage::BeginUnbondingAttester,
+        CallMessage::BeginExitAttester,
     )])
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
@@ -99,7 +99,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handler.attester_private_key.clone(),
-        CallMessage::EndUnbondingAttester,
+        CallMessage::ExitAttester,
     )])
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
@@ -173,7 +173,7 @@ fn test_unbonding_without_bonded() {
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handle.attester_private_key.clone(),
-        CallMessage::EndUnbondingAttester,
+        CallMessage::ExitAttester,
     )])
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
@@ -222,7 +222,7 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handle.attester_private_key.clone(),
-        CallMessage::BeginUnbondingAttester,
+        CallMessage::BeginExitAttester,
     )])
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 
@@ -266,7 +266,7 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
 
     let txs = AttesterIncentivesMessageGenerator::from(vec![(
         test_handle.attester_private_key.clone(),
-        CallMessage::EndUnbondingAttester,
+        CallMessage::ExitAttester,
     )])
     .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
 

@@ -136,23 +136,23 @@ where
         state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
         let res = match msg {
-            call::CallMessage::BondAttester(bond_amount) => self
-                .bond_attester(bond_amount, context.sender(), state)
+            call::CallMessage::RegisterAttester(bond_amount) => self
+                .register_attester(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
             call::CallMessage::DepositAttester(amount) => self
                 .deposit_attester(amount, context.sender(), state)
                 .map_err(|err| err.into()),
 
-            call::CallMessage::BeginUnbondingAttester => self
-                .begin_unbond_attester(context, state)
+            call::CallMessage::BeginExitAttester => self
+                .begin_exit_attester(context, state)
                 .map_err(|error| error.into()),
-            call::CallMessage::EndUnbondingAttester => self
-                .end_unbond_attester(context, state)
+            call::CallMessage::ExitAttester => self
+                .exit_attester(context, state)
                 .map_err(|error| error.into()),
-            call::CallMessage::BondChallenger(bond_amount) => self
-                .bond_challenger(bond_amount, context.sender(), state)
+            call::CallMessage::RegisterChallenger(bond_amount) => self
+                .register_challenger(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
-            call::CallMessage::UnbondChallenger => self.unbond_challenger(context, state),
+            call::CallMessage::ExitChallenger => self.exit_challenger(context, state),
             call::CallMessage::ProcessAttestation(attestation) => self
                 .process_attestation(context, attestation, state)
                 .map_err(|error| error.into()),

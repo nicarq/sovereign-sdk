@@ -129,7 +129,7 @@ impl AttesterIncentivesTestHandler {
         let txs = AttesterIncentivesMessageGenerator::from(vec![
             (
                 self.challenger_private_key.clone(),
-                CallMessage::BondChallenger::<S, Da>(self.challenger_stake),
+                CallMessage::RegisterChallenger::<S, Da>(self.challenger_stake),
             ),
             (
                 self.challenger_private_key.clone(),

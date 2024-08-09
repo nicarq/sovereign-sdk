@@ -1,7 +1,6 @@
 use core::result::Result::Ok;
 
-use anyhow::Context as AnyhowContext;
-use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     CallResponse, Context, EventEmitter, StateAccessor, StateAccessorError, StateReader, TxState,
 };
@@ -14,7 +13,7 @@ where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
 {
-    pub(crate) fn bond_attester<ST: StateAccessor + EventContainer>(
+    pub(crate) fn register_attester<ST: StateAccessor + EventContainer>(
         &self,
         bond_amount: u64,
         user_address: &S::Address,
@@ -41,12 +40,10 @@ where
         }
 
         let balances = &self.bonded_attesters;
-        let total_balance =
-            self.bond_user_helper::<ST>(bond_amount, user_address, balances, state)?;
+        self.register_user_helper::<ST>(bond_amount, user_address, balances, state)?;
 
-        let event = Event::<S>::BondedAttester {
-            new_deposit: bond_amount,
-            total_bond: total_balance,
+        let event = Event::<S>::RegisteredAttester {
+            amount: bond_amount,
         };
 
         self.emit_event(state, event);
@@ -94,104 +91,11 @@ where
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn bond_challenger<ST: StateAccessor + EventContainer>(
-        &self,
-        bond_amount: u64,
-        user_address: &S::Address,
-        state: &mut ST,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
-        if self.bonded_challengers.get(user_address, state)?.is_some() {
-            return Err(AttesterIncentiveErrors::AlreadyRegistered);
-        }
-
-        let minimum_bond = self
-            .minimum_challenger_bond
-            .get(state)?
-            .ok_or(AttesterIncentiveErrors::NoMinimumBondSet)?;
-
-        if bond_amount < minimum_bond {
-            return Err(AttesterIncentiveErrors::InsufficientStakeAmount {
-                bond_amount,
-                minimum_bond_amount: minimum_bond,
-            });
-        }
-
-        let balances = &self.bonded_challengers;
-        let total_balance =
-            self.bond_user_helper::<ST>(bond_amount, user_address, balances, state)?;
-
-        let event = Event::<S>::BondedChallenger {
-            new_deposit: bond_amount,
-            total_bond: total_balance,
-        };
-
-        self.emit_event(state, event);
-        Ok(CallResponse::default())
-    }
-
-    fn bond_user_helper<ST: StateAccessor + EventContainer>(
-        &self,
-        bond_amount: u64,
-        user_address: &S::Address,
-        balances: &sov_modules_api::StateMap<S::Address, Amount>,
-        state: &mut ST,
-    ) -> Result<Amount, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
-        // Transfer the bond amount from the sender to the module's id.
-        // On failure, no state is changed
-        let coins = Coins {
-            token_id: GAS_TOKEN_ID,
-            amount: bond_amount,
-        };
-
-        self.bank
-            .transfer_from(user_address, self.id.to_payable(), coins, state)
-            .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
-
-        // Update our record of the total bonded amount for the sender.
-        // This update is infallible, so no value can be destroyed.
-        let old_balance = balances.get(user_address, state)?.unwrap_or_default();
-
-        let total_balance = old_balance
-            .checked_add(bond_amount)
-            .with_context(|| {
-                anyhow::anyhow!("The total balance overflows with the given operation")
-            })
-            .map_err(|_| AttesterIncentiveErrors::BondTransferFailure)?;
-
-        balances.set(user_address, &total_balance, state)?;
-
-        Ok(total_balance)
-    }
-
-    /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
-    pub(crate) fn unbond_challenger(
-        &self,
-        context: &Context<S>,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse> {
-        // Get the user's old balance.
-        if let Some(old_balance) = self.bonded_challengers.get(context.sender(), state)? {
-            // Transfer the bond amount from the sender to the module's id.
-            // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, old_balance, state)?;
-
-            // Emit the unbonding event
-            self.emit_event(
-                state,
-                Event::<S>::UnbondedChallenger {
-                    amount_withdrawn: old_balance,
-                },
-            );
-        }
-
-        Ok(CallResponse::default())
-    }
-
     /// The attester starts the first phase of the two-phase unbonding.
     /// We put the current max finalized height with the attester address
     /// in the set of unbonding attesters if the attester
     /// is already present in the unbonding set
-    pub(crate) fn begin_unbond_attester(
+    pub(crate) fn begin_exit_attester(
         &self,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -220,7 +124,7 @@ where
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn end_unbond_attester(
+    pub(crate) fn exit_attester(
         &self,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -259,7 +163,7 @@ where
 
             self.emit_event(
                 state,
-                Event::<S>::UnbondedAttester {
+                Event::<S>::ExitedAttester {
                     amount_withdrawn: unbonding_info.amount,
                 },
             );

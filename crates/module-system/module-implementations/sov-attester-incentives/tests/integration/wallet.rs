@@ -19,11 +19,11 @@ pub enum RuntimeCall {
 
 #[test]
 fn test_display_bond_attester() {
-    let msg = RuntimeCall::AttesterIncentives(CallMessage::<S, Da>::BondAttester(100));
+    let msg = RuntimeCall::AttesterIncentives(CallMessage::<S, Da>::RegisterAttester(100));
     let schema = CompiledSchema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-        r#"AttesterIncentives.BondAttester(100)"#
+        r#"AttesterIncentives.RegisterAttester(100)"#
     );
 }
 

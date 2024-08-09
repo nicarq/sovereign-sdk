@@ -188,12 +188,12 @@ fn test_burn_on_invalid_attestation() {
     runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::<RT, _, _>::applied_with_hook(
             genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
-                CallMessage::BondAttester(genesis_attester.bond),
+                CallMessage::RegisterAttester(genesis_attester.bond),
             ),
             Box::new(move |state| {
                 assert!(state.inner().events().iter().any(|event| matches!(
                     event.downcast_ref::<Event<S>>(),
-                    Some(Event::BondedAttester { .. })
+                    Some(Event::RegisteredAttester { .. })
                 )));
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()
