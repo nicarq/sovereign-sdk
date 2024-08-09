@@ -10,7 +10,7 @@ use crate::tests::helpers::{
     GENESIS_SEQUENCER_DA_ADDRESS, GENESIS_SEQUENCER_KEY, LOW_FUND_KEY, REWARD_SEQUENCER_KEY,
     UNKNOWN_SEQUENCER_DA_ADDRESS,
 };
-use crate::{CallMessage, SequencerRegistryError};
+use crate::{CallMessage, CustomError, RegistrationError};
 
 type S = sov_test_utils::TestSpec;
 
@@ -119,7 +119,10 @@ fn test_registration_not_enough_funds() -> Result<(), Infallible> {
 
     assert_eq!(
         response.unwrap_err(),
-        SequencerRegistryError::InsufficientFundsToRegister(TEST_DEFAULT_USER_STAKE)
+        RegistrationError::InsufficientFundsToRegister {
+            address: sequencer_address,
+            amount: TEST_DEFAULT_USER_STAKE,
+        }
     );
 
     Ok(())
@@ -149,7 +152,7 @@ fn test_registration_second_time() -> Result<(), Infallible> {
 
     assert_eq!(
         response.unwrap_err(),
-        SequencerRegistryError::SequencerAlreadyRegistered(sequencer_address)
+        RegistrationError::AlreadyRegistered(sequencer_address)
     );
 
     Ok(())
@@ -192,10 +195,10 @@ fn test_exit_different_sender() -> Result<(), Infallible> {
 
     assert_eq!(
         response.unwrap_err(),
-        SequencerRegistryError::SuppliedAddressDoesNotMatchTxSender {
+        RegistrationError::Custom(CustomError::SuppliedAddressDoesNotMatchTxSender {
             parameter: sequencer_address,
             sender: attacker_address,
-        }
+        })
     );
 
     Ok(())

@@ -35,6 +35,9 @@ pub mod hooks;
 /// way modules are represented in the SDK.
 pub mod module;
 
+/// Library for stake registration functionality.
+pub mod registration_lib;
+
 /// Defines traits and utilities for writing REST(ful) APIs that expose rollup data.
 #[cfg(feature = "native")]
 pub mod rest;
