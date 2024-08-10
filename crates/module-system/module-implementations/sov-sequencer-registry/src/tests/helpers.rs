@@ -20,7 +20,6 @@ pub const GENESIS_SEQUENCER_KEY: &str = "sequencer_1";
 pub const GENESIS_SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
 pub const ANOTHER_SEQUENCER_KEY: &str = "sequencer_2";
 
-pub const ANOTHER_SEQUENCER_DA_ADDRESS: [u8; 32] = [2; 32];
 pub const UNKNOWN_SEQUENCER_KEY: &str = "sequencer_3";
 
 pub const REWARD_SEQUENCER_KEY: &str = "sequencer_4";

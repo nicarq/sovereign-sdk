@@ -42,6 +42,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
+sov-value-setter = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
@@ -70,9 +71,10 @@ native = [
     "sov-cycle-utils?/native",
     "schemars",
     # This:
-    "sov-bank/native",
-    "sov-mock-da/native",
-    "sov-modules-api/native",
-    "sov-sequencer-registry/native",
-    "sov-state/native",
+	"sov-bank/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-value-setter/native"
 ]

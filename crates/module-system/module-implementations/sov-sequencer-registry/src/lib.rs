@@ -8,6 +8,9 @@
 mod call;
 mod capabilities;
 mod event;
+
+pub use event::Event;
+
 mod genesis;
 
 #[cfg(test)]
@@ -34,8 +37,6 @@ use sov_modules_api::{
 use sov_state::codec::BcsCodec;
 use sov_state::{EventContainer, User};
 use thiserror::Error;
-
-use crate::event::Event;
 
 /// Errors that can be raised by the [`SequencerRegistry`] module during hooks execution.
 #[derive(
@@ -95,8 +96,9 @@ pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
     pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
 }
 
+/// A special error type that can be raised when calling a method from the sequencer registry
 #[derive(Debug, Error, PartialEq, Eq)]
-enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
+pub enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
     /// The sequencer tried to unregister itself during the execution of its own batch.
     #[error("Sequencers may not unregister during execution of their own batch")]
     CannotUnregisterDuringOwnBatch(DaAddress),
@@ -111,8 +113,9 @@ enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
     },
 }
 
+/// The different errors that can be raised by the sequencer registry
 #[allow(type_alias_bounds)]
-type SequencerRegistryError<S: Spec, Da: DaSpec, ST: StateAccessor> = RegistrationError<
+pub type SequencerRegistryError<S: Spec, Da: DaSpec, ST: StateAccessor> = RegistrationError<
     S::Address,
     Da::Address,
     <ST as StateReader<User>>::Error,
