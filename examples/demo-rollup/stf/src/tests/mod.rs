@@ -5,7 +5,6 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{DaSpec, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_stf_runner::read_json_file;
 
 use crate::genesis_config::{create_genesis_config, GenesisPaths};
 use crate::runtime::{GenesisConfig, Runtime};
@@ -30,8 +29,10 @@ pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
     let rt_params =
         create_genesis_config::<S, Da>(&GenesisPaths::from_dir(integ_test_conf_dir)).unwrap();
 
-    let chain_state = read_json_file(integ_test_conf_dir.join("chain_state.json")).unwrap();
-    let kernel_params = BasicKernelGenesisConfig { chain_state };
+    let kernel_params = BasicKernelGenesisConfig::from_path(
+        Path::new(integ_test_conf_dir).join("chain_state.json"),
+    )
+    .unwrap();
     GenesisParams {
         runtime: rt_params,
         kernel: kernel_params,

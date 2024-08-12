@@ -14,7 +14,6 @@ use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rng_da_service::RngDaService;
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::stf::StateTransitionFunction;
-use sov_stf_runner::read_json_file;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
@@ -48,8 +47,8 @@ fn rollup_bench(_bench: &mut Criterion) {
         let rt_params =
             create_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(tests_path)).unwrap();
 
-        let chain_state = read_json_file(tests_path.join("chain_state.json")).unwrap();
-        let kernel_params = BasicKernelGenesisConfig { chain_state };
+        let kernel_params =
+            BasicKernelGenesisConfig::from_path(tests_path.join("chain_state.json")).unwrap();
         GenesisParams {
             runtime: rt_params,
             kernel: kernel_params,

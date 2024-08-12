@@ -47,6 +47,7 @@ mod blueprint {
     use std::net::SocketAddr;
     use std::sync::Arc;
 
+    use anyhow::Context;
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
     use sov_db::schema::{DeltaReader, SchemaBatch};
@@ -317,14 +318,18 @@ mod blueprint {
 
             let rpc_addr = runner
                 .start_rpc_server(self.endpoints.jsonrpsee_module)
-                .await?;
+                .await
+                .context("Failed to start RPC server")?;
             if let Some(sender) = rpc_addr_channel {
                 sender
                     .send(rpc_addr)
                     .map_err(|_| anyhow::anyhow!("Failed to send RPC address"))?;
             }
 
-            let axum_addr = runner.start_axum_server(self.endpoints.axum_router).await?;
+            let axum_addr = runner
+                .start_axum_server(self.endpoints.axum_router)
+                .await
+                .context("Failed to start Axum Server")?;
             if let Some(sender) = axum_addr_channel {
                 sender
                     .send(axum_addr)

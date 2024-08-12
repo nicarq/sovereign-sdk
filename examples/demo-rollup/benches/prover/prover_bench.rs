@@ -32,7 +32,6 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
-use sov_stf_runner::read_json_file;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
@@ -186,12 +185,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let genesis_config = {
         let rt_params = create_genesis_config::<BenchSpec, _>(&GenesisPaths::from_dir(
             genesis_conf_dir.as_str(),
-        ))
-        .unwrap();
+        ))?;
 
-        let chain_state =
-            read_json_file(Path::new(genesis_conf_dir.as_str()).join("chain_state.json")).unwrap();
-        let kernel_params = BasicKernelGenesisConfig { chain_state };
+        let kernel_params = BasicKernelGenesisConfig::from_path(
+            Path::new(genesis_conf_dir.as_str()).join("chain_state.json"),
+        )?;
         GenesisParams {
             runtime: rt_params,
             kernel: kernel_params,

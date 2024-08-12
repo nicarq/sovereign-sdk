@@ -5765,6 +5765,7 @@ name = "sov-kernels"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "serde_json",
  "sov-blob-storage",
  "sov-chain-state",
  "sov-modules-api",

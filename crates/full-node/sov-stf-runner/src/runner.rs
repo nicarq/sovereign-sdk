@@ -91,7 +91,7 @@ impl DaSyncState {
     async fn update_target<Da: DaService<Error = anyhow::Error>>(
         &self,
         da_service: &Da,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let target_da_height = da_service.get_head_block_header().await?.height();
         self.target_da_height
             .store(target_da_height, std::sync::atomic::Ordering::Release);

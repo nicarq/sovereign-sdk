@@ -29,7 +29,6 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_state::StorageRoot;
-use sov_stf_runner::read_json_file;
 use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageManager, TestStorageSpec};
 use tempfile::TempDir;
 
@@ -210,8 +209,9 @@ fn setup(
                 .push((*addr, gas_per_sender));
         }
 
-        let chain_state = read_json_file(stf_tests_conf_dir.join("chain_state.json")).unwrap();
-        let kernel_params = BasicKernelGenesisConfig { chain_state };
+        let kernel_params =
+            BasicKernelGenesisConfig::from_path(stf_tests_conf_dir.join("chain_state.json"))
+                .unwrap();
         GenesisParams {
             runtime: rt_params,
             kernel: kernel_params,
