@@ -18,6 +18,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use process_message::{ProcessAttestationErrors, ProcessChallengeErrors};
 #[cfg(feature = "native")]
 pub use query::*;
+pub use registration::CustomError;
 use sov_bank::{Amount, BurnRate};
 use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;

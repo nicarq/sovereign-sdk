@@ -1,12 +1,12 @@
 use core::result::Result::Ok;
 
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::{
-    CallResponse, Context, EventEmitter, StateAccessor, StateAccessorError, StateReader, TxState,
-};
-use sov_state::{EventContainer, User};
+use sov_modules_api::registration_lib::RegistrationError;
+use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
+use sov_state::EventContainer;
 
-use crate::{AttesterIncentiveErrors, AttesterIncentives, Event, UnbondingInfo};
+use super::{AttesterRegistryError, CustomError};
+use crate::{AttesterIncentives, Event, UnbondingInfo};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
@@ -18,22 +18,25 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
         if self.unbonding_attesters.get(user_address, state)?.is_some() {
-            return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
+            return Err(RegistrationError::Custom(CustomError::AttesterIsUnbonding(
+                user_address.clone(),
+            )));
         }
 
         if self.bonded_attesters.get(user_address, state)?.is_some() {
-            return Err(AttesterIncentiveErrors::AlreadyRegistered);
+            return Err(RegistrationError::AlreadyRegistered(user_address.clone()));
         }
 
         let minimum_bond = self
             .minimum_attester_bond
             .get(state)?
-            .ok_or(AttesterIncentiveErrors::NoMinimumBondSet)?;
+            .ok_or(RegistrationError::NoMinimumBondSet(user_address.clone()))?;
 
         if bond_amount < minimum_bond {
-            return Err(AttesterIncentiveErrors::InsufficientStakeAmount {
+            return Err(RegistrationError::InsufficientStakeAmount {
+                address: user_address.clone(),
                 bond_amount,
                 minimum_bond_amount: minimum_bond,
             });
@@ -55,22 +58,25 @@ where
         amount: u64,
         attester_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
         if self
             .unbonding_attesters
             .get(attester_address, state)?
             .is_some()
         {
-            return Err(AttesterIncentiveErrors::AttesterIsUnbonding);
+            return Err(RegistrationError::Custom(CustomError::AttesterIsUnbonding(
+                attester_address.clone(),
+            )));
         }
 
         let bonded_amount = self
             .bonded_attesters
             .get(attester_address, state)?
-            .ok_or(AttesterIncentiveErrors::IsNotRegistered)?;
+            .ok_or(RegistrationError::IsNotRegistered(attester_address.clone()))?;
 
         let balance = bonded_amount.checked_add(amount).ok_or(
-            AttesterIncentiveErrors::ToppingAccountMakesBalanceOverflow {
+            RegistrationError::ToppingAccountMakesBalanceOverflow {
+                address: attester_address.clone(),
                 existing_balance: bonded_amount,
                 amount_to_add: amount,
             },
@@ -83,7 +89,10 @@ where
 
         self.bank
             .transfer_from(attester_address, self.id.to_payable(), coins, state)
-            .map_err(|_err| AttesterIncentiveErrors::BondTransferFailure)?;
+            .map_err(|_err| RegistrationError::InsufficientFundsToTopUpAccount {
+                address: attester_address.clone(),
+                amount_to_add: amount,
+            })?;
 
         self.bonded_attesters
             .set(attester_address, &balance, state)?;
@@ -95,11 +104,11 @@ where
     /// We put the current max finalized height with the attester address
     /// in the set of unbonding attesters if the attester
     /// is already present in the unbonding set
-    pub(crate) fn begin_exit_attester(
+    pub(crate) fn begin_exit_attester<ST: TxState<S>>(
         &self,
         context: &Context<S>,
-        state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+        state: &mut ST,
+    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
         // First get the bonded attester
         if let Some(bond) = self.bonded_attesters.get(context.sender(), state)? {
             let finalized_height = self
@@ -124,11 +133,11 @@ where
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn exit_attester(
+    pub(crate) fn exit_attester<ST: TxState<S>>(
         &self,
         context: &Context<S>,
-        state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<StateAccessorError<S::Gas>>> {
+        state: &mut ST,
+    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
         // We have to ensure that the attester is unbonding, and that the unbonding transaction
         // occurred at least `finality_period` blocks ago to let the attester unbond
         if let Some(unbonding_info) = self.unbonding_attesters.get(context.sender(), state)? {
@@ -148,14 +157,21 @@ where
                 .saturating_add(finality_period)
                 > curr_height
             {
-                return Err(AttesterIncentiveErrors::UnbondingNotFinalized);
+                return Err(RegistrationError::Custom(
+                    CustomError::UnbondingNotFinalized(context.sender().clone()),
+                ));
             }
 
             // Get the user's old balance.
             // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
             self.transfer_tokens_to_sender(context, unbonding_info.amount, state)
-                .map_err(|_err| AttesterIncentiveErrors::RewardTransferFailure)?;
+                .map_err(|_err| {
+                    AttesterRegistryError::<S, ST>::InsufficientFundsToRefundStakedAmount {
+                        address: context.sender().clone(),
+                        amount: unbonding_info.amount,
+                    }
+                })?;
 
             // Update our internal tracking of the total bonded amount for the sender.
             self.bonded_attesters.remove(context.sender(), state)?;
@@ -168,7 +184,9 @@ where
                 },
             );
         } else {
-            return Err(AttesterIncentiveErrors::AttesterIsNotUnbonding);
+            return Err(RegistrationError::Custom(
+                CustomError::AttesterIsNotUnbonding(context.sender().clone()),
+            ));
         }
         Ok(CallResponse::default())
     }

@@ -1,8 +1,10 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_attester_incentives::{AttesterIncentiveErrors, Event, UnbondingInfo};
+use sov_attester_incentives::{CustomError, Event, UnbondingInfo};
+use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{GasMeter, Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
@@ -153,7 +155,7 @@ fn try_unbond_successful() {
 #[test]
 fn try_unbond_too_early() {
     let (mut runner, attester, _, _) = setup();
-
+    let addr = attester.as_user().address();
     check_attester_bonded_and_start_unbond(&mut runner, &attester);
 
     // Finalize unbonding, this should fail because the unbonding period has not passed yet
@@ -163,7 +165,13 @@ fn try_unbond_too_early() {
                 sov_attester_incentives::CallMessage::ExitAttester,
             ),
             ModuleError(
-                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::UnbondingNotFinalized.into(),
+                RegistrationError::<
+                    MockAddress,
+                    MockAddress,
+                    StateAccessorError<<S as Spec>::Gas>,
+                    _,
+                >::Custom(CustomError::UnbondingNotFinalized(addr))
+                .into(),
             ),
         ),
     ])]);
@@ -210,6 +218,7 @@ fn try_unbond_without_bonding() {
 #[test]
 fn try_skip_two_phase_unbonding() {
     let (mut runner, attester, _, _) = setup();
+    let addr = attester.as_user().address();
 
     runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
         TxTestCase::reverted(
@@ -217,7 +226,13 @@ fn try_skip_two_phase_unbonding() {
                 sov_attester_incentives::CallMessage::ExitAttester,
             ),
             ModuleError(
-                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsNotUnbonding.into(),
+                RegistrationError::<
+                    MockAddress,
+                    MockAddress,
+                    StateAccessorError<<S as Spec>::Gas>,
+                    _,
+                >::Custom(CustomError::AttesterIsNotUnbonding(addr))
+                .into(),
             ),
         ),
     ])]);
@@ -262,9 +277,16 @@ fn try_bond_while_unbonding() {
         )]),
         // The attester shouldn't be able to bond while unbonding
         SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
-            attester.create_plain_message(sov_attester_incentives::CallMessage::RegisterAttester(100)),
+            attester
+                .create_plain_message(sov_attester_incentives::CallMessage::RegisterAttester(100)),
             ModuleError(
-                AttesterIncentiveErrors::<StateAccessorError<<S as Spec>::Gas>>::AttesterIsUnbonding.into(),
+                RegistrationError::<
+                    MockAddress,
+                    MockAddress,
+                    StateAccessorError<<S as Spec>::Gas>,
+                    _,
+                >::Custom(CustomError::AttesterIsUnbonding(attester_address))
+                .into(),
             ),
         )]),
     ]);
