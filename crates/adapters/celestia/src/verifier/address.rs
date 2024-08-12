@@ -49,7 +49,10 @@ impl sov_rollup_interface::BasicAddress for CelestiaAddress {}
 mod tests {
     use std::hint::black_box;
 
-    use bech32::ToBase32;
+    use bech32::{Bech32, Hrp};
+
+    const CELESTIA_HRP: Hrp = Hrp::parse_unchecked("celestia");
+
     use proptest::prelude::*;
 
     use super::*;
@@ -96,8 +99,7 @@ mod tests {
 
     // 20 u8 -> 32 u5
     fn check_from_bytes_as_ascii(input: [u8; 20]) {
-        let encoded =
-            bech32::encode("celestia", input.to_base32(), bech32::Variant::Bech32).unwrap();
+        let encoded = bech32::encode::<Bech32>(CELESTIA_HRP, &input).unwrap();
         let bytes = encoded.as_bytes();
         let address = CelestiaAddress::try_from(bytes);
         assert!(address.is_ok());
@@ -108,8 +110,7 @@ mod tests {
 
     // 20 u8 -> 32 u5
     fn check_from_as_ref(input: [u8; 20]) {
-        let encoded =
-            bech32::encode("celestia", input.to_base32(), bech32::Variant::Bech32).unwrap();
+        let encoded = bech32::encode::<Bech32>(CELESTIA_HRP, &input).unwrap();
         let address1 = CelestiaAddress::from_str(&encoded).unwrap();
         let bytes = address1.as_ref();
         let address = CelestiaAddress::try_from(bytes);

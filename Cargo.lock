@@ -8636,7 +8636,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bech32 0.9.1",
+ "bech32 0.11.0",
  "borsh",
  "celestia-proto",
  "celestia-rpc",

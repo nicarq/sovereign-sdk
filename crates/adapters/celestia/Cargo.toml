@@ -15,7 +15,7 @@ workspace = true
 
 [dependencies]
 borsh = { workspace = true, features = ["bytes"] }
-bech32 = "0.9.1"
+bech32 = { workspace = true }
 prost = "0.12"
 
 #celestia-proto = { version = "0.2.0" }
