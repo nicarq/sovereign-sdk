@@ -5,9 +5,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::macros::config_value;
+use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::{
-    CallResponse, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateAccessorError,
-    StateReader, TxState,
+    CallResponse, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateReader, TxState,
 };
 use sov_state::{EventContainer, User};
 use thiserror::Error;
@@ -29,66 +29,13 @@ pub enum CallMessage {
     Exit,
 }
 
-/// Error raised while processing the attester incentives
-#[derive(Debug, Error, PartialEq)]
-pub enum ProverIncentiveError<S: Spec, AccessorError> {
-    #[error("The provided address is not an allowed sequencer")]
-    /// The prover is not registered.
-    IsNotRegisteredProver(S::Address),
+/// The prover incentives module does not have a custom error. Therefore, this enum is non instantiable type
+#[derive(Debug, Error, PartialEq, Eq)]
+pub enum CustomError {}
 
-    #[error("Insufficient funds on the prover's account to top up it's staked balance")]
-    /// Insufficient funds on the prover's account to top up it's staked balance
-    InsufficientFundsToTopUpAccount {
-        /// The address of the prover's account.
-        address: S::Address,
-        /// The amount to add to the balance of the prover's account.
-        amount_to_add: u64,
-    },
-
-    #[error("Stake amount below the minimum needed to register a prover")]
-    /// Stake amount below the minimum needed to register a prover.
-    InsufficientStakeAmount {
-        /// The amount of gas tokens the sender is trying to stake.
-        bond_amount: u64,
-        /// The minimum amount of gas tokens to stake.
-        minimum_bond_amount: u64,
-    },
-
-    #[error("The provided amount makes the balance of the prover's account overflow.")]
-    /// The provided amount makes the balance of the provers's account overflow.
-    ToppingAccountMakesBalanceOverflow {
-        /// The address of the prover's account.
-        address: S::Address,
-        /// The existing staked balance of the prover's account.
-        existing_balance: u64,
-        /// The amount to add to the balance of the prover's account.
-        amount_to_add: u64,
-    },
-
-    #[error("The module account does not have enough funds to refund the sequencer's staked amount. This is a bug")]
-    /// The module account does not have enough funds to refund the prover's staked amount.
-    InsufficientFundsToRefundStakedAmount(
-        // The amount of gas tokens to refund
-        u64,
-    ),
-
-    #[error(
-        "The minimum bond is not set. This is a bug - the minimum bond should be set at genesis"
-    )]
-    /// The minimum bond is not set. This is a bug - the minimum bond should be set at genesis
-    NoMinimumBondSet,
-
-    #[error("The prover is already registered")]
-    /// The prover is already registered.
-    ProverAlreadyRegistered(S::Address),
-    #[error("Error occurred when transferring funds to bond the prover. The prover's account may not have enough funds")]
-    /// An error occurred when transferring funds to bond the prover
-    InsufficientFundsToRegister(u64),
-
-    /// An error when trying to access the state
-    #[error("An error occurred when trying to access the state, error: {0}")]
-    StateAccessorError(#[from] AccessorError),
-}
+#[allow(type_alias_bounds)]
+type ProverRegistryError<S: Spec, ST: StateAccessor> =
+    RegistrationError<S::Address, S::Address, <ST as StateReader<User>>::Error, CustomError>;
 
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// The burn rate of the reward price for the provers.
@@ -105,20 +52,19 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         bond_amount: u64,
         prover: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, ProverIncentiveError<S, <ST as StateReader<User>>::Error>> {
+    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
         if self.bonded_provers.get(prover, state)?.is_some() {
-            return Err(ProverIncentiveError::ProverAlreadyRegistered(
-                prover.clone(),
-            ));
+            return Err(RegistrationError::AlreadyRegistered(prover.clone()));
         }
 
         let minimum_bond = self
             .minimum_bond
             .get(state)?
-            .ok_or(ProverIncentiveError::NoMinimumBondSet)?;
+            .ok_or(RegistrationError::NoMinimumBondSet(prover.clone()))?;
 
         if bond_amount < minimum_bond {
-            return Err(ProverIncentiveError::InsufficientStakeAmount {
+            return Err(RegistrationError::InsufficientStakeAmount {
+                address: prover.clone(),
                 bond_amount,
                 minimum_bond_amount: minimum_bond,
             });
@@ -132,7 +78,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
         self.bank
             .transfer_from(prover, self.id.to_payable(), coins, state)
-            .map_err(|_| ProverIncentiveError::InsufficientFundsToRegister(bond_amount))?;
+            .map_err(|_| RegistrationError::InsufficientFundsToRegister {
+                address: prover.clone(),
+                amount: bond_amount,
+            })?;
 
         self.bonded_provers.set(prover, &bond_amount, state)?;
 
@@ -149,28 +98,29 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     }
 
     /// Try to bond the requested amount of coins from context.sender()
-    pub(crate) fn register(
+    pub(crate) fn register<ST: TxState<S>>(
         &self,
         bond_amount: u64,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, ProverIncentiveError<S, StateAccessorError<S::Gas>>> {
+        state: &mut ST,
+    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
         self.register_prover(bond_amount, prover_address, state)
     }
 
     /// Increases the balance of the provided sender, updating the state of the bonded provers.
-    pub(crate) fn deposit(
+    pub(crate) fn deposit<ST: TxState<S>>(
         &self,
         amount: u64,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, ProverIncentiveError<S, StateAccessorError<S::Gas>>> {
-        let bonded_amount = self.bonded_provers.get(prover_address, state)?.ok_or(
-            ProverIncentiveError::IsNotRegisteredProver(prover_address.clone()),
-        )?;
+        state: &mut ST,
+    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
+        let bonded_amount = self
+            .bonded_provers
+            .get(prover_address, state)?
+            .ok_or(RegistrationError::IsNotRegistered(prover_address.clone()))?;
 
         let balance = bonded_amount.checked_add(amount).ok_or(
-            ProverIncentiveError::ToppingAccountMakesBalanceOverflow {
+            RegistrationError::ToppingAccountMakesBalanceOverflow {
                 address: prover_address.clone(),
                 existing_balance: bonded_amount,
                 amount_to_add: amount,
@@ -184,7 +134,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         self.bank
             .transfer_from(prover_address, self.id().to_payable(), coins, state)
-            .map_err(|_| ProverIncentiveError::InsufficientFundsToTopUpAccount {
+            .map_err(|_| RegistrationError::InsufficientFundsToTopUpAccount {
                 address: prover_address.clone(),
                 amount_to_add: amount,
             })?;
@@ -203,11 +153,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
-    pub(crate) fn exit(
+    pub(crate) fn exit<ST: TxState<S>>(
         &self,
         prover_address: &S::Address,
-        state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, ProverIncentiveError<S, StateAccessorError<S::Gas>>> {
+        state: &mut ST,
+    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
         // Get the prover's old balance.
         if let Some(old_balance) = self.bonded_provers.get(prover_address, state)? {
             let coins = Coins {
@@ -217,9 +167,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
             self.bank
                 .transfer_from(self.id.to_payable(), prover_address, coins, state)
-                .map_err(|_err| {
-                    ProverIncentiveError::InsufficientFundsToRefundStakedAmount(old_balance)
-                })?;
+                .map_err(
+                    |_err| RegistrationError::InsufficientFundsToRefundStakedAmount {
+                        address: prover_address.clone(),
+                        amount: old_balance,
+                    },
+                )?;
 
             // Update our internal tracking of the total bonded amount for the sender.
             self.bonded_provers.set(prover_address, &0, state)?;
