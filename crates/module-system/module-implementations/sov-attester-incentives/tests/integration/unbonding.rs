@@ -9,8 +9,8 @@ use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{GasMeter, Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, SlotTestCase, TestAttester, TxTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
-    TEST_ROLLUP_FINALITY_PERIOD,
+    AsUser, SlotTestCase, TestAttester, TransactionTestCase, TxTestCase,
+    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 use crate::helpers::{setup, TestAttesterIncentives, RT, S};
@@ -29,51 +29,43 @@ fn check_attester_bonded_and_start_unbond(
     let gas_consumed_attester_ref_1 = Arc::new(AtomicU64::new(0));
     let gas_consumed_attester_ref_2 = gas_consumed_attester_ref_1.clone();
 
-    runner.execute_slots(vec![
-        // Start by checking the attester balance and bond.
-        SlotTestCase::empty().with_end_slot_hook(Box::new(move |state| {
-            // Check that the attester account is bonded
+    runner.query_state(|state| {
+        assert_eq!(
+            TestAttesterIncentives::default()
+                .bonded_attesters
+                .get(&attester_address, state)
+                .unwrap(),
+            Some(attester_bond),
+            "The genesis attester should be bonded"
+        );
+
+        // Check the balance of the attester is equal to the free balance
+        assert_eq!(
+            TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
+            Some(attester_balance),
+            "The balance of the attester should be equal to the free balance"
+        );
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::BeginExitAttester,
+        ),
+        assert: Box::new(move |result, state| {
             assert_eq!(
                 TestAttesterIncentives::default()
-                    .bonded_attesters
+                    .unbonding_attesters
                     .get(&attester_address, state)
                     .unwrap(),
-                Some(attester_bond),
-                "The genesis attester should be bonded"
+                Some(UnbondingInfo {
+                    unbonding_initiated_height: INIT_BONDING_HEIGHT,
+                    amount: attester_bond
+                }),
             );
-
-            // Check the balance of the attester is equal to the free balance
-            assert_eq!(
-                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
-                Some(attester_balance),
-                "The balance of the attester should be equal to the free balance"
-            );
-        })),
-        // Initiate unbonding
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginExitAttester,
-            ),
-            Box::new(move |state| {
-                // Check that the attester is part of the unbonding set
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .unbonding_attesters
-                        .get(&attester_address, state)
-                        .unwrap(),
-                    Some(UnbondingInfo {
-                        unbonding_initiated_height: INIT_BONDING_HEIGHT,
-                        amount: attester_bond
-                    }),
-                );
-
-                gas_consumed_attester_ref_1.fetch_add(
-                    state.inner().gas_used_value(),
-                    std::sync::atomic::Ordering::SeqCst,
-                );
-            }),
-        )]),
-    ]);
+            gas_consumed_attester_ref_1
+                .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+        }),
+    });
 
     gas_consumed_attester_ref_2.load(std::sync::atomic::Ordering::SeqCst)
 }
@@ -159,22 +151,33 @@ fn try_unbond_too_early() {
     check_attester_bonded_and_start_unbond(&mut runner, &attester);
 
     // Finalize unbonding, this should fail because the unbonding period has not passed yet
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::reverted(
-            attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::ExitAttester,
-            ),
-            ModuleError(
-                RegistrationError::<
-                    MockAddress,
-                    MockAddress,
-                    StateAccessorError<<S as Spec>::Gas>,
-                    _,
-                >::Custom(CustomError::UnbondingNotFinalized(addr))
-                .into(),
-            ),
+    runner.execute_transaction(TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::ExitAttester,
         ),
-    ])]);
+        assert: Box::new(move |result, _state| {
+            match &result.outcome {
+                sov_modules_api::TxEffect::Reverted(reason) => {
+                    assert_eq!(
+                        reason,
+                        &ModuleError(
+                            RegistrationError::<
+                                MockAddress,
+                                MockAddress,
+                                StateAccessorError<<S as Spec>::Gas>,
+                                _,
+                            >::Custom(
+                                CustomError::UnbondingNotFinalized(addr)
+                            )
+                            .into(),
+                        ),
+                        "Transaction reverted, but with unexpected reason"
+                    );
+                }
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    });
 }
 
 /// The attester tries to unbond without bonding
@@ -184,34 +187,33 @@ fn try_unbond_without_bonding() {
 
     let additional_account_address = additional_account.user_info.address();
 
-    runner.execute_slots(vec![
-        SlotTestCase::empty().with_end_slot_hook(Box::new(move |state| {
-            // Check that the additional account is not bonded
+    runner.query_state(|state| {
+        // Check that the additional account is not bonded
+        assert_eq!(
+            TestAttesterIncentives::default()
+                .bonded_attesters
+                .get(&additional_account_address, state)
+                .unwrap(),
+            None,
+            "The additional account should not be bonded"
+        );
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: additional_account.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::BeginExitAttester,
+        ),
+        assert: Box::new(move |_result, state| {
             assert_eq!(
                 TestAttesterIncentives::default()
-                    .bonded_attesters
+                    .unbonding_attesters
                     .get(&additional_account_address, state)
                     .unwrap(),
                 None,
-                "The additional account should not be bonded"
+                "The additional account should not be part of the unbonding set"
             );
-        })),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            additional_account.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginExitAttester,
-            ),
-            Box::new(move |state| {
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .unbonding_attesters
-                        .get(&additional_account_address, state)
-                        .unwrap(),
-                    None,
-                    "The additional account should not be part of the unbonding set"
-                );
-            }),
-        )]),
-    ]);
+        }),
+    });
 }
 
 /// The attester tries to unbond without waiting for the two-phase unbonding to finalize
@@ -220,22 +222,33 @@ fn try_skip_two_phase_unbonding() {
     let (mut runner, attester, _, _) = setup();
     let addr = attester.as_user().address();
 
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::reverted(
-            attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::ExitAttester,
-            ),
-            ModuleError(
-                RegistrationError::<
-                    MockAddress,
-                    MockAddress,
-                    StateAccessorError<<S as Spec>::Gas>,
-                    _,
-                >::Custom(CustomError::AttesterIsNotUnbonding(addr))
-                .into(),
-            ),
+    runner.execute_transaction(TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::ExitAttester,
         ),
-    ])]);
+        assert: Box::new(move |result, _state| {
+            match &result.outcome {
+                sov_modules_api::TxEffect::Reverted(reason) => {
+                    assert_eq!(
+                        reason,
+                        &ModuleError(
+                            RegistrationError::<
+                                MockAddress,
+                                MockAddress,
+                                StateAccessorError<<S as Spec>::Gas>,
+                                _,
+                            >::Custom(
+                                CustomError::AttesterIsNotUnbonding(addr)
+                            )
+                            .into(),
+                        ),
+                        "Transaction reverted, but with unexpected reason"
+                    );
+                }
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    });
 }
 
 /// The attester tries to bond while unbonding
@@ -245,49 +258,65 @@ fn try_bond_while_unbonding() {
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
 
-    runner.execute_slots(vec![
-        // The attester starts unbonding
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            attester.create_plain_message::<TestAttesterIncentives>(
-                sov_attester_incentives::CallMessage::BeginExitAttester,
-            ),
-            Box::new(move |state| {
-                // Check that the state has been updated correctly
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .unbonding_attesters
-                        .get(&attester_address, state)
-                        .unwrap(),
-                    Some(UnbondingInfo {
-                        unbonding_initiated_height: 0,
-                        amount: attester_bond
-                    }),
-                    "The attester should be part of the unbonding set"
-                );
+    let start_unbonding = TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::BeginExitAttester,
+        ),
+        assert: Box::new(move |_result, state| {
+            // Check that the state has been updated correctly
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .unbonding_attesters
+                    .get(&attester_address, state)
+                    .unwrap(),
+                Some(UnbondingInfo {
+                    unbonding_initiated_height: 0,
+                    amount: attester_bond
+                }),
+                "The attester should be part of the unbonding set"
+            );
 
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .bonded_attesters
-                        .get(&attester_address, state)
-                        .unwrap(),
-                    None,
-                    "The attester should not be bonded"
-                );
-            }),
-        )]),
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .bonded_attesters
+                    .get(&attester_address, state)
+                    .unwrap(),
+                None,
+                "The attester should not be bonded"
+            );
+        }),
+    };
+    let try_bond = TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::RegisterAttester(100),
+        ),
+        assert: Box::new(move |result, _state| {
+            match &result.outcome {
+                sov_modules_api::TxEffect::Reverted(reason) => {
+                    assert_eq!(
+                        reason,
+                        &ModuleError(
+                            RegistrationError::<
+                                MockAddress,
+                                MockAddress,
+                                StateAccessorError<<S as Spec>::Gas>,
+                                _,
+                            >::Custom(CustomError::AttesterIsUnbonding(
+                                attester_address
+                            ))
+                            .into(),
+                        ),
+                        "Transaction reverted, but with unexpected reason"
+                    );
+                }
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    };
+
+    runner
+        // The attester starts unbonding
+        .execute_transaction(start_unbonding)
         // The attester shouldn't be able to bond while unbonding
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
-            attester
-                .create_plain_message(sov_attester_incentives::CallMessage::RegisterAttester(100)),
-            ModuleError(
-                RegistrationError::<
-                    MockAddress,
-                    MockAddress,
-                    StateAccessorError<<S as Spec>::Gas>,
-                    _,
-                >::Custom(CustomError::AttesterIsUnbonding(attester_address))
-                .into(),
-            ),
-        )]),
-    ]);
+        .execute_transaction(try_bond);
 }
