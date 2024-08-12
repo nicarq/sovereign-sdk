@@ -17,14 +17,14 @@ use log4rs::config::{Appender, Config, Root};
 use prettytable::Table;
 use regex::Regex;
 use risc0::MOCK_DA_ELF;
+#[cfg(feature = "bench")]
+use sov_cycle_utils::METRICS_HASHMAP;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::SlotData;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
-#[cfg(feature = "bench")]
-use sov_risc0_adapter::metrics::GLOBAL_HASHMAP;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
@@ -272,7 +272,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     #[cfg(feature = "bench")]
     {
-        let hashmap_guard = GLOBAL_HASHMAP.lock();
+        let hashmap_guard = METRICS_HASHMAP.lock().unwrap();
         let metric_map = hashmap_guard.clone();
         let total_cycles = metric_map.get("Cycles per block").unwrap().0;
         println!("\nBlock stats\n");

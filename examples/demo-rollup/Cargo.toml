@@ -56,12 +56,14 @@ sov-db = { workspace = true }
 sov-ethereum = { workspace = true, features = ["local"] }
 sov-sequencer = { workspace = true }
 sov-risc0-adapter = { workspace = true, features = ["native"] }
+sov-sp1-adapter = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
 sov-cli = { workspace = true }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
+sov-cycle-utils = { workspace = true, optional = true }
 
 # Only needed for NFT script.
 sov-test-utils = { workspace = true, optional = true }
@@ -112,14 +114,16 @@ nft-script = ["sov-test-utils"]
 bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
 
 bench = [
-    "hex",
-    "risc0/bench",
-    "sov-celestia-adapter/bench",
-    "sov-modules-api/bench",
-    "sov-modules-stf-blueprint/bench",
-    "sov-risc0-adapter/bench",
-    "sov-state/bench",
-    "sov-sequencer-registry/bench",
+	"hex",
+	"risc0/bench",
+	"sov-celestia-adapter/bench",
+	"sov-modules-api/bench",
+	"sov-modules-stf-blueprint/bench",
+	"sov-risc0-adapter/bench",
+	"sov-state/bench",
+	"sov-sequencer-registry/bench",
+	"sov-sp1-adapter/bench",
+	"sov-cycle-utils",
 ]
 offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
 

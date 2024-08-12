@@ -111,25 +111,17 @@ jobs:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu # Nightly is needed for our configuration of cargo fmt
       - name: cargo install zepter
         uses: taiki-e/install-action@v2
         with:
           tool: zepter@1
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -143,7 +135,8 @@ jobs:
       - name: Exit if working tree is dirty
         # A dirty working tree likely means that `sov-modules-schemas` was
         # out of date.
-        run: git diff --exit-code
+        # Ignore the ELF's, because of how they are exposed in SP1 with include_bytes.
+        run: git diff --exit-code -- . ':(exclude)**/elf/**'
       - name: Check exit code and print custom message
         if: ${{ failure() }}
         run: |
@@ -163,21 +156,13 @@ jobs:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -197,26 +182,15 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -241,21 +215,13 @@ jobs:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -280,6 +246,7 @@ jobs:
     timeout-minutes: 120
     env:
       SKIP_GUEST_BUILD: "1"
+      SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -317,6 +284,7 @@ jobs:
     timeout-minutes: 120
     env:
       SKIP_GUEST_BUILD: "1"
+      SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -347,29 +315,22 @@ jobs:
     timeout-minutes: 60
     env:
       RISC0_DEV_MODE: "true"
+      SP1_PROVER: "mock"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
-      - name: Install Rust
-        run: rustup show
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -384,29 +345,22 @@ jobs:
     timeout-minutes: 60
     env:
       RISC0_DEV_MODE: "true"
+      SP1_PROVER: "mock"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        # `cargo-nextest` is much faster than standard `cargo test`.
+      # `cargo-nextest` is much faster than standard `cargo test`.
       - uses: taiki-e/install-action@nextest
-      - name: Install Rust
-        run: rustup show
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -421,27 +375,20 @@ jobs:
     timeout-minutes: 60
     env:
       SKIP_GUEST_BUILD: "1"
+      SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -459,6 +406,7 @@ jobs:
     timeout-minutes: 90
     env:
       SKIP_GUEST_BUILD: "1"
+      SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -467,25 +415,17 @@ jobs:
         with:
           submodules: true
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
       - name: add llvm component
         run: rustup component add llvm-tools-preview
       - name: cargo install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -520,6 +460,7 @@ jobs:
     env:
       RUSTDOCFLAGS: "-D warnings"
       SKIP_GUEST_BUILD: "1"
+      SP1_SKIP_PROGRAM_BUILD: "true"
       S3_BUCKET_NAME: "sovlabs-ci-rustdoc-artifacts"
       AWS_REGION: "us-east-1"
     steps:
@@ -530,13 +471,13 @@ jobs:
         # Not sure installing `mold` is actually needed, but it's what the
         # `check` job, and we'd rather keep things as similar as possible.
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
@@ -631,21 +572,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
       - name: Install Bashtestmd
         uses: taiki-e/install-action@v2
         with:
@@ -673,25 +606,17 @@ jobs:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install cargo-risczero
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-risczero@0.20
-      - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-        run: make install-risc0-toolchain
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Bashtestmd
         uses: taiki-e/install-action@v2
         with:
           tool: bashtestmd@0.4
-      - name: Install Rust
-        run: rustup show
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust

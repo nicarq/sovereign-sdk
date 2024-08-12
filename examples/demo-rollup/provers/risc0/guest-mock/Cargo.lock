@@ -934,6 +934,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
+name = "critical-section"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7059fff8937831a9ae6f0fe4d658ffabf58f2ca96aa9dec1c889f936f705f216"
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1923,6 +1929,10 @@ name = "once_cell"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
+dependencies = [
+ "critical-section",
+ "portable-atomic",
+]
 
 [[package]]
 name = "pairing"
@@ -2020,6 +2030,12 @@ name = "platforms"
 version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "db23d408679286588f4d4644f965003d056e3dd5abcaaa938116871d7ce2fee7"
+
+[[package]]
+name = "portable-atomic"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "da544ee218f0d287a911e9c99a39a8c9bc8fcad3cb8db5959940044ecfc67265"
 
 [[package]]
 name = "powerfmt"
@@ -3043,7 +3059,7 @@ dependencies = [
 [[package]]
 name = "sov-cycle-macros"
 version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7bd91bcb69ebb41787fcb938572b156f25e34e00#7bd91bcb69ebb41787fcb938572b156f25e34e00"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3053,8 +3069,9 @@ dependencies = [
 [[package]]
 name = "sov-cycle-utils"
 version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86#e3e4e1a8b9bbb955a6099a15b6716c20dcd78d86"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7bd91bcb69ebb41787fcb938572b156f25e34e00#7bd91bcb69ebb41787fcb938572b156f25e34e00"
 dependencies = [
+ "once_cell",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "sov-cycle-macros",
@@ -3260,8 +3277,6 @@ dependencies = [
  "digest 0.10.7",
  "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
  "hex",
- "once_cell",
- "parking_lot",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "serde",
