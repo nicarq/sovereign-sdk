@@ -689,9 +689,7 @@ mod tests {
             .unwrap_err()
             .to_string();
 
-        assert!(error.contains(
-            "Networking or low-level protocol error: Server returned an error status code: 500"
-        ));
+        assert_eq!("Request rejected `500`", error);
         Ok(())
     }
 

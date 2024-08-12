@@ -18,12 +18,16 @@ borsh = { workspace = true, features = ["bytes"] }
 bech32 = "0.9.1"
 prost = "0.12"
 
-celestia-proto = { version = "0.2.0" }
-celestia-rpc = { version = "0.2.0", default-features = false, optional = true }
-celestia-types = { version = "0.2.0", default-features = false }
+#celestia-proto = { version = "0.2.0" }
+#celestia-rpc = { version = "0.2.0", default-features = false, optional = true }
+#celestia-types = { version = "0.2.0", default-features = false }
+# Pre 0.3.0 commit
+celestia-proto = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7" }
+celestia-rpc = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7", default-features = false, optional = true }
+celestia-types = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7", default-features = false }
 celestia-tendermint = { version = "0.32.1", default-features = false }
 celestia-tendermint-proto = { version = "0.32.1" }
-nmt-rs = { version = "0.1.0", features = ["serde", "borsh"] }
+nmt-rs = { version = "0.2.1", features = ["serde", "borsh"] }
 
 # Convenience
 async-trait = { workspace = true }
@@ -31,7 +35,7 @@ anyhow = { workspace = true }
 derive_more = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
-jsonrpsee = { version = "0.20", features = ["http-client"], optional = true }
+jsonrpsee = { workspace = true, features = ["http-client"], optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync"] }
@@ -58,19 +62,19 @@ risc0-zkvm-platform = { workspace = true }
 [features]
 default = []
 native = [
-	"celestia-tendermint/default",
-	"dep:celestia-rpc",
-	"dep:futures",
-	"dep:jsonrpsee",
-	"dep:serde_json",
-	"dep:tokio",
-	"sov-celestia-adapter/native",
-	"sov-rollup-interface/native",
-	"sov-cycle-utils?/native"
+    "celestia-tendermint/default",
+    "dep:celestia-rpc",
+    "dep:futures",
+    "dep:jsonrpsee",
+    "dep:serde_json",
+    "dep:tokio",
+    "sov-celestia-adapter/native",
+    "sov-rollup-interface/native",
+    "sov-cycle-utils?/native"
 ]
 risc0 = [
-	"sov-celestia-adapter/risc0",
-	"sov-cycle-utils?/risc0"
+    "sov-celestia-adapter/risc0",
+    "sov-cycle-utils?/risc0"
 ]
 bench = [
     "dep:sov-cycle-utils",
