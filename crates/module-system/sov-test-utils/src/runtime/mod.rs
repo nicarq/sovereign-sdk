@@ -13,8 +13,8 @@ pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Genesis,
-    InfallibleStateAccessor, Module, RuntimeEventProcessor, SlotData, Spec,
+    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray,
+    Genesis, InfallibleStateAccessor, Module, RuntimeEventProcessor, SlotData, Spec,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
@@ -442,6 +442,7 @@ where
         self.storage_manager
             .save_change_set(block_header, result.change_set.clone(), SchemaBatch::new())
             .unwrap();
+        self.state_root = result.state_root;
         self.slot_receipts.push(SlotReceipt {
             block_header: block_header.clone(),
             batch_receipts: result.batch_receipts.clone(),
@@ -451,6 +452,24 @@ where
             .create_state_for(&self.next_header())
             .expect("Failed to create state");
         (result, ApiStateAccessor::<S>::new(stf_state))
+    }
+
+    /// Advance the rollup `slots_to_advance` slots without executing
+    /// any transactions.
+    pub fn advance_slots(&mut self, slots_to_advance: usize) -> &mut Self {
+        for _ in 0..slots_to_advance {
+            let block_header = self.next_header();
+            let (stf_state, _) = self
+                .storage_manager
+                .create_state_for(&block_header)
+                .expect("Block builds on height zero");
+            let slot_input = RelevantBlobIters {
+                proof_blobs: vec![],
+                batch_blobs: vec![],
+            };
+            let _ = self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+        }
+        self
     }
 
     /// Execute a [`TransactionTestCase`] against the current state of the test runtime.
@@ -479,7 +498,13 @@ where
             self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
-        let ctx = TransactionAssertContext::from_receipt::<S, MockDaSpec>(tx_receipt);
+        let gas_used = <S as Spec>::Gas::from_slice(&tx_receipt.gas_used);
+        let gas_price =
+            <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(&batch_receipt.gas_price);
+        let ctx = TransactionAssertContext::from_receipt::<S, MockDaSpec>(
+            tx_receipt,
+            gas_used.value(&gas_price),
+        );
         (transaction_test.assert)(&ctx, &mut new_state);
         self
     }

@@ -4,13 +4,13 @@ use std::sync::Arc;
 use sov_attester_incentives::ProcessAttestationErrors;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, GasMeter, Spec, StateAccessorError};
+use sov_modules_api::{Error, Spec, StateAccessorError, TxEffect};
 use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{AsUser, SlotTestCase, TxTestCase, TEST_DEFAULT_USER_STAKE};
+use sov_test_utils::{AsUser, TransactionTestCase, TEST_DEFAULT_USER_STAKE};
 
-use super::helpers::{setup, RT, S};
+use super::helpers::{__GeneratedRuntimeInternalsEvent, setup, RT, S};
 
 /// Start by testing the positive case where the attestations are valid. We check that...
 /// valid attestations are processed correctly
@@ -31,87 +31,79 @@ fn test_process_valid_attestation() {
     let expected_balance_ref_2 = expected_balance.clone();
     let expected_balance_ref_3 = expected_balance.clone();
 
-    // We run a test with 5 slots (plus genesis).
-    // The first two slots are empty. The third and fourth slots attest to the first two empty slots. The last
-    // slot attest to the first slot that contains a transaction. This allows us to test that gas metering is done correctly.
-    runner.execute_slots(vec![
-        // Run two empty slots
-        SlotTestCase::empty(),
-        SlotTestCase::empty(),
-        // Attest to the first slot. Check that a ProcessedValidAttestation attestation
-        // event is emitted and do necessary accounting to check the attester's balance later
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.test_process_attestation(Ok(())),
-            Box::new(move |ws| {
-                // Do accounting for the attester's balance
-                {
-                    // The attester's balance should be decremented by the gas used
-                    expected_balance.fetch_sub(
-                        ws.inner().gas_used_value(),
-                        std::sync::atomic::Ordering::SeqCst,
-                    );
-                    // We know that attester will attest to this slot later, so he'll get back some of his gas at that point.
-                    expected_balance.fetch_add(
-                        AttesterIncentives::<S, MockDaSpec>::default()
-                            .burn_rate()
-                            .apply(ws.inner().gas_used_value()),
-                        std::sync::atomic::Ordering::SeqCst,
-                    );
-                }
-
-                // Check that the attestation succeeded
-                assert!(ws.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::ProcessedValidAttestation { .. })
-                )));
-            }),
-        )]),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.test_process_attestation(Ok(())),
-            Box::new(move |ws| {
-                // Check that the attestation succeeded
-                assert!(ws.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::ProcessedValidAttestation { .. })
-                )));
-                // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-                expected_balance_ref_1.fetch_sub(
-                    ws.inner().gas_used_value(),
+    let attest_slot_1 = TransactionTestCase {
+        input: genesis_attester.test_process_attestation(Ok(())),
+        assert: Box::new(move |result, _state| {
+            // Do accounting for the attester's balance
+            {
+                // The attester's balance should be decremented by the gas used
+                expected_balance.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                // We know that attester will attest to this slot later, so he'll get back some of his gas at that point.
+                expected_balance.fetch_add(
+                    AttesterIncentives::<S, MockDaSpec>::default()
+                        .burn_rate()
+                        .apply(result.gas_used),
                     std::sync::atomic::Ordering::SeqCst,
                 );
-            }),
-        )]),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.test_process_attestation(Ok(())),
-            Box::new(move |ws| {
-                // Check that the attestation succeeded
-                assert!(ws.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::ProcessedValidAttestation { .. })
-                )));
-                // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-                expected_balance_ref_2.fetch_sub(
-                    ws.inner().gas_used_value(),
-                    std::sync::atomic::Ordering::SeqCst,
-                );
-            }),
-        )])
-        .with_end_slot_hook(Box::new(move |state_checkpoint| {
+            }
+            // Check that the attestation succeeded
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    Event::ProcessedValidAttestation { .. }
+                )
+            )));
+        }),
+    };
+    let attest_slot_2 = TransactionTestCase {
+        input: genesis_attester.test_process_attestation(Ok(())),
+        assert: Box::new(move |result, _state| {
+            // Check that the attestation succeeded
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    Event::ProcessedValidAttestation { .. }
+                )
+            )));
+            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
+            expected_balance_ref_1.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+        }),
+    };
+    let attest_to_first_attestation = TransactionTestCase {
+        input: genesis_attester.test_process_attestation(Ok(())),
+        assert: Box::new(move |result, state| {
+            // Check that the attestation succeeded
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    Event::ProcessedValidAttestation { .. }
+                )
+            )));
+            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
+            expected_balance_ref_2.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
             assert_eq!(
-                TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state_checkpoint),
+                TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state),
                 Some(expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst))
             );
-
             // Check that the attester still has their full bond
             assert_eq!(
                 AttesterIncentives::<S, MockDaSpec>::default()
-                    .get_attester_bond_amount(genesis_attester_address, state_checkpoint)
+                    .get_attester_bond_amount(genesis_attester_address, state)
                     .unwrap_infallible()
                     .value,
                 genesis_attester_bond,
             );
-        })),
-    ]);
+        }),
+    };
+
+    // We run a test with 5 slots (plus genesis).
+    // The first two slots are empty. The third and fourth slots attest to the first two empty slots. The last
+    // slot attest to the first slot that contains a transaction. This allows us to test that gas metering is done correctly.
+    runner
+        .advance_slots(2)
+        .execute_transaction(attest_slot_1)
+        .execute_transaction(attest_slot_2)
+        .execute_transaction(attest_to_first_attestation);
 }
 
 #[test]
@@ -121,19 +113,16 @@ fn test_burn_on_invalid_attestation() {
     let genesis_attester_address = genesis_attester.user_info.address();
     let genesis_attester_bond = genesis_attester.bond;
 
-    runner.execute_slots(vec![
-        // Run any empty slot, and check that the attester has the correct bond amount from genesis
-        SlotTestCase::empty(),
-        // Run an empty slot
-        SlotTestCase::empty(),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::reverted(
-            genesis_attester
-                .test_process_attestation(Err(TestAttestationMessageError::InvalidProofOfBond)),
-            Error::ModuleError(
-                ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidBondingProof.into(),
-            ),
-        )])
-        .with_end_slot_hook(Box::new(move |state| {
+    let invalid_bond_proof_no_slash = TransactionTestCase {
+        input: genesis_attester
+            .test_process_attestation(Err(TestAttestationMessageError::InvalidProofOfBond)),
+        assert: Box::new(move |result, state| {
+            assert!(matches!(
+                &result.outcome,
+                TxEffect::Reverted(e) if *e == Error::ModuleError(
+                    ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidBondingProof.into(),
+                )
+            ));
             // Assert that the attester was not slashed
             assert_eq!(
                 AttesterIncentives::<S, MockDaSpec>::default()
@@ -142,98 +131,102 @@ fn test_burn_on_invalid_attestation() {
                     .value,
                 genesis_attester_bond,
             );
-        })),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.test_process_attestation(Ok(())),
-            Box::new(|state| {
-                // Check that the attestation succeeded
-                assert!(state.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::ProcessedValidAttestation { .. })
-                )));
-            }),
-        )]),
-        SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.test_process_attestation(Err(
-                TestAttestationMessageError::InvalidInitialStateRoot,
-            )),
-            Box::new(move |state| {
-                // Check that the attestation resulted in slashing
-                assert!(state.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::UserSlashed { .. })
-                )));
-                // Assert that the attester was slashed
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_attester_bond_amount(genesis_attester_address, state)
-                        .unwrap_infallible()
-                        .value,
-                    0,
-                );
-                // Check that the invalid attestation is not part of the challengeable set.
-                // (Since it has the wrong pre-state, no one will be fooled by it so we don't reward challengers)
-                assert!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .bad_transition_pool
-                        .get(&2, state)
-                        .unwrap_infallible()
-                        .is_none(),
-                    "The transition should not exist in the pool"
-                );
-            }),
-        )]),
-    ]);
-
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
-                CallMessage::RegisterAttester(genesis_attester.bond),
-            ),
-            Box::new(move |state| {
-                assert!(state.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::RegisteredAttester { .. })
-                )));
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_attester_bond_amount(genesis_attester_address, state)
-                        .unwrap_infallible()
-                        .value,
-                    TEST_DEFAULT_USER_STAKE,
-                );
-            }),
+        }),
+    };
+    let valid_attestation = TransactionTestCase {
+        input: genesis_attester.test_process_attestation(Ok(())),
+        assert: Box::new(|result, _state| {
+            // Check that the attestation succeeded
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    Event::ProcessedValidAttestation { .. }
+                )
+            )));
+        }),
+    };
+    let invalid_initial_state_slashed = TransactionTestCase {
+        input: genesis_attester
+            .test_process_attestation(Err(TestAttestationMessageError::InvalidInitialStateRoot)),
+        assert: Box::new(move |result, state| {
+            // Check that the attestation resulted in slashing
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed { .. })
+            )));
+            // Assert that the attester was slashed
+            assert_eq!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .get_attester_bond_amount(genesis_attester_address, state)
+                    .unwrap_infallible()
+                    .value,
+                0,
+            );
+            // Check that the invalid attestation is not part of the challengeable set.
+            // (Since it has the wrong pre-state, no one will be fooled by it so we don't reward challengers)
+            assert!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .bad_transition_pool
+                    .get(&2, state)
+                    .unwrap_infallible()
+                    .is_none(),
+                "The transition should not exist in the pool"
+            );
+        }),
+    };
+    let rebond_attester = TransactionTestCase {
+        input: genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
+            CallMessage::RegisterAttester(genesis_attester.bond),
         ),
-    ])]);
+        assert: Box::new(move |result, state| {
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    Event::RegisteredAttester { .. }
+                )
+            )));
+            assert_eq!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .get_attester_bond_amount(genesis_attester_address, state)
+                    .unwrap_infallible()
+                    .value,
+                TEST_DEFAULT_USER_STAKE,
+            );
+        }),
+    };
+    let invalid_post_state_root_is_challengeable = TransactionTestCase {
+        input: genesis_attester
+            .test_process_attestation(Err(TestAttestationMessageError::InvalidPostStateRoot)),
+        assert: Box::new(move |result, state| {
+            assert!(result.events.iter().any(|event| matches!(
+                event,
+                __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed { .. })
+            )));
+            // Assert that the attester was slashed
+            assert_eq!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .get_attester_bond_amount(genesis_attester_address, state)
+                    .unwrap_infallible()
+                    .value,
+                0,
+            );
+            // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
+            assert_eq!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .bad_transition_pool
+                    .get(&2, state)
+                    .unwrap_infallible(),
+                Some(genesis_attester_bond),
+                "The transition should exist in the pool"
+            );
+        }),
+    };
 
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::applied_with_hook(
-            genesis_attester
-                .test_process_attestation(Err(TestAttestationMessageError::InvalidPostStateRoot)),
-            Box::new(move |state| {
-                // Check that the attestation resulted in slashing
-                assert!(state.inner().events().iter().any(|event| matches!(
-                    event.downcast_ref::<Event<S>>(),
-                    Some(Event::UserSlashed { .. })
-                )));
-                // Assert that the attester was slashed
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_attester_bond_amount(genesis_attester_address, state)
-                        .unwrap_infallible()
-                        .value,
-                    0,
-                );
-                // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .bad_transition_pool
-                        .get(&2, state)
-                        .unwrap_infallible(),
-                    Some(genesis_attester_bond),
-                    "The transition should exist in the pool"
-                );
-            }),
-        ),
-    ])]);
+    runner
+        .advance_slots(2)
+        .execute_transaction(invalid_bond_proof_no_slash)
+        .execute_transaction(valid_attestation)
+        .execute_transaction(invalid_initial_state_slashed)
+        .execute_transaction(rebond_attester)
+        .execute_transaction(invalid_post_state_root_is_challengeable);
 }
