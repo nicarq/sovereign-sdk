@@ -2,6 +2,7 @@ use std::ops::Range;
 
 use reth_primitives::revm_primitives::{Address, EVMError};
 use reth_primitives::{Header, SealedHeader, TransactionSigned, TransactionSignedEcRecovered};
+use sov_modules_api::macros::UniversalWallet;
 
 /// RLP encoded evm transaction.
 #[derive(
@@ -12,6 +13,7 @@ use reth_primitives::{Header, SealedHeader, TransactionSigned, TransactionSigned
     Clone,
     serde::Serialize,
     serde::Deserialize,
+    UniversalWallet,
 )]
 pub struct RlpEvmTransaction {
     /// Rlp data.

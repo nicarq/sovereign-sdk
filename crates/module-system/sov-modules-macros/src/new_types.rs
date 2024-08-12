@@ -19,6 +19,7 @@ pub fn address_type_helper(input: DeriveInput) -> Result<TokenStream, syn::Error
             borsh::BorshSerialize,
             serde::Serialize,
             serde::Deserialize,
+            sov_modules_api::macros::UniversalWallet,
         )]
         #[cfg_attr(
             feature = "native",

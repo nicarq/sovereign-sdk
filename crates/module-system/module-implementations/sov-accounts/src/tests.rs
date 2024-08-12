@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 
 use sov_modules_api::prelude::*;
+use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
 use sov_modules_api::{
     Address, Context, CredentialId, Module, PrivateKey, PublicKey, StateCheckpoint,
 };
@@ -8,7 +9,7 @@ use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 use crate::query::Response;
-use crate::{call, Account, AccountConfig, AccountData, Accounts};
+use crate::{call, Account, AccountConfig, AccountData, Accounts, CallMessage};
 
 type S = sov_test_utils::TestSpec;
 
@@ -293,4 +294,22 @@ fn test_response_deserialization_on_wrong_hrp() {
             assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 43");
         }
     }
+}
+
+#[test]
+fn test_display_accounts_call() {
+    #[derive(
+        Debug, Clone, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet,
+    )]
+    enum RuntimeCall {
+        Accounts(CallMessage),
+    }
+
+    let msg = RuntimeCall::Accounts(CallMessage::InsertCredentialId(CredentialId([1; 32])));
+
+    let schema = CompiledSchema::of::<RuntimeCall>();
+    assert_eq!(
+        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        r#"Accounts.InsertCredentialId(0x0101010101010101010101010101010101010101010101010101010101010101)"#
+    );
 }

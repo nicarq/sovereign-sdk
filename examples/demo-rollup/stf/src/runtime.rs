@@ -52,6 +52,7 @@ use crate::genesis_config::GenesisPaths;
     serde::Serialize,
     serde::Deserialize
 )]
+#[wallet]
 pub struct Runtime<S: Spec, Da: DaSpec> {
     /// The Bank module.
     pub bank: sov_bank::Bank<S>,

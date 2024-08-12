@@ -1,4 +1,4 @@
-use proc_macro2::Span;
+use proc_macro2::{Span, TokenStream};
 use syn::DeriveInput;
 
 use crate::common::{
@@ -137,7 +137,20 @@ impl DispatchCallMacro {
         );
 
         let call_enum_legs = struct_def.create_call_enum_legs();
-        let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &serialization_methods, &[]);
+        let extra_attributes: &[TokenStream] =
+            if input.attrs.iter().any(|attr| attr.path.is_ident("wallet")) {
+                let wallet = quote::quote!(#[derive(::sov_modules_api::macros::UniversalWallet)]);
+                &[wallet]
+            } else {
+                &[]
+            };
+        let call_enum = struct_def.create_enum(
+            &call_enum_legs,
+            CALL,
+            &serialization_methods,
+            extra_attributes,
+        );
+
         let create_dispatch_impl = struct_def.create_call_dispatch();
 
         Ok(quote::quote! {

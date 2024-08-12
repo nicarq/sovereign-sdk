@@ -1,12 +1,14 @@
 use std::io::Result;
 
+use sov_modules_api::macros::UniversalWallet;
+
 /// The Nonces module does not support calls so we use [`NotInstantiable`] type here.
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
     derive(sov_modules_api::macros::CliWalletArg)
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, UniversalWallet)]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {

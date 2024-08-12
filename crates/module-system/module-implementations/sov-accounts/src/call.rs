@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
 
@@ -18,6 +19,7 @@ use crate::{Account, Accounts};
     Debug,
     PartialEq,
     Clone,
+    UniversalWallet,
 )]
 pub enum CallMessage {
     /// Inserts a new credential id for the corresponding Account.

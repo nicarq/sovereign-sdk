@@ -1,4 +1,5 @@
 use anyhow::Result;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
 use crate::address::UserAddress;
@@ -19,6 +20,7 @@ use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, Toke
     Debug,
     PartialEq,
     Clone,
+    UniversalWallet,
 )]
 pub enum CallMessage<S: Spec> {
     /// Create a new collection

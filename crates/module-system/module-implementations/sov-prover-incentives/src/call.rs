@@ -4,7 +4,7 @@ use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::macros::config_value;
+use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::{
     CallResponse, DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor, StateReader, TxState,
@@ -16,7 +16,9 @@ use crate::{Event, ProverIncentives};
 
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(
+    Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, PartialEq, UniversalWallet,
+)]
 // TODO: allow call messages to borrow data
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274
 pub enum CallMessage {
