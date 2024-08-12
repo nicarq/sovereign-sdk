@@ -28,6 +28,7 @@ serde = { workspace = true }
 
 reth-primitives = { workspace = true }
 reth-rpc-types = { workspace = true }
+reth-rpc-eth-types = { workspace = true }
 
 tokio = { workspace = true, features = ["sync"] }
 schnellru = "0.2.1"

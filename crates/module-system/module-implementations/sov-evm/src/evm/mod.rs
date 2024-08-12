@@ -9,7 +9,6 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::StateMap;
 use sov_state::Prefix;
 
-pub(crate) mod call;
 pub(crate) mod conversions;
 pub(crate) mod db;
 mod db_commit;

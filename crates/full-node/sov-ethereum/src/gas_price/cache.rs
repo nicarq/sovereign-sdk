@@ -1,9 +1,9 @@
 use std::sync::Mutex;
 
 use reth_primitives::B256;
+use reth_rpc_eth_types::EthResult;
 use reth_rpc_types::{Block, Rich};
 use schnellru::{ByLength, LruMap};
-use sov_evm::EthResult;
 use sov_modules_api::ApiStateAccessor;
 
 /// Block cache for gas oracle

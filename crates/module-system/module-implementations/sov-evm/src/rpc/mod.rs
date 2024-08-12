@@ -1,12 +1,14 @@
+use std::convert::Infallible;
+
 use alloy_primitives::TxKind;
-use error::{ensure_success, RevertError};
-pub use error::{EthApiError, EthResult, RpcInvalidTransactionError};
+use error::ensure_success;
 use jsonrpsee::core::RpcResult;
 use reth_primitives::revm_primitives::{
     Address, AnalysisKind, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, ExecutionResult,
-    HaltReason, InvalidTransaction, TransactTo, TxEnv, B256, KECCAK_EMPTY, U256,
+    HaltReason, InvalidHeader, InvalidTransaction, TransactTo, TxEnv, B256, KECCAK_EMPTY, U256,
 };
 use reth_primitives::{TransactionSignedEcRecovered, U64};
+use reth_rpc_eth_types::{EthApiError, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::{ReceiptEnvelope, ReceiptWithBloom};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -388,7 +390,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
 
         let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
-            Err(err) => return Err(EthApiError::from(err).into()),
+            Err(err) => return Err(eth_from_infallible(err).into()),
         };
 
         Ok(ensure_success(result)?)
@@ -524,14 +526,11 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                         )
                     } else {
                         // the transaction did revert
-                        Err(
-                            RpcInvalidTransactionError::Revert(RevertError::new(output.into()))
-                                .into(),
-                        )
+                        Err(RpcInvalidTransactionError::Revert(RevertError::new(output)).into())
                     };
                 }
             },
-            Err(err) => return Err(EthApiError::from(err).into()),
+            Err(err) => return Err(eth_from_infallible(err).into()),
         };
 
         // at this point, we know the call succeeded but want to find the _best_ (lowest) gas the
@@ -602,14 +601,16 @@ impl<S: sov_modules_api::Spec> Evm<S> {
                         }
                     }
                 },
-                Err(err) => return Err(EthApiError::from(err).into()),
+                Err(err) => {
+                    return Err(eth_from_infallible(err).into());
+                }
             };
 
             // new midpoint
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
 
-        tracing::debug!(
+        debug!(
             %highest_gas_limit,
             "EVM module JSON-RPC response from `eth_estimateGas`"
         );
@@ -743,12 +744,25 @@ fn map_out_of_gas_err<Ws: InfallibleStateAccessor>(
         ExecutionResult::Success { .. } => {
             // a transaction succeeded by manually increasing the gas limit to
             // highest, which means the caller lacks funds to pay for the tx
-            RpcInvalidTransactionError::BasicOutOfGas(U256::from(req_gas_limit)).into()
+            RpcInvalidTransactionError::BasicOutOfGas(req_gas_limit).into()
         }
         ExecutionResult::Revert { output, .. } => {
             // reverted again after bumping the limit
-            RpcInvalidTransactionError::Revert(RevertError::new(output.into())).into()
+            RpcInvalidTransactionError::Revert(RevertError::new(output)).into()
         }
         ExecutionResult::Halt { reason, .. } => RpcInvalidTransactionError::EvmHalt(reason).into(),
+    }
+}
+
+fn eth_from_infallible(err: EVMError<Infallible>) -> EthApiError {
+    match err {
+        EVMError::Transaction(err) => RpcInvalidTransactionError::from(err).into(),
+        EVMError::Header(InvalidHeader::PrevrandaoNotSet) => EthApiError::PrevrandaoNotSet,
+        EVMError::Header(InvalidHeader::ExcessBlobGasNotSet) => EthApiError::ExcessBlobGasNotSet,
+        EVMError::Database(_) => {
+            panic!("Infallible error triggered")
+        }
+        EVMError::Custom(data) => EthApiError::EvmCustom(data),
+        EVMError::Precompile(data) => EthApiError::EvmPrecompile(data),
     }
 }

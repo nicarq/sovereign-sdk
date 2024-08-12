@@ -1,6 +1,5 @@
-use anyhow::Result;
 use reth_primitives::revm_primitives::{
-    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg, Log,
+    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
 };
 use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
 use sov_modules_api::{CallResponse, Context, TxState};
@@ -32,7 +31,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         message: CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> anyhow::Result<CallResponse> {
         // Check if the tx went through the EVM authenticator.
         let signer = *context
             .get_sender_credential::<Address>()
@@ -67,7 +66,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             Ok(result) => {
                 let is_success = result.is_success();
                 let gas_used = result.gas_used();
-                let logs: Vec<_> = result.into_logs().into_iter().map(into_reth_log).collect();
+                let logs: Vec<_> = result.into_logs().into_iter().map(RethLog::from).collect();
                 tracing::debug!(
                     hash = hex::encode(evm_tx.hash()),
                     gas_used,
@@ -150,16 +149,5 @@ pub(crate) fn get_spec_id(spec: Vec<(u64, SpecId)>, block_number: u64) -> SpecId
                 panic!("EVM spec must start from block 0")
             }
         }
-    }
-}
-
-/// Copied from <https://github.com/paradigmxyz/reth/blob/e83d3aa704f87825ca8cab6f593ab4d4adbf6792/crates/revm/revm-primitives/src/compat.rs#L17-L23>.
-/// All rights reserved.
-///
-/// By copying the code, we can avoid depending on the whole crate.
-pub fn into_reth_log(log: Log) -> RethLog {
-    RethLog {
-        address: Address(log.address.0),
-        data: log.data,
     }
 }

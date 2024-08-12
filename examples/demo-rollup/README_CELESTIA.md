@@ -322,7 +322,7 @@ This command will use your default private key.
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","result":{"amount":1000000},"id":1}
+{"jsonrpc":"2.0","id":1,"result":{"amount":1000000}}
 ```
 
 ### Makefile

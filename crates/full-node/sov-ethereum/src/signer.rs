@@ -1,6 +1,7 @@
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{TxKind, U256};
+use reth_rpc_eth_types::EthApiError;
 use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
@@ -18,59 +19,64 @@ pub(crate) fn register_signer_rpc_methods<
 >(
     rpc: &mut RpcModule<Ethereum<S, Da, Auth>>,
 ) -> Result<(), jsonrpsee::core::client::Error> {
-    rpc.register_async_method("eth_accounts", |_parameters, ethereum| async move {
+    rpc.register_async_method("eth_accounts", |_parameters, ethereum, _| async move {
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())
     })?;
-    rpc.register_async_method("eth_sendTransaction", |parameters, ethereum| async move {
-        let mut transaction_request: reth_rpc_types::TransactionRequest = parameters.one().unwrap();
+    rpc.register_async_method(
+        "eth_sendTransaction",
+        |parameters, ethereum, _| async move {
+            let mut transaction_request: reth_rpc_types::TransactionRequest =
+                parameters.one().unwrap();
 
-        let evm = Evm::<S>::default();
+            let evm = Evm::<S>::default();
 
-        // get from, return error if none
-        let from = transaction_request
-            .from
-            .ok_or(to_jsonrpsee_error_object("No from address", ETH_RPC_ERROR))?;
+            // get from, return error if none
+            let from = transaction_request
+                .from
+                .ok_or(to_jsonrpsee_error_object("No from address", ETH_RPC_ERROR))?;
 
-        // return error if not in signers
-        if !ethereum.eth_signer.signers().contains(&from) {
-            return Err(to_jsonrpsee_error_object(
-                "From address not in signers",
-                ETH_RPC_ERROR,
-            ));
-        }
-
-        let raw_evm_tx = {
-            let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
-
-            // set nonce if none
-            if transaction_request.nonce.is_none() {
-                let nonce = evm
-                    .get_transaction_count(from, None, &mut state)
-                    .unwrap_or_default();
-
-                transaction_request.nonce = Some(nonce.to());
+            // return error if not in signers
+            if !ethereum.eth_signer.signers().contains(&from) {
+                return Err(to_jsonrpsee_error_object(
+                    "From address not in signers",
+                    ETH_RPC_ERROR,
+                ));
             }
 
-            let transaction = to_typed_transaction_request(transaction_request, &evm, &mut state)?;
+            let raw_evm_tx = {
+                let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
 
-            // sign transaction
-            let signed_tx = ethereum
-                .eth_signer
-                .sign_transaction(transaction, from)
+                // set nonce if none
+                if transaction_request.nonce.is_none() {
+                    let nonce = evm
+                        .get_transaction_count(from, None, &mut state)
+                        .unwrap_or_default();
+
+                    transaction_request.nonce = Some(nonce.to());
+                }
+
+                let transaction =
+                    to_typed_transaction_request(transaction_request, &evm, &mut state)?;
+
+                // sign transaction
+                let signed_tx = ethereum
+                    .eth_signer
+                    .sign_transaction(transaction, from)
+                    .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+                RlpEvmTransaction {
+                    rlp: signed_tx.envelope_encoded().to_vec(),
+                }
+            };
+            let (tx_hash, raw_message) = ethereum
+                .make_raw_tx(raw_evm_tx)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
-            RlpEvmTransaction {
-                rlp: signed_tx.envelope_encoded().to_vec(),
-            }
-        };
-        let (tx_hash, raw_message) = ethereum
-            .make_raw_tx(raw_evm_tx)
-            .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+            ethereum.add_messages(vec![raw_message]);
 
-        ethereum.add_messages(vec![raw_message]);
-
-        Ok::<_, ErrorObjectOwned>(tx_hash)
-    })?;
+            Ok::<_, ErrorObjectOwned>(tx_hash)
+        },
+    )?;
     Ok(())
 }
 
@@ -195,7 +201,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
         }
         // EIP-4844
         (None, _, _, Some(_), Some(_), Some(_)) => {
-            return Err(sov_evm::EthApiError::Unsupported("EIP-4844 is not supported").into())
+            return Err(EthApiError::Unsupported("EIP-4844 is not supported").into())
         }
         _ => None,
     };
@@ -223,8 +229,8 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
             reth_rpc_types::TypedTransactionRequest::EIP1559(m)
         }
         Some(reth_rpc_types::TypedTransactionRequest::EIP4844(_)) => {
-            return Err(sov_evm::EthApiError::Unsupported("EIP-4844 is not supported").into())
+            return Err(EthApiError::Unsupported("EIP-4844 is not supported").into())
         }
-        None => return Err(sov_evm::EthApiError::ConflictingFeeFieldsInRequest.into()),
+        None => return Err(EthApiError::ConflictingFeeFieldsInRequest.into()),
     })
 }

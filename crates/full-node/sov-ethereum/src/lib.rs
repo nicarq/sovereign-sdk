@@ -1,4 +1,3 @@
-pub use gas_price::gas_oracle::GasPriceOracleConfig;
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
 mod batch_builder;
@@ -12,7 +11,9 @@ use std::sync::{Arc, Mutex};
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
-use sov_evm::{EthApiError, Evm, RlpEvmTransaction};
+use reth_rpc_eth_types::EthApiError;
+pub use reth_rpc_eth_types::GasPriceOracleConfig;
+use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{ApiStateAccessor, Batch};
 use sov_rollup_interface::services::da::DaService;
@@ -173,7 +174,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
 fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator>(
     rpc: &mut RpcModule<Ethereum<S, Da, Auth>>,
 ) -> Result<(), jsonrpsee::core::client::Error> {
-    rpc.register_async_method("eth_gasPrice", |_, ethereum| async move {
+    rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
             let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
 
@@ -199,7 +200,7 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
         Ok::<U256, ErrorObjectOwned>(price)
     })?;
 
-    rpc.register_async_method("eth_publishBatch", |_params, ethereum| async move {
+    rpc.register_async_method("eth_publishBatch", |_params, ethereum, _| async move {
         ethereum
             .build_and_submit_batch(Some(1))
             .await
@@ -210,7 +211,7 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
 
     rpc.register_async_method(
         "eth_sendRawTransaction",
-        |parameters, ethereum| async move {
+        |parameters, ethereum, _| async move {
             let data: Bytes = parameters.one().unwrap();
 
             let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
