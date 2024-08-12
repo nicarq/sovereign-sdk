@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
 use thiserror::Error;
 
@@ -19,6 +20,7 @@ use crate::event::Event;
     Debug,
     PartialEq,
     Clone,
+    UniversalWallet,
 )]
 pub enum CallMessage {
     /// Single value to set.

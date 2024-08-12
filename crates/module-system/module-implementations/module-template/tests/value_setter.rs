@@ -1,4 +1,5 @@
 use module_template::{CallMessage, Event, ExampleModule, ExampleModuleConfig};
+use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
 use sov_modules_api::{Address, Context, Module, Spec, StateCheckpoint};
 use sov_state::ZkStorage;
 use sov_test_utils::storage::new_finalized_storage;
@@ -73,4 +74,20 @@ fn test_value_setter_helper<S: Spec>(
     //         query_response
     //     );
     // }
+}
+
+#[test]
+fn test_display_value_setter_call() {
+    #[derive(Debug, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet)]
+    enum RuntimeCall {
+        ValueSetter(CallMessage),
+    }
+
+    let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(5));
+
+    let schema = CompiledSchema::of::<RuntimeCall>();
+    assert_eq!(
+        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        r#"ValueSetter.SetValue(5)"#
+    );
 }

@@ -6,3 +6,5 @@ mod forced_sequencer_registration;
 mod prover;
 
 mod test_helpers;
+
+mod wallet;

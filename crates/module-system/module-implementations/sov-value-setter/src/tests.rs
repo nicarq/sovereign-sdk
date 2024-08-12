@@ -1,11 +1,12 @@
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
 use sov_modules_api::{Address, Context, Module, Spec, StateCheckpoint};
 use sov_state::ZkStorage;
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
 
 use super::{Event, ValueSetter};
-use crate::{call, ValueSetterConfig};
+use crate::{call, CallMessage, ValueSetterConfig};
 
 #[test]
 fn test_value_setter() {
@@ -112,4 +113,22 @@ fn test_err_on_sender_is_not_admin_helper<S: Spec>(
 
     assert!(resp.is_err());
     state
+}
+
+#[test]
+fn test_display_value_setter_call() {
+    #[derive(
+        Debug, Clone, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet,
+    )]
+    enum RuntimeCall {
+        ValueSetter(CallMessage),
+    }
+
+    let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(92));
+
+    let schema = CompiledSchema::of::<RuntimeCall>();
+    assert_eq!(
+        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        r#"ValueSetter.SetValue(92)"#
+    );
 }

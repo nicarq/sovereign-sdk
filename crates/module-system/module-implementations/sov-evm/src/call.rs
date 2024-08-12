@@ -2,6 +2,7 @@ use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
 };
 use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, TxState};
 
 use crate::evm::db::EvmDb;
@@ -19,6 +20,7 @@ use crate::{Evm, PendingTransaction, SpecId};
     Debug,
     PartialEq,
     Clone,
+    UniversalWallet,
 )]
 pub struct CallMessage {
     /// RLP encoded transaction.

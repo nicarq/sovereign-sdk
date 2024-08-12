@@ -1,6 +1,7 @@
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::{
@@ -27,6 +28,7 @@ use crate::{AllowedSequencer, CustomError, SequencerRegistry, SequencerRegistryE
     borsh::BorshDeserialize,
     serde::Serialize,
     serde::Deserialize,
+    UniversalWallet,
 )]
 pub enum CallMessage {
     /// Add a new sequencer to the sequencer registry.

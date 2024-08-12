@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
 
 use crate::event::Event;
@@ -15,7 +16,7 @@ use crate::ExampleModule;
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq)]
+#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, UniversalWallet)]
 pub enum CallMessage {
     SetValue(u32),
 }

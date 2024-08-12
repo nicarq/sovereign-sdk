@@ -185,11 +185,11 @@ macro_rules! impl_hash32_type {
     ($id:ident, $bech32_version:ident, $human_readable_prefix:expr) => {
         #[derive(
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
+            sov_modules_api::macros::UniversalWallet
         )]
         #[cfg_attr(
             feature = "native",
             derive(schemars::JsonSchema),
-            derive(sov_modules_api::macros::UniversalWallet)
         )]
         #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
         /// A globally unique identifier.
