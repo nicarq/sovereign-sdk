@@ -1,3 +1,4 @@
+use alloy_primitives::private::alloy_rlp::Error as RlpError;
 use alloy_primitives::TxKind;
 use reth_primitives::revm_primitives::{Address, BlockEnv, TxEnv, U256};
 use reth_primitives::{
@@ -46,7 +47,7 @@ pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> Tx
         // EIP-4844 related fields
         blob_hashes: Default::default(),
         max_fee_per_blob_gas: None,
-        // tODO: What/
+        // EIP-7702: TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1132
         authorization_list: None,
     }
 }
@@ -59,10 +60,13 @@ pub enum RlpConversionError {
     EmptyRawTx,
     /// Deserialization has failed.
     #[error("Deserialization failed")]
-    DeserializationFailed,
+    DeserializationFailed(#[from] RlpError),
+    /// Invalid signature during EC recovery
+    #[error("Invalid signature")]
+    InvalidSignature,
 }
 
-// And convert it to original EthApiError ourselves or directly to RPC
+// And convert it to the original EthApiError ourselves or directly to RPC
 impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
     type Error = RlpConversionError;
 
@@ -73,8 +77,7 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
             return Err(RlpConversionError::EmptyRawTx);
         }
 
-        let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())
-            .map_err(|_| RlpConversionError::DeserializationFailed)?;
+        let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())?;
 
         Ok(transaction.into())
     }
@@ -88,7 +91,7 @@ impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
         let tx: TransactionSigned = tx.into();
         let tx = tx
             .into_ecrecovered()
-            .ok_or(RlpConversionError::DeserializationFailed)?;
+            .ok_or(RlpConversionError::InvalidSignature)?;
 
         Ok(tx)
     }

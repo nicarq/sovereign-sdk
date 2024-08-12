@@ -5,82 +5,9 @@ use reth_primitives::revm_primitives::{BlockEnv, TxEnv, B256, U256};
 use reth_primitives::{
     BlockNumber, Transaction as PrimitiveTransaction, TransactionSignedEcRecovered, TxType,
 };
+use reth_rpc_eth_types::revm_utils::CallFees;
+use reth_rpc_eth_types::{EthResult, RpcInvalidTransactionError};
 use reth_rpc_types::{Header, Parity, Signature, TransactionRequest};
-
-use crate::rpc::error::{EthApiError, EthResult, RpcInvalidTransactionError};
-
-/// Helper type for representing the fees of a [CallRequest]
-struct CallFees {
-    /// EIP-1559 priority fee
-    max_priority_fee_per_gas: Option<U256>,
-    /// Unified gas price setting
-    ///
-    /// Will be the configured `basefee` if unset in the request
-    ///
-    /// `gasPrice` for legacy,
-    /// `maxFeePerGas` for EIP-1559
-    gas_price: U256,
-}
-
-// === impl CallFees ===
-
-impl CallFees {
-    /// Ensures the fields of a [CallRequest] are not conflicting.
-    ///
-    /// If no `gasPrice` or `maxFeePerGas` is set, then the `gas_price` in the returned `gas_price`
-    /// will be `0`. See: <https://github.com/ethereum/go-ethereum/blob/2754b197c935ee63101cbbca2752338246384fec/internal/ethapi/transaction_args.go#L242-L255>
-    ///
-    /// EIP-4844 transactions are not supported by the rollup by design.
-    fn ensure_fees(
-        call_gas_price: Option<u128>,
-        call_max_fee: Option<u128>,
-        call_priority_fee: Option<u128>,
-        block_base_fee: U256,
-    ) -> EthResult<CallFees> {
-        /// Ensures that the transaction's max fee is lower than the priority fee, if any.
-        fn ensure_valid_fee_cap(
-            max_fee: U256,
-            max_priority_fee_per_gas: Option<U256>,
-        ) -> EthResult<()> {
-            if let Some(max_priority) = max_priority_fee_per_gas {
-                if max_priority > max_fee {
-                    // Fail early
-                    return Err(
-                        // `max_priority_fee_per_gas` is greater than the `max_fee_per_gas`
-                        RpcInvalidTransactionError::TipAboveFeeCap.into(),
-                    );
-                }
-            }
-            Ok(())
-        }
-
-        let call_priority_fee: Option<U256> = call_priority_fee.map(U256::from);
-        match (call_gas_price, call_max_fee, call_priority_fee) {
-            (gas_price, None, None) => {
-                // either legacy transaction or no fee fields are specified
-                // when no fields are specified, set gas price to zero
-                let gas_price = gas_price.map(U256::from).unwrap_or(U256::ZERO);
-                Ok(CallFees {
-                    gas_price,
-                    max_priority_fee_per_gas: None,
-                })
-            }
-            (None, max_fee_per_gas, max_priority_fee_per_gas) => {
-                let max_fee = max_fee_per_gas.map(U256::from).unwrap_or(block_base_fee);
-                ensure_valid_fee_cap(max_fee, max_priority_fee_per_gas)?;
-
-                Ok(CallFees {
-                    gas_price: max_fee,
-                    max_priority_fee_per_gas,
-                })
-            }
-            _ => {
-                // this fallback covers incompatible combinations of fields
-                Err(EthApiError::ConflictingFeeFieldsInRequest)
-            }
-        }
-    }
-}
 
 // https://github.com/paradigmxyz/reth/blob/d8677b4146f77c7c82d659c59b79b38caca78778/crates/rpc/rpc/src/eth/revm_utils.rs#L201
 // it is `pub(crate)` only for tests
@@ -106,11 +33,16 @@ pub(crate) fn prepare_call_env(
     let CallFees {
         max_priority_fee_per_gas,
         gas_price,
+        ..
     } = CallFees::ensure_fees(
-        gas_price,
-        max_fee_per_gas,
-        max_priority_fee_per_gas,
+        gas_price.map(U256::from),
+        max_fee_per_gas.map(U256::from),
+        max_priority_fee_per_gas.map(U256::from),
         block_env.basefee,
+        // EIP-4844 related params
+        None,
+        None,
+        None,
     )?;
 
     let gas_limit = gas.unwrap_or_else(|| block_env.gas_limit.min(U256::from(u64::MAX)).to());

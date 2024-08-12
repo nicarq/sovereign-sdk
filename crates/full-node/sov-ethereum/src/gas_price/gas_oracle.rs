@@ -3,11 +3,12 @@
 
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/rpc/rpc/src/eth/gas_oracle.rs
 
-use reth_primitives::constants::GWEI_TO_WEI;
 use reth_primitives::{B256, U256};
+use reth_rpc_eth_types::{
+    EthApiError, EthResult, GasPriceOracleConfig, GasPriceOracleResult, RpcInvalidTransactionError,
+};
 use reth_rpc_types::BlockTransactions;
-use serde::{Deserialize, Serialize};
-use sov_evm::{EthApiError, EthResult, Evm, RpcInvalidTransactionError};
+use sov_evm::Evm;
 use sov_modules_api::ApiStateAccessor;
 use tokio::sync::Mutex;
 use tracing::warn;
@@ -17,75 +18,10 @@ use super::cache::BlockCache;
 /// The number of transactions sampled in a block
 pub const SAMPLE_NUMBER: u32 = 3;
 
-/// The default maximum gas price to use for the estimate
-pub const DEFAULT_MAX_PRICE: U256 = U256::from_limbs([500_000_000_000u64, 0, 0, 0]);
-
-/// The default minimum gas price, under which the sample will be ignored
-pub const DEFAULT_IGNORE_PRICE: U256 = U256::from_limbs([2u64, 0, 0, 0]);
-
 const EIP_1559_TX_TYPE: u8 = 2;
 
-/// Settings for the gas price oracle configured by node operators
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct GasPriceOracleConfig {
-    /// The number of populated blocks to produce the gas price estimate
-    pub blocks: u32,
-
-    /// The percentile of gas prices to use for the estimate
-    pub percentile: u32,
-
-    /// The maximum number of headers to keep in the cache
-    pub max_header_history: u32,
-
-    /// The maximum number of blocks for estimating gas price
-    pub max_block_history: u64,
-
-    /// The default gas price to use if there are no blocks to use
-    pub default: Option<U256>,
-
-    /// The maximum gas price to use for the estimate
-    pub max_price: Option<U256>,
-
-    /// The minimum gas price, under which the sample will be ignored
-    pub ignore_price: Option<U256>,
-}
-
-impl Default for GasPriceOracleConfig {
-    fn default() -> Self {
-        GasPriceOracleConfig {
-            blocks: 20,
-            percentile: 60,
-            max_header_history: 1024,
-            max_block_history: 1024,
-            default: None,
-            max_price: Some(DEFAULT_MAX_PRICE),
-            ignore_price: Some(DEFAULT_IGNORE_PRICE),
-        }
-    }
-}
-
-impl GasPriceOracleConfig {
-    /// Creating a new gpo config with blocks, ignore_price, max_price and percentile
-    pub fn new(
-        blocks: Option<u32>,
-        ignore_price: Option<u64>,
-        max_price: Option<u64>,
-        percentile: Option<u32>,
-    ) -> Self {
-        Self {
-            blocks: blocks.unwrap_or(20),
-            percentile: percentile.unwrap_or(60),
-            max_header_history: 1024,
-            max_block_history: 1024,
-            default: None,
-            max_price: max_price.map(U256::from).or(Some(DEFAULT_MAX_PRICE)),
-            ignore_price: ignore_price.map(U256::from).or(Some(DEFAULT_IGNORE_PRICE)),
-        }
-    }
-}
-
 /// Calculates a gas price depending on recent blocks.
+/// TODO: replace with [`reth_rpc_eth_types::GasPriceOracle`].
 pub struct GasPriceOracle<S: sov_modules_api::Spec> {
     /// The type used to get block and tx info
     provider: Evm<S>,
@@ -98,7 +34,7 @@ pub struct GasPriceOracle<S: sov_modules_api::Spec> {
 }
 
 impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
-    /// Creates and returns the [GasPriceOracle].
+    /// Creates and returns the [`GasPriceOracle`].
     pub fn new(provider: Evm<S>, mut oracle_config: GasPriceOracleConfig) -> Self {
         // sanitize the percentile to be less than 100
         if oracle_config.percentile > 100 {
@@ -112,7 +48,7 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
             provider: provider.clone(),
             oracle_config,
             last_price: Default::default(),
-            cache: BlockCache::<S>::new(max_header_history, provider),
+            cache: BlockCache::<S>::new(max_header_history as u32, provider),
         }
     }
 
@@ -259,38 +195,20 @@ impl<S: sov_modules_api::Spec> GasPriceOracle<S> {
     }
 }
 
-/// Stores the last result that the oracle returned
-#[derive(Debug, Clone)]
-pub struct GasPriceOracleResult {
-    /// The block hash that the oracle used to calculate the price
-    pub block_hash: B256,
-    /// The price that the oracle calculated
-    pub price: U256,
-}
-
-impl Default for GasPriceOracleResult {
-    fn default() -> Self {
-        Self {
-            block_hash: B256::ZERO,
-            price: U256::from(GWEI_TO_WEI),
-        }
-    }
-}
-
 // Adopted from: https://github.com/paradigmxyz/reth/blob/main/crates/primitives/src/transaction/mod.rs#L297
 fn effective_gas_tip(
     transaction: &reth_rpc_types::Transaction,
     base_fee: Option<u128>,
 ) -> Option<u128> {
     let priority_fee_or_price = match transaction.transaction_type {
-        Some(EIP_1559_TX_TYPE) => transaction.max_priority_fee_per_gas.unwrap(),
-        _ => transaction.gas_price.unwrap(),
+        Some(EIP_1559_TX_TYPE) => transaction.max_priority_fee_per_gas?,
+        _ => transaction.gas_price?,
     };
 
     if let Some(base_fee) = base_fee {
         let max_fee_per_gas = match transaction.transaction_type {
-            Some(EIP_1559_TX_TYPE) => transaction.max_fee_per_gas.unwrap(),
-            _ => transaction.gas_price.unwrap(),
+            Some(EIP_1559_TX_TYPE) => transaction.max_fee_per_gas?,
+            _ => transaction.gas_price?,
         };
 
         if max_fee_per_gas < base_fee {
@@ -308,7 +226,6 @@ fn effective_gas_tip(
 mod tests {
     use proptest::arbitrary::any;
     use proptest::proptest;
-    use reth_primitives::constants::GWEI_TO_WEI;
 
     use super::*;
 
@@ -317,19 +234,7 @@ mod tests {
         u256.wrapping_to()
     }
 
-    #[test]
-    fn max_price_sanity() {
-        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500_000_000_000u64));
-        assert_eq!(DEFAULT_MAX_PRICE, U256::from(500 * GWEI_TO_WEI));
-    }
-
-    #[test]
-    fn ignore_price_sanity() {
-        assert_eq!(DEFAULT_IGNORE_PRICE, U256::from(2u64));
-    }
-
     proptest! {
-
         #[test]
         fn converts_back_and_forth(input in any::<u64>()) {
             let mut bytes: [u8; 32] = [0; 32];
