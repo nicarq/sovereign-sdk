@@ -1,9 +1,11 @@
 use core::result::Result::Ok;
 
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, StateReader, TxState};
-use sov_state::{EventContainer, User};
+use sov_modules_api::registration_lib::RegistrationError;
+use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
+use sov_state::EventContainer;
 
-use crate::{AttesterIncentiveErrors, AttesterIncentives, Event};
+use super::AttesterRegistryError;
+use crate::{AttesterIncentives, Event};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
@@ -15,18 +17,19 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterIncentiveErrors<<ST as StateReader<User>>::Error>> {
+    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
         if self.bonded_challengers.get(user_address, state)?.is_some() {
-            return Err(AttesterIncentiveErrors::AlreadyRegistered);
+            return Err(RegistrationError::AlreadyRegistered(user_address.clone()));
         }
 
         let minimum_bond = self
             .minimum_challenger_bond
             .get(state)?
-            .ok_or(AttesterIncentiveErrors::NoMinimumBondSet)?;
+            .ok_or(RegistrationError::NoMinimumBondSet(user_address.clone()))?;
 
         if bond_amount < minimum_bond {
-            return Err(AttesterIncentiveErrors::InsufficientStakeAmount {
+            return Err(RegistrationError::InsufficientStakeAmount {
+                address: user_address.clone(),
                 bond_amount,
                 minimum_bond_amount: minimum_bond,
             });
