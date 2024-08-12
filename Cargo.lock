@@ -8831,6 +8831,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "tracing-panic",
  "tracing-subscriber 0.3.18",
 ]
 
@@ -8906,6 +8907,7 @@ name = "sov-kernels"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "serde_json",
  "sov-blob-storage",
  "sov-chain-state",
  "sov-modules-api",
@@ -10640,6 +10642,16 @@ dependencies = [
  "log",
  "once_cell",
  "tracing-core",
+]
+
+[[package]]
+name = "tracing-panic"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7bf1298a179837099f9309243af3b554e840f7f67f65e9f55294913299bd4cc5"
+dependencies = [
+ "tracing",
+ "tracing-subscriber 0.3.18",
 ]
 
 [[package]]

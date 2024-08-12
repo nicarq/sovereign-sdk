@@ -77,13 +77,8 @@ pub async fn construct_rollup(
 
     let mock_demo_rollup = MockDemoRollup::<Native>::default();
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_reader(
-            std::fs::File::open(&kernel_genesis_paths.chain_state)
-                .expect("Failed to read chain_state genesis config"),
-        )
-        .expect("Failed to parse chain_state genesis config"),
-    };
+    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)
+        .expect("Failed to parse chain_state genesis config");
 
     mock_demo_rollup
         .create_new_rollup(

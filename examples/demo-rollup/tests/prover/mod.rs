@@ -21,7 +21,6 @@ use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
 use sov_state::ProverStorage;
-use sov_stf_runner::read_json_file;
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
@@ -66,9 +65,10 @@ async fn test_proof_generation() {
         ))
         .unwrap();
 
-        let chain_state =
-            read_json_file(Path::new(genesis_conf_dir.as_str()).join("chain_state.json")).unwrap();
-        let kernel_params = BasicKernelGenesisConfig { chain_state };
+        let kernel_params = BasicKernelGenesisConfig::from_path(
+            Path::new(genesis_conf_dir.as_str()).join("chain_state.json"),
+        )
+        .unwrap();
         GenesisParams {
             runtime: rt_params,
             kernel: kernel_params,

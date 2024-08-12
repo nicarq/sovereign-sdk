@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::process::exit;
 
 use anyhow::Context as _;
 use clap::Parser;
@@ -43,16 +44,28 @@ enum SupportedDaLayer {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     initialize_logging();
-    let args = Args::parse();
 
+    match run().await {
+        Ok(_) => {
+            debug!("Rollup execution complete. Shutting down.");
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Rollup execution failed");
+            exit(1);
+        }
+    }
+}
+
+async fn run() -> anyhow::Result<()> {
+    let args = Args::parse();
     prometheus_exporter::start(args.prometheus_exporter_bind.parse()?)
-        .expect("Failed to start prometheus exporter");
+        .context("Prometheus exporter start failed")?;
 
     let rollup_config_path = args.rollup_config_path.as_str();
 
-    let prover_config = parse_prover_config()?;
+    let prover_config = parse_prover_config().expect("Failed to parse prover config");
     tracing::info!(?prover_config, "Running demo rollup with prover config");
 
     match args.da_layer {
@@ -66,7 +79,8 @@ async fn main() -> anyhow::Result<()> {
                 rollup_config_path,
                 prover_config,
             )
-            .await?;
+            .await
+            .context("Failed to initialize MockDa rollup")?;
             rollup.run().await
         }
         SupportedDaLayer::Celestia => {
@@ -79,7 +93,8 @@ async fn main() -> anyhow::Result<()> {
                 rollup_config_path,
                 prover_config,
             )
-            .await?;
+            .await
+            .context("Failed to initialize Celestia rollup")?;
             rollup.run().await
         }
     }
@@ -112,18 +127,14 @@ async fn new_rollup_with_celestia_da(
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
     let rollup_config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
-        from_toml_path(rollup_config_path).context("Failed to read rollup configuration")?;
+        from_toml_path(rollup_config_path).with_context(|| {
+            format!(
+                "Failed to read rollup configuration from {}",
+                rollup_config_path
+            )
+        })?;
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state).with_context(|| {
-                format!(
-                    "Failed to read chain state from {}",
-                    kernel_genesis_paths.chain_state.display()
-                )
-            })?,
-        )?,
-    };
+    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)?;
 
     let celestia_rollup = CelestiaDemoRollup::<Native>::default();
     celestia_rollup
@@ -142,7 +153,10 @@ async fn new_rollup_with_mock_da(
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
 ) -> Result<Rollup<MockDemoRollup<Native>, Native>, anyhow::Error> {
-    debug!(config_path = rollup_config_path, "Starting mock rollup");
+    debug!(
+        config_path = rollup_config_path,
+        "Starting rollup on mock DA"
+    );
 
     let rollup_config: RollupConfig<Address<Sha256>, MockDaConfig> =
         from_toml_path(rollup_config_path).with_context(|| {
@@ -152,16 +166,7 @@ async fn new_rollup_with_mock_da(
             )
         })?;
 
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: serde_json::from_str(
-            &std::fs::read_to_string(&kernel_genesis_paths.chain_state).with_context(|| {
-                format!(
-                    "Failed to read chain state from {}",
-                    kernel_genesis_paths.chain_state.display()
-                )
-            })?,
-        )?,
-    };
+    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)?;
 
     let mock_rollup = MockDemoRollup::<Native>::default();
     mock_rollup

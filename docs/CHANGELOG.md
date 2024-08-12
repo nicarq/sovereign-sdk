@@ -1,4 +1,5 @@
-- #1141 Renames `risc0-cycle-macros` to `sov-cycle-macros` and changes the usage pattern. Callers should typically import the `sov-cycle-utils` crateand use its `macros` module rather than importing `sov-cycle-macros` directly.
+- #1073 Changes error handling in `demo-rollup`, so it not panics on error, but high level main function prints error and exits with appropriate code
+- #1141 Renames `risc0-cycle-macros` to `sov-cycle-macros` and changes the usage pattern. Callers should typically import the `sov-cycle-utils` crate and use its `macros` module rather than importing `sov-cycle-macros` directly.
 - #1109 removes the sequencer tx status notifications `published` and `finalized`, and replaces them with `processed` instead. A `processed` notification instructs the client that the ledger has processed the transaction and it's ready to serve finality data, its receipt, and its events.
 - #1146 Adds `DEFAULT_SOV_ROLLUP_LOGGING` constant in `sov-modules-rollup-blueprint` that should be used for default tracing-subscriber setup.
 - #1143 Adds new reth crate and removes copy pasted code. `jsonrpsee` and `tokio` have been updated.
