@@ -189,7 +189,6 @@ impl TestRollup {
                 minimum_challenger_bond: attester_params.minimum_challenger_bond,
                 maximum_attested_height: attester_params.maximum_attested_height,
                 light_client_finalized_height: attester_params.light_client_finalized_height,
-                phantom_data: Default::default(),
             },
         };
 

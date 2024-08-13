@@ -1,22 +1,15 @@
-use core::marker::PhantomData;
-
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{DaSpec, GenesisState, Spec};
-use sov_state::Storage;
 
 use crate::AttesterIncentives;
 
 /// Configuration of the attester incentives module
 #[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub struct AttesterIncentivesConfig<S, Da>
-where
-    S: Spec,
-    Da: DaSpec,
-{
+pub struct AttesterIncentivesConfig<S: Spec> {
     /// The minimum bond for an attester.
     pub minimum_attester_bond: Amount,
     /// The minimum bond for a challenger.
@@ -29,17 +22,9 @@ where
     pub maximum_attested_height: TransitionHeight,
     /// The light client finalized height
     pub light_client_finalized_height: TransitionHeight,
-    /// Phantom data that contains the validity condition
-    pub phantom_data: PhantomData<Da::ValidityCondition>,
 }
 
-impl<S, Store, P, Da> AttesterIncentives<S, Da>
-where
-    S: sov_modules_api::Spec<Storage = Store>,
-    Store: Storage<Proof = P>,
-    P: BorshDeserialize + BorshSerialize,
-    Da: sov_modules_api::DaSpec,
-{
+impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,

@@ -148,7 +148,6 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
             rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
             maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
             light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
-            phantom_data: PhantomData,
         },
 
         bank: BankConfig {

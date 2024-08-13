@@ -115,7 +115,7 @@ where
 {
     type Spec = S;
 
-    type Config = AttesterIncentivesConfig<S, Da>;
+    type Config = AttesterIncentivesConfig<S>;
 
     type CallMessage = call::CallMessage<S, Da>;
 
