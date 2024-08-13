@@ -46,7 +46,7 @@ pub struct ProofManagerConfig<Address> {
 
 /// Rollup Configuration
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
-pub struct RollupConfig<Address, DaServiceConfig> {
+pub struct RollupConfig<Address, DaServiceConfig, BatchBuilderConfig> {
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
     /// Runner own configuration.
@@ -55,6 +55,15 @@ pub struct RollupConfig<Address, DaServiceConfig> {
     pub da: DaServiceConfig,
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
+    /// Sequencer (and batch builder) configuration.
+    pub sequencer: SequencerConfig<BatchBuilderConfig>,
+}
+
+/// Sequencer configuration.
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+pub struct SequencerConfig<B> {
+    /// Batch builder configuration.
+    pub batch_builder: B,
 }
 
 /// Reads toml file as a specific type.
@@ -83,7 +92,10 @@ mod tests {
 
     use sha2::Sha256;
     use sov_celestia_adapter::verifier::address::CelestiaAddress;
+    use sov_celestia_adapter::verifier::CelestiaSpec;
+    use sov_celestia_adapter::CelestiaConfig;
     use sov_modules_api::Address;
+    use sov_sequencer::FairBatchBuilderConfig;
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -101,7 +113,6 @@ mod tests {
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
             max_celestia_response_body_size = 980
-            own_celestia_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
             [storage]
             path = "/tmp"
             [runner]
@@ -116,12 +127,17 @@ mod tests {
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
+            [sequencer.batch_builder]
+            sequencer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
         "#;
 
         let config_file = create_config_from(config);
 
-        let config: RollupConfig<Address<Sha256>, sov_celestia_adapter::CelestiaConfig> =
-            from_toml_path(config_file.path()).unwrap();
+        let config: RollupConfig<
+            Address<Sha256>,
+            CelestiaConfig,
+            FairBatchBuilderConfig<CelestiaSpec>,
+        > = from_toml_path(config_file.path()).unwrap();
 
         let expected = RollupConfig {
             runner: RunnerConfig {
@@ -142,10 +158,6 @@ mod tests {
                 celestia_rpc_address: "http://localhost:11111/".into(),
                 max_celestia_response_body_size: 980,
                 celestia_rpc_timeout_seconds: 60,
-                own_celestia_address: CelestiaAddress::from_str(
-                    "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
-                )
-                .unwrap(),
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
@@ -156,6 +168,16 @@ mod tests {
                     "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
                 )
                 .unwrap(),
+            },
+            sequencer: SequencerConfig {
+                batch_builder: FairBatchBuilderConfig {
+                    mempool_max_txs_count: None,
+                    max_batch_size_bytes: None,
+                    sequencer_address: CelestiaAddress::from_str(
+                        "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
+                    )
+                    .unwrap(),
+                },
             },
         };
         assert_eq!(config, expected);

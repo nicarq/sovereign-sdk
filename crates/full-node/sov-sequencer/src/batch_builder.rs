@@ -19,14 +19,14 @@ use crate::tx_status::TxStatusNotifier;
 use crate::TxHash;
 
 /// Configuration for [`FairBatchBuilder`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct FairBatchBuilderConfig<Da: DaSpec> {
     /// Maximum number of transactions in mempool. Once this limit is reached,
     /// the batch builder will evict older transactions.
-    pub mempool_max_txs_count: usize,
+    pub mempool_max_txs_count: Option<usize>,
     /// Maximum size of a batch. The batch builder will not build batches larger
     /// than this size.
-    pub max_batch_size_bytes: usize,
+    pub max_batch_size_bytes: Option<usize>,
     /// DA address of the sequencer.
     pub sequencer_address: Da::Address,
 }
@@ -60,6 +60,9 @@ where
     R: Runtime<S, Da>,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
+    const DEFAULT_MEMPOOL_MAX_TXS_COUNT: usize = 100;
+    const DEFAULT_MAX_BATCH_SIZE_BYTES: usize = 1024 * 1024;
+
     /// [`BatchBuilder`] constructor.
     pub fn new(
         runtime: R,
@@ -70,8 +73,16 @@ where
         config: FairBatchBuilderConfig<Da>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
-            mempool: FairMempool::new(sequencer_db, notifier, config.mempool_max_txs_count)?,
-            max_batch_size_bytes: config.max_batch_size_bytes,
+            mempool: FairMempool::new(
+                sequencer_db,
+                notifier,
+                config
+                    .mempool_max_txs_count
+                    .unwrap_or(Self::DEFAULT_MEMPOOL_MAX_TXS_COUNT),
+            )?,
+            max_batch_size_bytes: config
+                .max_batch_size_bytes
+                .unwrap_or(Self::DEFAULT_MAX_BATCH_SIZE_BYTES),
             runtime,
             kernel,
             current_storage,
@@ -423,8 +434,8 @@ mod tests {
         let notifier = TxStatusNotifier::default();
 
         let config = FairBatchBuilderConfig {
-            mempool_max_txs_count: MAX_TX_POOL_SIZE,
-            max_batch_size_bytes: batch_size_bytes,
+            mempool_max_txs_count: Some(MAX_TX_POOL_SIZE),
+            max_batch_size_bytes: Some(batch_size_bytes),
             sequencer_address,
         };
         BatchBuilder::new(

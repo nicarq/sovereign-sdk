@@ -18,10 +18,12 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
+use sov_sequencer::FairBatchBuilderConfig;
 use sov_state::{ArrayWitness, DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::{
     HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
-    RollupConfig, RollupProverConfig, RunnerConfig, StateTransitionRunner, StorageConfig,
+    RollupConfig, RollupProverConfig, RunnerConfig, SequencerConfig, StateTransitionRunner,
+    StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
@@ -138,7 +140,7 @@ pub async fn initialize_runner(
     >,
     TestNode,
 ) {
-    let rollup_config = RollupConfig::<_, MockDaConfig> {
+    let rollup_config = RollupConfig::<_, MockDaConfig, FairBatchBuilderConfig<MockDaSpec>> {
         storage: StorageConfig {
             path: path.to_path_buf(),
         },
@@ -161,6 +163,13 @@ pub async fn initialize_runner(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
             )
             .expect("Prover address is not valid"),
+        },
+        sequencer: SequencerConfig {
+            batch_builder: FairBatchBuilderConfig {
+                mempool_max_txs_count: None,
+                max_batch_size_bytes: None,
+                sequencer_address: da_service.da_service().sequencer_address(),
+            },
         },
     };
 

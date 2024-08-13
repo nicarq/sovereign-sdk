@@ -224,8 +224,8 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let ledger_db = LedgerDb::with_reader(ledger_storage)?;
 
         let batch_builder_config = FairBatchBuilderConfig {
-            mempool_max_txs_count,
-            max_batch_size_bytes: usize::MAX,
+            mempool_max_txs_count: Some(mempool_max_txs_count),
+            max_batch_size_bytes: None,
             sequencer_address: SEQUENCER_ADDR.into(),
         };
 

@@ -12,9 +12,10 @@ use sov_mock_da::MockDaConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
+use sov_sequencer::FairBatchBuilderConfig;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
-    StorageConfig,
+    SequencerConfig, StorageConfig,
 };
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -51,6 +52,8 @@ pub async fn construct_rollup(
     let temp_dir = tempfile::tempdir().unwrap();
     let temp_path = temp_dir.path();
 
+    let sequencer_address = da_config.sender_address;
+
     let rollup_config = RollupConfig {
         storage: StorageConfig {
             path: temp_path.to_path_buf(),
@@ -72,6 +75,13 @@ pub async fn construct_rollup(
             aggregated_proof_block_jump: 1,
             prover_address: Address::<Sha256>::from_str(PROVER_ADDRESS)
                 .expect("Prover address is not valid"),
+        },
+        sequencer: SequencerConfig {
+            batch_builder: FairBatchBuilderConfig {
+                mempool_max_txs_count: None,
+                max_batch_size_bytes: None,
+                sequencer_address,
+            },
         },
     };
 

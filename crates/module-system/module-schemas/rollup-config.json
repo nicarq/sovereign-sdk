@@ -1,12 +1,13 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "RollupConfig_for_Address_and_AnyValue",
+  "title": "RollupConfig_for_Address_and_AnyValue_and_AnyValue",
   "description": "Rollup Configuration",
   "type": "object",
   "required": [
     "da",
     "proof_manager",
     "runner",
+    "sequencer",
     "storage"
   ],
   "properties": {
@@ -26,6 +27,14 @@
       "allOf": [
         {
           "$ref": "#/definitions/RunnerConfig"
+        }
+      ]
+    },
+    "sequencer": {
+      "description": "Sequencer (and batch builder) configuration.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/SequencerConfig_for_AnyValue"
         }
       ]
     },
@@ -125,6 +134,18 @@
               "$ref": "#/definitions/HttpServerConfig"
             }
           ]
+        }
+      }
+    },
+    "SequencerConfig_for_AnyValue": {
+      "description": "Sequencer configuration.",
+      "type": "object",
+      "required": [
+        "batch_builder"
+      ],
+      "properties": {
+        "batch_builder": {
+          "description": "Batch builder configuration."
         }
       }
     },
