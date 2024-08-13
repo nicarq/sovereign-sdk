@@ -916,7 +916,6 @@ impl<B> BlobWithAppearance<B> {
 }
 
 #[derive(Default, sov_modules_api::Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct TestRuntime<S: Spec, Da: DaSpec> {
     pub bank: sov_bank::Bank<S>,
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,

@@ -104,7 +104,6 @@ pub mod my_module {
 
 #[expose_rpc]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<T: TestSpec, S: Spec> {
     pub first: my_module::QueryModule<S, T::Data>,
 }

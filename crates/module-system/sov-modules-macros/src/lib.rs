@@ -200,7 +200,7 @@ pub fn genesis(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), genesis_macro.derive_genesis(input))
 }
 
-#[proc_macro_derive(DispatchCall, attributes(serialization, wallet))]
+#[proc_macro_derive(DispatchCall, attributes(dispatch_call))]
 pub fn dispatch_call(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let call_macro = DispatchCallMacro::new("Call");
@@ -208,7 +208,7 @@ pub fn dispatch_call(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), call_macro.derive_dispatch_call(input))
 }
 
-#[proc_macro_derive(Event, attributes(serialization))]
+#[proc_macro_derive(Event, attributes(event))]
 pub fn event(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let event_macro = EventMacro::new("Event");

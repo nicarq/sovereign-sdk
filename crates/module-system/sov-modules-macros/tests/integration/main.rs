@@ -29,7 +29,8 @@ fn module_dispatch_tests() {
     t.pass("tests/integration/dispatch/derive_genesis.rs");
     t.pass("tests/integration/dispatch/derive_dispatch.rs");
     t.pass("tests/integration/dispatch/derive_event.rs");
-    t.compile_fail("tests/integration/dispatch/missing_serialization.rs");
+    t.pass("tests/integration/dispatch/derive_dispatch_custom_attrs.rs");
+    t.compile_fail("tests/integration/dispatch/derive_event_no_default_attrs.rs");
 }
 
 #[test]

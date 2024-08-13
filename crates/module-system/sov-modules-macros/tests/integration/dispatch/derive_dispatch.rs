@@ -8,7 +8,6 @@ use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
 
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S, T>
 where
     S: Spec,

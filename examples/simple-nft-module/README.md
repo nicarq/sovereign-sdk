@@ -432,7 +432,6 @@ Now this module can be added to rollup's `Runtime`:
 use sov_modules_api::{DispatchCall, Genesis, MessageCodec};
 
 #[derive(Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: sov_modules_api::Spec> {
     #[allow(unused)]
     sequencer: sov_sequencer_registry::Sequencer<S>,

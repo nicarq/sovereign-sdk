@@ -8,7 +8,6 @@ use sov_test_utils::ZkTestSpec;
 
 // Debugging hint: To expand the macro in tests run: `cargo expand --test tests`
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S, T>
 where
     S: Spec,

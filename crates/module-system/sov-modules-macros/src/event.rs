@@ -2,7 +2,7 @@ use proc_macro2::Span;
 use syn::DeriveInput;
 
 use super::common::{
-    get_generics_type_param, get_serialization_attrs, StructDef, StructFieldExtractor,
+    get_derived_enum_attrs, get_generics_type_param, StructDef, StructFieldExtractor,
 };
 
 pub(crate) const EVENT: &str = "Event";
@@ -39,14 +39,25 @@ impl EventMacro {
         &self,
         input: DeriveInput,
     ) -> syn::Result<proc_macro::TokenStream> {
-        let mut derive_methods = get_serialization_attrs(&input)?;
-        derive_methods.push(quote::quote! { Clone });
-
-        let extra_attributes = vec![quote::quote! {
-            #[serde(untagged)]
-            #[serde(bound = "")]
-        }];
-
+        let default_event_attrs = vec![
+            quote::quote! {
+                #[
+                    derive(
+                        borsh::BorshDeserialize,
+                        borsh::BorshSerialize,
+                        serde::Serialize,
+                        serde::Deserialize,
+                        Clone,
+                        Debug,
+                        PartialEq,
+                    )
+                ]
+            },
+            quote::quote! {
+                #[serde(untagged, bound = "")]
+            },
+        ];
+        let enum_attributes = get_derived_enum_attrs("event", &input, default_event_attrs)?;
         let DeriveInput {
             data,
             ident,
@@ -68,8 +79,7 @@ impl EventMacro {
         );
 
         let event_enum_legs = struct_def.create_event_enum_legs();
-        let event_enum =
-            struct_def.create_enum(&event_enum_legs, EVENT, &derive_methods, &extra_attributes);
+        let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &enum_attributes);
 
         let event_cases = struct_def.fields.iter().map(|field| {
             let name = &field.ident;
