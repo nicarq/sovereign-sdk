@@ -125,6 +125,10 @@ where
                 )
                 .route("/slots/latest/ws", get(Self::subscribe_to_head))
                 .route("/slots/finalized/ws", get(Self::subscribe_to_finalized))
+                .route(
+                    "/slots/latest/events/ws",
+                    get(Self::subscribe_to_slot_events),
+                )
                 .nest(
                     "/slots/latest",
                     Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
@@ -554,6 +558,54 @@ where
     // SUBSCRIPTIONS
     // -------------
 
+    async fn subscribe_to_slot_events(
+        State(ledger): State<T>,
+        event_key_prefix_opt: Option<Query<EventFilter>>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(|socket| async move {
+            let subscription = ledger
+                .subscribe_slots()
+                .then(|slot_num| {
+                    let ledger = ledger.clone();
+                    let filter = event_key_prefix_opt
+                        .as_ref()
+                        .map(|q| q.0.prefix.as_bytes().to_vec());
+                    async move {
+                        let Ok(events) = ledger
+                            .get_filtered_slot_events::<B, TxReceipt, RuntimeEventResponse<E>>(
+                                &SlotIdentifier::Number(slot_num),
+                                filter,
+                            )
+                            .await
+                        else {
+                            anyhow::bail!("Error fetching events for slot {}", slot_num);
+                        };
+
+                        let events = events
+                            .into_iter()
+                            .map(|e: RuntimeEventResponse<E>| Event::<E> {
+                                number: e.event_number,
+                                key: e.event_key,
+                                value: e.event_value,
+                                module: ModuleRef {
+                                    name: e.module_name,
+                                },
+                            })
+                            .collect::<Vec<_>>();
+
+                        Ok(SlotEvents {
+                            slot_number: slot_num,
+                            events,
+                        })
+                    }
+                })
+                .boxed();
+
+            serve_generic_ws_subscription(socket, subscription).await;
+        })
+    }
+
     async fn subscribe_to_aggregated_proofs(
         State(ledger): State<T>,
         ws: WebSocketUpgrade,
@@ -659,6 +711,12 @@ impl From<IncludeChildren> for QueryMode {
             QueryMode::Compact
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+struct SlotEvents<E> {
+    slot_number: u64,
+    events: Vec<Event<E>>,
 }
 
 #[serde_with::serde_as]
