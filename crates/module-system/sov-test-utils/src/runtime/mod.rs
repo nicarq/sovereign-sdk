@@ -8,7 +8,7 @@ use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
 use sov_db::schema::SchemaBatch;
-use sov_db::storage_manager::NativeStorageManager;
+use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -111,6 +111,16 @@ type TestApplySlotOutput<RT, S> = ApplySlotOutput<
     MockDaSpec,
     TestStfBlueprint<RT, S>,
 >;
+
+/// The output of the runner
+pub struct RunnerOutput<S: Spec> {
+    /// The slot receipt emitted at the end of the slot execution
+    pub receipt: SlotReceipt<MockDaSpec>,
+    /// The change set containing the delta of the state after the slot execution
+    pub change_set: NativeChangeSet,
+    /// The root of the state after the slot execution
+    pub root: <<S as Spec>::Storage as Storage>::Root,
+}
 
 impl<RT, S> TestRunner<RT, S>
 where
@@ -291,18 +301,26 @@ where
         )
     }
 
-    /// Checks the slot results and apply the changes to the state
-    fn check_and_apply_slot_result(
-        &mut self,
-        block_header: MockBlockHeader,
-        expected_slot_results: SlotExpectedReceipt,
-        result: TestApplySlotOutput<RT, S>,
-    ) {
-        let slot_receipt = SlotReceipt {
-            block_header,
-            batch_receipts: result.batch_receipts,
-        };
+    fn apply_slot_result(&mut self, runner_output: RunnerOutput<S>) {
+        self.storage_manager
+            .save_change_set(
+                &runner_output.receipt.block_header,
+                runner_output.change_set,
+                SchemaBatch::new(),
+            )
+            .unwrap();
 
+        self.slot_receipts.push(runner_output.receipt);
+
+        self.state_root = runner_output.root;
+    }
+
+    /// Checks the slot results
+    fn check_result(
+        &mut self,
+        slot_receipt: &SlotReceipt<MockDaSpec>,
+        expected_slot_results: SlotExpectedReceipt,
+    ) {
         assert_eq!(
             expected_slot_results.len(),
             slot_receipt.batch_receipts.len(),
@@ -345,31 +363,33 @@ where
             }
         }
 
-        self.storage_manager
-            .save_change_set(
-                &slot_receipt.block_header,
-                result.change_set,
-                SchemaBatch::new(),
-            )
-            .unwrap();
+        assert!(
+            self.stf
+                .runtime()
+                .try_pop_next_tx_action()
+                .flatten()
+                .is_none(),
+            "All post tx hooks must have run! This should be unreachable!"
+        );
 
-        self.slot_receipts.push(slot_receipt);
-
-        self.state_root = result.state_root;
+        assert!(
+            self.stf.runtime().take_next_slot_action().is_none(),
+            "The slot hook must have run! This should be unreachable!"
+        );
     }
 
-    /// Executes a single slot with a given setup function
-    fn execute_slot<M: Module>(
-        &mut self,
-        block_header: &MockBlockHeader,
-        slot_blobs_data: SlotBlobsData<M, S>,
-    ) -> TestApplySlotOutput<RT, S>
+    /// Runs a single slot
+    fn run_slot<M: Module>(&mut self, slot_test_case: SlotTestCase<RT, M, S>) -> RunnerOutput<S>
     where
         RT: EncodeCall<M>,
     {
+        let (slot_blobs_data, slot_expected_receipt) = self.setup_slot(slot_test_case);
+
+        let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
+
         let (stf_state, _) = self
             .storage_manager
-            .create_state_for(block_header)
+            .create_state_for(&block_header)
             .expect("Block builds on height zero");
 
         let mut blobs = self.build_blobs(&stf_state, slot_blobs_data);
@@ -380,14 +400,47 @@ where
             batch_blobs: blobs.iter_mut().collect(),
         };
 
-        self.stf.apply_slot(
+        let result = self.stf.apply_slot(
             self.state_root(),
             stf_state,
             Default::default(),
-            block_header,
+            &block_header,
             &Default::default(),
             relevant_blobs,
-        )
+        );
+
+        let receipt = SlotReceipt {
+            block_header,
+            batch_receipts: result.batch_receipts,
+        };
+
+        self.check_result(&receipt, slot_expected_receipt);
+
+        RunnerOutput {
+            receipt,
+            change_set: result.change_set,
+            root: result.state_root,
+        }
+    }
+
+    /// The same as [`Self::execute_slots`] except that the result is not committed to the database.
+    /// Used to simulate the execution of a transaction to get constants such as `gas_price`. Returns a list
+    /// of [`RunnerOutput`] used to check the outcome of the slot application.
+    pub fn simulate_slots<M: Module>(
+        &mut self,
+        slots_test_cases: Vec<SlotTestCase<RT, M, S>>,
+    ) -> Vec<RunnerOutput<S>>
+    where
+        RT: EncodeCall<M>,
+    {
+        let mut receipts = vec![];
+        for slot_test_case in slots_test_cases {
+            let result = self.run_slot(slot_test_case);
+
+            receipts.push(result);
+        }
+
+        receipts
     }
 
     /// Executes the provided slots
@@ -396,27 +449,9 @@ where
         RT: EncodeCall<M>,
     {
         for slot_test_case in slots_test_cases {
-            let (slot_blobs_data, slot_expected_receipt) = self.setup_slot(slot_test_case);
+            let result = self.run_slot(slot_test_case);
 
-            let block_header = MockBlockHeader::from_height(self.curr_slot_number() + 1);
-
-            let result = self.execute_slot(&block_header, slot_blobs_data);
-
-            self.check_and_apply_slot_result(block_header, slot_expected_receipt, result);
-
-            assert!(
-                self.stf
-                    .runtime()
-                    .try_pop_next_tx_action()
-                    .flatten()
-                    .is_none(),
-                "All post tx hooks must have run! This should be unreachable!"
-            );
-
-            assert!(
-                self.stf.runtime().take_next_slot_action().is_none(),
-                "The slot hook must have run! This should be unreachable!"
-            );
+            self.apply_slot_result(result);
         }
     }
 
