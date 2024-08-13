@@ -8,7 +8,7 @@ services:
     healthcheck:
       # To see healthcheck output:
       # docker inspect --format "{{json .State.Health }}" docker-validator-1 | jq
-      test: [ "CMD", "curl", "-s", "-f", "http://127.0.0.1:26657/health" ]
+      test: [ "CMD", "/opt/validator-healthcheck.sh" ]
       interval: 10s
       timeout: 5s
       retries: 30

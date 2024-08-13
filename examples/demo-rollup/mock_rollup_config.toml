@@ -18,7 +18,7 @@ block_producing = "periodic"
 # Block time depends on `block_producing`:
 # For `periodic` it defines how often new blocks will be produced, approximately.
 # For `on_submit` it defines max time service will wait for a new block.
-block_time_ms = 3_000
+block_time_ms = 1_000
 
 [storage]
 # The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.
