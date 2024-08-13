@@ -113,6 +113,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -158,6 +160,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -186,6 +190,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -217,6 +223,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -324,6 +332,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -354,6 +364,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -384,6 +396,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -417,6 +431,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -473,6 +489,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -574,6 +592,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:
@@ -608,6 +628,8 @@ jobs:
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Protoc
         uses: arduino/setup-protoc@v2
         with:

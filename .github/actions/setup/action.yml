@@ -21,6 +21,7 @@ runs:
           shell: bash
           env:
               SHELL: /bin/bash
+              GITHUB_TOKEN: ${{ inputs.pull_token }}
           run: |
               curl -L https://sp1.succinct.xyz | bash
               ~/.sp1/bin/sp1up
