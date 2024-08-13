@@ -30,8 +30,7 @@ pub struct TxScratchpad<S: Spec> {
 }
 
 impl<S: Spec> StateCheckpoint<S> {
-    /// Transforms this [`StateCheckpoint`] into a [`PreExecWorkingSet`].
-    /// This method takes a [`GasMeter`] as an argument, which is used to charge the gas for the pre-execution checks from the sequencer.
+    /// Transforms this [`StateCheckpoint`] into a [`TxScratchpad`].
     pub fn to_tx_scratchpad(self) -> TxScratchpad<S> {
         TxScratchpad::<S> {
             delta: RevertableWriter::new(self.delta),

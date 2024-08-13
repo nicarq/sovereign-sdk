@@ -9,7 +9,7 @@ use crate::TxHash;
 pub trait BatchBuilder: Send + Sync + 'static {
     /// Accept a new transaction.
     /// Can return error if transaction is invalid or mempool is full.
-    async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash>;
+    async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError>;
 
     /// Checks whether a transaction with the given `hash` is already in the
     /// mempool.
@@ -18,6 +18,17 @@ pub trait BatchBuilder: Send + Sync + 'static {
     /// Builds a new batch out of transactions in mempool.
     /// The logic of which transactions and how many of them are included in batch is up to implementation.
     async fn get_next_blob(&mut self, height: u64) -> anyhow::Result<Vec<TxWithHash>>;
+}
+
+/// Error type that can possibly arise during [`BatchBuilder::accept_tx`].
+#[derive(Debug)]
+pub struct AcceptTxError {
+    /// The HTTP statuc code to return to the client.
+    pub http_status: u16,
+    /// Short, human-readable error message in English.
+    pub title: String,
+    /// Any additional information that might be useful for debugging. Will be sent to the client.
+    pub details: String,
 }
 
 /// An encoded transaction with its hash as returned by
