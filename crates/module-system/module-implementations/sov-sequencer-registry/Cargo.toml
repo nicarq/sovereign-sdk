@@ -43,6 +43,7 @@ tracing = { workspace = true }
 tempfile = { workspace = true }
 sov-sequencer-registry = { path = ".", features = ["native"] }
 sov-value-setter = { workspace = true }
+sov-chain-state = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
@@ -67,14 +68,15 @@ arbitrary = [
     "sov-test-utils/arbitrary",
 ]
 native = [
-    "jsonrpsee",
-    "sov-cycle-utils?/native",
-    "schemars",
+	"jsonrpsee",
+	"sov-cycle-utils?/native",
+	"schemars",
     # This:
 	"sov-bank/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
 	"sov-sequencer-registry/native",
 	"sov-state/native",
-	"sov-value-setter/native"
+	"sov-value-setter/native",
+	"sov-chain-state/native"
 ]

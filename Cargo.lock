@@ -10146,6 +10146,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-bank",
+ "sov-chain-state",
  "sov-cycle-utils",
  "sov-mock-da",
  "sov-modules-api",

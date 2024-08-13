@@ -17,7 +17,7 @@ use sov_modules_api::{
     Genesis, InfallibleStateAccessor, Module, RuntimeEventProcessor, SlotData, Spec,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint};
+use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -93,6 +93,11 @@ impl<Da: DaSpec> SlotReceipt<Da> {
     pub fn last_batch_receipt(&self) -> &BatchReceipt<Da> {
         self.batch_receipts.last().unwrap()
     }
+
+    /// Returns the last transaction receipt in the last batch receipt of the slot receipt.
+    pub fn last_tx_receipt(&self) -> &TransactionReceipt {
+        self.last_batch_receipt().tx_receipts.last().unwrap()
+    }
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -155,6 +160,11 @@ where
         sov_bank::Bank::<S>::default()
             .get_balance_of(address, GAS_TOKEN_ID, state)
             .unwrap_infallible()
+    }
+
+    /// Returns the slot receipts accumulated by the state runner
+    pub fn receipts(&self) -> &Vec<SlotReceipt<MockDaSpec>> {
+        &self.slot_receipts
     }
 
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.

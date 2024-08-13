@@ -22,6 +22,7 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{
     Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
 };
+pub use sov_modules_stf_blueprint::SkippedReason;
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::stf::TxReceiptContents;
 
