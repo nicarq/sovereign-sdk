@@ -22,7 +22,6 @@ use tracing::{debug, info, instrument, trace};
 
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
-use crate::verifier::address::CelestiaAddress;
 use crate::verifier::proofs::{self};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, TmHash, PFB_NAMESPACE};
 use crate::CelestiaHeader;
@@ -138,8 +137,6 @@ pub struct CelestiaConfig {
     /// The timeout for a Celestia RPC request, in seconds
     #[serde(default = "default_request_timeout_seconds")]
     pub celestia_rpc_timeout_seconds: u64,
-    /// Celestia address of connected node. Used as sequencer address in case of sequencer presented
-    pub own_celestia_address: CelestiaAddress,
 }
 
 fn default_rpc_addr() -> String {
@@ -494,7 +491,6 @@ fn gas_to_consume_from_data(bytes: usize, gas_per_byte: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use std::time::Duration;
 
     use celestia_types::nmt::Namespace;
@@ -513,25 +509,17 @@ mod tests {
     use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_NANO_TIA};
     use crate::test_helper::files::*;
     use crate::types::FilteredCelestiaBlock;
-    use crate::verifier::address::CelestiaAddress;
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
     async fn setup_test_service(
         timeout_sec: Option<u64>,
     ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
-        setup_service(
-            timeout_sec,
-            CelestiaAddress::from_str("celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s").unwrap(),
-            ROLLUP_BATCH_NAMESPACE,
-            ROLLUP_PROOF_NAMESPACE,
-        )
-        .await
+        setup_service(timeout_sec, ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE).await
     }
 
     // Last return value is namespace
     async fn setup_service(
         timeout_sec: Option<u64>,
-        celestia_address: CelestiaAddress,
         rollup_batch_namespace: Namespace,
         rollup_proof_namespace: Namespace,
     ) -> (MockServer, CelestiaConfig, CelestiaService, RollupParams) {
@@ -544,7 +532,6 @@ mod tests {
             celestia_rpc_address: mock_server.uri(),
             max_celestia_response_body_size: 120_000,
             celestia_rpc_timeout_seconds: timeout_sec,
-            own_celestia_address: celestia_address,
         };
 
         let params = RollupParams {
@@ -818,7 +805,6 @@ mod tests {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
         let (_, _, da_service, _) = setup_service(
             None,
-            CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
             with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
             with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
         )
@@ -835,7 +821,6 @@ mod tests {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
         let (_, _, da_service, rollup_params) = setup_service(
             None,
-            CelestiaAddress::from_str("celestia1g2hwtcldcwjnw0cy9ngs9hsewpduq4zuehqlqh").unwrap(),
             with_namespace_padding::ROLLUP_BATCH_NAMESPACE,
             with_namespace_padding::ROLLUP_PROOF_NAMESPACE,
         )

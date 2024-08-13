@@ -50,7 +50,8 @@ fn main() -> io::Result<()> {
 }
 
 fn store_rollup_config_json_schema(filename: &str) -> io::Result<()> {
-    let schema = schema_for!(RollupConfig<<S as Spec>::Address, serde_json::Value>);
+    let schema =
+        schema_for!(RollupConfig<<S as Spec>::Address, serde_json::Value, serde_json::Value>);
     let schema_string = serde_json::to_string_pretty(&schema)?;
 
     let mut file = File::create(filename)?;

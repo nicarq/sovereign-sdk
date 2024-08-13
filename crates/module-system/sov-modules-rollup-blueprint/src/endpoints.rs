@@ -4,9 +4,9 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
-use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, SequencerDb, TxStatusNotifier};
+use sov_stf_runner::SequencerConfig;
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
 
@@ -18,7 +18,7 @@ pub fn register_endpoints<B, M, Auth>(
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
-    sequencer: <B::DaSpec as DaSpec>::Address,
+    sequencer_config: &SequencerConfig<FairBatchBuilderConfig<B::DaSpec>>,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
@@ -45,12 +45,6 @@ where
 
     // Sequencer endpoints.
     {
-        let config = FairBatchBuilderConfig {
-            mempool_max_txs_count: u32::MAX as usize,
-            max_batch_size_bytes: 1024 * 100,
-            sequencer_address: sequencer.clone(),
-        };
-
         let notifier = TxStatusNotifier::default();
         let batch_builder =
             FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>::new(
@@ -59,7 +53,7 @@ where
                 notifier.clone(),
                 storage,
                 sequencer_db.clone(),
-                config,
+                sequencer_config.batch_builder.clone(),
             )?;
 
         let sequencer = SequencerBlueprint::<B, M, Auth>::new(

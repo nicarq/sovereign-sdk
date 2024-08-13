@@ -1,3 +1,4 @@
+- #1172 adds a new configuration section `[sequencer.batch_builder]` to the rollup configuration TOML file. Inside this section, you must specify the sequencer DA address. This was previously set in the `[da]` section as `celestia_own_address`.
 - #1073 Changes error handling in `demo-rollup`, so it not panics on error, but high level main function prints error and exits with appropriate code
 - #1141 Renames `risc0-cycle-macros` to `sov-cycle-macros` and changes the usage pattern. Callers should typically import the `sov-cycle-utils` crate and use its `macros` module rather than importing `sov-cycle-macros` directly.
 - #1109 removes the sequencer tx status notifications `published` and `finalized`, and replaces them with `processed` instead. A `processed` notification instructs the client that the ledger has processed the transaction and it's ready to serve finality data, its receipt, and its events.

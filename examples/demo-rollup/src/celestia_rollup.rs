@@ -19,7 +19,7 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::Zkvm;
-use sov_sequencer::SequencerDb;
+use sov_sequencer::{FairBatchBuilderConfig, SequencerDb};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage, ZkStorage};
 use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
 use tokio::sync::watch;
@@ -84,10 +84,12 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
-        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
+        rollup_config: &RollupConfig<
+            <Self::Spec as Spec>::Address,
+            Self::DaConfig,
+            FairBatchBuilderConfig<Self::DaSpec>,
+        >,
     ) -> anyhow::Result<RuntimeEndpoints> {
-        let sequencer = rollup_config.da.own_celestia_address.clone();
-
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<
             Self,
             _,
@@ -97,7 +99,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             ledger_db,
             sequencer_db,
             da_service,
-            sequencer,
+            &rollup_config.sequencer,
         )?;
 
         // TODO: Add issue for Sequencer level RPC injection:
@@ -113,7 +115,11 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     async fn create_da_service(
         &self,
-        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
+        rollup_config: &RollupConfig<
+            <Self::Spec as Spec>::Address,
+            Self::DaConfig,
+            FairBatchBuilderConfig<Self::DaSpec>,
+        >,
     ) -> Self::DaService {
         DaServiceWithRetries::with_exponential_backoff(
             CelestiaService::new(
@@ -133,7 +139,11 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     async fn create_prover_service(
         &self,
         prover_config: RollupProverConfig,
-        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
+        rollup_config: &RollupConfig<
+            <Self::Spec as Spec>::Address,
+            Self::DaConfig,
+            FairBatchBuilderConfig<Self::DaSpec>,
+        >,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
         let inner_vm = Risc0Host::new(risc0::ROLLUP_ELF);
@@ -161,7 +171,11 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     fn create_storage_manager(
         &self,
-        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaConfig>,
+        rollup_config: &RollupConfig<
+            <Self::Spec as Spec>::Address,
+            Self::DaConfig,
+            FairBatchBuilderConfig<Self::DaSpec>,
+        >,
     ) -> Result<Self::StorageManager, anyhow::Error> {
         NativeStorageManager::new(&rollup_config.storage.path)
     }
