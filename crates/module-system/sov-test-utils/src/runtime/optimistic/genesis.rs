@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
@@ -135,7 +133,6 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                 rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
                 maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
                 light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
-                phantom_data: PhantomData,
             },
 
             bank: BankConfig {
