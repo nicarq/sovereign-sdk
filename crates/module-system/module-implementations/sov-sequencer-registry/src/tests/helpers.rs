@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use sov_bank::{Amount, Bank, Payable, GAS_TOKEN_ID};
+use sov_bank::{Amount, Bank, GAS_TOKEN_ID};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{
@@ -93,22 +93,6 @@ impl TestSequencer {
             GAS_TOKEN_ID,
             state,
         )
-    }
-
-    pub fn query_balance<Reader: StateAccessor>(
-        &self,
-        user_address: impl Payable<S>,
-        state: &mut Reader,
-    ) -> Result<Option<Amount>, <Reader as StateReader<User>>::Error> {
-        self.bank.get_balance_of(user_address, GAS_TOKEN_ID, state)
-    }
-
-    pub fn query_sender_balance<Reader: StateAccessor>(
-        &self,
-        user_address: &<Da as DaSpec>::Address,
-        state: &mut Reader,
-    ) -> Result<Option<sov_bank::Amount>, <Reader as StateReader<User>>::Error> {
-        self.registry.get_sender_balance(user_address, state)
     }
 
     pub fn query_if_sequencer_is_allowed<Reader: InfallibleStateAccessor>(
