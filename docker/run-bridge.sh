@@ -26,7 +26,12 @@ wait_for_provision() {
     sleep 0.5
   done
 
-  sleep 1 # let the validator finish setup
+  echo "Waiting for gRPC port to start"
+  until grpcurl -plaintext validator:9090 list; do
+    sleep 0.5
+  done
+
+  sleep 0.5 # let the validator finish setup
   echo "Validator is ready"
 }
 

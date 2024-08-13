@@ -141,19 +141,19 @@ setup_private_validator() {
   # Adjusting for faster block times
   # Numbers are derived by trial and error.
   # timeout_commit = "11s"
-  sed -i'.bak' 's/^timeout_commit\s*=.*/timeout_commit = "4000ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_commit\s*=.*/timeout_commit = "100ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_propose = "10s"
-  sed -i'.bak' 's/^timeout_propose\s*=.*/timeout_propose = "2000ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_propose\s*=.*/timeout_propose = "50ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_propose_delta = "500ms"
-  sed -i'.bak' 's/^timeout_propose_delta\s*=.*/timeout_propose_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_propose_delta\s*=.*/timeout_propose_delta = "10ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_prevote = "1s"
-  sed -i'.bak' 's/^timeout_prevote\s*=.*/timeout_prevote = "200ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_prevote\s*=.*/timeout_prevote = "10ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_prevote_delta = "500ms"
-  sed -i'.bak' 's/^timeout_prevote_delta\s*=.*/timeout_prevote_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_prevote_delta\s*=.*/timeout_prevote_delta = "10ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_precommit = "1s"
-  sed -i'.bak' 's/^timeout_precommit\s*=.*/timeout_precommit = "200ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_precommit\s*=.*/timeout_precommit = "20ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_precommit_delta = "500ms"
-  sed -i'.bak' 's/^timeout_precommit_delta\s*=.*/timeout_precomm_delta = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_precommit_delta\s*=.*/timeout_precomm_delta = "10ms"/g' "$CONFIG_DIR/config/config.toml"
 
   # Register the validator EVM address in background
   {
