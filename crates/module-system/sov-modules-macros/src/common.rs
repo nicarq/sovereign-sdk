@@ -1,8 +1,11 @@
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, ToTokens};
+use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+use syn::token::Comma;
 use syn::{
-    DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics, VisPublic, Visibility,
+    DataStruct, Fields, GenericParam, ImplGenerics, Meta, NestedMeta, TypeGenerics, VisPublic,
+    Visibility,
 };
 
 #[derive(Clone)]
@@ -192,7 +195,6 @@ impl<'a> StructDef<'a> {
         &self,
         enum_legs: &[proc_macro2::TokenStream],
         postfix: &'static str,
-        serialization_attrs: &Vec<TokenStream>,
         extra_attributes: &[TokenStream],
     ) -> proc_macro2::TokenStream {
         let enum_ident = self.enum_ident(postfix);
@@ -200,7 +202,6 @@ impl<'a> StructDef<'a> {
         let where_clause = &self.where_clause;
         quote::quote! {
             #[allow(non_camel_case_types)]
-            #[derive(::core::fmt::Debug, PartialEq, #(#serialization_attrs),*)]
             #(#extra_attributes)*
             pub enum #enum_ident #impl_generics #where_clause {
                 #(#enum_legs)*
@@ -242,27 +243,45 @@ pub(crate) fn get_generics_type_param(
     Ok(generic_param.clone())
 }
 
-pub(crate) fn get_attribute_values(
-    item: &syn::DeriveInput,
-    attribute_name: &str,
-) -> Vec<TokenStream> {
-    let mut values = vec![];
-
-    // Find the attribute with the given name on the root item
-    item.attrs
-        .iter()
-        .filter(|attr| attr.path.is_ident(attribute_name))
-        .for_each(|attr| {
-            if let Ok(Meta::List(list)) = attr.parse_meta() {
-                values.extend(list.nested.iter().map(|n| {
-                    let mut tokens = TokenStream::new();
-                    n.to_tokens(&mut tokens);
-                    tokens
-                }));
+pub(crate) fn get_derived_enum_attrs(
+    ident: &str,
+    input: &syn::DeriveInput,
+    mut default_attrs: Vec<TokenStream>,
+) -> Result<Vec<TokenStream>, syn::Error> {
+    let err_msg = format!(
+        "Expected #[{}(...)] attribute to have the form #[{}(my_attr, derive(MyDerive))]",
+        ident, ident
+    );
+    let mut attributes = Vec::new();
+    let mut found_opt_out = false;
+    for attr in input.attrs.iter().filter(|attr| attr.path.is_ident(ident)) {
+        let event_attrs =
+            attr.parse_args_with(Punctuated::<NestedMeta, Comma>::parse_terminated)?;
+        for event_attr in event_attrs {
+            match event_attr {
+                NestedMeta::Meta(meta) => match meta {
+                    Meta::Path(path) => {
+                        if path.is_ident("no_default_attrs") {
+                            found_opt_out = true;
+                        } else {
+                            attributes.push(quote::quote! {#[#path]});
+                        }
+                    }
+                    Meta::List(list) => attributes.push(quote::quote! {#[#list]}),
+                    Meta::NameValue(value) => attributes.push(quote::quote! {#[#value]}),
+                },
+                NestedMeta::Lit(_) => return Err(syn::Error::new_spanned(event_attr, err_msg)),
             }
-        });
-
-    values
+        }
+    }
+    if found_opt_out {
+        Ok(attributes)
+    } else {
+        // Put the default attributes first to avoid "warning: derive helper attribute is used before it is introduced"
+        // if the user specifies a `serde` or `borsh` attribute
+        default_attrs.extend(attributes);
+        Ok(default_attrs)
+    }
 }
 
 fn syn_lit_to_expr(lit: syn::Lit) -> syn::Expr {
@@ -302,50 +321,6 @@ pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::E
             }))
         }
     }
-}
-
-pub(crate) fn get_serialization_attrs(
-    item: &syn::DeriveInput,
-) -> Result<Vec<TokenStream>, syn::Error> {
-    const SERIALIZE: &str = "Serialize";
-    const DESERIALIZE: &str = "Deserialize";
-
-    let serialization_attrs = get_attribute_values(item, "serialization");
-
-    let mut has_serialize = false;
-    let mut has_deserialize = false;
-    let mut has_other = false;
-
-    let attributes: Vec<String> = serialization_attrs.iter().map(|t| t.to_string()).collect();
-
-    for attr in &attributes {
-        if attr.contains(SERIALIZE) {
-            has_serialize = true;
-        } else if attr.contains(DESERIALIZE) {
-            has_deserialize = true;
-        } else {
-            has_other = true;
-        }
-    }
-
-    let tokens: TokenStream = quote::quote! { serialization };
-    if !has_serialize || !has_deserialize {
-        return Err(syn::Error::new_spanned(
-            &tokens,
-            format!(
-                "Serialization attributes must contain both '{}' and '{}', but contains '{:?}'",
-                SERIALIZE, DESERIALIZE, &attributes
-            ),
-        ));
-    } else if has_other {
-        return Err(syn::Error::new_spanned(
-            &tokens,
-            format!("Serialization attributes can not contain attributes that are not '{}' and '{}', but contains: '{:?}'", 
-                SERIALIZE, DESERIALIZE, &attributes.iter().filter(|a| !a.contains(SERIALIZE) && !a.contains(DESERIALIZE)).collect::<Vec<_>>()),
-        ));
-    }
-
-    Ok(serialization_attrs)
 }
 
 // Converts a Rust identifier into a human-readable URL path segment on a

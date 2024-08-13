@@ -1,9 +1,9 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    prelude::UnwrapInfallible, Address, ApiStateAccessor, CallResponse, Context, DispatchCall,
-    EncodeCall, Error, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
-    StateValue, TxState,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
+    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -105,7 +105,6 @@ pub mod my_module {
 
 #[expose_rpc]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 struct Runtime<S: Spec, T: TestSpec> {
     pub first: my_module::QueryModule<S, T::Data>,
 }

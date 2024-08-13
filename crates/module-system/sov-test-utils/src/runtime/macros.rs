@@ -19,12 +19,6 @@ macro_rules! generate_runtime {
             ::sov_modules_api::Event,
             ::sov_modules_api::MessageCodec
         )]
-        #[serialization(
-            ::borsh::BorshDeserialize,
-            ::borsh::BorshSerialize,
-            ::serde::Serialize,
-            ::serde::Deserialize
-        )]
         pub struct __GeneratedRuntimeInternals<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
             /// The sequencer registry module.
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,

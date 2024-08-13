@@ -13,6 +13,7 @@ pub mod first_test_module {
         CliWalletArg,
         Debug,
         PartialEq,
+        Clone,
         borsh::BorshDeserialize,
         borsh::BorshSerialize,
         serde::Serialize,
@@ -79,6 +80,7 @@ pub mod second_test_module {
         CliWalletArg,
         Debug,
         PartialEq,
+        Clone,
         borsh::BorshDeserialize,
         borsh::BorshSerialize,
         serde::Serialize,
@@ -115,7 +117,6 @@ pub mod second_test_module {
 }
 
 #[derive(Default, Genesis, DispatchCall, MessageCodec, CliWallet)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: Spec> {
     pub first: first_test_module::FirstTestStruct<S>,
     pub second: second_test_module::SecondTestStruct<S>,

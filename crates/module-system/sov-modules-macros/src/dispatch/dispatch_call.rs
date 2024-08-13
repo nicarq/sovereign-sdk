@@ -1,8 +1,8 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::Span;
 use syn::DeriveInput;
 
 use crate::common::{
-    get_generics_type_param, get_serialization_attrs, StructDef, StructFieldExtractor, CALL,
+    get_derived_enum_attrs, get_generics_type_param, StructDef, StructFieldExtractor, CALL,
 };
 
 impl<'a> StructDef<'a> {
@@ -113,8 +113,21 @@ impl DispatchCallMacro {
         &self,
         input: DeriveInput,
     ) -> Result<proc_macro::TokenStream, syn::Error> {
-        let serialization_methods = get_serialization_attrs(&input)?;
+        let default_attrs = vec![quote::quote! {
+            #[
+                derive(
+                    borsh::BorshDeserialize,
+                    borsh::BorshSerialize,
+                    serde::Serialize,
+                    serde::Deserialize,
+                    Clone,
+                    Debug,
+                    PartialEq,
+                )
+            ]
+        }];
 
+        let enum_attributes = get_derived_enum_attrs("dispatch_call", &input, default_attrs)?;
         let DeriveInput {
             data,
             ident,
@@ -137,19 +150,7 @@ impl DispatchCallMacro {
         );
 
         let call_enum_legs = struct_def.create_call_enum_legs();
-        let extra_attributes: &[TokenStream] =
-            if input.attrs.iter().any(|attr| attr.path.is_ident("wallet")) {
-                let wallet = quote::quote!(#[derive(::sov_modules_api::macros::UniversalWallet)]);
-                &[wallet]
-            } else {
-                &[]
-            };
-        let call_enum = struct_def.create_enum(
-            &call_enum_legs,
-            CALL,
-            &serialization_methods,
-            extra_attributes,
-        );
+        let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &enum_attributes);
 
         let create_dispatch_impl = struct_def.create_call_dispatch();
 

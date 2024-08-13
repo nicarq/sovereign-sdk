@@ -17,7 +17,14 @@ use crate::{Event, ProverIncentives};
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(
-    Serialize, Deserialize, BorshDeserialize, BorshSerialize, Debug, PartialEq, UniversalWallet,
+    Clone,
+    Serialize,
+    Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
+    Debug,
+    PartialEq,
+    UniversalWallet,
 )]
 // TODO: allow call messages to borrow data
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274

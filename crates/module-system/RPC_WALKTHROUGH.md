@@ -62,7 +62,6 @@ to enable RPC servers of the modules.
 
 #[cfg_attr(feature = "native", expose_rpc)]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct Runtime<S: Spec> {
     pub bank: sov_bank::Bank<S>,
     ...

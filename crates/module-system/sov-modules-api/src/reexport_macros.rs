@@ -1,7 +1,138 @@
 /// Derives the [`DispatchCall`] trait for the underlying
 /// type.
+///
+/// ```rust
+/// use sov_modules_api::{DaSpec, DispatchCall, Module, Spec};
+/// use sov_bank::Bank;
+/// use sov_sequencer_registry::SequencerRegistry;
+///
+/// struct MyRuntime<S: Spec, Da: DaSpec> {
+///   pub bank: Bank<S>,
+///   pub sequencer_registry: SequencerRegistry<S, Da>,
+/// }
+///
+/// // Applying #[derive(DispatchCall)] to MyRuntime generates the following code:
+/// #[allow(non_camel_case_types)]
+/// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// pub enum RuntimeCall<S: Spec, Da: DaSpec> {
+///   bank(<Bank::<S> as Module>::CallMessage),
+///   sequencer_registry(<SequencerRegistry::<S, Da> as Module>::CallMessage),
+/// }
+///
+/// impl<S: Spec, Da: DaSpec> DispatchCall for MyRuntime<S, Da> {
+///   type Spec = S;
+///
+///   type Decodable = RuntimeCall<S, Da>;
+///
+/// // -- Method bodies elided for brevity --
+/// # /// Decodes serialized call message
+/// # fn decode_call(
+/// #     serialized_message: &[u8],
+/// #     meter: &mut impl sov_modules_api::GasMeter<<Self::Spec as Spec>::Gas>,
+/// # ) -> Result<Self::Decodable, sov_modules_api::MeteredBorshDeserializeError<<Self::Spec as Spec>::Gas>> {
+/// #   return ::core::result::Result::Err(::sov_modules_api::MeteredBorshDeserializeError::IOError(
+/// #     ::std::io::Error::new(
+/// #       ::std::io::ErrorKind::Other,
+/// #     "the provided message contains dangling data",
+/// #     )
+/// #   )
+/// #   )
+/// # }
+/// #
+/// # fn dispatch_call(
+/// #     &self,
+/// #     message: Self::Decodable,
+/// #     state: &mut sov_modules_api::WorkingSet<Self::Spec>,
+/// #     context: &sov_modules_api::Context<Self::Spec>,
+/// # ) -> Result<sov_modules_api::CallResponse, sov_modules_api::ModuleError> {
+/// #   Ok(Default::default())
+/// # }
+/// ///Returns the ID of the dispatched module.
+/// # fn module_id(&self, _message: &Self::Decodable) -> &sov_modules_api::ModuleId {
+/// #   use sov_modules_api::ModuleInfo;
+/// #   self.bank.id()
+/// # }
+/// }
+/// ```
+///
+/// ## Attribute: `#[dispatch_call(no_default_attrs)]`
+///
+/// This attribute disables all of the default attributes that are applied to the generated
+/// enum. This is typically useful if you want to provide a custom implementation of a serializer.
+///
+/// The current set of default attributes is:
+///
+/// `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+///
+///
+/// ## Attribute: `#[dispatch_call({attr})]`
+///
+/// This attribute allows you to provide custom attributes to the generated enum.
+///
+/// ```rust
+/// use sov_modules_api::{DaSpec, DispatchCall, Spec};
+/// use sov_bank::Bank;
+/// use sov_sequencer_registry::SequencerRegistry;
+///
+/// #[derive(DispatchCall)]
+/// #[dispatch_call(serde(untagged), derive(sov_modules_api::macros::UniversalWallet))]
+/// struct MyRuntime<S: Spec, Da: DaSpec> {
+///   pub bank: Bank<S>,
+///   pub sequencer_registry: SequencerRegistry<S, Da>,
+/// }
+///
+/// ```
 pub use sov_modules_macros::DispatchCall;
 /// Derives the <runtime_name>Event enum for a given runtime.
+///
+/// ```rust
+/// use sov_modules_api::{DaSpec, Event, Module, Spec};
+/// use sov_bank::Bank;
+/// use sov_sequencer_registry::SequencerRegistry;
+///
+/// struct Runtime<S: Spec, Da: DaSpec> {
+///   pub bank: Bank<S>,
+///   pub sequencer_registry: SequencerRegistry<S, Da>,
+/// }
+///
+/// // Applying #[derive(Event)] to MyRuntime generates the following code:
+/// #[allow(non_camel_case_types)]
+/// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// #[serde(untagged, bound = "")]
+/// pub enum RuntimeEvent<S: Spec, Da: DaSpec> {
+///   bank(<Bank::<S> as Module>::Event),
+///   sequencer_registry(<SequencerRegistry::<S, Da> as Module>::Event),
+/// }
+/// ```
+///
+/// ## Attribute: `#[event(no_default_attrs)]`
+///
+/// This attribute disables all of the default attributes that are applied to the generated
+/// enum. This is typically useful if you want to provide a custom implementation of a serializer.
+///
+/// The current default attributes are:
+///
+/// - `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+/// - `#[serde(untagged, bound = "")]`
+///
+///
+/// ## Attribute: `#[event({attr})]`
+///
+/// This attribute allows you to provide attributes to the generated enum.
+///
+/// ```rust
+/// use sov_modules_api::{DaSpec, Event, Spec};
+/// use sov_bank::Bank;
+/// use sov_sequencer_registry::SequencerRegistry;
+///
+/// #[derive(Event)]
+/// #[event(serde(deny_unknown_fields), borsh(use_discriminant = false))]
+/// struct Runtime<S: Spec, Da: DaSpec> {
+///   pub bank: Bank<S>,
+///   pub sequencer_registry: SequencerRegistry<S, Da>,
+/// }
+///
+/// ```
 pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
@@ -233,7 +364,6 @@ pub mod macros {
     /// use sov_modules_api::macros::CliWallet;
     ///
     /// #[derive(DispatchCall, MessageCodec, CliWallet)]
-    /// #[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
     /// pub struct Runtime<S: Spec> {
     ///     pub bank: sov_bank::Bank<S>,
     ///     // ...

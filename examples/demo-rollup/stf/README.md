@@ -65,7 +65,6 @@ use sov_rollup_interface::da::DaSpec;
     expose_rpc(DefaultContext)
 )]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-#[serialization(borsh::BorshDeserialize, borsh::BorshSerialize)]
 pub struct MyRuntime<S: Spec, Da: DaSpec> {
     #[allow(unused)]
     sequencer: sov_sequencer_registry::SequencerRegistry<S, Da>,

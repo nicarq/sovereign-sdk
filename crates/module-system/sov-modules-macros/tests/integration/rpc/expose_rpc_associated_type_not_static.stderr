@@ -5,9 +5,9 @@ error[E0425]: cannot find value `api_state_accessor` in this scope
    |                          ^^^^^^^^^^^^^^^^^^ not found in this scope
 
 error[E0277]: the trait bound `<T as TestSpec>::Data: std::default::Default` is not satisfied
-   --> tests/integration/rpc/expose_rpc_associated_type_not_static.rs:108:8
+   --> tests/integration/rpc/expose_rpc_associated_type_not_static.rs:107:8
     |
-108 | struct Runtime<S: Spec, T: TestSpec> {
+107 | struct Runtime<S: Spec, T: TestSpec> {
     |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `std::default::Default` is not implemented for `<T as TestSpec>::Data`, which is required by `Runtime<S, T>: std::default::Default`
     |
 note: required for `Runtime<S, T>` to implement `std::default::Default`
