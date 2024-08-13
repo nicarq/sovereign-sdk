@@ -3,15 +3,18 @@ use core::marker::PhantomData;
 
 use anyhow::bail;
 use async_trait::async_trait;
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::digest::Digest;
+use sov_modules_api::capabilities::{
+    Authenticator, KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
+};
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{CryptoSpec, Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint};
+use sov_modules_api::{Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint};
 use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::batch_builder::{BatchBuilder, TxWithHash};
+use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use tokio::sync::watch;
+use tracing::error;
 
 use crate::db::{MempoolTx, SequencerDb};
 use crate::mempool::{FairMempool, MempoolCursor};
@@ -161,8 +164,8 @@ impl<S, Da, R, K, Auth> BatchBuilder for FairBatchBuilder<S, Da, R, K, Auth>
 where
     S: Spec,
     Da: DaSpec,
-    R: Runtime<S, Da> + 'static,
-    K: Kernel<S, Da> + 'static,
+    R: Runtime<S, Da> + RuntimeAuthenticator<S> + 'static,
+    K: Kernel<S, Da> + KernelSlotHooks<S, Da> + 'static,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     /// Attempt to add transaction to the mempool.
@@ -170,31 +173,68 @@ where
     /// The transaction is discarded if:
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
-    async fn accept_tx(&mut self, raw: Vec<u8>) -> anyhow::Result<TxHash> {
+    async fn accept_tx(&mut self, raw: Vec<u8>) -> Result<TxHash, AcceptTxError> {
         tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
 
         if raw.len() > self.max_batch_size_bytes {
-            bail!(
-                "Transaction is too big. Max allowed size: {}, submitted size: {}",
-                self.max_batch_size_bytes,
-                raw.len()
-            )
+            return Err(AcceptTxError {
+                http_status: StatusCode::BAD_REQUEST.as_u16(),
+                title: "Transaction is too big".to_string(),
+                details: format!(
+                    "Max allowed size: {}, submitted size: {}",
+                    self.max_batch_size_bytes,
+                    raw.len()
+                ),
+            });
         }
 
-        // Note: We cannot use context here because we test the content of the inner message.
-        // Instead of returning [`anyhow::Result`], we should maybe return a custom error type.
-        // TODO `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723>`: We should consider adding this check back, but we would need to give access to the state in this method
-        // Auth::authenticate(&raw, &mut unlimited_gas_meter)
-        //     .map_err(|e| anyhow::anyhow!("Authentication error while building a batch: {e:?}",))?;
+        let storage: S::Storage = self.current_storage.borrow().clone();
+        let state_checkpoint = StateCheckpoint::new(storage);
+        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
 
-        let hash = calculate_hash::<S>(&raw);
+        let runtime = R::default();
+        let runtime_capabilities = runtime.capabilities();
+        let mut pre_exec_ws = match runtime_capabilities.authorize_sequencer(
+            &self.sequencer,
+            &<S::Gas as Gas>::Price::ZEROED,
+            tx_scratchpad,
+        ) {
+            Ok(res) => res.1,
+            Err(error) => {
+                error!(
+                    ?error,
+                    "Sequencer authorization error; you may not have enough stake!"
+                );
+                return Err(AcceptTxError {
+                    http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+                    title: "Sequencer authorization error".to_string(),
+                    details: format!("{:?}", error),
+                });
+            }
+        };
+
+        let auth_result = R::default()
+            .authenticate(&RawTx { data: raw.clone() }, &mut pre_exec_ws)
+            .map_err(|e| AcceptTxError {
+                http_status: StatusCode::BAD_REQUEST.as_u16(),
+                title: "The transaction is invalid".to_string(),
+                details: format!("{:?}", e),
+            })?;
+
+        let hash = auth_result.0.raw_tx_hash;
         tracing::debug!(
             raw_tx = hex::encode(&raw),
             %hash,
             "Adding a transaction to the mempool"
         );
 
-        self.mempool.add_new_tx(hash, raw)?;
+        self.mempool
+            .add_new_tx(hash, raw)
+            .map_err(|err| AcceptTxError {
+                http_status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
+                title: "Failed to submit transaction".to_string(),
+                details: format!("{:?}", err),
+            })?;
         tracing::debug!(
             %hash,
             "Transaction has been added to the mempool"
@@ -215,12 +255,12 @@ where
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/224
         //     Use Kernel Hooks to get correct gas price
         // K: KernelSlotHooks<C, Da>>
-        // let gas_price = self.kernel.begin_slot_hook(
-        //     slot_header,
-        //     validity_condition,
-        //     pre_state_root,
-        //     state_checkpoint,
-        // ););
+        //let gas_price = self.kernel.begin_slot_hook(
+        //    slot_header,
+        //    validity_condition,
+        //    pre_state_root,
+        //    state_checkpoint,
+        //);
 
         let mut state_checkpoint = StateCheckpoint::new(self.current_storage.borrow().clone());
         let gas_price = <S::Gas as Gas>::Price::ZEROED;
@@ -312,10 +352,6 @@ struct BatchConstructionContext<S: Spec> {
     current_batch_size_in_bytes: usize,
 }
 
-fn calculate_hash<S: Spec>(tx_raw: &[u8]) -> TxHash {
-    TxHash::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx_raw).into())
-}
-
 #[cfg(test)]
 mod tests {
     use rand::Rng;
@@ -382,9 +418,6 @@ mod tests {
         .unwrap()
     }
 
-    // This function is a helper for a test that was temporarily removed
-    // TODO (when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723 is fixed) remove the `allow(dead_code)`
-    #[allow(dead_code)]
     fn generate_random_bytes() -> Vec<u8> {
         let mut rng = rand::thread_rng();
 
@@ -393,9 +426,6 @@ mod tests {
         (0..length).map(|_| rng.gen()).collect()
     }
 
-    // This function is a helper for a test that was temporarily removed
-    // TODO (when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723 is fixed) remove the `allow(dead_code)`
-    #[allow(dead_code)]
     fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = config_value!("CHAIN_ID");
@@ -499,38 +529,75 @@ mod tests {
 
         #[tokio::test]
         async fn accept_valid_tx() {
+            let value_setter_admin = TestPrivateKey::generate();
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
+                Some(value_setter_admin.pub_key()),
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                tx.len(),
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+            );
 
             batch_builder.accept_tx(tx).await.unwrap();
         }
 
         #[tokio::test]
         async fn reject_tx_too_big() {
+            let value_setter_admin = TestPrivateKey::generate();
+
             let tx = generate_random_valid_tx();
-            let tx_size = tx.len();
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(batch_size, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
+                Some(value_setter_admin.pub_key()),
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                batch_size,
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+            );
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
-            assert_eq!(
-                format!("Transaction is too big. Max allowed size: {batch_size}, submitted size: {tx_size}"),
-                accept_result.unwrap_err().to_string()
-            );
+            assert_eq!(accept_result.unwrap_err().title, "Transaction is too big");
         }
 
         #[tokio::test]
         async fn new_tx_on_full_mempool_causes_evictions() {
+            let value_setter_admin = TestPrivateKey::generate();
+
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
-                create_batch_builder(usize::MAX, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
+                Some(value_setter_admin.pub_key()),
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                usize::MAX,
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+            );
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -545,37 +612,58 @@ mod tests {
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
         }
 
-        // TODO(@theochap, https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/723): These two tests should be fixed once we find a way to add the authentication mechanism back to
-        // the `accept_tx` method
-        // #[tokio::test]
-        // async fn reject_random_bytes_tx() {
-        //     let tx = generate_random_bytes();
+        #[tokio::test]
+        async fn reject_random_bytes_tx() {
+            let tx = generate_random_bytes();
 
-        //     let tmpdir = tempfile::tempdir().unwrap();
-        //     let mut batch_builder =
-        //         create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+            let tmpdir = tempfile::tempdir().unwrap();
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
+                None,
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                tx.len(),
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+            );
 
-        //     let accept_result = batch_builder.accept_tx(tx).await;
-        //     assert!(accept_result.is_err());
-        // }
+            let accept_result = batch_builder.accept_tx(tx).await;
+            assert!(accept_result.is_err());
+        }
 
-        // #[tokio::test]
-        // async fn reject_signed_tx_with_invalid_payload() {
-        //     let private_key = TestPrivateKey::generate();
-        //     let tx = generate_signed_tx_with_invalid_payload(&private_key);
+        #[tokio::test]
+        async fn reject_signed_tx_with_invalid_payload() {
+            let private_key = TestPrivateKey::generate();
+            let tx = generate_signed_tx_with_invalid_payload(&private_key);
 
-        //     let tmpdir = tempfile::tempdir().unwrap();
-        //     let mut batch_builder =
-        //         create_batch_builder(tx.len(), &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
+            let tmpdir = tempfile::tempdir().unwrap();
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let storage = setup_runtime(
+                &mut storage_manager,
+                None,
+                vec![],
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
+            );
+            let mut batch_builder = create_batch_builder(
+                tx.len(),
+                &tmpdir,
+                Some(storage),
+                DEFAULT_SEQUENCER_DA_ADDRESS,
+            );
 
-        //     let accept_result = batch_builder.accept_tx(tx).await;
-        //     assert!(accept_result.is_err());
-        //     assert!(accept_result
-        //         .unwrap_err()
-        //         .to_string()
-        //         .to_lowercase()
-        //         .contains("transaction decoding error"));
-        // }
+            let accept_result = batch_builder.accept_tx(tx).await;
+            assert!(accept_result.is_err());
+            assert!(accept_result
+                .unwrap_err()
+                .details
+                .contains("MessageDecodingFailed"));
+        }
     }
 
     mod build_batch {
@@ -649,31 +737,18 @@ mod tests {
                 generate_valid_tx(&value_setter_admin, 2),
             ];
 
-            let tmpdir = tempfile::tempdir().unwrap();
             let batch_size = txs[0].len() * 3 + 1;
+
+            let tmpdir = tempfile::tempdir().unwrap();
             let mut batch_builder =
                 create_batch_builder(batch_size, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             for tx in &txs {
-                batch_builder.accept_tx(tx.clone()).await.unwrap();
+                // We skipped genesis, so there is no registered sequencer. All
+                // txs should be rejected immediately during authentication
+                // checks.
+                assert!(batch_builder.accept_tx(tx.clone()).await.is_err());
             }
-
-            assert_eq!(txs.len(), batch_builder.mempool.len());
-
-            let batch_builder_result = batch_builder.get_next_blob(1).await;
-            assert!(
-                batch_builder_result.is_err(),
-                "The batch builder should fail and not accept any txs"
-            );
-            assert!(
-                batch_builder_result
-                    .unwrap_err()
-                    .to_string()
-                    .to_lowercase()
-                    .contains("the sequencer is not registered"),
-                "The batch builder should have failed because the sequencer is not registered.
-            This is because genesis has been skipped"
-            );
         }
 
         #[tokio::test]

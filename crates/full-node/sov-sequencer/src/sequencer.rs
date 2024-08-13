@@ -10,12 +10,12 @@ use sov_modules_api::{Batch, RawTx, TxReceiptContents};
 use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::rpc::{ItemOrHash, LedgerStateProvider, QueryMode};
-use sov_rollup_interface::services::batch_builder::BatchBuilder;
+use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio::sync::{oneshot, Mutex};
 use tokio_stream::wrappers::BroadcastStream;
-use tracing::info;
+use tracing::{error, info};
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, SubmittedBatchInfo};
@@ -181,7 +181,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// See [`BatchBuilder::accept_tx`].
-    pub async fn accept_tx(&self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
+    pub async fn accept_tx(&self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError> {
         let mut batch_builder = self.0.batch_builder.lock().await;
 
         tracing::info!(tx = hex::encode(&tx), "Accepting transaction");
@@ -438,12 +438,22 @@ mod axum_router {
 
             let tx_hash = match sequencer.accept_tx(authed_tx.data).await {
                 Ok(tx_hash) => tx_hash,
-                Err(err) => {
+                Err(AcceptTxError {
+                    http_status,
+                    title,
+                    details,
+                }) => {
                     return Err(ErrorObject {
-                        status: StatusCode::INTERNAL_SERVER_ERROR,
-                        title: "Failed to submit transaction".to_string(),
+                        status: http_status.try_into().unwrap_or_else(|_| {
+                            error!(
+                                http_status,
+                                "Sequencer generated an invalid HTTP status code"
+                            );
+                            StatusCode::INTERNAL_SERVER_ERROR
+                        }),
+                        title,
                         details: json_obj!({
-                            "message": err.to_string(),
+                            "message": details
                         }),
                     }
                     .into_response());
@@ -523,7 +533,7 @@ mod tests {
     // This allows to show an effect of batch builder
     #[async_trait]
     impl BatchBuilder for MockBatchBuilder {
-        async fn accept_tx(&mut self, tx: Vec<u8>) -> anyhow::Result<TxHash> {
+        async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError> {
             self.mempool.push(tx);
             Ok(TxHash::new([0; 32]))
         }
