@@ -142,7 +142,7 @@ pub trait StakeRegistration: EventEmitter {
             })?;
 
         self.delete_allowed_staker(staker, state)?;
-        self.emit_exited(&address, state);
+        self.emit_exited(&address, balance, state);
 
         Ok(())
     }
@@ -213,6 +213,7 @@ pub trait StakeRegistration: EventEmitter {
     fn emit_exited<ST: StateAccessor + EventContainer>(
         &self,
         address: &Self::RollupAddress,
+        amount_withdrawn: u64,
         state: &mut ST,
     );
 }

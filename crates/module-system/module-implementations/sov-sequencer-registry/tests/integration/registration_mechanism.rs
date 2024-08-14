@@ -298,6 +298,7 @@ fn test_exit_happy_path() {
                     event.downcast_ref::<sov_sequencer_registry::Event<S>>()
                         == Some(&sov_sequencer_registry::Event::Exited {
                             sequencer: other_sequencer_address,
+                            amount_withdrawn: 100000000,
                         })
                 }));
 

@@ -4,7 +4,7 @@ mod call;
 mod capabilities;
 mod event;
 mod genesis;
-
+mod registration;
 #[cfg(test)]
 mod tests;
 

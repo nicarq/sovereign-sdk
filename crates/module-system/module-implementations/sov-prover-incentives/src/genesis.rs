@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, GenesisState};
 
 use crate::{Amount, ProverIncentives};
@@ -46,7 +47,7 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
         self.last_claimed_reward.set(&0, state)?;
 
         for (prover, bond) in config.initial_provers.iter() {
-            self.register_prover(*bond, prover, state)?;
+            self.register_staker(prover, prover, *bond, state)?;
         }
 
         Ok(())
