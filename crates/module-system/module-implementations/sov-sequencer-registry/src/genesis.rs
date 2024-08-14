@@ -1,6 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
+use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::GenesisState;
 
 use crate::SequencerRegistry;
@@ -51,7 +52,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         );
         self.minimum_bond.set(&config.minimum_bond, state)?;
 
-        self.register_sequencer(
+        self.register_staker(
             &config.seq_da_address,
             &config.seq_rollup_address,
             config.minimum_bond,

@@ -1,17 +1,11 @@
-use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::registration_lib::RegistrationError;
-use sov_modules_api::{
-    CallResponse, Context, EventEmitter, ModuleInfo, StateAccessor, StateCheckpoint, StateWriter,
-    TxState,
-};
-use sov_state::User;
+use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
+use sov_modules_api::{CallResponse, Context, TxState};
 
-use crate::event::Event;
-use crate::{AllowedSequencer, CustomError, SequencerRegistry, SequencerRegistryError};
+use crate::{CustomError, SequencerRegistry, SequencerRegistryError};
 
 /// This enumeration represents the available call messages for interacting with
 /// the `sov-sequencer-registry` module.
@@ -72,7 +66,17 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         state: &mut ST,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
         let sequencer = context.sender();
-        self.register_sequencer(da_address, sequencer, amount, state)?;
+        self.register_staker(da_address, sequencer, amount, state)?;
+        Ok(CallResponse::default())
+    }
+
+    pub(crate) fn deposit<ST: TxState<S>>(
+        &self,
+        da_address: &Da::Address,
+        amount: u64,
+        state: &mut ST,
+    ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
+        self.deposit_funds(da_address, amount, state)?;
         Ok(CallResponse::default())
     }
 
@@ -115,148 +119,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             ));
         }
 
-        let sender_balance = self.get_sender_balance(da_address, state)?.unwrap_or(0);
-
-        self.bank
-            .transfer_from(
-                self.id().to_payable(),
-                sender,
-                Coins {
-                    amount: sender_balance,
-                    token_id: GAS_TOKEN_ID,
-                },
-                state,
-            )
-            .map_err(
-                |_| RegistrationError::InsufficientFundsToRefundStakedAmount {
-                    address: sender.clone(),
-                    amount: sender_balance,
-                },
-            )?;
-
-        // we remove the sequencer from the registry *once the sequencer has received its staked amount*
-        self.delete(da_address, state)?;
-
-        self.emit_event(
-            state,
-            Event::<S>::Exited {
-                sequencer: sender.clone(),
-            },
-        );
-
+        self.exit_staker(da_address, state)?;
         Ok(CallResponse::default())
-    }
-
-    pub(crate) fn delete<Accessor: StateAccessor>(
-        &self,
-        da_address: &Da::Address,
-        state: &mut Accessor,
-    ) -> Result<(), <Accessor as StateWriter<User>>::Error> {
-        self.allowed_sequencers.delete(da_address, state)?;
-
-        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state)? {
-            if da_address == &preferred_sequencer {
-                self.preferred_sequencer.delete(state)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Increases the balance of the provided sender, updating the state of the registry.
-    ///
-    /// # Errors
-    ///
-    /// Will error when:
-    ///
-    /// - The provided sender is not allowed.
-    /// - The provided sender doesn't have enough funds to increase its balance.
-    /// - The amount overflows.
-    pub(crate) fn deposit<ST: TxState<S>>(
-        &self,
-        sender: &Da::Address,
-        amount: Amount,
-        state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
-        let AllowedSequencer { address, balance } = self
-            .allowed_sequencers
-            .get(sender, state)?
-            .ok_or(RegistrationError::IsNotRegistered(sender.clone()))?;
-
-        let balance = balance.checked_add(amount).ok_or(
-            RegistrationError::ToppingAccountMakesBalanceOverflow {
-                address: address.clone(),
-                existing_balance: balance,
-                amount_to_add: amount,
-            },
-        )?;
-
-        let coins = Coins {
-            amount,
-            token_id: GAS_TOKEN_ID,
-        };
-
-        self.bank
-            .transfer_from(&address, self.id().to_payable(), coins, state)
-            .map_err(|_| RegistrationError::InsufficientFundsToTopUpAccount {
-                address: address.clone(),
-                amount_to_add: amount,
-            })?;
-
-        self.allowed_sequencers.set(
-            sender,
-            &AllowedSequencer {
-                address: address.clone(),
-                balance,
-            },
-            state,
-        )?;
-
-        self.emit_event(
-            state,
-            Event::<S>::Deposited {
-                sequencer: address,
-                amount,
-            },
-        );
-
-        Ok(CallResponse::default())
-    }
-
-    /// Rewards the sequencer with the `amount` of gas tokens.
-    /// Transfers the reward from the module's account to the sequencer's account.
-    ///
-    /// # Safety note:
-    /// This method panics if:
-    /// - The sequencer is not registered.
-    /// - The module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
-    pub fn reward_sequencer(
-        &self,
-        sequencer: &Da::Address,
-        amount: u64,
-        state: &mut StateCheckpoint<S>,
-    ) {
-        let AllowedSequencer {
-            address: rollup_address,
-            balance: _,
-        } = self
-            .allowed_sequencers
-            .get(sequencer, state)
-            .unwrap_infallible()
-            .expect("Sequencer must be allowed.");
-
-        self.bank
-            .transfer_from(
-                self.id().to_payable(),
-                &rollup_address,
-                Coins {
-                    amount,
-                    token_id: GAS_TOKEN_ID,
-                },
-                state,
-            )
-            .expect(
-                "Impossible to transfer the reward from the module account to the sequencer. This is a bug",
-            );
     }
 }
