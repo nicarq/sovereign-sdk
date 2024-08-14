@@ -5,7 +5,10 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, SequencerDb, TxStatusNotifier};
+use sov_sequencer::{
+    sequencer_rest_api_server, FairBatchBuilder, FairBatchBuilderConfig, SequencerDb,
+    TxStatusNotifier,
+};
 use sov_stf_runner::SequencerConfig;
 use tokio::sync::watch;
 use tower_http::cors::CorsLayer;
@@ -65,8 +68,7 @@ where
 
         endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",
-            sequencer
-                .axum_router("/sequencer")
+            sequencer_rest_api_server("/sequencer")
                 .layer(
                     CorsLayer::new() // Allowing CORS is necessary for Metamask Snap
                         .allow_origin(tower_http::cors::Any) // Allow all origins

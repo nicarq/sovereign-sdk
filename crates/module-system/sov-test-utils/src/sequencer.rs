@@ -12,8 +12,8 @@ use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::{
-    FairBatchBuilder, FairBatchBuilderConfig, GenericSequencerSpec, Sequencer, SequencerDb,
-    TxStatusNotifier,
+    sequencer_rest_api_server, FairBatchBuilder, FairBatchBuilderConfig, GenericSequencerSpec,
+    Sequencer, SequencerDb, TxStatusNotifier,
 };
 use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -137,9 +137,8 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-            let router = sequencer
-                .axum_router("/sequencer")
-                .with_state::<()>(sequencer.clone());
+            let router =
+                sequencer_rest_api_server("/sequencer").with_state::<()>(sequencer.clone());
 
             let handle = axum_server::Handle::new();
             let handle1 = handle.clone();
@@ -244,9 +243,8 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-            let router = sequencer
-                .axum_router("/sequencer")
-                .with_state::<()>(sequencer.clone());
+            let router =
+                sequencer_rest_api_server("/sequencer").with_state::<()>(sequencer.clone());
 
             let handle = axum_server::Handle::new();
             let handle1 = handle.clone();
