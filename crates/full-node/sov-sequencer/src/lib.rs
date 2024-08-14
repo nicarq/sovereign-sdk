@@ -4,11 +4,13 @@
 mod batch_builder;
 mod db;
 mod mempool;
+mod rest_api;
 mod sequencer;
 mod tx_status;
 
 pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
 pub use db::{MempoolTx, SequencerDb};
+pub use rest_api::sequencer_rest_api_server;
 pub use sequencer::{GenericSequencerSpec, Sequencer, SequencerSpec};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;

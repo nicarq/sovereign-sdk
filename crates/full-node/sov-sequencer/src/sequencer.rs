@@ -1,21 +1,18 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use anyhow::Context;
 use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{Batch, RawTx, TxReceiptContents};
-use sov_rest_utils::serve_generic_ws_subscription;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::rpc::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio::sync::{oneshot, Mutex};
-use tokio_stream::wrappers::BroadcastStream;
-use tracing::{error, info};
+use tracing::info;
 
 use super::tx_status::{TxStatus, TxStatusNotifier};
 use super::{AcceptTxResponse, SubmittedBatchInfo};
@@ -105,6 +102,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             tx_status_notifier,
             dropper: Some(dropper),
         }))
+    }
+
+    pub(crate) fn notifier(&self) -> &TxStatusNotifier<<Ss::Da as DaService>::Spec> {
+        &self.0.tx_status_notifier
     }
 
     /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
@@ -263,237 +264,6 @@ pub async fn listen_for_slots_and_notify<Ss: SequencerSpec>(
     Ok(())
 }
 
-mod axum_router {
-    use std::sync::OnceLock;
-
-    use axum::extract::ws::WebSocket;
-    use axum::extract::{ws, State};
-    use axum::http::StatusCode;
-    use axum::response::IntoResponse;
-    use axum::Json;
-    use serde_with::base64::Base64;
-    use serde_with::serde_as;
-    use sov_rest_utils::{
-        errors, json_obj, preconfigured_router_layers, ApiResult, ErrorObject, Path,
-    };
-    use utoipa_swagger_ui::{Config, SwaggerUi};
-
-    use super::*;
-
-    /// This function does a pretty expensive clone of the entire OpenAPI
-    /// specification object, so it might be slow.
-    pub(crate) fn openapi_spec() -> serde_json::Value {
-        static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
-
-        OPENAPI_SPEC
-            .get_or_init(|| {
-                let openapi_spec_raw_yaml_contents = include_str!("../openapi-v3.yaml");
-                serde_yaml::from_str::<serde_json::Value>(openapi_spec_raw_yaml_contents).unwrap()
-            })
-            .clone()
-    }
-
-    #[serde_as]
-    #[derive(serde::Serialize, serde::Deserialize)]
-    #[serde(transparent)]
-    pub struct Base64Blob {
-        #[serde_as(as = "Base64")]
-        blob: Vec<u8>,
-    }
-
-    #[derive(serde::Serialize, serde::Deserialize)]
-    pub struct AcceptTx {
-        pub body: Base64Blob,
-    }
-
-    #[derive(serde::Serialize, serde::Deserialize)]
-    pub struct SubmitBatch {
-        pub transactions: Vec<Base64Blob>,
-    }
-
-    #[derive(Clone, serde::Serialize, serde::Deserialize)]
-    struct TxInfo<BlobHash> {
-        id: TxHash,
-        #[serde(flatten)]
-        status: TxStatus<BlobHash>,
-    }
-
-    // Web server and Axum-related methods.
-    impl<Ss: SequencerSpec + Clone + Send + Sync + 'static> Sequencer<Ss> {
-        /// Creates an Axum router for the sequencer.
-        pub fn axum_router(&self, path_prefix: &str) -> axum::Router<Self> {
-            preconfigured_router_layers(
-                axum::Router::new()
-                    // See:
-                    // - https://github.com/juhaku/utoipa/issues/599
-                    // - https://github.com/juhaku/utoipa/issues/734
-                    .merge(
-                        SwaggerUi::new("/swagger-ui")
-                            .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                            .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
-                    )
-                    .route("/txs", axum::routing::post(Self::axum_accept_tx))
-                    .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
-                    .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
-                    .route("/batches", axum::routing::post(Self::axum_submit_batch)),
-            )
-        }
-
-        async fn send_initial_status_to_ws(
-            &self,
-            tx_hash: TxHash,
-            socket: &mut WebSocket,
-        ) -> anyhow::Result<()> {
-            // Send a messge with the initial status of the transaction,
-            // without waiting for it to change for the first time.
-            let initial_status = self.tx_status(&tx_hash).await?.unwrap_or(TxStatus::Unknown);
-            let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
-                id: tx_hash,
-                status: initial_status,
-            })?);
-            dbg!(&ws_msg);
-            socket.send(ws_msg).await?;
-
-            Ok(())
-        }
-
-        async fn axum_get_tx_ws(
-            sequencer: State<Self>,
-            tx_hash: Path<TxHash>,
-            ws: ws::WebSocketUpgrade,
-        ) -> impl IntoResponse {
-            let notifier = sequencer.0 .0.tx_status_notifier.clone();
-
-            ws.on_upgrade(move |mut socket| async move {
-                let (_dropper, receiver) = notifier.subscribe(tx_hash.0);
-
-                // After "terminal" tx status updates (i.e. after which
-                // we'll no longer send any new notifications), we close the
-                // connection.
-                let subscription = futures::stream::unfold(
-                    // We use the state to keep track of whether or not the last notification
-                    // was terminal.
-                    //
-                    // By wrapping the `receiver` in a `BroadcastStream`, we
-                    // ensure it'll be dropped before `_dropper`.
-                    (false, BroadcastStream::new(receiver)),
-                    |(terminated, mut stream)| async move {
-                        if terminated {
-                            None
-                        } else {
-                            let next = stream.next().await?;
-                            let is_terminal: bool = next
-                                .as_ref()
-                                .map(|status| status.is_terminal())
-                                // Errors result in WebSocket connection termination.
-                                .unwrap_or(true);
-                            Some((next, (is_terminal, stream)))
-                        }
-                    },
-                )
-                // Finally, convert the data into the type that we want to
-                // serialize over the WS connection.
-                .map(|data| {
-                    data.context("Failed to subscribe to tx status updates")
-                        .map(|status| TxInfo {
-                            id: tx_hash.0,
-                            status,
-                        })
-                })
-                .boxed();
-
-                sequencer
-                    .send_initial_status_to_ws(tx_hash.0, &mut socket)
-                    .await
-                    .ok();
-
-                serve_generic_ws_subscription(socket, subscription).await;
-            })
-        }
-
-        async fn axum_get_tx(
-            sequencer: State<Self>,
-            tx_hash: Path<TxHash>,
-        ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
-            let tx_status = sequencer.0 .0.tx_status_notifier.get_cached(&tx_hash.0);
-
-            if let Some(tx_status) = tx_status {
-                Ok(TxInfo {
-                    id: tx_hash.0,
-                    status: tx_status,
-                }
-                .into())
-            } else {
-                Err(errors::not_found_404("Transaction", tx_hash.0))
-            }
-        }
-
-        async fn axum_accept_tx(
-            sequencer: State<Self>,
-            tx: Json<AcceptTx>,
-        ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
-            let tx = tx.0.body.blob;
-            let authed_tx = Ss::Auth::encode(tx)
-                .map_err(|e| errors::bad_request_400("Failed to encode transaction", e))?;
-
-            let tx_hash = match sequencer.accept_tx(authed_tx.data).await {
-                Ok(tx_hash) => tx_hash,
-                Err(AcceptTxError {
-                    http_status,
-                    title,
-                    details,
-                }) => {
-                    return Err(ErrorObject {
-                        status: http_status.try_into().unwrap_or_else(|_| {
-                            error!(
-                                http_status,
-                                "Sequencer generated an invalid HTTP status code"
-                            );
-                            StatusCode::INTERNAL_SERVER_ERROR
-                        }),
-                        title,
-                        details: json_obj!({
-                            "message": details
-                        }),
-                    }
-                    .into_response());
-                }
-            };
-
-            Ok(TxInfo {
-                id: tx_hash,
-                status: TxStatus::Submitted,
-            }
-            .into())
-        }
-
-        async fn axum_submit_batch(
-            sequencer: State<Self>,
-            batch: Json<SubmitBatch>,
-        ) -> ApiResult<SubmittedBatchInfo> {
-            let batch = batch
-                .0
-                .transactions
-                .into_iter()
-                .map(|tx| Ok(Ss::Auth::encode(tx.blob)?.data))
-                .collect::<anyhow::Result<Vec<_>>>()
-                .map_err(|e| errors::bad_request_400("Failed to encode transaction(s)", e))?;
-
-            match sequencer.submit_batch(batch).await {
-                Ok(info) => Ok(info.into()),
-                Err(err) => Err(ErrorObject {
-                    status: StatusCode::CONFLICT,
-                    title: "Failed to submit batch".to_string(),
-                    details: json_obj!({
-                        "message": err.to_string(),
-                    }),
-                }
-                .into_response()),
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
@@ -508,7 +278,6 @@ mod tests {
     use sov_sequencer_json_client::types;
     use sov_test_utils::sequencer::TestSequencerSetup;
 
-    use self::axum_router::openapi_spec;
     use super::*;
 
     async fn new_sequencer(
@@ -555,11 +324,6 @@ mod tests {
                 .collect();
             Ok(txs)
         }
-    }
-
-    #[test]
-    fn openapi_spec_is_valid() {
-        let _spec = openapi_spec();
     }
 
     #[tokio::test]
