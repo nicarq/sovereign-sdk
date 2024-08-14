@@ -29,20 +29,21 @@ pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::runtime::traits::EndSlotHookRegistry;
 use crate::tests::{BatchAssertContext, TransactionAssertContext};
 use crate::{
-    BatchReceipt, SlotExpectedReceipt, SlotTestCase, TestStfBlueprint, TransactionTestCase,
-    TransactionType,
+    generate_optimistic_runtime, BatchReceipt, SlotExpectedReceipt, SlotTestCase, TestStfBlueprint,
+    TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
 
-/// Utilities for testing a runtime in the optimistic execution context.
-pub mod optimistic;
+generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>);
+
+/// Utilities for generating genesis configs.
+pub mod genesis;
+
 /// Traits used to define interfaces for the runtime.
 pub mod traits;
 /// Defines a [`TestRuntimeWrapper`] which allows to override hooks using closures.
 pub mod wrapper;
-/// Utilities for testing a runtime in the ZK execution context.
-pub mod zk;
 use traits::{MinimalGenesis, PostTxHookRegistry};
 pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 

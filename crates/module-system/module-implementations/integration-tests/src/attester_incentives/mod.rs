@@ -9,7 +9,7 @@ use sov_modules_stf_blueprint::TransactionReceipt;
 use sov_state::{Storage, StorageRoot};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{
     new_test_blob_from_batch_deprecated, MessageGenerator, TestPrivateKey,
     TestStorageSpec as StorageSpec, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
@@ -198,7 +198,7 @@ impl AttesterIncentivesTestHandler {
 
         AttesterIncentivesTestHandler {
             value_setter: value_setter_messages
-                .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>(),
+                .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>(),
             admin_public_key: value_setter_messages.messages[0]
                 .admin
                 .to_address::<<S as Spec>::Address>(),
@@ -218,8 +218,8 @@ impl AttesterIncentivesTestHandler {
 
         let seq_params = SequencerParams::default();
 
-        let value_setter =
-            value_setter_messages.create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+        let value_setter = value_setter_messages
+            .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
         let admin_private_key: Rc<Ed25519PrivateKey> =
             value_setter_messages.messages[0].admin.clone();
 

@@ -8,7 +8,7 @@ use sov_modules_api::{Batch, BatchSequencerOutcome, Gas, GasArray, ModuleInfo, S
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{
     new_test_blob_from_batch_deprecated, MessageGenerator, TEST_DEFAULT_GAS_LIMIT,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
@@ -51,7 +51,7 @@ fn check_sequencer_and_registry_balances(
 fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64) -> Result<(), Infallible> {
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
-        .create_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
+        .create_raw_txs::<TestOptimisticRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>(
             config_value!("CHAIN_ID"),
             TEST_PRIORITY_FEE,
             max_fee,

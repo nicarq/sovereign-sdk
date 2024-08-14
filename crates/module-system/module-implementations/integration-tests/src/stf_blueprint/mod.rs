@@ -1,9 +1,9 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{
-    AuthorizationData, AuthorizeSequencerError, FatalError, SequencerAuthorization,
+    AuthorizationData, AuthorizeSequencerError, FatalError, RuntimeAuthorization,
+    SequencerAuthorization,
 };
 use sov_modules_api::macros::config_value;
-use sov_modules_api::runtime::capabilities::RuntimeAuthorization;
 use sov_modules_api::transaction::{Credentials, UnsignedTransaction};
 use sov_modules_api::{
     Batch, Context, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, KernelWorkingSet, PrivateKey,
@@ -13,8 +13,8 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::optimistic::{HighLevelOptimisticGenesisConfig, TestRuntime};
-use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::{TestOptimisticRuntime, TestRunner};
 use sov_test_utils::{
     generate_optimistic_runtime, new_test_blob_from_batch_deprecated, BatchSequencerOutcome,
     MessageGenerator, SlotTestCase, TestHasher, TestUser, TransactionType, TxTestCase,
@@ -70,7 +70,7 @@ impl TestRollup {
             .create_default_messages()
             .into_iter()
             .map(|m| {
-                let tx = m.to_tx::<TestRuntime<S, Da>>();
+                let tx = m.to_tx::<TestOptimisticRuntime<S, Da>>();
                 let pub_key = tx.pub_key().clone();
                 let credential_id = pub_key.credential_id::<TestHasher>();
                 let default_address = Some((&pub_key).into());
@@ -114,7 +114,7 @@ fn test_stf_internal_updates() {
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
-        .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
     let num_tx_per_slot = value_setter.len();
 
     let admin_pub_key = value_setter_messages.messages[0]

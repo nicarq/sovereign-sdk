@@ -1,5 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_test_utils::runtime::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{generate_optimistic_runtime, TestAttester, TestChallenger, TestUser};
 

@@ -2,7 +2,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::ApiStateAccessor;
 use sov_sequencer_registry::{SequencerRegistry, SequencerRegistryError};
-use sov_test_utils::runtime::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
 use sov_test_utils::{
     generate_optimistic_runtime, TestSequencer, TestUser, TEST_DEFAULT_USER_STAKE,

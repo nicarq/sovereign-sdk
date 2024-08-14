@@ -4,7 +4,7 @@ use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::digest::Digest;
 use sov_rollup_interface::TxHash;
 use sov_test_utils::generators::bank::BankMessageGenerator;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};
 
 mod rest_api;
@@ -18,7 +18,7 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<(TxHash, Transacti
 
     let mut txs = Vec::default();
     for message in messages_iter {
-        let tx = message.to_tx::<TestRuntime<TestSpec, MockDaSpec>>();
+        let tx = message.to_tx::<TestOptimisticRuntime<TestSpec, MockDaSpec>>();
         let tx_hash = TxHash::new(
             <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
                 borsh::to_vec(&tx).unwrap(),

@@ -8,7 +8,7 @@ use sov_modules_stf_blueprint::TxEffect;
 use sov_state::StorageRoot;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{new_test_blob_from_batch_deprecated, MessageGenerator, TestStorageSpec};
 
 use super::{AttesterIncentivesTestHandler, TEST_DEFAULT_USER_BALANCE};
@@ -98,7 +98,7 @@ impl AttesterIncentivesTestHandler {
             self.attester_private_key.clone(),
             CallMessage::ProcessAttestation::<S, Da>(attestation),
         )])
-        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
         let attestation_blob =
             new_test_blob_from_batch_deprecated(Batch { txs }, self.seq_da_addr.as_ref(), [3; 32]);
@@ -226,7 +226,7 @@ impl AttesterIncentivesTestHandler {
                 CallMessage::ProcessAttestation::<S, Da>(snd_attestation),
             ),
         ])
-        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
         let attestation_blob =
             new_test_blob_from_batch_deprecated(Batch { txs }, self.seq_da_addr.as_ref(), [4; 32]);

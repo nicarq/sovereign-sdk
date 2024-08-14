@@ -8,7 +8,7 @@ use sov_modules_api::{
 };
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{
     has_tx_events_deprecated, new_test_blob_from_batch_deprecated, MessageGenerator,
     TEST_DEFAULT_USER_BALANCE,
@@ -30,7 +30,7 @@ fn test_simple_value_setter_with_chain_state() -> Result<(), Infallible> {
 
     let value_setter_messages = ValueSetterMessages::prepopulated();
     let value_setter = value_setter_messages
-        .create_default_raw_txs::<TestRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, MockDaSpec>, TestAuth<S, MockDaSpec>>();
 
     let admin_pub_key = value_setter_messages.messages[0]
         .admin

@@ -6,7 +6,6 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{Address, PrivateKey};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::services::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -17,15 +16,14 @@ use sov_sequencer::{
 };
 use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 use tokio::sync::watch;
 
 use crate::auth::TestAuth;
-use crate::runtime::optimistic::{create_genesis_config, TestRuntime};
-use crate::runtime::ChainStateConfig;
+use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use crate::runtime::{ChainStateConfig, GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageManager};
-
-const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 
 type TestSequencerSpec<B> = GenericSequencerSpec<
     B,
@@ -41,11 +39,11 @@ pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 /// The default test fair batch builder type.
 /// An alias for a [`FairBatchBuilder`] with a [`TestSpec`],
 /// a [`MockDaService`] for DA interactions,
-/// a [`TestRuntime`], a [`BasicKernel`] and a [`TestAuth`] for authentication.
+/// a [`TestOptimisticRuntime`], a [`BasicKernel`] and a [`TestAuth`] for authentication.
 pub type TestFairBatchBuilder = FairBatchBuilder<
     TestSpec,
     MockDaSpec,
-    TestRuntime<TestSpec, MockDaSpec>,
+    TestOptimisticRuntime<TestSpec, MockDaSpec>,
     BasicKernel<TestSpec, MockDaSpec>,
     TestAuth<TestSpec, MockDaSpec>,
 >;
@@ -74,7 +72,7 @@ impl<B: BatchBuilder> Drop for TestSequencerSetup<B> {
 }
 
 impl<B: BatchBuilder> TestSequencerSetup<B> {
-    /// Instantiates a new [`Sequencer`] with a [`TestRuntime`] and an empty
+    /// Instantiates a new [`Sequencer`] with a [`TestOptimisticRuntime`] and an empty
     /// [`MockDaService`].
     ///
     /// The RPC and Axum servers for the newly generated [`Sequencer`] are created
@@ -87,10 +85,17 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         batch_builder: B,
         tx_status_notifier: TxStatusNotifier<MockDaSpec>,
     ) -> anyhow::Result<Self> {
-        // Use "same" bytes for sequencer address and rollup address.
-        let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
-        let admin_pkey = TestPrivateKey::generate();
-        let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
+        // Generate a genesis config, then overwrite the attester key/address with ones that
+        // we know. We leave the other values untouched.
+        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
+
+        let admin = genesis_config.additional_accounts[0].clone();
+
+        let value_setter_config = ValueSetterConfig {
+            admin: admin.address(),
+        };
+
+        let runtime = TestOptimisticRuntime::<TestSpec, MockDaSpec>::default();
 
         let mut storage_manager = NativeStorageManager::<
             MockDaSpec,
@@ -100,15 +105,9 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let (stf_state, ledger_state) = storage_manager.create_state_for(&genesis_block_header)?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
-        let genesis_config = create_genesis_config(
-            (&admin_pkey.pub_key()).into(),
-            &[],
-            sequencer_rollup_addr,
-            SEQUENCER_ADDR.into(),
-            100_000_000,
-            "SovereignToken".to_string(),
-            1_000_000_000,
-        );
+        // Run genesis registering the attester and sequencer we've generated.
+        let genesis_config =
+            GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
         let kernel_genesis = BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
@@ -157,7 +156,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
             _dir: dir,
             da_service,
             sequencer,
-            admin_private_key: admin_pkey,
+            admin_private_key: admin.private_key,
             axum_server_handle: sequencer_axum_server,
             axum_addr,
         })
@@ -178,24 +177,27 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
     ) -> anyhow::Result<Self> {
         let dir = tempfile::tempdir()?;
 
-        // Use "same" bytes for sequencer address and rollup address.
-        let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
-        let admin_pkey = TestPrivateKey::generate();
-        let runtime = TestRuntime::<TestSpec, MockDaSpec>::default();
+        // Generate a genesis config, then overwrite the attester key/address with ones that
+        // we know. We leave the other values untouched.
+        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
+
+        let admin = genesis_config.additional_accounts[0].clone();
+
+        let sequencer_address = genesis_config.initial_sequencer.da_address;
+
+        let value_setter_config = ValueSetterConfig {
+            admin: admin.address(),
+        };
+
+        let runtime = TestOptimisticRuntime::<TestSpec, MockDaSpec>::default();
 
         let mut storage_manager: TestStorageManager = NativeStorageManager::new(dir.path())?;
         let genesis_block_header = MockBlockHeader::from_height(0);
         let (stf_state, _ledger_state) = storage_manager.create_state_for(&genesis_block_header)?;
 
-        let genesis_config = create_genesis_config(
-            (&admin_pkey.pub_key()).into(),
-            &[],
-            sequencer_rollup_addr,
-            SEQUENCER_ADDR.into(),
-            100_000_000,
-            "SovereignToken".to_string(),
-            1_000_000_000,
-        );
+        // Run genesis registering the attester and sequencer we've generated.
+        let genesis_config =
+            GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
         let kernel_genesis = BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
@@ -225,7 +227,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let batch_builder_config = FairBatchBuilderConfig {
             mempool_max_txs_count: Some(mempool_max_txs_count),
             max_batch_size_bytes: None,
-            sequencer_address: SEQUENCER_ADDR.into(),
+            sequencer_address,
         };
 
         let notifier = TxStatusNotifier::default();
@@ -238,7 +240,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             batch_builder_config,
         )?;
 
-        let da_service = MockDaService::new(SEQUENCER_ADDR.into());
+        let da_service = MockDaService::new(sequencer_address);
         let sequencer = Sequencer::new(batch_builder, da_service.clone(), notifier, ledger_db);
 
         let (axum_addr, sequencer_axum_server) = {
@@ -263,13 +265,13 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             _dir: dir,
             da_service,
             sequencer,
-            admin_private_key: admin_pkey,
+            admin_private_key: admin.private_key,
             axum_server_handle: sequencer_axum_server,
             axum_addr,
         })
     }
 
-    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestRuntime`], [`NativeStorageManager`], executes genesis
+    /// Creates a new [`TestSequencerSetup`]. Instantiates a new [`TestOptimisticRuntime`], [`NativeStorageManager`], executes genesis
     /// and then builds a new [`FairBatchBuilder`] to instantiate a [`Sequencer`]. Instantiates an Axum server in a separate thread.
     pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
         Self::with_real_batch_builder_and_mempool_max_txs_count(usize::MAX).await

@@ -5,7 +5,7 @@ use sov_modules_api::runtime::capabilities::{
 };
 use sov_modules_api::{DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec};
 
-use crate::runtime::optimistic::TestRuntime;
+use crate::runtime::TestOptimisticRuntime;
 
 /// Test authenticator.
 pub struct TestAuth<S: Spec, Da: DaSpec> {
@@ -14,7 +14,7 @@ pub struct TestAuth<S: Spec, Da: DaSpec> {
 
 impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
     type Spec = S;
-    type DispatchCall = TestRuntime<S, Da>;
+    type DispatchCall = TestOptimisticRuntime<S, Da>;
     type AuthorizationData = AuthorizationData<S>;
 
     fn authenticate<Meter: GasMeter<S::Gas>>(
