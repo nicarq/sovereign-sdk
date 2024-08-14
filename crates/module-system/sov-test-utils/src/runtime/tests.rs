@@ -1,9 +1,8 @@
-use sov_bank::ReserveGasErrorReason;
 use sov_mock_da::MockAddress;
 use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{BatchReceipt, BatchSequencerReceipt, DaSpec};
+use sov_modules_api::DaSpec;
 use sov_modules_stf_blueprint::SkippedReason;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -11,8 +10,9 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::interface::AsUser;
 use crate::runtime::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::TestRunner;
+use crate::tests::BatchTestCase;
 use crate::{
-    generate_optimistic_runtime, MockDaSpec, SlotTestCase, TestSequencer, TestUser, TxTestCase,
+    generate_optimistic_runtime, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
     TEST_DEFAULT_USER_STAKE,
 };
 
@@ -66,22 +66,17 @@ fn test_query_runtime() {
         "The admins don't match"
     );
 
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![TxTestCase::<
-        TestRuntime<S, MockDaSpec>,
-        _,
-        _,
-    >::applied(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
-    )])]);
-
-    let state_value = runner.query_state(|state| {
-        ValueSetter::<S>::default()
-            .value
-            .get(state)
-            .unwrap_infallible()
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+        assert: Box::new(move |_result, state| {
+            let value = ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible();
+            assert_eq!(value, Some(1), "The value should be set to 1");
+        }),
     });
-
-    assert_eq!(state_value, Some(1), "The value should be set to 1");
 }
 
 /// Tests that the batch is rewarded if the default sequencer is used
@@ -89,25 +84,17 @@ fn test_query_runtime() {
 fn test_default_sequencer() {
     let (admin, mut runner) = setup();
 
-    runner.execute_slots(vec![
-        // If no sequencer is specified, the default one should be used and the batch should be rewarded
-        SlotTestCase::from_rewarded_batch(vec![
-            TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::applied(
-                admin.create_plain_message::<ValueSetter<S>>(
-                    sov_value_setter::CallMessage::SetValue(1),
-                ),
-            ),
-        ]),
-    ]);
-
-    // Check that the last receipt is from the default sequencer
-    let last_receipt: &BatchReceipt<BatchSequencerReceipt<MockDaSpec>, _> =
-        runner.slot_receipts.last().unwrap().last_batch_receipt();
-
-    assert_eq!(
-        last_receipt.inner.da_address,
-        runner.default_sequencer_da_address
-    );
+    runner.execute_batch(BatchTestCase {
+        input: vec![admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))],
+        override_sequencer: None,
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.sender_da_address,
+                runner.default_sequencer_da_address
+            );
+        }),
+    });
 }
 
 /// Tests that the batch is dropped if the specified sequencer is not registered
@@ -115,24 +102,14 @@ fn test_default_sequencer() {
 fn test_specify_non_default_sequencer_errors_if_not_registered() {
     let (admin, mut runner) = setup();
 
-    runner.execute_slots(vec![
-        // If a sequencer is specified, it should be used. This should fail because this sequencer is not registered
-        SlotTestCase::from_dropped_batch(vec![
-            TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::dropped(
-                admin.create_plain_message::<ValueSetter<S>>(
-                    sov_value_setter::CallMessage::SetValue(10),
-                ),
-            ),
-        ])
-        .with_sequencer(<MockDaSpec as DaSpec>::Address::from([42; 32])),
-    ]);
-
-    // Check that there is no receipt available
-    assert_eq!(
-        runner.slot_receipts.last().unwrap().batch_receipts.len(),
-        0,
-        "The last slot receipt should be empty because the batch was dropped"
-    );
+    runner.execute_batch(BatchTestCase {
+        input: vec![admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))],
+        override_sequencer: Some(<MockDaSpec as DaSpec>::Address::from([42; 32])),
+        assert: Box::new(move |result, _state| {
+            assert!(result.outcome.is_none(), "Batch should have been dropped");
+        }),
+    });
 }
 
 /// Tests that we can register and use another sequencer
@@ -140,47 +117,43 @@ fn test_specify_non_default_sequencer_errors_if_not_registered() {
 fn test_register_sequencer() {
     let (additional_user, mut runner) = setup();
 
-    let sequencer_address = MockAddress::from([42; 32]);
+    let new_sequencer_address = MockAddress::from([42; 32]);
 
-    let sequencer = TestSequencer::<S, MockDaSpec> {
+    let new_sequencer = TestSequencer::<S, MockDaSpec> {
         user_info: additional_user,
-        da_address: sequencer_address,
+        da_address: new_sequencer_address,
         bond: TEST_DEFAULT_USER_STAKE,
     };
 
-    // We first bond the sequencer
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![TxTestCase::<
-        TestRuntime<S, MockDaSpec>,
-        _,
-        _,
-    >::applied(
-        sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
-            sov_sequencer_registry::CallMessage::Register {
-                da_address: sequencer.da_address.as_ref().to_vec(),
-                amount: sequencer.bond,
-            },
-        ),
-    )])]);
-
-    // Then we use the non-default sequencer to set a value
-    runner.execute_slots(vec![SlotTestCase::from_rewarded_batch(vec![TxTestCase::<
-        TestRuntime<S, MockDaSpec>,
-        _,
-        _,
-    >::applied(
-        sequencer
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-    )])
-    .with_sequencer(sequencer.da_address)]);
-
-    // Check that the last receipt is from the non-default sequencer
-    let last_receipt: &BatchReceipt<BatchSequencerReceipt<MockDaSpec>, _> =
-        runner.slot_receipts.last().unwrap().last_batch_receipt();
-
-    assert_eq!(
-        last_receipt.inner.da_address, sequencer_address,
-        "The last receipt should be from the non-default sequencer"
-    );
+    runner
+        // We first bond the sequencer
+        .execute_transaction(TransactionTestCase {
+            input: new_sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
+                sov_sequencer_registry::CallMessage::Register {
+                    da_address: new_sequencer.da_address.as_ref().to_vec(),
+                    amount: new_sequencer.bond,
+                },
+            ),
+            assert: Box::new(move |_result, _state| {}),
+        })
+        // Then we use the non-default sequencer to set a value
+        .execute_batch(BatchTestCase {
+            input: vec![new_sequencer.create_plain_message::<ValueSetter<S>>(
+                sov_value_setter::CallMessage::SetValue(10),
+            )],
+            override_sequencer: Some(new_sequencer.da_address),
+            assert: Box::new(move |result, state| {
+                assert_eq!(result.sender_da_address, new_sequencer_address);
+                // ensure the tx was applied / batch was accepted
+                assert_eq!(
+                    sov_value_setter::ValueSetter::<S>::default()
+                        .value
+                        .get(state)
+                        .unwrap_infallible(),
+                    Some(10)
+                );
+            }),
+        });
 }
 
 /// Checks that the chain id of a transaction can be overridden.
@@ -191,17 +164,26 @@ fn test_custom_transaction_details_chain_id() {
     let real_chain_id = config_value!("CHAIN_ID");
     let fake_chain_id = real_chain_id + 1;
 
-    runner.execute_slots::<ValueSetter<S>>(vec![SlotTestCase::from_slashed_batch(
-        vec![TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::dropped(
-            admin
-                .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
-                .with_chain_id(fake_chain_id),
-        )],
-        FatalError::InvalidChainId {
-            expected: real_chain_id,
-            got: fake_chain_id,
-        },
-    )]);
+    runner.execute_batch(BatchTestCase {
+        input: vec![admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
+            .with_chain_id(fake_chain_id)],
+        override_sequencer: None,
+        assert: Box::new(move |result, _state| {
+            match result.outcome.unwrap().inner.outcome {
+                sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
+                    assert_eq!(
+                        reason,
+                        FatalError::InvalidChainId {
+                            expected: real_chain_id,
+                            got: fake_chain_id
+                        }
+                    );
+                }
+                unexpected => panic!("Expected batch slashed, but got {:?}", unexpected),
+            };
+        }),
+    });
 }
 
 /// Checks that the chain id of a transaction can be overridden.
@@ -209,18 +191,25 @@ fn test_custom_transaction_details_chain_id() {
 fn test_custom_transaction_details_max_fee() {
     let (admin, mut runner) = setup();
 
-    runner.execute_slots::<ValueSetter<S>>(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<TestRuntime<S, MockDaSpec>, _, _>::skipped(
-            admin
-                .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
-                .with_max_fee(
-                     0,
-                ),
-            SkippedReason::CannotReserveGas(
-                // TODO(@theochap): make it possible to inject closures to test the error message
-                ReserveGasErrorReason::<S>::InsufficientGasForPreExecutionChecks("The gas to charge is greater than the funds available in the meter. Gas to charge GasUnit[2261, 2261], gas price GasPrice[10, 10], remaining funds 0, total gas consumed GasUnit[0, 0]".to_string())
-                    .to_string(),
-            ),
-        ),
-    ])]);
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .with_max_fee(0),
+        assert: Box::new(move |result, _state| {
+           match &result.outcome {
+                sov_modules_api::TxEffect::Skipped(reason) => {
+                    if let SkippedReason::CannotReserveGas(error_message) = reason {
+                        assert!(
+                            error_message.contains("The gas to charge is greater than the funds available in the meter."),
+                            "Error message doesn't contain with the expected phrase. Got: {}",
+                            error_message
+                        );
+                    } else {
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                    }
+                },
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    });
 }
