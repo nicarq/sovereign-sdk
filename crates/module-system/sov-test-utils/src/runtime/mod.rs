@@ -27,7 +27,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
-use crate::tests::TransactionAssertContext;
+use crate::tests::{BatchAssertContext, TransactionAssertContext};
 use crate::{
     BatchReceipt, SlotExpectedReceipt, SlotTestCase, TestStfBlueprint, TransactionTestCase,
     TransactionType,
@@ -295,6 +295,7 @@ where
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
         >,
         batch: Vec<TransactionType<M, S>>,
+        sender: <MockDaSpec as DaSpec>::Address,
     ) -> MockBlob
     where
         RT: EncodeCall<M>,
@@ -305,10 +306,7 @@ where
             .map(|msg| msg.to_raw_tx::<RT>(&mut self.nonces, &mut state))
             .collect::<Vec<_>>();
         let batch = Batch::new(raw_txns);
-        MockBlob::new_with_hash(
-            borsh::to_vec(&batch).unwrap(),
-            self.default_sequencer_da_address,
-        )
+        MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sender)
     }
 
     fn apply_slot_result(&mut self, runner_output: RunnerOutput<S>) {
@@ -533,7 +531,11 @@ where
             .storage_manager
             .create_state_for(&block_header)
             .expect("Block builds on height zero");
-        let blob = self.batch_to_blob(&stf_state, vec![transaction_test.input]);
+        let blob = self.batch_to_blob(
+            &stf_state,
+            vec![transaction_test.input],
+            self.default_sequencer_da_address,
+        );
         let mut blobs = [blob];
         let slot_input = RelevantBlobIters {
             proof_blobs: vec![],
@@ -550,7 +552,7 @@ where
             tx_receipt,
             gas_used.value(&gas_price),
         );
-        (transaction_test.assert)(&ctx, &mut new_state);
+        (transaction_test.assert)(ctx, &mut new_state);
         self
     }
 
@@ -559,7 +561,7 @@ where
     /// Under the hood this will execute a slot with the provided batch.
     pub fn execute_batch<M: Module>(
         &mut self,
-        batch_test: super::interface::tests::BatchTestCase<S, M>,
+        batch_test: super::interface::tests::BatchTestCase<S, MockDaSpec, M>,
     ) -> &mut Self
     where
         RT: EncodeCall<M>,
@@ -569,7 +571,10 @@ where
             .storage_manager
             .create_state_for(&block_header)
             .expect("Block builds on height zero");
-        let blob = self.batch_to_blob(&stf_state, batch_test.input);
+        let sender_da_address = batch_test
+            .override_sequencer
+            .unwrap_or(self.default_sequencer_da_address);
+        let blob = self.batch_to_blob(&stf_state, batch_test.input, sender_da_address);
         let mut blobs = [blob];
         let slot_input = RelevantBlobIters {
             proof_blobs: vec![],
@@ -577,8 +582,11 @@ where
         };
         let (result, mut new_state) =
             self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
-        let batch_receipt = result.batch_receipts[0].clone();
-        (batch_test.assert)(&batch_receipt, &mut new_state);
+        let ctx = BatchAssertContext {
+            sender_da_address,
+            outcome: result.batch_receipts.first().cloned(),
+        };
+        (batch_test.assert)(ctx, &mut new_state);
         self
     }
 

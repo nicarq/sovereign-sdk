@@ -60,7 +60,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
 
 /// A closure used to assert the outcome of a [`TransactionTestCase`].
 pub type TransactionTestAssert<S, RT> =
-    dyn FnOnce(&TransactionAssertContext<RT>, &mut ApiStateAccessor<S>);
+    dyn FnOnce(TransactionAssertContext<RT>, &mut ApiStateAccessor<S>);
 
 /// A test case that applies the provided input and asserts the result.
 pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
@@ -71,14 +71,28 @@ pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
     pub assert: Box<TransactionTestAssert<S, RT>>,
 }
 
+/// Context that is passed to [`BatchTestCase::assert`] to check the outcome of a test.
+pub struct BatchAssertContext<Da: DaSpec> {
+    /// The DA address of the sender of the batch.
+    pub sender_da_address: Da::Address,
+    /// The outcome of the batch submission
+    ///
+    /// This can be [`None`] if the batch was dropped before it was executed,
+    /// this can happen if the sender was not a registered sequencer.
+    pub outcome: Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>>,
+}
+
 /// A closure used to assert the outcome of a [`BatchTestCase`].
-pub type BatchTestAssert<S, BatchReceiptContent, TxReceiptContent> =
-    dyn FnOnce(&BatchReceipt<BatchReceiptContent, TxReceiptContent>, &mut ApiStateAccessor<S>);
+pub type BatchTestAssert<S, Da> = dyn FnOnce(BatchAssertContext<Da>, &mut ApiStateAccessor<S>);
 
 /// A test case that applies the provided batch input and asserts the result.
-pub struct BatchTestCase<S: Spec, M: Module> {
+pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
     /// Input transactions to execute as part of the batch.
     pub input: Vec<TransactionType<M, S>>,
+    /// Optionally specify the DA address of the sequencer of the batch.
+    ///
+    /// If this is not provided the default sequencer address in the `TestRunner` will be used.
+    pub override_sequencer: Option<Da::Address>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
-    pub assert: Box<BatchTestAssert<S, BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>>,
+    pub assert: Box<BatchTestAssert<S, Da>>,
 }

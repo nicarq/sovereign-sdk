@@ -1,4 +1,3 @@
-use sov_attester_incentives::AttesterIncentives;
 use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockCodeCommitment;
@@ -179,17 +178,11 @@ fn test_slot_number() {
     let mut runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
     assert_eq!(runner.curr_slot_number(), 1);
 
-    runner.execute_slots::<AttesterIncentives<TestSpec, MockDaSpec>>(vec![
-        SlotTestCase::empty(),
-        SlotTestCase::empty(),
-    ]);
+    runner.advance_slots(2);
 
     assert_eq!(runner.curr_slot_number(), 3);
 
-    runner.execute_slots::<AttesterIncentives<TestSpec, MockDaSpec>>(vec![
-        SlotTestCase::empty(),
-        SlotTestCase::empty(),
-    ]);
+    runner.advance_slots(2);
 
     assert_eq!(runner.curr_slot_number(), 5);
 }
