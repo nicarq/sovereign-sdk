@@ -8,7 +8,7 @@
 mod call;
 mod capabilities;
 mod event;
-
+mod registration;
 pub use event::Event;
 
 mod genesis;
@@ -16,8 +16,9 @@ mod genesis;
 #[cfg(test)]
 mod tests;
 
+use sov_bank::IntoPayable;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::registration_lib::RegistrationError;
+use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 #[cfg(feature = "native")]
 mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -27,15 +28,15 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use query::*;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{Amount, Coins, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
-    BasicAddress, CallResponse, Context, DaSpec, Error, EventEmitter, GenesisState,
-    InfallibleStateAccessor, ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap,
-    StateReader, StateValue, TxState,
+    BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue,
+    TxState,
 };
 use sov_state::codec::BcsCodec;
-use sov_state::{EventContainer, User};
+use sov_state::User;
 use thiserror::Error;
 
 /// Errors that can be raised by the [`SequencerRegistry`] module during hooks execution.
@@ -181,72 +182,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         })
     }
 
-    /// Tries to register a sequencer by staking the provided amount of gas tokens.
-    /// # Errors
-    /// Will error
-    ///
-    /// - If the provided amount is below the minimum required to register a sequencer.
-    /// - If the minimum bond is not set.
-    /// - If the sender's account does not have enough funds to register itself as a sequencer.
-    /// - If the sequencer is already registered.
-    pub(crate) fn register_sequencer<ST: StateAccessor + EventContainer>(
-        &self,
-        da_address: &Da::Address,
-        address: &S::Address,
-        amount: Amount,
-        state: &mut ST,
-    ) -> Result<(), SequencerRegistryError<S, Da, ST>> {
-        if self.allowed_sequencers.get(da_address, state)?.is_some() {
-            return Err(RegistrationError::AlreadyRegistered(address.clone()));
-        }
-
-        let minimum_bond = self
-            .minimum_bond
-            .get(state)?
-            .ok_or(RegistrationError::NoMinimumBondSet(address.clone()))?;
-
-        if amount < minimum_bond {
-            return Err(RegistrationError::InsufficientStakeAmount {
-                address: address.clone(),
-                bond_amount: amount,
-                minimum_bond_amount: minimum_bond,
-            });
-        }
-
-        let locker = &self.id;
-
-        let coins = Coins {
-            amount,
-            token_id: GAS_TOKEN_ID,
-        };
-
-        self.bank
-            .transfer_from(address, locker.to_payable(), coins, state)
-            .map_err(|_| RegistrationError::InsufficientFundsToRegister {
-                address: address.clone(),
-                amount,
-            })?;
-
-        self.allowed_sequencers.set(
-            da_address,
-            &AllowedSequencer {
-                address: address.clone(),
-                balance: amount,
-            },
-            state,
-        )?;
-
-        self.emit_event(
-            state,
-            Event::<S>::Registered {
-                sequencer: address.clone(),
-                amount,
-            },
-        );
-
-        Ok(())
-    }
-
     /// Returns the preferred sequencer, or [`None`] it wasn't set.
     ///
     /// Read about [`SequencerConfig::is_preferred_sequencer`] to learn about
@@ -346,7 +281,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
 
     /// Slash the sequencer with the given address.
     pub fn slash_sequencer(&self, da_address: &Da::Address, state: &mut StateCheckpoint<S>) {
-        self.delete(da_address, state).unwrap_infallible();
+        self.delete_allowed_staker(da_address, state)
+            .unwrap_infallible();
     }
 
     /// Check if the provided `Da::Address` belongs to a registered sequencer.
@@ -356,5 +292,42 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         state: &mut Reader,
     ) -> Result<bool, Reader::Error> {
         Ok(self.allowed_sequencers.get(da_address, state)?.is_some())
+    }
+
+    /// Rewards the sequencer with the `amount` of gas tokens.
+    /// Transfers the reward from the module's account to the sequencer's account.
+    ///
+    /// # Safety note:
+    /// This method panics if:
+    /// - The sequencer is not registered.
+    /// - The module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
+    pub fn reward_sequencer(
+        &self,
+        sequencer: &Da::Address,
+        amount: u64,
+        state: &mut StateCheckpoint<S>,
+    ) {
+        let AllowedSequencer {
+            address: rollup_address,
+            balance: _,
+        } = self
+            .allowed_sequencers
+            .get(sequencer, state)
+            .unwrap_infallible()
+            .expect("Sequencer must be allowed.");
+
+        self.bank
+            .transfer_from(
+                self.id().to_payable(),
+                &rollup_address,
+                Coins {
+                    amount,
+                    token_id: GAS_TOKEN_ID,
+                },
+                state,
+            )
+            .expect(
+                "Impossible to transfer the reward from the module account to the sequencer. This is a bug",
+            );
     }
 }
