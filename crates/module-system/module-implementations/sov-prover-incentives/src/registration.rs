@@ -1,24 +1,22 @@
+use anyhow::Result;
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{EventEmitter, ModuleInfo, StateAccessor, StateWriter};
+use sov_modules_api::{DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor};
 use sov_state::{EventContainer, User};
 
-use crate::event::Event;
-use crate::{AllowedSequencer, CustomError, SequencerRegistry};
+use crate::{CustomError, Event, ProverIncentives};
 
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
-    for SequencerRegistry<S, Da>
-{
-    type PrimaryAddress = Da::Address;
+impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
+    type PrimaryAddress = S::Address;
 
     type RollupAddress = S::Address;
 
-    type CustomError = CustomError<Self::RollupAddress, Self::PrimaryAddress>;
+    type CustomError = CustomError;
 
     fn get_minimum_bond<ST: StateAccessor>(
         &self,
         state: &mut ST,
-    ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error> {
+    ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.minimum_bond.get(state)
     }
 
@@ -26,26 +24,24 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         &self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
-    ) -> Result<Option<(Self::RollupAddress, u64)>, <ST as StateWriter<User>>::Error> {
-        let res = self.allowed_sequencers.get(address, state)?;
-        Ok(res.map(|s| (s.address, s.balance)))
+    ) -> std::result::Result<
+        Option<(Self::RollupAddress, u64)>,
+        <ST as sov_modules_api::StateWriter<User>>::Error,
+    > {
+        self.bonded_provers
+            .get(address, state)
+            .map(|opt| opt.map(|b| (address.clone(), b)))
     }
 
     fn set_allowed_staker<ST: StateAccessor>(
         &self,
         primary_address: &Self::PrimaryAddress,
-        rollup_address: &Self::RollupAddress,
+        _rollup_address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), <ST as StateWriter<User>>::Error> {
-        self.allowed_sequencers.set(
-            primary_address,
-            &AllowedSequencer {
-                address: rollup_address.clone(),
-                balance: amount,
-            },
-            state,
-        )
+    ) -> Result<(), <ST as sov_modules_api::StateWriter<User>>::Error> {
+        self.bonded_provers.set(primary_address, &amount, state)?;
+        Ok(())
     }
 
     fn transfer_bond_from_staker<ST: StateAccessor>(
@@ -56,7 +52,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
     ) -> Result<(), anyhow::Error> {
         self.bank
             .transfer_from(address, self.id().to_payable(), gas_coins(amount), state)?;
-
         Ok(())
     }
 
@@ -68,36 +63,28 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
     ) -> Result<(), anyhow::Error> {
         self.bank
             .transfer_from(self.id().to_payable(), address, gas_coins(amount), state)?;
-
         Ok(())
     }
 
     fn delete_allowed_staker<ST: StateAccessor>(
         &self,
-        da_address: &Self::PrimaryAddress,
+        address: &Self::PrimaryAddress,
         state: &mut ST,
-    ) -> Result<(), <ST as StateWriter<User>>::Error> {
-        self.allowed_sequencers.delete(da_address, state)?;
-
-        if let Some(preferred_sequencer) = self.preferred_sequencer.get(state)? {
-            if da_address == &preferred_sequencer {
-                self.preferred_sequencer.delete(state)?;
-            }
-        }
-
+    ) -> Result<(), <ST as sov_modules_api::StateWriter<User>>::Error> {
+        self.bonded_provers.delete(address, state)?;
         Ok(())
     }
 
     fn emit_registered<ST: StateAccessor + EventContainer>(
         &self,
-        address: &S::Address,
+        address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
     ) {
         self.emit_event(
             state,
             Event::<S>::Registered {
-                sequencer: address.clone(),
+                prover: address.clone(),
                 amount,
             },
         );
@@ -112,8 +99,8 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         self.emit_event(
             state,
             Event::<S>::Deposited {
-                sequencer: address.clone(),
-                amount,
+                prover: address.clone(),
+                deposit: amount,
             },
         );
     }
@@ -127,7 +114,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         self.emit_event(
             state,
             Event::<S>::Exited {
-                sequencer: address.clone(),
+                prover: address.clone(),
                 amount_withdrawn,
             },
         );

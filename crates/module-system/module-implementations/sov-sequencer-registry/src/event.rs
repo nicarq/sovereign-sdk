@@ -23,6 +23,8 @@ pub enum Event<S: Spec> {
     Exited {
         /// The address of the sequencer that was exited.
         sequencer: S::Address,
+        /// The amount that was withdrawn.
+        amount_withdrawn: u64,
     },
 
     /// A sequencer deposited funds to stake.
