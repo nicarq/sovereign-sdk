@@ -5,7 +5,7 @@ use sov_bank::GAS_TOKEN_ID;
 use sov_modules_api::{Batch, StateCheckpoint};
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{new_test_blob_from_batch_deprecated, MessageGenerator};
 
 use super::AttesterIncentivesTestHandler;
@@ -37,7 +37,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
         test_handler.attester_private_key.clone(),
         CallMessage::BeginExitAttester,
     )])
-    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+    .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
     let attestation_blob = new_test_blob_from_batch_deprecated(
@@ -101,7 +101,7 @@ fn test_honest_unbonding() -> Result<(), Infallible> {
         test_handler.attester_private_key.clone(),
         CallMessage::ExitAttester,
     )])
-    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+    .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
     let attestation_blob = new_test_blob_from_batch_deprecated(
@@ -175,7 +175,7 @@ fn test_unbonding_without_bonded() {
         test_handle.attester_private_key.clone(),
         CallMessage::ExitAttester,
     )])
-    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+    .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process
     let attestation_blob = new_test_blob_from_batch_deprecated(
@@ -224,7 +224,7 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
         test_handle.attester_private_key.clone(),
         CallMessage::BeginExitAttester,
     )])
-    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+    .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's unbond the attester.
     let attestation_blob = new_test_blob_from_batch_deprecated(
@@ -268,7 +268,7 @@ fn test_premature_unbonding() -> Result<(), Infallible> {
         test_handle.attester_private_key.clone(),
         CallMessage::ExitAttester,
     )])
-    .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+    .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
     // Let's finish the unbonding process without waiting for the finality period to pass.
     let attestation_blob = new_test_blob_from_batch_deprecated(

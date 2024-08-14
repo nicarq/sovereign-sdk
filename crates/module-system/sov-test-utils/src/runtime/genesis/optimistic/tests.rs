@@ -1,16 +1,20 @@
+use sov_attester_incentives::AttesterIncentivesConfig;
+use sov_bank::BankConfig;
 use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, PrivateKey, UnmeteredStateWrapper, WorkingSet};
+use sov_modules_api::{Address, DaSpec, PrivateKey, Spec, UnmeteredStateWrapper, WorkingSet};
 use sov_modules_stf_blueprint::GenesisParams;
+use sov_sequencer_registry::SequencerConfig;
+use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
-use super::*;
-use crate::runtime::optimistic::genesis::HighLevelOptimisticGenesisConfig;
+use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{ChainStateConfig, SlotTestCase, TestRunner, WorkingSetClosure};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec,
     TransactionType, TxTestCase, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];

@@ -8,7 +8,7 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::interface::AsUser;
-use crate::runtime::optimistic::HighLevelOptimisticGenesisConfig;
+use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::TestRunner;
 use crate::tests::BatchTestCase;
 use crate::{

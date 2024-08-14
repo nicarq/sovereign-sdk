@@ -359,15 +359,15 @@ mod tests {
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-    use sov_modules_api::{Address, EncodeCall, Genesis, PrivateKey};
+    use sov_modules_api::{EncodeCall, Genesis, PrivateKey};
     use sov_state::{ProverStorage, Storage};
     use sov_test_utils::auth::TestAuth;
-    use sov_test_utils::runtime::optimistic::{create_genesis_config, TestRuntime};
+    use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+    use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime, ValueSetterConfig};
     use sov_test_utils::storage::{new_finalized_storage, SimpleStorageManager};
     use sov_test_utils::{
-        TestPrivateKey, TestPublicKey, TestSpec, TestStorageSpec as StorageSpec,
-        TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
-        TEST_DEFAULT_USER_STAKE,
+        TestPrivateKey, TestSequencer, TestSpec, TestStorageSpec as StorageSpec, TestUser,
+        TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
     };
     use sov_value_setter::{CallMessage, ValueSetter};
     use tempfile::TempDir;
@@ -376,14 +376,13 @@ mod tests {
 
     const MAX_TX_POOL_SIZE: usize = 20;
     const DEFAULT_SEQUENCER_DA_ADDRESS: MockAddress = MockAddress::new([0u8; 32]);
-    const DEFAULT_SEQUENCER_ROLLUP_ADDRESS: <S as Spec>::Address = Address::new([0u8; 32]);
 
     type S = TestSpec;
 
     type BatchBuilder = FairBatchBuilder<
         S,
         MockDaSpec,
-        TestRuntime<S, MockDaSpec>,
+        TestOptimisticRuntime<S, MockDaSpec>,
         BasicKernel<S, MockDaSpec>,
         TestAuth<S, MockDaSpec>,
     >;
@@ -397,7 +396,8 @@ mod tests {
 
     fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
-        let msg = <TestRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
+        let msg =
+            <TestOptimisticRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
         let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
         let max_fee = TEST_DEFAULT_MAX_FEE;
@@ -469,7 +469,7 @@ mod tests {
             sequencer_address,
         };
         BatchBuilder::new(
-            TestRuntime::<S, MockDaSpec>::default(),
+            TestOptimisticRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
             notifier,
             storage,
@@ -479,47 +479,50 @@ mod tests {
         .unwrap()
     }
 
+    /// Struct returned by [`setup_runtime`] which contains all the data needed to run the tests.
+    pub struct SetupOutput {
+        storage: ProverStorage<StorageSpec>,
+        additional_accounts: Vec<TestUser<S>>,
+        admin: TestUser<S>,
+        sequencer: TestSequencer<S, MockDaSpec>,
+    }
+
     fn setup_runtime(
         storage_manager: &mut SimpleStorageManager<StorageSpec>,
-        admin: Option<TestPublicKey>,
-        additional_accounts: Vec<(TestPublicKey, u64)>,
-        seq_da_address: MockAddress,
-        seq_rollup_address: <S as Spec>::Address,
-    ) -> ProverStorage<StorageSpec> {
-        let runtime = TestRuntime::<S, MockDaSpec>::default();
+        num_additional_accounts: usize,
+    ) -> SetupOutput {
+        let runtime = TestOptimisticRuntime::<S, MockDaSpec>::default();
         let storage = storage_manager.create_storage();
-        let state = StateCheckpoint::<S>::new(storage.clone());
 
-        let admin = admin.unwrap_or_else(|| {
-            let admin_private_key = TestPrivateKey::generate();
-            admin_private_key.pub_key()
-        });
-        let admin = admin.to_address::<<S as Spec>::Address>();
-        let additional_accounts: Vec<(<S as Spec>::Address, u64)> = additional_accounts
-            .iter()
-            .map(|(addr, balance)| {
-                let addr = addr.to_address::<<S as Spec>::Address>();
-                (addr, *balance)
-            })
-            .collect();
-
-        let config = create_genesis_config(
-            admin,
-            &additional_accounts,
-            seq_rollup_address,
-            seq_da_address,
-            TEST_DEFAULT_USER_STAKE,
-            "BatchBuilderTestToken".to_string(),
-            TEST_DEFAULT_USER_BALANCE,
+        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(
+            num_additional_accounts + 1,
         );
 
+        let admin = genesis_config.additional_accounts[0].clone();
+
+        let value_setter_config = ValueSetterConfig {
+            admin: admin.address(),
+        };
+
+        let additional_accounts = genesis_config.additional_accounts[1..].to_vec().clone();
+        let sequencer = genesis_config.initial_sequencer.clone();
+
+        let config = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
+
+        let state = StateCheckpoint::<S>::new(storage.clone());
         let mut genesis_state =
-            state.to_genesis_state_accessor::<TestRuntime<S, MockDaSpec>>(&config);
+            state.to_genesis_state_accessor::<TestOptimisticRuntime<S, MockDaSpec>>(&config);
         runtime.genesis(&config, &mut genesis_state).unwrap();
         let (log, _, witness) = genesis_state.checkpoint().freeze();
         let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
         storage_manager.commit(change_set);
-        storage_manager.create_storage()
+
+        SetupOutput {
+            storage: storage_manager.create_storage(),
+            additional_accounts,
+            admin,
+            sequencer,
+        }
     }
 
     mod accept_tx {
@@ -529,50 +532,37 @@ mod tests {
 
         #[tokio::test]
         async fn accept_valid_tx() {
-            let value_setter_admin = TestPrivateKey::generate();
             let tx = generate_random_valid_tx();
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                Some(value_setter_admin.pub_key()),
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                tx.len(),
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let sequencer_da_address = sequencer.da_address;
+
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             batch_builder.accept_tx(tx).await.unwrap();
         }
 
         #[tokio::test]
         async fn reject_tx_too_big() {
-            let value_setter_admin = TestPrivateKey::generate();
-
             let tx = generate_random_valid_tx();
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                Some(value_setter_admin.pub_key()),
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                batch_size,
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let sequencer_da_address = sequencer.da_address;
+
+            let mut batch_builder =
+                create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -581,23 +571,16 @@ mod tests {
 
         #[tokio::test]
         async fn new_tx_on_full_mempool_causes_evictions() {
-            let value_setter_admin = TestPrivateKey::generate();
-
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                Some(value_setter_admin.pub_key()),
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                usize::MAX,
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let sequencer_da_address = sequencer.da_address;
+
+            let mut batch_builder =
+                create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer_da_address);
 
             for _ in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx();
@@ -618,19 +601,14 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                None,
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                tx.len(),
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let sequencer_da_address = sequencer.da_address;
+
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -643,19 +621,14 @@ mod tests {
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                None,
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                tx.len(),
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let sequencer_da_address = sequencer.da_address;
+
+            let mut batch_builder =
+                create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -676,15 +649,14 @@ mod tests {
         async fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                None,
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
+            let SetupOutput {
+                storage, sequencer, ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let seq_da_address = sequencer.da_address;
+
             let mut batch_builder =
-                create_batch_builder(10, &tmpdir, Some(storage), DEFAULT_SEQUENCER_DA_ADDRESS);
+                create_batch_builder(10, &tmpdir, Some(storage), seq_da_address);
 
             let build_result = batch_builder.get_next_blob(1).await;
             assert!(build_result.is_err());
@@ -696,28 +668,23 @@ mod tests {
 
         #[tokio::test]
         async fn duplicate_txs_are_ignored() {
-            let value_setter_admin = TestPrivateKey::generate();
-            let txs = [
-                // Two identical txs...
-                generate_valid_tx(&value_setter_admin, 1),
-                generate_valid_tx(&value_setter_admin, 1),
-            ];
-
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                Some(value_setter_admin.pub_key()),
-                vec![],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-            let mut batch_builder = create_batch_builder(
-                usize::MAX,
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-            );
+            let SetupOutput {
+                storage,
+                admin,
+                sequencer,
+                ..
+            } = setup_runtime(&mut storage_manager, 0);
+
+            let txs = [
+                // Two identical txs...
+                generate_valid_tx(&admin.private_key, 1),
+                generate_valid_tx(&admin.private_key, 1),
+            ];
+
+            let mut batch_builder =
+                create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer.da_address);
 
             for tx in &txs {
                 batch_builder.accept_tx(tx.clone()).await.unwrap();
@@ -753,40 +720,35 @@ mod tests {
 
         #[tokio::test]
         async fn builds_batch_skipping_invalid_txs() {
-            let value_setter_admin = TestPrivateKey::generate();
-            let additional_account = TestPrivateKey::generate();
+            let tmpdir = tempfile::tempdir().unwrap();
+            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let SetupOutput {
+                storage,
+                sequencer,
+                additional_accounts,
+                admin,
+            } = setup_runtime(&mut storage_manager, 1);
+
+            let additional_account = additional_accounts[0].clone();
+
             let txs = [
                 // Should be included
-                generate_valid_tx(&value_setter_admin, 1),
+                generate_valid_tx(&admin.private_key, 1),
                 // Should be rejected, not admin
-                generate_valid_tx(&additional_account, 2),
+                generate_valid_tx(&additional_account.private_key, 2),
                 // Should be included
-                generate_valid_tx(&value_setter_admin, 3),
+                generate_valid_tx(&admin.private_key, 3),
                 // Should be skipped, more than batch size
-                generate_valid_tx(&value_setter_admin, 4),
+                generate_valid_tx(&admin.private_key, 4),
             ];
+
+            let batch_size = txs[0].len() + txs[2].len() + 1;
+            let mut batch_builder =
+                create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer.da_address);
 
             assert!(
                 txs.iter().all(|tx| tx.len() == txs[0].len()),
                 "the test assumes all txs have equal length"
-            );
-
-            let tmpdir = tempfile::tempdir().unwrap();
-            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let storage = setup_runtime(
-                &mut storage_manager,
-                Some(value_setter_admin.pub_key()),
-                vec![(additional_account.pub_key(), 1_000_000_000)],
-                DEFAULT_SEQUENCER_DA_ADDRESS,
-                DEFAULT_SEQUENCER_ROLLUP_ADDRESS,
-            );
-
-            let batch_size = txs[0].len() + txs[2].len() + 1;
-            let mut batch_builder = create_batch_builder(
-                batch_size,
-                &tmpdir,
-                Some(storage),
-                DEFAULT_SEQUENCER_DA_ADDRESS,
             );
 
             for tx in &txs {

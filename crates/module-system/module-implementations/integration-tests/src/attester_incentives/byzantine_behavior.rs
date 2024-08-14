@@ -10,7 +10,7 @@ use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::attester_incentive::AttesterIncentivesMessageGenerator;
-use sov_test_utils::runtime::optimistic::TestRuntime;
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{
     new_test_blob_from_batch_deprecated, MessageGenerator, TestStorageSpec as Storage,
 };
@@ -67,7 +67,7 @@ impl AttesterIncentivesTestHandler {
             self.attester_private_key.clone(),
             CallMessage::ProcessAttestation::<S, Da>(fake_attestation),
         )])
-        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
         let fake_attestation_blob =
             new_test_blob_from_batch_deprecated(Batch { txs }, self.seq_da_addr.as_ref(), [2; 32]);
@@ -136,7 +136,7 @@ impl AttesterIncentivesTestHandler {
                 CallMessage::ProcessChallenge(proof, 1),
             ),
         ])
-        .create_default_raw_txs::<TestRuntime<S, Da>, TestAuth<S, Da>>();
+        .create_default_raw_txs::<TestOptimisticRuntime<S, Da>, TestAuth<S, Da>>();
 
         // The challenger has to bond first, then he can send the attestation.
         let challenger_bond_blob =

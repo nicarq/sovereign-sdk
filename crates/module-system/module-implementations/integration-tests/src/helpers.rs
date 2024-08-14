@@ -13,8 +13,8 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
-use sov_test_utils::runtime::optimistic::{GenesisConfig, TestRuntime};
 use sov_test_utils::runtime::traits::MinimalRuntime;
+use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime};
 use sov_test_utils::storage::SimpleStorageManager;
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
 use sov_test_utils::TEST_DEFAULT_USER_STAKE;
@@ -23,7 +23,7 @@ use sov_value_setter::ValueSetterConfig;
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type Da = MockDaSpec;
 
-type TestStf = sov_test_utils::TestStfBlueprint<TestRuntime<S, Da>, S>;
+type TestStf = sov_test_utils::TestStfBlueprint<TestOptimisticRuntime<S, Da>, S>;
 
 pub struct SequencerParams<S: Spec, Da: DaSpec> {
     pub rollup_address: S::Address,
@@ -117,12 +117,14 @@ impl ExecutionSimulationVars {
 }
 
 pub(crate) struct TestRollup {
-    stf: StfBlueprint<S, Da, TestRuntime<S, Da>, TestKernel<S, Da>>,
+    stf: StfBlueprint<S, Da, TestOptimisticRuntime<S, Da>, TestKernel<S, Da>>,
     storage_manager: SimpleStorageManager<StorageSpec>,
 }
 
 impl TestRollup {
-    pub(crate) fn stf(&self) -> &StfBlueprint<S, Da, TestRuntime<S, Da>, TestKernel<S, Da>> {
+    pub(crate) fn stf(
+        &self,
+    ) -> &StfBlueprint<S, Da, TestOptimisticRuntime<S, Da>, TestKernel<S, Da>> {
         &self.stf
     }
 
@@ -164,33 +166,34 @@ impl TestRollup {
         bank_params: BankParams,
         attester_params: AttesterIncentivesParams<S>,
     ) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
-        let runtime_config: <TestRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig = GenesisConfig {
-            value_setter: ValueSetterConfig {
-                admin: admin_pub_key,
-            },
-            sequencer_registry: SequencerConfig {
-                seq_rollup_address: seq_params.rollup_address,
-                seq_da_address: seq_params.da_address,
-                minimum_bond: seq_params.stake_amount,
-                is_preferred_sequencer: true,
-            },
-            bank: BankConfig {
-                gas_token_config: GasTokenConfig {
-                    token_name: bank_params.token_name.clone(),
-                    address_and_balances: bank_params.addresses_and_balances,
-                    authorized_minters: vec![seq_params.rollup_address],
+        let runtime_config: <TestOptimisticRuntime<S, Da> as Runtime<S, Da>>::GenesisConfig =
+            GenesisConfig {
+                value_setter: ValueSetterConfig {
+                    admin: admin_pub_key,
                 },
-                tokens: vec![],
-            },
-            attester_incentives: AttesterIncentivesConfig {
-                initial_attesters: attester_params.initial_attesters,
-                rollup_finality_period: attester_params.rollup_finality_period,
-                minimum_attester_bond: attester_params.minimum_attester_bond,
-                minimum_challenger_bond: attester_params.minimum_challenger_bond,
-                maximum_attested_height: attester_params.maximum_attested_height,
-                light_client_finalized_height: attester_params.light_client_finalized_height,
-            },
-        };
+                sequencer_registry: SequencerConfig {
+                    seq_rollup_address: seq_params.rollup_address,
+                    seq_da_address: seq_params.da_address,
+                    minimum_bond: seq_params.stake_amount,
+                    is_preferred_sequencer: true,
+                },
+                bank: BankConfig {
+                    gas_token_config: GasTokenConfig {
+                        token_name: bank_params.token_name.clone(),
+                        address_and_balances: bank_params.addresses_and_balances,
+                        authorized_minters: vec![seq_params.rollup_address],
+                    },
+                    tokens: vec![],
+                },
+                attester_incentives: AttesterIncentivesConfig {
+                    initial_attesters: attester_params.initial_attesters,
+                    rollup_finality_period: attester_params.rollup_finality_period,
+                    minimum_attester_bond: attester_params.minimum_attester_bond,
+                    minimum_challenger_bond: attester_params.minimum_challenger_bond,
+                    maximum_attested_height: attester_params.maximum_attested_height,
+                    light_client_finalized_height: attester_params.light_client_finalized_height,
+                },
+            };
 
         let kernel_config: <TestKernel<S, Da> as Kernel<S, Da>>::GenesisConfig =
             BasicKernelGenesisConfig {

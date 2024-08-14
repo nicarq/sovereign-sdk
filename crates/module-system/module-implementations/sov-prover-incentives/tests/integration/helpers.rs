@@ -1,6 +1,6 @@
 use sov_mock_da::MockDaSpec;
 use sov_prover_incentives::ProverIncentives;
-use sov_test_utils::runtime::zk::genesis::HighLevelZkGenesisConfig;
+use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_zk_runtime, TestProver, TestSpec, TestUser};
 

@@ -121,3 +121,31 @@ macro_rules! generate_runtime {
         }
     };
 }
+
+/// Generates a optimistic runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments.
+#[macro_export]
+macro_rules! generate_optimistic_runtime {
+    ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_runtime! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>
+        }
+    };
+}
+
+/// Generates a zk runtime containing the [`Bank`](sov_bank::Bank), [`ProverIncentives`](sov_prover_incentives::ProverIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments.
+#[macro_export]
+macro_rules! generate_zk_runtime {
+    ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_runtime! {
+            name: $id,
+            modules: [$($module_name : $module_ty),*],
+            base_fee_recipient: prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
+            minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>
+        }
+    };
+}
