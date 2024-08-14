@@ -167,6 +167,11 @@ where
         &self.slot_receipts
     }
 
+    /// Returns a reference to the nonces used by the state runner
+    pub fn nonces(&self) -> &HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64> {
+        &self.nonces
+    }
+
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
     /// This method does not commit any changes to the state, it simply queries the state and discards the changes
     /// like what would happen by sending RPC/REST requests.

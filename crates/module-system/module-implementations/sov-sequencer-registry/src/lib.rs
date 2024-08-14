@@ -13,9 +13,6 @@ pub use event::Event;
 
 mod genesis;
 
-#[cfg(test)]
-mod tests;
-
 use sov_bank::IntoPayable;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
