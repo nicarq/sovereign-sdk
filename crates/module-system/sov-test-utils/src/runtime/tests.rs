@@ -86,7 +86,8 @@ fn test_default_sequencer() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))],
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))]
+        .into(),
         override_sequencer: None,
         assert: Box::new(move |result, _state| {
             assert_eq!(
@@ -104,7 +105,8 @@ fn test_specify_non_default_sequencer_errors_if_not_registered() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))],
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))]
+        .into(),
         override_sequencer: Some(<MockDaSpec as DaSpec>::Address::from([42; 32])),
         assert: Box::new(move |result, _state| {
             assert!(result.outcome.is_none(), "Batch should have been dropped");
@@ -125,22 +127,24 @@ fn test_register_sequencer() {
         bond: TEST_DEFAULT_USER_STAKE,
     };
 
+    // We first bond the sequencer
+    runner.execute(
+        new_sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: new_sequencer.da_address.as_ref().to_vec(),
+                amount: new_sequencer.bond,
+            },
+        ),
+        None,
+    );
+
     runner
-        // We first bond the sequencer
-        .execute_transaction(TransactionTestCase {
-            input: new_sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
-                sov_sequencer_registry::CallMessage::Register {
-                    da_address: new_sequencer.da_address.as_ref().to_vec(),
-                    amount: new_sequencer.bond,
-                },
-            ),
-            assert: Box::new(move |_result, _state| {}),
-        })
         // Then we use the non-default sequencer to set a value
         .execute_batch(BatchTestCase {
             input: vec![new_sequencer.create_plain_message::<ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(10),
-            )],
+            )]
+            .into(),
             override_sequencer: Some(new_sequencer.da_address),
             assert: Box::new(move |result, state| {
                 assert_eq!(result.sender_da_address, new_sequencer_address);
@@ -167,7 +171,8 @@ fn test_custom_transaction_details_chain_id() {
     runner.execute_batch(BatchTestCase {
         input: vec![admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
-            .with_chain_id(fake_chain_id)],
+            .with_chain_id(fake_chain_id)]
+        .into(),
         override_sequencer: None,
         assert: Box::new(move |result, _state| {
             match result.outcome.unwrap().inner.outcome {

@@ -19,7 +19,7 @@ use sov_modules_api::{
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
-use sov_rollup_interface::da::RelevantBlobIters;
+use sov_rollup_interface::da::{RelevantBlobIters, RelevantBlobs};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -29,8 +29,8 @@ pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::runtime::traits::EndSlotHookRegistry;
 use crate::tests::{BatchAssertContext, TransactionAssertContext};
 use crate::{
-    generate_optimistic_runtime, BatchReceipt, SlotExpectedReceipt, SlotTestCase, TestStfBlueprint,
-    TransactionTestCase, TransactionType,
+    generate_optimistic_runtime, BatchReceipt, SlotExpectedReceipt, SlotInput, SlotTestCase,
+    TestStfBlueprint, TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
@@ -173,6 +173,18 @@ where
         &self.nonces
     }
 
+    fn current_state(&mut self) -> ApiStateAccessor<S> {
+        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
+            self.storage_manager
+                .create_state_after(&slot_receipt.block_header)
+        } else {
+            self.storage_manager.create_bootstrap_state()
+        }
+        .expect("Impossible to create queryiable state. This is a bug.");
+
+        ApiStateAccessor::<S>::new(stf_state)
+    }
+
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
     /// This method does not commit any changes to the state, it simply queries the state and discards the changes
     /// like what would happen by sending RPC/REST requests.
@@ -185,17 +197,7 @@ where
         &mut self,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
-        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
-            self.storage_manager
-                .create_state_after(&slot_receipt.block_header)
-        } else {
-            self.storage_manager.create_bootstrap_state()
-        }
-        .expect("Impossible to create queryiable state. This is a bug.");
-
-        let mut api_state_accessor = ApiStateAccessor::<S>::new(stf_state);
-
-        query(&mut api_state_accessor)
+        query(&mut self.current_state())
     }
 
     /// Builds a new test runner and runs genesis.
@@ -293,26 +295,6 @@ where
 
     fn next_header(&self) -> MockBlockHeader {
         MockBlockHeader::from_height(self.curr_slot_number() + 1)
-    }
-
-    fn batch_to_blob<M: Module>(
-        &mut self,
-        stf_state: &ProverStorage<
-            DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
-        >,
-        batch: Vec<TransactionType<M, S>>,
-        sender: <MockDaSpec as DaSpec>::Address,
-    ) -> MockBlob
-    where
-        RT: EncodeCall<M>,
-    {
-        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
-        let raw_txns = batch
-            .into_iter()
-            .map(|msg| msg.to_raw_tx::<RT>(&mut self.nonces, &mut state))
-            .collect::<Vec<_>>();
-        let batch = Batch::new(raw_txns);
-        MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sender)
     }
 
     fn apply_slot_result(&mut self, runner_output: RunnerOutput<S>) {
@@ -469,38 +451,95 @@ where
         }
     }
 
-    fn apply_slot_and_commit<'a, I>(
+    fn txs_to_blobs<M: Module>(
         &mut self,
+        txs: Vec<TransactionType<M, S>>,
         stf_state: &ProverStorage<
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
         >,
-        block_header: &MockBlockHeader,
-        slot_input: RelevantBlobIters<I>,
-    ) -> (TestApplySlotOutput<RT, S>, ApiStateAccessor<S>)
+        sequencer: <MockDaSpec as DaSpec>::Address,
+    ) -> RelevantBlobs<MockBlob>
     where
-        I: IntoIterator<Item = &'a mut MockBlob>,
+        RT: EncodeCall<M>,
     {
-        let result = self.stf.apply_slot(
-            self.state_root(),
-            stf_state.clone(),
-            Default::default(),
-            block_header,
-            &Default::default(),
-            slot_input,
-        );
-        self.storage_manager
-            .save_change_set(block_header, result.change_set.clone(), SchemaBatch::new())
-            .unwrap();
-        self.state_root = result.state_root;
-        self.slot_receipts.push(SlotReceipt {
-            block_header: block_header.clone(),
-            batch_receipts: result.batch_receipts.clone(),
-        });
+        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
+        let raw_txns = txs
+            .into_iter()
+            .map(|tx| tx.to_raw_tx::<RT>(&mut self.nonces, &mut state))
+            .collect::<Vec<_>>();
+        let batch = Batch::new(raw_txns);
+        let blob = MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer);
+        RelevantBlobs {
+            batch_blobs: vec![blob],
+            proof_blobs: vec![],
+        }
+    }
+
+    /// Simulates execution of the provided input without committing to the updated state.
+    /// This is useful to retreive non-deterministic outcomes associated with execution such as
+    /// dynamic gas prices.
+    pub fn simulate<T: Into<SlotInput<S, M>>, M>(
+        &mut self,
+        input: T,
+        override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
+    ) -> (TestApplySlotOutput<RT, S>, MockBlockHeader)
+    where
+        M: Module,
+        RT: EncodeCall<M>,
+    {
+        let block_header = self.next_header();
         let (stf_state, _) = self
             .storage_manager
-            .create_state_for(&self.next_header())
-            .expect("Failed to create state");
-        (result, ApiStateAccessor::<S>::new(stf_state))
+            .create_state_for(&block_header)
+            .expect("Block builds on height zero");
+        let slot_input: SlotInput<S, M> = input.into();
+        let sequencer = override_sequencer.unwrap_or(self.default_sequencer_da_address);
+        let mut blobs = match slot_input {
+            SlotInput::Transaction(tx) => self.txs_to_blobs(vec![tx], &stf_state, sequencer),
+            SlotInput::Batch(batch) => self.txs_to_blobs(batch.0, &stf_state, sequencer),
+        };
+        (
+            self.stf.apply_slot(
+                self.state_root(),
+                stf_state.clone(),
+                Default::default(),
+                &block_header,
+                &Default::default(),
+                blobs.as_iters(),
+            ),
+            block_header,
+        )
+    }
+
+    /// Executes the provided input and commits the state updates.
+    /// This is useful for executing setup transactions that aren't test cases.
+    pub fn execute<T: Into<SlotInput<S, M>>, M>(
+        &mut self,
+        input: T,
+        override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
+    ) -> TestApplySlotOutput<RT, S>
+    where
+        M: Module,
+        RT: EncodeCall<M>,
+    {
+        let (result, block_header) = self.simulate(input, override_sequencer);
+        self.commit_apply_slot_output(&result, &block_header);
+        result
+    }
+
+    fn commit_apply_slot_output(
+        &mut self,
+        output: &TestApplySlotOutput<RT, S>,
+        header: &MockBlockHeader,
+    ) {
+        self.storage_manager
+            .save_change_set(header, output.change_set.clone(), SchemaBatch::new())
+            .unwrap();
+        self.state_root = output.state_root;
+        self.slot_receipts.push(SlotReceipt {
+            block_header: header.clone(),
+            batch_receipts: output.batch_receipts.clone(),
+        });
     }
 
     /// Advance the rollup `slots_to_advance` slots without executing
@@ -512,11 +551,19 @@ where
                 .storage_manager
                 .create_state_for(&block_header)
                 .expect("Block builds on height zero");
-            let slot_input = RelevantBlobIters {
+            let mut blobs = RelevantBlobs {
                 proof_blobs: vec![],
                 batch_blobs: vec![],
             };
-            let _ = self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+            let result = self.stf.apply_slot(
+                self.state_root(),
+                stf_state.clone(),
+                Default::default(),
+                &block_header,
+                &Default::default(),
+                blobs.as_iters(),
+            );
+            self.commit_apply_slot_output(&result, &block_header);
         }
         self
     }
@@ -532,23 +579,7 @@ where
     where
         RT: EncodeCall<M> + RuntimeEventProcessor,
     {
-        let block_header = self.next_header();
-        let (stf_state, _) = self
-            .storage_manager
-            .create_state_for(&block_header)
-            .expect("Block builds on height zero");
-        let blob = self.batch_to_blob(
-            &stf_state,
-            vec![transaction_test.input],
-            self.default_sequencer_da_address,
-        );
-        let mut blobs = [blob];
-        let slot_input = RelevantBlobIters {
-            proof_blobs: vec![],
-            batch_blobs: blobs.iter_mut().collect(),
-        };
-        let (result, mut new_state) =
-            self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+        let result = self.execute(transaction_test.input, None);
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
         let gas_used = <S as Spec>::Gas::from_slice(&tx_receipt.gas_used);
@@ -558,7 +589,7 @@ where
             tx_receipt,
             gas_used.value(&gas_price),
         );
-        (transaction_test.assert)(ctx, &mut new_state);
+        (transaction_test.assert)(ctx, &mut self.current_state());
         self
     }
 
@@ -572,27 +603,15 @@ where
     where
         RT: EncodeCall<M>,
     {
-        let block_header = self.next_header();
-        let (stf_state, _) = self
-            .storage_manager
-            .create_state_for(&block_header)
-            .expect("Block builds on height zero");
         let sender_da_address = batch_test
             .override_sequencer
             .unwrap_or(self.default_sequencer_da_address);
-        let blob = self.batch_to_blob(&stf_state, batch_test.input, sender_da_address);
-        let mut blobs = [blob];
-        let slot_input = RelevantBlobIters {
-            proof_blobs: vec![],
-            batch_blobs: blobs.iter_mut().collect(),
-        };
-        let (result, mut new_state) =
-            self.apply_slot_and_commit(&stf_state, &block_header, slot_input);
+        let result = self.execute(batch_test.input, Some(sender_da_address));
         let ctx = BatchAssertContext {
             sender_da_address,
             outcome: result.batch_receipts.first().cloned(),
         };
-        (batch_test.assert)(ctx, &mut new_state);
+        (batch_test.assert)(ctx, &mut self.current_state());
         self
     }
 

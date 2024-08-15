@@ -1,10 +1,10 @@
-mod messages;
+mod inputs;
 mod results;
 mod roles;
 mod test_cases;
 pub(crate) mod tests;
 
-pub use messages::*;
+pub use inputs::*;
 pub use results::*;
 pub use roles::*;
 pub use test_cases::*;
