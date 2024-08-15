@@ -177,3 +177,32 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         RawTx { data: tx }
     }
 }
+
+/// Defines the type of batch that can be sent to the runtime.
+pub struct BatchType<M: Module, S: Spec>(pub Vec<TransactionType<M, S>>);
+
+impl<S: Spec, M: Module> From<Vec<TransactionType<M, S>>> for BatchType<M, S> {
+    fn from(value: Vec<TransactionType<M, S>>) -> Self {
+        Self(value)
+    }
+}
+
+/// Input that can be executed in a slot ran by the test runtime.
+pub enum SlotInput<S: Spec, M: Module> {
+    /// Execute a transaction as input to a slot.
+    Transaction(TransactionType<M, S>),
+    /// Execute a batch as input to a slot.
+    Batch(BatchType<M, S>),
+}
+
+impl<S: Spec, M: Module> From<TransactionType<M, S>> for SlotInput<S, M> {
+    fn from(value: TransactionType<M, S>) -> Self {
+        Self::Transaction(value)
+    }
+}
+
+impl<S: Spec, M: Module> From<BatchType<M, S>> for SlotInput<S, M> {
+    fn from(value: BatchType<M, S>) -> Self {
+        Self::Batch(value)
+    }
+}

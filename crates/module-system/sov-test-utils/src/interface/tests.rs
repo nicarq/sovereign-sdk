@@ -6,7 +6,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::TxReceiptContents;
 
-use super::TransactionType;
+use super::{BatchType, TransactionType};
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
@@ -87,8 +87,8 @@ pub type BatchTestAssert<S, Da> = dyn FnOnce(BatchAssertContext<Da>, &mut ApiSta
 
 /// A test case that applies the provided batch input and asserts the result.
 pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
-    /// Input transactions to execute as part of the batch.
-    pub input: Vec<TransactionType<M, S>>,
+    /// Input to execute as part of the batch.
+    pub input: BatchType<M, S>,
     /// Optionally specify the DA address of the sequencer of the batch.
     ///
     /// If this is not provided the default sequencer address in the `TestRunner` will be used.

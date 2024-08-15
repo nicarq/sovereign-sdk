@@ -3,7 +3,7 @@ use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::{DaSpec, Module, ModuleError, Spec, StateCheckpoint, TxEffect};
 use sov_modules_stf_blueprint::{Runtime, SkippedReason, TxReceiptContents};
 
-use super::messages::TransactionType;
+use super::inputs::TransactionType;
 use super::{BatchExpectedReceipt, BatchSequencerOutcome};
 use crate::runtime::wrapper::EndSlotClosure;
 use crate::runtime::{MockBlobData, WorkingSetClosure};
