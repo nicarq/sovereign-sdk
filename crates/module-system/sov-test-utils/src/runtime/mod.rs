@@ -614,30 +614,4 @@ where
         (batch_test.assert)(ctx, &mut self.current_state());
         self
     }
-
-    /// Run a test on the given runtime
-    ///
-    /// The test is defined by a series of slot test cases, where the workflow is...
-    /// 1. Run genesis
-    /// 2. For each slot, apply the provided pre-execution closure to each call message
-    /// with the current state as an argument. This allows us to set update any call messages
-    /// that depend on the current state.
-    /// 3. For each call message, execute the message and apply the post-execution closure to check
-    /// that the result is valid.
-    ///
-    /// This method calls successively [`TestRunner::new_with_genesis`] followed by [`TestRunner::execute_slots`].
-    pub fn run_test<M>(
-        genesis_config: GenesisParams<
-            <RT as Genesis>::Config,
-            BasicKernelGenesisConfig<S, MockDaSpec>,
-        >,
-        slots: Vec<SlotTestCase<RT, M, S>>,
-        runtime: RT,
-    ) where
-        RT: EncodeCall<M>,
-        M: Module,
-    {
-        let mut runner = TestRunner::new_with_genesis(genesis_config, runtime);
-        runner.execute_slots(slots);
-    }
 }

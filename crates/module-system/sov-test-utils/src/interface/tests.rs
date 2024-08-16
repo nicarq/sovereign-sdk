@@ -60,7 +60,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
 
 /// A closure used to assert the outcome of a [`TransactionTestCase`].
 pub type TransactionTestAssert<S, RT> =
-    dyn FnOnce(TransactionAssertContext<RT>, &mut ApiStateAccessor<S>);
+    Box<dyn FnOnce(TransactionAssertContext<RT>, &mut ApiStateAccessor<S>)>;
 
 /// A test case that applies the provided input and asserts the result.
 pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
@@ -68,7 +68,7 @@ pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
     pub input: TransactionType<M, S>,
     /// Closure used to assert the outcome of the input application
     /// to the rollup state.
-    pub assert: Box<TransactionTestAssert<S, RT>>,
+    pub assert: TransactionTestAssert<S, RT>,
 }
 
 /// Context that is passed to [`BatchTestCase::assert`] to check the outcome of a test.
@@ -83,7 +83,7 @@ pub struct BatchAssertContext<Da: DaSpec> {
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].
-pub type BatchTestAssert<S, Da> = dyn FnOnce(BatchAssertContext<Da>, &mut ApiStateAccessor<S>);
+pub type BatchTestAssert<S, Da> = Box<dyn FnOnce(BatchAssertContext<Da>, &mut ApiStateAccessor<S>)>;
 
 /// A test case that applies the provided batch input and asserts the result.
 pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
@@ -94,5 +94,5 @@ pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
     /// If this is not provided the default sequencer address in the `TestRunner` will be used.
     pub override_sequencer: Option<Da::Address>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
-    pub assert: Box<BatchTestAssert<S, Da>>,
+    pub assert: BatchTestAssert<S, Da>,
 }
