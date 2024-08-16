@@ -5,9 +5,9 @@ use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::tests::BatchTestCase;
 use sov_test_utils::{
-    AsUser, SkippedReason, TestUser, TransactionTestCase, TransactionType, TEST_DEFAULT_USER_STAKE,
+    AsUser, BatchTestCase, SkippedReason, TestUser, TransactionTestCase, TransactionType,
+    TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{

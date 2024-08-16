@@ -1,15 +1,13 @@
 mod inputs;
 mod results;
 mod roles;
-mod test_cases;
 /// Module including test case structs
-pub mod tests;
+mod tests;
 
 pub use inputs::*;
 pub use results::*;
 pub use roles::*;
-pub use test_cases::*;
-pub use tests::{TransactionAssertContext, TransactionTestCase};
+pub use tests::*;
 
 /// A special configuration trait for types that need to be configured before they can be used.
 /// Such types are typically constructed from state that cannot be known ahead of time.

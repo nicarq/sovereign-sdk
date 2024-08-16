@@ -15,10 +15,10 @@ use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestOptimisticRuntime, TestRunner};
-use sov_test_utils::tests::BatchTestCase;
 use sov_test_utils::{
-    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, MessageGenerator, TestHasher,
-    TestUser, TransactionTestCase, TransactionType, TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, BatchTestCase,
+    MessageGenerator, TestHasher, TestUser, TransactionTestCase, TransactionType,
+    TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
