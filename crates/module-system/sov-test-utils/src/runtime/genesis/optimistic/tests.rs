@@ -4,16 +4,17 @@ use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, PrivateKey, Spec, UnmeteredStateWrapper, WorkingSet};
+use sov_modules_api::{Address, DaSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::{ChainStateConfig, SlotTestCase, TestRunner, WorkingSetClosure};
+use crate::runtime::{ChainStateConfig, TestRunner};
+use crate::tests::TransactionTestAssert;
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec,
-    TransactionType, TxTestCase, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+    TransactionTestCase, TransactionType, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
     TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
@@ -24,8 +25,8 @@ generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 // Tests the test setup by running the value setter module and checking if the value was set correctly
 fn test_value_setter_tx_success() {
     let value_to_set = 18;
-    let assertion = Box::new(
-        move |state: &mut UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+    let assertion: TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>> =
+        Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
                 .value
@@ -33,8 +34,7 @@ fn test_value_setter_tx_success() {
                 .unwrap_infallible()
                 .expect("We should be able to get a value from the state");
             assert_eq!(value, value_to_set);
-        },
-    );
+        });
 
     run_value_setter_txs_with_assertions(vec![(value_to_set, assertion)]);
 }
@@ -46,8 +46,8 @@ fn test_value_setter_tx_success() {
 // failed to handle panics.
 fn test_value_setter_tx_bad_assertion() {
     let value_to_set = 18;
-    let bad_assertion = Box::new(
-        move |state: &mut UnmeteredStateWrapper<WorkingSet<TestSpec>>| {
+    let bad_assertion: TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>> =
+        Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
                 .value
@@ -55,18 +55,20 @@ fn test_value_setter_tx_bad_assertion() {
                 .unwrap_infallible()
                 .expect("We should be able to get a value from the state");
             assert_eq!(value, value_to_set + 1); // This will fail!
-        },
-    );
+        });
 
     run_value_setter_txs_with_assertions(vec![
         (value_to_set, bad_assertion),
-        (1, Box::new(|_| {})),
+        (1, Box::new(|_result, _state| {})),
     ]);
 }
 
-// Sets a value and then runs the provided assertion
+#[allow(clippy::type_complexity)]
 fn run_value_setter_txs_with_assertions(
-    values_and_assertions: Vec<(u32, WorkingSetClosure<TestRuntime<TestSpec, MockDaSpec>>)>,
+    values_and_assertions: Vec<(
+        u32,
+        TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>>,
+    )>,
 ) {
     let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
     let admin_pkey = TestPrivateKey::generate();
@@ -92,26 +94,17 @@ fn run_value_setter_txs_with_assertions(
         runtime: genesis_config,
         kernel: kernel_genesis,
     };
-    let tx_test_cases = values_and_assertions
-        .into_iter()
-        .map(|(value, assertion)| {
-            let msg = sov_value_setter::CallMessage::SetValue(value);
-            TxTestCase::<_, ValueSetter<TestSpec>, _>::applied_with_hook(
-                TransactionType::Plain {
-                    message: msg,
-                    key: admin_pkey.clone(),
-                    details: default_test_tx_details(),
-                },
-                assertion,
-            )
-        })
-        .collect::<Vec<_>>();
+    let mut runner: TestRunner<TestRuntime<TestSpec, MockDaSpec>, TestSpec> =
+        TestRunner::new_with_genesis(params, Default::default());
 
-    TestRunner::run_test(
-        params,
-        vec![SlotTestCase::from_rewarded_batch(tx_test_cases)],
-        TestRuntime::<TestSpec, MockDaSpec>::default(),
-    );
+    for (value, assert) in values_and_assertions {
+        let input = TransactionType::Plain {
+            message: sov_value_setter::CallMessage::SetValue(value),
+            key: admin_pkey.clone(),
+            details: default_test_tx_details(),
+        };
+        runner.execute_transaction::<ValueSetter<TestSpec>>(TransactionTestCase { input, assert });
+    }
 }
 
 // TODO: generate this function in macro. We'll change the return type to a fixed `BasicGenesisConfig`

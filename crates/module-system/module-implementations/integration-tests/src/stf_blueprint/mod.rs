@@ -15,10 +15,10 @@ use sov_test_utils::auth::TestAuth;
 use sov_test_utils::generators::value_setter::ValueSetterMessages;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestOptimisticRuntime, TestRunner};
+use sov_test_utils::tests::BatchTestCase;
 use sov_test_utils::{
-    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, BatchSequencerOutcome,
-    MessageGenerator, SlotTestCase, TestHasher, TestUser, TransactionType, TxTestCase,
-    TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, new_test_blob_from_batch_deprecated, MessageGenerator, TestHasher,
+    TestUser, TransactionTestCase, TransactionType, TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -184,63 +184,74 @@ fn test_stf_internal_updates() {
 fn test_enforces_chain_id() {
     generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
 
-    // Run an indivdual transaction with the given chain id on a fresh chain. Assert that the outcome is as expected.
-    fn test_tx_with_chain_id(
-        chain_id: u64,
-        maybe_tx_effect: Option<TxEffect>,
-        batch_expected_outcome: BatchSequencerOutcome,
-    ) {
-        let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
-        genesis_config
-            .additional_accounts
-            .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
+    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+    genesis_config
+        .additional_accounts
+        .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
 
-        let admin_account = genesis_config.additional_accounts[0].clone();
+    let admin_account = genesis_config.additional_accounts[0].clone();
 
-        let genesis = GenesisConfig::from_minimal_config(
-            genesis_config.clone().into(),
-            sov_value_setter::ValueSetterConfig {
-                admin: admin_account.address(),
-            },
+    let genesis = GenesisConfig::from_minimal_config(
+        genesis_config.clone().into(),
+        sov_value_setter::ValueSetterConfig {
+            admin: admin_account.address(),
+        },
+    );
+
+    let mut runner: TestRunner<IntegTestRuntime<S, MockDaSpec>, S> =
+        TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default());
+    let encoded_message =
+        <IntegTestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(
+            CallMessage::SetValue(8),
         );
-
-        let encoded_message =
-            <IntegTestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(
-                CallMessage::SetValue(8),
-            );
-
-        let utx =
-            UnsignedTransaction::new(encoded_message, chain_id, 100.into(), 100_000_000, 0, None);
-        TestRunner::<IntegTestRuntime<S, MockDaSpec>, S>::run_test(
-            genesis.into_genesis_params(),
-            vec![SlotTestCase::from_batch_with_outcome(
-                vec![TxTestCase::from_expected_outcome(
-                    TransactionType::<ValueSetter<S>, S>::pre_signed(
-                        utx,
-                        admin_account.private_key(),
-                    ),
-                    maybe_tx_effect,
-                )],
-                batch_expected_outcome,
-            )],
-            Default::default(),
-        );
-    }
 
     let real_chain_id = config_value!("CHAIN_ID");
-    let fake_chain_id = real_chain_id + 1;
 
-    test_tx_with_chain_id(
+    let utx = UnsignedTransaction::new(
+        encoded_message.clone(),
         real_chain_id,
-        Some(TxEffect::Successful(())),
-        BatchSequencerOutcome::Rewarded,
-    );
-    test_tx_with_chain_id(
-        fake_chain_id,
+        100.into(),
+        100_000_000,
+        0,
         None,
-        BatchSequencerOutcome::Slashed(FatalError::InvalidChainId {
-            expected: real_chain_id,
-            got: fake_chain_id,
-        }),
     );
+    let tx = TransactionType::<ValueSetter<S>, S>::pre_signed(utx, admin_account.private_key());
+
+    runner.execute_transaction(TransactionTestCase {
+        input: tx,
+        assert: Box::new(move |result, _state| assert!(result.outcome.is_successful())),
+    });
+
+    let fake_chain_id = real_chain_id + 1;
+    let invalid_utx = UnsignedTransaction::new(
+        encoded_message,
+        fake_chain_id,
+        100.into(),
+        100_000_000,
+        0,
+        None,
+    );
+    let tx =
+        TransactionType::<ValueSetter<S>, S>::pre_signed(invalid_utx, admin_account.private_key());
+
+    runner.execute_batch(BatchTestCase {
+        input: vec![tx].into(),
+        override_sequencer: None,
+        assert: Box::new(move |result, _state| {
+            match &result.outcome.unwrap().inner.outcome {
+                sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
+                    assert_eq!(
+                        reason,
+                        &FatalError::InvalidChainId {
+                            expected: 4321,
+                            got: 4322
+                        },
+                        "Expected invalid chain id error but got {:?}",
+                        reason
+                    );
+                }
+                unexpected => panic!("Expected slashed outcome but got {:?}", unexpected),
+            };
+        }),
+    });
 }
