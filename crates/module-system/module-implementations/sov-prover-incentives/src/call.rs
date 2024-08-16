@@ -6,11 +6,13 @@ use serde::{Deserialize, Serialize};
 use sov_bank::BurnRate;
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, DaSpec, Spec, StateAccessor, StateReader, TxState};
+use sov_modules_api::{
+    CallResponse, DaSpec, EventEmitter, Spec, StateAccessor, StateReader, TxState,
+};
 use sov_state::User;
 use thiserror::Error;
 
-use crate::ProverIncentives;
+use crate::{Event, ProverIncentives};
 
 /// This enumeration represents the available call messages for interacting with the `ExampleModule` module.
 #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
@@ -61,6 +63,14 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         state: &mut ST,
     ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
         self.register_staker(prover_address, prover_address, bond_amount, state)?;
+        self.emit_event(
+            state,
+            Event::<S>::Registered {
+                prover: prover_address.clone(),
+                amount: bond_amount,
+            },
+        );
+
         Ok(CallResponse::default())
     }
 
@@ -72,6 +82,14 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         state: &mut ST,
     ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
         self.deposit_funds(prover_address, amount, state)?;
+        self.emit_event(
+            state,
+            Event::<S>::Deposited {
+                prover: prover_address.clone(),
+                deposit: amount,
+            },
+        );
+
         Ok(CallResponse::default())
     }
 
@@ -81,7 +99,16 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         prover_address: &S::Address,
         state: &mut ST,
     ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
-        self.exit_staker(prover_address, state)?;
+        let amount_withdrawn = self.exit_staker(prover_address, state)?;
+
+        self.emit_event(
+            state,
+            Event::<S>::Exited {
+                prover: prover_address.clone(),
+                amount_withdrawn,
+            },
+        );
+
         Ok(CallResponse::default())
     }
 }

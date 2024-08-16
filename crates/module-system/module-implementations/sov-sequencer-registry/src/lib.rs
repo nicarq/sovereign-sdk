@@ -151,7 +151,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
             }
             CallMessage::Deposit { da_address, amount } => {
                 let da_address = Da::Address::try_from(&da_address)?;
-                self.deposit(&da_address, amount, state)
+                self.deposit(&da_address, amount, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Exit { da_address } => {

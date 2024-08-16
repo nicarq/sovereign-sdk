@@ -1,9 +1,8 @@
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{EventEmitter, ModuleInfo, StateAccessor, StateWriter};
-use sov_state::{EventContainer, User};
+use sov_modules_api::{ModuleInfo, StateAccessor, StateWriter};
+use sov_state::User;
 
-use crate::event::Event;
 use crate::{AllowedSequencer, CustomError, SequencerRegistry};
 
 impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
@@ -86,51 +85,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         }
 
         Ok(())
-    }
-
-    fn emit_registered<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &S::Address,
-        amount: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Registered {
-                sequencer: address.clone(),
-                amount,
-            },
-        );
-    }
-
-    fn emit_deposited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Deposited {
-                sequencer: address.clone(),
-                amount,
-            },
-        );
-    }
-
-    fn emit_exited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount_withdrawn: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Exited {
-                sequencer: address.clone(),
-                amount_withdrawn,
-            },
-        );
     }
 }
 
