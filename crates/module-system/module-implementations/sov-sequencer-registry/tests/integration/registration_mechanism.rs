@@ -7,10 +7,9 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
 use sov_modules_api::TxEffect;
 use sov_sequencer_registry::{CallMessage, CustomError};
-use sov_test_utils::interface::tests::BatchTestCase;
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
-    AsUser, TransactionTestCase, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+    AsUser, BatchTestCase, TransactionTestCase, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{

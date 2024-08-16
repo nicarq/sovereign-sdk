@@ -10,10 +10,9 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::TestRunner;
-use crate::tests::BatchTestCase;
 use crate::{
-    generate_optimistic_runtime, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
-    TEST_DEFAULT_USER_STAKE,
+    generate_optimistic_runtime, BatchTestCase, MockDaSpec, TestSequencer, TestUser,
+    TransactionTestCase, TEST_DEFAULT_USER_STAKE,
 };
 
 type S = crate::TestSpec;
