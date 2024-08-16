@@ -2,7 +2,8 @@ mod inputs;
 mod results;
 mod roles;
 mod test_cases;
-pub(crate) mod tests;
+/// Module including test case structs
+pub mod tests;
 
 pub use inputs::*;
 pub use results::*;
