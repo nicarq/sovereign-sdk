@@ -3,9 +3,9 @@ use sov_bank::Amount;
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, Context, TxState};
+use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
 
-use crate::{CustomError, SequencerRegistry, SequencerRegistryError};
+use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 
 /// This enumeration represents the available call messages for interacting with
 /// the `sov-sequencer-registry` module.
@@ -67,6 +67,15 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
         let sequencer = context.sender();
         self.register_staker(da_address, sequencer, amount, state)?;
+
+        self.emit_event(
+            state,
+            Event::<S>::Registered {
+                sequencer: sequencer.clone(),
+                amount,
+            },
+        );
+
         Ok(CallResponse::default())
     }
 
@@ -74,9 +83,22 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         &self,
         da_address: &Da::Address,
         amount: u64,
+        context: &Context<S>,
         state: &mut ST,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
+        let sender = context.sender();
+        self.validate_sender(da_address, sender, state)?;
+
         self.deposit_funds(da_address, amount, state)?;
+
+        self.emit_event(
+            state,
+            Event::<S>::Deposited {
+                sequencer: sender.clone(),
+                amount,
+            },
+        );
+
         Ok(CallResponse::default())
     }
 
@@ -97,18 +119,37 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
         state: &mut ST,
     ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
         let sender = context.sender();
+        self.validate_sender(da_address, sender, state)?;
 
+        if sender == context.sequencer() {
+            return Err(RegistrationError::Custom(
+                CustomError::CannotUnregisterDuringOwnBatch(da_address.clone()),
+            ));
+        }
+
+        let amount_withdrawn = self.exit_staker(da_address, state)?;
+
+        self.emit_event(
+            state,
+            Event::<S>::Exited {
+                sequencer: sender.clone(),
+                amount_withdrawn,
+            },
+        );
+        Ok(CallResponse::default())
+    }
+
+    fn validate_sender<ST: TxState<S>>(
+        &self,
+        da_address: &Da::Address,
+        sender: &S::Address,
+        state: &mut ST,
+    ) -> Result<(), SequencerRegistryError<S, Da, ST>> {
         let belongs_to = self
             .allowed_sequencers
             .get_or_err(da_address, state)?
             .map_err(|_| RegistrationError::IsNotRegistered(da_address.clone()))?
             .address;
-
-        if &belongs_to == context.sequencer() {
-            return Err(RegistrationError::Custom(
-                CustomError::CannotUnregisterDuringOwnBatch(da_address.clone()),
-            ));
-        }
 
         if sender != &belongs_to {
             return Err(RegistrationError::Custom(
@@ -119,7 +160,6 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S,
             ));
         }
 
-        self.exit_staker(da_address, state)?;
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

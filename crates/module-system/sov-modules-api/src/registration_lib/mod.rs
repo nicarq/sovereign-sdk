@@ -3,10 +3,10 @@ pub use errors::*;
 use sov_rollup_interface::{BasicAddress, RollupAddress as SovRollupAddress};
 use sov_state::{EventContainer, User};
 
-use crate::{EventEmitter, StateAccessor, StateWriter};
+use crate::{StateAccessor, StateWriter};
 
 /// A trait that abstracts the generic logic for staking and un-staking across various sov-modules.
-pub trait StakeRegistration: EventEmitter {
+pub trait StakeRegistration {
     /// The primary address, which can be either the DA address or the Rollup address, depending on the use case.
     type PrimaryAddress: BasicAddress;
     /// Address on the rollup.
@@ -63,7 +63,7 @@ pub trait StakeRegistration: EventEmitter {
             })?;
 
         self.set_allowed_staker(primary_address, rollup_address, amount, state)?;
-        self.emit_registered(rollup_address, amount, state);
+
         Ok(())
     }
 
@@ -107,7 +107,6 @@ pub trait StakeRegistration: EventEmitter {
             })?;
 
         self.set_allowed_staker(staker, &address, balance, state)?;
-        self.emit_deposited(&address, amount, state);
 
         Ok(())
     }
@@ -119,7 +118,7 @@ pub trait StakeRegistration: EventEmitter {
         staker: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<
-        (),
+        u64,
         RegistrationError<
             Self::RollupAddress,
             Self::PrimaryAddress,
@@ -142,9 +141,8 @@ pub trait StakeRegistration: EventEmitter {
             })?;
 
         self.delete_allowed_staker(staker, state)?;
-        self.emit_exited(&address, balance, state);
 
-        Ok(())
+        Ok(balance)
     }
 
     /// The minimum allowed bond.
@@ -192,28 +190,4 @@ pub trait StakeRegistration: EventEmitter {
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<(), <ST as StateWriter<User>>::Error>;
-
-    /// Emits a `Registered` event.
-    fn emit_registered<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount: u64,
-        state: &mut ST,
-    );
-
-    /// Emits a `Deposited` event.
-    fn emit_deposited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount: u64,
-        state: &mut ST,
-    );
-
-    /// Emits an `Exited` event.
-    fn emit_exited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount_withdrawn: u64,
-        state: &mut ST,
-    );
 }

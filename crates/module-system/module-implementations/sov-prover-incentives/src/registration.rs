@@ -1,10 +1,10 @@
 use anyhow::Result;
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, EventEmitter, ModuleInfo, Spec, StateAccessor};
-use sov_state::{EventContainer, User};
+use sov_modules_api::{DaSpec, ModuleInfo, Spec, StateAccessor};
+use sov_state::User;
 
-use crate::{CustomError, Event, ProverIncentives};
+use crate::{CustomError, ProverIncentives};
 
 impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
     type PrimaryAddress = S::Address;
@@ -73,51 +73,6 @@ impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
     ) -> Result<(), <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.bonded_provers.delete(address, state)?;
         Ok(())
-    }
-
-    fn emit_registered<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Registered {
-                prover: address.clone(),
-                amount,
-            },
-        );
-    }
-
-    fn emit_deposited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Deposited {
-                prover: address.clone(),
-                deposit: amount,
-            },
-        );
-    }
-
-    fn emit_exited<ST: StateAccessor + EventContainer>(
-        &self,
-        address: &Self::RollupAddress,
-        amount_withdrawn: u64,
-        state: &mut ST,
-    ) {
-        self.emit_event(
-            state,
-            Event::<S>::Exited {
-                prover: address.clone(),
-                amount_withdrawn,
-            },
-        );
     }
 }
 
