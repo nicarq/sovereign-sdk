@@ -1,15 +1,13 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_bank::{Bank, ReserveGasErrorReason, GAS_TOKEN_ID};
-use sov_mock_da::MockAddress;
-use sov_modules_api::capabilities::{AllowedSequencer, FatalError};
+use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::GasMeter;
 use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::tests::BatchTestCase;
 use sov_test_utils::{
-    AsUser, SkippedReason, SlotTestCase, TestUser, TransactionType, TxTestCase,
-    TEST_DEFAULT_USER_STAKE,
+    AsUser, SkippedReason, TestUser, TransactionTestCase, TransactionType, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
@@ -63,21 +61,18 @@ fn test_slash_sequencer() {
 
     let default_sequencer_da_address = default_sequencer.da_address;
 
-    // Send the malformed transaction
-    runner.execute_slots::<sov_value_setter::ValueSetter<S>>(vec![
-        SlotTestCase::from_slashed_batch(
-            vec![TxTestCase::dropped(malformed_transaction)],
-            FatalError::DeserializationFailed("IO error: Unexpected length of input".to_string()),
-        )
-        .with_end_slot_hook(Box::new(move |state| {
+    runner.execute_batch(BatchTestCase {
+        input: vec![malformed_transaction].into(),
+        override_sequencer: None,
+        assert: Box::new(move |_result, state| {
             assert!(
                 !TestSequencerRegistry::default()
                     .is_registered_sequencer(&default_sequencer_da_address, state)
                     .unwrap_infallible(),
                 "The default sequencer should not be registered anymore"
             );
-        })),
-    ]);
+        }),
+    });
 }
 
 /// Tests the slashing mechanism for a preferred sequencer
@@ -85,13 +80,10 @@ fn test_slash_sequencer() {
 fn test_slash_preferred_sequencer() {
     let (malformed_transaction, _, mut runner) = helper_test_with_malformed_tx();
 
-    // Send the malformed transaction
-    runner.execute_slots::<sov_value_setter::ValueSetter<S>>(vec![
-        SlotTestCase::from_slashed_batch(
-            vec![TxTestCase::dropped(malformed_transaction)],
-            FatalError::DeserializationFailed("IO error: Unexpected length of input".to_string()),
-        )
-        .with_end_slot_hook(Box::new(move |state| {
+    runner.execute_batch(BatchTestCase {
+        input: vec![malformed_transaction].into(),
+        override_sequencer: None,
+        assert: Box::new(move |_result, state| {
             assert_eq!(
                 TestSequencerRegistry::default()
                     .get_preferred_sequencer(state)
@@ -99,8 +91,8 @@ fn test_slash_preferred_sequencer() {
                 None,
                 "The preferred sequencer should not be registered anymore"
             );
-        })),
-    ]);
+        }),
+    });
 }
 
 /// Tests that the sequencer without enough stake is not slashed
@@ -127,27 +119,14 @@ fn test_sequencer_without_enough_stake() {
     let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
 
     // We first register a sequencer with the minimal bond amount
-    runner.execute_slots::<TestSequencerRegistry>(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::applied_with_hook(
-            additional_sequencer.create_plain_message::<TestSequencerRegistry>(
-                sov_sequencer_registry::CallMessage::Register {
-                    da_address: additional_sequencer_da_address.as_ref().to_vec(),
-                    amount: minimal_bond,
-                },
-            ),
-            Box::new(move |state| {
-                assert!(
-                    TestSequencerRegistry::default()
-                        .is_registered_sequencer(
-                            &MockAddress::from(additional_sequencer_da_address),
-                            state
-                        )
-                        .unwrap_infallible(),
-                    "The additional sequencer should be registered"
-                );
-            }),
-        ),
-    ])]);
+    let register_tx = additional_sequencer.create_plain_message::<TestSequencerRegistry>(
+        sov_sequencer_registry::CallMessage::Register {
+            da_address: additional_sequencer_da_address.as_ref().to_vec(),
+            amount: minimal_bond,
+        },
+    );
+
+    runner.execute(register_tx, None);
 
     let malformed_transaction = produce_malformed_tx(&mut runner, &admin);
 
@@ -157,29 +136,42 @@ fn test_sequencer_without_enough_stake() {
     //
     // Next we send a malformed transaction. Since the sequencer's balance is below the minimum, the transaction
     // is ignored. This means that the sequencer is *not* slashed even though the transaction is malicious.
-    runner.execute_slots::<sov_value_setter::ValueSetter<S>>(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::skipped(
-            admin
-                .create_plain_message::<sov_value_setter::ValueSetter<S>>(
-                    sov_value_setter::CallMessage::SetValue(10),
-                )
-                .with_max_fee(0),
-            SkippedReason::CannotReserveGas(
-                ReserveGasErrorReason::<S>::InsufficientGasForPreExecutionChecks(
-                    "The gas to charge is greater than the funds available in the meter. Gas to charge GasUnit[2261, 2261], gas price GasPrice[9, 9], remaining funds 0, total gas consumed GasUnit[0, 0]".to_string()
-                )
-                .to_string(),
-            ))]),
-            SlotTestCase::from_dropped_batch(vec![TxTestCase::dropped(malformed_transaction)]).with_end_slot_hook(Box::new(move |state| {
-                assert!(
-                    TestSequencerRegistry::default()
-                        .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
-                        .unwrap_infallible(),
-                    "The additional sequencer should still be registered"
-                );
-            }
-            ))
-            ]);
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+                sov_value_setter::CallMessage::SetValue(10),
+            )
+            .with_max_fee(0),
+        assert: Box::new(move |result, _state| {
+           match &result.outcome {
+                sov_modules_api::TxEffect::Skipped(reason) => {
+                    if let SkippedReason::CannotReserveGas(error_message) = reason {
+                        assert!(
+                            error_message.contains("The gas to charge is greater than the funds available in the meter."),
+                            "Error message doesn't contain with the expected phrase. Got: {}",
+                            error_message
+                        );
+                    } else {
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                    }
+                },
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    }).execute_batch(BatchTestCase {
+        input: vec![malformed_transaction].into(),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert!(result.outcome.is_none(), "Batch should have been dropped");
+            assert!(
+                TestSequencerRegistry::default()
+                    .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
+                    .unwrap_infallible(),
+                "The additional sequencer should still be registered"
+            );
+
+        })
+    });
 }
 
 /// When a sequencer is slashed, the slashed tokens do not reappear on the sequencer's account, and are not accessible after registration.
@@ -201,49 +193,38 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let gas_consumed_registration_ref = Arc::new(AtomicU64::new(0));
     let gas_consumed_registration_ref_1 = gas_consumed_registration_ref.clone();
 
-    // Register the additional sequencer
-    runner.execute_slots::<TestSequencerRegistry>(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::applied_with_hook(
-            additional_sequencer.create_plain_message::<TestSequencerRegistry>(
-                sov_sequencer_registry::CallMessage::Register {
-                    da_address: additional_sequencer_da_address.as_ref().to_vec(),
-                    amount: TEST_DEFAULT_USER_STAKE,
-                },
-            ),
-            Box::new(move |state| {
-                assert_eq!(
-                    TestSequencerRegistry::default()
-                        .is_sender_allowed(&additional_sequencer_da_address.into(), state)
-                        .unwrap(),
-                    AllowedSequencer {
-                        address: additional_sequencer_address,
-                        balance: TEST_DEFAULT_USER_STAKE,
-                    },
-                    "The additional sequencer should be registered"
-                );
-
-                gas_consumed_registration_ref.fetch_add(
-                    state.inner().gas_used_value(),
-                    std::sync::atomic::Ordering::SeqCst,
-                );
-            }),
+    let register_sequencer = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: additional_sequencer_da_address.as_ref().to_vec(),
+                amount: TEST_DEFAULT_USER_STAKE,
+            },
         ),
-    ])]);
-
-    // Send the malformed transaction
-    runner.execute_slots::<sov_value_setter::ValueSetter<S>>(vec![
-        SlotTestCase::from_slashed_batch(
-            vec![TxTestCase::dropped(malformed_transaction)],
-            FatalError::DeserializationFailed("IO error: Unexpected length of input".to_string()),
-        )
-        .with_end_slot_hook(Box::new(move |state| {
+        assert: Box::new(move |result, state| {
+            assert_eq!(
+                TestSequencerRegistry::default()
+                    .is_sender_allowed(&additional_sequencer_da_address.into(), state)
+                    .unwrap(),
+                AllowedSequencer {
+                    address: additional_sequencer_address,
+                    balance: TEST_DEFAULT_USER_STAKE,
+                },
+                "The additional sequencer should be registered"
+            );
+            gas_consumed_registration_ref
+                .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+        }),
+    };
+    let slash_sequencer = BatchTestCase {
+        input: vec![malformed_transaction].into(),
+        override_sequencer: Some(additional_sequencer_da_address.into()),
+        assert: Box::new(move |_result, state| {
             assert!(
                 !TestSequencerRegistry::default()
                     .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
                     .unwrap_infallible(),
                 "The default sequencer should not be registered anymore"
             );
-
             assert_eq!(
                 Bank::<S>::default()
                     .get_balance_of(&additional_sequencer_address, GAS_TOKEN_ID, state)
@@ -255,33 +236,36 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 ),
                 "The sequencer's balance should be equal to the initial balance minus the gas used to register + the stake amount"
             );
-        }))
-        .with_sequencer(additional_sequencer_da_address.into()),
-    ]);
-
-    // Try to register the sequencer again
-    runner.execute_slots::<TestSequencerRegistry>(vec![SlotTestCase::from_rewarded_batch(vec![
-        TxTestCase::<RT, _, _>::applied_with_hook(
-            additional_sequencer.create_plain_message::<TestSequencerRegistry>(
-                sov_sequencer_registry::CallMessage::Register {
-                    da_address: additional_sequencer_da_address.as_ref().to_vec(),
-                    // We try to register the sequencer with a new stake amount that is not a multiple of the
-                    // previous stake amount to ensure that the stake amount is not accumulated.
-                    amount: 3 * TEST_DEFAULT_USER_STAKE / 2,
-                },
-            ),
-            Box::new(move |state| {
-                assert_eq!(
-                    TestSequencerRegistry::default()
-                        .is_sender_allowed(&additional_sequencer_da_address.into(), state)
-                        .unwrap(),
-                    AllowedSequencer {
-                        address: additional_sequencer_address,
-                        balance: 3 * TEST_DEFAULT_USER_STAKE / 2,
-                    },
-                    "The additional sequencer should be registered"
-                );
-            }),
+        }),
+    };
+    let reregister_sequencer = TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: additional_sequencer_da_address.as_ref().to_vec(),
+                // We try to register the sequencer with a new stake amount that is not a multiple of the
+                // previous stake amount to ensure that the stake amount is not accumulated.
+                amount: 3 * TEST_DEFAULT_USER_STAKE / 2,
+            },
         ),
-    ])]);
+        assert: Box::new(move |_result, state| {
+            assert_eq!(
+                TestSequencerRegistry::default()
+                    .is_sender_allowed(&additional_sequencer_da_address.into(), state)
+                    .unwrap(),
+                AllowedSequencer {
+                    address: additional_sequencer_address,
+                    balance: 3 * TEST_DEFAULT_USER_STAKE / 2,
+                },
+                "The additional sequencer should be registered"
+            );
+        }),
+    };
+
+    runner
+        // Register the additional sequencer
+        .execute_transaction(register_sequencer)
+        // Send the malformed transaction
+        .execute_batch(slash_sequencer)
+        // Try to register the sequencer again
+        .execute_transaction(reregister_sequencer);
 }
