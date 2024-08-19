@@ -55,7 +55,7 @@ async fn main() {
             debug!("Rollup execution complete. Shutting down.");
         }
         Err(e) => {
-            tracing::warn!(error = %e, "Rollup execution failed");
+            tracing::error!(error = ?e, backtrace= e.backtrace().to_string(), "Rollup execution failed");
             exit(1);
         }
     }
