@@ -186,6 +186,9 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: actions/checkout@v3
       - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
