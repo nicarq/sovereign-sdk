@@ -5,6 +5,7 @@
 - #1109 removes the sequencer tx status notifications `published` and `finalized`, and replaces them with `processed` instead. A `processed` notification instructs the client that the ledger has processed the transaction and it's ready to serve finality data, its receipt, and its events.
 - #1146 Adds `DEFAULT_SOV_ROLLUP_LOGGING` constant in `sov-modules-rollup-blueprint` that should be used for default tracing-subscriber setup.
 - #1143 Adds new reth crate and removes copy pasted code. `jsonrpsee` and `tokio` have been updated.
+- #1149 Adds `FinalizedBlocksBulkFetcher` to stf runner for faster sync.
 - #1121 changes the `BatchReceipt`'s `inner` default field and adds the `sequencer_da_address` to it. In particular:
     - Add a new `BatchSequencerReceipt` struct which contains the sequencer's `da_address` and `BatchSequencerOutcome`.
     - Change the `BatchResult` type from `BatchSequencerOutcome` to `BatchSequencerReceipt`.

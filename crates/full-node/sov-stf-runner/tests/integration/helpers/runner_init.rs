@@ -155,6 +155,7 @@ pub async fn initialize_runner(
                 bind_host: "127.0.0.1".to_string(),
                 bind_port: 0,
             },
+            concurrent_sync_tasks: Some(1),
         },
         da: MockDaConfig::instant_with_sender(da_service.da_service().sequencer_address()),
         proof_manager: ProofManagerConfig {

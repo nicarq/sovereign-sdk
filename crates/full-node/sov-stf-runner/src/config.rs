@@ -6,6 +6,8 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 
+pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
+
 /// Configuration for StateTransitionRunner.
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct RunnerConfig {
@@ -17,6 +19,15 @@ pub struct RunnerConfig {
     pub rpc_config: HttpServerConfig,
     /// Axum server configuration.
     pub axum_config: HttpServerConfig,
+    /// How many concurrent tasks to get block from DA service
+    pub concurrent_sync_tasks: Option<u8>,
+}
+
+impl RunnerConfig {
+    pub(crate) fn get_concurrent_sync_tasks(&self) -> u8 {
+        self.concurrent_sync_tasks
+            .unwrap_or(DEFAULT_CONCURRENT_SYNC_TASKS)
+    }
 }
 
 /// Configuration for HTTP server(s) exposed by the node.
@@ -118,6 +129,7 @@ mod tests {
             [runner]
             genesis_height = 31337
             da_polling_interval_ms = 10000
+             concurrent_sync_tasks = 18
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
@@ -151,6 +163,7 @@ mod tests {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12346,
                 },
+                concurrent_sync_tasks: Some(18),
             },
 
             da: sov_celestia_adapter::CelestiaConfig {

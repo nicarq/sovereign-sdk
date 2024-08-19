@@ -18,6 +18,7 @@ use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost
 use tokio::sync::watch;
 use tracing::{debug, error, info};
 
+use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::state_manager::StateManager;
 use crate::{ProofManager, ProverService, RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
 
@@ -50,6 +51,7 @@ where
     listen_address_axum: SocketAddr,
     proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
+    sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
 }
 
 /// The state necessary to track the sync status of the node
@@ -252,8 +254,8 @@ where
         prev_state_root: Stf::StateRoot,
         proof_manager: ProofManager<Ps>,
     ) -> Result<Self, anyhow::Error> {
-        let rpc_config = runner_config.rpc_config;
-        let axum_config = runner_config.axum_config;
+        let rpc_config = &runner_config.rpc_config;
+        let axum_config = &runner_config.axum_config;
 
         let listen_address_rpc =
             SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
@@ -277,6 +279,13 @@ where
             rpc_storage_sender,
         );
 
+        let sync_fetcher = FinalizedBlocksBulkFetcher::new(
+            da_service.clone(),
+            first_unprocessed_height_at_startup,
+            runner_config.get_concurrent_sync_tasks(),
+        )
+        .await?;
+
         Ok(Self {
             first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
@@ -290,6 +299,7 @@ where
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
             }),
+            sync_fetcher,
         })
     }
 
@@ -382,7 +392,7 @@ where
             let mut transaction_count = 0;
             let mut batch_count = 0;
             let get_block_start = std::time::Instant::now();
-            let filtered_block = self.da_service.get_block_at(next_da_height).await?;
+            let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
             debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
 
             let (stf_pre_state, filtered_block) = self
