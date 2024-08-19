@@ -17,6 +17,8 @@ pub use signatures::*;
     Debug,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
     Clone,
     Copy,
     sov_wallet_format::UniversalWallet,

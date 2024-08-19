@@ -12,7 +12,7 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::{
     sequencer_rest_api_server, FairBatchBuilder, FairBatchBuilderConfig, GenericSequencerSpec,
-    Sequencer, SequencerDb, TxStatusNotifier,
+    Sequencer, SequencerDb, TxStatusManager,
 };
 use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -83,7 +83,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         dir: TempDir,
         da_service: MockDaService,
         batch_builder: B,
-        tx_status_notifier: TxStatusNotifier<MockDaSpec>,
+        tx_status_manager: TxStatusManager<MockDaSpec>,
     ) -> anyhow::Result<Self> {
         // Generate a genesis config, then overwrite the attester key/address with ones that
         // we know. We leave the other values untouched.
@@ -130,7 +130,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let sequencer = Sequencer::new(
             batch_builder,
             da_service.clone(),
-            tx_status_notifier,
+            tx_status_manager,
             ledger_db,
         );
 
@@ -230,18 +230,23 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
             sequencer_address,
         };
 
-        let notifier = TxStatusNotifier::default();
+        let tx_status_manager = TxStatusManager::default();
         let batch_builder = FairBatchBuilder::new(
             runtime,
             BasicKernel::default(),
-            notifier.clone(),
+            tx_status_manager.clone(),
             watch::Sender::new(stf_state).subscribe(),
             sequencer_db,
             batch_builder_config,
         )?;
 
         let da_service = MockDaService::new(sequencer_address);
-        let sequencer = Sequencer::new(batch_builder, da_service.clone(), notifier, ledger_db);
+        let sequencer = Sequencer::new(
+            batch_builder,
+            da_service.clone(),
+            tx_status_manager,
+            ledger_db,
+        );
 
         let (axum_addr, sequencer_axum_server) = {
             let addr = SocketAddr::from(([127, 0, 0, 1], 0));

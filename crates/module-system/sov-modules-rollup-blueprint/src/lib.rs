@@ -394,7 +394,6 @@ mod blueprint {
     {
         type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>;
         type Da = B::DaService;
-        type Auth = Auth;
         type BatchReceipt = BatchSequencerOutcome;
         type TxReceipt = TxReceiptContents;
     }

@@ -4,12 +4,15 @@ use async_trait::async_trait;
 
 use crate::TxHash;
 
-/// BlockBuilder trait is responsible for managing mempool and building batches.
+/// [`BatchBuilder`] trait is responsible for managing a mempool and building
+/// batches.
 #[async_trait]
 pub trait BatchBuilder: Send + Sync + 'static {
-    /// Accept a new transaction.
-    /// Can return error if transaction is invalid or mempool is full.
-    async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError>;
+    /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
+    /// implementation itself is responsible for "encoding" the transaction.
+    ///
+    /// Can return an error if transaction is invalid or mempool is full.
+    async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxWithHash, AcceptTxError>;
 
     /// Checks whether a transaction with the given `hash` is already in the
     /// mempool.

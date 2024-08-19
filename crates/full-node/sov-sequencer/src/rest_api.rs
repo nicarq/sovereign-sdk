@@ -9,7 +9,6 @@ use axum::Json;
 use futures::StreamExt;
 use serde_with::base64::Base64;
 use serde_with::serde_as;
-use sov_modules_api::capabilities::Authenticator;
 use sov_rest_utils::{
     errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult,
     ErrorObject, Path,
@@ -92,10 +91,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         tx_hash: Path<TxHash>,
         ws: ws::WebSocketUpgrade,
     ) -> impl IntoResponse {
-        let notifier = sequencer.notifier().clone();
+        let tx_status_manager = sequencer.tx_status_manager().clone();
 
         ws.on_upgrade(move |mut socket| async move {
-            let (_dropper, receiver) = notifier.subscribe(tx_hash.0);
+            let (_dropper, receiver) = tx_status_manager.subscribe(tx_hash.0);
 
             // After "terminal" tx status updates (i.e. after which
             // we'll no longer send any new notifications), we close the
@@ -145,7 +144,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         sequencer: State<Self>,
         tx_hash: Path<TxHash>,
     ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
-        let tx_status = sequencer.notifier().get_cached(&tx_hash.0);
+        let tx_status = sequencer.tx_status_manager().get_cached(&tx_hash.0);
 
         if let Some(tx_status) = tx_status {
             Ok(TxInfo {
@@ -163,10 +162,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         tx: Json<AcceptTx>,
     ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
         let tx = tx.0.body.blob;
-        let authed_tx = Ss::Auth::encode(tx)
-            .map_err(|e| errors::bad_request_400("Failed to encode transaction", e))?;
 
-        let tx_hash = match sequencer.accept_tx(authed_tx.data).await {
+        let tx_with_hash = match sequencer.accept_tx(tx).await {
             Ok(tx_hash) => tx_hash,
             Err(AcceptTxError {
                 http_status,
@@ -191,7 +188,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         };
 
         Ok(TxInfo {
-            id: tx_hash,
+            id: tx_with_hash.hash,
             status: TxStatus::Submitted,
         }
         .into())
@@ -205,9 +202,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             .0
             .transactions
             .into_iter()
-            .map(|tx| Ok(Ss::Auth::encode(tx.blob)?.data))
-            .collect::<anyhow::Result<Vec<_>>>()
-            .map_err(|e| errors::bad_request_400("Failed to encode transaction(s)", e))?;
+            .map(|tx| tx.blob)
+            .collect::<Vec<_>>();
 
         match sequencer.submit_batch(batch).await {
             Ok(info) => Ok(info.into()),

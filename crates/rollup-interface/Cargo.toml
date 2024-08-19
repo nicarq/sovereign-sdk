@@ -47,21 +47,20 @@ sov-wallet-format = { workspace = true, features = ["macros"] }
 proptest = { workspace = true }
 proptest-derive = { workspace = true }
 serde_json = { workspace = true }
-
 sov-rollup-interface = { path = ".", features = ["native", "arbitrary"] }
 
 [features]
 native = [
-    "backon",
-    "futures",
-    "schemars",
-    "sov-rollup-interface/native",
-    "tokio",
-    "tracing",
+	"backon",
+	"futures",
+	"schemars",
+	"sov-rollup-interface/native",
+	"tokio",
+	"tracing",
 ]
 arbitrary = [
-    "dep:arbitrary",
-    "proptest",
-    "proptest-derive",
-    "sov-rollup-interface/arbitrary",
+	"dep:arbitrary",
+	"proptest",
+	"proptest-derive",
+	"sov-rollup-interface/arbitrary",
 ]

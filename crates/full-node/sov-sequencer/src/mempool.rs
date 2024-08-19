@@ -10,7 +10,7 @@ use sov_rollup_interface::TxHash;
 use tracing::debug;
 
 use crate::db::{MempoolTx, SequencerDb};
-use crate::tx_status::TxStatusNotifier;
+use crate::tx_status::TxStatusManager;
 use crate::TxStatus;
 
 /// Transactions within the mempool are identified by a monotonically increasing
@@ -27,7 +27,7 @@ pub type TxIdWithinMempool = u128;
 pub struct FairMempool<Da: DaSpec> {
     max_txs_count: usize,
     #[derivative(Debug = "ignore")] // Way too noisy.
-    notifier: TxStatusNotifier<Da>,
+    tx_status_manager: TxStatusManager<Da>,
     sequencer_db: SequencerDb,
     // Transaction data
     // ----------------
@@ -39,7 +39,7 @@ pub struct FairMempool<Da: DaSpec> {
 impl<Da: DaSpec> FairMempool<Da> {
     pub fn new(
         sequencer_db: SequencerDb,
-        notifier: TxStatusNotifier<Da>,
+        tx_status_manager: TxStatusManager<Da>,
         max_txs_count: usize,
     ) -> anyhow::Result<Self> {
         if max_txs_count == 0 {
@@ -50,7 +50,7 @@ impl<Da: DaSpec> FairMempool<Da> {
 
         let mut mempool = Self {
             max_txs_count,
-            notifier,
+            tx_status_manager,
             sequencer_db,
             txs_ordered_by_incremental_id: BTreeMap::new(),
             txs_ordered_by_most_fair_fit: BTreeMap::new(),
@@ -92,21 +92,19 @@ impl<Da: DaSpec> FairMempool<Da> {
         Some(tx.clone())
     }
 
-    fn remove_tx_from_memory(&mut self, hash: &TxHash) {
-        const ERR: &str = "Removing tx from mempool but it is not in the mempool; this is a bug, please report it";
+    fn try_remove_tx_from_memory(&mut self, hash: &TxHash) {
+        let Some(tx) = self.txs_by_hash.remove(hash) else {
+            return;
+        };
 
-        let tx = self.txs_by_hash.remove(hash).expect(ERR);
         let cursor = MempoolCursor {
             tx_size_in_bytes: tx.tx_bytes.len(),
             incremental_id: tx.incremental_id,
         };
 
         self.txs_ordered_by_incremental_id
-            .remove(&tx.incremental_id)
-            .expect(ERR);
-        self.txs_ordered_by_most_fair_fit
-            .remove(&cursor)
-            .expect(ERR);
+            .remove(&tx.incremental_id);
+        self.txs_ordered_by_most_fair_fit.remove(&cursor);
     }
 
     fn make_space_for_tx(&mut self) -> anyhow::Result<()> {
@@ -128,10 +126,10 @@ impl<Da: DaSpec> FairMempool<Da> {
 
             // We always persist changes to the DB first.
             self.sequencer_db.remove(&[tx_hash])?;
-            self.remove_tx_from_memory(&tx_hash);
+            self.try_remove_tx_from_memory(&tx_hash);
 
             // Notify listeners about the eviction.
-            self.notifier.notify(
+            self.tx_status_manager.notify(
                 tx_hash,
                 TxStatus::Dropped {
                     reason: "Mempool is full".to_string(),
@@ -146,7 +144,7 @@ impl<Da: DaSpec> FairMempool<Da> {
         // We always persist changes to the DB first.
         self.sequencer_db.remove(hashes)?;
         for hash in hashes {
-            self.remove_tx_from_memory(hash);
+            self.try_remove_tx_from_memory(hash);
         }
 
         Ok(())
