@@ -276,16 +276,17 @@ mod blueprint {
 
             let native_stf = StfBlueprint::new();
 
+            let (prev_state_root, genesis_state_root) = init_variant
+                .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
+                .await?;
+
             let proof_manager = ProofManager::new(
                 da_service.clone(),
                 prover_service,
                 rollup_config.proof_manager.aggregated_proof_block_jump,
                 Box::new(Self::ProofSerializer::new()),
+                genesis_state_root,
             );
-
-            let (prev_state_root, genesis_state_root) = init_variant
-                .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
-                .await?;
 
             let runner = StateTransitionRunner::new(
                 rollup_config.runner,
@@ -295,7 +296,6 @@ mod blueprint {
                 storage_manager,
                 rpc_storage.0,
                 prev_state_root,
-                genesis_state_root,
                 proof_manager,
             )
             .await?;

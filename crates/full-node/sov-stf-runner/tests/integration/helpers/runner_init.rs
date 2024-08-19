@@ -206,17 +206,18 @@ pub async fn initialize_runner(
     let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
     let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
 
+    let (prev_state_root, genesis_state_root) = init_variant
+        .calculate_initial_state_roots(&mut ledger_db, &stf, &mut storage_manager)
+        .await
+        .unwrap();
+
     let proof_manager = ProofManager::new(
         da_service.clone(),
         prover_service,
         rollup_config.proof_manager.aggregated_proof_block_jump,
         Box::new(DummyProofSerializer::new()),
+        genesis_state_root,
     );
-
-    let (prev_state_root, genesis_state_root) = init_variant
-        .calculate_initial_state_roots(&mut ledger_db, &stf, &mut storage_manager)
-        .await
-        .unwrap();
 
     (
         StateTransitionRunner::new(
@@ -227,7 +228,6 @@ pub async fn initialize_runner(
             storage_manager,
             rpc_storage_sender,
             prev_state_root,
-            genesis_state_root,
             proof_manager,
         )
         .await

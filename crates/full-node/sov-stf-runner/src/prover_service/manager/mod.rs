@@ -26,6 +26,7 @@ pub struct ProofManager<Ps: ProverService> {
     aggregated_proof_block_jump: usize,
     proof_serializer: Box<dyn ProofSerializer>,
     backoff_policy: ExponentialBuilder,
+    genesis_state_root: RawGenesisStateRoot,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -38,6 +39,7 @@ where
         prover_service: Option<Ps>,
         aggregated_proof_block_jump: usize,
         proof_serializer: Box<dyn ProofSerializer>,
+        genesis_state_root: RawGenesisStateRoot,
     ) -> Self {
         Self {
             da_service,
@@ -49,6 +51,7 @@ where
                 .with_min_delay(Duration::from_secs(BACKOFF_POLICY_MIN_DELAY))
                 .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
                 .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
+            genesis_state_root,
         }
     }
 
@@ -61,7 +64,6 @@ where
             Ps::Witness,
             <Ps::DaService as DaService>::Spec,
         >,
-        genesis_state_root: &RawGenesisStateRoot,
     ) -> anyhow::Result<()> {
         if let Some(prover_service) = self.prover_service.as_ref() {
             let block_hash = transition_data.da_block_header().hash();
@@ -90,7 +92,7 @@ where
                     .create_aggregate_proof_with_retries(
                         metadata,
                         prover_service,
-                        genesis_state_root,
+                        &self.genesis_state_root,
                     )
                     .await?;
 
