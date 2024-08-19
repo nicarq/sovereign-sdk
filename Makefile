@@ -116,10 +116,10 @@ find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
 coverage: ## Coverage in lcov format
-	SP1_PROVER=mock cargo llvm-cov --locked --lcov --output-path lcov.info
+	SP1_PROVER=mock cargo llvm-cov nextest --locked --all-features --lcov --output-path lcov.info
 
 coverage-html: ## Coverage in HTML format
-	cargo llvm-cov --locked --all-features --html
+	SP1_PROVER=mock cargo nextest llvm-cov --locked --all-features --html
 
 dry-run-publish: 
 	yq '.[]' packages_to_publish.yml | xargs -I _ cargo publish --allow-dirty --dry-run -p _
