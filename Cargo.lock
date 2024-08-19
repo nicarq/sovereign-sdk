@@ -10267,6 +10267,7 @@ dependencies = [
  "ethers-core",
  "hex",
  "jsonrpsee",
+ "paste",
  "proptest",
  "rockbound",
  "serde",

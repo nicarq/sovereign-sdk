@@ -10,7 +10,7 @@ use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallM
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, TransactionTestCase, TEST_DEFAULT_USER_STAKE};
 
-use super::helpers::{__GeneratedRuntimeInternalsEvent, setup, RT, S};
+use super::helpers::{setup, TestRuntimeEvent, RT, S};
 
 /// Start by testing the positive case where the attestations are valid. We check that...
 /// valid attestations are processed correctly
@@ -49,9 +49,7 @@ fn test_process_valid_attestation() {
             // Check that the attestation succeeded
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
-                    Event::ProcessedValidAttestation { .. }
-                )
+                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
             )));
         }),
     };
@@ -61,9 +59,7 @@ fn test_process_valid_attestation() {
             // Check that the attestation succeeded
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
-                    Event::ProcessedValidAttestation { .. }
-                )
+                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
             )));
             // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
             expected_balance_ref_1.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
@@ -75,9 +71,7 @@ fn test_process_valid_attestation() {
             // Check that the attestation succeeded
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
-                    Event::ProcessedValidAttestation { .. }
-                )
+                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
             )));
             // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
             expected_balance_ref_2.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
@@ -139,9 +133,7 @@ fn test_burn_on_invalid_attestation() {
             // Check that the attestation succeeded
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
-                    Event::ProcessedValidAttestation { .. }
-                )
+                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
             )));
         }),
     };
@@ -152,7 +144,7 @@ fn test_burn_on_invalid_attestation() {
             // Check that the attestation resulted in slashing
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed { .. })
+                TestRuntimeEvent::attester_incentives(Event::UserSlashed { .. })
             )));
             // Assert that the attester was slashed
             assert_eq!(
@@ -181,9 +173,7 @@ fn test_burn_on_invalid_attestation() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
-                    Event::RegisteredAttester { .. }
-                )
+                TestRuntimeEvent::attester_incentives(Event::RegisteredAttester { .. })
             )));
             assert_eq!(
                 AttesterIncentives::<S, MockDaSpec>::default()
@@ -200,7 +190,7 @@ fn test_burn_on_invalid_attestation() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed { .. })
+                TestRuntimeEvent::attester_incentives(Event::UserSlashed { .. })
             )));
             // Assert that the attester was slashed
             assert_eq!(
