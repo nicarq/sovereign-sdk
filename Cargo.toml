@@ -130,11 +130,11 @@ reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6
 rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "d640252e19c08ff47ce1dc2c209b9b1ba2bf9343" }
 sov-wallet-format = { git = "ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git", rev = "0860de2877084066477d0157a0f5a311bd1be919" }
 # External dependencies
-async-trait = "0.1.71"
-anyhow = { version = "1.0.68" }
+async-trait = "0.1.81"
+anyhow = { version = "1.0.86" }
 axum = { version = "0.7", default-features = false }
 axum-server = { version = "0.6", features = ["tls-rustls"] }
-arbitrary = { version = "1.3.1", features = ["derive"] }
+arbitrary = { version = "1.3.2", features = ["derive"] }
 backon = "0.4.4"
 base64 = "0.22"
 borsh = { version = "1", features = ["derive"] }
@@ -143,34 +143,34 @@ borsh = { version = "1", features = ["derive"] }
 bincode = "1.3.3"
 bcs = "0.1.6"
 byteorder = { version = "1.5.0", default-features = false }
-bytes = { version = "1.2.1", default-features = false }
+bytes = { version = "1.7.1", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["now"] }
 derivative = { version = "2.2", features = ["use_core"] }
-digest = { version = "0.10.6", default-features = false, features = ["alloc"] }
+digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive-getters = { version = "0.4.0" }
 futures = { version = "0.3", default-features = false }
 hex = { version = "0.4.3" }
 insta = { version = "1.39", features = ["json"] }
-prometheus = { version = "0.13.3", default-features = false }
-proptest = { version = "1.3", default-features = false, features = ["alloc"] }
+prometheus = { version = "0.13.4", default-features = false }
+proptest = { version = "1.5", default-features = false, features = ["alloc"] }
 proptest-derive = "0.5.0"
 rand = "0.8"
-rayon = "1.9.0"
+rayon = "1.10.0"
 reqwest = { version = "0.12", features = [
     "rustls-tls",
 ], default-features = false }
-serde = { version = "1.0.196", default-features = false, features = [
+serde = { version = "1.0.208", default-features = false, features = [
     "alloc",
     "derive",
 ] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_yaml = { version = "0.9", default-features = false }
-serde_with = { version = "3.7", features = ["schemars_0_8"] }
-sha2 = { version = "0.10.6", default-features = false }
+serde_with = { version = "3.9", features = ["schemars_0_8"] }
+sha2 = { version = "0.10.8", default-features = false }
 sp1-lib = { version = "1" }
 sp1-sdk = { version = "1", default-features = false }
 sp1-zkvm = { version = "1" }
-thiserror = "1.0.50"
+thiserror = "1.0.63"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
@@ -183,17 +183,17 @@ unwrap-infallible = "0.1.5"
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }
 bech32 = { version = "0.11" }
-derive_more = { version = "0.99.11", default-features = false }
-clap = { version = "4.4.10", features = ["derive"] }
-toml = { version = "0.8.0", features = ["parse"] }
+derive_more = { version = "0.99.18", default-features = false }
+clap = { version = "4.5.16", features = ["derive"] }
+toml = { version = "0.8.19", features = ["parse"] }
 jsonrpsee = { version = "0.24" }
-schemars = { version = "0.8.16", features = ["derive"] }
-tempfile = "3.8"
+schemars = { version = "0.8.21", features = ["derive"] }
+tempfile = "3.12"
 tokio = { version = "1.39", default-features = false }
 tokio-stream = { version = "0.1", features = ["sync"] }
-uuid = { version = "1.9", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.
-lazy_static = "1.4.0"
-num_cpus = "1.0"
+uuid = { version = "1.10", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.
+lazy_static = "1.5.0"
+num_cpus = "1.16"
 risc0-zkvm = { version = "1.0.5", default-features = false }
 risc0-zkvm-platform = "1.0.5"
 risc0-zkp = "1.0.5"

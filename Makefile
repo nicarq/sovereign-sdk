@@ -116,7 +116,7 @@ find-flaky-tests:  ## Runs tests over and over to find if there's flaky tests
 	flaky-finder -j16 -r320 --continue "cargo test -- --nocapture"
 
 coverage: ## Coverage in lcov format
-	cargo llvm-cov --locked --lcov --output-path lcov.info
+	SP1_PROVER=mock cargo llvm-cov --locked --lcov --output-path lcov.info
 
 coverage-html: ## Coverage in HTML format
 	cargo llvm-cov --locked --all-features --html

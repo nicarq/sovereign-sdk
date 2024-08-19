@@ -33,10 +33,10 @@ jsonrpsee = { workspace = true, features = [
 ], optional = true }
 tracing = { workspace = true }
 
-alloy-sol-types = { version = "0.7.2", default-features = false }
+alloy-sol-types = { version = "0.7.7", default-features = false }
 alloy-eips = { version = "0.2", default-features = false }
 # `rlp` feature implicitly enabled via `reth-` crates, but this allows us to explicitly access Error type from there
-alloy-primitives = { version = "0.7.2", default-features = false, features = ["rlp"] }
+alloy-primitives = { version = "0.7.7", default-features = false, features = ["rlp"] }
 
 alloy-rpc-types = { workspace = true, optional = true }
 revm = { workspace = true, features = [
@@ -58,7 +58,7 @@ bytes = { workspace = true }
 ethers-signers = { workspace = true }
 ethers-core = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand-std"] }
-lazy_static = "1.4.0"
+lazy_static = "1.5.0"
 
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }

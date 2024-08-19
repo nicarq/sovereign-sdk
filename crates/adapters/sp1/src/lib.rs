@@ -110,16 +110,14 @@ impl Zkvm for SP1Verifier {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "native")]
-    use sov_rollup_interface::zk::CodeCommitment;
-
-    #[cfg(feature = "native")]
-    use crate::SP1MethodId;
-
-    #[cfg(feature = "native")]
+    // See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1209>.
+    #[cfg(not(coverage))]
     #[test]
     fn test_sp1_method_id_codec_roundtrip() {
+        use sov_rollup_interface::zk::CodeCommitment;
         use sp1_sdk::ProverClient;
+
+        use crate::SP1MethodId;
 
         const ELF: &[u8] = include_bytes!("../test_data/riscv32im-succinct-zkvm-elf");
 
