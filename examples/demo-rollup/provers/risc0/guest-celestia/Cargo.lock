@@ -583,9 +583,9 @@ checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
 
 [[package]]
 name = "async-trait"
-version = "0.1.79"
+version = "0.1.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a507401cad91ec6a857ed5513a2073c82a9b9048762b885bb98655b306964681"
+checksum = "6e0c28dcc82d7c8ead5cb13beb15405b57b8546e93215673ff8ca0349a028107"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -827,9 +827,9 @@ checksum = "c3ac9f8b63eca6fd385229b3675f6cc0dc5c8a5c8a54a59d4f52ffd670d87b0c"
 
 [[package]]
 name = "bytemuck"
-version = "1.15.0"
+version = "1.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d6d68c57235a3a081186990eca2867354726650f42f7516ca50c28d6281fd15"
+checksum = "6fd4c6dcc3b0aea2f5c0b4b82c2b15fe39ddbc76041a310848f4706edf76bb31"
 dependencies = [
  "bytemuck_derive",
 ]
@@ -853,9 +853,9 @@ checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
 
 [[package]]
 name = "bytes"
-version = "1.6.0"
+version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514de17de45fdb8dc022b1a7975556c53c86f9f0aa5f534b98977b171857c2c9"
+checksum = "8318a53db07bb3f8dca91a600466bdb3f2eaadeedfdbcf02e1accbad9271ba50"
 dependencies = [
  "serde",
 ]
@@ -1144,8 +1144,8 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto-bigint"
-version = "0.5.2"
-source = "git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.2-risc0#8b30304277cfe553b51a78a0e693f48bbb059eb3"
+version = "0.5.5"
+source = "git+https://github.com/risc0/RustCrypto-crypto-bigint?tag=v0.5.5-risczero.0#3ab63a6f1048833f7047d5a50532e4a4cc789384"
 dependencies = [
  "generic-array",
  "getrandom",
@@ -1166,31 +1166,13 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+version = "4.1.2"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=3dccc5b71b806f500e73829e2a5cbfe288cce2a0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
 dependencies = [
  "cfg-if",
  "cpufeatures",
  "crypto-bigint",
- "curve25519-dalek-derive 0.1.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
- "digest 0.10.7",
- "fiat-crypto",
- "hex",
- "platforms",
- "rustc_version 0.4.0",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "curve25519-dalek"
-version = "4.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "crypto-bigint",
- "curve25519-dalek-derive 0.1.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
+ "curve25519-dalek-derive",
  "digest 0.10.7",
  "fiat-crypto",
  "hex",
@@ -1202,18 +1184,8 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek-derive"
-version = "0.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.55",
-]
-
-[[package]]
-name = "curve25519-dalek-derive"
-version = "0.1.0"
-source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+version = "0.1.1"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=3dccc5b71b806f500e73829e2a5cbfe288cce2a0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1402,15 +1374,15 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.17"
+version = "0.99.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fb810d30a7c1953f91334de7244731fc3f3c10d7fe163338a35b9f640960321"
+checksum = "5f33878137e4dafd7fa914ad4e259e18a4e8e532b9617a2d0150262bf53abfce"
 dependencies = [
  "convert_case 0.4.0",
  "proc-macro2",
  "quote",
  "rustc_version 0.4.0",
- "syn 1.0.109",
+ "syn 2.0.55",
 ]
 
 [[package]]
@@ -1492,23 +1464,10 @@ dependencies = [
 
 [[package]]
 name = "ed25519-dalek"
-version = "2.0.0"
-source = "git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
+version = "2.1.1"
+source = "git+https://github.com/risc0/curve25519-dalek?rev=3dccc5b71b806f500e73829e2a5cbfe288cce2a0#3dccc5b71b806f500e73829e2a5cbfe288cce2a0"
 dependencies = [
- "curve25519-dalek 4.1.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
- "ed25519",
- "serde",
- "sha2 0.10.8",
- "subtle",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519-dalek"
-version = "2.0.0"
-source = "git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67#42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67"
-dependencies = [
- "curve25519-dalek 4.1.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
+ "curve25519-dalek",
  "ed25519",
  "serde",
  "sha2 0.10.8",
@@ -2170,9 +2129,9 @@ checksum = "e5ce46fe64a9d73be07dcbe690a38ce1b293be448fd8ce1e6c1b8062c9f72c6a"
 
 [[package]]
 name = "nmt-rs"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "479d559d6a0da9cd6972630efff47d85bbe483e4298723e7f3b43df149f5e484"
+checksum = "13f20e0afd95010e37011e11f1f3330e1611fe2cdcd482634832e87a122983ac"
 dependencies = [
  "borsh",
  "bytes",
@@ -3225,9 +3184,9 @@ checksum = "e86697c916019a8588c99b5fac3cead74ec0b4b819707a682fd4d23fa0ce1ba1"
 
 [[package]]
 name = "schemars"
-version = "0.8.16"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a28f4c49489add4ce10783f7911893516f15afe45d015608d41faca6bc4d29"
+checksum = "09c024468a378b7e36765cd36702b7a90cc3cba11654f6685c8f233408e89e92"
 dependencies = [
  "dyn-clone",
  "schemars_derive",
@@ -3237,14 +3196,14 @@ dependencies = [
 
 [[package]]
 name = "schemars_derive"
-version = "0.8.16"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c767fd6fa65d9ccf9cf026122c1b555f2ef9a4f0cea69da4d7dbc3e258d30967"
+checksum = "b1eee588578aff73f856ab961cd2f79e36bc45d7ded33a7562adba4667aecc0e"
 dependencies = [
  "proc-macro2",
  "quote",
  "serde_derive_internals",
- "syn 1.0.109",
+ "syn 2.0.55",
 ]
 
 [[package]]
@@ -3312,9 +3271,9 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.206"
+version = "1.0.208"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b3e4cd94123dd520a128bcd11e34d9e9e423e7e3e50425cb1b4b1e3549d0284"
+checksum = "cff085d2cb684faa248efb494c39b68e522822ac0de72ccf08109abde717cfb2"
 dependencies = [
  "serde_derive",
 ]
@@ -3339,9 +3298,9 @@ dependencies = [
 
 [[package]]
 name = "serde_derive"
-version = "1.0.206"
+version = "1.0.208"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fabfb6138d2383ea8208cf98ccf69cdfb1aff4088460681d84189aa259762f97"
+checksum = "24008e81ff7613ed8e5ba0cfaf24e2c2f1e5b8a0495711e44fcd4882fca62bcf"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3350,13 +3309,13 @@ dependencies = [
 
 [[package]]
 name = "serde_derive_internals"
-version = "0.26.0"
+version = "0.29.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85bf8229e7920a9f636479437026331ce11aa132b4dde37d121944a44d6e5f3c"
+checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.55",
 ]
 
 [[package]]
@@ -3384,20 +3343,20 @@ dependencies = [
 
 [[package]]
 name = "serde_spanned"
-version = "0.6.6"
+version = "0.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79e674e01f999af37c49f70a6ede167a8a60b2503e56c5599532a65baa5969a0"
+checksum = "eb5b1b31579f3811bf615c144393417496f152e12ac8b7663bf664f4a815306d"
 dependencies = [
  "serde",
 ]
 
 [[package]]
 name = "serde_with"
-version = "3.7.0"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee80b0e361bbf88fd2f6e242ccd19cfda072cb0faa6ae694ecee08199938569a"
+checksum = "69cecfa94848272156ea67b2b1a53f20fc7bc638c4a46d2f8abde08f05f4b857"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -3412,9 +3371,9 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.7.0"
+version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6561dc161a9224638a31d876ccdfefbc1df91d3f3a8342eddb35f055d48c7655"
+checksum = "a8fee4991ef4f274617a51ad4af30519438dacb2f56ac773b08a1922ff743350"
 dependencies = [
  "darling 0.20.8",
  "proc-macro2",
@@ -3695,7 +3654,7 @@ dependencies = [
  "bincode",
  "borsh",
  "digest 0.10.7",
- "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?tag=curve25519-4.1.0-risczero.1)",
+ "ed25519-dalek",
  "hex",
  "serde",
  "sha2 0.10.8",
@@ -3805,7 +3764,7 @@ dependencies = [
  "borsh",
  "bytemuck",
  "digest 0.10.7",
- "ed25519-dalek 2.0.0 (git+https://github.com/risc0/curve25519-dalek?rev=42c4faf7dc3f640a7e3f7e4cbf43e7d5d6d46b67)",
+ "ed25519-dalek",
  "hex",
  "risc0-zkvm",
  "risc0-zkvm-platform",
@@ -4077,18 +4036,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c546c80d6be4bc6a00c0f01730c08df82eaa7a7a61f11d656526506112cc1709"
+checksum = "c0342370b38b6a11b6cc11d6a805569958d54cfa061a29969c3b5ce2ea405724"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.61"
+version = "1.0.63"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46c3384250002a6d5af4d114f2845d37b57521033f30d5c3f46c4d70e1197533"
+checksum = "a4558b58466b9ad7ca0f102865eccc95938dca1a74a856f2b57b6629050da261"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4166,21 +4125,21 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.8.14"
+version = "0.8.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f49eb2ab21d2f26bd6db7bf383edc527a7ebaee412d17af4d40fdccd442f335"
+checksum = "a1ed1f98e3fdc28d6d910e6737ae6ab1a93bf1985935a1193e68f93eeb68d24e"
 dependencies = [
  "serde",
  "serde_spanned",
  "toml_datetime",
- "toml_edit 0.22.14",
+ "toml_edit 0.22.20",
 ]
 
 [[package]]
 name = "toml_datetime"
-version = "0.6.6"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4badfd56924ae69bcc9039335b2e017639ce3f9b001c393c1b2d1ef846ce2cbf"
+checksum = "0dd7358ecb8fc2f8d014bf86f6f638ce72ba252a2c3a2572f2a795f1d23efb41"
 dependencies = [
  "serde",
 ]
@@ -4209,15 +4168,15 @@ dependencies = [
 
 [[package]]
 name = "toml_edit"
-version = "0.22.14"
+version = "0.22.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f21c7aaf97f1bd9ca9d4f9e73b0a6c74bd5afef56f2bc931943a6e1c37e04e38"
+checksum = "583c44c02ad26b0c3f3066fe629275e50627026c51ac2e595cca4c230ce1ce1d"
 dependencies = [
  "indexmap 2.2.6",
  "serde",
  "serde_spanned",
  "toml_datetime",
- "winnow 0.6.13",
+ "winnow 0.6.18",
 ]
 
 [[package]]
@@ -4501,9 +4460,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.6.13"
+version = "0.6.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "59b5e5f6c299a3c7890b876a2a587f3115162487e704907d9b6cd29473052ba1"
+checksum = "68a9bda4691f099d435ad181000724da8e5899daa10713c2d432552b9ccd3a6f"
 dependencies = [
  "memchr",
 ]

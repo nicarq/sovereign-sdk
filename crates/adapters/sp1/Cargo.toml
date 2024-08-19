@@ -18,7 +18,7 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 digest = { workspace = true }
 serde = { workspace = true }
-bytemuck = "1.15.0"
+bytemuck = "1.17.0"
 sov-cycle-utils = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true }
 hex = { workspace = true }
@@ -41,6 +41,7 @@ sp1-sdk = { workspace = true, default-features = false }
 sp1-zkvm = { workspace = true }
 
 [dev-dependencies]
+sov-sp1-adapter = { path = ".", features = ["native"] }
 serde_json = { workspace = true }
 
 [build-dependencies]
@@ -51,11 +52,16 @@ default = []
 native = [
 	"rand",
 	"sov-rollup-interface/native",
-	"sov-cycle-utils?/native"
+	"sov-cycle-utils?/native",
+	"sov-sp1-adapter/native"
 ]
-bench = ["sov-cycle-utils/sp1"]
-arbitrary = ["dep:arbitrary", "sov-rollup-interface/arbitrary"]
+bench = [
+	"sov-cycle-utils/sp1",
+	"sov-sp1-adapter/bench"
+]
+arbitrary = [
+	"dep:arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-sp1-adapter/arbitrary"
+]
 
-[[test]]
-name = "native"
-required-features = ["native"]

@@ -228,7 +228,7 @@ Total cycles consumed for test: 26152702
 ```
 [patch.crates-io]
 sha2 = { git = "https://github.com/risc0/RustCrypto-hashes", tag = "sha2/v0.10.6-risc0" }
-ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.0-risczero.1" }
+ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", tag = "curve25519-4.1.2-risczero.0" }
 crypto-bigint = {git = "https://github.com/risc0/RustCrypto-crypto-bigint", tag = "v0.5.2-risc0"}
 ```
 

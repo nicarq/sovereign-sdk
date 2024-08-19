@@ -51,7 +51,7 @@ sov-state = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 tempfile = { workspace = true }
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
 rockbound = { workspace = true }
 paste = "1.0.15"

@@ -36,7 +36,7 @@ fn test_hints_roundtrip() {
 
 #[test]
 fn test_fibonnaci_host() {
-    let fibonacci_elf = include_bytes!("../test_data/riscv32im-succinct-zkvm-elf");
+    let fibonacci_elf = include_bytes!("../../test_data/riscv32im-succinct-zkvm-elf");
     let mut host = SP1Host::new(fibonacci_elf);
     // Give the input 7 to the fibonnaci program
     host.add_hint(7u32);
