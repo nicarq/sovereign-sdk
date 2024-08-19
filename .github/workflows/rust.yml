@@ -438,6 +438,8 @@ jobs:
         with:
           version: "23.2"
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+        # `cargo-nextest` is much faster than standard `cargo test`.
+      - uses: taiki-e/install-action@nextest
       - name: add llvm component
         run: rustup component add llvm-tools-preview
       - name: cargo install cargo-llvm-cov
