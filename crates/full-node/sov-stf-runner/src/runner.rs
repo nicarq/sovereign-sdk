@@ -50,7 +50,6 @@ where
     listen_address_axum: SocketAddr,
     proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
-    genesis_state_root: RawGenesisStateRoot,
 }
 
 /// The state necessary to track the sync status of the node
@@ -160,7 +159,7 @@ impl<
             StfChangeSet = Stf::ChangeSet,
         >,
     {
-        match self {
+        let (prev_state_root, raw_genesis_state_root) = match self {
             InitVariant::Initialized(prev_state_root) => {
                 debug!("Chain is already initialized; skipping initialization");
                 let raw_genesis_state_root = ledger_db
@@ -172,7 +171,7 @@ impl<
                     .expect("Rollup was already initialized. Slot 0 should exist")
                     .state_root;
 
-                Ok((prev_state_root, RawGenesisStateRoot(raw_genesis_state_root)))
+                (prev_state_root, RawGenesisStateRoot(raw_genesis_state_root))
             }
             InitVariant::Genesis {
                 block,
@@ -207,9 +206,16 @@ impl<
 
                 let raw_genesis_state_root =
                     RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
-                Ok((genesis_state_root, raw_genesis_state_root))
+                (genesis_state_root, raw_genesis_state_root)
             }
-        }
+        };
+
+        info!(
+            genesis_state_root = hex::encode(&raw_genesis_state_root.0),
+            "Chain initialization is done"
+        );
+
+        Ok((prev_state_root, raw_genesis_state_root))
     }
 }
 
@@ -244,16 +250,10 @@ where
         storage_manager: Sm,
         rpc_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
-        genesis_state_root: RawGenesisStateRoot,
         proof_manager: ProofManager<Ps>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = runner_config.rpc_config;
         let axum_config = runner_config.axum_config;
-
-        info!(
-            genesis_state_root = hex::encode(&genesis_state_root.0),
-            "Chain initialization is done"
-        );
 
         let listen_address_rpc =
             SocketAddr::new(rpc_config.bind_host.parse()?, rpc_config.bind_port);
@@ -286,12 +286,10 @@ where
             listen_address_rpc,
             listen_address_axum,
             proof_manager,
-
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
             }),
-            genesis_state_root,
         })
     }
 
@@ -538,7 +536,7 @@ where
         for transition_data in finalized_transitions {
             // Post ZK proof to DA.
             self.proof_manager
-                .post_aggregated_proof_to_da_when_ready(transition_data, &self.genesis_state_root)
+                .post_aggregated_proof_to_da_when_ready(transition_data)
                 .await?;
         }
         Ok(())
