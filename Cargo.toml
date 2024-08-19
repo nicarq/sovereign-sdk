@@ -235,4 +235,4 @@ secp256k1 = { version = "0.29.0", default-features = false, features = [
 [profile.dev.package.sov-modules-macros]
 # Set the optimization level to 3 for the sov-modules-macros crate. This
 # should reduce build times for other packages.
-opt-level = 3
+opt-level = 1

@@ -2,6 +2,17 @@
 
 EXTRA_DIRS := crates/fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia
 
+# Default is 256[^1], but `proptest` can be slow[^2] and local testing is not
+# the place to run expensive, long-running tests with property checking. That's
+# better left to CI.
+#
+# Ideally, one day we'd be able to increase this number without affecting
+# developer productivity.
+#
+# [^1]: https://proptest-rs.github.io/proptest/proptest/tutorial/config.html
+# [^2]: https://github.com/proptest-rs/proptest/issues/286
+export PROPTEST_CASES := 50
+
 help: ## Display this help message
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
