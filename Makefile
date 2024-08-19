@@ -63,6 +63,14 @@ install-risc0-toolchain:
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
 
+install-sp1-toolchain:
+	curl -L https://sp1.succinct.xyz | bash
+	~/.sp1/bin/sp1up
+	~/.sp1/bin/cargo-prove prove --version
+	~/.sp1/bin/cargo-prove prove install-toolchain
+	@echo "SP1 toolchain version:"
+	cargo +succinct --version
+
 lint:  ## cargo check and clippy. Skip clippy on guest code since it's not supported by risc0
 	## fmt first, because it's the cheapest
 	cargo +nightly fmt --all --check
