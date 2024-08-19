@@ -73,7 +73,7 @@ pub trait ZkvmHost: Clone + Send + Sync {
 
 /// A commitment to a zkVM program.
 pub trait CodeCommitment:
-    Matches<Self> + Clone + Debug + Serialize + DeserializeOwned + Send + Sync + PartialEq + Eq
+    Clone + Debug + Serialize + DeserializeOwned + Send + Sync + PartialEq + Eq
 {
     /// An error that occurs while trying to decode a commitment.
     type DecodeError: Debug;
@@ -192,13 +192,6 @@ pub trait ValidityConditionChecker<Condition: ValidityCondition>:
     type Error: Into<anyhow::Error>;
     /// Check a validity condition
     fn check(&mut self, condition: &Condition) -> Result<(), Self::Error>;
-}
-
-/// A trait expressing that two items of a type are (potentially fuzzy) matches.
-/// We need a custom trait instead of relying on [`PartialEq`] because we allow fuzzy matches.
-pub trait Matches<T> {
-    /// Check if two items are a match
-    fn matches(&self, other: &T) -> bool;
 }
 
 #[derive(

@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "zkvm"))]
 use sov_rollup_interface::zk::Proof;
-use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Matches, Zkvm};
+use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Zkvm};
 use thiserror::Error;
 
 pub mod crypto;
@@ -29,20 +29,14 @@ pub mod metrics;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Risc0MethodId([u32; 8]);
 
-impl Matches<Self> for Risc0MethodId {
-    fn matches(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Matches<Digest> for Risc0MethodId {
-    fn matches(&self, other: &Digest) -> bool {
+impl PartialEq<Digest> for Risc0MethodId {
+    fn eq(&self, other: &Digest) -> bool {
         self.0 == other.as_words()
     }
 }
 
-impl Matches<[u32; 8]> for Risc0MethodId {
-    fn matches(&self, other: &[u32; 8]) -> bool {
+impl PartialEq<[u32; 8]> for Risc0MethodId {
+    fn eq(&self, other: &[u32; 8]) -> bool {
         &self.0 == other
     }
 }

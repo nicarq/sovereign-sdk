@@ -14,7 +14,7 @@ pub use host::MockZkvm;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub mod crypto;
-use sov_rollup_interface::zk::{CryptoSpec, Matches, Proof};
+use sov_rollup_interface::zk::{CryptoSpec, Proof};
 
 use crate::crypto::{Ed25519PublicKey, Ed25519Signature};
 
@@ -35,12 +35,6 @@ impl CryptoSpec for MockZkvmCryptoSpec {
     Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Default,
 )]
 pub struct MockCodeCommitment(pub [u8; 32]);
-
-impl Matches<MockCodeCommitment> for MockCodeCommitment {
-    fn matches(&self, other: &MockCodeCommitment) -> bool {
-        self.0 == other.0
-    }
-}
 
 impl sov_rollup_interface::zk::CodeCommitment for MockCodeCommitment {
     type DecodeError = MockCodeCommitmentError;
