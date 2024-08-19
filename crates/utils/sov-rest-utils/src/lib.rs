@@ -43,6 +43,7 @@ use futures::StreamExt;
 pub use pagination::{PageSelection, Pagination};
 pub use sorting::{Sorting, SortingOrder};
 use tower_http::compression::CompressionLayer;
+use tower_http::cors::CorsLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 use tower_http::trace::TraceLayer;
 use tower_request_id::{RequestId, RequestIdLayer};
@@ -193,6 +194,13 @@ where
                 .layer(PropagateHeaderLayer::new(HeaderName::from_static(
                     "x-request-id",
                 ))),
+        )
+        // Allowing CORS is necessary for Metamask Snap.
+        .layer(
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any) // Allow all origins
+                .allow_methods(tower_http::cors::Any) // Allow all methods
+                .allow_headers(tower_http::cors::Any), // Allow all headers
         )
         .fallback(errors::global_404)
 }

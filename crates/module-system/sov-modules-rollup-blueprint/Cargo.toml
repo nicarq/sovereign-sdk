@@ -29,7 +29,6 @@ sov-ledger-apis = { workspace = true, optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
-tower-http = { workspace = true, features = ["trace", "compression-gzip", "propagate-header", "set-header", "cors"], optional = true }
 borsh = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
@@ -52,6 +51,5 @@ native = [
     "sov-stf-runner",
     "sov-stf-runner?/native",
     "tokio",
-    "tower-http",
     "sov-sequencer-registry/native"
 ]

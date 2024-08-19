@@ -13,9 +13,8 @@ pub use db::{MempoolTx, SequencerDb};
 pub use rest_api::sequencer_rest_api_server;
 pub use sequencer::{GenericSequencerSpec, Sequencer, SequencerSpec};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::TxHash;
-pub use tx_status::TxStatusNotifier;
+pub use tx_status::TxStatusManager;
 
 pub use crate::tx_status::TxStatus;
 
@@ -27,15 +26,4 @@ pub struct SubmittedBatchInfo {
     pub da_height: u64,
     /// The number of transactions that were successfully included in the batch.
     pub num_txs: usize,
-}
-
-/// The response type to the RPC method `sequencer_acceptTx`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AcceptTxResponse {
-    /// Raw transaction contents as originally passed by the client, as a
-    /// hex-encoded string.
-    #[serde(with = "sov_rollup_interface::common::hex_string_serde")]
-    pub tx: Vec<u8>,
-    /// The transaction hash of the transaction that was accepted.
-    pub tx_hash: HexHash,
 }

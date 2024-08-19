@@ -60,13 +60,13 @@ type TxStatusSenders<Da> = HashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash
 ///
 /// Cheaply-cloneable.
 #[derive(Debug, Clone)]
-pub struct TxStatusNotifier<Da: DaSpec> {
+pub struct TxStatusManager<Da: DaSpec> {
     // `MokaCache` is cheaply-cloneable, no need to wrap it in `Arc`.
     cache: MokaCache<TxHash, TxStatus<DaBlobHash<Da>>>,
     senders: Arc<RwLock<TxStatusSenders<Da>>>,
 }
 
-impl<Da: DaSpec> Default for TxStatusNotifier<Da> {
+impl<Da: DaSpec> Default for TxStatusManager<Da> {
     fn default() -> Self {
         Self {
             cache: MokaCache::new(Self::CACHE_CAPACITY),
@@ -75,7 +75,7 @@ impl<Da: DaSpec> Default for TxStatusNotifier<Da> {
     }
 }
 
-impl<Da: DaSpec> TxStatusNotifier<Da> {
+impl<Da: DaSpec> TxStatusManager<Da> {
     // The cache capacity is kind of arbitrary, as long as it's big enough to
     // fit a handful of typical batches worth of transactions it won't make much
     // of a difference.
@@ -85,7 +85,7 @@ impl<Da: DaSpec> TxStatusNotifier<Da> {
     const CHANNEL_CAPACITY: usize = 10;
 
     const LOCK_ERR: &'static str =
-        "Failed to acquire lock for tx status notifier; this is a bug, please report it";
+        "Failed to acquire lock for tx status manager; this is a bug, please report it";
 
     /// Returns the latest known status of the transaction associated with a [`TxHash`].
     pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<DaBlobHash<Da>>> {
@@ -148,7 +148,7 @@ impl<Da: DaSpec> TxStatusNotifier<Da> {
     ) {
         let dropper = SubscriptionDropper {
             tx_hash,
-            notifier: self.clone(),
+            txsm: self.clone(),
         };
 
         let mut senders = self.senders.write().expect(Self::LOCK_ERR);
@@ -167,7 +167,7 @@ impl<Da: DaSpec> TxStatusNotifier<Da> {
 }
 
 /// Hold on to this as long as you consume the [`broadcast::Receiver`] returned by
-/// [`TxStatusNotifier::subscribe`]. This will ensure proper cleanup and avoid
+/// [`TxStatusManager::subscribe`]. This will ensure proper cleanup and avoid
 /// memory leaks.
 ///
 /// Must be dropped *after* [`broadcast::Receiver`] has been dropped.
@@ -177,16 +177,16 @@ impl<Da: DaSpec> TxStatusNotifier<Da> {
 /// A small, custom GC loop might be a more proper approach. Possibly TODO?
 pub struct SubscriptionDropper<Da: DaSpec> {
     tx_hash: TxHash,
-    notifier: TxStatusNotifier<Da>,
+    txsm: TxStatusManager<Da>,
 }
 
 impl<Da: DaSpec> Drop for SubscriptionDropper<Da> {
     fn drop(&mut self) {
         let mut senders = self
-            .notifier
+            .txsm
             .senders
             .write()
-            .expect(TxStatusNotifier::<Da>::LOCK_ERR);
+            .expect(TxStatusManager::<Da>::LOCK_ERR);
 
         let entry = senders.entry(self.tx_hash);
 
@@ -214,11 +214,11 @@ mod tests {
 
     #[tokio::test]
     async fn get_cached() {
-        let notifier = TxStatusNotifier::<MockDaSpec>::default();
+        let txsm = TxStatusManager::<MockDaSpec>::default();
 
         // After sending two notifications for two different txs...
-        notifier.notify(TxHash::new([1; 32]), TxStatus::Submitted);
-        notifier.notify(
+        txsm.notify(TxHash::new([1; 32]), TxStatus::Submitted);
+        txsm.notify(
             TxHash::new([2; 32]),
             TxStatus::Published {
                 da_transaction_id: MockHash([100; 32]),
@@ -230,11 +230,11 @@ mod tests {
         // ...the cache will know the status of both txs (and, most
         // importantly, have the *correct* tx status!).
         assert_eq!(
-            notifier.get_cached(&TxHash::new([1; 32])),
+            txsm.get_cached(&TxHash::new([1; 32])),
             Some(TxStatus::Submitted)
         );
         assert_eq!(
-            notifier.get_cached(&TxHash::new([2; 32])),
+            txsm.get_cached(&TxHash::new([2; 32])),
             Some(TxStatus::Published {
                 da_transaction_id: MockHash([100; 32])
             })
@@ -243,48 +243,48 @@ mod tests {
 
     #[tokio::test]
     async fn multiple_subscribers_to_same_tx_dont_leak_memory() {
-        let notifier = TxStatusNotifier::<MockDaSpec>::default();
+        let txsm = TxStatusManager::<MockDaSpec>::default();
 
         {
             // Subscribing twice to the same tx will result in a single sender.
             let tx_hash = TxHash::new([1; 32]);
-            let (dropper_1, recv_1) = notifier.subscribe(tx_hash);
-            let (_dropper_2, _recv_2) = notifier.subscribe(tx_hash);
+            let (dropper_1, recv_1) = txsm.subscribe(tx_hash);
+            let (_dropper_2, _recv_2) = txsm.subscribe(tx_hash);
 
-            // After subscribing, the notifier contains a single sender.
-            assert_eq!(notifier.senders.read().unwrap().len(), 1);
+            // After subscribing, the tx status manager contains a single sender.
+            assert_eq!(txsm.senders.read().unwrap().len(), 1);
 
-            // After dropping only one of the subscriptions, the notifier still
+            // After dropping only one of the subscriptions, the manager still
             // contains a single sender.
             drop(recv_1);
             drop(dropper_1);
-            assert_eq!(notifier.senders.read().unwrap().len(), 1);
+            assert_eq!(txsm.senders.read().unwrap().len(), 1);
         }
 
         wait().await;
 
         // Both subscriptions have been dropped, so the sender should be gone.
-        assert_eq!(notifier.senders.read().unwrap().len(), 0);
+        assert_eq!(txsm.senders.read().unwrap().len(), 0);
     }
 
     #[tokio::test]
     async fn multiple_subscribers() {
-        let notifier = TxStatusNotifier::<MockDaSpec>::default();
+        let txsm = TxStatusManager::<MockDaSpec>::default();
 
         {
-            let (_dropper1a, mut sub1a) = notifier.subscribe(TxHash::new([1; 32]));
-            let (_dropper1b, mut sub1b) = notifier.subscribe(TxHash::new([1; 32]));
-            let (_dropper2, sub2) = notifier.subscribe(TxHash::new([2; 32]));
+            let (_dropper1a, mut sub1a) = txsm.subscribe(TxHash::new([1; 32]));
+            let (_dropper1b, mut sub1b) = txsm.subscribe(TxHash::new([1; 32]));
+            let (_dropper2, sub2) = txsm.subscribe(TxHash::new([2; 32]));
 
-            assert_eq!(notifier.senders.read().unwrap().len(), 2);
+            assert_eq!(txsm.senders.read().unwrap().len(), 2);
 
             // No notifications yet.
             assert_eq!(sub1a.len(), 0);
             assert_eq!(sub1b.len(), 0);
             assert_eq!(sub2.len(), 0);
 
-            notifier.notify(TxHash::new([1; 32]), TxStatus::Submitted);
-            notifier.notify(
+            txsm.notify(TxHash::new([1; 32]), TxStatus::Submitted);
+            txsm.notify(
                 TxHash::new([1; 32]),
                 TxStatus::Published {
                     da_transaction_id: MockHash([101; 32]),
@@ -309,20 +309,20 @@ mod tests {
             assert_eq!(sub2.len(), 0);
 
             assert_eq!(
-                notifier.get_cached(&TxHash::new([1; 32])),
+                txsm.get_cached(&TxHash::new([1; 32])),
                 Some(TxStatus::Published {
                     da_transaction_id: MockHash([101; 32])
                 })
             );
-            assert_eq!(notifier.get_cached(&TxHash::new([2; 32])), None);
+            assert_eq!(txsm.get_cached(&TxHash::new([2; 32])), None);
 
             // Before cleanup, the senders should still be present.
-            assert!(notifier.senders.read().unwrap().len() > 0);
+            assert!(txsm.senders.read().unwrap().len() > 0);
         }
 
         wait().await;
 
         // After cleanup, all senders should be gone.
-        assert_eq!(notifier.senders.read().unwrap().len(), 0);
+        assert_eq!(txsm.senders.read().unwrap().len(), 0);
     }
 }

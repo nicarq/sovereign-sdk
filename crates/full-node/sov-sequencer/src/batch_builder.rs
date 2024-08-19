@@ -18,7 +18,7 @@ use tracing::error;
 
 use crate::db::{MempoolTx, SequencerDb};
 use crate::mempool::{FairMempool, MempoolCursor};
-use crate::tx_status::TxStatusNotifier;
+use crate::tx_status::TxStatusManager;
 use crate::TxHash;
 
 /// Configuration for [`FairBatchBuilder`].
@@ -70,7 +70,7 @@ where
     pub fn new(
         runtime: R,
         kernel: K,
-        notifier: TxStatusNotifier<Da>,
+        tx_status_manager: TxStatusManager<Da>,
         current_storage: watch::Receiver<<S as Spec>::Storage>,
         sequencer_db: SequencerDb,
         config: FairBatchBuilderConfig<Da>,
@@ -78,7 +78,7 @@ where
         Ok(Self {
             mempool: FairMempool::new(
                 sequencer_db,
-                notifier,
+                tx_status_manager,
                 config
                     .mempool_max_txs_count
                     .unwrap_or(Self::DEFAULT_MEMPOOL_MAX_TXS_COUNT),
@@ -173,7 +173,14 @@ where
     /// The transaction is discarded if:
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
-    async fn accept_tx(&mut self, raw: Vec<u8>) -> Result<TxHash, AcceptTxError> {
+    async fn accept_tx(&mut self, raw: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
+        let raw = Auth::encode(raw)
+            .map_err(|e| AcceptTxError {
+                http_status: StatusCode::BAD_REQUEST.as_u16(),
+                title: "Failed to encode transaction".to_string(),
+                details: format!("{:?}", e),
+            })?
+            .data;
         tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
 
         if raw.len() > self.max_batch_size_bytes {
@@ -229,18 +236,18 @@ where
         );
 
         self.mempool
-            .add_new_tx(hash, raw)
+            .add_new_tx(hash, raw.clone())
             .map_err(|err| AcceptTxError {
                 http_status: StatusCode::INTERNAL_SERVER_ERROR.as_u16(),
                 title: "Failed to submit transaction".to_string(),
                 details: format!("{:?}", err),
             })?;
-        tracing::debug!(
+        tracing::trace!(
             %hash,
             "Transaction has been added to the mempool"
         );
 
-        Ok(hash)
+        Ok(TxWithHash { hash, raw_tx: raw })
     }
 
     async fn contains(&self, hash: &TxHash) -> anyhow::Result<bool> {
@@ -461,7 +468,7 @@ mod tests {
         });
         let storage = watch::Sender::new(storage).subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
-        let notifier = TxStatusNotifier::default();
+        let tx_status_manager = TxStatusManager::default();
 
         let config = FairBatchBuilderConfig {
             mempool_max_txs_count: Some(MAX_TX_POOL_SIZE),
@@ -471,7 +478,7 @@ mod tests {
         BatchBuilder::new(
             TestOptimisticRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
-            notifier,
+            tx_status_manager,
             storage,
             sequencer_db,
             config,
@@ -751,8 +758,10 @@ mod tests {
                 "the test assumes all txs have equal length"
             );
 
+            let mut raw_txs = Vec::new();
             for tx in &txs {
-                batch_builder.accept_tx(tx.clone()).await.unwrap();
+                let raw_tx = batch_builder.accept_tx(tx.clone()).await.unwrap().raw_tx;
+                raw_txs.push(raw_tx);
             }
 
             assert_eq!(txs.len(), batch_builder.mempool.len());
@@ -765,10 +774,10 @@ mod tests {
                 .map(|t| t.raw_tx.clone())
                 .collect::<Vec<_>>();
             assert_eq!(2, blob.len());
-            assert!(blob.contains(&txs[0]));
-            assert!(!blob.contains(&txs[1]));
-            assert!(blob.contains(&txs[2]));
-            assert!(!blob.contains(&txs[3]));
+            assert!(blob.contains(&raw_txs[0]));
+            assert!(!blob.contains(&raw_txs[1]));
+            assert!(blob.contains(&raw_txs[2]));
+            assert!(!blob.contains(&raw_txs[3]));
             assert_eq!(2, batch_builder.mempool.len());
         }
     }

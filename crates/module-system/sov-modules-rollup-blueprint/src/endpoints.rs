@@ -7,11 +7,10 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxRec
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{
     sequencer_rest_api_server, FairBatchBuilder, FairBatchBuilderConfig, SequencerDb,
-    TxStatusNotifier,
+    TxStatusManager,
 };
 use sov_stf_runner::SequencerConfig;
 use tokio::sync::watch;
-use tower_http::cors::CorsLayer;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
@@ -48,12 +47,12 @@ where
 
     // Sequencer endpoints.
     {
-        let notifier = TxStatusNotifier::default();
+        let tx_status_manager = TxStatusManager::default();
         let batch_builder =
             FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>::new(
                 B::Runtime::default(),
                 B::Kernel::default(),
-                notifier.clone(),
+                tx_status_manager.clone(),
                 storage,
                 sequencer_db.clone(),
                 sequencer_config.batch_builder.clone(),
@@ -62,20 +61,13 @@ where
         let sequencer = SequencerBlueprint::<B, M, Auth>::new(
             batch_builder,
             da_service.clone(),
-            notifier,
+            tx_status_manager,
             ledger_db.clone(),
         );
 
         endpoints.axum_router = endpoints.axum_router.nest(
             "/sequencer",
-            sequencer_rest_api_server("/sequencer")
-                .layer(
-                    CorsLayer::new() // Allowing CORS is necessary for Metamask Snap
-                        .allow_origin(tower_http::cors::Any) // Allow all origins
-                        .allow_methods(tower_http::cors::Any) // Allow all methods
-                        .allow_headers(tower_http::cors::Any), // Allow all headers
-                )
-                .with_state(sequencer),
+            sequencer_rest_api_server("/sequencer").with_state(sequencer),
         );
     }
 

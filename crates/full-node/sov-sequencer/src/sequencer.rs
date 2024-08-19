@@ -8,14 +8,14 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{Batch, RawTx, TxReceiptContents};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::rpc::{ItemOrHash, LedgerStateProvider, QueryMode};
-use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder};
+use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use sov_rollup_interface::services::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio::sync::{oneshot, Mutex};
 use tracing::info;
 
-use super::tx_status::{TxStatus, TxStatusNotifier};
-use super::{AcceptTxResponse, SubmittedBatchInfo};
+use super::tx_status::{TxStatus, TxStatusManager};
+use super::SubmittedBatchInfo;
 
 /// A bunch of associated types that define the behavior of a [`Sequencer`].
 pub trait SequencerSpec: Clone + Send + Sync + 'static {
@@ -25,9 +25,6 @@ pub trait SequencerSpec: Clone + Send + Sync + 'static {
     /// The [`DaService`] that the sequencer uses to communicate with the DA
     /// layer.
     type Da: DaService;
-    /// What [`Authenticator`] the sequencer uses to authenticate submitted
-    /// transactions.
-    type Auth: Authenticator;
     /// The type of the batch receipt that the rollup stores in the [`LedgerDb`].
     type BatchReceipt: DeserializeOwned + Send + Sync;
     /// The type of the transaction receipt that the rollup stores in the
@@ -53,7 +50,6 @@ where
 {
     type BatchBuilder = B;
     type Da = Da;
-    type Auth = Auth;
     type BatchReceipt = BatchReceipt;
     type TxReceipt = TxReceipt;
 }
@@ -65,7 +61,7 @@ pub struct Sequencer<Ss: SequencerSpec>(Arc<Inner<Ss>>);
 struct Inner<Ss: SequencerSpec> {
     batch_builder: Mutex<Ss::BatchBuilder>,
     da_service: Ss::Da,
-    tx_status_notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
     dropper: Option<oneshot::Sender<()>>,
 }
 
@@ -82,15 +78,15 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     pub fn new(
         batch_builder: Ss::BatchBuilder,
         da_service: Ss::Da,
-        tx_status_notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+        tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
         ledger_db: LedgerDb,
     ) -> Self {
         let (dropper, drop_receiver) = oneshot::channel();
 
         tokio::spawn({
-            let notifier = tx_status_notifier.clone();
+            let txsm = tx_status_manager.clone();
             async move {
-                listen_for_slots_and_notify::<Ss>(ledger_db, notifier, drop_receiver)
+                listen_for_slots_and_notify::<Ss>(ledger_db, txsm, drop_receiver)
                     .await
                     .ok();
             }
@@ -99,13 +95,13 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         Self(Arc::new(Inner {
             batch_builder: Mutex::new(batch_builder),
             da_service,
-            tx_status_notifier,
+            tx_status_manager,
             dropper: Some(dropper),
         }))
     }
 
-    pub(crate) fn notifier(&self) -> &TxStatusNotifier<<Ss::Da as DaService>::Spec> {
-        &self.0.tx_status_notifier
+    pub(crate) fn tx_status_manager(&self) -> &TxStatusManager<<Ss::Da as DaService>::Spec> {
+        &self.0.tx_status_manager
     }
 
     /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
@@ -117,13 +113,15 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         let mut accept_tx_results = vec![];
         for tx in txs {
-            let result = batch_builder.accept_tx(tx.clone()).await.map(|tx_hash| {
-                // Send notification.
-                self.0
-                    .tx_status_notifier
-                    .notify(tx_hash, TxStatus::Submitted);
-                AcceptTxResponse { tx, tx_hash }
-            });
+            let result = batch_builder
+                .accept_tx(tx.clone())
+                .await
+                .map(|tx_with_hash| {
+                    // Send notification.
+                    self.0
+                        .tx_status_manager
+                        .notify(tx_with_hash.hash, TxStatus::Submitted);
+                });
 
             accept_tx_results.push(result);
         }
@@ -170,7 +168,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         };
 
         for tx_hash in tx_hashes {
-            self.0.tx_status_notifier.notify(
+            self.0.tx_status_manager.notify(
                 tx_hash,
                 TxStatus::Published {
                     da_transaction_id: da_tx_id.clone(),
@@ -182,16 +180,16 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// See [`BatchBuilder::accept_tx`].
-    pub async fn accept_tx(&self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError> {
+    pub async fn accept_tx(&self, tx: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
         let mut batch_builder = self.0.batch_builder.lock().await;
 
         tracing::info!(tx = hex::encode(&tx), "Accepting transaction");
-        let tx_hash = batch_builder.accept_tx(tx).await?;
+        let tx_with_hash = batch_builder.accept_tx(tx).await?;
         self.0
-            .tx_status_notifier
-            .notify(tx_hash, TxStatus::Submitted);
+            .tx_status_manager
+            .notify(tx_with_hash.hash, TxStatus::Submitted);
 
-        Ok(tx_hash)
+        Ok(tx_with_hash)
     }
 
     /// Queries the latest known status of the given transaction. Best-effort,
@@ -205,14 +203,14 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         if is_in_mempool {
             Ok(Some(TxStatus::Submitted))
         } else {
-            Ok(self.0.tx_status_notifier.get_cached(tx_hash))
+            Ok(self.0.tx_status_manager.get_cached(tx_hash))
         }
     }
 }
 
 async fn notify_processed_slot<Ss: SequencerSpec>(
     ledger_db: &LedgerDb,
-    notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
     slot_number: u64,
 ) -> anyhow::Result<()> {
     let slot = ledger_db
@@ -231,7 +229,7 @@ async fn notify_processed_slot<Ss: SequencerSpec>(
                 <DaBlobHash<<Ss::Da as DaService>::Spec>>::try_from(batch.hash)?;
             let tx_hash = TxHash::new(tx.hash);
 
-            notifier.notify(tx_hash, TxStatus::Published { da_transaction_id });
+            tx_status_manager.notify(tx_hash, TxStatus::Published { da_transaction_id });
         }
     }
 
@@ -240,7 +238,7 @@ async fn notify_processed_slot<Ss: SequencerSpec>(
 
 pub async fn listen_for_slots_and_notify<Ss: SequencerSpec>(
     ledger_db: LedgerDb,
-    notifier: TxStatusNotifier<<Ss::Da as DaService>::Spec>,
+    tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
     mut drop_receiver: oneshot::Receiver<()>,
 ) -> anyhow::Result<()> {
     let mut sub = ledger_db.subscribe_slots();
@@ -253,7 +251,7 @@ pub async fn listen_for_slots_and_notify<Ss: SequencerSpec>(
             },
             slot_number_opt = sub.next() => {
                 if let Some(slot_number) = slot_number_opt {
-                    notify_processed_slot::<Ss>(&ledger_db, notifier.clone(), slot_number).await?;
+                    notify_processed_slot::<Ss>(&ledger_db, tx_status_manager.clone(), slot_number).await?;
                 } else {
                     break;
                 }
@@ -302,9 +300,12 @@ mod tests {
     // This allows to show an effect of batch builder
     #[async_trait]
     impl BatchBuilder for MockBatchBuilder {
-        async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxHash, AcceptTxError> {
-            self.mempool.push(tx);
-            Ok(TxHash::new([0; 32]))
+        async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
+            self.mempool.push(tx.clone());
+            Ok(TxWithHash {
+                raw_tx: tx,
+                hash: TxHash::new([0; 32]),
+            })
         }
 
         async fn contains(&self, _tx_hash: &TxHash) -> anyhow::Result<bool> {
