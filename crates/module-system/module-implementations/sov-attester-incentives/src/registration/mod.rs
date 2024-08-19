@@ -1,12 +1,12 @@
 pub(crate) mod attester;
 pub(crate) mod challenger;
-
 use core::result::Result::Ok;
+use std::marker::PhantomData;
 
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::registration_lib::RegistrationError;
-use sov_modules_api::{BasicAddress, Spec, StateAccessor, StateReader};
-use sov_state::{EventContainer, User};
+use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
+use sov_modules_api::{BasicAddress, DaSpec, ModuleId, Spec, StateAccessor, StateReader};
+use sov_state::User;
 use thiserror::Error;
 
 use crate::AttesterIncentives;
@@ -35,34 +35,112 @@ type AttesterRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
     CustomError<S::Address>,
 >;
 
-impl<S, Da> AttesterIncentives<S, Da>
+struct Staker<'a, S: Spec, Da: DaSpec> {
+    bonded_stakers: &'a sov_modules_api::StateMap<S::Address, Amount>,
+    minimum_bond: &'a sov_modules_api::StateValue<Amount>,
+    bank: &'a sov_bank::Bank<S>,
+    id: &'a ModuleId,
+    _phantom: PhantomData<Da>,
+}
+
+impl<'a, S: Spec, Da: DaSpec> Staker<'a, S, Da> {
+    fn new_challenger(attester_incentives: &'a AttesterIncentives<S, Da>) -> Self {
+        Self {
+            bonded_stakers: &attester_incentives.bonded_challengers,
+            minimum_bond: &attester_incentives.minimum_challenger_bond,
+            bank: &attester_incentives.bank,
+            id: &attester_incentives.id,
+            _phantom: PhantomData,
+        }
+    }
+
+    fn new_attester(attester_incentives: &'a AttesterIncentives<S, Da>) -> Self {
+        Self {
+            bonded_stakers: &attester_incentives.bonded_attesters,
+            minimum_bond: &attester_incentives.minimum_attester_bond,
+            bank: &attester_incentives.bank,
+            id: &attester_incentives.id,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, S, Da> StakeRegistration for Staker<'a, S, Da>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
-    fn register_user_helper<ST: StateAccessor + EventContainer>(
+    type PrimaryAddress = S::Address;
+
+    type RollupAddress = S::Address;
+
+    type CustomError = CustomError<S::Address>;
+
+    fn get_minimum_bond<ST: StateAccessor>(
         &self,
-        bond_amount: u64,
-        user_address: &S::Address,
-        balances: &sov_modules_api::StateMap<S::Address, Amount>,
         state: &mut ST,
-    ) -> Result<(), AttesterRegistryError<S, ST>> {
-        // Transfer the bond amount from the sender to the module's id.
-        // On failure, no state is changed
-        let coins = Coins {
-            token_id: GAS_TOKEN_ID,
-            amount: bond_amount,
-        };
+    ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
+        self.minimum_bond.get(state)
+    }
 
-        self.bank
-            .transfer_from(user_address, self.id.to_payable(), coins, state)
-            .map_err(|_err| RegistrationError::InsufficientFundsToRegister {
-                address: user_address.clone(),
-                amount: bond_amount,
-            })?;
+    fn get_allowed_staker<ST: StateAccessor>(
+        &self,
+        address: &Self::PrimaryAddress,
+        state: &mut ST,
+    ) -> Result<
+        Option<(Self::RollupAddress, u64)>,
+        <ST as sov_modules_api::StateWriter<sov_state::User>>::Error,
+    > {
+        self.bonded_stakers
+            .get(address, state)
+            .map(|opt| opt.map(|bond| (address.clone(), bond)))
+    }
 
-        balances.set(user_address, &bond_amount, state)?;
-
+    fn set_allowed_staker<ST: StateAccessor>(
+        &self,
+        _primary_address: &Self::PrimaryAddress,
+        rollup_address: &Self::RollupAddress,
+        amount: u64,
+        state: &mut ST,
+    ) -> Result<(), <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
+        self.bonded_stakers.set(rollup_address, &amount, state)?;
         Ok(())
+    }
+
+    fn transfer_bond_from_staker<ST: StateAccessor>(
+        &self,
+        address: &Self::RollupAddress,
+        amount: u64,
+        state: &mut ST,
+    ) -> Result<(), anyhow::Error> {
+        self.bank
+            .transfer_from(address, self.id.to_payable(), gas_coins(amount), state)?;
+        Ok(())
+    }
+
+    fn transfer_bond_to_staker<ST: StateAccessor>(
+        &self,
+        address: &Self::RollupAddress,
+        amount: u64,
+        state: &mut ST,
+    ) -> Result<(), anyhow::Error> {
+        self.bank
+            .transfer_from(self.id.to_payable(), address, gas_coins(amount), state)?;
+        Ok(())
+    }
+
+    fn delete_allowed_staker<ST: StateAccessor>(
+        &self,
+        address: &Self::PrimaryAddress,
+        state: &mut ST,
+    ) -> Result<(), <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
+        self.bonded_stakers.delete(address, state)
+    }
+}
+
+pub(crate) fn gas_coins(amount: u64) -> Coins {
+    Coins {
+        amount,
+        token_id: GAS_TOKEN_ID,
     }
 }

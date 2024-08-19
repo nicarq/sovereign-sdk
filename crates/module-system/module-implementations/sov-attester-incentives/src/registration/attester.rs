@@ -1,11 +1,10 @@
 use core::result::Result::Ok;
 
-use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
-use sov_modules_api::registration_lib::RegistrationError;
+use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
 use sov_state::EventContainer;
 
-use super::{AttesterRegistryError, CustomError};
+use super::{AttesterRegistryError, CustomError, Staker};
 use crate::{AttesterIncentives, Event, UnbondingInfo};
 
 impl<S, Da> AttesterIncentives<S, Da>
@@ -25,26 +24,8 @@ where
             )));
         }
 
-        if self.bonded_attesters.get(user_address, state)?.is_some() {
-            return Err(RegistrationError::AlreadyRegistered(user_address.clone()));
-        }
-
-        let minimum_bond = self
-            .minimum_attester_bond
-            .get(state)?
-            .ok_or(RegistrationError::NoMinimumBondSet(user_address.clone()))?;
-
-        if bond_amount < minimum_bond {
-            return Err(RegistrationError::InsufficientStakeAmount {
-                address: user_address.clone(),
-                bond_amount,
-                minimum_bond_amount: minimum_bond,
-            });
-        }
-
-        let balances = &self.bonded_attesters;
-        self.register_user_helper::<ST>(bond_amount, user_address, balances, state)?;
-
+        let attester = Staker::new_attester(self);
+        attester.register_staker(user_address, user_address, bond_amount, state)?;
         let event = Event::<S>::RegisteredAttester {
             amount: bond_amount,
         };
@@ -69,33 +50,8 @@ where
             )));
         }
 
-        let bonded_amount = self
-            .bonded_attesters
-            .get(attester_address, state)?
-            .ok_or(RegistrationError::IsNotRegistered(attester_address.clone()))?;
-
-        let balance = bonded_amount.checked_add(amount).ok_or(
-            RegistrationError::ToppingAccountMakesBalanceOverflow {
-                address: attester_address.clone(),
-                existing_balance: bonded_amount,
-                amount_to_add: amount,
-            },
-        )?;
-
-        let coins = Coins {
-            amount,
-            token_id: GAS_TOKEN_ID,
-        };
-
-        self.bank
-            .transfer_from(attester_address, self.id.to_payable(), coins, state)
-            .map_err(|_err| RegistrationError::InsufficientFundsToTopUpAccount {
-                address: attester_address.clone(),
-                amount_to_add: amount,
-            })?;
-
-        self.bonded_attesters
-            .set(attester_address, &balance, state)?;
+        let attester = Staker::new_attester(self);
+        attester.deposit_funds(attester_address, amount, state)?;
 
         Ok(CallResponse::default())
     }

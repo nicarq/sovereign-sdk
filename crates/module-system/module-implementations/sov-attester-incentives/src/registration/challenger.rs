@@ -1,10 +1,10 @@
 use core::result::Result::Ok;
 
-use sov_modules_api::registration_lib::RegistrationError;
+use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
 use sov_state::EventContainer;
 
-use super::AttesterRegistryError;
+use super::{AttesterRegistryError, Staker};
 use crate::{AttesterIncentives, Event};
 
 impl<S, Da> AttesterIncentives<S, Da>
@@ -18,31 +18,16 @@ where
         user_address: &S::Address,
         state: &mut ST,
     ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
-        if self.bonded_challengers.get(user_address, state)?.is_some() {
-            return Err(RegistrationError::AlreadyRegistered(user_address.clone()));
-        }
+        let challenger = Staker::new_challenger(self);
+        challenger.register_staker(user_address, user_address, bond_amount, state)?;
 
-        let minimum_bond = self
-            .minimum_challenger_bond
-            .get(state)?
-            .ok_or(RegistrationError::NoMinimumBondSet(user_address.clone()))?;
+        self.emit_event(
+            state,
+            Event::<S>::RegisteredChallenger {
+                amount: bond_amount,
+            },
+        );
 
-        if bond_amount < minimum_bond {
-            return Err(RegistrationError::InsufficientStakeAmount {
-                address: user_address.clone(),
-                bond_amount,
-                minimum_bond_amount: minimum_bond,
-            });
-        }
-
-        let balances = &self.bonded_challengers;
-        self.register_user_helper::<ST>(bond_amount, user_address, balances, state)?;
-
-        let event = Event::<S>::RegisteredChallenger {
-            amount: bond_amount,
-        };
-
-        self.emit_event(state, event);
         Ok(CallResponse::default())
     }
 
@@ -52,20 +37,10 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse> {
-        // Get the user's old balance.
-        if let Some(old_balance) = self.bonded_challengers.get(context.sender(), state)? {
-            // Transfer the bond amount from the sender to the module's id.
-            // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, old_balance, state)?;
+        let challenger = Staker::new_challenger(self);
+        let amount_withdrawn = challenger.exit_staker(context.sender(), state)?;
 
-            // Emit the unbonding event
-            self.emit_event(
-                state,
-                Event::<S>::ExitedChallenger {
-                    amount_withdrawn: old_balance,
-                },
-            );
-        }
+        self.emit_event(state, Event::<S>::ExitedChallenger { amount_withdrawn });
 
         Ok(CallResponse::default())
     }
