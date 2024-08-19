@@ -3554,7 +3554,7 @@ dependencies = [
 [[package]]
 name = "sov-cycle-macros"
 version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7bd91bcb69ebb41787fcb938572b156f25e34e00#7bd91bcb69ebb41787fcb938572b156f25e34e00"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=99cfee6d5fdf179062aa983a20f427c59e34cba3#99cfee6d5fdf179062aa983a20f427c59e34cba3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3564,7 +3564,7 @@ dependencies = [
 [[package]]
 name = "sov-cycle-utils"
 version = "0.4.0"
-source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=7bd91bcb69ebb41787fcb938572b156f25e34e00#7bd91bcb69ebb41787fcb938572b156f25e34e00"
+source = "git+https://github.com/Sovereign-Labs/risc0-cycle-macros.git?rev=99cfee6d5fdf179062aa983a20f427c59e34cba3#99cfee6d5fdf179062aa983a20f427c59e34cba3"
 dependencies = [
  "once_cell",
  "risc0-zkvm",
@@ -3573,7 +3573,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-demo-prover-guest-celestia"
+name = "sov-demo-prover-guest-celestia-risc0"
 version = "0.3.0"
 dependencies = [
  "const-rollup-config",

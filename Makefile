@@ -43,7 +43,7 @@ test-default-features:  ## Runs test suite using default features
 	@cargo nextest run --workspace --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
-install-dev-tools: install-risc0-toolchain
+install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	## Backup VS Code settings to `.vscode/settings.json.bak`.
 	cp .vscode/settings.json .vscode/settings.json.bak || true
 	## Install the default suggested VS Code settings.

@@ -28,6 +28,7 @@ sov-nft-module = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
 sov-ledger-apis = { workspace = true }
 risc0 = { path = "./provers/risc0" }
+sp1 = { path = "./provers/sp1" }
 borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
@@ -116,6 +117,7 @@ bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
 bench = [
 	"hex",
 	"risc0/bench",
+	"sp1/bench",
 	"sov-celestia-adapter/bench",
 	"sov-modules-api/bench",
 	"sov-modules-stf-blueprint/bench",

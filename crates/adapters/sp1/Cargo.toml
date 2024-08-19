@@ -18,8 +18,10 @@ bincode = { workspace = true }
 borsh = { workspace = true }
 digest = { workspace = true }
 serde = { workspace = true }
+
 bytemuck = "1.17.0"
-sov-cycle-utils = { workspace = true, optional = true }
+sov-cycle-utils = { workspace = true, optional = true, features = ["sp1"] }
+
 sov-rollup-interface = { workspace = true }
 hex = { workspace = true }
 thiserror = { workspace = true }

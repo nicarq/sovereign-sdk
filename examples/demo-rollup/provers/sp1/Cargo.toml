@@ -1,0 +1,19 @@
+[package]
+name = "sp1"
+version = "0.3.0"
+edition = "2021"
+resolver = "2"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[dependencies]
+lazy_static = { workspace = true }
+
+[lints]
+workspace = true
+
+[build-dependencies]
+sp1-helper = { version = "1", default-features = false }
+
+[features]
+bench = []
