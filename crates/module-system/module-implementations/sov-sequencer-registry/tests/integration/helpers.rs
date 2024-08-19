@@ -14,9 +14,9 @@ pub type Da = MockDaSpec;
 pub const NON_DEFAULT_SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
 pub const ANOTHER_SEQUENCER_DA_ADDRESS: [u8; 32] = [2; 32];
 
-generate_optimistic_runtime!(SequencerRuntime <= value_setter: ValueSetter<S>);
+generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
-pub(crate) type RT = SequencerRuntime<S, Da>;
+pub(crate) type RT = TestRuntime<S, Da>;
 
 pub(crate) type TestSequencerRegistry = SequencerRegistry<S, Da>;
 
@@ -35,7 +35,7 @@ pub struct TestRoles {
 
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
-pub fn setup() -> (TestRoles, TestRunner<SequencerRuntime<S, Da>, S>) {
+pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(2);
 
     let genesis_sequencer = genesis_config.initial_sequencer.clone();

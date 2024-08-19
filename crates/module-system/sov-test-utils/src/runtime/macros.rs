@@ -35,6 +35,11 @@ macro_rules! generate_runtime {
         /// A type alias for the generated runtime.
         pub type $id<S, Da> = $crate::runtime::wrapper::TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
 
+        $crate::paste! {
+            /// A type alias for the `RuntimeEvent`s generated for the test runtime.
+            #[allow(dead_code)]
+            pub type [<$id Event>]<S,Da> = __GeneratedRuntimeInternalsEvent<S, Da>;
+        }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for __GeneratedRuntimeInternals<S, Da> {
             fn bank(&self) -> &$crate::runtime::Bank<S> {

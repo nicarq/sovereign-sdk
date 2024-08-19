@@ -8,7 +8,7 @@ use sov_modules_api::{Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{TestAttester, TransactionTestCase, TEST_ROLLUP_FINALITY_PERIOD};
 
-use crate::helpers::{setup, TestAttesterIncentives, __GeneratedRuntimeInternalsEvent, RT, S};
+use crate::helpers::{setup, TestAttesterIncentives, TestRuntimeEvent, RT, S};
 
 /// Sets up the invariant tests by executing empty slots and attesting up to `FINALITY_PERIOD + 1`. The maximum attested height is
 /// equal to the `FINALITY_PERIOD + 1` at the end of the setup. Returns the test runner, genesis attester and the maximum attested height.
@@ -31,7 +31,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
                 // Check that we emitted a `ProcessedValidAttestation` event.
                 assert!(result.events.iter().any(|event| matches!(
                     event,
-                    __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    TestRuntimeEvent::attester_incentives(
                         Event::ProcessedValidAttestation { attester }
                     ) if *attester == genesis_attester_address
                 )));
@@ -146,7 +146,7 @@ fn test_can_attest_within_allowed_range() {
                 // Check that we emitted a `ProcessedValidAttestation` event.
                 assert!(result.events.iter().any(|event| matches!(
                     event,
-                    __GeneratedRuntimeInternalsEvent::attester_incentives(
+                    TestRuntimeEvent::attester_incentives(
                         Event::ProcessedValidAttestation { attester }
                     ) if *attester == genesis_attester_address
                 )));

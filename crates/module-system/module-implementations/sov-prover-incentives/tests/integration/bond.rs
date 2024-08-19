@@ -3,7 +3,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_prover_incentives::{CallMessage, Event};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::helpers::{__GeneratedRuntimeInternalsEvent, setup, TestProverIncentives, RT};
+use crate::helpers::{setup, TestProverIncentives, TestRuntimeEvent, RT};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -45,7 +45,7 @@ fn test_topup_existing_bond() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::prover_incentives(Event::Deposited {
+                TestRuntimeEvent::prover_incentives(Event::Deposited {
                     prover,
                     deposit
                 }) if *prover == prover_address && *deposit == extra_bond_amount
@@ -86,7 +86,7 @@ fn test_bonding_new_prover() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::prover_incentives(Event::Registered {
+                TestRuntimeEvent::prover_incentives(Event::Registered {
                     prover,
                     amount
                 }) if *prover == user_address && *amount == bond_amount
@@ -117,7 +117,7 @@ fn test_unbonding() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::prover_incentives(Event::Exited { .. })
+                TestRuntimeEvent::prover_incentives(Event::Exited { .. })
             )));
             assert_eq!(
                 genesis_prover.user_info.available_balance + genesis_prover.bond - result.gas_used,

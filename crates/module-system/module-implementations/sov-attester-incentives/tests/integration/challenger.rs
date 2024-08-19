@@ -15,7 +15,7 @@ use sov_test_utils::{
     TEST_ROLLUP_FINALITY_PERIOD,
 };
 
-use crate::helpers::{setup, TestAttesterIncentives, __GeneratedRuntimeInternalsEvent, RT, S};
+use crate::helpers::{setup, TestAttesterIncentives, TestRuntimeEvent, RT, S};
 
 /// Helper that sets up a configuration where:
 /// - the challenger is bonded and
@@ -88,7 +88,7 @@ fn setup_with_wrong_attestation() -> (
             // Check that the working set has emitted a slashed event
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed { .. })
+                TestRuntimeEvent::attester_incentives(Event::UserSlashed { .. })
             )));
             // Check that the attester was slashed
             assert_eq!(
@@ -150,7 +150,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
             // Check that a reward event has been emitted
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                __GeneratedRuntimeInternalsEvent::attester_incentives(
+                TestRuntimeEvent::attester_incentives(
                     Event::ProcessedValidProof { challenger }) if *challenger == bonded_challenger_address
                 )
             ));
@@ -187,7 +187,7 @@ fn test_invalid_challenge_helper(
             assert!(
                 result.events.iter().any(|event| matches!(
                     event,
-                    __GeneratedRuntimeInternalsEvent::attester_incentives(Event::UserSlashed {
+                    TestRuntimeEvent::attester_incentives(Event::UserSlashed {
                         address,
                         reason
                     }) if *address == bonded_challenger_address && *reason == slashing_reason

@@ -7,9 +7,9 @@ pub(crate) type S = sov_test_utils::TestSpec;
 
 pub(crate) type TestAttesterIncentives = AttesterIncentives<S, MockDaSpec>;
 
-pub(crate) type RT = AttesterRuntime<S, MockDaSpec>;
+pub(crate) type RT = TestRuntime<S, MockDaSpec>;
 
-generate_optimistic_runtime!(AttesterRuntime <= );
+generate_optimistic_runtime!(TestRuntime <= );
 
 pub type SetupParams = (
     TestRunner<RT, S>,
@@ -38,7 +38,7 @@ pub(crate) fn setup() -> SetupParams {
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
     let mut runner =
-        TestRunner::new_with_genesis(genesis.into_genesis_params(), AttesterRuntime::default());
+        TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
 
     runner.query_state(|state| {
         // Check that the attester account is bonded
