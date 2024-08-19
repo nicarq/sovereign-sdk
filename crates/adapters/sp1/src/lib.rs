@@ -10,7 +10,7 @@ use anyhow::Error;
 use crypto::{SP1PublicKey, SP1Signature};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Matches, Zkvm};
+use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Zkvm};
 #[cfg(not(target_os = "zkvm"))]
 use sp1_sdk::{ProverClient, SP1ProofWithPublicValues};
 
@@ -28,28 +28,14 @@ pub mod metrics;
 /// Uniquely identifies a SP1 binary. Stored as a serialized version of `SP1VerifyingKey`.
 /// TODO: When there's a nice representation of SP1VerifyingKey that can be compiled in SP1, we can use that.
 /// e.g. If SP1VerifyingKey is moved to a crate that can be compiled in an SP1 program.
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SP1MethodId(Vec<u8>);
-
-impl Matches<Self> for SP1MethodId {
-    fn matches(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
 
 impl Debug for SP1MethodId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("SP1MethodId").field(&self.0).finish()
     }
 }
-
-impl PartialEq for SP1MethodId {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for SP1MethodId {}
 
 impl CodeCommitment for SP1MethodId {
     type DecodeError = Error;
