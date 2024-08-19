@@ -28,8 +28,9 @@ pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
 use crate::{
-    generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase, SlotInput,
-    TestStfBlueprint, TransactionAssertContext, TransactionTestCase, TransactionType,
+    generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase,
+    ProofAssertContext, ProofTestCase, ProofType, SlotInput, TestStfBlueprint,
+    TransactionAssertContext, TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
@@ -263,6 +264,19 @@ where
         let mut blobs = match slot_input {
             SlotInput::Transaction(tx) => self.txs_to_blobs(vec![tx], &stf_state, sequencer),
             SlotInput::Batch(batch) => self.txs_to_blobs(batch.0, &stf_state, sequencer),
+            SlotInput::Proof(proof) => {
+                let proof_bytes = match proof {
+                    ProofType::Inline(proof) => proof,
+                    ProofType::Configuration(proof) => {
+                        proof.from_state(&mut ApiStateAccessor::<S>::new(stf_state.clone()))
+                    }
+                };
+                let blob = MockBlob::new_with_hash(borsh::to_vec(&proof_bytes).unwrap(), sequencer);
+                RelevantBlobs {
+                    batch_blobs: vec![],
+                    proof_blobs: vec![blob],
+                }
+            }
         };
         (
             self.stf.apply_slot(
@@ -378,6 +392,27 @@ where
             outcome: result.batch_receipts.first().cloned(),
         };
         (batch_test.assert)(ctx, &mut self.current_state());
+        self
+    }
+
+    /// Execute a ProofTestCase against the current state of the runtime.
+    ///
+    /// This will submit a slot containing a single proof blob.
+    pub fn execute_proof<M: Module>(
+        &mut self,
+        proof_test: ProofTestCase<S, MockDaSpec>,
+    ) -> &mut Self
+    where
+        RT: EncodeCall<M>,
+    {
+        let sender_da_address = proof_test
+            .override_sequencer
+            .unwrap_or(self.default_sequencer_da_address);
+        let result = self.execute(proof_test.input, Some(sender_da_address));
+        let ctx = ProofAssertContext {
+            outcome: result.proof_receipts.first().cloned(),
+        };
+        (proof_test.assert)(ctx, &mut self.current_state());
         self
     }
 }

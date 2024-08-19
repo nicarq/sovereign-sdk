@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
 
+use crate::FromState;
+
 /// Defines the type of a message that can be sent to the runtime.
 pub enum TransactionType<M: Module, S: Spec> {
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
@@ -28,7 +30,7 @@ pub enum TransactionType<M: Module, S: Spec> {
     /// A message type that needs to be configured before it can be sent
     Configuration {
         /// A plain message to be sent to the state.
-        message: Box<dyn crate::FromState<S, Output = M::CallMessage>>,
+        message: Box<dyn FromState<S, Output = M::CallMessage>>,
         /// The private key of the sender.
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         /// The details of the transaction.
@@ -187,22 +189,21 @@ impl<S: Spec, M: Module> From<Vec<TransactionType<M, S>>> for BatchType<M, S> {
     }
 }
 
+/// Defines the type of proof that can be sent to the runtime.
+pub enum ProofType<S: Spec> {
+    /// Provide the proof upfront as a byte array.
+    Inline(Vec<u8>),
+    /// Derive the proof at a later point in time utilizing the current rollup state.
+    Configuration(Box<dyn FromState<S, Output = Vec<u8>>>),
+}
+
 /// Input that can be executed in a slot ran by the test runtime.
+#[derive(derive_more::From)]
 pub enum SlotInput<S: Spec, M: Module> {
     /// Execute a transaction as input to a slot.
     Transaction(TransactionType<M, S>),
     /// Execute a batch as input to a slot.
     Batch(BatchType<M, S>),
-}
-
-impl<S: Spec, M: Module> From<TransactionType<M, S>> for SlotInput<S, M> {
-    fn from(value: TransactionType<M, S>) -> Self {
-        Self::Transaction(value)
-    }
-}
-
-impl<S: Spec, M: Module> From<BatchType<M, S>> for SlotInput<S, M> {
-    fn from(value: BatchType<M, S>) -> Self {
-        Self::Batch(value)
-    }
+    /// Execute a proof as input to a slot.
+    Proof(ProofType<S>),
 }

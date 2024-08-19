@@ -63,6 +63,7 @@ pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
 }
 
 /// A receipt for data posted into the proof namespace
+#[derive(Debug, Clone)]
 pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
     /// The serialized zk-proof.
     pub raw_proof: SerializedAggregatedProof,
@@ -78,7 +79,7 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
 
 /// The contents of a proof receipt.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     /// A receipt for an aggregate proof contains the public data form the proof.
     AggregateProof(AggregatedProofPublicData),
@@ -90,7 +91,7 @@ pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
 
 /// The outcome of a proof
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ProofOutcome<Address, Da: DaSpec, Root> {
     /// The blob was filtered out as irrelevant
     Ignored,
