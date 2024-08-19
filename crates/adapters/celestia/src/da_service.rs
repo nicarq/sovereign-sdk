@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
+use tokio::time::Instant;
 use tracing::{debug, info, instrument, trace};
 
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
@@ -232,8 +233,9 @@ impl DaService for CelestiaService {
     type Error = MaybeRetryable<BoxError>;
     type Fee = CelestiaFee;
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        let start_get_block = Instant::now();
         let client = &self.read_client;
 
         // Fetch the header and relevant shares via RPC
@@ -241,11 +243,9 @@ impl DaService for CelestiaService {
             .header_get_by_height(height)
             .await
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        trace!(?header, height, "Got the header");
+        trace!(%header, height, time = ?start_get_block.elapsed(), "Got the block header");
 
-        // Fetch the rollup namespace shares, etx data and extended data square
-        trace!("Fetching rollup data...");
-
+        let rows_start = Instant::now();
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
         let data_square_future = client.share_get_eds(&header);
 
@@ -262,6 +262,7 @@ impl DaService for CelestiaService {
             data_square_future
         )
         .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+        trace!(time = ?rows_start.elapsed(), "Rows futures all");
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: self.rollup_batch_namespace,
@@ -273,6 +274,7 @@ impl DaService for CelestiaService {
             rows: proof_rows,
         };
 
+        trace!(time = ?start_get_block.elapsed(), "Get block total");
         FilteredCelestiaBlock::new(
             rollup_batch_shares,
             rollup_proof_shares,
@@ -283,7 +285,7 @@ impl DaService for CelestiaService {
         .map_err(MaybeRetryable::Permanent)
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_last_finalized_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
@@ -306,7 +308,7 @@ impl DaService for CelestiaService {
             .boxed())
     }
 
-    #[instrument]
+    #[instrument(skip(self))]
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {

@@ -69,6 +69,7 @@ pub async fn construct_rollup(
                 bind_host: "127.0.0.1".into(),
                 bind_port: 0,
             },
+            concurrent_sync_tasks: Some(1),
         },
         da: da_config,
         proof_manager: ProofManagerConfig {
