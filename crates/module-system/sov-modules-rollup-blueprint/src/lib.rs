@@ -233,7 +233,7 @@ mod blueprint {
 
             let mut storage_manager = self.create_storage_manager(&rollup_config)?;
             let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
-            let ledger_db = self.create_ledger_db(ledger_state)?;
+            let mut ledger_db = self.create_ledger_db(ledger_state)?;
 
             let da_service = Arc::new(self.create_da_service(&rollup_config).await);
             let relative_da_genesis_block = da_service
@@ -255,7 +255,7 @@ mod blueprint {
                 .map(|(number, _)| prover_storage.get_root_hash(number.0))
                 .transpose()?;
 
-            let init_variant = match prev_root {
+            let init_variant: InitVariant<_, _, _, Self::DaService> = match prev_root {
                 Some(root_hash) => InitVariant::Initialized(root_hash),
                 None => InitVariant::Genesis {
                     block: relative_da_genesis_block,
@@ -283,6 +283,10 @@ mod blueprint {
                 Box::new(Self::ProofSerializer::new()),
             );
 
+            let (prev_state_root, genesis_state_root) = init_variant
+                .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
+                .await?;
+
             let runner = StateTransitionRunner::new(
                 rollup_config.runner,
                 da_service,
@@ -290,7 +294,8 @@ mod blueprint {
                 native_stf,
                 storage_manager,
                 rpc_storage.0,
-                init_variant,
+                prev_state_root,
+                genesis_state_root,
                 proof_manager,
             )
             .await?;

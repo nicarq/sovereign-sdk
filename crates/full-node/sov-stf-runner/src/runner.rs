@@ -137,52 +137,30 @@ pub enum InitVariant<
     },
 }
 
-impl<Stf, Sm, Da, InnerVm, OuterVm, Ps> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
-where
-    Da: DaService<Error = anyhow::Error> + Clone,
-    InnerVm: ZkvmHost,
-    OuterVm: ZkvmHost,
-    Sm: HierarchicalStorageManager<
-        Da::Spec,
-        LedgerChangeSet = SchemaBatch,
-        LedgerState = DeltaReader,
-    >,
-    Sm::StfState: Clone,
-    Stf: StateTransitionFunction<
-        <InnerVm::Guest as ZkvmGuest>::Verifier,
-        <OuterVm::Guest as ZkvmGuest>::Verifier,
-        Da::Spec,
-        Condition = <Da::Spec as DaSpec>::ValidityCondition,
-        PreState = Sm::StfState,
-        ChangeSet = Sm::StfChangeSet,
-    >,
-    Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
+impl<
+        Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
+        InnerVm: Zkvm,
+        OuterVm: Zkvm,
+        Da: DaService,
+    > InitVariant<Stf, InnerVm, OuterVm, Da>
 {
-    /// Creates a new [`StateTransitionRunner`].
-    ///
-    /// If a previous state root is provided, it uses that as the starting point
-    /// for execution. Otherwise, initializes the chain using the provided
-    /// genesis config.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn new(
-        runner_config: RunnerConfig,
-        da_service: Arc<Da>,
-        mut ledger_db: LedgerDb,
-        stf: Stf,
-        mut storage_manager: Sm,
-        rpc_storage_sender: watch::Sender<Sm::StfState>,
-        init_variant: InitVariant<
-            Stf,
-            <InnerVm::Guest as ZkvmGuest>::Verifier,
-            <OuterVm::Guest as ZkvmGuest>::Verifier,
-            Da,
+    /// Initializes the rollup and calculates initial state roots for the rollup.
+    pub async fn calculate_initial_state_roots<Sm>(
+        self,
+        ledger_db: &mut LedgerDb,
+        stf: &Stf,
+        storage_manager: &mut Sm,
+    ) -> anyhow::Result<(Stf::StateRoot, RawGenesisStateRoot)>
+    where
+        Sm: HierarchicalStorageManager<
+            Da::Spec,
+            LedgerChangeSet = SchemaBatch,
+            LedgerState = DeltaReader,
+            StfState = Stf::PreState,
+            StfChangeSet = Stf::ChangeSet,
         >,
-        proof_manager: ProofManager<Ps>,
-    ) -> Result<Self, anyhow::Error> {
-        let rpc_config = runner_config.rpc_config;
-        let axum_config = runner_config.axum_config;
-
-        let (prev_state_root, genesis_state_root) = match init_variant {
+    {
+        match self {
             InitVariant::Initialized(prev_state_root) => {
                 debug!("Chain is already initialized; skipping initialization");
                 let raw_genesis_state_root = ledger_db
@@ -194,7 +172,7 @@ where
                     .expect("Rollup was already initialized. Slot 0 should exist")
                     .state_root;
 
-                (prev_state_root, RawGenesisStateRoot(raw_genesis_state_root))
+                Ok((prev_state_root, RawGenesisStateRoot(raw_genesis_state_root)))
             }
             InitVariant::Genesis {
                 block,
@@ -229,9 +207,48 @@ where
 
                 let raw_genesis_state_root =
                     RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
-                (genesis_state_root, raw_genesis_state_root)
+                Ok((genesis_state_root, raw_genesis_state_root))
             }
-        };
+        }
+    }
+}
+
+impl<Stf, Sm, Da, InnerVm, OuterVm, Ps> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
+where
+    Da: DaService<Error = anyhow::Error> + Clone,
+    InnerVm: ZkvmHost,
+    OuterVm: ZkvmHost,
+    Sm: HierarchicalStorageManager<
+        Da::Spec,
+        LedgerChangeSet = SchemaBatch,
+        LedgerState = DeltaReader,
+    >,
+    Sm::StfState: Clone,
+    Stf: StateTransitionFunction<
+        <InnerVm::Guest as ZkvmGuest>::Verifier,
+        <OuterVm::Guest as ZkvmGuest>::Verifier,
+        Da::Spec,
+        Condition = <Da::Spec as DaSpec>::ValidityCondition,
+        PreState = Sm::StfState,
+        ChangeSet = Sm::StfChangeSet,
+    >,
+    Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
+{
+    /// Creates a new [`StateTransitionRunner`].
+    #[allow(clippy::too_many_arguments)]
+    pub async fn new(
+        runner_config: RunnerConfig,
+        da_service: Arc<Da>,
+        ledger_db: LedgerDb,
+        stf: Stf,
+        storage_manager: Sm,
+        rpc_storage_sender: watch::Sender<Sm::StfState>,
+        prev_state_root: Stf::StateRoot,
+        genesis_state_root: RawGenesisStateRoot,
+        proof_manager: ProofManager<Ps>,
+    ) -> Result<Self, anyhow::Error> {
+        let rpc_config = runner_config.rpc_config;
+        let axum_config = runner_config.axum_config;
 
         info!(
             genesis_state_root = hex::encode(&genesis_state_root.0),

@@ -179,7 +179,7 @@ pub async fn initialize_runner(
     let genesis_block = MockBlockHeader::from_height(0);
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
-    let ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
+    let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let inner_vm = MockZkvm::new();
@@ -212,6 +212,12 @@ pub async fn initialize_runner(
         rollup_config.proof_manager.aggregated_proof_block_jump,
         Box::new(DummyProofSerializer::new()),
     );
+
+    let (prev_state_root, genesis_state_root) = init_variant
+        .calculate_initial_state_roots(&mut ledger_db, &stf, &mut storage_manager)
+        .await
+        .unwrap();
+
     (
         StateTransitionRunner::new(
             rollup_config.runner,
@@ -220,7 +226,8 @@ pub async fn initialize_runner(
             stf,
             storage_manager,
             rpc_storage_sender,
-            init_variant,
+            prev_state_root,
+            genesis_state_root,
             proof_manager,
         )
         .await
