@@ -6182,6 +6182,7 @@ dependencies = [
  "anyhow",
  "axum-server",
  "borsh",
+ "derive_more",
  "ethereum-types",
  "ethers-contract",
  "ethers-core",

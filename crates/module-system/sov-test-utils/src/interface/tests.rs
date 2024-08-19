@@ -1,12 +1,15 @@
 use borsh::BorshDeserialize;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{
-    ApiStateAccessor, BatchReceipt, BatchSequencerReceipt, DaSpec, Module, RuntimeEventProcessor,
-    Spec, TransactionReceipt, TxEffect,
+    ApiStateAccessor, BatchReceipt, BatchSequencerReceipt, DaSpec, Module, ProofReceipt,
+    RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
 };
 use sov_modules_stf_blueprint::TxReceiptContents;
+use sov_state::Storage;
 
-use super::{BatchType, TransactionType};
+use super::{BatchType, ProofType, TransactionType};
+
+type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S>)>;
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
@@ -59,8 +62,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
 }
 
 /// A closure used to assert the outcome of a [`TransactionTestCase`].
-pub type TransactionTestAssert<S, RT> =
-    Box<dyn FnOnce(TransactionAssertContext<RT>, &mut ApiStateAccessor<S>)>;
+pub type TransactionTestAssert<S, RT> = TestAssertion<TransactionAssertContext<RT>, S>;
 
 /// A test case that applies the provided input and asserts the result.
 pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
@@ -83,7 +85,7 @@ pub struct BatchAssertContext<Da: DaSpec> {
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].
-pub type BatchTestAssert<S, Da> = Box<dyn FnOnce(BatchAssertContext<Da>, &mut ApiStateAccessor<S>)>;
+pub type BatchTestAssert<S, Da> = TestAssertion<BatchAssertContext<Da>, S>;
 
 /// A test case that applies the provided batch input and asserts the result.
 pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
@@ -95,4 +97,31 @@ pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
     pub override_sequencer: Option<Da::Address>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
     pub assert: BatchTestAssert<S, Da>,
+}
+
+/// Context that is passed to [`ProofTestCase::assert`] to check the outcome of a test.
+pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
+    /// The outcome of the proof submission.
+    ///
+    /// This can be [`None`] if the proof was dropped before it was executed,
+    /// this can happen if the proof was malformed by the prover. Generally this should always be
+    /// present.
+    #[allow(clippy::type_complexity)]
+    pub outcome:
+        Option<ProofReceipt<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root, ()>>,
+}
+
+/// A closure used to assert the outcome of a [`ProofTestCase`].
+pub type ProofTestAssert<S, Da> = TestAssertion<ProofAssertContext<S, Da>, S>;
+
+/// A test case that applies the provided proof input and asserts the result.
+pub struct ProofTestCase<S: Spec, Da: DaSpec> {
+    /// Input for the test case.
+    pub input: ProofType<S>,
+    /// Optionally specify the DA address of the sequencer of the batch.
+    ///
+    /// If this is not provided the default sequencer address in the `TestRunner` will be used.
+    pub override_sequencer: Option<Da::Address>,
+    /// Assertion for the test case.
+    pub assert: ProofTestAssert<S, Da>,
 }
