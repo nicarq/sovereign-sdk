@@ -106,28 +106,15 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 60
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: cargo install zepter
-        uses: taiki-e/install-action@v2
-        with:
-          tool: zepter@1
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
           path: ./crates/fuzz/target
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -153,23 +140,14 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: cargo prover bench check
         env:
           BLOCKS: 1
@@ -186,23 +164,14 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: cargo bench check
         env:
           BLOCKS: 1
@@ -219,23 +188,14 @@ jobs:
       - nscloud-cache-size-100gb
     timeout-minutes: 120
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: rollup bench check
         env:
           BLOCKS: 10
@@ -259,23 +219,14 @@ jobs:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       - name: cargo hack
         run: make check-features
@@ -297,23 +248,14 @@ jobs:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Rust
-        run: rustup show
-      - name: cargo install cargo-hack
-        uses: taiki-e/install-action@cargo-hack
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: cargo hack
         run: make check-features-default-targets
 
@@ -328,25 +270,14 @@ jobs:
       RISC0_DEV_MODE: "true"
       SP1_PROVER: "mock"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-        # `cargo-nextest` is much faster than standard `cargo test`.
-      - uses: taiki-e/install-action@nextest
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - run: cargo nextest run --workspace --all-features --status-level skip
 
   nextest:
@@ -360,25 +291,14 @@ jobs:
       RISC0_DEV_MODE: "true"
       SP1_PROVER: "mock"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      # `cargo-nextest` is much faster than standard `cargo test`.
-      - uses: taiki-e/install-action@nextest
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - run: cargo nextest run --workspace --status-level skip
 
   doctests:
@@ -392,23 +312,14 @@ jobs:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       # `cargo-nextest` does not support doctests (yet?), so we have to run them
       # separately.
       # TODO: https://github.com/nextest-rs/nextest/issues/16
@@ -425,31 +336,14 @@ jobs:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-        with:
-          submodules: true
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-        # `cargo-nextest` is much faster than standard `cargo test`.
-      - uses: taiki-e/install-action@nextest
-      - name: add llvm component
-        run: rustup component add llvm-tools-preview
-      - name: cargo install cargo-llvm-cov
-        uses: taiki-e/install-action@cargo-llvm-cov
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
         run: cargo generate-lockfile
@@ -465,10 +359,10 @@ jobs:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     timeout-minutes: 30
     steps:
+      - uses: actions/checkout@v4
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
       - uses: taiki-e/install-action@cargo-deny
       - run: make cargo-deny-check-licenses
 
@@ -485,25 +379,14 @@ jobs:
       S3_BUCKET_NAME: "sovlabs-ci-rustdoc-artifacts"
       AWS_REGION: "us-east-1"
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-        # Not sure installing `mold` is actually needed, but it's what the
-        # `check` job, and we'd rather keep things as similar as possible.
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       # The docs' artifact tends to become quite large with all the
       # dependencies, so we don't include them.
       - run: cargo doc --no-deps --all-features
@@ -555,10 +438,7 @@ jobs:
   check-demo-rollup-table-of-contents:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v3
       - run: npm install -g doctoc
       - name: Update table of contents for mock-da
@@ -584,30 +464,18 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Login to Docker Hub
         if: github.event.pull_request.head.repo.full_name == github.repository
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
-      - uses: rui314/setup-mold@v1
       - name: Setup Zkvm toolchains + Rust
         uses: ./.github/actions/setup
         with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Bashtestmd
-        uses: taiki-e/install-action@v2
-        with:
-          tool: bashtestmd@0.4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/nightly' }}
@@ -626,27 +494,15 @@ jobs:
       - check
     timeout-minutes: 60
     steps:
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
-      - uses: actions/checkout@v3
-      - uses: rui314/setup-mold@v1
-      - name: Setup Zkvm toolchains + Rust
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-        with:
-          version: "23.2"
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install Bashtestmd
-        uses: taiki-e/install-action@v2
-        with:
-          tool: bashtestmd@0.4
+      - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
         with:
           cache: rust
+      - name: Setup Zkvm toolchains + Rust
+        uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
       - name: Compile README.md to Bash
         run: bashtestmd --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
