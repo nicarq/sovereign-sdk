@@ -1,29 +1,55 @@
 name: Set up ZKVM toolchains and Rust
 description: Set up ZKVM toolchains and Rust
 inputs:
-    pull_token:
-        description: "Token to use for private repo access"
-        required: true
+  github_token:
+    description: "Token to use for private repo access"
+    required: true
+  ssh_private_key:
+    description: "SSH private key to use for cloning private repos"
+    required: true
 runs:
-    using: "composite"
-    steps:
-        - uses: actions/checkout@v3
-        - name: Install Rust
-          shell: bash
-          run: rustup show && rustup install nightly && rustup component add rustfmt --toolchain nightly-x86_64-unknown-linux-gnu
-        - name: Install cargo-risczero toolchain
-          uses: taiki-e/install-action@v2
-          with:
-              tool: cargo-risczero@1.0
-        - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
-          shell: bash
-          run: make install-risc0-toolchain
-          env:
-              GITHUB_TOKEN: ${{ inputs.pull_token }}
-        - name: Install SP1 toolchain
-          shell: bash
-          env:
-              SHELL: /bin/bash
-              GITHUB_TOKEN: ${{ inputs.pull_token }}
-          run: make install-sp1-toolchain
-
+  using: "composite"
+  steps:
+    # SSH agent to access private repos
+    - uses: webfactory/ssh-agent@v0.9.0
+      with:
+        ssh-private-key: ${{ inputs.ssh_private_key }}
+    # Install Rust
+    - name: Install Rust
+      shell: bash
+      # Hack: rustup show installs Rust from `rust-toolchain.toml`.
+      # See <https://github.com/rust-lang/rustup/issues/3635>.
+      run: rustup show && rustup toolchain install nightly --component rustfmt --profile minimal
+    # Install ZKVM toolchains
+    - name: Install cargo-risczero toolchain
+      uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-risczero@1.0
+    - name: Install risc0-zkvm toolchain # Use the risc0 cargo extension to install the risc0 std library for the current toolchain
+      shell: bash
+      run: make install-risc0-toolchain
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+    - name: Install SP1 toolchain
+      shell: bash
+      env:
+        SHELL: /bin/bash
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: make install-sp1-toolchain
+    # Other tools and dependencies
+    - uses: rui314/setup-mold@v1
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v2
+      with:
+        version: "23.2"
+        repo-token: ${{ inputs.github_token }}
+    - uses: taiki-e/install-action@cargo-hack
+    - uses: taiki-e/install-action@nextest
+    - uses: taiki-e/install-action@cargo-llvm-cov
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: zepter@1
+    - name: Install Bashtestmd
+      uses: taiki-e/install-action@v2
+      with:
+        tool: bashtestmd@0.4
