@@ -2,6 +2,7 @@
 //! with configurable hooks.
 
 use sov_bank::{Bank, Payable};
+use sov_modules_api::capabilities::ProofProcessor;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
@@ -47,6 +48,7 @@ pub trait StandardRuntime<S: Spec, Da: DaSpec>:
     + RuntimeEventProcessor
     + MinimalGenesis<S>
     + TxHooks<Spec = S, TxState = WorkingSet<S>>
+    + ProofProcessor<S, Da>
 {
 }
 
@@ -58,6 +60,7 @@ impl<S: Spec, Da: DaSpec, T> StandardRuntime<S, Da> for T where
         + RuntimeEventProcessor
         + MinimalGenesis<S>
         + TxHooks<Spec = S, TxState = WorkingSet<S>>
+        + ProofProcessor<S, Da>
 {
 }
 

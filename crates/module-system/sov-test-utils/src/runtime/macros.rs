@@ -138,6 +138,17 @@ macro_rules! generate_optimistic_runtime {
             base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>
         }
+
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
+            fn process_proof(
+                &self,
+                _proof: &::sov_modules_api::SerializedAggregatedProof,
+                _prover_address: &S::Address,
+                _state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                ::sov_modules_api::ProofOutcome::Ignored
+            }
+        }
     };
 }
 
@@ -151,6 +162,24 @@ macro_rules! generate_zk_runtime {
             modules: [$($module_name : $module_ty),*],
             base_fee_recipient: prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>
+        }
+
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
+            fn process_proof(
+                &self,
+                proof: &::sov_modules_api::SerializedAggregatedProof,
+                prover_address: &S::Address,
+                state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                match self.prover_incentives.process_proof(&proof.raw_aggregated_proof, prover_address, state) {
+                    Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
+                        ::sov_modules_api::ProofReceiptContents::AggregateProof(data)
+                    ),
+                    Err(e) => {
+                        ::sov_modules_api::ProofOutcome::Invalid
+                    }
+                }
+            }
         }
     };
 }

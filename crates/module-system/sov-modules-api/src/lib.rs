@@ -96,7 +96,9 @@ pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::services::da::SlotData;
 pub use sov_rollup_interface::stf::*;
-pub use sov_rollup_interface::zk::aggregated_proof::{AggregatedProofPublicData, CodeCommitment};
+pub use sov_rollup_interface::zk::aggregated_proof::{
+    AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
+};
 pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
