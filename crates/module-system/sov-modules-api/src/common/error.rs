@@ -25,7 +25,7 @@ impl serde::Serialize for ModuleError {
         S: serde::Serializer,
     {
         let error = match self {
-            ModuleError::ModuleError(e) => e.to_string(),
+            ModuleError::ModuleError(e) => format!("{:?}", e),
         };
         error.serialize(serializer)
     }
@@ -41,11 +41,26 @@ impl<'de> serde::Deserialize<'de> for ModuleError {
     }
 }
 
+/// We are manually implementing clone because the inner [`anyhow::Error`] doesn't implement clone.
+/// We need to manually loop through the error chain to not loose any of the error context. The intermediate
+/// error types are not clonable so we need to manually convert them to strings.
 impl Clone for ModuleError {
     fn clone(&self) -> Self {
         match self {
             Self::ModuleError(anyhow_err) => {
-                Self::ModuleError(anyhow::Error::msg(anyhow_err.to_string()))
+                let mut chain = anyhow_err.chain();
+
+                Self::ModuleError(if let Some(err) = chain.next() {
+                    let mut output = anyhow::Error::msg(err.to_string());
+
+                    for outer_err in chain {
+                        output = output.context(anyhow::Error::msg(outer_err.to_string()));
+                    }
+
+                    output
+                } else {
+                    anyhow::anyhow!("Empty error message")
+                })
             }
         }
     }
@@ -61,10 +76,47 @@ impl PartialEq for ModuleError {
 
 impl Eq for ModuleError {}
 
-#[test]
-fn test_module_error_roundtrip() {
-    let error = ModuleError::ModuleError(anyhow::Error::msg("test"));
-    let serialized = serde_json::to_string(&error).unwrap();
-    let deserialized: ModuleError = serde_json::from_str(&serialized).unwrap();
-    assert_eq!("test", deserialized.to_string());
+#[cfg(test)]
+mod test {
+    use anyhow::anyhow;
+
+    use crate::ModuleError;
+
+    #[test]
+    fn test_module_error_roundtrip() {
+        let error = ModuleError::ModuleError(anyhow::Error::msg("test"));
+        let serialized = serde_json::to_string(&error).unwrap();
+        let deserialized: ModuleError = serde_json::from_str(&serialized).unwrap();
+        assert_eq!("test", deserialized.to_string());
+    }
+
+    /// Tests that the inner error context gets correctly propagated when copying an error.
+    #[test]
+    fn test_module_error_copy() {
+        let error = anyhow!("Inner message").context("Outer context".to_string());
+
+        let cloned_err = ModuleError::ModuleError(error).clone();
+
+        match cloned_err {
+            ModuleError::ModuleError(cloned_err) => {
+                let mut chained_clone = cloned_err.chain();
+
+                assert_eq!(
+                    chained_clone.len(),
+                    2,
+                    "The cloned error doesn't have the correct length"
+                );
+                assert_eq!(
+                    chained_clone.next().unwrap().to_string(),
+                    "Inner message",
+                    "The inner message has not been correctly cloned"
+                );
+                assert_eq!(
+                    chained_clone.next().unwrap().to_string(),
+                    "Outer context",
+                    "The outer context has not been correctly cloned"
+                );
+            }
+        }
+    }
 }
