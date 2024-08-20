@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs,
 };
 use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
-use tokio::sync::RwLock;
+use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, sleep};
 
 use crate::storable::layer::StorableMockDaLayer;
@@ -76,6 +76,7 @@ pub struct StorableMockDaService {
     sequencer_da_address: MockAddress,
     da_layer: Arc<RwLock<StorableMockDaLayer>>,
     block_producing: BlockProducing,
+    aggregated_proof_sender: broadcast::Sender<()>,
 }
 
 impl StorableMockDaService {
@@ -85,11 +86,19 @@ impl StorableMockDaService {
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducing,
     ) -> Self {
+        let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
+        tokio::spawn(async move { while rec.recv().await.is_ok() {} });
         Self {
             sequencer_da_address,
             da_layer,
             block_producing,
+            aggregated_proof_sender: aggregated_proof_subscription,
         }
+    }
+
+    /// Will receive notification one block before the proof is included on the DA.
+    pub fn subscribe_proof_posted(&self) -> broadcast::Receiver<()> {
+        self.aggregated_proof_sender.subscribe()
     }
 
     /// Creates new [`StorableMockDaService`] with given address.
@@ -268,6 +277,10 @@ impl DaService for StorableMockDaService {
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
                 .await?
         };
+
+        self.aggregated_proof_sender
+            .send(())
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
 
         // For compatibility with MockDa, produce blocks only on submitting a batch, not proof.
         Ok(hash)

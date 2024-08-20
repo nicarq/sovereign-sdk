@@ -88,11 +88,11 @@ pub enum ProverServiceError {
 /// Currently, the cancellation of proving jobs for submitted witnesses is not supported,
 /// but this functionality will be added in the future (#1185).
 #[async_trait]
-pub trait ProverService: Send + Sync {
+pub trait ProverService: Send + Sync + 'static {
     /// Ths root hash of state merkle tree.
-    type StateRoot: Serialize + Clone + AsRef<[u8]>;
+    type StateRoot: Serialize + Clone + AsRef<[u8]> + Send + Sync + 'static;
     /// Data that is produced during batch execution.
-    type Witness: Serialize;
+    type Witness: Serialize + Send + Sync;
     /// Data Availability service.
     type DaService: DaService;
 

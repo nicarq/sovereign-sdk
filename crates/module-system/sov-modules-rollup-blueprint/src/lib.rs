@@ -280,13 +280,17 @@ mod blueprint {
                 .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
                 .await?;
 
-            let proof_manager = ProofManager::new(
+            let (proof_manager, st_info_sender) = ProofManager::new(
                 da_service.clone(),
                 prover_service,
                 rollup_config.proof_manager.aggregated_proof_block_jump,
                 Box::new(Self::ProofSerializer::new()),
                 genesis_state_root,
             );
+
+            proof_manager
+                .post_aggregated_proof_to_da_in_background()
+                .await;
 
             let runner = StateTransitionRunner::new(
                 rollup_config.runner,
@@ -296,7 +300,7 @@ mod blueprint {
                 storage_manager,
                 rpc_storage.0,
                 prev_state_root,
-                proof_manager,
+                st_info_sender,
             )
             .await?;
 

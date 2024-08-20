@@ -200,7 +200,7 @@ pub async fn initialize_runner(
             genesis_storage,
             threads,
             Default::default(),
-            Default::default(),
+            Vec::<u8>::default(),
         )
     });
 
@@ -212,13 +212,17 @@ pub async fn initialize_runner(
         .await
         .unwrap();
 
-    let proof_manager = ProofManager::new(
+    let (proof_manager, st_info_sender) = ProofManager::new(
         da_service.clone(),
         prover_service,
         rollup_config.proof_manager.aggregated_proof_block_jump,
         Box::new(DummyProofSerializer::new()),
         genesis_state_root,
     );
+
+    proof_manager
+        .post_aggregated_proof_to_da_in_background()
+        .await;
 
     (
         StateTransitionRunner::new(
@@ -229,7 +233,7 @@ pub async fn initialize_runner(
             storage_manager,
             rpc_storage_sender,
             prev_state_root,
-            proof_manager,
+            st_info_sender,
         )
         .await
         .unwrap(),

@@ -3,8 +3,10 @@ use futures::StreamExt;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
 use sov_bank::Coins;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_rollup_interface::rpc::FinalityStatus;
+use sov_rollup_interface::services::da::DaServiceWithRetries;
 use sov_test_utils::{ApiClient, TestSpec};
 
 use super::helpers::*;
@@ -34,7 +36,7 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> Resul
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => res?,
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
     };
 
     Ok(())
@@ -58,7 +60,7 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => res?,
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
     };
 
     Ok(())
@@ -79,11 +81,11 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result
     )
     .await?;
 
-    let sender = DaLayerTxSender::new(test_rollup.da_service);
+    let sender = DaLayerTxSender::new(test_rollup.da_service.clone());
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => res?,
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
     };
 
     Ok(())
@@ -92,6 +94,7 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result
 async fn send_test_bank_txs(
     test_case: TestCase,
     client: &ApiClient,
+    da_service: &DaServiceWithRetries<StorableMockDaService>,
     tx_sender: impl TxSender,
 ) -> Result<(), anyhow::Error> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
@@ -102,6 +105,9 @@ async fn send_test_bank_txs(
         TOKEN_SALT,
     )
     .await?;
+
+    let mut aggrgeated_proofs_posted_to_da_subscription =
+        da_service.da_service().subscribe_proof_posted();
 
     let mut aggregated_proof_subscription = client
         .ledger
@@ -125,8 +131,14 @@ async fn send_test_bank_txs(
     assert_eq!(2, slot_number);
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
 
-    assert_balance(client, 900, token_id, user_address, None).await?;
+    if test_case.wait_for_aggregated_proof {
+        aggrgeated_proofs_posted_to_da_subscription
+            .recv()
+            .await
+            .unwrap();
+    }
 
+    assert_balance(client, 900, token_id, user_address, None).await?;
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
     let slot_number = tx_sender.send_txs(client, &[tx]).await?;
@@ -191,13 +203,6 @@ async fn send_test_bank_txs(
         },
     )
     .await?;
-
-    let slot_number = client
-        .ledger
-        .get_latest_slot(None)
-        .await
-        .map(|res| res.into_inner().data.number)
-        .unwrap_or_default();
 
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
