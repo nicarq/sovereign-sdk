@@ -12,20 +12,10 @@ use sov_modules_api::{
 use sov_state::Storage;
 
 /// A kernel supporting based sequencing with soft confirmations
+#[derive(Default)]
 pub struct SoftConfirmationsKernel<S: Spec, Da: DaSpec> {
-    phantom: std::marker::PhantomData<S>,
     chain_state: ChainState<S, Da>,
     blob_storage: BlobStorage<S, Da>,
-}
-
-impl<S: Spec, Da: DaSpec> Default for SoftConfirmationsKernel<S, Da> {
-    fn default() -> Self {
-        Self {
-            phantom: std::marker::PhantomData,
-            chain_state: Default::default(),
-            blob_storage: Default::default(),
-        }
-    }
 }
 
 /// Path information required to initialize a basic kernel from files
