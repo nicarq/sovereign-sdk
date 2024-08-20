@@ -573,11 +573,11 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
 {
     fn process_proof(
         &self,
-        _proof: &SerializedAggregatedProof,
-        _prover_address: &S::Address,
-        _state: &mut WorkingSet<S>,
+        proof: &SerializedAggregatedProof,
+        prover_address: &S::Address,
+        state: &mut WorkingSet<S>,
     ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
-        ProofOutcome::Ignored
+        self.inner.process_proof(proof, prover_address, state)
     }
 }
 
