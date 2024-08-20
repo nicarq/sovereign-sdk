@@ -19,7 +19,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
 use sov_sequencer::FairBatchBuilderConfig;
-use sov_state::{ArrayWitness, DefaultStorageSpec, ProverStorage};
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::{
     HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
     RollupConfig, RollupProverConfig, RunnerConfig, SequencerConfig, StateTransitionRunner,
@@ -38,16 +38,6 @@ type MockInitVariant = InitVariant<
 >;
 type S = DefaultStorageSpec<sha2::Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
-
-pub type MockProverService = ParallelProverService<
-    Vec<u8>,
-    [u8; 32],
-    ArrayWitness,
-    DaServiceWithRetries<MockDaService>,
-    MockZkvm,
-    MockZkvm,
-    HashStf<MockValidityCond>,
->;
 
 /// TestNode simulates a full-node.
 pub struct TestNode {
@@ -136,7 +126,6 @@ pub async fn initialize_runner(
         DaServiceWithRetries<MockDaService>,
         MockZkvm,
         MockZkvm,
-        MockProverService,
     >,
     TestNode,
 ) {
