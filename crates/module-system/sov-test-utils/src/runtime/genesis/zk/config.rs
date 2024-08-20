@@ -7,8 +7,8 @@ use sov_sequencer_registry::SequencerRegistry;
 use crate::interface::AsUser;
 use crate::runtime::{BankConfig, ProverIncentivesConfig, SequencerConfig};
 use crate::{
-    TestProver, TestProverConfig, TestSequencer, TestSequencerConfig, TestSpec, TestUser,
-    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
+    TestProver, TestSequencer, TestSpec, TestUser, TEST_DEFAULT_USER_BALANCE,
+    TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
 };
 
 /// Minimal genesis configuration for the zk runtime.
@@ -61,15 +61,21 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
     /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
     /// and `num_accounts` additional accounts.
     pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
-        let prover = TestProver::generate(TestProverConfig {
-            additional_balance: TEST_DEFAULT_USER_BALANCE,
-            bond: TEST_DEFAULT_USER_STAKE,
-        });
-        let sequencer = TestSequencer::generate(TestSequencerConfig {
-            additional_balance: TEST_DEFAULT_USER_BALANCE,
-            bond: TEST_DEFAULT_USER_STAKE,
+        // Generate with default stake * 2 because the user will be staked as a sequencer and a
+        // prover.
+        let prover_sequencer =
+            TestUser::generate(TEST_DEFAULT_USER_STAKE * 2 + TEST_DEFAULT_USER_BALANCE);
+        let sequencer = TestSequencer {
+            user_info: prover_sequencer.clone(),
             da_address: MockAddress::from([172; 32]),
-        });
+            bond: TEST_DEFAULT_USER_STAKE,
+        };
+        let prover = TestProver {
+            // By default we generate the prover as the same user as the sequencer
+            // because provers must be registered sequencers.
+            user_info: prover_sequencer,
+            bond: TEST_DEFAULT_USER_STAKE,
+        };
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         for _ in 0..num_accounts {
@@ -107,7 +113,7 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                 is_preferred_sequencer: true,
             },
             prover_incentives: ProverIncentivesConfig {
-                minimum_bond: TEST_DEFAULT_USER_STAKE,
+                minimum_bond: initial_prover.bond,
                 proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
                 initial_provers: vec![(
                     initial_prover.as_user().address().clone(),
@@ -122,17 +128,32 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                             .iter()
                             .map(|user| (user.address(), user.balance()))
                             .collect();
-                        additional_accounts_vec.append(&mut vec![
-                            (
-                                initial_sequencer.as_user().address(),
+                        let sequencer = initial_sequencer.as_user();
+                        let prover = initial_prover.as_user();
+                        if sequencer.address() == prover.address() {
+                            assert_eq!(sequencer.available_balance, prover.available_balance, "Sequencer and prover balances should be equal if they are the same user");
+                            // same user, combine the bonds and balances
+                            additional_accounts_vec.append(&mut vec![(
+                                sequencer.address(),
                                 initial_sequencer.bond
-                                    + initial_sequencer.as_user().available_balance,
-                            ),
-                            (
-                                initial_prover.as_user().address(),
-                                initial_prover.bond + initial_prover.as_user().available_balance,
-                            ),
-                        ]);
+                                    + initial_prover.bond
+                                    + sequencer.available_balance,
+                            )]);
+                        } else {
+                            // different users, add separate entries
+                            additional_accounts_vec.append(&mut vec![
+                                (
+                                    initial_sequencer.as_user().address(),
+                                    initial_sequencer.bond
+                                        + initial_sequencer.as_user().available_balance,
+                                ),
+                                (
+                                    initial_prover.as_user().address(),
+                                    initial_prover.bond
+                                        + initial_prover.as_user().available_balance,
+                                ),
+                            ]);
+                        }
 
                         additional_accounts_vec
                     },
@@ -141,5 +162,66 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                 tokens: vec![],
             },
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_bank::GAS_TOKEN_ID;
+    use sov_mock_da::MockDaSpec;
+
+    use super::HighLevelZkGenesisConfig;
+    use crate::runtime::TestRunner;
+    use crate::{generate_zk_runtime, TestSpec};
+
+    type S = TestSpec;
+
+    generate_zk_runtime!(TestRuntime <= );
+
+    #[test]
+    fn test_default_genesis_zk_runtime_config() {
+        let genesis_config = HighLevelZkGenesisConfig::generate();
+        let sequencer = genesis_config.initial_sequencer.clone();
+        let prover = genesis_config.initial_prover.clone();
+
+        assert!(
+            sequencer.user_info.address() == prover.user_info.address(),
+            "Sequencer and prover should be the same user"
+        );
+
+        let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
+        let mut runner =
+            TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
+
+        runner.advance_slots(1).query_state(|state| {
+            let bank = crate::runtime::Bank::<S>::default();
+
+            assert_eq!(
+                bank.get_balance_of(&sequencer.user_info.address(), GAS_TOKEN_ID, state)
+                    .unwrap(),
+                Some(sequencer.user_info.balance()),
+            );
+
+            let prover_incentives = crate::runtime::ProverIncentives::<S, MockDaSpec>::default();
+
+            assert_eq!(
+                prover_incentives
+                    .bonded_provers
+                    .get(&prover.user_info.address(), state)
+                    .unwrap(),
+                Some(prover.bond),
+                "Should be bonded prover"
+            );
+
+            let sequencer_registry = crate::runtime::SequencerRegistry::<S, MockDaSpec>::default();
+
+            assert_eq!(
+                sequencer_registry
+                    .get_sender_balance(&sequencer.da_address, state)
+                    .unwrap(),
+                Some(sequencer.bond),
+                "Should be bonded sequencer"
+            );
+        });
     }
 }

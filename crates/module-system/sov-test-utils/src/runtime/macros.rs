@@ -175,7 +175,7 @@ macro_rules! generate_zk_runtime {
                     Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
                         ::sov_modules_api::ProofReceiptContents::AggregateProof(data)
                     ),
-                    Err(e) => {
+                    Err(_e) => {
                         ::sov_modules_api::ProofOutcome::Invalid
                     }
                 }
