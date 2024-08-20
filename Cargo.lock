@@ -9408,6 +9408,7 @@ dependencies = [
  "sov-rollup-interface",
  "thiserror",
  "tokio",
+ "tower",
  "tracing",
  "wiremock",
 ]

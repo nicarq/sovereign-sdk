@@ -1,6 +1,8 @@
 pub mod celestia;
 #[cfg(feature = "native")]
 mod da_service;
+#[cfg(feature = "native")]
+pub(crate) mod middleware;
 pub mod shares;
 #[cfg(test)]
 mod test_helper;

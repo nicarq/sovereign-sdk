@@ -1,5 +1,6 @@
 // TODO: Rust 1.80 upgrade https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1059
 #![allow(clippy::blocks_in_conditions)]
+
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -13,14 +14,17 @@ use celestia_types::nmt::Namespace;
 use celestia_types::state::Uint;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
+use tower::ServiceBuilder;
 use tracing::{debug, info, instrument, trace};
 
+use crate::middleware::{TimingLayer, TimingMiddleware};
 use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
 use crate::utils::BoxError;
 use crate::verifier::proofs::{self};
@@ -56,22 +60,24 @@ const DEFAULT_FIXED_COST_SINGLE_BLOB: usize =
 
 // TODO: set dynamically https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/391
 /// The gas price expressed in nano tia for precision. Note that the Celestia packages expect
-/// fees demoninated in micro-tia ("uTIA"), so we have to scale by a factor of 1000 before submitting.
+/// fees denominated in micro-tia ("uTIA"), so we have to scale by a factor of 1000 before submitting.
 const GAS_PRICE_NANO_TIA: u64 = 1000;
+
+type TimedHttpClient = HttpClient<TimingMiddleware<HttpBackend>>;
 
 #[derive(Debug, Clone)]
 pub struct CelestiaService {
-    // Client is used for submit queries, where we want to have consistent ordering
-    submit_client: Arc<Mutex<HttpClient>>,
+    // Client is used for a submission request, where we want to have consistent ordering.
+    submit_client: Arc<Mutex<TimedHttpClient>>,
     // Client used for queries, where it is not important to have ordering
-    read_client: Arc<HttpClient>,
+    read_client: Arc<TimedHttpClient>,
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
 }
 
 impl CelestiaService {
     pub fn with_client(
-        client: HttpClient,
+        client: TimedHttpClient,
         rollup_batch_namespace: Namespace,
         rollup_proof_namespace: Namespace,
     ) -> Self {
@@ -170,6 +176,7 @@ impl CelestiaService {
                 .request_timeout(std::time::Duration::from_secs(
                     config.celestia_rpc_timeout_seconds,
                 ))
+                .set_http_middleware(ServiceBuilder::new().layer(TimingLayer))
                 .build(&config.celestia_rpc_address)
         }
         .expect("Client initialization is valid");
@@ -235,17 +242,17 @@ impl DaService for CelestiaService {
 
     #[instrument(skip(self))]
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
-        let start_get_block = Instant::now();
         let client = &self.read_client;
 
         // Fetch the header and relevant shares via RPC
+        let start_get_block = Instant::now();
         let header = client
             .header_get_by_height(height)
             .await
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
         trace!(%header, height, time = ?start_get_block.elapsed(), "Got the block header");
 
-        let rows_start = Instant::now();
+        let data_futures_all = Instant::now();
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
         let data_square_future = client.share_get_eds(&header);
 
@@ -262,7 +269,7 @@ impl DaService for CelestiaService {
             data_square_future
         )
         .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        trace!(time = ?rows_start.elapsed(), "Rows futures all");
+        trace!(time = ?data_futures_all.elapsed(), "All data futures are resolved");
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: self.rollup_batch_namespace,
