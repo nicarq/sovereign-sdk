@@ -3,6 +3,7 @@
 
 mod batch_builder;
 mod db;
+mod drop_notifier;
 mod mempool;
 mod rest_api;
 mod sequencer;

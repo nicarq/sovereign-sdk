@@ -117,17 +117,14 @@ pub struct PreferredBatchData {
     pub virtual_slots_to_advance: u8,
 }
 
-/// A trait implemented by blobs sent through the preferred sequencer. This allows the rollup to process them in order.
-/// even if they are subsuequently reorded by the DA layer.
+/// A trait implemented by blobs sent through the preferred sequencer.
+///
+/// This allows the rollup to process them in order, even if they are
+/// subsequently reordered by the DA layer.
 pub trait PreferredSequenced: Into<PreferredBlobData> {
-    /// The monotonic sequence number of the blob. The sequence number is shared across data types (so ordering is enforced between proofs and batches).
+    /// The monotonic sequence number of the blob. The sequence number is shared
+    /// across data types (so ordering is enforced between proofs and batches).
     fn sequence_number(&self) -> SequenceNumber;
-}
-
-impl From<PreferredBatchData> for PreferredBlobData {
-    fn from(data: PreferredBatchData) -> Self {
-        Self::Batch(data)
-    }
 }
 
 impl PreferredSequenced for PreferredBatchData {
@@ -154,12 +151,6 @@ impl PreferredSequenced for PreferredProofData {
     }
 }
 
-impl From<PreferredProofData> for PreferredBlobData {
-    fn from(data: PreferredProofData) -> Self {
-        Self::Proof(data)
-    }
-}
-
 /// A preferred blob and the ID (hash) of the blob that it was deserialized from.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct PreferredBlobDataWithId {
@@ -170,7 +161,16 @@ pub struct PreferredBlobDataWithId {
 }
 
 /// The contents of a blob from the preferred sequencer, with the ID of the blob that it was deserialized from.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    derive_more::From,
+)]
 pub enum PreferredBlobData {
     /// A preferred blob from the batch namespace.
     Batch(PreferredBatchData),
