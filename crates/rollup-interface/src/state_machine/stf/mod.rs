@@ -136,7 +136,14 @@ pub struct ApplySlotOutput<
 /// the  same type.
 pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Sized {
     /// Root hash of state merkle tree
-    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Debug;
+    type StateRoot: Serialize
+        + DeserializeOwned
+        + Clone
+        + AsRef<[u8]>
+        + Debug
+        + Send
+        + Sync
+        + 'static;
 
     /// The address of the prover.
     type Address: Serialize + DeserializeOwned + Clone + Debug;
@@ -161,7 +168,7 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
 
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification
-    type Witness: Default + Serialize + DeserializeOwned;
+    type Witness: Default + Serialize + DeserializeOwned + Send + Sync + 'static;
 
     /// The validity condition that must be verified outside of the Vm
     type Condition: ValidityCondition;

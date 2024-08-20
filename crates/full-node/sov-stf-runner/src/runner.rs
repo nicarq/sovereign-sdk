@@ -15,12 +15,12 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tracing::{debug, error, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::state_manager::StateManager;
-use crate::{ProofManager, ProverService, RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
+use crate::{ProverService, RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -49,9 +49,9 @@ where
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_rpc: SocketAddr,
     listen_address_axum: SocketAddr,
-    proof_manager: ProofManager<Ps>,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
+    st_info_sender: mpsc::Sender<StateTransitionInfo<Ps::StateRoot, Ps::Witness, Da::Spec>>,
 }
 
 /// The state necessary to track the sync status of the node
@@ -252,7 +252,7 @@ where
         storage_manager: Sm,
         rpc_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
-        proof_manager: ProofManager<Ps>,
+        st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     ) -> Result<Self, anyhow::Error> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
@@ -294,12 +294,12 @@ where
             state_manager,
             listen_address_rpc,
             listen_address_axum,
-            proof_manager,
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
             }),
             sync_fetcher,
+            st_info_sender,
         })
     }
 
@@ -544,10 +544,7 @@ where
         finalized_transitions: Vec<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     ) -> anyhow::Result<()> {
         for transition_data in finalized_transitions {
-            // Post ZK proof to DA.
-            self.proof_manager
-                .post_aggregated_proof_to_da_when_ready(transition_data)
-                .await?;
+            self.st_info_sender.send(transition_data).await?;
         }
         Ok(())
     }
