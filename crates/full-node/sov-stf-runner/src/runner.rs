@@ -20,7 +20,7 @@ use tracing::{debug, error, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::state_manager::StateManager;
-use crate::{ProverService, RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
+use crate::{RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -28,7 +28,7 @@ type GenesisParams<ST, InnerVm, OuterVm, Da> =
 type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
-pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
+pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
     Da: DaService,
     InnerVm: ZkvmHost,
@@ -40,7 +40,6 @@ where
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
     >,
-    Ps: ProverService,
 {
     first_unprocessed_height_at_startup: u64,
     da_polling_interval_ms: u64,
@@ -51,7 +50,7 @@ where
     listen_address_axum: SocketAddr,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
-    st_info_sender: mpsc::Sender<StateTransitionInfo<Ps::StateRoot, Ps::Witness, Da::Spec>>,
+    st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
 }
 
 /// The state necessary to track the sync status of the node
@@ -221,7 +220,7 @@ impl<
     }
 }
 
-impl<Stf, Sm, Da, InnerVm, OuterVm, Ps> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm, Ps>
+impl<Stf, Sm, Da, InnerVm, OuterVm> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
     InnerVm: ZkvmHost,
@@ -240,7 +239,6 @@ where
         PreState = Sm::StfState,
         ChangeSet = Sm::StfChangeSet,
     >,
-    Ps: ProverService<StateRoot = Stf::StateRoot, Witness = Stf::Witness, DaService = Da>,
 {
     /// Creates a new [`StateTransitionRunner`].
     #[allow(clippy::too_many_arguments)]

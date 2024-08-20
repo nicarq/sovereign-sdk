@@ -324,7 +324,6 @@ mod blueprint {
             S::DaService,
             S::InnerZkvmHost,
             S::OuterZkvmHost,
-            S::ProverService,
         >,
 
         /// Server endpoints for the rollup.
