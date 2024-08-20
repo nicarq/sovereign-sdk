@@ -3,9 +3,10 @@
 
 /// Call methods for the module
 mod call;
+mod capabilities;
 /// Methods used to instantiate the module
 mod genesis;
-mod process_message;
+mod helpers;
 mod registration;
 pub use call::*;
 pub use genesis::*;
@@ -15,7 +16,7 @@ mod query;
 
 mod event;
 use borsh::{BorshDeserialize, BorshSerialize};
-pub use process_message::{ProcessAttestationErrors, ProcessChallengeErrors};
+pub use capabilities::{ProcessAttestationErrors, ProcessChallengeErrors};
 #[cfg(feature = "native")]
 pub use query::*;
 pub use registration::CustomError;
@@ -155,11 +156,11 @@ where
                 .map_err(|err| err.into()),
             call::CallMessage::ExitChallenger => self.exit_challenger(context, state),
             call::CallMessage::ProcessAttestation(attestation) => self
-                .process_attestation(context, attestation, state)
+                .process_attestation_call(context, attestation, state)
                 .map_err(|error| error.into()),
 
             call::CallMessage::ProcessChallenge(proof, transition) => self
-                .process_challenge(context, &proof, &transition, state)
+                .process_challenge_call(context, &proof, &transition, state)
                 .map_err(|error| error.into()),
         }
         .map_err(|e| e.into());

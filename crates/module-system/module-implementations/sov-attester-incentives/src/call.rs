@@ -6,12 +6,12 @@ use derivative::Derivative;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::DaSpec;
+use sov_modules_api::{CallResponse, Context, DaSpec, StateAccessorError, TxState};
 use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
 use tracing::error;
 
-use crate::Amount;
+use crate::{Amount, AttesterIncentives, ProcessAttestationErrors, ProcessChallengeErrors};
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
 #[derive(
@@ -110,4 +110,39 @@ pub enum SlashingReason {
     #[error("No invalid transition to challenge")]
     /// No invalid transition to challenge.
     NoInvalidTransition,
+}
+
+impl<S, Da> AttesterIncentives<S, Da>
+where
+    S: sov_modules_api::Spec,
+    Da: sov_modules_api::DaSpec,
+{
+    /// Try to process an attestation if the attester is bonded.
+    /// This function returns an error (hence ignores the transaction) when the attester is not bonded
+    /// or when the module is unable to verify the bonding proof.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn process_attestation_call(
+        &self,
+        context: &Context<S>,
+        attestation: Attestation<
+            Da,
+            StorageProof<<S::Storage as Storage>::Proof>,
+            <S::Storage as Storage>::Root,
+        >,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+        self.process_attestation(context, attestation, state)?;
+        Ok(sov_modules_api::CallResponse::default())
+    }
+
+    pub(crate) fn process_challenge_call(
+        &self,
+        context: &Context<S>,
+        proof: &[u8],
+        transition_num: &TransitionHeight,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<CallResponse, ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
+        self.process_challenge(context, proof, transition_num, state)?;
+        Ok(sov_modules_api::CallResponse::default())
+    }
 }
