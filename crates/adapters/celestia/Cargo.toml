@@ -48,6 +48,7 @@ risc0-zkvm = { workspace = true, default-features = false, features = [
 ], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true }
+tower = { workspace = true, optional = true }
 
 [dev-dependencies]
 postcard = { version = "1", features = ["use-std"] }
@@ -70,7 +71,8 @@ native = [
     "dep:tokio",
     "sov-celestia-adapter/native",
     "sov-rollup-interface/native",
-    "sov-cycle-utils?/native"
+    "sov-cycle-utils?/native",
+    "dep:tower",
 ]
 risc0 = [
     "sov-celestia-adapter/risc0",
