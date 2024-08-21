@@ -6,7 +6,7 @@ use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, MockDaSpec, TestUser};
 
-type S = sov_test_utils::TestSpec;
+pub type S = sov_test_utils::TestSpec;
 
 // This code is not actually dead; rustc treats each test file as a separate crate
 // so this code looks unused during some of the compilations.
