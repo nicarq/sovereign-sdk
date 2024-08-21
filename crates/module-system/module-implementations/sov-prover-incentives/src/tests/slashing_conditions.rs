@@ -5,7 +5,8 @@ use std::convert::Infallible;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    AggregatedProofPublicData, CodeCommitment, Spec, StateAccessor, StateCheckpoint, WorkingSet,
+    AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof, Spec, StateAccessor,
+    StateCheckpoint, WorkingSet,
 };
 
 use super::helpers::{
@@ -51,7 +52,9 @@ fn prove_transition_log(
     module: &crate::ProverIncentives<S, sov_mock_da::MockDaSpec>,
     state: &mut WorkingSet<S>,
 ) {
-    let proof = MockZkvm::create_serialized_proof(true, aggregated_proof);
+    let proof = SerializedAggregatedProof {
+        raw_aggregated_proof: MockZkvm::create_serialized_proof(true, aggregated_proof),
+    };
 
     let _ = module.process_proof(&proof, &prover_address, state);
 }
@@ -92,7 +95,9 @@ fn test_slash_on_invalid_proof() -> Result<(), Infallible> {
 
     // Process an invalid proof
     {
-        let proof = &MockZkvm::create_serialized_proof(false, ());
+        let proof = &SerializedAggregatedProof {
+            raw_aggregated_proof: MockZkvm::create_serialized_proof(false, ()),
+        };
         let _ = module.process_proof(proof, &prover_address, &mut state);
     }
 
@@ -441,7 +446,9 @@ fn test_slash_on_invalid_output_format() -> Result<(), Infallible> {
 
     // Process an invalid proof
     {
-        let proof = MockZkvm::create_serialized_proof(true, ());
+        let proof = SerializedAggregatedProof {
+            raw_aggregated_proof: MockZkvm::create_serialized_proof(true, ()),
+        };
 
         let _ = module.process_proof(&proof, &prover_address, &mut working_set);
     }

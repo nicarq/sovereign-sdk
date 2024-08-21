@@ -2,7 +2,8 @@ use std::cmp::max;
 
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    AggregatedProofPublicData, DaSpec, EventEmitter, Gas, Spec, StateAccessorError, TxState, Zkvm,
+    AggregatedProofPublicData, DaSpec, EventEmitter, Gas, SerializedAggregatedProof, Spec,
+    StateAccessorError, TxState, Zkvm,
 };
 use thiserror::Error;
 
@@ -46,7 +47,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Try to process a zk proof, if the prover is bonded.
     pub fn process_proof(
         &self,
-        proof: &[u8],
+        proof: &SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<AggregatedProofPublicData, ProcessProofError<S>> {
@@ -76,8 +77,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .outer_code_commitment(state)?
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
-        let verification_result =
-            <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(proof, &code_commitment);
+        let verification_result = <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(
+            &proof.raw_aggregated_proof,
+            &code_commitment,
+        );
 
         let public_outputs = match verification_result {
             Ok(public_outputs) => public_outputs,

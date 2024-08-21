@@ -191,7 +191,7 @@ macro_rules! generate_zk_runtime {
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
-                match self.prover_incentives.process_proof(&proof.raw_aggregated_proof, prover_address, state) {
+                match self.prover_incentives.process_proof(&proof, prover_address, state) {
                     Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
                         ::sov_modules_api::ProofReceiptContents::AggregateProof(data, proof)
                     ),
