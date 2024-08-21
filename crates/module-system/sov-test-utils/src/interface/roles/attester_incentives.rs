@@ -106,12 +106,13 @@ impl TestChallengeGenerator for BondedTestChallenger<TestSpec> {}
 impl<S: Spec> BondedTestChallenger<S> {
     /// Creates a new bonded challenger from a challenger and a bond amount. The bond amount is subtracted from the challenger's free balance.
     pub fn from_challenger(challenger: TestChallenger<S>, bond: u64) -> Self {
-        assert!(bond <= challenger.user_info.available_balance);
+        assert!(bond <= challenger.user_info.available_gas_balance);
 
         Self {
             user_info: TestUser {
                 private_key: challenger.user_info.private_key().clone(),
-                available_balance: challenger.user_info.available_balance - bond,
+                available_gas_balance: challenger.user_info.available_gas_balance - bond,
+                token_balances: Vec::new(),
             },
             bond,
         }

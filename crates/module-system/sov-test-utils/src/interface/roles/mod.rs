@@ -3,12 +3,25 @@ use sov_modules_api::{CryptoSpec, Module, PrivateKey, Spec};
 mod attester_incentives;
 mod prover;
 mod sequencer;
+
 pub use attester_incentives::*;
 pub use prover::{TestProver, TestProverConfig};
 pub use sequencer::{TestSequencer, TestSequencerConfig};
 
 use super::TransactionType;
 use crate::default_test_tx_details;
+use crate::runtime::genesis::TestTokenName;
+
+/// A minimal representation of a token held by a given user.
+#[derive(Debug, Clone)]
+pub struct UserTokenInfo {
+    /// The associated token name
+    pub token_name: TestTokenName,
+    /// The user balance
+    pub balance: u64,
+    /// If the user can mint the token
+    pub is_minter: bool,
+}
 
 /// A representation of a simple user that is not staked at genesis.
 #[derive(Debug, Clone)]
@@ -16,7 +29,9 @@ pub struct TestUser<S: Spec> {
     /// The private key of the user.
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     /// The bank balance of the user for the default gas token.
-    pub available_balance: u64,
+    pub available_gas_balance: u64,
+    /// The balances of the user for each non-gas token.
+    pub token_balances: Vec<UserTokenInfo>,
 }
 
 impl<S: Spec> TestUser<S> {
@@ -24,7 +39,8 @@ impl<S: Spec> TestUser<S> {
     pub fn new(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey, balance: u64) -> Self {
         Self {
             private_key,
-            available_balance: balance,
+            available_gas_balance: balance,
+            token_balances: Vec::new(),
         }
     }
 
@@ -32,8 +48,16 @@ impl<S: Spec> TestUser<S> {
     pub fn generate(balance: u64) -> Self {
         Self {
             private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
-            available_balance: balance,
+            available_gas_balance: balance,
+            token_balances: Vec::new(),
         }
+    }
+
+    /// Adds a balance to the user for the given test token.
+    pub fn add_token_info(mut self, info: UserTokenInfo) -> Self {
+        self.token_balances.push(info);
+
+        self
     }
 
     /// Returns the address of the user.
@@ -48,7 +72,15 @@ impl<S: Spec> TestUser<S> {
 
     /// Returns the balance of the user.
     pub fn balance(&self) -> u64 {
-        self.available_balance
+        self.available_gas_balance
+    }
+
+    /// Returns the balance of the user for the given token.
+    pub fn token_balance(&self, token_name: &TestTokenName) -> Option<u64> {
+        self.token_balances
+            .iter()
+            .find(|info| info.token_name == *token_name)
+            .map(|info| info.balance)
     }
 }
 

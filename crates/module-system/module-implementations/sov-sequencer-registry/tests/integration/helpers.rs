@@ -40,7 +40,7 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
 
     let genesis_sequencer = genesis_config.initial_sequencer.clone();
     let genesis_sequencer_da_address = genesis_sequencer.da_address;
-    let genesis_sequencer_balance = genesis_sequencer.user_info.available_balance;
+    let genesis_sequencer_balance = genesis_sequencer.user_info.available_gas_balance;
     let genesis_sequencer_address = genesis_sequencer.user_info.address();
 
     let admin = genesis_config.additional_accounts[0].clone();

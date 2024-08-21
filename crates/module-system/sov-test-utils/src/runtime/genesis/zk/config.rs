@@ -131,13 +131,13 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                         let sequencer = initial_sequencer.as_user();
                         let prover = initial_prover.as_user();
                         if sequencer.address() == prover.address() {
-                            assert_eq!(sequencer.available_balance, prover.available_balance, "Sequencer and prover balances should be equal if they are the same user");
+                            assert_eq!(sequencer.available_gas_balance, prover.available_gas_balance, "Sequencer and prover balances should be equal if they are the same user");
                             // same user, combine the bonds and balances
                             additional_accounts_vec.append(&mut vec![(
                                 sequencer.address(),
                                 initial_sequencer.bond
                                     + initial_prover.bond
-                                    + sequencer.available_balance,
+                                    + sequencer.available_gas_balance,
                             )]);
                         } else {
                             // different users, add separate entries
@@ -145,12 +145,12 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                                 (
                                     initial_sequencer.as_user().address(),
                                     initial_sequencer.bond
-                                        + initial_sequencer.as_user().available_balance,
+                                        + initial_sequencer.as_user().available_gas_balance,
                                 ),
                                 (
                                     initial_prover.as_user().address(),
                                     initial_prover.bond
-                                        + initial_prover.as_user().available_balance,
+                                        + initial_prover.as_user().available_gas_balance,
                                 ),
                             ]);
                         }
