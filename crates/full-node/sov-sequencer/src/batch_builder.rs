@@ -460,13 +460,14 @@ mod tests {
         tmpdir: &TempDir,
         initial_storage: Option<ProverStorage<StorageSpec>>,
         sequencer_address: MockAddress,
-    ) -> BatchBuilder {
+    ) -> (BatchBuilder, watch::Sender<ProverStorage<StorageSpec>>) {
         let sequencer_db_path = tmpdir.path().join("mempool");
         let storage = initial_storage.unwrap_or_else(|| {
             let state_path = tmpdir.path().join("state");
             new_finalized_storage(state_path)
         });
-        let storage = watch::Sender::new(storage).subscribe();
+        let storage_sender = watch::Sender::new(storage);
+        let storage = storage_sender.subscribe();
         let sequencer_db = SequencerDb::new(sequencer_db_path).unwrap();
         let tx_status_manager = TxStatusManager::default();
 
@@ -475,7 +476,8 @@ mod tests {
             max_batch_size_bytes: Some(batch_size_bytes),
             sequencer_address,
         };
-        BatchBuilder::new(
+
+        let batch_builder = BatchBuilder::new(
             TestOptimisticRuntime::<S, MockDaSpec>::default(),
             BasicKernel::default(),
             tx_status_manager,
@@ -483,7 +485,9 @@ mod tests {
             sequencer_db,
             config,
         )
-        .unwrap()
+        .unwrap();
+
+        (batch_builder, storage_sender)
     }
 
     /// Struct returned by [`setup_runtime`] which contains all the data needed to run the tests.
@@ -549,7 +553,7 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             batch_builder.accept_tx(tx).await.unwrap();
@@ -568,7 +572,7 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
@@ -586,7 +590,7 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer_da_address);
 
             for _ in 0..MAX_TX_POOL_SIZE {
@@ -614,7 +618,7 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
@@ -634,7 +638,7 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
 
             let accept_result = batch_builder.accept_tx(tx).await;
@@ -662,7 +666,7 @@ mod tests {
 
             let seq_da_address = sequencer.da_address;
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(10, &tmpdir, Some(storage), seq_da_address);
 
             let build_result = batch_builder.get_next_blob(1).await;
@@ -690,7 +694,7 @@ mod tests {
                 generate_valid_tx(&admin.private_key, 1),
             ];
 
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer.da_address);
 
             for tx in &txs {
@@ -714,7 +718,7 @@ mod tests {
             let batch_size = txs[0].len() * 3 + 1;
 
             let tmpdir = tempfile::tempdir().unwrap();
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(batch_size, &tmpdir, None, DEFAULT_SEQUENCER_DA_ADDRESS);
 
             for tx in &txs {
@@ -750,7 +754,7 @@ mod tests {
             ];
 
             let batch_size = txs[0].len() + txs[2].len() + 1;
-            let mut batch_builder =
+            let (mut batch_builder, _storage) =
                 create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer.da_address);
 
             assert!(
