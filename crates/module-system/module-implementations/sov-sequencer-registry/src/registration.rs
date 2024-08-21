@@ -52,7 +52,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.bank
             .transfer_from(address, self.id().to_payable(), gas_coins(amount), state)?;
 
@@ -64,7 +64,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.bank
             .transfer_from(self.id().to_payable(), address, gas_coins(amount), state)?;
 

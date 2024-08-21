@@ -34,7 +34,7 @@ where
         state_root: <S::Storage as Storage>::Root,
         proof: StorageProof<<S::Storage as Storage>::Proof>,
         expected_key: &S::Address,
-    ) -> Result<Option<SlotValue>, anyhow::Error> {
+    ) -> anyhow::Result<Option<SlotValue>> {
         let (storage_key, storage_value) = S::Storage::open_proof(state_root, proof)?;
         let prefix = self.bonded_attesters.prefix();
         let codec = self.bonded_attesters.codec();

@@ -192,7 +192,7 @@ pub(crate) async fn assert_balance(
     token_id: TokenId,
     user_address: <TestSpec as Spec>::Address,
     version: Option<u64>,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let balance_response = sov_bank::BankRpcClient::<TestSpec>::balance_of(
         &client.rpc,
         version,

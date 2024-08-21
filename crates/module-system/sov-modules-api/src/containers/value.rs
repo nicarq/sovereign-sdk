@@ -169,7 +169,7 @@ mod proofs {
             &self,
             state_root: <S::Storage as Storage>::Root,
             proof: sov_state::StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
-        ) -> Result<Option<V>, anyhow::Error>
+        ) -> anyhow::Result<Option<V>>
 where {
             anyhow::ensure!(
                 proof.namespace == N::PROVABLE_NAMESPACE,

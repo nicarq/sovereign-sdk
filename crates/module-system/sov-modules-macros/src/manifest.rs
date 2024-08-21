@@ -22,7 +22,7 @@ impl<'a> Manifest<'a> {
     /// The provided path will be used to feedback error to the user, if any.
     ///
     /// The `parent` is used to report the errors to the correct span location.
-    pub fn read_str<S>(manifest: S, path: PathBuf, parent: &'a Ident) -> Result<Self, syn::Error>
+    pub fn read_str<S>(manifest: S, path: PathBuf, parent: &'a Ident) -> syn::Result<Self>
     where
         S: AsRef<str>,
     {
@@ -114,7 +114,7 @@ impl<'a> Manifest<'a> {
     ///
     /// The `gas` field resolution will first attempt to query `gas.parent`, and then fallback to
     /// `gas`. They must be objects with arrays of integers as fields.
-    pub fn parse_gas_config(&self, ty: &Type, field: &Ident) -> Result<TokenStream, syn::Error> {
+    pub fn parse_gas_config(&self, ty: &Type, field: &Ident) -> syn::Result<TokenStream> {
         let root = self.get_object(field, "gas")?;
 
         let root = match root.get(&self.parent.to_string()) {
@@ -200,7 +200,7 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    pub fn parse_expression(&self, field: &Ident) -> Result<TokenStream, syn::Error> {
+    pub fn parse_expression(&self, field: &Ident) -> syn::Result<TokenStream> {
         let root = self.get_object(field, "constants")?;
         let value = root.get(&field.to_string()).ok_or_else(|| {
             Self::err(

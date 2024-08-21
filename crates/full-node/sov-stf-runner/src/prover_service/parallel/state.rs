@@ -34,7 +34,7 @@ impl<Address, StateRoot, Da: DaSpec> ProverState<Address, StateRoot, Da> {
     pub(crate) fn set_to_proved(
         &mut self,
         hash: Da::SlotHash,
-        proof: Result<BlockProof<Address, Da, StateRoot>, anyhow::Error>,
+        proof: anyhow::Result<BlockProof<Address, Da, StateRoot>>,
     ) -> Option<ProverStatus<Address, StateRoot, Da>> {
         match proof {
             Ok(p) => self.prover_status.insert(hash, ProverStatus::Proved(p)),

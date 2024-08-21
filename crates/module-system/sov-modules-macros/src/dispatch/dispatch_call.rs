@@ -112,7 +112,7 @@ impl DispatchCallMacro {
     pub(crate) fn derive_dispatch_call(
         &self,
         input: DeriveInput,
-    ) -> Result<proc_macro::TokenStream, syn::Error> {
+    ) -> syn::Result<proc_macro::TokenStream> {
         let default_attrs = vec![quote::quote! {
             #[
                 derive(

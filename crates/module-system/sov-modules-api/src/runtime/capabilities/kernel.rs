@@ -21,7 +21,7 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sy
         &self,
         config: &Self::GenesisConfig,
         state: &mut KernelWorkingSet<'_, S>,
-    ) -> Result<(), anyhow::Error>;
+    ) -> anyhow::Result<()>;
 
     /// Return the current slot number
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;

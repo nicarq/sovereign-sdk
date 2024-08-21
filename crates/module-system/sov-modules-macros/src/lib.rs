@@ -334,7 +334,7 @@ fn expand_code(macro_name: &str, input: TokenStream) -> TokenStream {
 
 fn handle_macro_error_and_expand(
     macro_name: &str,
-    result: Result<proc_macro::TokenStream, syn::Error>,
+    result: syn::Result<proc_macro::TokenStream>,
 ) -> TokenStream {
     expand_code(
         macro_name,

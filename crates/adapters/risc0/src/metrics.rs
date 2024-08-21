@@ -6,7 +6,7 @@ pub use sov_cycle_utils::risc0::SYSCALL_NAME_METRICS;
 
 /// Deserialize a `Bytes` into a null-separated `(String, u64)` tuple. This function
 /// expects its arguments to match the format of arguments to Risc0's io callbacks.
-fn deserialize_custom(serialized: Bytes) -> Result<(String, u64), anyhow::Error> {
+fn deserialize_custom(serialized: Bytes) -> anyhow::Result<(String, u64)> {
     let null_pos = serialized
         .iter()
         .position(|&b| b == 0)
@@ -23,7 +23,7 @@ fn deserialize_custom(serialized: Bytes) -> Result<(String, u64), anyhow::Error>
 /// When the "bench" feature is enabled, this callback is registered as a syscall
 /// in the Risc0 VM and invoked whenever a function annotated with the [`risc0-cycle-utils::cycle_tracker`]
 /// macro is invoked.
-pub fn metrics_callback(input: Bytes) -> Result<Bytes, anyhow::Error> {
+pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
     let met_tuple = deserialize_custom(input)?;
     sov_cycle_utils::increment_metric(met_tuple.0, met_tuple.1);
     Ok(Bytes::new())

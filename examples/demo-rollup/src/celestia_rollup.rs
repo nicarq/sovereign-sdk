@@ -176,7 +176,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             Self::DaConfig,
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
-    ) -> Result<Self::StorageManager, anyhow::Error> {
+    ) -> anyhow::Result<Self::StorageManager> {
         NativeStorageManager::new(&rollup_config.storage.path)
     }
 }

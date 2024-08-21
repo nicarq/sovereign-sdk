@@ -178,7 +178,7 @@ where
         mut outer_vm: OuterVm,
         block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
         genesis_state_root: &RawGenesisStateRoot,
-    ) -> Result<ProofAggregationStatus, anyhow::Error> {
+    ) -> anyhow::Result<ProofAggregationStatus> {
         assert!(!block_header_hashes.is_empty());
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
 
@@ -249,7 +249,7 @@ fn make_inner_proof<V, InnerVm, OuterVm, Da>(
     config: Arc<RollupProverConfig>,
     zk_storage: V::PreState,
     stf_verifier: &StateTransitionVerifier<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>,
-) -> Result<Vec<u8>, anyhow::Error>
+) -> anyhow::Result<Vec<u8>>
 where
     Da: DaService,
     InnerVm: ZkvmHost + 'static,

@@ -193,7 +193,7 @@ impl DaService for DaProvider {
         };
 
         let header = AvailHeader::new(header, hash);
-        let transactions: Result<Vec<AvailBlobTransaction>, anyhow::Error> = appdata
+        let transactions: anyhow::Result<Vec<AvailBlobTransaction>> = appdata
             .extrinsics
             .iter()
             .map(AvailBlobTransaction::new)

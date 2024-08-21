@@ -121,7 +121,7 @@ mod tests {
     }
 
     #[test]
-    fn test_mock_vm() -> Result<(), anyhow::Error> {
+    fn test_mock_vm() -> anyhow::Result<()> {
         let pub_data = TestPublicData {
             hint: "Test".to_owned(),
         };
@@ -139,7 +139,7 @@ mod tests {
     }
 
     #[test]
-    fn test_proof_serialization() -> Result<(), anyhow::Error> {
+    fn test_proof_serialization() -> anyhow::Result<()> {
         let proof = MockZkvm::create_serialized_proof(true, "Valid");
         let verified_pub_data =
             MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default());

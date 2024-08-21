@@ -163,7 +163,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &<ProverStorage<S> as Storage>::Witness,
-    ) -> Result<(jmt::RootHash, ProverStateUpdate), anyhow::Error> {
+    ) -> anyhow::Result<(jmt::RootHash, ProverStateUpdate)> {
         let jmt_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
         let latest_version = self.db.get_next_version() - 1;
@@ -339,7 +339,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
+    ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
         let (user_root, user_state_update) =
             self.compute_state_update_namespace::<DBUserNamespace>(state_accesses.user, witness)?;
 
@@ -368,7 +368,7 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     fn open_proof(
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
-    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
+    ) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
         let StorageProof {
             key,
             value,

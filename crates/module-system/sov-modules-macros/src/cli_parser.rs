@@ -12,7 +12,7 @@ type CliWalletArgSpec = (
 pub(crate) fn derive_cli_wallet(
     name: &'static str,
     input: DeriveInput,
-) -> Result<proc_macro::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro::TokenStream> {
     let field_extractor = StructFieldExtractor::new(name);
     let DeriveInput {
         ident,
@@ -291,9 +291,7 @@ pub(crate) fn derive_cli_wallet(
     Ok(expanded.into())
 }
 
-pub(crate) fn derive_cli_wallet_arg(
-    ast: DeriveInput,
-) -> Result<proc_macro::TokenStream, syn::Error> {
+pub(crate) fn derive_cli_wallet_arg(ast: DeriveInput) -> syn::Result<proc_macro::TokenStream> {
     let (named_type_defn, conversion_logic, subcommand_ident) = match &ast.data {
         // Creating an enum "_WithNamedFields" which is identical to the first enum
         // except that all fields are named.

@@ -82,7 +82,7 @@ impl<S: sov_modules_api::Spec> RpcWorkflows<S> {
     fn resolve_account<'wallet, Tx>(
         &self,
         wallet_state: &'wallet mut WalletState<Tx, S>,
-    ) -> Result<&'wallet AddressEntry<S>, anyhow::Error>
+    ) -> anyhow::Result<&'wallet AddressEntry<S>>
     where
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
@@ -113,7 +113,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
         &self,
         wallet_state: &mut WalletState<Tx, S>,
         _app_dir: impl AsRef<Path>,
-    ) -> Result<(), anyhow::Error>
+    ) -> anyhow::Result<()>
     where
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
@@ -328,7 +328,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned + Send + Sync> RpcW
 async fn get_nonce_for_account<S: sov_modules_api::Spec + Send + Sync + Serialize>(
     client: &(impl ClientT + Send + Sync),
     account: &AddressEntry<S>,
-) -> Result<u64, anyhow::Error> {
+) -> anyhow::Result<u64> {
     let credential_id = account
         .pub_key
         .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();

@@ -265,7 +265,7 @@ pub trait Storage: Clone {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error>;
+    ) -> anyhow::Result<(Self::Root, Self::StateUpdate)>;
 
     /// Materializes changes from given [`Self::StateUpdate`] into [`Self::ChangeSet`].
     fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet;
@@ -276,7 +276,7 @@ pub trait Storage: Clone {
         state_accesses: StateAccesses,
         witness: &Self::Witness,
         accessory_updates: Vec<(SlotKey, Option<SlotValue>)>,
-    ) -> Result<(Self::Root, Self::ChangeSet), anyhow::Error> {
+    ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
         let (root_hash, mut node_batch) = self.compute_state_update(state_accesses, witness)?;
         for write in accessory_updates {
             node_batch.add_accessory_item(write.0, write.1);
@@ -294,7 +294,7 @@ pub trait Storage: Clone {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::ChangeSet), anyhow::Error> {
+    ) -> anyhow::Result<(Self::Root, Self::ChangeSet)> {
         Self::validate_and_materialize_with_accessory_update(
             self,
             state_accesses,
@@ -308,7 +308,7 @@ pub trait Storage: Clone {
     fn open_proof(
         state_root: Self::Root,
         proof: StorageProof<Self::Proof>,
-    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error>;
+    ) -> anyhow::Result<(SlotKey, Option<SlotValue>)>;
 }
 
 /// Used only in tests.
@@ -332,5 +332,5 @@ pub trait NativeStorage: Storage {
     ) -> StorageProof<Self::Proof>;
 
     /// Get the *global* root hash of the tree at the requested version
-    fn get_root_hash(&self, version: Version) -> Result<Self::Root, anyhow::Error>;
+    fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root>;
 }

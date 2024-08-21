@@ -621,7 +621,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_zk_submission() -> Result<(), anyhow::Error> {
+    async fn test_zk_submission() -> anyhow::Result<()> {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
         let fee = da.estimate_fee(aggregated_proof_data.len()).await?;

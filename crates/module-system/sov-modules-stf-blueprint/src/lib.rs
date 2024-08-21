@@ -62,9 +62,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 
     /// Reads genesis configs.
     #[cfg(feature = "native")]
-    fn genesis_config(
-        genesis_paths: &Self::GenesisPaths,
-    ) -> Result<Self::GenesisConfig, anyhow::Error>;
+    fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
 }
 
 /// The reasons for which a transaction can be skipped

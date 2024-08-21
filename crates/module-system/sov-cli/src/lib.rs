@@ -18,7 +18,7 @@ pub mod workflows;
 const SOV_WALLET_DIR_ENV_VAR: &str = "SOV_WALLET_DIR";
 
 /// The directory where the wallet is stored.
-pub fn wallet_dir() -> Result<impl AsRef<Path>, anyhow::Error> {
+pub fn wallet_dir() -> anyhow::Result<impl AsRef<Path>> {
     // First try to parse from the env variable
     if let Ok(val) = env::var(SOV_WALLET_DIR_ENV_VAR) {
         return Ok(val.into());

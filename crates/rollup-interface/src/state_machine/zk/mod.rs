@@ -68,7 +68,7 @@ pub trait ZkvmHost: Clone + Send + Sync {
     /// This runs the guest binary compiled for the zkVM target, optionally
     /// creating a SNARK of correct execution. Running the true guest binary comes
     /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
-    fn run(&mut self, with_proof: bool) -> Result<Vec<u8>, anyhow::Error>;
+    fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>>;
 }
 
 /// A commitment to a zkVM program.

@@ -56,8 +56,7 @@ where
     >,
 {
     /// Generates wallet cli for the runtime.
-    async fn run_wallet<File: clap::Subcommand, Json: clap::Subcommand>(
-    ) -> Result<(), anyhow::Error>
+    async fn run_wallet<File: clap::Subcommand, Json: clap::Subcommand>() -> anyhow::Result<()>
     where
         <<Self as RollupBlueprint<M>>::Runtime as DispatchCall>::Decodable:
             BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,

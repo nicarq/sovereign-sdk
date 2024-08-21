@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
+async fn fetch_aggregated_proof_test() -> anyhow::Result<()> {
     for jump in [1, 7] {
         let test_case = TestCase::new(jump);
         for nb_of_threads in [1, 3] {
@@ -22,10 +22,7 @@ async fn fetch_aggregated_proof_test() -> Result<(), anyhow::Error> {
 }
 
 // In this test, proofs are created just after batch is submitted to the DA.
-async fn run_make_proof_sync(
-    test_case: TestCase,
-    nb_of_threads: usize,
-) -> Result<(), anyhow::Error> {
+async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyhow::Result<()> {
     let tmpdir = tempfile::tempdir().unwrap();
     let jump = test_case.jump();
 
@@ -58,10 +55,7 @@ async fn run_make_proof_sync(
 }
 
 // In this test, proofs are created after multiple batches are submitted to the DA.
-async fn run_make_proof_async(
-    test_case: TestCase,
-    nb_of_threads: usize,
-) -> Result<(), anyhow::Error> {
+async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyhow::Result<()> {
     let tmpdir = tempfile::tempdir().unwrap();
     let jump = test_case.jump();
     let nb_of_batches = test_case.input.nb_of_batches;

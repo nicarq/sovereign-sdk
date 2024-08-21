@@ -392,9 +392,7 @@ where
         todo!()
     }
 
-    fn genesis_config(
-        _genesis_paths: &Self::GenesisPaths,
-    ) -> Result<Self::GenesisConfig, anyhow::Error> {
+    fn genesis_config(_genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
         todo!()
     }
 }
@@ -517,7 +515,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         _auth_tx: &Self::AuthorizationData,
         _context: &Context<S>,
         _state: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -528,7 +526,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         sequencer: &Da::Address,
         height: u64,
         state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<Context<S>, anyhow::Error> {
+    ) -> anyhow::Result<Context<S>> {
         let sender = auth_tx.default_address.clone().unwrap();
         let sequencer = self
             .sequencer_registry()
@@ -547,7 +545,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_tx: &Self::AuthorizationData,
         height: u64,
         _state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
-    ) -> Result<Context<S>, anyhow::Error> {
+    ) -> anyhow::Result<Context<S>> {
         let sender = auth_tx.default_address.clone().unwrap();
         // The tx sender & sequencer are the same entity
         Ok(Context::new(

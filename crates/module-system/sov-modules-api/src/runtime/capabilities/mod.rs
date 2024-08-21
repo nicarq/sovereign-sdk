@@ -103,7 +103,7 @@ pub mod mocks {
             &self,
             _config: &Self::GenesisConfig,
             _state: &mut KernelWorkingSet<'_, S>,
-        ) -> Result<(), anyhow::Error> {
+        ) -> anyhow::Result<()> {
             Ok(())
         }
     }

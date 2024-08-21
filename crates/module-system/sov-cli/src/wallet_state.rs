@@ -55,7 +55,7 @@ where
     S: sov_modules_api::Spec,
 {
     /// Load the wallet state from the given path on disk
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, anyhow::Error> {
+    pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         let path = path.as_ref();
         if path.exists() {
             let data = fs::read(path)?;
@@ -107,7 +107,7 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
     }
 
     /// Save the wallet state to the given path on disk
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<(), anyhow::Error> {
+    pub fn save(&self, path: impl AsRef<Path>) -> anyhow::Result<()> {
         let data = serde_json::to_string_pretty(self)?;
         fs::write(path, data)?;
         Ok(())

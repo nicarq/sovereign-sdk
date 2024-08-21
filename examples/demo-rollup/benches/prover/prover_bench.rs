@@ -213,7 +213,7 @@ fn log_bench_data(bench_data: BenchData, mode: BenchMode) {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), anyhow::Error> {
+async fn main() -> anyhow::Result<()> {
     if let Ok(rollup_trace) = env::var("ROLLUP_TRACE") {
         if let Err(e) = log4rs::init_config(get_config(&rollup_trace)) {
             eprintln!("Error initializing logger: {:?}", e);
@@ -257,7 +257,7 @@ async fn run<InnerVm: Zkvm + BenchZkvm, OuterVm: Zkvm, Stf>(
     stf: Stf,
     elf: &[u8],
     bench_mode: BenchMode,
-) -> Result<(), anyhow::Error>
+) -> anyhow::Result<()>
 where
     InnerVm::CryptoSpec: CryptoSpecExt,
     OuterVm::CryptoSpec: CryptoSpecExt,

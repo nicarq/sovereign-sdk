@@ -9,7 +9,7 @@ impl<S: Spec> Accounts<S> {
         maybe_default_address: &Option<S::Address>,
         credential_id: &CredentialId,
         state_checkpoint: &mut impl StateAccessor,
-    ) -> Result<S::Address, anyhow::Error> {
+    ) -> anyhow::Result<S::Address> {
         let maybe_address = self
             .accounts
             .get(credential_id, state_checkpoint)

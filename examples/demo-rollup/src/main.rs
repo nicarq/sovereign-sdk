@@ -158,7 +158,7 @@ async fn new_rollup_with_mock_da(
     kernel_genesis_paths: &BasicKernelGenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
-) -> Result<Rollup<MockDemoRollup<Native>, Native>, anyhow::Error> {
+) -> anyhow::Result<Rollup<MockDemoRollup<Native>, Native>> {
     debug!(
         config_path = rollup_config_path,
         "Starting rollup on mock DA"

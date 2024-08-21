@@ -112,7 +112,7 @@ where
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.bank
             .transfer_from(address, self.id.to_payable(), gas_coins(amount), state)?;
         Ok(())
@@ -123,7 +123,7 @@ where
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.bank
             .transfer_from(self.id.to_payable(), address, gas_coins(amount), state)?;
         Ok(())

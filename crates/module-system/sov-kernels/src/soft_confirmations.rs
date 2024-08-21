@@ -48,7 +48,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
         &self,
         config: &Self::GenesisConfig,
         state: &mut KernelWorkingSet<'_, S>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         Ok(self
             .chain_state
             .genesis_unchecked(&config.chain_state, state)?)

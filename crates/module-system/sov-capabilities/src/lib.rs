@@ -101,7 +101,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_data: &Self::AuthorizationData,
         _context: &Context<S>,
         pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.nonces.check_nonce(
             &auth_data.credential_id,
             auth_data.nonce,
@@ -127,7 +127,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         sequencer: &Da::Address,
         height: u64,
         state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<Context<S>, anyhow::Error> {
+    ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
         let sequencer = self.
@@ -151,7 +151,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_data: &Self::AuthorizationData,
         height: u64,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
-    ) -> Result<Context<S>, anyhow::Error> {
+    ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,

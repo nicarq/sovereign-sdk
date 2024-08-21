@@ -87,7 +87,7 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         Risc0Guest::with_hints(std::mem::take(&mut self.env))
     }
 
-    fn run(&mut self, with_proof: bool) -> Result<Vec<u8>, anyhow::Error> {
+    fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>> {
         let proof = if with_proof {
             let receipt = self.run()?;
             Proof::<Receipt, Option<Journal>>::Full(receipt)

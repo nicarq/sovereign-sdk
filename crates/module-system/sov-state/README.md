@@ -61,7 +61,7 @@ pub trait Storage: Clone {
     /// The runtime config for this storage instance.
     type RuntimeConfig;
 
-    fn with_config(config: Self::RuntimeConfig) -> Result<Self, anyhow::Error>;
+    fn with_config(config: Self::RuntimeConfig) -> anyhow::Result<Self>;
 
     /// Returns the value corresponding to the key or None if key is absent.
     fn get(&self, key: SlotKey, witness: &Self::Witness) -> Option<SlotValue>;
@@ -72,7 +72,7 @@ pub trait Storage: Clone {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &Self::Witness,
-    ) -> Result<[u8; 32], anyhow::Error>;
+    ) -> anyhow::Result<[u8; 32]>;
 }
 ```
 

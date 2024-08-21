@@ -95,7 +95,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         height: u64,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> Result<Context<S>, anyhow::Error>;
+    ) -> anyhow::Result<Context<S>>;
 
     /// Resolves the context for an unregistered transaction.
     fn resolve_unregistered_context(
@@ -103,7 +103,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         auth_data: &Self::AuthorizationData,
         height: u64,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
-    ) -> Result<Context<S>, anyhow::Error>;
+    ) -> anyhow::Result<Context<S>>;
 
     /// Prevents duplicate transactions from running.
     fn check_uniqueness<Meter: GasMeter<S::Gas>>(
@@ -111,7 +111,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         auth_data: &Self::AuthorizationData,
         context: &Context<S>,
         pre_exec_ws: &mut PreExecWorkingSet<S, Meter>,
-    ) -> Result<(), anyhow::Error>;
+    ) -> anyhow::Result<()>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
@@ -218,7 +218,7 @@ pub trait Authenticator: Send + Sync + 'static {
     >;
 
     /// Encodes transaction bytes using a particular authenticator.
-    fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error>;
+    fn encode(tx: Vec<u8>) -> anyhow::Result<RawTx>;
 }
 
 /// Data required to authorize a sov-transaction.

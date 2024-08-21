@@ -287,7 +287,7 @@ impl LedgerRpcReader {
     pub(crate) async fn get_batch_range(
         &self,
         range: &std::ops::Range<BatchNumber>,
-    ) -> Result<Vec<StoredBatch>, anyhow::Error> {
+    ) -> anyhow::Result<Vec<StoredBatch>> {
         self.get_data_range::<BatchByNumber, _, _>(range).await
     }
 
@@ -654,7 +654,7 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
+    ) -> anyhow::Result<Option<SlotResponse<B, T>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
@@ -668,7 +668,7 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
+    ) -> anyhow::Result<Option<BatchResponse<B, T>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
@@ -682,7 +682,7 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, anyhow::Error>
+    ) -> anyhow::Result<Option<TxResponse<T>>>
     where
         T: TxReceiptContents,
     {
@@ -700,7 +700,7 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, anyhow::Error>
+    ) -> anyhow::Result<Option<SlotResponse<B, T>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
@@ -714,7 +714,7 @@ impl LedgerStateProvider for LedgerDb {
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, anyhow::Error>
+    ) -> anyhow::Result<Option<BatchResponse<B, T>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
@@ -724,7 +724,7 @@ impl LedgerStateProvider for LedgerDb {
             .map(|mut slots| slots.pop().unwrap_or(None))
     }
 
-    async fn get_event_by_number<E>(&self, number: u64) -> Result<Option<E>, anyhow::Error>
+    async fn get_event_by_number<E>(&self, number: u64) -> anyhow::Result<Option<E>>
     where
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
@@ -892,7 +892,7 @@ impl LedgerDb {
     pub(crate) async fn _get_data_range_from<T, K, V>(
         db: &DeltaReader,
         range: &std::ops::Range<K>,
-    ) -> Result<Vec<V>, anyhow::Error>
+    ) -> anyhow::Result<Vec<V>>
     where
         T: Schema<Key = K, Value = V>,
         K: Into<u64> + Copy + SeekKeyEncoder<T>,
