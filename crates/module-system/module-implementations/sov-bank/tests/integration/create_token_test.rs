@@ -1,84 +1,212 @@
-use std::convert::Infallible;
-
-use sov_bank::{get_token_id, Bank, CallMessage};
-use sov_modules_api::test_utils::generate_address;
-use sov_modules_api::{Context, Module, StateCheckpoint};
-use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
+use sov_bank::{get_token_id, Bank};
+use sov_modules_api::TxEffect;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::TestTokenName;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::*;
 
 type S = sov_test_utils::TestSpec;
 
+// Check that we can create a token and that the state is correctly updated.
 #[test]
-fn initial_and_deployed_token() -> Result<(), Infallible> {
-    let bank_config = create_bank_config_with_token(1, 100);
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
-    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
-    let bank = Bank::default();
-    bank.genesis(&bank_config, &mut genesis_state).unwrap();
+fn create_token() {
+    let (
+        TestData {
+            minter,
+            user_high_token_balance,
+            user_no_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
 
-    let checkpoint = genesis_state.checkpoint();
+    const INITIAL_TOKEN_BALANCE: u64 = 1000;
+    const SALT: u64 = 1;
 
-    let sender_address = generate_address::<S>("sender");
-    let sequencer_address = generate_address::<S>("sequencer");
-    let sender_context =
-        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-    let minter = generate_address::<S>("minter");
-    let initial_balance = TEST_DEFAULT_USER_BALANCE;
-    let token_name = "Token1".to_owned();
-    let salt = 1;
-    let token_id = get_token_id::<S>(&token_name, &sender_address, salt);
-    let create_token_message = CallMessage::CreateToken::<S> {
-        salt,
-        token_name: token_name.clone(),
-        initial_balance,
-        mint_to_address: minter,
-        authorized_minters: vec![minter],
-    };
+    let user_high_token_balance_address = user_high_token_balance.address();
+    let user_no_token_balance_address = user_no_token_balance.address();
+    let minter_address = minter.as_user().address();
+    let token_name = "Token1".to_string();
+    let token_id = get_token_id::<S>(&token_name, &minter_address, SALT);
 
-    let mut state = checkpoint.to_working_set_unmetered();
-    bank.call(create_token_message, &sender_context, &mut state)
-        .expect("Failed to create token");
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
+            salt: SALT,
+            token_name: token_name.clone(),
+            initial_balance: INITIAL_TOKEN_BALANCE,
+            mint_to_address: user_high_token_balance_address,
+            authorized_minters: vec![minter_address],
+        }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1, "There should be one event emitted");
+            assert_eq!(
+                result.events[0],
+                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenCreated {
+                    token_name: token_name.clone(),
+                    coins: sov_bank::Coins {
+                        amount: INITIAL_TOKEN_BALANCE,
+                        token_id
+                    },
+                    minter: sov_bank::utils::TokenHolder::User(user_high_token_balance_address),
+                    authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
+                }),
+                "The event should be a TokenCreated event"
+            );
 
-    // Create token event should be present
-    assert_eq!(state.events().len(), 1);
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_token_name(&token_id, state)
+                    .unwrap(),
+                Some(token_name)
+            );
 
-    let (mut state, _, _) = state.checkpoint();
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_total_supply_of(&token_id, state)
+                    .unwrap(),
+                Some(INITIAL_TOKEN_BALANCE)
+            );
 
-    let sender_balance = bank.get_balance_of(&sender_address, token_id, &mut state)?;
-    assert!(sender_balance.is_none());
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_high_token_balance_address, token_id, state)
+                    .unwrap(),
+                Some(INITIAL_TOKEN_BALANCE)
+            );
 
-    let observed_token_name = bank
-        .get_token_name(&token_id, &mut state)?
-        .expect("Token is missing its name");
-    assert_eq!(&token_name, &observed_token_name);
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&minter_address, token_id, state)
+                    .unwrap(),
+                None,
+                "The minter should not receive any tokens! It should only be able to mint"
+            );
 
-    let minter_balance = bank.get_balance_of(&minter, token_id, &mut state)?;
-    assert_eq!(Some(initial_balance), minter_balance);
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_no_token_balance_address, token_id, state)
+                    .unwrap(),
+                None
+            );
+        }),
+    });
+}
 
-    let total_supply = bank.get_total_supply_of(&token_id, &mut state)?.unwrap();
-    assert_eq!(initial_balance, total_supply);
+/// Check that we can create a token and mint them to a user.
+#[test]
+fn create_token_and_mint() {
+    let (
+        TestData {
+            minter,
+            user_no_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
 
-    Ok(())
+    const INITIAL_TOKEN_BALANCE: u64 = 1000;
+    const SALT: u64 = 1;
+
+    let user_no_token_balance_address = user_no_token_balance.address();
+    let minter_address = minter.as_user().address();
+    let token_name = "Token1".to_string();
+    let token_id = get_token_id::<S>(&token_name, &minter_address, SALT);
+
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
+            salt: SALT,
+            token_name: token_name.clone(),
+            initial_balance: INITIAL_TOKEN_BALANCE,
+            mint_to_address: minter_address,
+            authorized_minters: vec![minter_address],
+        }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1, "There should be one event emitted");
+            assert_eq!(
+                result.events[0],
+                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenCreated {
+                    token_name: token_name.clone(),
+                    coins: sov_bank::Coins {
+                        amount: INITIAL_TOKEN_BALANCE,
+                        token_id
+                    },
+                    minter: sov_bank::utils::TokenHolder::User(minter_address),
+                    authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
+                }),
+                "The event should be a TokenCreated event"
+            );
+
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_no_token_balance_address, token_id, state)
+                    .unwrap(),
+                None
+            );
+        }),
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Mint {
+            coins: sov_bank::Coins {
+                amount: INITIAL_TOKEN_BALANCE,
+                token_id,
+            },
+            mint_to_address: user_no_token_balance_address,
+        }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1, "There should be one event emitted");
+            assert_eq!(
+                result.events[0],
+                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenMinted {
+                    mint_to_identity: sov_bank::utils::TokenHolder::User(
+                        user_no_token_balance_address
+                    ),
+                    coins: sov_bank::Coins {
+                        amount: INITIAL_TOKEN_BALANCE,
+                        token_id
+                    }
+                }),
+                "The event should be a TokenMinted event"
+            );
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_no_token_balance_address, token_id, state)
+                    .unwrap(),
+                Some(INITIAL_TOKEN_BALANCE)
+            );
+
+            // The minter should have the same balance because the tokens were minted and not transferred
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&minter_address, token_id, state)
+                    .unwrap(),
+                Some(INITIAL_TOKEN_BALANCE)
+            );
+
+            // The total supply should have increased by the amount of tokens minted
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_total_supply_of(&token_id, state)
+                    .unwrap(),
+                Some(2 * INITIAL_TOKEN_BALANCE)
+            );
+        }),
+    });
 }
 
 #[test]
-/// Currently integer overflow happens on bank genesis
-fn overflow_max_supply() {
-    let bank = Bank::<S>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
+#[should_panic]
+fn overflow_max_supply_genesis_should_panic() {
+    let token_name = TestTokenName::new("BankToken".to_string());
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+        .add_accounts_with_token(&token_name, false, 2, u64::MAX - 2);
 
-    let bank_config = create_bank_config_with_token(2, u64::MAX - 2);
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
-    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
-    let genesis_result = bank.genesis(&bank_config, &mut genesis_state);
-    assert!(genesis_result.is_err());
-
-    assert_eq!(
-        "Total supply overflow",
-        genesis_result.unwrap_err().to_string()
-    );
+    TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
 }

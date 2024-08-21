@@ -53,6 +53,8 @@ pub struct TestData {
     pub user_high_token_balance: TestUser<S>,
     /// A user with no token balance of [`Self::token_id`].
     pub user_no_token_balance: TestUser<S>,
+    /// A user that can mint tokens. By default can mint the token whose id is [`Self::token_id`].
+    pub minter: TestUser<S>,
 }
 
 /// Sets up the bank tests by generating a genesis config with a single non-default token that has
@@ -71,6 +73,7 @@ pub fn setup() -> (TestData, TestRunner<RT, S>) {
     let mut token_users_vec = genesis_config.get_accounts_for_token(&token_name);
 
     let user_high_token_balance = token_users_vec.pop().unwrap();
+    let minter = token_users_vec.pop().unwrap();
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
@@ -81,6 +84,7 @@ pub fn setup() -> (TestData, TestRunner<RT, S>) {
             token_name,
             token_id,
             user_high_token_balance,
+            minter,
             user_no_token_balance,
         },
         runner,
