@@ -5,6 +5,27 @@ use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use crate::transaction::{PriorityFeeBips, TxDetails};
 use crate::Spec;
 
+/// Proof type supported by the rollup.
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum ProofType {
+    /// ZK workflow: aggregated zk proof.
+    ZkAggregatedProof(SerializedAggregatedProof),
+    /// Optimistic workflow: attestation.
+    OptimisticProofAttestation,
+    /// Optimistic workflow: challenge.
+    OptimisticProofChallenge,
+}
+
 /// Proof with metadata need for verification.
 #[derive(
     Debug,
@@ -18,7 +39,7 @@ use crate::Spec;
 )]
 pub struct SerializeProofWithDetails<S: Spec> {
     /// The serialized aggregated proof.
-    pub proof: SerializedAggregatedProof,
+    pub proof: ProofType,
     /// The transaction metadata.
     pub details: TxDetails<S>,
 }
@@ -50,7 +71,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
         };
 
         let proof_with_details = SerializeProofWithDetails {
-            proof: serialized_proof,
+            proof: ProofType::ZkAggregatedProof(serialized_proof),
             details,
         };
 

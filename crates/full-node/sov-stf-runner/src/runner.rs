@@ -565,8 +565,11 @@ where
         let mut aggregated_proofs: Vec<AggregatedProof> = Vec::new();
         for receipt in receipts {
             match receipt.outcome {
-                ProofOutcome::Valid(ProofReceiptContents::AggregateProof(public_data)) => {
-                    aggregated_proofs.push(AggregatedProof::new(receipt.raw_proof, public_data));
+                ProofOutcome::Valid(ProofReceiptContents::AggregateProof(
+                    public_data,
+                    raw_proof,
+                )) => {
+                    aggregated_proofs.push(AggregatedProof::new(raw_proof, public_data));
                 }
                 _ => {
                     tracing::error!("Invalid proof outcome, {:?}", receipt.outcome);

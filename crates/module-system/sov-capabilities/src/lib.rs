@@ -170,14 +170,12 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
 impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     for StandardProvenRollupCapabilities<'a, S, Da>
 {
-    fn process_proof(
+    fn process_aggregated_proof(
         &self,
-        proof: &SerializedAggregatedProof,
+        proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
     ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
-        // TODO #815
-
         let result = self.prover_incentives.process_proof(
             &proof.raw_aggregated_proof,
             prover_address,
@@ -185,7 +183,9 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         );
 
         match result {
-            Ok(pub_data) => ProofOutcome::Valid(ProofReceiptContents::AggregateProof(pub_data)),
+            Ok(pub_data) => {
+                ProofOutcome::Valid(ProofReceiptContents::AggregateProof(pub_data, proof))
+            }
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Proof validation failed {:?}", e);
