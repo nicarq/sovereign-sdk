@@ -271,7 +271,7 @@ where
                         proof.from_state(&mut ApiStateAccessor::<S>::new(stf_state.clone()))
                     }
                 };
-                let blob = MockBlob::new_with_hash(borsh::to_vec(&proof_bytes).unwrap(), sequencer);
+                let blob = MockBlob::new_with_hash(proof_bytes, sequencer);
                 RelevantBlobs {
                     batch_blobs: vec![],
                     proof_blobs: vec![blob],
