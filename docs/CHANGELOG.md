@@ -1,3 +1,4 @@
+- #1234 Add support for `process_attestation & process_challenge` capabilities in the `STF blueprint`.
 -  #1233 Add support for the optimistic workflow in the `STF blueprint`.
 - #1228 Converts sov-attester-incentive to capability.
 - #1223 Adds logging of response times for celestia adapter. Minimal configuration: `RUST_LOG="info,sov_celestia_adapter::da_service=trace,jsonrpsee=trace,jsonrpsee-http=info,jsonrpsee-client=info"`

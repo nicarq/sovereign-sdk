@@ -40,11 +40,11 @@ pub struct ProofOfBond<StateProof> {
     Eq,
     sov_wallet_format::UniversalWallet,
 )]
-pub struct Attestation<Da: DaSpec, StateProof, StateRoot> {
+pub struct Attestation<SlotHash, StateProof, StateRoot> {
     /// The alleged state root before applying the contents of the da block
     pub initial_state_root: StateRoot,
     /// The hash of the block in which the transition occurred
-    pub slot_hash: Da::SlotHash,
+    pub slot_hash: SlotHash,
     /// The alleged post-state root
     pub post_state_root: StateRoot,
     /// A proof that the attester was bonded at some point in time before the attestation is generated
@@ -87,3 +87,66 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
 )]
 /// This struct contains the challenge as a raw blob
 pub struct Challenge<'a>(&'a [u8]);
+
+/// Represents a serialized attestation.
+#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+pub struct SerializedAttestation {
+    /// Serialized attestation.
+    pub raw_attestation: Vec<u8>,
+}
+
+/// Represents a serialized challenge.
+#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
+pub struct SerializedChallenge {
+    /// Serialized challenge.
+    pub raw_challenge: Vec<u8>,
+}
+
+impl SerializedAttestation {
+    /// Serializes an attestation.
+    pub fn from_attestation<
+        SlotHash: BorshSerialize,
+        StateProof: BorshSerialize,
+        StateRoot: BorshSerialize,
+    >(
+        attestation: &Attestation<SlotHash, StateProof, StateRoot>,
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
+            raw_attestation: borsh::to_vec(attestation)?,
+        })
+    }
+
+    /// Deserializes an attestation.
+    pub fn to_attestation<
+        SlotHash: BorshDeserialize,
+        StateProof: BorshDeserialize,
+        StateRoot: BorshDeserialize,
+    >(
+        &self,
+    ) -> anyhow::Result<Attestation<SlotHash, StateProof, StateRoot>> {
+        Ok(borsh::from_slice(&self.raw_attestation)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_attestation_serialization() {
+        let attestation = Attestation {
+            initial_state_root: [3; 32],
+            slot_hash: [10; 32],
+            post_state_root: [22; 32],
+            proof_of_bond: ProofOfBond {
+                claimed_transition_num: 1,
+                proof: (),
+            },
+        };
+
+        let serialized_attestation = SerializedAttestation::from_attestation(&attestation).unwrap();
+        let deserialized_attestation = serialized_attestation.to_attestation().unwrap();
+
+        assert_eq!(attestation, deserialized_attestation);
+    }
+}

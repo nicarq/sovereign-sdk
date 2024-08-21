@@ -54,7 +54,7 @@ where
         claimed_transition_height: TransitionHeight,
         attester: &S::Address,
         attestation: &Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
@@ -234,7 +234,7 @@ where
         &self,
         context: &Context<S>,
         attestation: &Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
@@ -295,7 +295,7 @@ where
         claimed_transition_height: TransitionHeight,
         attester: &S::Address,
         attestation: &Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,

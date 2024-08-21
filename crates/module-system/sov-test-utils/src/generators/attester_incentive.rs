@@ -81,7 +81,7 @@ pub mod framework {
     use sov_mock_zkvm::MockZkvm;
     use sov_modules_api::optimistic::Attestation;
     use sov_modules_api::prelude::UnwrapInfallible;
-    use sov_modules_api::{ApiStateAccessor, Spec, StateTransitionPublicData};
+    use sov_modules_api::{ApiStateAccessor, DaSpec, Spec, StateTransitionPublicData};
     use sov_state::jmt::RootHash;
     use sov_state::{BorshCodec, SlotValue, Storage, StorageProof, StorageRoot};
 
@@ -220,7 +220,7 @@ pub mod framework {
             state: &mut ApiStateAccessor<TestSpec>,
         ) -> Result<
             Attestation<
-                MockDaSpec,
+                <MockDaSpec as DaSpec>::SlotHash,
                 StorageProof<<<TestSpec as Spec>::Storage as Storage>::Proof>,
                 <<TestSpec as Spec>::Storage as Storage>::Root,
             >,

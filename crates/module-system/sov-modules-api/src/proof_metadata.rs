@@ -1,4 +1,5 @@
 use sov_modules_macros::config_value;
+use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
@@ -21,9 +22,9 @@ pub enum ProofType {
     /// ZK workflow: aggregated zk proof.
     ZkAggregatedProof(SerializedAggregatedProof),
     /// Optimistic workflow: attestation.
-    OptimisticProofAttestation,
+    OptimisticProofAttestation(SerializedAttestation),
     /// Optimistic workflow: challenge.
-    OptimisticProofChallenge,
+    OptimisticProofChallenge(SerializedChallenge),
 }
 
 /// Proof with metadata need for verification.

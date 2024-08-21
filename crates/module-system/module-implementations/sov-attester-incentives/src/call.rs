@@ -42,7 +42,7 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
     ProcessAttestation(
         #[allow(clippy::type_complexity)]
         Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
@@ -125,7 +125,7 @@ where
         &self,
         context: &Context<S>,
         attestation: Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,
