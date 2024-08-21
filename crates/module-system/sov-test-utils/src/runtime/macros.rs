@@ -140,9 +140,9 @@ macro_rules! generate_optimistic_runtime {
         }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
-            fn process_proof(
+            fn process_aggregated_proof(
                 &self,
-                _proof: &::sov_modules_api::SerializedAggregatedProof,
+                _proof: ::sov_modules_api::SerializedAggregatedProof,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
@@ -165,15 +165,15 @@ macro_rules! generate_zk_runtime {
         }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
-            fn process_proof(
+            fn process_aggregated_proof(
                 &self,
-                proof: &::sov_modules_api::SerializedAggregatedProof,
+                proof: ::sov_modules_api::SerializedAggregatedProof,
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
                 match self.prover_incentives.process_proof(&proof.raw_aggregated_proof, prover_address, state) {
                     Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
-                        ::sov_modules_api::ProofReceiptContents::AggregateProof(data)
+                        ::sov_modules_api::ProofReceiptContents::AggregateProof(data, proof)
                     ),
                     Err(_e) => {
                         ::sov_modules_api::ProofOutcome::Invalid

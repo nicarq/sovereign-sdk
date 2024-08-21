@@ -150,12 +150,14 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 };
 
             proof_receipts.push(ProofReceipt {
-                raw_proof: SerializedAggregatedProof {
-                    raw_aggregated_proof: raw_proof.to_vec(),
-                },
                 blob_hash: [0u8; 32],
                 outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Valid(
-                    ProofReceiptContents::AggregateProof(public_data),
+                    ProofReceiptContents::AggregateProof(
+                        public_data,
+                        SerializedAggregatedProof {
+                            raw_aggregated_proof: raw_proof.to_vec(),
+                        },
+                    ),
                 ),
                 extra_data: (),
             });

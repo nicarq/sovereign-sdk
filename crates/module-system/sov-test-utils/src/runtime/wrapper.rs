@@ -569,13 +569,14 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
 impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     for TestRuntimeWrapper<S, Da, T>
 {
-    fn process_proof(
+    fn process_aggregated_proof(
         &self,
-        proof: &SerializedAggregatedProof,
+        proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
     ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
-        self.inner.process_proof(proof, prover_address, state)
+        self.inner
+            .process_aggregated_proof(proof, prover_address, state)
     }
 }
 

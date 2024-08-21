@@ -5,13 +5,12 @@ use sov_modules_api::capabilities::{
     AuthorizeSequencerError, GasEnforcer, HasCapabilities, ProofProcessor, SequencerAuthorization,
     SequencerRemuneration, TryReserveGasError,
 };
-use sov_modules_api::proof_metadata::SerializeProofWithDetails;
+use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     DaSpec, Gas, PreExecWorkingSet, ProofOutcome, ProofReceipt, Spec, StateCheckpoint,
     TxScratchpad, WorkingSet,
 };
-use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_state::Storage;
 
 use crate::Runtime;
@@ -68,18 +67,19 @@ where
                 }
             };
 
-            let outcome = runtime.capabilities().process_proof(
-                &proof_with_details.proof,
-                &sequencer_rollup_address,
-                &mut working_set,
-            );
-            // TODO:#815 here we will verify the proof via the `ProofProcessor` capability.
+            let outcome = match proof_with_details.proof {
+                ProofType::ZkAggregatedProof(proof) => runtime
+                    .capabilities()
+                    .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set),
+                ProofType::OptimisticProofAttestation | ProofType::OptimisticProofChallenge => {
+                    ProofOutcome::Invalid
+                }
+            };
+
             let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();
 
-            // TODO:#815 here we will return `ProofOutcome::Valid` once we plug in the `ProofProcessor` capability and handle the `_transaction_consumption`.
             ProcessProofOutput {
                 proof_receipt: ProofReceipt {
-                    raw_proof: proof_with_details.proof,
                     blob_hash,
                     outcome,
                     extra_data: (),
@@ -215,11 +215,7 @@ where
 fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     blob_hash: [u8; 32],
 ) -> ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()> {
-    // TODO:#815 `raw_proof` will be moved to `ProofOutcome::Valid when we plug `ProofProcessor`` capability.
     ProofReceipt {
-        raw_proof: SerializedAggregatedProof {
-            raw_aggregated_proof: Default::default(),
-        },
         blob_hash,
         outcome: ProofOutcome::Invalid,
         extra_data: (),

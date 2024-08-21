@@ -9,9 +9,9 @@ use crate::{Spec, WorkingSet};
 /// the stf-blueprint.
 pub trait ProofProcessor<S: Spec, Da: DaSpec> {
     /// Called by the stf once the proof is received.
-    fn process_proof(
+    fn process_aggregated_proof(
         &self,
-        proof: &SerializedAggregatedProof,
+        proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
     ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root>;
