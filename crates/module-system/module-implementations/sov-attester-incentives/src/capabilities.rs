@@ -4,7 +4,8 @@ use core::result::Result::Ok;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    Context, EventEmitter, Gas, StateAccessorError, StateTransitionPublicData, TxState, Zkvm,
+    Context, EventEmitter, Gas, SerializedAttestation, SerializedChallenge, StateAccessorError,
+    StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
@@ -16,6 +17,10 @@ use crate::{AttesterIncentives, Event};
 /// Error raised while processing the attester incentives.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum ProcessAttestationErrors<AccessorError> {
+    #[error("Unable to deserialize the attestation.")]
+    /// Unable to deserialize the attestation.
+    InvalidAttestationFormat,
+
     #[error("Attester is not bonded at the time of the transaction")]
     /// Attester is not bonded at the time of the transaction
     AttesterSlashed(SlashingReason),
@@ -83,8 +88,21 @@ where
     /// Try to process an attestation if the attester is bonded.
     /// This function returns an error (hence ignores the transaction) when the attester is not bonded
     /// or when the module is unable to verify the bonding proof.
-    #[allow(clippy::type_complexity)]
     pub fn process_attestation(
+        &self,
+        context: &Context<S>,
+        serialized_attestation: SerializedAttestation,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+        let attestation = serialized_attestation.to_attestation().map_err(|e| {
+            error!(error = ?e, "Unable to deserialize the attestation.");
+            ProcessAttestationErrors::InvalidAttestationFormat
+        })?;
+        self.process_attestation_helper(context, attestation, state)
+    }
+
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn process_attestation_helper(
         &self,
         context: &Context<S>,
         attestation: Attestation<
@@ -215,7 +233,23 @@ where
     /// Try to process a zk proof if the challenger is bonded.
     /// Same comment as above for the [`AttesterIncentives::process_attestation`] method: if we have a slashable
     /// offense, we want to be able to exit gracefully.
+
     pub fn process_challenge(
+        &self,
+        context: &Context<S>,
+        serialized_challenge: &SerializedChallenge,
+        transition_num: &TransitionHeight,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
+        self.process_challenge_helper(
+            context,
+            &serialized_challenge.raw_challenge,
+            transition_num,
+            state,
+        )
+    }
+
+    pub(crate) fn process_challenge_helper(
         &self,
         context: &Context<S>,
         proof: &[u8],

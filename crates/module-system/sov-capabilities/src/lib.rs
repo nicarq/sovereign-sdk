@@ -176,11 +176,9 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
     ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
-        let result = self.prover_incentives.process_proof(
-            &proof.raw_aggregated_proof,
-            prover_address,
-            state,
-        );
+        let result = self
+            .prover_incentives
+            .process_proof(&proof, prover_address, state);
 
         match result {
             Ok(pub_data) => {
