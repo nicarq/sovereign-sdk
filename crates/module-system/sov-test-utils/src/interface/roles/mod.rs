@@ -82,6 +82,15 @@ impl<S: Spec> TestUser<S> {
             .find(|info| info.token_name == *token_name)
             .map(|info| info.balance)
     }
+
+    /// Returns true if the user is a minter for the given token.
+    pub fn is_minter(&self, token_name: &TestTokenName) -> bool {
+        self.token_balances
+            .iter()
+            .find(|info| info.token_name == *token_name)
+            .map(|info| info.is_minter)
+            .unwrap_or(false)
+    }
 }
 
 impl<S: Spec> AsUser<S> for TestUser<S> {
