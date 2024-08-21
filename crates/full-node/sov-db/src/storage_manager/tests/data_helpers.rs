@@ -79,7 +79,7 @@ pub fn materialize_stf_changes(da_header: &MockBlockHeader) -> NativeChangeSet {
     let hash_bytes = da_header.hash().0.to_vec();
 
     let item = (key_as_hash, &hash_bytes);
-    let state_change_set = StateDb::materialize_preimages::<N>([item]).unwrap();
+    let state_change_set = StateDb::materialize_preimages([], [item]).unwrap();
 
     // Accessory
     let accessory_key = encode_height(da_header.height()).to_vec();
