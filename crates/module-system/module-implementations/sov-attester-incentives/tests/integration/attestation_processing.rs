@@ -21,7 +21,7 @@ fn test_process_valid_attestation() {
 
     let genesis_attester_address = genesis_attester.user_info.address();
     let genesis_attester_bond = genesis_attester.bond;
-    let genesis_attester_balance = genesis_attester.user_info.available_balance;
+    let genesis_attester_balance = genesis_attester.user_info.available_gas_balance;
 
     // We use an arc of an atomic to do accounting for the expected balance.
     // because of limitations in rusts capture rules, we need a bunch of clones

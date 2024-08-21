@@ -188,7 +188,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
 
     let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
     let additional_sequencer_address = additional_sequencer.address();
-    let additional_sequencer_balance = additional_sequencer.available_balance;
+    let additional_sequencer_balance = additional_sequencer.available_gas_balance;
 
     let gas_consumed_registration_ref = Arc::new(AtomicU64::new(0));
     let gas_consumed_registration_ref_1 = gas_consumed_registration_ref.clone();

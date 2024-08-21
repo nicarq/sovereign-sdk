@@ -1,31 +1,32 @@
 use sov_attester_incentives::AttesterIncentivesConfig;
-use sov_bank::BankConfig;
+use sov_bank::{Bank, BankConfig};
 use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, PrivateKey, Spec};
-use sov_modules_stf_blueprint::GenesisParams;
+use sov_modules_stf_blueprint::{GenesisParams, TxEffect};
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
+use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::{ChainStateConfig, TestRunner};
+use crate::runtime::genesis::TestTokenName;
+use crate::runtime::{ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec,
-    TransactionTestAssert, TransactionTestCase, TransactionType, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT,
-    TEST_ROLLUP_FINALITY_PERIOD,
+    TransactionTestAssert, TransactionTestCase, TransactionType, GAS_TOKEN_ID,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+    TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
-generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
 #[test]
 // Tests the test setup by running the value setter module and checking if the value was set correctly
 fn test_value_setter_tx_success() {
     let value_to_set = 18;
-    let assertion: TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>> =
+    let assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec, MockDaSpec>> =
         Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
@@ -46,16 +47,18 @@ fn test_value_setter_tx_success() {
 // failed to handle panics.
 fn test_value_setter_tx_bad_assertion() {
     let value_to_set = 18;
-    let bad_assertion: TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>> =
-        Box::new(move |_result, state| {
-            let value_setter = ValueSetter::<TestSpec>::default();
-            let value = value_setter
-                .value
-                .get(state)
-                .unwrap_infallible()
-                .expect("We should be able to get a value from the state");
-            assert_eq!(value, value_to_set + 1); // This will fail!
-        });
+    let bad_assertion: TransactionTestAssert<
+        TestSpec,
+        TestOptimisticRuntime<TestSpec, MockDaSpec>,
+    > = Box::new(move |_result, state| {
+        let value_setter = ValueSetter::<TestSpec>::default();
+        let value = value_setter
+            .value
+            .get(state)
+            .unwrap_infallible()
+            .expect("We should be able to get a value from the state");
+        assert_eq!(value, value_to_set + 1); // This will fail!
+    });
 
     run_value_setter_txs_with_assertions(vec![
         (value_to_set, bad_assertion),
@@ -67,7 +70,7 @@ fn test_value_setter_tx_bad_assertion() {
 fn run_value_setter_txs_with_assertions(
     values_and_assertions: Vec<(
         u32,
-        TransactionTestAssert<TestSpec, TestRuntime<TestSpec, MockDaSpec>>,
+        TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec, MockDaSpec>>,
     )>,
 ) {
     let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
@@ -94,7 +97,7 @@ fn run_value_setter_txs_with_assertions(
         runtime: genesis_config,
         kernel: kernel_genesis,
     };
-    let mut runner: TestRunner<TestRuntime<TestSpec, MockDaSpec>, TestSpec> =
+    let mut runner: TestRunner<TestOptimisticRuntime<TestSpec, MockDaSpec>, TestSpec> =
         TestRunner::new_with_genesis(params, Default::default());
 
     for (value, assert) in values_and_assertions {
@@ -122,12 +125,12 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
     seq_stake_amount: u64,
     token_name: String,
     init_balance: u64,
-) -> GenesisConfig<S, Da> {
+) -> crate::runtime::GenesisConfig<S, Da> {
     assert!(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
-    GenesisConfig {
+    crate::runtime::GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
         },
@@ -182,4 +185,207 @@ fn test_slot_number() {
     runner.advance_slots(2);
 
     assert_eq!(runner.curr_slot_number(), 5);
+}
+
+#[test]
+fn test_define_token() {
+    let token_0_name = &TestTokenName::new("0".to_string());
+    let token_1_name = &TestTokenName::new("MyTestToken".to_string());
+
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+        .add_accounts_with_token(token_0_name, true, 2, 100_000)
+        .add_accounts_with_token(token_1_name, false, 1, 10);
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let genesis_config = crate::runtime::GenesisConfig::from_minimal_config(
+        genesis_config.clone().into(),
+        ValueSetterConfig {
+            admin: admin.address(),
+        },
+    );
+
+    assert_eq!(genesis_config.bank.tokens.len(), 2);
+    let token_0 = genesis_config.bank.tokens.first().unwrap();
+    assert_eq!(token_0.token_name, "TestToken(0)");
+    assert_eq!(token_0.authorized_minters.len(), 1);
+    assert_eq!(token_0.address_and_balances.len(), 3);
+    assert!(token_0
+        .address_and_balances
+        .iter()
+        .all(|(_, balance)| { *balance == 100_000 }));
+    assert!(token_0.address_and_balances.iter().all(|(address, _)| {
+        genesis_config
+            .bank
+            .gas_token_config
+            .address_and_balances
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
+    }));
+
+    let token_1 = genesis_config.bank.tokens.get(1).unwrap();
+    assert_eq!(token_1.token_name, "TestToken(MyTestToken)");
+    assert_eq!(token_1.authorized_minters.len(), 0);
+    assert_eq!(token_1.address_and_balances.len(), 1);
+    assert!(token_1
+        .address_and_balances
+        .iter()
+        .all(|(_, balance)| { *balance == 10 }));
+    assert!(token_1.address_and_balances.iter().all(|(address, _)| {
+        genesis_config
+            .bank
+            .gas_token_config
+            .address_and_balances
+            .contains(&(*address, TEST_DEFAULT_USER_BALANCE))
+    }));
+}
+
+#[test]
+fn test_define_token_with_state() {
+    const BALANCE_TOKEN_0: u64 = 100_000;
+
+    let token_0_name = &TestTokenName::new("0".to_string());
+    let token_1_name = &TestTokenName::new("MyTestToken".to_string());
+
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+        .add_accounts_with_token(token_0_name, false, 2, BALANCE_TOKEN_0)
+        .add_accounts_with_token(token_1_name, true, 0, 0);
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let token_names = genesis_config.token_names();
+
+    assert!(token_names.contains(&TestTokenName::new("0".to_string())));
+    assert!(token_names.contains(&TestTokenName::new("MyTestToken".to_string())));
+
+    let token_0_holders = genesis_config.get_accounts_for_token(token_0_name);
+
+    let genesis_config = crate::runtime::GenesisConfig::from_minimal_config(
+        genesis_config.clone().into(),
+        ValueSetterConfig {
+            admin: admin.address(),
+        },
+    );
+
+    let mut runner = TestRunner::new_with_genesis(
+        genesis_config.into_genesis_params(),
+        TestOptimisticRuntime::<TestSpec, MockDaSpec>::default(),
+    );
+
+    runner.query_state(|state| {
+        assert_eq!(
+            Bank::<TestSpec>::default()
+                .get_token_name(&token_0_name.id(), state)
+                .unwrap_infallible()
+                .unwrap(),
+            "TestToken(0)"
+        );
+        assert_eq!(
+            Bank::<TestSpec>::default()
+                .get_token_name(&token_1_name.id(), state)
+                .unwrap_infallible()
+                .unwrap(),
+            "TestToken(MyTestToken)"
+        );
+
+        token_0_holders.into_iter().for_each(|user| {
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&user.address(), GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap(),
+                user.balance(),
+                "The new token's user balance should be equal to the initial gas balance"
+            );
+
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&user.address(), token_0_name.id(), state)
+                    .unwrap_infallible()
+                    .unwrap(),
+                user.token_balance(token_0_name).unwrap(),
+                "The new token's user balance should be equal to the initial token balance"
+            );
+
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&user.address(), token_1_name.id(), state)
+                    .unwrap_infallible(),
+                None,
+                "The user should not have any balance for the second token"
+            );
+
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&user.address(), token_0_name.id(), state)
+                    .unwrap_infallible()
+                    .unwrap(),
+                BALANCE_TOKEN_0,
+                "The user should have the initial token balance specified"
+            );
+
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&user.address(), GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap(),
+                TEST_DEFAULT_USER_BALANCE,
+                "The user should have the default initial gas balance"
+            );
+        });
+    });
+}
+
+#[test]
+fn test_define_token_with_mint() {
+    let token_0_name = &TestTokenName::new("0".to_string());
+
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+        .add_accounts_with_token(token_0_name, true, 0, 0);
+
+    let token_0_name = genesis_config.token_names().pop().unwrap();
+    let mut token_0_holders = genesis_config.get_accounts_for_token(&token_0_name);
+
+    assert_eq!(token_0_holders.len(), 1);
+
+    let minter = token_0_holders.pop().unwrap();
+
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let minter_address = minter.as_user().address();
+
+    let genesis_config = crate::runtime::GenesisConfig::from_minimal_config(
+        genesis_config.clone().into(),
+        ValueSetterConfig {
+            admin: admin.address(),
+        },
+    );
+
+    let mut runner = TestRunner::new_with_genesis(
+        genesis_config.into_genesis_params(),
+        TestOptimisticRuntime::<TestSpec, MockDaSpec>::default(),
+    );
+
+    runner.execute_transaction(TransactionTestCase {
+        input: minter.create_plain_message::<sov_bank::Bank<TestSpec>>(
+            sov_bank::CallMessage::Mint {
+                coins: Coins {
+                    amount: 100,
+                    token_id: token_0_name.id(),
+                },
+                mint_to_address: minter_address,
+            },
+        ),
+        assert: Box::new(move |receipt, state| {
+            assert_eq!(receipt.outcome, TxEffect::Successful(()));
+
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&minter_address, token_0_name.id(), state)
+                    .unwrap_infallible()
+                    .unwrap(),
+                100,
+                "The minter should have the minted amount"
+            );
+        }),
+    });
 }

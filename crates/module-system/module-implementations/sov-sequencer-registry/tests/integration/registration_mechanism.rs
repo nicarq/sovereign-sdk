@@ -35,7 +35,7 @@ fn test_default_sequencer() {
     ) = setup();
 
     let test_sequencer_address = test_sequencer.user_info.address();
-    let test_sequencer_initial_balance = test_sequencer.user_info.available_balance;
+    let test_sequencer_initial_balance = test_sequencer.user_info.available_gas_balance;
 
     let custom_priority_fee = PriorityFeeBips::from_percentage(10);
 
@@ -128,7 +128,7 @@ fn test_registration_not_enough_funds() {
         mut runner,
     ) = setup();
 
-    let other_sequencer_balance = additional_sequencer.available_balance;
+    let other_sequencer_balance = additional_sequencer.available_gas_balance;
 
     let additional_sequencer_address = additional_sequencer.address();
 
@@ -216,7 +216,7 @@ fn test_exit_happy_path() {
     let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
 
     let other_sequencer_balance_ref =
-        Arc::new(AtomicU64::new(additional_sequencer.available_balance));
+        Arc::new(AtomicU64::new(additional_sequencer.available_gas_balance));
     let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
 
     let register = TransactionTestCase {
@@ -449,7 +449,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
         mut runner,
     ) = setup();
 
-    let default_sequencer_balance = default_sequencer.user_info.available_balance;
+    let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
     let default_sequencer_address = default_sequencer.user_info.address();
 
     runner.execute_transaction(TransactionTestCase {

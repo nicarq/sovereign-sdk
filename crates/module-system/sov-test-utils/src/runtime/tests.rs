@@ -7,20 +7,22 @@ use sov_modules_stf_blueprint::SkippedReason;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
+use super::TestOptimisticRuntime;
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::TestRunner;
+use crate::runtime::{GenesisConfig, TestRunner};
 use crate::{
-    generate_optimistic_runtime, BatchTestCase, MockDaSpec, TestSequencer, TestUser,
-    TransactionTestCase, TEST_DEFAULT_USER_STAKE,
+    BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
+    TEST_DEFAULT_USER_STAKE,
 };
 
 type S = crate::TestSpec;
 
-generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
-
 /// Sets up a test runner with the [`ValueSetter`] with a single additional admin account.
-fn setup() -> (TestUser<S>, TestRunner<TestRuntime<S, MockDaSpec>, S>) {
+fn setup() -> (
+    TestUser<S>,
+    TestRunner<TestOptimisticRuntime<S, MockDaSpec>, S>,
+) {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
 
     let admin = genesis_config.additional_accounts.first().unwrap().clone();
@@ -32,8 +34,10 @@ fn setup() -> (TestUser<S>, TestRunner<TestRuntime<S, MockDaSpec>, S>) {
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-    let runner =
-        TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
+    let runner = TestRunner::new_with_genesis(
+        genesis.into_genesis_params(),
+        TestOptimisticRuntime::default(),
+    );
 
     (admin, runner)
 }

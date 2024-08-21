@@ -15,6 +15,8 @@ publish = false
 workspace = true
 
 [dependencies]
+derivative = {workspace = true}
+derive_more = { workspace = true }
 anyhow = { workspace = true }
 axum-server = { workspace = true }
 borsh = { workspace = true }
@@ -55,7 +57,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
 rockbound = { workspace = true }
 paste = "1.0.15"
-derive_more = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }

@@ -75,7 +75,7 @@ fn setup_with_wrong_attestation() -> (
         // Then execute empty transactions to reach finality
         .advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
 
-    genesis_challenger.user_info.available_balance =
+    genesis_challenger.user_info.available_gas_balance =
         expected_challenger_balance_3.load(std::sync::atomic::Ordering::SeqCst);
 
     let bonded_challenger =

@@ -66,7 +66,7 @@ fn reward_mechanism_test(
     } = roles;
 
     let default_sequencer_address = default_sequencer.user_info.address();
-    let default_sequencer_balance = default_sequencer.user_info.available_balance;
+    let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
 
     runner.execute_transaction(TransactionTestCase {
         input: admin

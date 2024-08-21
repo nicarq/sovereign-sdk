@@ -28,7 +28,7 @@ pub(crate) fn setup() -> SetupParams {
 
     let attester_address = genesis_attester.user_info.address();
     let attester_bond = genesis_attester.bond;
-    let attester_balance = genesis_attester.user_info.available_balance;
+    let attester_balance = genesis_attester.user_info.available_gas_balance;
 
     let genesis_challenger = genesis_config.initial_challenger.clone();
 

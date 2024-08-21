@@ -24,7 +24,7 @@ fn test_genesis_bond() {
             Bank::<S>::default()
                 .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
                 .unwrap_infallible(),
-            Some(genesis_prover.user_info.available_balance),
+            Some(genesis_prover.user_info.available_gas_balance),
             "The balance of the prover should be equal to the free balance"
         );
     });
@@ -120,7 +120,8 @@ fn test_unbonding() {
                 TestRuntimeEvent::prover_incentives(Event::Exited { .. })
             )));
             assert_eq!(
-                genesis_prover.user_info.available_balance + genesis_prover.bond - result.gas_used,
+                genesis_prover.user_info.available_gas_balance + genesis_prover.bond
+                    - result.gas_used,
                 Bank::<S>::default()
                     .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible()
