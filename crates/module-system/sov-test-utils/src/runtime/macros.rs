@@ -183,3 +183,26 @@ macro_rules! generate_zk_runtime {
         }
     };
 }
+
+/// Assert that a pattern matches the expected value.
+/// This should be replaced by `std` version when it is stablized: `<https://github.com/rust-lang/rust/issues/82775>`
+#[macro_export]
+macro_rules! assert_matches {
+    ($value:expr, $pattern:pat) => {
+        assert_matches!($value, $pattern, "")
+    };
+    ($value:expr, $pattern:pat, $message:expr) => {{
+        let value = $value;
+        assert!(
+            matches!(value, $pattern),
+            "{}Assertion failed:\nExpected: {}\nReceived: {:?}",
+            if $message.is_empty() {
+                String::new()
+            } else {
+                format!("{}\n", $message)
+            },
+            stringify!($pattern),
+            value
+        );
+    }};
+}

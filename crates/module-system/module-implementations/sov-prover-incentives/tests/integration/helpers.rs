@@ -1,12 +1,25 @@
-use sov_mock_da::MockDaSpec;
+use std::convert::Infallible;
+
+use serde::Serialize;
+use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_chain_state::ChainState;
+use sov_mock_da::{MockDaSpec, MockValidityCond};
+use sov_mock_zkvm::MockCodeCommitment;
+use sov_modules_api::{
+    AggregatedProofPublicData, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
+    SerializedAggregatedProof, SovApiProofSerializer, Spec,
+};
 use sov_prover_incentives::ProverIncentives;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_zk_runtime, TestProver, TestSpec, TestUser};
+use sov_test_utils::{
+    generate_zk_runtime, AsUser, TestProver, TestSpec, TestUser, TransactionType,
+};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type TestProverIncentives = ProverIncentives<S, MockDaSpec>;
 pub(crate) type RT = TestRuntime<S, MockDaSpec>;
+pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
 generate_zk_runtime!(TestRuntime <= );
 
@@ -23,4 +36,60 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) 
         TestRunner::new_with_genesis(genesis_config.into_genesis_params(), TestRuntime::default());
 
     (runner, prover, unbonded_user)
+}
+
+pub(crate) fn build_proof(
+    state: &mut ApiStateAccessor<S>,
+    initial_slot: u64,
+    end_slot: u64,
+    prover_address: <S as Spec>::Address,
+) -> Result<AggregatedProofPublicData, Infallible> {
+    let chain_state = ChainState::<S, MockDaSpec>::default();
+    let genesis_hash = chain_state
+        .get_genesis_hash(state)
+        .unwrap()
+        .expect("Genesis hash must be set");
+    let initial_transition = chain_state
+        .get_historical_transitions(initial_slot, state)
+        .unwrap()
+        .unwrap();
+    let end_transition = chain_state
+        .get_historical_transitions(end_slot, state)
+        .unwrap()
+        .unwrap();
+    let vec_validity_cond = borsh::to_vec(&MockValidityCond { is_valid: true }).unwrap();
+
+    Ok(AggregatedProofPublicData {
+        validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+        initial_slot_number: initial_slot,
+        final_slot_number: end_slot,
+        initial_state_root: genesis_hash.as_ref().to_vec(),
+        genesis_state_root: genesis_hash.as_ref().to_vec(),
+        final_state_root: end_transition.post_state_root().as_ref().to_vec(),
+        initial_slot_hash: initial_transition.slot_hash().as_ref().to_vec(),
+        final_slot_hash: end_transition.slot_hash().as_ref().to_vec(),
+        code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
+        rewarded_addresses: vec![prover_address.as_ref().to_vec()],
+    })
+}
+
+pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<Bank<S>, S> {
+    let recipient = TestUser::<S>::generate(0);
+    signer.create_plain_message(sov_bank::CallMessage::Transfer {
+        to: recipient.address(),
+        coins: sov_bank::Coins {
+            amount: 1000,
+            token_id: GAS_TOKEN_ID,
+        },
+    })
+}
+
+pub(crate) fn serialize_proof<T: Serialize>(agg_proof: T) -> Vec<u8> {
+    let proof = sov_mock_zkvm::MockZkvm::create_serialized_proof(true, agg_proof);
+    let serialized_proof = SerializedAggregatedProof {
+        raw_aggregated_proof: proof,
+    };
+    SovApiProofSerializer::<S>::new()
+        .serialize_proof_blob_with_metadata(serialized_proof)
+        .unwrap()
 }
