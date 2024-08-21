@@ -77,10 +77,7 @@ impl StateDb {
         }
     }
 
-    /// Materializes the preimage of a hashed key into the returned [`SchemaBatch`].
-    /// Note that the preimage is not checked for correctness,
-    /// since the [`StateDb`] is unaware of the hash function used by the JMT.
-    pub fn materialize_preimages<'a, N: Namespace>(
+    fn materialize_preimages_namespace<'a, N: Namespace>(
         items: impl IntoIterator<Item = (KeyHash, &'a SchemaKey)>,
     ) -> anyhow::Result<SchemaBatch> {
         let mut batch = SchemaBatch::new();
@@ -88,6 +85,21 @@ impl StateDb {
             batch.put::<KeyHashToKey<N>>(&key_hash.0, key)?;
         }
         Ok(batch)
+    }
+
+    /// Materializes the preimage of a hashed key into the returned [`SchemaBatch`].
+    /// Note that the preimage is not checked for correctness,
+    /// since the [`StateDb`] is unaware of the hash function used by the JMT.
+    pub fn materialize_preimages<'a>(
+        kernel_items: impl IntoIterator<Item = (KeyHash, &'a SchemaKey)>,
+        user_items: impl IntoIterator<Item = (KeyHash, &'a SchemaKey)>,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut kernel_batch =
+            Self::materialize_preimages_namespace::<KernelNamespace>(kernel_items)?;
+        let user_batch = Self::materialize_preimages_namespace::<UserNamespace>(user_items)?;
+        kernel_batch.merge(user_batch);
+
+        Ok(kernel_batch)
     }
 
     /// Get the current value of the `next_version` counter
@@ -116,10 +128,7 @@ impl StateDb {
         }
     }
 
-    /// Converts [`jmt::storage::NodeBatch`] into serialized [`SchemaBatch`].
-    /// Optional `latest_preimages` is for preimages from the current slot,
-    /// which might not be available in the [`StateDb`] yet.
-    pub fn materialize_node_batch<N: Namespace>(
+    fn materialize_node_batch<N: Namespace>(
         &self,
         node_batch: &jmt::storage::NodeBatch,
         latest_preimages: Option<&SchemaBatch>,
@@ -148,6 +157,32 @@ impl StateDb {
         }
 
         Ok(batch)
+    }
+
+    /// Converts [`jmt::storage::NodeBatch`]es into serialized [`SchemaBatch`].
+    /// Optional `latest_preimages` is for preimages from the current slot,
+    /// which might not be available in the [`StateDb`] yet.
+    /// Preimages should contain values for both namespaces.
+    /// Preimages batch is included in the output, so no need to write it separately.
+    pub fn materialize_node_batches(
+        &self,
+        kernel_node_batch: &jmt::storage::NodeBatch,
+        user_node_batch: &jmt::storage::NodeBatch,
+        latest_preimages: Option<SchemaBatch>,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut kernel_materialized = self.materialize_node_batch::<KernelNamespace>(
+            kernel_node_batch,
+            latest_preimages.as_ref(),
+        )?;
+        let user_materialized = self
+            .materialize_node_batch::<UserNamespace>(user_node_batch, latest_preimages.as_ref())?;
+
+        kernel_materialized.merge(user_materialized);
+        if let Some(latest_preimages) = latest_preimages {
+            kernel_materialized.merge(latest_preimages);
+        }
+
+        Ok(kernel_materialized)
     }
 }
 
@@ -223,7 +258,8 @@ mod state_db_tests {
 
         // Writing
         let mut preimages_schematized =
-            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
+                .unwrap();
         let mut batch = NodeBatch::default();
         batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
         let node_batch_schematized = state_db
@@ -268,7 +304,8 @@ mod state_db_tests {
         // Populate the user space of the state db with some values
         {
             let mut preimages_schematized =
-                StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+                StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
+                    .unwrap();
             let mut batch = NodeBatch::default();
             batch.extend(vec![], vec![((0, key_hash), Some(value_1.to_vec()))]);
             let node_batch_schematized = state_db
@@ -293,7 +330,8 @@ mod state_db_tests {
         // Populate the kernel space of the state db with some values but for different version
         {
             let mut preimages_schematized =
-                StateDb::materialize_preimages::<KernelNamespace>(vec![(key_hash, &key)]).unwrap();
+                StateDb::materialize_preimages_namespace::<KernelNamespace>(vec![(key_hash, &key)])
+                    .unwrap();
             let mut batch = NodeBatch::default();
             batch.extend(vec![], vec![((1, key_hash), Some(value_2.to_vec()))]);
             let node_batch_schematized = state_db
@@ -349,7 +387,8 @@ mod state_db_tests {
         // Writing
         let version = state_db.get_next_version();
         let mut preimages_batch =
-            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
+                .unwrap();
         let db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<UserNamespace>, Sha256>::new(&db_handler);
         let (_new_root, _update_proof, tree_update) = jmt
@@ -399,7 +438,8 @@ mod state_db_tests {
 
         // Writing
         let mut preimages_schematized =
-            StateDb::materialize_preimages::<UserNamespace>(vec![(key_hash, &key)]).unwrap();
+            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
+                .unwrap();
         let mut batch = NodeBatch::default();
         batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
         let node_batch_schematized = state_db

@@ -65,13 +65,17 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 
     /// Indicates if caller should initialize underlying database with some data.
     pub fn should_init_db(db: &StateDb) -> Option<NativeChangeSet> {
-        let user_init = Self::should_init::<UserNamespace>(db);
-        let kernel_init = Self::should_init::<KernelNamespace>(db);
-        match (user_init, kernel_init) {
-            (Some(mut user_init), Some(kernel_init)) => {
-                user_init.merge(kernel_init);
+        let kernel_init = Self::get_init::<KernelNamespace>(db);
+        let user_init = Self::get_init::<UserNamespace>(db);
+
+        match (kernel_init, user_init) {
+            (Some(kernel_init), Some(user_init)) => {
+                let state_change_set = db
+                    .materialize_node_batches(&kernel_init, &user_init, None)
+                    .expect("Collecting initialization batches must succeed");
+
                 Some(NativeChangeSet {
-                    state_change_set: user_init,
+                    state_change_set,
                     accessory_change_set: Default::default(),
                 })
             }
@@ -80,8 +84,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    // Empty JMT for this namespace.
-    fn should_init<N: namespaces::Namespace>(db: &StateDb) -> Option<sov_db::schema::SchemaBatch> {
+    fn get_init<N: namespaces::Namespace>(db: &StateDb) -> Option<NodeBatch> {
         let jmt_handler: JmtHandler<N> = db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
         let latest_version = db.get_next_version() - 1;
@@ -93,10 +96,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
             let (_, tree_update) = jmt
                 .put_value_set(empty_batch, latest_version)
                 .expect("JMT update must succeed");
-            return Some(
-                db.materialize_node_batch::<N>(&tree_update.node_batch, None)
-                    .expect("building node batch must succeed"),
-            );
+            return Some(tree_update.node_batch);
         }
         None
     }
@@ -213,29 +213,6 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         Ok((new_root, new_state_update))
     }
 
-    fn materialize_namespace<N: namespaces::Namespace>(
-        &self,
-        state_update: &ProverStateUpdate,
-    ) -> sov_db::schema::SchemaBatch {
-        let mut preimage_batch = StateDb::materialize_preimages::<N>(
-            state_update
-                .key_preimages
-                .iter()
-                .map(|(key_hash, key)| (*key_hash, key.key_ref())),
-        )
-        .expect("Preimage collection must succeed");
-
-        // Write the state values last, since we base our view of what has been touched
-        // on state. If the node crashes between the `accessory_db` update and this update,
-        // then the whole `commit` will be re-run later so no data can be lost.
-        let node_batch = self
-            .db
-            .materialize_node_batch::<N>(&state_update.node_batch, Some(&preimage_batch))
-            .expect("collecting node batch must succeed");
-        preimage_batch.merge(node_batch);
-        preimage_batch
-    }
-
     fn materialize_accessory(
         &self,
         accessory_writes: &OrderedReadsAndWrites,
@@ -274,7 +251,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     }
 
     /// Utility method for checking if storage is empty.
-    /// Does not guarantees 100% that it actually is.
+    /// Does not guarantee 100% that it actually is.
     pub fn is_empty(&self) -> bool {
         self.db.get_next_version() <= 1
     }
@@ -283,7 +260,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
 #[derive(Default)]
 pub struct ProverStateUpdate {
     pub(crate) node_batch: NodeBatch,
-    pub key_preimages: Vec<(KeyHash, SlotKey)>,
+    pub(crate) key_preimages: Vec<(KeyHash, SlotKey)>,
 }
 
 pub struct NamespacedStateUpdate {
@@ -353,14 +330,33 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     }
 
     fn materialize_changes(&self, state_update: &Self::StateUpdate) -> Self::ChangeSet {
-        let mut user_ns_batch = self.materialize_namespace::<DBUserNamespace>(&state_update.user);
-        let kernel_ns_batch = self.materialize_namespace::<DBKernelNamespace>(&state_update.kernel);
-        user_ns_batch.merge(kernel_ns_batch);
+        let preimages_batch = StateDb::materialize_preimages(
+            state_update
+                .kernel
+                .key_preimages
+                .iter()
+                .map(|(key_hash, key)| (*key_hash, key.key_ref())),
+            state_update
+                .user
+                .key_preimages
+                .iter()
+                .map(|(key_hash, key)| (*key_hash, key.key_ref())),
+        )
+        .expect("collecting preimages must succeed");
+
+        let state_change_set = self
+            .db
+            .materialize_node_batches(
+                &state_update.kernel.node_batch,
+                &state_update.user.node_batch,
+                Some(preimages_batch),
+            )
+            .expect("collecting node batch must succeed");
 
         let accessory_batch = self.materialize_accessory(&state_update.accessory);
 
         NativeChangeSet {
-            state_change_set: user_ns_batch,
+            state_change_set,
             accessory_change_set: accessory_batch,
         }
     }

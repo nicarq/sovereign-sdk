@@ -19,7 +19,7 @@ use crate::storage_manager::tests::arbitrary::{get_block_hash, ForkDescription, 
 use crate::storage_manager::tests::data_helpers::{
     encode_height, encode_height_as_key_hash, encode_state_key, get_expected_chain_values,
     get_state_value, materialize_ledger_changes, materialize_stf_changes,
-    produce_single_entry_native_changes, verify_ledger_storage, verify_stf_storage, N, VERSION,
+    produce_single_entry_native_changes, verify_ledger_storage, verify_stf_storage, VERSION,
 };
 use crate::storage_manager::{NativeChangeSet, NativeStorageManager};
 use crate::test_utils::TestNativeStorage;
@@ -579,7 +579,7 @@ fn check_snapshots_ordering() {
             (key_as_hash, &hash_bytes)
         });
         let state_change_set =
-            StateDb::materialize_preimages::<N>(state_values_to_materialize).unwrap();
+            StateDb::materialize_preimages([], state_values_to_materialize).unwrap();
 
         let accessory_values_to_materialize = (1..=write_to).map(|k| {
             let key = encode_height(k).to_vec();
