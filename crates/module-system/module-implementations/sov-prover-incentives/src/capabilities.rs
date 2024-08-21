@@ -178,10 +178,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 .get(state)?
                 .expect("Should be set at genesis");
 
-            // Unlock the prover's bond
-            self.bonded_provers
-                .set(sender, &(old_balance - fine), state)?;
-
             self.emit_event(
                 state,
                 Event::<S>::ProverPenalized {
