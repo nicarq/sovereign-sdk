@@ -59,3 +59,65 @@ fn test_valid_proof() {
         }),
     });
 }
+
+#[test]
+fn test_valid_proof_penalized_if_reward_already_claimed() {
+    let (mut runner, prover, other_user) = setup();
+    let prover_address = prover.user_info.address();
+
+    for _ in 0..3 {
+        // execute some transactions that will consume gas to reward the prover
+        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    }
+
+    let aggregated_proof = runner
+        .query_state(|state| build_proof(state, 1, 2, prover_address))
+        .unwrap();
+
+    runner.execute_proof::<TestProverIncentives>(ProofTestCase {
+        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+            assert_eq!(
+                TestProverIncentives::default()
+                    .bonded_provers
+                    .get(&prover_address, state)
+                    .unwrap(),
+                Some(prover.bond),
+                "Bonded amount should not have changed"
+            );
+            assert_eq!(
+                TestProverIncentives::default()
+                    .last_claimed_reward
+                    .get(state)
+                    .unwrap(),
+                Some(2)
+            );
+        }),
+    });
+
+    let aggregated_proof = runner
+        .query_state(|state| build_proof(state, 1, 2, prover_address))
+        .unwrap();
+
+    runner.execute_proof::<TestProverIncentives>(ProofTestCase {
+        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+            let prover_incentives = TestProverIncentives::default();
+            let penalty = prover_incentives
+                .proving_penalty
+                .get(state)
+                .unwrap()
+                .unwrap();
+            let bonded_amount = prover_incentives
+                .bonded_provers
+                .get(&prover_address, state)
+                .unwrap()
+                .unwrap();
+            assert_eq!(bonded_amount, prover.bond - penalty);
+        }),
+    });
+}
