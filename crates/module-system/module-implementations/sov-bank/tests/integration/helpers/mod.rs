@@ -70,6 +70,8 @@ pub fn setup() -> (TestData, TestRunner<RT, S>) {
 
     let user_no_token_balance = genesis_config.additional_accounts[0].clone();
 
+    assert!(user_no_token_balance.token_balance(&token_name).is_none());
+
     let mut token_users_vec = genesis_config.get_accounts_for_token(&token_name);
 
     let user_high_token_balance = token_users_vec.pop().unwrap();
