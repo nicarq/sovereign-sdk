@@ -59,7 +59,7 @@ pub mod module_a {
             key: &str,
             value: &str,
             state: &mut WorkingSet<S>,
-        ) -> Result<(), anyhow::Error> {
+        ) -> anyhow::Result<()> {
             self.emit_event(state, Event::Update);
             self.state_1_a
                 .set(&key.to_owned(), &value.to_owned(), state)?;
@@ -111,7 +111,7 @@ pub mod module_b {
             key: &str,
             value: &str,
             state: &mut WorkingSet<S>,
-        ) -> Result<(), anyhow::Error> {
+        ) -> anyhow::Result<()> {
             self.emit_event(state, Event::Update);
             self.state_1_b
                 .set(&key.to_owned(), &value.to_owned(), state)?;
@@ -163,7 +163,7 @@ pub(crate) mod module_c {
             key: &str,
             value: &str,
             state: &mut WorkingSet<S>,
-        ) -> Result<(), anyhow::Error> {
+        ) -> anyhow::Result<()> {
             self.emit_event(state, Event::Execute);
             self.mod_1_a.update(key, value, state)?;
             self.mod_1_b.update(key, value, state)?;

@@ -51,7 +51,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
         &self,
         config: &Self::GenesisConfig,
         state: &mut KernelWorkingSet<'_, S>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         self.chain_state
             .genesis_unchecked(&config.chain_state, state)?;
         self.blob_storage.genesis_unchecked(&(), state)?;

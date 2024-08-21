@@ -203,10 +203,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
     }
 
     /// Visits all the modules and their dependencies, and populates a Vec of modules sorted by their dependencies
-    fn visit_modules(
-        &mut self,
-        modules: Vec<&'a dyn ModuleInfo<Spec = S>>,
-    ) -> Result<(), anyhow::Error> {
+    fn visit_modules(&mut self, modules: Vec<&'a dyn ModuleInfo<Spec = S>>) -> anyhow::Result<()> {
         let mut module_map = HashMap::new();
 
         for module in &modules {
@@ -226,7 +223,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
         &mut self,
         module: &'a dyn ModuleInfo<Spec = S>,
         module_map: &HashMap<&'a ModuleId, &'a (dyn ModuleInfo<Spec = S>)>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let id = module.id();
 
         // if the module have been visited on this path, then we have a cycle dependency
@@ -269,7 +266,7 @@ impl<'a, S: Spec> ModuleVisitor<'a, S> {
 /// Sorts ModuleInfo objects by their dependencies
 fn sort_modules_by_dependencies<S: Spec>(
     modules: Vec<&dyn ModuleInfo<Spec = S>>,
-) -> Result<Vec<&dyn ModuleInfo<Spec = S>>, anyhow::Error> {
+) -> anyhow::Result<Vec<&dyn ModuleInfo<Spec = S>>> {
     let mut module_visitor = ModuleVisitor::<S>::new();
     module_visitor.visit_modules(modules)?;
     Ok(module_visitor.sorted_modules)
@@ -278,7 +275,7 @@ fn sort_modules_by_dependencies<S: Spec>(
 /// Accepts Vec<> of tuples (&ModuleInfo, &TValue), and returns Vec<&TValue> sorted by mapped module dependencies
 pub fn sort_values_by_modules_dependencies<S: Spec, TValue>(
     module_value_tuples: Vec<(&dyn ModuleInfo<Spec = S>, TValue)>,
-) -> Result<Vec<TValue>, anyhow::Error>
+) -> anyhow::Result<Vec<TValue>>
 where
     TValue: Clone,
 {

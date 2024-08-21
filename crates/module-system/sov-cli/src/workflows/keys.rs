@@ -64,7 +64,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
         self,
         wallet_state: &mut WalletState<Tx, S>,
         app_dir: impl AsRef<Path>,
-    ) -> Result<(), anyhow::Error>
+    ) -> anyhow::Result<()>
     where
         Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
     {
@@ -124,7 +124,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
 /// Load a key from the given path
 pub fn load_key<S: sov_modules_api::Spec>(
     path: impl AsRef<Path>,
-) -> Result<<S::CryptoSpec as CryptoSpec>::PrivateKey, anyhow::Error> {
+) -> anyhow::Result<<S::CryptoSpec as CryptoSpec>::PrivateKey> {
     let data = std::fs::read_to_string(path)?;
     let key_and_address: PrivateKeyAndAddress<S> = serde_json::from_str(&data)?;
     Ok(key_and_address.private_key)
@@ -135,7 +135,7 @@ pub fn generate_and_save_key<Tx, S: sov_modules_api::Spec>(
     nickname: Option<String>,
     app_dir: impl AsRef<Path>,
     wallet_state: &mut WalletState<Tx, S>,
-) -> Result<(), anyhow::Error>
+) -> anyhow::Result<()>
 where
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {

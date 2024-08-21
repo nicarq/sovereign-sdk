@@ -9,7 +9,7 @@ use crate::bank::{SequencerTxSender, TOKEN_NAME, TOKEN_SALT};
 use crate::test_helpers::get_appropriate_rollup_prover_config;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_periodic_da() -> Result<(), anyhow::Error> {
+async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
@@ -37,7 +37,7 @@ async fn send_test_bank_txs(
     test_case: TestCase,
     client: &ApiClient,
     tx_sender: impl TxSender,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
 
     let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(

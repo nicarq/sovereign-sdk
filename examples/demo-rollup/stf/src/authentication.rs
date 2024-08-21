@@ -94,7 +94,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for ModAuth<S, Da> {
         )
     }
 
-    fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
+    fn encode(tx: Vec<u8>) -> anyhow::Result<RawTx> {
         let data = borsh::to_vec(&Auth::Mod(tx))?;
         Ok(RawTx { data })
     }
@@ -125,7 +125,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
         Ok((tx_and_raw_hash, auth_data, call))
     }
 
-    fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
+    fn encode(tx: Vec<u8>) -> anyhow::Result<RawTx> {
         let data = borsh::to_vec(&Auth::Evm(tx))?;
         Ok(RawTx { data })
     }

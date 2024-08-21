@@ -12,7 +12,7 @@ pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
     da_service: Da,
     storage: watch::Receiver<<S as Spec>::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
         EthRpcConfig {

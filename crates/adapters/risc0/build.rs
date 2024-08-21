@@ -1,7 +1,7 @@
 use std::process::Command;
 
 // Checks that the risc0 toolchain and native toolchain use the same rustc version
-fn main() -> Result<(), anyhow::Error> {
+fn main() -> anyhow::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
 
     // Skip the check if we aren't building any guest code
@@ -50,7 +50,7 @@ fn main() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-fn parse_version_string(string: &str) -> Result<String, anyhow::Error> {
+fn parse_version_string(string: &str) -> anyhow::Result<String> {
     let version = string
         .split_whitespace()
         .nth(1)

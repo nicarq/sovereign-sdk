@@ -59,7 +59,7 @@ where
         wallet_state: &mut WalletState<RT::Decodable, S>,
         _app_dir: impl AsRef<Path>,
         mut out: impl std::io::Write,
-    ) -> Result<(), anyhow::Error>
+    ) -> anyhow::Result<()>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,
         File: CliFrontEnd<RT> + CliTxImportArg,
@@ -171,7 +171,7 @@ where
     /// Parse from a file or a json string
     pub fn load<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-    ) -> Result<UnsignedTransactionWithoutNonce<S, RT::Decodable>, anyhow::Error>
+    ) -> anyhow::Result<UnsignedTransactionWithoutNonce<S, RT::Decodable>>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,
         File: CliFrontEnd<RT> + CliTxImportArg,

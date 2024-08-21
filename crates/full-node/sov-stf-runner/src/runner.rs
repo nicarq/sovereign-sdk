@@ -251,7 +251,7 @@ where
         rpc_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
         st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> anyhow::Result<Self> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
 

@@ -54,7 +54,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 }
 
 #[tokio::test]
-async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
+async fn test_prover_status_busy() -> anyhow::Result<()> {
     let TestProver {
         prover_service,
         inner_vm,
@@ -142,7 +142,7 @@ async fn test_prover_status_busy() -> Result<(), anyhow::Error> {
 }
 
 #[tokio::test]
-async fn test_generate_multiple_proofs_for_the_same_witness() -> Result<(), anyhow::Error> {
+async fn test_generate_multiple_proofs_for_the_same_witness() -> anyhow::Result<()> {
     let TestProver { prover_service, .. } = make_new_prover();
 
     let header_hash = MockHash::from([0; 32]);
@@ -297,7 +297,7 @@ async fn wait_for_aggregated_proof(
         MockZkvm,
         MockStf<MockValidityCond>,
     >,
-) -> Result<ProofAggregationStatus, anyhow::Error> {
+) -> anyhow::Result<ProofAggregationStatus> {
     let mut counter = 0;
     loop {
         let status = prover_service

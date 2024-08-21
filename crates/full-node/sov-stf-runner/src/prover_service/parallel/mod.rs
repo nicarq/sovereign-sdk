@@ -198,7 +198,7 @@ where
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
         genesis_state_root: &RawGenesisStateRoot,
-    ) -> Result<ProofAggregationStatus, anyhow::Error> {
+    ) -> anyhow::Result<ProofAggregationStatus> {
         self.prover_state.create_aggregated_proof(
             self.outer_vm.clone(),
             block_header_hashes,

@@ -42,7 +42,7 @@ impl LedgerStateProviderExt for LedgerDb {
         txn_range: Option<(u64, u64)>,
         num_events: usize,
         next: Option<&str>,
-    ) -> Result<PaginatedEventResponse<E>, anyhow::Error>
+    ) -> anyhow::Result<PaginatedEventResponse<E>>
     where
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
@@ -56,7 +56,7 @@ impl LedgerStateProviderExt for LedgerDb {
         slot_height_end: u64,
         num_events: usize,
         next: Option<&str>,
-    ) -> Result<PaginatedEventResponse<E>, anyhow::Error>
+    ) -> anyhow::Result<PaginatedEventResponse<E>>
     where
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {

@@ -17,7 +17,7 @@ impl GenesisMacro {
     pub(crate) fn derive_genesis(
         &self,
         input: DeriveInput,
-    ) -> Result<proc_macro::TokenStream, syn::Error> {
+    ) -> syn::Result<proc_macro::TokenStream> {
         let DeriveInput {
             data,
             ident,

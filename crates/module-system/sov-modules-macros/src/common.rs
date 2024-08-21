@@ -57,7 +57,7 @@ impl StructFieldExtractor {
     pub(crate) fn get_fields_from_struct(
         &self,
         data: &syn::Data,
-    ) -> Result<Vec<StructNamedField>, syn::Error> {
+    ) -> syn::Result<Vec<StructNamedField>> {
         match data {
             syn::Data::Struct(data_struct) => self.get_fields_from_data_struct(data_struct),
             syn::Data::Enum(en) => Err(syn::Error::new_spanned(
@@ -131,7 +131,7 @@ impl StructFieldExtractor {
     fn get_fields_from_data_struct(
         &self,
         data_struct: &DataStruct,
-    ) -> Result<Vec<StructNamedField>, syn::Error> {
+    ) -> syn::Result<Vec<StructNamedField>> {
         let mut output_fields = Vec::default();
 
         for original_field in data_struct.fields.iter() {
@@ -219,7 +219,7 @@ impl<'a> StructDef<'a> {
 pub(crate) fn get_generics_type_param(
     generics: &syn::Generics,
     error_span: Span,
-) -> Result<Ident, syn::Error> {
+) -> syn::Result<Ident> {
     let generic_param = match generics
         .params
         .first()
@@ -247,7 +247,7 @@ pub(crate) fn get_derived_enum_attrs(
     ident: &str,
     input: &syn::DeriveInput,
     mut default_attrs: Vec<TokenStream>,
-) -> Result<Vec<TokenStream>, syn::Error> {
+) -> syn::Result<Vec<TokenStream>> {
     let err_msg = format!(
         "Expected #[{}(...)] attribute to have the form #[{}(my_attr, derive(MyDerive))]",
         ident, ident

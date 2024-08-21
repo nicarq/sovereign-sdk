@@ -174,7 +174,7 @@ pub trait StakeRegistration {
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error>;
+    ) -> anyhow::Result<()>;
 
     /// Transfer bond from the rollup to a staker.
     fn transfer_bond_to_staker<ST: StateAccessor>(
@@ -182,7 +182,7 @@ pub trait StakeRegistration {
         address: &Self::RollupAddress,
         amount: u64,
         state: &mut ST,
-    ) -> Result<(), anyhow::Error>;
+    ) -> anyhow::Result<()>;
 
     /// Delete the allowed staker.
     fn delete_allowed_staker<ST: StateAccessor>(

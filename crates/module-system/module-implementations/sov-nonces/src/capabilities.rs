@@ -10,7 +10,7 @@ impl<S: Spec> Nonces<S> {
         credential_id: &CredentialId,
         nonce_to_check: u64,
         state_checkpoint: &mut impl StateAccessor,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         let senders_expected_nonce = self
             .nonces
             .get(credential_id, state_checkpoint)?

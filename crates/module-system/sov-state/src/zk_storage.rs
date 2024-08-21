@@ -33,7 +33,7 @@ fn jmt_verify_existence<S: MerkleProofSpec>(
     prev_state_root: [u8; 32],
     state_accesses: &OrderedReadsAndWrites,
     witness: &S::Witness,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     // For each value that's been read from the tree, verify the provided smt proof
     for (key, read_value) in &state_accesses.ordered_reads {
         let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
@@ -87,7 +87,7 @@ impl<S: MerkleProofSpec> ZkStorage<S> {
         &self,
         state_accesses: OrderedReadsAndWrites,
         witness: &S::Witness,
-    ) -> Result<jmt::RootHash, anyhow::Error> {
+    ) -> anyhow::Result<jmt::RootHash> {
         let prev_state_root = witness.get_hint();
 
         // For each value that's been read from the tree, verify the provided smt proof
@@ -120,7 +120,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
         &self,
         state_accesses: StateAccesses,
         witness: &Self::Witness,
-    ) -> Result<(Self::Root, Self::StateUpdate), anyhow::Error> {
+    ) -> anyhow::Result<(Self::Root, Self::StateUpdate)> {
         let user_root = self.compute_state_update_namespace(state_accesses.user, witness)?;
         let kernel_root = self.compute_state_update_namespace(state_accesses.kernel, witness)?;
 
@@ -133,7 +133,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn open_proof(
         state_root: Self::Root,
         state_proof: StorageProof<Self::Proof>,
-    ) -> Result<(SlotKey, Option<SlotValue>), anyhow::Error> {
+    ) -> anyhow::Result<(SlotKey, Option<SlotValue>)> {
         let StorageProof {
             key,
             value,

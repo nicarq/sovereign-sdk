@@ -15,7 +15,7 @@ use crate::helpers::*;
 type S = sov_test_utils::TestSpec;
 
 #[test]
-fn transfer_initial_token() -> Result<(), anyhow::Error> {
+fn transfer_initial_token() -> anyhow::Result<()> {
     let initial_balance = TEST_DEFAULT_USER_BALANCE;
     // The amount per transfer for the non-archival, most recent state.
     const AMOUNT_PER_TRANSFER: u64 = 10;

@@ -290,7 +290,7 @@ where
         &self,
         state_root: <S::Storage as Storage>::Root,
         proof: sov_state::StorageProof<<<S as crate::Spec>::Storage as Storage>::Proof>,
-    ) -> Result<(K, Option<V>), anyhow::Error>
+    ) -> anyhow::Result<(K, Option<V>)>
 where {
         ensure!(
             proof.namespace == N::PROVABLE_NAMESPACE,

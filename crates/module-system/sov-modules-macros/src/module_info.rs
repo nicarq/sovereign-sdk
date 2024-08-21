@@ -16,7 +16,7 @@ pub enum ModuleType {
 pub(crate) fn derive_module_info(
     input: DeriveInput,
     variant: ModuleType,
-) -> Result<proc_macro::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro::TokenStream> {
     let struct_def = StructDef::parse(&input)?;
 
     let impl_prefix_functions = impl_prefix_functions(&struct_def)?;
@@ -31,7 +31,7 @@ pub(crate) fn derive_module_info(
 }
 
 // Creates a prefix function for each field of the underlying structure.
-fn impl_prefix_functions(struct_def: &StructDef) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn impl_prefix_functions(struct_def: &StructDef) -> syn::Result<proc_macro2::TokenStream> {
     let StructDef {
         ident,
         impl_generics,
@@ -58,7 +58,7 @@ fn impl_prefix_functions(struct_def: &StructDef) -> Result<proc_macro2::TokenStr
 fn impl_module_info(
     struct_def: &StructDef,
     _variant: ModuleType,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let module_id = struct_def.module_id();
 
     let StructDef {
@@ -167,7 +167,7 @@ fn prefix_func_ident(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
     syn::Ident::new(&format!("_prefix_{ident}"), ident.span())
 }
 
-fn make_fn_id(id_ident: &proc_macro2::Ident) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn make_fn_id(id_ident: &proc_macro2::Ident) -> syn::Result<proc_macro2::TokenStream> {
     Ok(quote::quote! {
         fn id(&self) -> &::sov_modules_api::ModuleId {
            &self.#id_ident
@@ -191,7 +191,7 @@ fn make_fn_dependencies(modules: Vec<&proc_macro2::Ident>) -> proc_macro2::Token
 fn make_init_state(
     field: &ModuleField,
     encoding_constructor: &syn::Path,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let prefix_fun = prefix_func_ident(&field.ident);
     let field_ident = &field.ident;
     let ty = &field.ty;
@@ -229,7 +229,7 @@ fn make_init_state(
 fn make_init_module(
     field: &ModuleField,
     variant: ModuleType,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
     let ty = &field.ty;
     let trait_assertion = match variant {
@@ -251,7 +251,7 @@ fn make_init_module(
 fn make_init_gas_config(
     parent: &Ident,
     field: &ModuleField,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
     let ty = &field.ty;
 
@@ -283,7 +283,7 @@ fn make_init_id(
     field: &ModuleField,
     struct_ident: &Ident,
     generic_param: &Ident,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
     let generate_prefix = make_module_prefix_fn_body(struct_ident);
 

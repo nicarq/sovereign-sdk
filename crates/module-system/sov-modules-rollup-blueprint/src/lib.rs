@@ -130,7 +130,7 @@ mod blueprint {
                 Self::DaConfig,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
-        ) -> Result<RuntimeEndpoints, anyhow::Error>;
+        ) -> anyhow::Result<RuntimeEndpoints>;
 
         /// Creates GenesisConfig from genesis files.
         #[allow(clippy::type_complexity)]
@@ -194,7 +194,7 @@ mod blueprint {
                 Self::DaConfig,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
-        ) -> Result<Self::StorageManager, anyhow::Error>;
+        ) -> anyhow::Result<Self::StorageManager>;
 
         /// Creates instance of a LedgerDb.
         fn create_ledger_db(
@@ -221,7 +221,7 @@ mod blueprint {
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
             prover_config: Option<RollupProverConfig>,
-        ) -> Result<Rollup<Self, M>, anyhow::Error>
+        ) -> anyhow::Result<Rollup<Self, M>>
         where
             <Self::Spec as Spec>::Storage: NativeStorage,
         {

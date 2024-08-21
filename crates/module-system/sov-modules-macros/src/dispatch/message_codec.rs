@@ -53,7 +53,7 @@ impl MessageCodec {
     pub(crate) fn derive_message_codec(
         &self,
         input: DeriveInput,
-    ) -> Result<proc_macro::TokenStream, syn::Error> {
+    ) -> syn::Result<proc_macro::TokenStream> {
         let DeriveInput {
             data,
             ident,

@@ -56,7 +56,7 @@ mod test {
     }
 
     #[test]
-    fn test_jmt_storage() -> Result<(), anyhow::Error> {
+    fn test_jmt_storage() -> anyhow::Result<()> {
         let tmpdir = tempfile::tempdir().unwrap();
         let tests = create_tests();
         {
@@ -98,7 +98,7 @@ mod test {
     }
 
     #[test]
-    fn test_restart_lifecycle() -> Result<(), anyhow::Error> {
+    fn test_restart_lifecycle() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir().unwrap();
         let mut storage_manager = SimpleStorageManager::new(tempdir.path());
         {

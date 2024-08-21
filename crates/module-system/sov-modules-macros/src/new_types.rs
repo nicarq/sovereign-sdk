@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{Attribute, DeriveInput};
 
-pub fn address_type_helper(input: DeriveInput) -> Result<TokenStream, syn::Error> {
+pub fn address_type_helper(input: DeriveInput) -> syn::Result<TokenStream> {
     let name = &input.ident;
     let name_str = format!("{}", name);
     let attrs: Vec<Attribute> = input.attrs;

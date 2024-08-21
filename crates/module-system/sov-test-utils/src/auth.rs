@@ -31,7 +31,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for TestAuth<S, Da> {
         )
     }
 
-    fn encode(tx: Vec<u8>) -> Result<RawTx, anyhow::Error> {
+    fn encode(tx: Vec<u8>) -> anyhow::Result<RawTx> {
         Ok(RawTx { data: tx })
     }
 }

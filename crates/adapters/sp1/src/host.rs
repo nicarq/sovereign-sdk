@@ -107,7 +107,7 @@ impl<'host> ZkvmHost for SP1Host<'host> {
         SP1Guest::with_hints(self.stdin.buffer.clone())
     }
 
-    fn run(&mut self, with_proof: bool) -> Result<Vec<u8>, anyhow::Error> {
+    fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>> {
         let prover = ProverClient::new();
         let proof = if with_proof {
             let (pk, _) = prover.setup(self.elf);

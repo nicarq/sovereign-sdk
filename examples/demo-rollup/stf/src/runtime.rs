@@ -98,9 +98,7 @@ where
     }
 
     #[cfg(feature = "native")]
-    fn genesis_config(
-        genesis_paths: &Self::GenesisPaths,
-    ) -> Result<Self::GenesisConfig, anyhow::Error> {
+    fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
         crate::genesis_config::create_genesis_config(genesis_paths)
     }
 }

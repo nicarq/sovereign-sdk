@@ -20,7 +20,7 @@ const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
 const MINIMUM_BOND: u64 = 100_000_000;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_forced_sequencer_registration() -> Result<(), anyhow::Error> {
+async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
     let rollup = construct_rollup(
@@ -55,7 +55,7 @@ async fn test_forced_sequencer_registration() -> Result<(), anyhow::Error> {
 async fn forced_sequencer_registration_test_case(
     da_service: Arc<impl DaService>,
     client: &ApiClient,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
 

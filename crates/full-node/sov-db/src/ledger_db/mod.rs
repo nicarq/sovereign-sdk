@@ -237,7 +237,7 @@ impl LedgerDb {
     pub(crate) async fn _get_slot_range(
         &self,
         range: &std::ops::Range<SlotNumber>,
-    ) -> Result<Vec<StoredSlot>, anyhow::Error> {
+    ) -> anyhow::Result<Vec<StoredSlot>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         LedgerDb::_get_data_range_from::<SlotByNumber, _, _>(&db, range).await
     }
@@ -247,7 +247,7 @@ impl LedgerDb {
         slot: &StoredSlot,
         slot_number: &SlotNumber,
         schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         schema_batch.put::<SlotByNumber>(slot_number, slot)?;
         schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
     }
@@ -257,7 +257,7 @@ impl LedgerDb {
         batch: &StoredBatch,
         batch_number: &BatchNumber,
         schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         schema_batch.put::<BatchByNumber>(batch_number, batch)?;
         schema_batch.put::<BatchByHash>(&batch.hash, batch_number)
     }
@@ -267,7 +267,7 @@ impl LedgerDb {
         tx: &StoredTransaction,
         tx_number: &TxNumber,
         schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         schema_batch.put::<TxByNumber>(tx_number, tx)?;
         schema_batch.put::<TxByHash>(&(tx.hash, *tx_number), &())
     }
@@ -278,7 +278,7 @@ impl LedgerDb {
         event_number: &EventNumber,
         tx_number: TxNumber,
         schema_batch: &mut SchemaBatch,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         schema_batch.put::<EventByNumber>(event_number, event)?;
         schema_batch.put::<EventByKey>(&(event.key().clone(), tx_number, *event_number), &())
     }
@@ -399,7 +399,7 @@ impl LedgerDb {
     pub fn materialize_aggregated_proof(
         &self,
         agg_proof: AggregatedProof,
-    ) -> Result<SchemaBatch, anyhow::Error> {
+    ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         let unique_id = 0;
         schema_batch.put::<ProofByUniqueId>(&ProofUniqueId(unique_id), &agg_proof)?;

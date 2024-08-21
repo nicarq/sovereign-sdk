@@ -67,7 +67,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
         MockZkGuest {}
     }
 
-    fn run(&mut self, _with_proof: bool) -> Result<Vec<u8>, anyhow::Error> {
+    fn run(&mut self, _with_proof: bool) -> anyhow::Result<Vec<u8>> {
         if self.wait_for_proof {
             self.notification_manager.wait();
         }

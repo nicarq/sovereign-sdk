@@ -17,8 +17,7 @@ use crate::test_helpers::get_appropriate_rollup_prover_config;
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> Result<(), anyhow::Error>
-{
+async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
@@ -67,8 +66,7 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> Result<(), anyhow::Error>
-{
+async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
@@ -96,7 +94,7 @@ async fn send_test_bank_txs(
     client: &ApiClient,
     da_service: &DaServiceWithRetries<StorableMockDaService>,
     tx_sender: impl TxSender,
-) -> Result<(), anyhow::Error> {
+) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(
         &client.rpc,
