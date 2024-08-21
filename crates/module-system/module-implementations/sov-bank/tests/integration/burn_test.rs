@@ -1,231 +1,500 @@
-use std::convert::Infallible;
+use sov_bank::event::Event;
+use sov_bank::utils::TokenHolder;
+use sov_bank::{Bank, Coins, GAS_TOKEN_ID};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{Error, TxEffect};
+use sov_test_utils::runtime::genesis::TestTokenName;
+use sov_test_utils::{AsUser, TransactionTestCase};
 
-use sov_bank::{get_token_id, Bank, BankConfig, CallMessage, Coins, GasTokenConfig, GAS_TOKEN_ID};
-use sov_modules_api::{Context, Error, Module, Spec, StateAccessor, StateCheckpoint, WorkingSet};
-use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
-
-use crate::helpers::{create_bank_config_with_token, generate_address};
+use crate::helpers::{setup, TestBankRuntimeEvent, TestData};
 
 type S = sov_test_utils::TestSpec;
 
+/// We can burn tokens that are deployed on the bank.
 #[test]
-fn burn_deployed_tokens() -> Result<(), Infallible> {
-    let bank = Bank::<S>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
-
-    let sender_address = generate_address("just_sender");
-    let sequencer_address = generate_address("sequencer");
-    let sender_context =
-        Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-    let minter = generate_address("minter");
-    let minter_context = Context::<S>::new(minter, Default::default(), sequencer_address, 1);
-
-    let salt = 0;
-    let token_name = "Token1".to_owned();
-    let initial_balance = TEST_DEFAULT_USER_BALANCE;
-    let token_id = GAS_TOKEN_ID;
-
-    let bank_config = BankConfig::<S> {
-        gas_token_config: GasTokenConfig {
-            token_name: token_name.clone(),
-            address_and_balances: vec![(minter, initial_balance)],
-            authorized_minters: vec![minter],
-        },
-        tokens: vec![],
-    };
-
-    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
-    bank.genesis(&bank_config, &mut genesis_state).unwrap();
-    let state = genesis_state.checkpoint();
-    let mut state = state.to_working_set_unmetered();
-
-    let query_total_supply = |state: &mut WorkingSet<S>| -> Result<Option<u64>, Infallible> {
-        bank.get_total_supply_of(&token_id, &mut state.to_unmetered())
-    };
-
-    let query_user_balance = |user_address: <S as Spec>::Address,
-                              state: &mut WorkingSet<S>|
-     -> Result<Option<u64>, Infallible> {
-        bank.get_balance_of(&user_address, token_id, &mut state.to_unmetered())
-    };
-
-    let previous_total_supply = query_total_supply(&mut state)?;
-    assert_eq!(Some(initial_balance), previous_total_supply);
-
-    // -----
-    // Burn
-    let burn_amount = 10;
-    let burn_message = CallMessage::Burn {
-        coins: Coins {
-            amount: burn_amount,
+fn burn_deployed_tokens_happy_path() {
+    let (
+        TestData {
+            token_name,
             token_id,
+            user_high_token_balance,
+            ..
         },
-    };
+        mut runner,
+    ) = setup();
 
-    bank.call(burn_message.clone(), &minter_context, &mut state)
-        .expect("Failed to burn token");
-    assert_eq!(state.events().len(), 1);
+    let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
 
-    let current_total_supply = query_total_supply(&mut state)?;
-    assert_eq!(Some(initial_balance - burn_amount), current_total_supply);
-    let minter_balance = query_user_balance(minter, &mut state)?;
-    assert_eq!(Some(initial_balance - burn_amount), minter_balance);
+    let user_address = user_high_token_balance.address();
 
-    let previous_total_supply = current_total_supply;
-    // ---
-    // Burn by another user, who doesn't have tokens at all
-    let failed_to_burn = bank.call(burn_message, &sender_context, &mut state);
-    assert!(failed_to_burn.is_err());
-    let Error::ModuleError(err) = failed_to_burn.err().unwrap();
-    let mut chain = err.chain();
-    let message_1 = chain.next().unwrap().to_string();
-    let message_2 = chain.next().unwrap().to_string();
-    assert!(chain.next().is_none());
-    assert_eq!(
-        format!(
-            "Failed to burn coins(token_id={} amount={}) from owner {}",
-            token_id, burn_amount, sender_address
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: user_token_balance,
+                    token_id,
+                },
+            },
         ),
-        message_1
-    );
-    let expected_error_part = format!(
-        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
-        token_id
-    );
-    assert!(message_2.starts_with(&expected_error_part));
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                    owner: TokenHolder::User(user_address),
+                    coins: Coins {
+                        amount: user_token_balance,
+                        token_id
+                    }
+                }),
+                result.events[0]
+            );
 
-    let current_total_supply = query_total_supply(&mut state)?;
-    assert_eq!(previous_total_supply, current_total_supply);
-    let sender_balance = query_user_balance(sender_address, &mut state)?;
-    assert_eq!(None, sender_balance);
-
-    // ---
-    // Allow burning zero tokens
-    let burn_zero_message = CallMessage::Burn {
-        coins: Coins {
-            amount: 0,
-            token_id,
-        },
-    };
-
-    bank.call(burn_zero_message, &minter_context, &mut state)
-        .expect("Failed to burn token");
-    assert_eq!(state.events().len(), 2);
-    let minter_balance_after = query_user_balance(minter, &mut state)?;
-    assert_eq!(minter_balance, minter_balance_after);
-
-    // ---
-    // Burn more than available
-    let burn_message = CallMessage::Burn {
-        coins: Coins {
-            amount: initial_balance + 10,
-            token_id,
-        },
-    };
-
-    let failed_to_burn = bank.call(burn_message, &minter_context, &mut state);
-    assert!(failed_to_burn.is_err());
-    let Error::ModuleError(err) = failed_to_burn.err().unwrap();
-    let mut chain = err.chain();
-    let message_1 = chain.next().unwrap().to_string();
-    let message_2 = chain.next().unwrap().to_string();
-    assert!(chain.next().is_none());
-    assert_eq!(
-        format!(
-            "Failed to burn coins(token_id={} amount={}) from owner {}",
-            token_id,
-            initial_balance + 10,
-            minter
-        ),
-        message_1
-    );
-    assert_eq!(
-        format!(
-            "Insufficient balance from={minter}, got={}, needed={}, for token={}",
-            initial_balance - burn_amount,
-            initial_balance + 10,
-            token_name
-        ),
-        message_2,
-    );
-
-    // ---
-    // Try to burn non-existing token
-    let token_id = get_token_id::<S>("NotRealToken2", &minter, salt);
-    let burn_message = CallMessage::Burn {
-        coins: Coins {
-            amount: 1,
-            token_id,
-        },
-    };
-
-    let failed_to_burn = bank.call(burn_message, &minter_context, &mut state);
-    assert!(failed_to_burn.is_err());
-    let Error::ModuleError(err) = failed_to_burn.err().unwrap();
-    let mut chain = err.chain();
-    let message_1 = chain.next().unwrap().to_string();
-    let message_2 = chain.next().unwrap().to_string();
-    assert!(chain.next().is_none());
-    assert_eq!(
-        format!(
-            "Failed to burn coins(token_id={} amount={}) from owner {}",
-            token_id, 1, minter
-        ),
-        message_1
-    );
-    // Note, no token ID in root cause the message.
-    let expected_error_part =
-        "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
-    assert!(message_2.starts_with(expected_error_part));
-
-    Ok(())
+            // Check that the user's balance is now zero
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_address, token_id, state)
+                    .unwrap_infallible(),
+                Some(0),
+                "The user's balance should be zero"
+            );
+        }),
+    });
 }
 
 #[test]
-fn burn_initial_tokens() -> Result<(), Infallible> {
-    let initial_balance = 100;
-    let bank_config = create_bank_config_with_token(2, initial_balance);
-    let tmpdir = tempfile::tempdir().unwrap();
-    let bank = Bank::default();
-
-    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
-    let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
-
-    bank.genesis(&bank_config, &mut genesis_state).unwrap();
-
-    let token_id = sov_bank::GAS_TOKEN_ID;
-    let sender_address = bank_config.gas_token_config.address_and_balances[0].0;
-    let sequencer_address = bank_config.gas_token_config.address_and_balances[1].0;
-
-    let mut state = genesis_state.checkpoint().to_working_set_unmetered();
-
-    let query_user_balance = |user_address: <S as Spec>::Address,
-                              state: &mut WorkingSet<S>|
-     -> Result<Option<u64>, Infallible> {
-        bank.get_balance_of(&user_address, token_id, &mut state.to_unmetered())
-    };
-
-    let balance_before = query_user_balance(sender_address, &mut state)?;
-    assert_eq!(Some(initial_balance), balance_before);
-
-    let burn_amount = 10;
-    let burn_message = CallMessage::Burn {
-        coins: Coins {
-            amount: burn_amount,
+fn burn_deployed_tokens_no_balance_fails() {
+    let (
+        TestData {
             token_id,
+            user_no_token_balance,
+            ..
         },
-    };
+        mut runner,
+    ) = setup();
 
-    let context = Context::<S>::new(sender_address, Default::default(), sequencer_address, 1);
-    bank.call(burn_message, &context, &mut state)
-        .expect("Failed to burn token");
-    assert_eq!(state.events().len(), 1);
+    let user_address = user_no_token_balance.address();
+    const BURN_AMOUNT: u64 = 1;
 
-    let balance_after = query_user_balance(sender_address, &mut state)?;
-    assert_eq!(Some(initial_balance - burn_amount), balance_after);
+    let initial_total_supply = runner.query_state(|state| {
+        Bank::<S>::default()
+            .get_total_supply_of(&token_id, state)
+            .unwrap_infallible()
+            .unwrap()
+    });
 
-    // Assume that the rest of edge cases are similar to deployed tokens
-    Ok(())
+    runner.execute_transaction(TransactionTestCase {
+        input: user_no_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: BURN_AMOUNT,
+                    token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert!(
+                matches!(result.outcome, TxEffect::Reverted(..)),
+                "The transaction should have been reverted"
+            );
+
+            // Burn by another user, who doesn't have tokens at all
+            match result.outcome {
+                TxEffect::Reverted(Error::ModuleError(err)) => {
+                    let mut chain = err.chain();
+                    let message_1 = chain.next().unwrap().to_string();
+                    let message_2 = chain.next().unwrap().to_string();
+                    assert!(chain.next().is_none());
+                    assert_eq!(
+                        format!(
+                            "Failed to burn coins(token_id={} amount={}) from owner {}",
+                            token_id, BURN_AMOUNT, user_address
+                        ),
+                        message_1
+                    );
+                    let expected_error_part = format!(
+                        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
+                        token_id
+                    );
+                    assert!(message_2.starts_with(&expected_error_part));
+                }
+                _ => {
+                    panic!("The transaction should have been reverted")
+                }
+            }
+
+            let final_total_supply = Bank::<S>::default()
+                .get_total_supply_of(&token_id, state)
+                .unwrap_infallible()
+                .unwrap();
+
+            assert_eq!(
+                initial_total_supply, final_total_supply,
+                "The token supply shouldn't have changed"
+            );
+        }),
+    });
+}
+
+#[test]
+fn burn_more_than_deployed_tokens_fails() {
+    let (
+        TestData {
+            token_id,
+            token_name,
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let total_token_supply = runner.query_state(|state| {
+        Bank::<S>::default()
+            .get_total_supply_of(&token_id, state)
+            .unwrap_infallible()
+            .unwrap()
+    });
+
+    let to_burn = total_token_supply + 1;
+
+    let user_address = user_high_token_balance.address();
+    let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: to_burn,
+                    token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, state| match result.outcome {
+            TxEffect::Reverted(Error::ModuleError(err)) => {
+                let mut chain = err.chain();
+
+                let message_1 = chain.next().unwrap().to_string();
+                let message_2 = chain.next().unwrap().to_string();
+
+                assert!(chain.next().is_none());
+                assert_eq!(
+                    message_1,
+                    format!(
+                        "Failed to burn coins(token_id={} amount={}) from owner {}",
+                        token_id, to_burn, user_address
+                    )
+                );
+
+                assert_eq!(
+                    format!(
+                        "Insufficient balance from={user_address}, got={}, needed={}, for token={}",
+                        user_token_balance, to_burn, token_name
+                    ),
+                    message_2,
+                    "The error message is incorrect"
+                );
+
+                let final_total_supply = Bank::<S>::default()
+                    .get_total_supply_of(&token_id, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    total_token_supply, final_total_supply,
+                    "The token supply shouldn't have changed"
+                );
+            }
+            _ => panic!("The outcome is incorrect"),
+        }),
+    });
+}
+
+#[test]
+fn burn_more_than_available_balance_fails() {
+    let (
+        TestData {
+            token_id,
+            token_name,
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let initial_token_supply = runner.query_state(|state| {
+        Bank::<S>::default()
+            .get_total_supply_of(&token_id, state)
+            .unwrap_infallible()
+            .unwrap()
+    });
+
+    let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
+
+    let user_address = user_high_token_balance.address();
+
+    let to_burn = user_token_balance + 1;
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: to_burn,
+                    token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, state| match result.outcome {
+            TxEffect::Reverted(Error::ModuleError(err)) => {
+                let mut chain = err.chain();
+
+                let message_1 = chain.next().unwrap().to_string();
+                let message_2 = chain.next().unwrap().to_string();
+
+                assert!(chain.next().is_none());
+                assert_eq!(
+                    message_1,
+                    format!(
+                        "Failed to burn coins(token_id={} amount={}) from owner {}",
+                        token_id, to_burn, user_address
+                    )
+                );
+
+                assert_eq!(
+                    format!(
+                        "Insufficient balance from={user_address}, got={}, needed={}, for token={}",
+                        user_token_balance, to_burn, token_name
+                    ),
+                    message_2,
+                    "The error message is incorrect"
+                );
+
+                let final_total_supply = Bank::<S>::default()
+                    .get_total_supply_of(&token_id, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    initial_token_supply, final_total_supply,
+                    "The token supply shouldn't have changed"
+                );
+            }
+            _ => {
+                panic!("The transaction does not have the expected outcome.")
+            }
+        }),
+    });
+}
+
+#[test]
+fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
+    let (
+        TestData {
+            token_name,
+            token_id,
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
+
+    let user_address = user_high_token_balance.address();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: 0,
+                    token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                    owner: TokenHolder::User(user_address),
+                    coins: Coins {
+                        amount: 0,
+                        token_id
+                    }
+                }),
+                result.events[0]
+            );
+
+            // Check that the user's balance hasn't changed
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_address, token_id, state)
+                    .unwrap_infallible(),
+                Some(user_token_balance),
+                "The user's balance shouldn't have changed"
+            );
+        }),
+    });
+}
+
+#[test]
+fn burn_deployed_tokens_zero_amount_doesnt_work_if_user_has_no_tokens() {
+    let (
+        TestData {
+            token_id,
+            user_no_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let user_address = user_no_token_balance.address();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_no_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: 0,
+                    token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, _| match result.outcome {
+            TxEffect::Reverted(Error::ModuleError(err)) => {
+                let mut chain = err.chain();
+
+                let message_1 = chain.next().unwrap().to_string();
+                let message_2 = chain.next().unwrap().to_string();
+
+                assert!(chain.next().is_none());
+                assert_eq!(
+                    message_1,
+                    format!(
+                        "Failed to burn coins(token_id={} amount={}) from owner {}",
+                        token_id, 0, user_address
+                    )
+                );
+
+                // Note, no token balance cause the message.
+                let expected_error_part =
+                    &format!("Value not found for prefix: \"sov_bank/Bank/tokens/{token_id}\" and storage key:");
+                assert!(message_2.starts_with(expected_error_part));
+            }
+            _ => {
+                panic!("The transaction does not have the expected outcome.")
+            }
+        }),
+    });
+}
+
+#[test]
+fn burn_unknown_token_fails() {
+    let (
+        TestData {
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    const AMOUNT_TO_BURN: u64 = 0;
+
+    let other_token_id = TestTokenName::new("OtherToken".to_string()).id();
+
+    let user_address = user_high_token_balance.address();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    amount: AMOUNT_TO_BURN,
+                    token_id: other_token_id,
+                },
+            },
+        ),
+        assert: Box::new(move |result, _| {
+            assert!(
+                matches!(result.outcome, TxEffect::Reverted(..)),
+                "The transaction should have been reverted"
+            );
+
+            match result.outcome {
+                TxEffect::Reverted(Error::ModuleError(err)) => {
+                    let mut chain = err.chain();
+
+                    let message_1 = chain.next().unwrap().to_string();
+                    let message_2 = chain.next().unwrap().to_string();
+
+                    assert!(chain.next().is_none());
+
+                    assert_eq!(
+                        format!(
+                            "Failed to burn coins(token_id={} amount={}) from owner {}",
+                            other_token_id, AMOUNT_TO_BURN, user_address
+                        ),
+                        message_1,
+                        "The first message is incorrect"
+                    );
+
+                    // Note, no token ID in root cause the message.
+                    let expected_error_part =
+                        "Value not found for prefix: \"sov_bank/Bank/tokens/\" and storage key:";
+                    assert!(message_2.starts_with(expected_error_part));
+                }
+                _ => {
+                    panic!("The transaction does not have the expected outcome.")
+                }
+            }
+        }),
+    });
+}
+
+/// Simple test to check that burning the gas token works.
+#[test]
+fn burn_gas_token_also_works() {
+    let (
+        TestData {
+            user_high_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let user_gas_balance = user_high_token_balance.available_gas_balance;
+    let user_address = user_high_token_balance.address();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+            sov_bank::CallMessage::Burn {
+                coins: Coins {
+                    // Note: we are only burning half of the gas balance because some of it is
+                    // already consumed (for pre-execution checks) by the time we are reaching the burn method of the `Bank` module.
+                    amount: user_gas_balance / 2,
+                    token_id: GAS_TOKEN_ID,
+                },
+            },
+        ),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                    owner: TokenHolder::User(user_address),
+                    coins: Coins {
+                        amount: user_gas_balance / 2,
+                        token_id: GAS_TOKEN_ID
+                    }
+                }),
+                result.events[0]
+            );
+
+            // Check that the user's gas balance is now equal to the burnt amount minus the gas used to send the transaction
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible(),
+                Some(user_gas_balance / 2 - result.gas_used),
+                "The user's balance should be zero"
+            );
+        }),
+    });
 }
