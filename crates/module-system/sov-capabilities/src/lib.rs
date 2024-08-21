@@ -193,6 +193,24 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             }
         }
     }
+
+    fn process_attestation(
+        &self,
+        _proof: sov_rollup_interface::optimistic::SerializedAttestation,
+        _prover_address: &<S as Spec>::Address,
+        _state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+        ProofOutcome::Invalid
+    }
+
+    fn process_challenge(
+        &self,
+        _proof: sov_rollup_interface::optimistic::SerializedChallenge,
+        _prover_address: &<S as Spec>::Address,
+        _state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+        ProofOutcome::Invalid
+    }
 }
 
 impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>

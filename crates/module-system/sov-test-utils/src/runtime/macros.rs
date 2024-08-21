@@ -148,6 +148,26 @@ macro_rules! generate_optimistic_runtime {
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
+
+
+            fn process_attestation(
+                &self,
+                _proof: ::sov_modules_api::SerializedAttestation,
+                _prover_address: &S::Address,
+                _state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                ::sov_modules_api::ProofOutcome::Ignored
+            }
+
+            fn process_challenge(
+                &self,
+                _proof: ::sov_modules_api::SerializedChallenge,
+                _prover_address: &S::Address,
+                _state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                ::sov_modules_api::ProofOutcome::Ignored
+            }
+
         }
     };
 }
@@ -179,6 +199,24 @@ macro_rules! generate_zk_runtime {
                         ::sov_modules_api::ProofOutcome::Invalid
                     }
                 }
+            }
+
+            fn process_attestation(
+                &self,
+                _proof: ::sov_modules_api::SerializedAttestation,
+                _prover_address: &S::Address,
+                _state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                ::sov_modules_api::ProofOutcome::Ignored
+            }
+
+            fn process_challenge(
+                &self,
+                _proof: ::sov_modules_api::SerializedChallenge,
+                _prover_address: &S::Address,
+                _state: &mut ::sov_modules_api::WorkingSet<S>,
+            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+                ::sov_modules_api::ProofOutcome::Ignored
             }
         }
     };

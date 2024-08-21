@@ -71,9 +71,12 @@ where
                 ProofType::ZkAggregatedProof(proof) => runtime
                     .capabilities()
                     .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set),
-                ProofType::OptimisticProofAttestation | ProofType::OptimisticProofChallenge => {
-                    ProofOutcome::Invalid
-                }
+                ProofType::OptimisticProofAttestation(proof) => runtime
+                    .capabilities()
+                    .process_attestation(proof, &sequencer_rollup_address, &mut working_set),
+                ProofType::OptimisticProofChallenge(proof) => runtime
+                    .capabilities()
+                    .process_challenge(proof, &sequencer_rollup_address, &mut working_set),
             };
 
             let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();

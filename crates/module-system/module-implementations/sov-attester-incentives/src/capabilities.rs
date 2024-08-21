@@ -88,7 +88,7 @@ where
         &self,
         context: &Context<S>,
         attestation: Attestation<
-            Da,
+            Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
         >,

@@ -578,6 +578,24 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         self.inner
             .process_aggregated_proof(proof, prover_address, state)
     }
+
+    fn process_attestation(
+        &self,
+        proof: sov_rollup_interface::optimistic::SerializedAttestation,
+        prover_address: &<S as Spec>::Address,
+        state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+        self.inner.process_attestation(proof, prover_address, state)
+    }
+
+    fn process_challenge(
+        &self,
+        proof: sov_rollup_interface::optimistic::SerializedChallenge,
+        prover_address: &<S as Spec>::Address,
+        state: &mut WorkingSet<S>,
+    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+        self.inner.process_challenge(proof, prover_address, state)
+    }
 }
 
 impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
