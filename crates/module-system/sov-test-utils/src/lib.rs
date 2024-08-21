@@ -10,7 +10,6 @@ pub use api_client::ApiClient;
 use serde::{Deserialize, Serialize};
 use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 pub use sov_db::schema::SchemaBatch;
-use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::Authenticator;
@@ -60,6 +59,7 @@ pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use interface::*;
 /// Re-export so can be accessed in consuming crates.
 pub use paste::paste;
+pub use sov_mock_da::verifier::MockDaSpec;
 use sov_modules_api::PrivateKey;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
