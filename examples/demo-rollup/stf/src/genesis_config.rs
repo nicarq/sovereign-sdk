@@ -6,6 +6,7 @@ use std::convert::AsRef;
 use std::path::{Path, PathBuf};
 
 pub use sov_accounts::{AccountConfig, AccountData};
+use sov_attester_incentives::AttesterIncentivesConfig;
 pub use sov_bank::{BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
@@ -33,6 +34,8 @@ pub struct GenesisPaths {
     pub value_setter_genesis_path: PathBuf,
     /// Accounts genesis path.
     pub accounts_genesis_path: PathBuf,
+    /// Attester Incentives genesis path.
+    pub attester_incentives_genesis_path: PathBuf,
     /// Prover Incentives genesis path.
     pub prover_incentives_genesis_path: PathBuf,
     /// NFT genesis path.
@@ -54,6 +57,7 @@ impl GenesisPaths {
             value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
             prover_incentives_genesis_path: dir.as_ref().join("prover_incentives.json"),
+            attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
             nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
         }
@@ -73,6 +77,9 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     let value_setter_config: ValueSetterConfig<S> =
         read_json_file(&genesis_paths.value_setter_genesis_path)?;
 
+    let attester_incentives_config: AttesterIncentivesConfig<S> =
+        read_json_file(&genesis_paths.attester_incentives_genesis_path)?;
+
     let prover_incentives_config: ProverIncentivesConfig<S> =
         read_json_file(&genesis_paths.prover_incentives_genesis_path)?;
 
@@ -88,6 +95,7 @@ pub fn create_genesis_config<S: Spec, Da: DaSpec>(
         bank_config,
         sequencer_registry_config,
         value_setter_config,
+        attester_incentives_config,
         prover_incentives_config,
         accounts_config,
         nonces_config,

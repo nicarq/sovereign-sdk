@@ -74,9 +74,14 @@ where
                 ProofType::OptimisticProofAttestation(proof) => runtime
                     .capabilities()
                     .process_attestation(proof, &sequencer_rollup_address, &mut working_set),
-                ProofType::OptimisticProofChallenge(proof) => runtime
-                    .capabilities()
-                    .process_challenge(proof, &sequencer_rollup_address, &mut working_set),
+                ProofType::OptimisticProofChallenge(proof, transition_num) => {
+                    runtime.capabilities().process_challenge(
+                        proof,
+                        transition_num,
+                        &sequencer_rollup_address,
+                        &mut working_set,
+                    )
+                }
             };
 
             let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();

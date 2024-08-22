@@ -4884,6 +4884,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "sov-accounts",
+ "sov-attester-incentives",
  "sov-bank",
  "sov-modules-api",
  "sov-nonces",

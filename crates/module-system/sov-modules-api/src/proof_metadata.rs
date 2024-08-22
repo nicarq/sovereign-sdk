@@ -24,7 +24,7 @@ pub enum ProofType {
     /// Optimistic workflow: attestation.
     OptimisticProofAttestation(SerializedAttestation),
     /// Optimistic workflow: challenge.
-    OptimisticProofChallenge(SerializedChallenge),
+    OptimisticProofChallenge(SerializedChallenge, u64),
 }
 
 /// Proof with metadata need for verification.

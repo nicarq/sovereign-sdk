@@ -4,7 +4,7 @@ use core::result::Result::Ok;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    Context, EventEmitter, Gas, SerializedAttestation, SerializedChallenge, StateAccessorError,
+    EventEmitter, Gas, SerializedAttestation, SerializedChallenge, StateAccessorError,
     StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::{Storage, StorageProof};
@@ -90,7 +90,7 @@ where
     /// or when the module is unable to verify the bonding proof.
     pub fn process_attestation(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         serialized_attestation: SerializedAttestation,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
@@ -98,13 +98,13 @@ where
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-        self.process_attestation_helper(context, attestation, state)
+        self.process_attestation_helper(sender, attestation, state)
     }
 
     #[allow(clippy::type_complexity)]
     pub(crate) fn process_attestation_helper(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         attestation: Attestation<
             Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
@@ -113,16 +113,12 @@ where
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         // We first need to check that the attester is still in the bonding set
-        if self
-            .bonded_attesters
-            .get(context.sender(), state)?
-            .is_none()
-        {
+        if self.bonded_attesters.get(sender, state)?.is_none() {
             return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 
         // If the bonding proof in the attestation is invalid, light clients will ignore the attestation. In that case, we should too.
-        self.check_bonding_proof(context, &attestation, state)?;
+        self.check_bonding_proof(sender, &attestation, state)?;
 
         // We suppose that these values are always defined, otherwise we panic
         let last_attested_height = self
@@ -170,7 +166,7 @@ where
         // First compare the initial hashes
         if let Err(err) = self.check_initial_hash(
             attestation.proof_of_bond.claimed_transition_num,
-            context.sender(),
+            sender,
             &attestation,
             state,
         ) {
@@ -184,7 +180,7 @@ where
         // Then compare the transition
         if let Err(err) = self.check_transition(
             attestation.proof_of_bond.claimed_transition_num,
-            context.sender(),
+            sender,
             &attestation,
             state,
         ) {
@@ -198,7 +194,7 @@ where
         self.emit_event(
             state,
             Event::<S>::ProcessedValidAttestation {
-                attester: context.sender().clone(),
+                attester: sender.clone(),
             },
         );
 
@@ -217,7 +213,7 @@ where
             self.maximum_attested_height
                 .set(&(new_height_to_attest), state)?;
 
-            self.transfer_tokens_to_sender(context, self.burn_rate().apply(reward), state)
+            self.transfer_tokens_to_sender(sender, self.burn_rate().apply(reward), state)
                 .map_err(|err| {
                     error!(
                         error = ?err,
@@ -236,13 +232,13 @@ where
 
     pub fn process_challenge(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
-        transition_num: &TransitionHeight,
+        transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         self.process_challenge_helper(
-            context,
+            sender,
             &serialized_challenge.raw_challenge,
             transition_num,
             state,
@@ -251,16 +247,16 @@ where
 
     pub(crate) fn process_challenge_helper(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         proof: &[u8],
-        transition_num: &TransitionHeight,
+        transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self
             .bonded_challengers
-            .get_or_err(context.sender(), state)?
+            .get_or_err(sender, state)?
             .map_err(|_| ProcessChallengeErrors::ChallengerNotBonded)?;
 
         // Check that the challenger has enough balance to process the proof.
@@ -279,19 +275,22 @@ where
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward
-        let attestation_reward: u64 =
-            match self.bad_transition_pool.get_or_err(transition_num, state)? {
-                Ok(reward) => reward,
-                Err(_err) => {
-                    self.slash_challenger_burn_reward(
-                        context.sender(),
-                        SlashingReason::NoInvalidTransition,
-                        state,
-                    )?;
+        let attestation_reward: u64 = match self
+            .bad_transition_pool
+            .get_or_err(&transition_num, state)?
+        {
+            Ok(reward) => reward,
+            Err(err) => {
+                error!(error = ?err, "Challenger slashed");
+                self.slash_challenger_burn_reward(
+                    sender,
+                    SlashingReason::NoInvalidTransition,
+                    state,
+                )?;
 
-                    return Ok(());
-                }
-            };
+                return Ok(());
+            }
+        };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
             StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
@@ -308,7 +307,7 @@ where
                     state,
                 ) {
                     if let ProcessChallengeErrors::ChallengerSlashed(err) = err {
-                        self.slash_challenger_burn_reward(context.sender(), err, state)?;
+                        self.slash_challenger_burn_reward(sender, err, state)?;
                         return Ok(());
                     }
 
@@ -317,7 +316,7 @@ where
 
                 // Reward the sender
                 self.transfer_tokens_to_sender(
-                    context,
+                    sender,
                     self.burn_rate().apply(attestation_reward),
                     state,
                 )
@@ -329,19 +328,19 @@ where
                 })?;
 
                 // Now remove the bad transition from the pool
-                self.bad_transition_pool.remove(transition_num, state)?;
+                self.bad_transition_pool.remove(&transition_num, state)?;
 
                 self.emit_event(
                     state,
                     Event::<S>::ProcessedValidProof {
-                        challenger: context.sender().clone(),
+                        challenger: sender.clone(),
                     },
                 );
             }
             Err(_err) => {
                 // Slash the challenger
                 self.slash_challenger_burn_reward(
-                    context.sender(),
+                    sender,
                     SlashingReason::InvalidProofOutputs,
                     state,
                 )?;

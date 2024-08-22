@@ -591,10 +591,12 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     fn process_challenge(
         &self,
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
+        transition_num: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
     ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
-        self.inner.process_challenge(proof, prover_address, state)
+        self.inner
+            .process_challenge(proof, transition_num, prover_address, state)
     }
 }
 

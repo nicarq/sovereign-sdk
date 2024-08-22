@@ -131,7 +131,7 @@ where
         >,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
-        self.process_attestation_helper(context, attestation, state)?;
+        self.process_attestation_helper(context.sender(), attestation, state)?;
         Ok(sov_modules_api::CallResponse::default())
     }
 
@@ -139,10 +139,10 @@ where
         &self,
         context: &Context<S>,
         proof: &[u8],
-        transition_num: &TransitionHeight,
+        transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
-        self.process_challenge_helper(context, proof, transition_num, state)?;
+        self.process_challenge_helper(context.sender(), proof, transition_num, state)?;
         Ok(sov_modules_api::CallResponse::default())
     }
 }

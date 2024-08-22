@@ -20,6 +20,7 @@ sov-accounts = { workspace = true }
 sov-nonces = { workspace = true }
 sov-sequencer-registry = { workspace = true }
 sov-prover-incentives = { workspace = true }
+sov-attester-incentives = { workspace = true }
 
 [lints]
 workspace = true
@@ -32,6 +33,7 @@ native = [
     "sov-modules-api/native",
     "sov-nonces/native",
     "sov-prover-incentives/native",
+    "sov-attester-incentives/native",
     "sov-sequencer-registry/native",
     "sov-rollup-interface/native",
 ]

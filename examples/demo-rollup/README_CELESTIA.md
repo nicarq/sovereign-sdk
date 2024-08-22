@@ -265,14 +265,15 @@ Import a transaction from a JSON file at the provided path
 Usage: sov-cli transactions import from-file <COMMAND>
 
 Commands:
-  bank                A subcommand for the `bank` module
-  sequencer-registry  A subcommand for the `sequencer_registry` module
-  value-setter        A subcommand for the `value_setter` module
-  prover-incentives   A subcommand for the `prover_incentives` module
-  accounts            A subcommand for the `accounts` module
-  nonces              A subcommand for the `nonces` module
-  nft                 A subcommand for the `nft` module
-  help                Print this message or the help of the given subcommand(s)
+  bank                 A subcommand for the `bank` module
+  sequencer-registry   A subcommand for the `sequencer_registry` module
+  value-setter         A subcommand for the `value_setter` module
+  attester-incentives  A subcommand for the `attester_incentives` module
+  prover-incentives    A subcommand for the `prover_incentives` module
+  accounts             A subcommand for the `accounts` module
+  nonces               A subcommand for the `nonces` module
+  nft                  A subcommand for the `nft` module
+  help                 Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help

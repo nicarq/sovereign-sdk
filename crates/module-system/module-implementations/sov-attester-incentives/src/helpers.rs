@@ -5,8 +5,8 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    Context, EventEmitter, StateAccessor, StateAccessorError, StateTransitionPublicData,
-    StateWriter, TxState,
+    EventEmitter, StateAccessor, StateAccessorError, StateTransitionPublicData, StateWriter,
+    TxState,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
@@ -210,7 +210,7 @@ where
 
     pub(crate) fn transfer_tokens_to_sender(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         amount: u64,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
@@ -221,7 +221,7 @@ where
 
         // The reward tokens are unlocked from the module's id.
         self.bank
-            .transfer_from(self.id.to_payable(), context.sender(), coins, state)?;
+            .transfer_from(self.id.to_payable(), sender, coins, state)?;
 
         Ok(())
     }
@@ -232,7 +232,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_bonding_proof(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
             StorageProof<<S::Storage as Storage>::Proof>,
@@ -268,7 +268,7 @@ where
             .verify_proof(
                 bonding_root,
                 attestation.proof_of_bond.proof.clone(),
-                context.sender(),
+                sender,
             )
             .map_err(|_err| ProcessAttestationErrors::InvalidBondingProof)?;
 
@@ -350,16 +350,15 @@ where
         Ok(())
     }
 
-    // ===
     pub(crate) fn check_challenge_outputs_against_transition(
         &self,
         public_outputs: StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
-        height: &TransitionHeight,
+        height: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         let transition = self
             .chain_state
-            .get_historical_transitions(*height, state)?
+            .get_historical_transitions(height, state)?
             .ok_or(ProcessChallengeErrors::slashed(
                 SlashingReason::TransitionInvalid,
             ))?;

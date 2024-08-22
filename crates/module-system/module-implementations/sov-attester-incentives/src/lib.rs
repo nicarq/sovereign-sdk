@@ -160,7 +160,7 @@ where
                 .map_err(|error| error.into()),
 
             call::CallMessage::ProcessChallenge(proof, transition) => self
-                .process_challenge_call(context, &proof, &transition, state)
+                .process_challenge_call(context, &proof, transition, state)
                 .map_err(|error| error.into()),
         }
         .map_err(|e| e.into());

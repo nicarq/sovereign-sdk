@@ -24,6 +24,7 @@ sov-rollup-interface = { workspace = true }
 sov-cli = { workspace = true, optional = true }
 sov-sequencer-registry = { workspace = true }
 sov-prover-incentives = { workspace = true }
+sov-attester-incentives = { workspace = true }
 sov-bank = { workspace = true }
 sov-nft-module = { workspace = true }
 sov-kernels = { workspace = true }
@@ -67,6 +68,7 @@ native = [
     "sov-nft-module/native",
     "sov-nonces/native",
     "sov-prover-incentives/native",
+    "sov-attester-incentives/native",
     "sov-rollup-interface/native",
     "sov-sequencer-registry/native",
     "sov-state/native",
