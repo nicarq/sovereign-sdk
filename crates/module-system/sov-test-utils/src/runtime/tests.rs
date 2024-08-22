@@ -26,7 +26,8 @@ fn setup() -> (
     TestUser<S>,
     TestRunner<TestOptimisticRuntime<S, MockDaSpec>, S>,
 ) {
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
     let admin = genesis_config.additional_accounts.first().unwrap().clone();
 

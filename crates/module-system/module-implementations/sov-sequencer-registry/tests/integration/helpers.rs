@@ -36,7 +36,8 @@ pub struct TestRoles {
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
 pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(2);
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
 
     let genesis_sequencer = genesis_config.initial_sequencer.clone();
     let genesis_sequencer_da_address = genesis_sequencer.da_address;
