@@ -61,7 +61,12 @@ pub struct TestData {
 /// - a minter
 /// - a user with a high token balance
 /// - a user with no balance for the token
-pub fn setup() -> (TestData, TestRunner<RT, S>) {
+///
+/// Also allows to set up a custom runtime using a closure. Useful for the gas tests to change the gas costs
+/// of the bank runtime.
+pub fn setup_with_custom_runtime(
+    runtime_setup: impl FnOnce(&mut RT),
+) -> (TestData, TestRunner<RT, S>) {
     let token_name = TestTokenName::new("BankToken".to_string());
     let token_id = token_name.id();
 
@@ -79,7 +84,10 @@ pub fn setup() -> (TestData, TestRunner<RT, S>) {
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
-    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+    let mut runtime = RT::default();
+    runtime_setup(&mut runtime);
+
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
     (
         TestData {
@@ -91,4 +99,15 @@ pub fn setup() -> (TestData, TestRunner<RT, S>) {
         },
         runner,
     )
+}
+
+/// Sets up the bank tests by generating a genesis config with a single non-default token that has
+/// - a minter
+/// - a user with a high token balance
+/// - a user with no balance for the token
+///
+/// Note: this is a helper function for [`setup_with_custom_runtime`] which does not set up any
+/// custom runtime.
+pub fn setup() -> (TestData, TestRunner<RT, S>) {
+    setup_with_custom_runtime(|_| {})
 }

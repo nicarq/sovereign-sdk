@@ -1,217 +1,260 @@
-use sov_bank::{Bank, BankConfig, BankGasConfig, CallMessage, GasTokenConfig, GAS_TOKEN_ID};
-use sov_modules_api::macros::config_value;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
+use sov_bank::{Bank, BankGasConfig, CallMessage, GAS_TOKEN_ID};
+use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::test_utils::generate_address;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, PriorityFeeBips};
-use sov_modules_api::{
-    Context, Gas, GasArray, GasPrice, Module, Spec, StateCheckpoint, WorkingSet,
+use sov_modules_api::{Error, Gas, GasArray, Spec, TxEffect};
+use sov_test_utils::{
+    AsUser, MockDaSpec, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
-use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
-use tempfile::TempDir;
 
-const CREATE_TOKEN_NATIVE_COST: u64 = 2;
-const CREATE_TOKEN_ZK_COST: u64 = 3;
+use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
 
-type S = sov_test_utils::TestSpec;
+/// Additional context for the post-call assertions of the gas tests.
+/// This is used to check the outcome of the create token call.
+struct PostCreateTokenContext {
+    user_initial_balance: u64,
+    user_address: <S as Spec>::Address,
+}
+
+/// A helper function that creates a token with a custom gas config and checks the balance of the user
+/// after the call.
+/// The gas config can be set to `None` to use the default gas config.
+fn gas_test_setup(
+    gas_to_charge_for_create_token: Option<<S as Spec>::Gas>,
+    create_token_assert: impl FnOnce(PostCreateTokenContext) -> TransactionTestAssert<S, RT> + 'static,
+) {
+    let (
+        TestData {
+            user_high_token_balance: user,
+            ..
+        },
+        mut runner,
+    ) = setup_with_custom_runtime(|runtime| {
+        if let Some(gas_to_charge_for_create_token) = gas_to_charge_for_create_token {
+            let config = BankGasConfig {
+                create_token: gas_to_charge_for_create_token,
+                transfer: Gas::zero(),
+                burn: Gas::zero(),
+                mint: Gas::zero(),
+                freeze: Gas::zero(),
+            };
+
+            runtime.inner.bank.override_gas_config(config);
+        }
+    });
+
+    let user_balance = user.available_gas_balance;
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<Bank<S>>(CallMessage::CreateToken {
+            salt: 0,
+            token_name: "sov-test-token".to_string(),
+            initial_balance: 1000,
+            mint_to_address: user.address(),
+            authorized_minters: vec![],
+        }),
+        assert: Box::new(move |result, state| {
+            create_token_assert(PostCreateTokenContext {
+                user_initial_balance: user_balance,
+                user_address: user.address(),
+            })(result, state);
+        }),
+    });
+}
+
+/// Test that the gas price constants are charged correctly for the bank runtime.
+/// To do that we override the gas config, set the costs to zero, execute a call and store the gas consumed.
+/// Then we try with a different runtime config and check that the gas consumed only increases by the amount specified in the second config.
 #[test]
-fn zeroed_price_wont_deduct_working_set() {
-    let sender_balance = TEST_DEFAULT_USER_BALANCE;
-    let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[0, 0]))
-        .execute()
-        .unwrap();
+fn gas_price_constants_are_charged_correctly() {
+    let gas_consumed_without_price_ref = Arc::new(AtomicU64::new(0));
+    let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
-    assert_eq!(
-        remaining_funds, sender_balance,
-        "the balance should be unchanged with zeroed price"
+    gas_test_setup(
+        Some(<S as Spec>::Gas::from_slice(&[0; 2])),
+        move |PostCreateTokenContext {
+                  user_address,
+                  user_initial_balance,
+              }| {
+            Box::new(move |result, state| {
+                assert_eq!(result.outcome, TxEffect::Successful(()));
+
+                let user_final_balance = Bank::<S>::default()
+                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    user_final_balance,
+                    user_initial_balance - result.gas_used,
+                    "the balance should decrease only by the gas used"
+                );
+
+                gas_consumed_without_price_ref
+                    .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+            })
+        },
+    );
+
+    let gas_to_charge_for_create_token = <S as Spec>::Gas::from_slice(&[100; 2]);
+    let bank_initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+
+    gas_test_setup(
+        Some(gas_to_charge_for_create_token.clone()),
+        move |PostCreateTokenContext {
+                  user_initial_balance,
+                  user_address,
+              }| {
+            Box::new(move |result, state| {
+                assert_eq!(result.outcome, TxEffect::Successful(()));
+
+                let user_final_balance = Bank::<S>::default()
+                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    user_final_balance,
+                    user_initial_balance - result.gas_used,
+                    "the balance should decrease only by the gas used"
+                );
+
+                assert_eq!(
+                gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
+                    + gas_to_charge_for_create_token.value(&bank_initial_gas_price),
+                result.gas_used,
+                "The gas used should be the sum of the gas cost of the call and the inner gas cost"
+            );
+            })
+        },
     );
 }
 
 #[test]
-fn normal_price_will_deduct_working_set() {
-    let sender_balance = TEST_DEFAULT_USER_BALANCE;
-
-    let native_price = 2;
-    let zk_price = 3;
-    let remaining_funds = BankGasTestCase::init(
-        sender_balance,
-        GasPrice::from_slice(&[native_price, zk_price]),
-    )
-    .override_gas_config()
-    .execute()
-    .unwrap();
-
-    // compute the expected gas cost, based on the test constants
-    let gas_used_for_call =
-        native_price * CREATE_TOKEN_NATIVE_COST + zk_price * CREATE_TOKEN_ZK_COST;
-
-    assert!(
-        remaining_funds <= sender_balance - gas_used_for_call,
-        "this operation should consume at least the gas cost of the call"
-    );
-}
-
-#[test]
-fn constants_price_is_charged_correctly() {
-    let sender_balance = TEST_DEFAULT_USER_BALANCE;
-
-    let remaining_funds = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[2, 3]))
-        .execute()
-        .unwrap();
+fn config_constants_are_charged_correctly() {
+    let gas_consumed_without_price_ref = Arc::new(AtomicU64::new(0));
+    let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     // compute the expected gas cost, based on the json constants
-    let bank = Bank::<S>::default();
-    let config = bank.gas_config();
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[2, 3]);
-    let gas_used = config.create_token.value(&gas_price);
+    let create_token_config_cost = Bank::<S>::default().gas_config().create_token.clone();
+    let bank_initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
 
-    assert!(
-        remaining_funds <= sender_balance - gas_used,
-        "this operation should consume at least the gas cost of the call"
+    gas_test_setup(
+        Some(<S as Spec>::Gas::from_slice(&[0; 2])),
+        move |PostCreateTokenContext {
+                  user_initial_balance,
+                  user_address,
+              }| {
+            Box::new(move |result, state| {
+                assert_eq!(result.outcome, TxEffect::Successful(()));
+
+                let user_final_balance = Bank::<S>::default()
+                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    user_final_balance,
+                    user_initial_balance - result.gas_used,
+                    "the balance should be unchanged with zeroed price"
+                );
+
+                gas_consumed_without_price_ref
+                    .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+            })
+        },
+    );
+
+    gas_test_setup(
+        None,
+        move |PostCreateTokenContext {
+                  user_initial_balance,
+                  user_address,
+              }| {
+            Box::new(move |result, state| {
+                assert_eq!(result.outcome, TxEffect::Successful(()));
+
+                let user_final_balance = Bank::<S>::default()
+                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .unwrap_infallible()
+                    .unwrap();
+
+                assert_eq!(
+                    user_final_balance,
+                    user_initial_balance - result.gas_used,
+                    "the balance should be unchanged with zeroed price"
+                );
+
+                assert_eq!(
+                gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
+                    + create_token_config_cost.value(&bank_initial_gas_price),
+                result.gas_used,
+                "The gas used should be the sum of the gas cost of the call and the inner gas cost"
+            );
+            })
+        },
     );
 }
 
 #[test]
 fn not_enough_gas_wont_panic() {
-    let sender_balance = TEST_DEFAULT_USER_BALANCE;
+    gas_test_setup(
+        Some(<S as Spec>::Gas::from_slice(&[
+            TEST_DEFAULT_USER_BALANCE / 2,
+            TEST_DEFAULT_USER_BALANCE / 2,
+        ])),
+        |_| {
+            Box::new(move |result, _state| {
+                assert!(
+                    matches!(result.outcome, TxEffect::Reverted(..)),
+                    "The transaction outcome is incorrect"
+                );
 
-    let result = BankGasTestCase::init(
-        sender_balance,
-        GasPrice::from_slice(&[TEST_DEFAULT_USER_BALANCE / 2, TEST_DEFAULT_USER_BALANCE / 2]),
-    )
-    .override_gas_config()
-    .execute();
+                if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                    let mut chain = err.chain();
+                    assert_eq!(chain.len(), 1, "The error chain is incorrect");
 
-    assert!(
-        result.is_err(),
-        "the sender balance is not enough for this call"
+                    assert!(
+                        chain.next().unwrap().to_string().contains(
+                            "The gas to charge is greater than the funds available in the meter."
+                        ),
+                        "The error message is incorrect"
+                    );
+                } else {
+                    panic!("The transaction outcome is incorrect")
+                }
+            })
+        },
     );
 }
 
 #[test]
-fn very_high_gas_price_wont_panic_or_overflow() {
-    let sender_balance = TEST_DEFAULT_USER_BALANCE;
+fn very_high_gas_to_charge_wont_panic_or_overflow() {
+    gas_test_setup(
+        Some(<S as Spec>::Gas::from_slice(&[u64::MAX - 1, u64::MAX - 1])),
+        |_| {
+            Box::new(move |result, _state| {
+                assert!(
+                    matches!(result.outcome, TxEffect::Reverted(..)),
+                    "The transaction outcome is incorrect"
+                );
 
-    let result = BankGasTestCase::init(sender_balance, GasPrice::from_slice(&[u64::MAX; 2]))
-        .override_gas_config()
-        .execute();
+                if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                    let mut chain = err.chain();
+                    assert_eq!(chain.len(), 1, "The error chain is incorrect");
 
-    assert!(result.is_err(), "arithmetic overflow shoulnd't panic");
-}
-
-#[allow(dead_code)]
-pub struct BankGasTestCase {
-    state: WorkingSet<S>,
-    bank: Bank<S>,
-    ctx: Context<S>,
-    message: CallMessage<S>,
-    tmpdir: TempDir,
-}
-
-impl BankGasTestCase {
-    pub fn init(sender_balance: u64, gas_price: <<S as Spec>::Gas as Gas>::Price) -> Self {
-        let tmpdir = tempfile::tempdir().unwrap();
-
-        // create a base token with an initial balance to pay for the gas
-        let base_token_name = "sov-gas-token";
-        let salt = 0;
-
-        // sanity check the token ID
-        let base_token_id = GAS_TOKEN_ID;
-
-        // generate a token configuration with the provided arguments
-        let sender_address = generate_address::<S>("sender");
-        let address_and_balances = vec![(sender_address, sender_balance)];
-        let bank_config: BankConfig<S> = BankConfig {
-            gas_token_config: GasTokenConfig {
-                token_name: base_token_name.to_string(),
-                address_and_balances,
-                authorized_minters: vec![],
-            },
-            tokens: vec![],
-        };
-
-        // create a context using the generated account as sender
-        let height = 1;
-        let minter = generate_address::<S>("minter");
-        let sequencer_address = generate_address::<S>("sequencer");
-        let ctx = Context::<S>::new(
-            sender_address,
-            Default::default(),
-            sequencer_address,
-            height,
-        );
-
-        // create a bank instance
-        let bank = Bank::default();
-        let storage = new_finalized_storage(tmpdir.path());
-        let state = StateCheckpoint::new(storage);
-        let mut genesis_state = state.to_genesis_state_accessor::<Bank<S>>(&bank_config);
-        bank.genesis(&bank_config, &mut genesis_state).unwrap();
-
-        let mut state = genesis_state.checkpoint();
-
-        // sanity test the sender balance
-        let balance = bank
-            .get_balance_of(&sender_address, base_token_id, &mut state)
-            .unwrap_infallible();
-        assert_eq!(balance, Some(sender_balance));
-
-        // generate a create dummy token message
-        let token_name = "dummy".to_string();
-        let initial_balance = 500;
-
-        let message = CallMessage::CreateToken::<S> {
-            salt,
-            token_name,
-            initial_balance,
-            mint_to_address: minter,
-            authorized_minters: vec![minter],
-        };
-
-        let tx: AuthenticatedTransactionData<S> = AuthenticatedTransactionData {
-            max_fee: sender_balance,
-            chain_id: config_value!("CHAIN_ID"),
-            max_priority_fee_bips: PriorityFeeBips::ZERO,
-            gas_limit: None,
-        };
-
-        let state = state.to_working_set_deprecated(&tx, &gas_price);
-
-        Self {
-            state,
-            bank,
-            ctx,
-            message,
-            tmpdir,
-        }
-    }
-
-    pub fn override_gas_config(mut self) -> Self {
-        self.bank.override_gas_config(BankGasConfig {
-            create_token: [CREATE_TOKEN_NATIVE_COST, CREATE_TOKEN_ZK_COST].into(),
-            transfer: Gas::zero(),
-            burn: Gas::zero(),
-            mint: Gas::zero(),
-            freeze: Gas::zero(),
-        });
-        self
-    }
-
-    pub fn execute(self) -> anyhow::Result<u64> {
-        let Self {
-            mut state,
-            bank,
-            ctx,
-            message,
-            tmpdir,
-        } = self;
-
-        bank.call(message, &ctx, &mut state)?;
-
-        // can unlock storage dir
-        let _ = tmpdir;
-
-        Ok(state.gas_remaining_funds())
-    }
+                    assert!(
+                        chain.next().unwrap().to_string().contains(
+                            "The gas to charge is greater than the funds available in the meter."
+                        ),
+                        "The error message is incorrect"
+                    );
+                } else {
+                    panic!("The transaction outcome is incorrect")
+                }
+            })
+        },
+    );
 }
