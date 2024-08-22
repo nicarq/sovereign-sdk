@@ -29,17 +29,19 @@ sov-state = { workspace = true }
 
 [dev-dependencies]
 sov-bank = { path = ".", features = ["native", "test-utils"] }
+sov-chain-state = { workspace = true }
 tempfile = { workspace = true }
 sov-test-utils = { workspace = true }
 
 [features]
 default = []
 native = [
-    "jsonrpsee",
-    "schemars",
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-state/native",
+	"jsonrpsee",
+	"schemars",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+	"sov-chain-state/native"
 ]
 cli = ["native"]
 test-utils = []
