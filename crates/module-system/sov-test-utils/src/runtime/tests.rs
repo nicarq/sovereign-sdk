@@ -1,9 +1,11 @@
+use sov_bank::{Bank, Coins, GAS_TOKEN_ID};
 use sov_mock_da::MockAddress;
 use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::DaSpec;
-use sov_modules_stf_blueprint::SkippedReason;
+use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
+use sov_modules_api::{DaSpec, GasArray, GasUnit};
+use sov_modules_stf_blueprint::{SkippedReason, TxEffect};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -12,7 +14,8 @@ use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestRunner};
 use crate::{
-    BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
+    BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase, TransactionType,
+    TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE,
 };
 
@@ -194,7 +197,7 @@ fn test_custom_transaction_details_chain_id() {
     });
 }
 
-/// Checks that the chain id of a transaction can be overridden.
+/// Checks that the max fee of a transaction can be overridden.
 #[test]
 fn test_custom_transaction_details_max_fee() {
     let (admin, mut runner) = setup();
@@ -220,4 +223,223 @@ fn test_custom_transaction_details_max_fee() {
             };
         }),
     });
+}
+
+/// Checks that the priority fee of a transaction can be overridden and that this has the expected effect on the balance of the sender.
+#[test]
+fn test_custom_transaction_details_priority_fee_bips() {
+    let (admin, mut runner) = setup();
+
+    let max_fee = admin.available_gas_balance;
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .with_max_fee(max_fee)
+            .with_max_priority_fee_bips(priority_fee_bips),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
+                    .unwrap_infallible(),
+                Some(admin.available_gas_balance - result.gas_used - priority_fee_bips.apply(result.gas_used).unwrap()),
+                "The admin's balance should be equal to the initial balance minus the gas used to send the transaction and the priority fee"
+            );
+
+        }),
+    });
+}
+
+/// Checks that the chain id of a transaction can be overridden.
+#[test]
+fn test_custom_transaction_details_gas_limit() {
+    let (admin, mut runner) = setup();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .with_max_fee(admin.available_gas_balance)
+            .with_gas_limit(Some(GasUnit::from_slice(&[admin.available_gas_balance; 2]))),
+        assert: Box::new(move |result, _state| {
+           match &result.outcome {
+                sov_modules_api::TxEffect::Skipped(reason) => {
+                    if let SkippedReason::CannotReserveGas(error_message) = reason {
+                        assert!(
+                            error_message.contains("The current gas price is too high to cover the maximum fee for the transaction"),
+                            "Error message doesn't contain with the expected phrase. Got: {}",
+                            error_message
+                        );
+                    } else {
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                    }
+                },
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+        }),
+    });
+}
+
+/// Tests that sending a transaction with the default details works and that the balance of the sender is updated correctly.
+#[test]
+fn test_default_transaction_details_works() {
+    let (admin, mut runner) = setup();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
+                    .unwrap_infallible(),
+                Some(admin.available_gas_balance - result.gas_used),
+                "The admin's balance should be equal to the initial balance minus the gas used to send the transaction"
+            );
+        }),
+    });
+}
+
+/// Checks the default transaction details format.
+#[test]
+fn test_default_transaction_details() {
+    let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+    let message = user.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+        to: user.address(),
+        coins: Coins {
+            amount: 1000,
+            token_id: GAS_TOKEN_ID,
+        },
+    });
+
+    match message {
+        TransactionType::Plain {
+            details,
+            message,
+            key,
+        } => {
+            assert_eq!(
+                message,
+                sov_bank::CallMessage::Transfer {
+                    to: user.address(),
+                    coins: Coins {
+                        amount: 1000,
+                        token_id: GAS_TOKEN_ID,
+                    },
+                }
+            );
+
+            assert_eq!(key.as_hex(), user.private_key().as_hex());
+
+            assert_eq!(details.max_priority_fee_bips, TEST_DEFAULT_MAX_PRIORITY_FEE);
+            assert_eq!(details.max_fee, TEST_DEFAULT_MAX_FEE);
+            assert_eq!(details.gas_limit, None);
+
+            assert_eq!(details.chain_id, 4321);
+        }
+        _ => panic!("The message is not a plain message"),
+    }
+}
+
+/// Tests that the transaction is correctly formatted
+#[test]
+fn test_custom_transaction_format() {
+    let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+    let message = user
+        .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            to: user.address(),
+            coins: Coins {
+                amount: 1000,
+                token_id: GAS_TOKEN_ID,
+            },
+        })
+        .with_max_fee(100)
+        .with_max_priority_fee_bips(PriorityFeeBips::from_percentage(10))
+        .with_gas_limit(Some(GasUnit::from_slice(&[5; 2])))
+        .with_chain_id(5555);
+
+    match message {
+        TransactionType::Plain {
+            details,
+            message,
+            key,
+        } => {
+            assert_eq!(
+                message,
+                sov_bank::CallMessage::Transfer {
+                    to: user.address(),
+                    coins: Coins {
+                        amount: 1000,
+                        token_id: GAS_TOKEN_ID,
+                    },
+                }
+            );
+
+            assert_eq!(key.as_hex(), user.private_key().as_hex());
+
+            assert_eq!(
+                details.max_priority_fee_bips,
+                PriorityFeeBips::from_percentage(10)
+            );
+            assert_eq!(details.max_fee, 100);
+            assert_eq!(details.gas_limit, Some(GasUnit::from_slice(&[5; 2])));
+
+            assert_eq!(details.chain_id, 5555);
+        }
+        _ => panic!("The message is not a plain message"),
+    }
+}
+
+#[test]
+fn test_custom_transaction_format_2() {
+    let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+    let message = user
+        .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            to: user.address(),
+            coins: Coins {
+                amount: 1000,
+                token_id: GAS_TOKEN_ID,
+            },
+        })
+        .with_details(TxDetails {
+            max_fee: 100,
+            max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
+            gas_limit: Some(GasUnit::from_slice(&[5; 2])),
+            chain_id: 5555,
+        });
+
+    match message {
+        TransactionType::Plain {
+            details,
+            message,
+            key,
+        } => {
+            assert_eq!(
+                message,
+                sov_bank::CallMessage::Transfer {
+                    to: user.address(),
+                    coins: Coins {
+                        amount: 1000,
+                        token_id: GAS_TOKEN_ID,
+                    },
+                }
+            );
+
+            assert_eq!(key.as_hex(), user.private_key().as_hex());
+
+            assert_eq!(
+                details.max_priority_fee_bips,
+                PriorityFeeBips::from_percentage(10)
+            );
+            assert_eq!(details.max_fee, 100);
+            assert_eq!(details.gas_limit, Some(GasUnit::from_slice(&[5; 2])));
+
+            assert_eq!(details.chain_id, 5555);
+        }
+        _ => panic!("The message is not a plain message"),
+    }
 }
