@@ -87,7 +87,8 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
     ) -> anyhow::Result<Self> {
         // Generate a genesis config, then overwrite the attester key/address with ones that
         // we know. We leave the other values untouched.
-        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
+        let genesis_config =
+            HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
         let admin = genesis_config.additional_accounts[0].clone();
 
@@ -179,7 +180,8 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
 
         // Generate a genesis config, then overwrite the attester key/address with ones that
         // we know. We leave the other values untouched.
-        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1);
+        let genesis_config =
+            HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
         let admin = genesis_config.additional_accounts[0].clone();
 

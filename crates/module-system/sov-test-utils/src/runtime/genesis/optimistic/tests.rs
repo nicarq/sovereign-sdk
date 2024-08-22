@@ -14,8 +14,8 @@ use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::genesis::TestTokenName;
 use crate::runtime::{ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner};
 use crate::{
-    default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec,
-    TransactionTestAssert, TransactionTestCase, TransactionType, GAS_TOKEN_ID,
+    default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
+    TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo, GAS_TOKEN_ID,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
     TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
@@ -192,7 +192,8 @@ fn test_define_token() {
     let token_0_name = &TestTokenName::new("0".to_string());
     let token_1_name = &TestTokenName::new("MyTestToken".to_string());
 
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+        .add_accounts_with_default_balance(1)
         .add_accounts_with_token(token_0_name, true, 2, 100_000)
         .add_accounts_with_token(token_1_name, false, 1, 10);
 
@@ -246,7 +247,8 @@ fn test_define_token_with_state() {
     let token_0_name = &TestTokenName::new("0".to_string());
     let token_1_name = &TestTokenName::new("MyTestToken".to_string());
 
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+        .add_accounts_with_default_balance(1)
         .add_accounts_with_token(token_0_name, false, 2, BALANCE_TOKEN_0)
         .add_accounts_with_token(token_1_name, true, 0, 0);
 
@@ -339,7 +341,8 @@ fn test_define_token_with_state() {
 fn test_define_token_with_mint() {
     let token_0_name = &TestTokenName::new("0".to_string());
 
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+        .add_accounts_with_default_balance(1)
         .add_accounts_with_token(token_0_name, true, 0, 0);
 
     let token_0_name = genesis_config.token_names().pop().unwrap();
@@ -388,4 +391,58 @@ fn test_define_token_with_mint() {
             );
         }),
     });
+}
+
+#[test]
+fn test_define_genesis_config_additional_accounts_with_default_balance() {
+    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+
+    // By default we don't have any additional accounts
+    assert!(genesis_config.additional_accounts.is_empty());
+
+    genesis_config = genesis_config.add_accounts_with_default_balance(5);
+    assert!(genesis_config.additional_accounts.len() == 5);
+
+    genesis_config.additional_accounts.iter().for_each(|user| {
+        assert_eq!(user.balance(), TEST_DEFAULT_USER_BALANCE);
+        assert_eq!(user.token_balances.len(), 0);
+    });
+}
+
+#[test]
+fn test_define_genesis_config_additional_accounts_test_user() {
+    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+
+    // By default we don't have any additional accounts
+    assert!(genesis_config.additional_accounts.is_empty());
+
+    genesis_config = genesis_config.add_accounts(vec![
+        TestUser::<TestSpec>::generate(100),
+        TestUser::<TestSpec>::generate(1).add_token_info(UserTokenInfo {
+            token_name: TestTokenName::new("Token".to_string()),
+            balance: 5,
+            is_minter: false,
+        }),
+    ]);
+    assert!(genesis_config.additional_accounts.len() == 2);
+
+    let first_user = genesis_config.additional_accounts.first().unwrap();
+    let second_user = genesis_config.additional_accounts.get(1).unwrap();
+
+    assert_eq!(first_user.balance(), 100);
+    assert_eq!(first_user.token_balances.len(), 0);
+
+    assert_eq!(second_user.balance(), 1);
+    assert_eq!(second_user.token_balances.len(), 1);
+    assert_eq!(
+        second_user.token_balances.first().unwrap().token_name,
+        TestTokenName::new("Token".to_string())
+    );
+    assert_eq!(
+        second_user
+            .token_balance(&TestTokenName::new("Token".to_string()))
+            .unwrap(),
+        5
+    );
+    assert!(!second_user.is_minter(&TestTokenName::new("Token".to_string())));
 }

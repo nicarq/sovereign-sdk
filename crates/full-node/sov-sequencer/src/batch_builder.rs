@@ -505,9 +505,8 @@ mod tests {
         let runtime = TestOptimisticRuntime::<S, MockDaSpec>::default();
         let storage = storage_manager.create_storage();
 
-        let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(
-            num_additional_accounts + 1,
-        );
+        let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+            .add_accounts_with_default_balance(num_additional_accounts + 1);
 
         let admin = genesis_config.additional_accounts[0].clone();
 

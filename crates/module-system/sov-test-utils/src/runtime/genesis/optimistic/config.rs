@@ -91,12 +91,6 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
-        Self::generate_with_additional_accounts(0)
-    }
-
-    /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
-    /// and `num_accounts` additional accounts.
-    pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
         let attester = TestAttester::generate(TestAttesterConfig {
             bond: TEST_DEFAULT_USER_STAKE,
             free_balance: TEST_DEFAULT_USER_BALANCE, // Give the attester extra tokens to pay for gas
@@ -110,29 +104,39 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
             da_address: MockAddress::from([172; 32]),
         });
 
+        Self::with_defaults(attester, challenger, sequencer, vec![])
+    }
+
+    /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
+    /// and `num_accounts` additional accounts.
+    ///
+    /// This is a convenience function for [`Self::add_accounts`]
+    pub fn add_accounts_with_default_balance(self, num_accounts: usize) -> Self {
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         for _ in 0..num_accounts {
             additional_accounts.push(TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
         }
 
-        Self::with_defaults(attester, challenger, sequencer, additional_accounts)
+        self.add_accounts(additional_accounts)
     }
 
     /// Adds a token to the genesis config. Generates a token with an (optional) given name and adds it to the list of tokens.
     /// The token is associated with the given number of accounts, each of which has an initial balance. It is also
     /// possible to specify a minter for the token using the `with_minter` parameter.
+    ///
+    /// This is a convenience function for [`Self::add_accounts`]
     pub fn add_accounts_with_token(
-        mut self,
+        self,
         token_name: &TestTokenName,
         with_minter: bool,
         num_accounts: usize,
         account_initial_balance: u64,
     ) -> Self {
-        let mut initial_accounts = Vec::with_capacity(num_accounts);
+        let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         if with_minter {
-            initial_accounts.push(
+            additional_accounts.push(
                 TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(
                     UserTokenInfo {
                         token_name: token_name.clone(),
@@ -144,7 +148,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
         }
 
         for _ in 0..num_accounts {
-            initial_accounts.push(
+            additional_accounts.push(
                 TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(
                     UserTokenInfo {
                         token_name: token_name.clone(),
@@ -155,8 +159,12 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
             );
         }
 
-        self.additional_accounts.append(&mut initial_accounts);
+        self.add_accounts(additional_accounts)
+    }
 
+    /// Adds additional accounts to the genesis config.
+    pub fn add_accounts(mut self, mut additional_accounts: Vec<TestUser<TestSpec>>) -> Self {
+        self.additional_accounts.append(&mut additional_accounts);
         self
     }
 }

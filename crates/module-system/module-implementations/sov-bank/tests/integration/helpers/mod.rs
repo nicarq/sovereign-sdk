@@ -70,7 +70,8 @@ pub fn setup_with_custom_runtime(
     let token_name = TestTokenName::new("BankToken".to_string());
     let token_id = token_name.id();
 
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate_with_additional_accounts(1)
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+        .add_accounts_with_default_balance(1)
         .add_accounts_with_token(&token_name, true, 1, 100_000);
 
     let user_no_token_balance = genesis_config.additional_accounts[0].clone();
