@@ -1794,6 +1794,7 @@ dependencies = [
  "borsh",
  "serde",
  "sov-accounts",
+ "sov-attester-incentives",
  "sov-bank",
  "sov-capabilities",
  "sov-chain-state",
@@ -6003,6 +6004,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-attester-incentives"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derivative",
+ "serde",
+ "sov-bank",
+ "sov-chain-state",
+ "sov-modules-api",
+ "sov-state",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
 name = "sov-bank"
 version = "0.3.0"
 dependencies = [
@@ -6038,6 +6055,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "sov-accounts",
+ "sov-attester-incentives",
  "sov-bank",
  "sov-modules-api",
  "sov-nonces",

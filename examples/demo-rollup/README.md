@@ -104,14 +104,15 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 66d4a27dd46013f88c156d21d16d364f6a5de66effd74155a5b0815475cbdf17
+0: 0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0
 ```
 
 The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x950cb82721602fcbbd5c4fb9950aa6c718f0140b3112789d370ebc707b6d6c01/events | jq
+$ sleep 10
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0/events | jq
 {
   "data": [
     {
@@ -284,14 +285,15 @@ Import a transaction from a JSON file at the provided path
 Usage: sov-cli transactions import from-file <COMMAND>
 
 Commands:
-  bank                A subcommand for the `bank` module
-  sequencer-registry  A subcommand for the `sequencer_registry` module
-  value-setter        A subcommand for the `value_setter` module
-  prover-incentives   A subcommand for the `prover_incentives` module
-  accounts            A subcommand for the `accounts` module
-  nonces              A subcommand for the `nonces` module
-  nft                 A subcommand for the `nft` module
-  help                Print this message or the help of the given subcommand(s)
+  bank                 A subcommand for the `bank` module
+  sequencer-registry   A subcommand for the `sequencer_registry` module
+  value-setter         A subcommand for the `value_setter` module
+  attester-incentives  A subcommand for the `attester_incentives` module
+  prover-incentives    A subcommand for the `prover_incentives` module
+  accounts             A subcommand for the `accounts` module
+  nonces               A subcommand for the `nonces` module
+  nft                  A subcommand for the `nft` module
+  help                 Print this message or the help of the given subcommand(s)
 
 Options:
   -h, --help  Print help

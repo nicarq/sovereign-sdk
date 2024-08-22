@@ -166,6 +166,7 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
         },
     }
 }
+
 #[test]
 fn test_slot_number() {
     generate_optimistic_runtime!(TestRuntime <=);

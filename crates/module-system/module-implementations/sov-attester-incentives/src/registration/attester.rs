@@ -121,7 +121,7 @@ where
             // Get the user's old balance.
             // Transfer the bond amount from the sender to the module's id.
             // On failure, no state is changed
-            self.transfer_tokens_to_sender(context, unbonding_info.amount, state)
+            self.transfer_tokens_to_sender(context.sender(), unbonding_info.amount, state)
                 .map_err(|_err| {
                     AttesterRegistryError::<S, ST>::InsufficientFundsToRefundStakedAmount {
                         address: context.sender().clone(),

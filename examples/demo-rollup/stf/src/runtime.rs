@@ -54,6 +54,8 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
     /// The Value Setter module.
     pub value_setter: sov_value_setter::ValueSetter<S>,
+    /// The Attester Incentives module.
+    pub attester_incentives: sov_attester_incentives::AttesterIncentives<S, Da>,
     /// The Prover Incentives module.
     pub prover_incentives: sov_prover_incentives::ProverIncentives<S, Da>,
     /// The Accounts module.
@@ -114,6 +116,7 @@ impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
             accounts: &self.accounts,
             nonces: &self.nonces,
             prover_incentives: &self.prover_incentives,
+            attester_incentives: &self.attester_incentives,
         }
     }
 }

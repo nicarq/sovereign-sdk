@@ -22,6 +22,7 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
     pub accounts: &'a sov_accounts::Accounts<S>,
     pub nonces: &'a sov_nonces::Nonces<S>,
     pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S, Da>,
+    pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S, Da>,
 }
 
 impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
@@ -194,20 +195,46 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
 
     fn process_attestation(
         &self,
-        _proof: sov_rollup_interface::optimistic::SerializedAttestation,
-        _prover_address: &<S as Spec>::Address,
-        _state: &mut WorkingSet<S>,
+        proof: sov_rollup_interface::optimistic::SerializedAttestation,
+        prover_address: &<S as Spec>::Address,
+        state: &mut WorkingSet<S>,
     ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
-        ProofOutcome::Invalid
+        let result = self
+            .attester_incentives
+            .process_attestation(prover_address, proof, state);
+
+        match result {
+            Ok(_) => ProofOutcome::Ignored,
+            Err(e) => {
+                // TODO #815: correctly handle errors
+                error!("Attestation validation failed {:?}", e);
+                ProofOutcome::Invalid
+            }
+        }
     }
 
     fn process_challenge(
         &self,
-        _proof: sov_rollup_interface::optimistic::SerializedChallenge,
-        _prover_address: &<S as Spec>::Address,
-        _state: &mut WorkingSet<S>,
+        proof: sov_rollup_interface::optimistic::SerializedChallenge,
+        transition_num: u64,
+        prover_address: &<S as Spec>::Address,
+        state: &mut WorkingSet<S>,
     ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
-        ProofOutcome::Invalid
+        let result = self.attester_incentives.process_challenge(
+            prover_address,
+            &proof,
+            transition_num,
+            state,
+        );
+
+        match result {
+            Ok(_) => ProofOutcome::Ignored,
+            Err(e) => {
+                // TODO #815: correctly handle errors
+                error!("Attestation validation failed {:?}", e);
+                ProofOutcome::Invalid
+            }
+        }
     }
 }
 

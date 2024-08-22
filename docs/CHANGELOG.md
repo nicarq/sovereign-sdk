@@ -1,3 +1,4 @@
+- #1245 Add `sov-attester-incentive` to the rollup's `Runtime`. Adds relevant config files.
 - #1234 Add support for `process_attestation & process_challenge` capabilities in the `STF blueprint`.
 -  #1233 Add support for the optimistic workflow in the `STF blueprint`.
 - #1228 Converts sov-attester-incentive to capability.

@@ -162,6 +162,7 @@ macro_rules! generate_optimistic_runtime {
             fn process_challenge(
                 &self,
                 _proof: ::sov_modules_api::SerializedChallenge,
+                _transition_num: u64,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
@@ -213,6 +214,7 @@ macro_rules! generate_zk_runtime {
             fn process_challenge(
                 &self,
                 _proof: ::sov_modules_api::SerializedChallenge,
+                _transition_num: u64,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
