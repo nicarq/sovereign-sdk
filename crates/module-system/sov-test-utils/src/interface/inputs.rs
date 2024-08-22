@@ -171,7 +171,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
                 details.max_priority_fee_bips,
                 details.max_fee,
                 nonce,
-                None,
+                details.gas_limit,
             ),
         ))
         .unwrap();
