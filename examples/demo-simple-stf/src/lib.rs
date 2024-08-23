@@ -40,7 +40,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type TxReceiptContents = ();
 
     // Similarly, we don't bother implementing special receipts for proofs in this tutorial
-    type ProofReceiptContents = ();
+    type StorageProof = ();
 
     // This is the type that will be returned as a result of `apply_blob`.
     type BatchReceiptContents = ApplySlotResult;

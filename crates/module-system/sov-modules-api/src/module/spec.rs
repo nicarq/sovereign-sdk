@@ -4,9 +4,10 @@ use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::crypto::Signature;
+use sov_rollup_interface::stf::ProofOutcome;
 use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
 use sov_rollup_interface::RollupAddress;
-use sov_state::{Storage, Witness};
+use sov_state::{Storage, StorageProof, Witness};
 
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
@@ -202,6 +203,14 @@ impl<S: Spec> Context<S> {
         self.visible_height
     }
 }
+
+/// Simplified type alias for ProofOutcome
+pub type SovProofOutcome<S, Da> = ProofOutcome<
+    <S as Spec>::Address,
+    Da,
+    <<S as Spec>::Storage as Storage>::Root,
+    StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+>;
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary {

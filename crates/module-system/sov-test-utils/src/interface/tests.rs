@@ -5,7 +5,7 @@ use sov_modules_api::{
     RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
 };
 use sov_modules_stf_blueprint::TxReceiptContents;
-use sov_state::Storage;
+use sov_state::{Storage, StorageProof};
 
 use super::{BatchType, ProofType, TransactionType};
 
@@ -107,8 +107,14 @@ pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
     /// this can happen if the proof was malformed by the prover. Generally this should always be
     /// present.
     #[allow(clippy::type_complexity)]
-    pub outcome:
-        Option<ProofReceipt<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root, ()>>,
+    pub outcome: Option<
+        ProofReceipt<
+            <S as Spec>::Address,
+            Da,
+            <<S as Spec>::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
+        >,
+    >,
 }
 
 /// A closure used to assert the outcome of a [`ProofTestCase`].

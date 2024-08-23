@@ -14,6 +14,7 @@ pub use proof_serializer::*;
 use thiserror::Error;
 pub use transaction::*;
 
+use super::optimistic::Attestation;
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
 use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
@@ -65,27 +66,23 @@ pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
 
 /// A receipt for data posted into the proof namespace
 #[derive(Debug, Clone)]
-pub struct ProofReceipt<Address, Da: DaSpec, Root, Extra> {
+pub struct ProofReceipt<Address, Da: DaSpec, Root, StorageProof> {
     /// The hash of the blob which contained the proof
     pub blob_hash: [u8; 32],
     /// The outcome of the proof
-    pub outcome: ProofOutcome<Address, Da, Root>,
-    /// Any extra structured data to store with the proof receipt. For example, this might
-    /// be the full contents of the proof (for an aggregate proof), or a proof that the sender
-    /// of an attestation was bonded.
-    pub extra_data: Extra,
+    pub outcome: ProofOutcome<Address, Da, Root, StorageProof>,
 }
 
 /// The contents of a proof receipt.
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
-pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
+pub enum ProofReceiptContents<Address, Da: DaSpec, Root, StorageProof> {
     /// A receipt for an aggregate proof contains the public data form the proof and the serialized proof.
     AggregateProof(AggregatedProofPublicData, SerializedAggregatedProof),
     /// A receipt for a block proof contains the public data from the state transition which was proven.
     BlockProof(StateTransitionPublicData<Address, Da, Root>),
     /// A receipt for an attestation contains the public data that the attestation made a claim about.
-    Attestation(StateTransitionPublicData<Address, Da, Root>),
+    Attestation(Attestation<Da::SlotHash, Root, StorageProof>),
 }
 
 /// The error returned when the proof that was processed is invalid.
@@ -108,17 +105,17 @@ pub enum InvalidProofError {
 /// The outcome of a proof
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
-pub enum ProofOutcome<Address, Da: DaSpec, Root> {
+pub enum ProofOutcome<Address, Da: DaSpec, Root, StorageProof> {
     /// The blob was filtered out as irrelevant
     Ignored,
     /// The blob is some kind of valid proof
-    Valid(ProofReceiptContents<Address, Da, Root>),
+    Valid(ProofReceiptContents<Address, Da, Root, StorageProof>),
     /// The blob is some kind of invalid proof
     Invalid(InvalidProofError),
 }
 
-type ProofReceipts<Address, Da, StateRoot, Extra> =
-    Vec<ProofReceipt<Address, Da, StateRoot, Extra>>;
+type ProofReceipts<Address, Da, StateRoot, StorageProof> =
+    Vec<ProofReceipt<Address, Da, StateRoot, StorageProof>>;
 
 /// The result of applying a slot to current state.
 pub struct ApplySlotOutput<
@@ -132,7 +129,7 @@ pub struct ApplySlotOutput<
     /// Container for all state alterations that happened during slot execution
     pub change_set: Stf::ChangeSet,
     /// Receipt for each applied proof transaction
-    pub proof_receipts: ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::ProofReceiptContents>,
+    pub proof_receipts: ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::StorageProof>,
     /// Receipt for each applied batch
     pub batch_receipts: Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>>,
     /// Witness after applying the whole block
@@ -173,8 +170,8 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     /// State of the rollup after transition.
     type ChangeSet;
 
-    /// The contents of a proof receipt. This is the data that is persisted in the database
-    type ProofReceiptContents: Serialize + DeserializeOwned + Clone;
+    /// The storage proof for attestation.
+    type StorageProof: Serialize + DeserializeOwned + Clone + Debug;
 
     /// The contents of a transaction for a successful transaction.
     type TxReceiptContents: TxReceiptContents;
