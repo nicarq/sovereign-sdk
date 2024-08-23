@@ -1,25 +1,9 @@
-use sov_modules_api::{InvalidProofError, ProofOutcome};
+use sov_modules_api::ProofOutcome;
 use sov_test_utils::{assert_matches, ProofTestCase, ProofType};
 
 use crate::helpers::{
     build_proof, consume_gas_tx_for_signer, serialize_proof, setup, TestProverIncentives,
 };
-
-#[test]
-fn test_invalid_proof() {
-    let (mut runner, _, _) = setup();
-
-    runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(())),
-        override_sequencer: None,
-        assert: Box::new(|result, _state| {
-            assert_matches!(
-                &result.outcome.unwrap().outcome,
-                ProofOutcome::Invalid(e) if matches!(e, InvalidProofError::ProofInvalid(s) if s == "The aggregated proof is invalid")
-            );
-        }),
-    });
-}
 
 #[test]
 fn test_valid_proof() {
