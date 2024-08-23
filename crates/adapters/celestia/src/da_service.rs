@@ -250,7 +250,7 @@ impl DaService for CelestiaService {
             .header_get_by_height(height)
             .await
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        trace!(%header, height, time = ?start_get_block.elapsed(), "Got the block header");
+        trace!(%header, height, time_ms = start_get_block.elapsed().as_millis(), "Got the block header");
 
         let data_futures_all = Instant::now();
         let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
@@ -269,7 +269,10 @@ impl DaService for CelestiaService {
             data_square_future
         )
         .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        trace!(time = ?data_futures_all.elapsed(), "All data futures are resolved");
+        trace!(
+            time_ms = data_futures_all.elapsed().as_millis(),
+            "All data futures are resolved"
+        );
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: self.rollup_batch_namespace,
@@ -281,7 +284,10 @@ impl DaService for CelestiaService {
             rows: proof_rows,
         };
 
-        trace!(time = ?start_get_block.elapsed(), "Get block total");
+        trace!(
+            time_ms = start_get_block.elapsed().as_millis(),
+            "Get block total"
+        );
         FilteredCelestiaBlock::new(
             rollup_batch_shares,
             rollup_proof_shares,
