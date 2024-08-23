@@ -34,6 +34,7 @@ jsonrpsee = { workspace = true, features = [
     "server",
 ], optional = true }
 tracing = { workspace = true }
+derive_more = { workspace = true }
 
 sov-bank = { workspace = true }
 sov-modules-api = { workspace = true }

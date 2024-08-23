@@ -3766,6 +3766,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "derive_more",
  "serde",
  "sov-bank",
  "sov-chain-state",

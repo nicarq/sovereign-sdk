@@ -30,8 +30,8 @@ pub enum ProcessProofError<S: Spec> {
     )]
     TransferFailure(String),
 
-    #[error("The aggregated proof is invalid")]
-    InvalidProof,
+    #[error("The aggregated proof is invalid: {0}")]
+    InvalidProof(String),
 
     #[error("Prover is not bonded at the time of the transaction")]
     ProverNotBonded,
@@ -46,7 +46,7 @@ pub enum ProcessProofError<S: Spec> {
 impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
     fn from(error: ProcessProofError<S>) -> Self {
         match error {
-            ProcessProofError::InvalidProof => InvalidProofError::ProofInvalid(error.to_string()),
+            ProcessProofError::InvalidProof(e) => InvalidProofError::ProofInvalid(e.to_string()),
             ProcessProofError::ProverNotBonded | ProcessProofError::BondNotHighEnough => {
                 InvalidProofError::PreconditionNotMet(error.to_string())
             }
@@ -109,7 +109,9 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                     },
                 );
 
-                return Err(ProcessProofError::InvalidProof);
+                return Err(ProcessProofError::InvalidProof(
+                    "Verification failed".to_string(),
+                ));
             }
         };
 
@@ -123,10 +125,13 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                         state,
                         Event::<S>::ProverSlashed {
                             prover: prover_address.clone(),
-                            reason,
+                            reason: reason.clone(),
                         },
                     );
-                    return Err(ProcessProofError::InvalidProof);
+                    return Err(ProcessProofError::InvalidProof(format!(
+                        "Invalid output {}",
+                        reason
+                    )));
                 }
             }
         }

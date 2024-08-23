@@ -6,6 +6,7 @@
     Debug,
     PartialEq,
     Clone,
+    derive_more::Display,
 )]
 /// Reasons for slashing a prover
 pub enum SlashingReason {
