@@ -43,13 +43,13 @@ sov-chain-state = { workspace = true }
 [features]
 default = []
 native = [
-    "jsonrpsee",
-    "schemars",
-    "sov-bank/native",
-    "sov-chain-state/native",
-    "sov-mock-da/native",
-    "sov-mock-zkvm/native",
-    "sov-modules-api/native",
-    "sov-prover-incentives/native",
-    "sov-state/native",
+	"jsonrpsee",
+	"schemars",
+	"sov-bank/native",
+	"sov-chain-state/native",
+	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
+	"sov-modules-api/native",
+	"sov-prover-incentives/native",
+	"sov-state/native",
 ]

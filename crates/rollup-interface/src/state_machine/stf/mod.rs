@@ -11,6 +11,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 mod transaction;
 pub use proof_serializer::*;
+use thiserror::Error;
 pub use transaction::*;
 
 use crate::da::{DaSpec, RelevantBlobIters};
@@ -87,6 +88,23 @@ pub enum ProofReceiptContents<Address, Da: DaSpec, Root> {
     Attestation(StateTransitionPublicData<Address, Da, Root>),
 }
 
+/// The error returned when the proof that was processed is invalid.
+#[derive(Debug, Clone, Error)]
+pub enum InvalidProofError {
+    /// A precondition for processing the proof was not met.
+    #[error("A precondition required to process the proof was not met: {0}")]
+    PreconditionNotMet(String),
+    /// The proof that was submitted was invalid.
+    #[error("Proof is invalid: {0}")]
+    ProofInvalid(String),
+    /// Failed to reward the submitter of the proof.
+    #[error("Failed to reward submitter: {0}. Rewarding module might not have enough funds. This is a bug!")]
+    RewardFailure(String),
+    /// An error occurred when accessing the state
+    #[error("Error occurred when accessing the state, error: {0}")]
+    StateAccess(String),
+}
+
 /// The outcome of a proof
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone)]
@@ -96,7 +114,7 @@ pub enum ProofOutcome<Address, Da: DaSpec, Root> {
     /// The blob is some kind of valid proof
     Valid(ProofReceiptContents<Address, Da, Root>),
     /// The blob is some kind of invalid proof
-    Invalid,
+    Invalid(InvalidProofError),
 }
 
 type ProofReceipts<Address, Da, StateRoot, Extra> =

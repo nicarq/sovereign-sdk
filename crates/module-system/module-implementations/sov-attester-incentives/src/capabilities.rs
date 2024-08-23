@@ -1,11 +1,12 @@
 //! Methods used to process attestations and challenges.
 use core::result::Result::Ok;
+use std::fmt::Display;
 
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    EventEmitter, Gas, SerializedAttestation, SerializedChallenge, StateAccessorError,
-    StateTransitionPublicData, TxState, Zkvm,
+    EventEmitter, Gas, InvalidProofError, SerializedAttestation, SerializedChallenge,
+    StateAccessorError, StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
@@ -21,12 +22,12 @@ pub enum ProcessAttestationErrors<AccessorError> {
     /// Unable to deserialize the attestation.
     InvalidAttestationFormat,
 
-    #[error("Attester is not bonded at the time of the transaction")]
-    /// Attester is not bonded at the time of the transaction
+    #[error("Attester slashed: {0}")]
+    /// Attester slashed
     AttesterSlashed(SlashingReason),
 
-    #[error("Attester slashed")]
-    /// Attester slashed
+    #[error("Attester is not bonded at the time of the transaction")]
+    /// Attester is not bonded at the time of the transaction
     AttesterNotBonded,
 
     #[error("Invalid bonding proof")]
@@ -41,15 +42,36 @@ pub enum ProcessAttestationErrors<AccessorError> {
     /// Transition invariant isn't respected
     InvalidTransitionInvariant,
 
-    #[error(
-        "Error occurred when trying to reward a user. The `AttesterIncentives` module may not have enough funds. This is a bug."
-    )]
+    #[error("Error occurred when trying to reward a user. {0}. This is a bug.")]
     /// An error occurred when transferred funds
-    RewardTransferFailure,
+    RewardTransferFailure(String),
 
     #[error("Error occurred when accessing the state, error: {0}")]
     /// An error occurred when accessing the state
     StateAccessError(#[from] AccessorError),
+}
+
+impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for InvalidProofError {
+    fn from(error: ProcessAttestationErrors<AccessorError>) -> Self {
+        match error {
+            ProcessAttestationErrors::AttesterSlashed(reason) => {
+                InvalidProofError::ProofInvalid(format!("{}", reason))
+            }
+            ProcessAttestationErrors::InvalidAttestationFormat
+            | ProcessAttestationErrors::AttesterNotBonded
+            | ProcessAttestationErrors::InvalidBondingProof
+            | ProcessAttestationErrors::InvalidTransitionInvariant
+            | ProcessAttestationErrors::InvalidBondFormat => {
+                InvalidProofError::PreconditionNotMet(format!("{}", error))
+            }
+            ProcessAttestationErrors::RewardTransferFailure(e) => {
+                InvalidProofError::RewardFailure(e)
+            }
+            ProcessAttestationErrors::StateAccessError(e) => {
+                InvalidProofError::StateAccess(e.to_string())
+            }
+        }
+    }
 }
 
 /// Error raised while processing the attester incentives.
@@ -63,15 +85,30 @@ pub enum ProcessChallengeErrors<AccessorError> {
     /// User is not bonded at the time of the transaction
     ChallengerNotBonded,
 
-    #[error(
-        "Error occurred when trying to reward a user. The `AttesterIncentives` module may not have enough funds. This is a bug."
-    )]
+    #[error("Error occurred when trying to reward a user: {0}. This is a bug.")]
     /// An error occurred when transferred funds
-    RewardTransferFailure,
+    RewardTransferFailure(String),
 
     #[error("Error occurred when accessing the state, error: {0}")]
     /// An error occurred when accessing the state
     StateAccessError(#[from] AccessorError),
+}
+
+impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for InvalidProofError {
+    fn from(error: ProcessChallengeErrors<AccessorError>) -> Self {
+        match error {
+            ProcessChallengeErrors::ChallengerSlashed(reason) => {
+                InvalidProofError::ProofInvalid(reason.to_string())
+            }
+            ProcessChallengeErrors::ChallengerNotBonded => {
+                InvalidProofError::PreconditionNotMet(format!("{}", error))
+            }
+            ProcessChallengeErrors::RewardTransferFailure(e) => InvalidProofError::RewardFailure(e),
+            ProcessChallengeErrors::StateAccessError(e) => {
+                InvalidProofError::StateAccess(e.to_string())
+            }
+        }
+    }
 }
 
 impl<AccessorError> ProcessChallengeErrors<AccessorError> {
@@ -218,7 +255,7 @@ where
                     error!(
                         error = ?err,
                         "Error raised transferring reward to the attester");
-                    ProcessAttestationErrors::RewardTransferFailure
+                    ProcessAttestationErrors::RewardTransferFailure(err.to_string())
                 })?;
         }
 
@@ -324,7 +361,7 @@ where
                     error!(
                             error = ?err,
                             "Error raised transferring reward to the challenger");
-                    ProcessChallengeErrors::RewardTransferFailure
+                    ProcessChallengeErrors::RewardTransferFailure(err.to_string())
                 })?;
 
                 // Now remove the bad transition from the pool

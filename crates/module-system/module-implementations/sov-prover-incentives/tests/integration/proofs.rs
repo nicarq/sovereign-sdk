@@ -1,4 +1,4 @@
-use sov_modules_api::ProofOutcome;
+use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_test_utils::{assert_matches, ProofTestCase, ProofType};
 
 use crate::helpers::{
@@ -13,10 +13,10 @@ fn test_invalid_proof() {
         input: ProofType::Inline(serialize_proof(())),
         override_sequencer: None,
         assert: Box::new(|result, _state| {
-            assert!(matches!(
-                result.outcome.unwrap().outcome,
-                ProofOutcome::Invalid
-            ),);
+            assert_matches!(
+                &result.outcome.unwrap().outcome,
+                ProofOutcome::Invalid(e) if matches!(e, InvalidProofError::ProofInvalid(s) if s == "The aggregated proof is invalid")
+            );
         }),
     });
 }
