@@ -9,7 +9,7 @@
 
 ```
 $ cd examples/demo-rollup/benches/prover
-$ cargo bench --features bench --bench prover_bench
+$ SKIP_GUEST_BUILD=0 cargo bench --features bench --bench prover_bench
 ```
 
 ## Methodology
