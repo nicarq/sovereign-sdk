@@ -248,7 +248,7 @@ where
         ledger_db: LedgerDb,
         stf: Stf,
         storage_manager: Sm,
-        rpc_storage_sender: watch::Sender<Sm::StfState>,
+        api_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
         st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     ) -> anyhow::Result<Self> {
@@ -274,7 +274,7 @@ where
             storage_manager,
             ledger_db,
             prev_state_root,
-            rpc_storage_sender,
+            api_storage_sender,
         );
 
         let sync_fetcher = FinalizedBlocksBulkFetcher::new(

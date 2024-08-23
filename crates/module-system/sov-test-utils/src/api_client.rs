@@ -1,6 +1,8 @@
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
+use reqwest::{Client, ClientBuilder};
+use serde::de::DeserializeOwned;
 
-/// API clients for a running Soverign rollup node.
+/// API clients for a running Sovereign rollup node.
 ///
 /// Whenever you need to interact with the node over the network within tests,
 /// you can use this.
@@ -23,6 +25,11 @@ pub struct ApiClient {
     pub ledger: sov_ledger_json_client::Client,
     /// A [`WsClient`] client for communications with RPC.
     pub rpc: WsClient,
+
+    /// This is temporary while REST clients for each module appear.
+    rest_port: u16,
+    /// [`reqwest::Client`] client as temporary sub for JSON client
+    pub raw_rest: Client,
 }
 
 impl ApiClient {
@@ -38,10 +45,22 @@ impl ApiClient {
             .build(&format!("ws://127.0.0.1:{rpc_port}"))
             .await?;
 
+        let raw_rest = ClientBuilder::default().build()?;
+
         Ok(Self {
             sequencer,
             ledger,
             rpc,
+            rest_port,
+            raw_rest,
         })
+    }
+
+    /// Performs a get request at given URL on the REST API socket.
+    pub async fn query_rest_endpoint<R: DeserializeOwned>(&self, url: &str) -> anyhow::Result<R> {
+        let url = format!("http://127.0.0.1:{}{}", self.rest_port, url);
+        let response = self.raw_rest.get(url).send().await?;
+        let data = response.json::<R>().await?;
+        Ok(data)
     }
 }

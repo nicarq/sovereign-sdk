@@ -86,10 +86,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
                 #(#router_nest_ops)*
 
-                let custom_router = HasCustomRestApi::<<Self as TxHooks>::Spec>::custom_rest_api(
-                    &self, ApiState::new((&self), storage.clone()),
-                );
-                router.merge(custom_router)
+                router
             }
 
             fn openapi_spec(&self) -> Option<serde_json::Value> {

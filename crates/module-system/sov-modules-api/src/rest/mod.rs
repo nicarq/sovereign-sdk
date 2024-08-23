@@ -18,7 +18,7 @@
 //! | Trait | Derivable | Implemented by |
 //! | ----- | --------- | ---- |
 //! | [`crate::rest::HasRestApi`] | With [`crate::macros::ModuleRestApi`] and [`crate::macros::RuntimeRestApi`] | Modules and runtimes |
-//! | [`crate::rest::HasCustomRestApi`]   | ❌ | Modules and runtimes |
+//! | [`crate::rest::HasCustomRestApi`]   | ❌ | Modules |
 //!
 //! Implementing or deriving *any* of these traits is optional, but types
 //! implementing [`crate::rest::HasCustomRestApi`] ought to also derive [`crate::rest::HasRestApi`], or
@@ -107,7 +107,8 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 ///     state_item: StateValue<S::Address>,
 /// }
 ///
-/// impl<S: Spec> HasCustomRestApi<S> for MyModule<S> {
+/// impl<S: Spec> HasCustomRestApi for MyModule<S> {
+///     type Spec = S;
 ///     fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
 ///         use axum::routing::get;
 ///
@@ -142,9 +143,20 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// # }
 /// # // END MODULE IMPL
 /// ```
-pub trait HasCustomRestApi<S: Spec>: Sized {
+pub trait HasCustomRestApi: Sized + Clone {
+    /// Spec for [`ApiState`]
+    type Spec: Spec;
     /// Returns an [`axum::Router`] on the provided [`ApiState`] instance for the REST API.
-    fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()>;
+    fn custom_rest_api(&self, state: ApiState<Self, Self::Spec>) -> axum::Router<()>;
+
+    /// Lower-level alternative detail to [`HasCustomRestApi::custom_rest_api`],
+    /// if you're not interested in using [`ApiState`].
+    fn custom_rest_api_from_storage(
+        &self,
+        storage: StorageReceiver<Self::Spec>,
+    ) -> axum::Router<()> {
+        self.custom_rest_api(ApiState::new(self.clone(), storage))
+    }
 
     /// Returns the OpenAPI specification for [`HasCustomRestApi::custom_rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
@@ -153,12 +165,14 @@ pub trait HasCustomRestApi<S: Spec>: Sized {
     }
 }
 
-/// In case [`HasCustomRestApi`] is implemented for a [`Module`] or Runtime, an
+/// In case [`HasCustomRestApi`] is implemented for a [`Module`], an
 /// empty [`axum::Router`] will be returned instead.
 ///
-/// This "blanket" implementation uses the autoref trick.
-impl<T, S: Spec> HasCustomRestApi<S> for &T {
-    fn custom_rest_api(&self, _state: ApiState<Self, S>) -> axum::Router<()> {
+/// This "blanket" implementation uses the [Autoref-based stable specialization](https://github.com/dtolnay/case-studies/tree/master/autoref-specialization)
+impl<T: ModuleInfo> HasCustomRestApi for &T {
+    type Spec = T::Spec;
+    fn custom_rest_api(&self, _state: ApiState<Self, Self::Spec>) -> axum::Router<()> {
+        tracing::trace!(module = std::any::type_name::<T>(), id = %self.id(), "No `HasCustomRestApi` implementation found for module");
         axum::Router::new()
     }
 }

@@ -1,8 +1,9 @@
 - #1261 Return Attestation and Challenge in ProofReceipt 
 - #1252 Add `Attestation` data in the `ProofReceiptContents::Attestation` variant.
 - #1245 Add `sov-attester-incentive` to the rollup's `Runtime`. Adds relevant config files.
+- #1238 Adds a custom REST API endpoint to bank module, allowing query balance. Fixes `ModuleRestApi` derive macro to correctly pickup specialized implementation of `HasCustomRestApi` trait.
 - #1234 Add support for `process_attestation & process_challenge` capabilities in the `STF blueprint`.
--  #1233 Add support for the optimistic workflow in the `STF blueprint`.
+- #1233 Add support for the optimistic workflow in the `STF blueprint`.
 - #1228 Converts sov-attester-incentive to capability.
 - #1223 Adds logging of response times for celestia adapter. Minimal configuration: `RUST_LOG="info,sov_celestia_adapter::da_service=trace,jsonrpsee=trace,jsonrpsee-http=info,jsonrpsee-client=info"`
 - #1227 Changes public API in `StateDb`. `StateDb::materialize_preimages` and `StateDb::materialize_node_batches` are not generic anymore and now take 2 parameters for `kernel` and `user` namespace data.

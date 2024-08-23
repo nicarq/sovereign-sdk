@@ -22,7 +22,7 @@ struct ForkPoint<Da: DaService, StateRoot> {
 }
 
 /// StateManager controls storage lifecycle for [`StateTransitionFunction`],
-/// [`LedgerDb`] and RPC endpoints in case of DA-reorgs.
+/// [`LedgerDb`] and API endpoints in case of DA-reorgs.
 /// It needs [`DaService`] so it can backtrack to the last seen transition in new fork.
 pub struct StateManager<StateRoot, Witness, Sm, Da>
 where
@@ -36,7 +36,7 @@ where
     // But then the runner needs to know about it and carry it over.
     state_root: StateRoot,
     seen_state_transitions: VecDeque<StateTransitionInfo<StateRoot, Witness, Da::Spec>>,
-    rpc_storage_sender: watch::Sender<Sm::StfState>,
+    api_storage_sender: watch::Sender<Sm::StfState>,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
@@ -54,14 +54,14 @@ where
         storage_manager: Sm,
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
-        rpc_storage_sender: watch::Sender<Sm::StfState>,
+        api_storage_sender: watch::Sender<Sm::StfState>,
     ) -> Self {
         Self {
             storage_manager,
             ledger_db,
             state_root: initial_state_root,
             seen_state_transitions: Default::default(),
-            rpc_storage_sender,
+            api_storage_sender,
         }
     }
 
@@ -98,11 +98,11 @@ where
             .create_state_for(filtered_block.header())?;
         if reorg_happened {
             tracing::trace!(
-                "Reorg has happened, updating RPC and Ledger storage before returning Stf state"
+                "Reorg has happened, updating API and Ledger storage before returning Stf state"
             );
-            // In case if reorg happened, we want to keep ledger and RPC storages in sync.
-            // Otherwise, the RPC storage and LedgerDb have been updated in [`Self::update_rpc_and_ledger_storage`]
-            self.rpc_storage_sender.send_replace(stf_pre_state.clone());
+            // In case if reorg happened, we want to keep ledger and API storages in sync.
+            // Otherwise, the API storage and LedgerDb have been updated in [`Self::update_api_and_ledger_storage`]
+            self.api_storage_sender.send_replace(stf_pre_state.clone());
             self.ledger_db.replace_reader(ledger_state);
         }
 
@@ -158,13 +158,13 @@ where
         self.storage_manager
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
 
-        self.update_rpc_and_ledger_storage(&block_header)?;
+        self.update_api_and_ledger_storage(&block_header)?;
         for finalized_transition in &finalized_transitions {
             self.storage_manager
                 .finalize(finalized_transition.da_block_header())?;
         }
         self.state_root = new_state_root;
-        // RPC storage and Ledger have all data from this iteration,
+        // API storage and Ledger have all data from this iteration,
         // now it is safe to submit notifications.
         self.ledger_db.send_notifications();
 
@@ -253,19 +253,19 @@ where
         Ok((ledger_change_set, finalized_transitions))
     }
 
-    fn update_rpc_and_ledger_storage(
+    fn update_api_and_ledger_storage(
         &mut self,
         block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
     ) -> anyhow::Result<()> {
-        tracing::trace!(after_block = %block_header.display(), "Updating Ledger and RPC storage");
-        let (rpc_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
+        tracing::trace!(after_block = %block_header.display(), "Updating Ledger and API storage");
+        let (api_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
 
         // `send_replace` is superior to `send` for our use case. It never fails
         // because it doesn't need to notify all receivers, unlike `send`, which
         // we don't need. It will also keep working even if there are no
         // receivers currently alive, which makes it easier to reason about the
         // code.
-        self.rpc_storage_sender.send_replace(rpc_storage);
+        self.api_storage_sender.send_replace(api_storage);
         self.ledger_db.replace_reader(ledger_state);
         Ok(())
     }
@@ -324,7 +324,7 @@ mod tests {
         let genesis_header = MockBlockHeader::from_height(0);
         let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_header)?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
-        let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
+        let api_storage_sender = watch::Sender::new(genesis_storage.clone());
 
         let (state_root, change_set) = produce_synthetic_changes(&genesis_storage, 0);
 
@@ -334,7 +334,7 @@ mod tests {
             storage_manager,
             ledger_db,
             state_root,
-            rpc_storage_sender,
+            api_storage_sender,
         ))
     }
 
@@ -455,7 +455,7 @@ mod tests {
         let fork_point = 3;
         let last_block = 5;
 
-        let storage_receiver = state_manager.rpc_storage_sender.subscribe();
+        let storage_receiver = state_manager.api_storage_sender.subscribe();
 
         let mut da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(5);
         da_service

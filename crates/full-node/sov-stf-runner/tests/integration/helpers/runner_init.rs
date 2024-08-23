@@ -170,7 +170,7 @@ pub async fn initialize_runner(
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
-    let rpc_storage_sender = watch::Sender::new(genesis_storage.clone());
+    let api_storage_sender = watch::Sender::new(genesis_storage.clone());
 
     let inner_vm = MockZkvm::new();
     let outer_vm = MockZkvm::new_non_blocking();
@@ -220,7 +220,7 @@ pub async fn initialize_runner(
             ledger_db.clone(),
             stf,
             storage_manager,
-            rpc_storage_sender,
+            api_storage_sender,
             prev_state_root,
             st_info_sender,
         )

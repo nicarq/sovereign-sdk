@@ -263,11 +263,12 @@ mod blueprint {
                 },
             };
 
-            let rpc_storage = tokio::sync::watch::channel(prover_storage);
+            let (api_storage_sender, api_storage_receiver) =
+                tokio::sync::watch::channel(prover_storage);
             // We pass "bootstrap" storage here,
             // as it will be replaced with the latest on after first processed block.
             let endpoints = self.create_endpoints(
-                rpc_storage.1,
+                api_storage_receiver,
                 &ledger_db,
                 &sequencer_db,
                 &da_service,
@@ -298,7 +299,7 @@ mod blueprint {
                 ledger_db,
                 native_stf,
                 storage_manager,
-                rpc_storage.0,
+                api_storage_sender,
                 prev_state_root,
                 st_info_sender,
             )

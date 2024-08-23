@@ -120,9 +120,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
                 #(#router_nest_ops)*
 
-                let custom_router = HasCustomRestApi::<<Self as Module>::Spec>::custom_rest_api(
-                    &self, ApiState::new((&self), storage.clone()),
-                );
+                let custom_router = (self).custom_rest_api_from_storage(storage.clone());
                 router = router.nest("/", custom_router);
 
                 router

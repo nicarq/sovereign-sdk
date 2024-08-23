@@ -10201,6 +10201,7 @@ dependencies = [
  "jsonrpsee",
  "paste",
  "proptest",
+ "reqwest 0.12.5",
  "rockbound",
  "serde",
  "serde_json",
