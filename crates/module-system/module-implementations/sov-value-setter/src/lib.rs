@@ -3,15 +3,11 @@
 mod call;
 mod genesis;
 
-#[cfg(test)]
-mod tests;
-
 mod event;
 pub use call::*;
+pub use event::Event;
 pub use genesis::*;
 use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
-
-use crate::event::Event;
 
 /// A new module:
 /// - Must derive `ModuleInfo`
