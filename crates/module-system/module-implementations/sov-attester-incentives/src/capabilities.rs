@@ -125,27 +125,36 @@ where
     /// Try to process an attestation if the attester is bonded.
     /// This function returns an error (hence ignores the transaction) when the attester is not bonded
     /// or when the module is unable to verify the bonding proof.
+    #[allow(clippy::type_complexity)]
     pub fn process_attestation(
         &self,
         sender: &S::Address,
         serialized_attestation: SerializedAttestation,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<
+        Attestation<
+            Da::SlotHash,
+            <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
+        >,
+        ProcessAttestationErrors<StateAccessorError<S::Gas>>,
+    > {
         let attestation = serialized_attestation.to_attestation().map_err(|e| {
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-        self.process_attestation_helper(sender, attestation, state)
+        self.process_attestation_helper(sender, &attestation, state)?;
+        Ok(attestation)
     }
 
     #[allow(clippy::type_complexity)]
     pub(crate) fn process_attestation_helper(
         &self,
         sender: &S::Address,
-        attestation: Attestation<
+        attestation: &Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
@@ -155,7 +164,7 @@ where
         }
 
         // If the bonding proof in the attestation is invalid, light clients will ignore the attestation. In that case, we should too.
-        self.check_bonding_proof(sender, &attestation, state)?;
+        self.check_bonding_proof(sender, attestation, state)?;
 
         // We suppose that these values are always defined, otherwise we panic
         let last_attested_height = self
@@ -204,7 +213,7 @@ where
         if let Err(err) = self.check_initial_hash(
             attestation.proof_of_bond.claimed_transition_num,
             sender,
-            &attestation,
+            attestation,
             state,
         ) {
             error!(
@@ -218,7 +227,7 @@ where
         if let Err(err) = self.check_transition(
             attestation.proof_of_bond.claimed_transition_num,
             sender,
-            &attestation,
+            attestation,
             state,
         ) {
             error!(
@@ -267,13 +276,17 @@ where
     /// Same comment as above for the [`AttesterIncentives::process_attestation`] method: if we have a slashable
     /// offense, we want to be able to exit gracefully.
 
+    #[allow(clippy::type_complexity)]
     pub fn process_challenge(
         &self,
         sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
         transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<
+        Option<StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>>,
+        ProcessChallengeErrors<StateAccessorError<S::Gas>>,
+    > {
         self.process_challenge_helper(
             sender,
             &serialized_challenge.raw_challenge,
@@ -282,13 +295,17 @@ where
         )
     }
 
+    #[allow(clippy::type_complexity)]
     pub(crate) fn process_challenge_helper(
         &self,
         sender: &S::Address,
         proof: &[u8],
         transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<
+        Option<StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>>,
+        ProcessChallengeErrors<StateAccessorError<S::Gas>>,
+    > {
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self
@@ -325,7 +342,7 @@ where
                     state,
                 )?;
 
-                return Ok(());
+                return Ok(None);
             }
         };
 
@@ -339,13 +356,13 @@ where
             Ok(public_output) => {
                 // We have to perform the checks to ensure that the challenge is valid while the attestation isn't.
                 if let Err(err) = self.check_challenge_outputs_against_transition(
-                    public_output,
+                    &public_output,
                     transition_num,
                     state,
                 ) {
                     if let ProcessChallengeErrors::ChallengerSlashed(err) = err {
                         self.slash_challenger_burn_reward(sender, err, state)?;
-                        return Ok(());
+                        return Ok(None);
                     }
 
                     return Err(err);
@@ -373,6 +390,8 @@ where
                         challenger: sender.clone(),
                     },
                 );
+
+                Ok(Some(public_output))
             }
             Err(_err) => {
                 // Slash the challenger
@@ -381,10 +400,8 @@ where
                     SlashingReason::InvalidProofOutputs,
                     state,
                 )?;
-                return Ok(());
+                Ok(None)
             }
         }
-
-        Ok(())
     }
 }

@@ -43,8 +43,8 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
         #[allow(clippy::type_complexity)]
         Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
     ),
     /// Processes a challenge. The challenge is encoded as a [`Vec<u8>`]. The second parameter is the transition number
@@ -126,12 +126,12 @@ where
         context: &Context<S>,
         attestation: Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
-        self.process_attestation_helper(context.sender(), attestation, state)?;
+        self.process_attestation_helper(context.sender(), &attestation, state)?;
         Ok(sov_modules_api::CallResponse::default())
     }
 

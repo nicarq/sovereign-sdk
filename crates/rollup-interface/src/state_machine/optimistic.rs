@@ -40,7 +40,7 @@ pub struct ProofOfBond<StateProof> {
     Eq,
     sov_wallet_format::UniversalWallet,
 )]
-pub struct Attestation<SlotHash, StateProof, StateRoot> {
+pub struct Attestation<SlotHash, StateRoot, StateProof> {
     /// The alleged state root before applying the contents of the da block
     pub initial_state_root: StateRoot,
     /// The hash of the block in which the transition occurred
@@ -106,10 +106,10 @@ impl SerializedAttestation {
     /// Serializes an attestation.
     pub fn from_attestation<
         SlotHash: BorshSerialize,
-        StateProof: BorshSerialize,
         StateRoot: BorshSerialize,
+        StateProof: BorshSerialize,
     >(
-        attestation: &Attestation<SlotHash, StateProof, StateRoot>,
+        attestation: &Attestation<SlotHash, StateRoot, StateProof>,
     ) -> anyhow::Result<Self> {
         Ok(Self {
             raw_attestation: borsh::to_vec(attestation)?,
@@ -119,8 +119,8 @@ impl SerializedAttestation {
     /// Deserializes an attestation.
     pub fn to_attestation<
         SlotHash: BorshDeserialize,
-        StateProof: BorshDeserialize,
         StateRoot: BorshDeserialize,
+        StateProof: BorshDeserialize,
     >(
         &self,
     ) -> anyhow::Result<Attestation<SlotHash, StateProof, StateRoot>> {

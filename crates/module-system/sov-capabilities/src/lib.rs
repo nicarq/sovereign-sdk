@@ -204,7 +204,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             .process_attestation(prover_address, proof, state);
 
         match result {
-            Ok(_) => ProofOutcome::Ignored,
+            Ok(attestation) => ProofOutcome::Valid(ProofReceiptContents::Attestation(attestation)),
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Attestation validation failed {:?}", e);
@@ -228,7 +228,8 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         );
 
         match result {
-            Ok(_) => ProofOutcome::Ignored,
+            Ok(Some(challenge)) => ProofOutcome::Valid(ProofReceiptContents::BlockProof(challenge)),
+            Ok(None) => ProofOutcome::Ignored,
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Attestation validation failed {:?}", e);
