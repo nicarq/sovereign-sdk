@@ -6,16 +6,11 @@ extern crate prettytable;
 
 use std::collections::HashMap;
 use std::env;
-use std::fs::{remove_file, File, OpenOptions};
-use std::io::Write;
 use std::path::Path;
-use std::sync::{Arc, Mutex};
 
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::{GenesisConfig, Runtime};
-use log4rs::config::{Appender, Config, Root};
 use prettytable::Table;
-use regex::Regex;
 use sov_db::storage_manager::NativeChangeSet;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
@@ -39,70 +34,7 @@ use tempfile::TempDir;
 
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
 
-#[derive(Debug)]
-struct RegexAppender {
-    regex: Regex,
-    file: Arc<Mutex<File>>,
-}
-
 const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/benchmark";
-
-impl RegexAppender {
-    fn new(pattern: &str, file_path: &str) -> Self {
-        if Path::new(file_path).exists() {
-            remove_file(file_path).expect("Failed to remove existing file");
-        }
-        let file = Arc::new(Mutex::new(
-            OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(file_path)
-                .unwrap(),
-        ));
-        let regex = Regex::new(pattern).unwrap();
-        RegexAppender { regex, file }
-    }
-}
-
-impl log::Log for RegexAppender {
-    fn enabled(&self, _metadata: &log::Metadata) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record) {
-        if let Some(captures) = self.regex.captures(record.args().to_string().as_str()) {
-            let mut file_guard = self.file.lock().unwrap();
-            if let Some(matched_pc) = captures.get(1) {
-                let pc_value_num = u64::from_str_radix(&matched_pc.as_str()[2..], 16).unwrap();
-                let pc_value = format!("{}\t", pc_value_num);
-                file_guard.write_all(pc_value.as_bytes()).unwrap();
-            }
-            if let Some(matched_iname) = captures.get(2) {
-                let iname = matched_iname.as_str().to_uppercase();
-                let iname_value = format!("{}\n", iname);
-                file_guard.write_all(iname_value.as_bytes()).unwrap();
-            }
-        }
-    }
-
-    fn flush(&self) {}
-}
-
-fn get_config(rollup_trace: &str) -> Config {
-    // [942786] pc: 0x0008e564, insn: 0xffc67613 => andi x12, x12, -4
-    let regex_pattern = r".*?pc: (0x[0-9a-fA-F]+), insn: .*?=> ([a-z]*?) ";
-
-    let custom_appender = RegexAppender::new(regex_pattern, rollup_trace);
-
-    Config::builder()
-        .appender(Appender::builder().build("custom_appender", Box::new(custom_appender)))
-        .build(
-            Root::builder()
-                .appender("custom_appender")
-                .build(log::LevelFilter::Trace),
-        )
-        .unwrap()
-}
 
 fn print_cycle_averages(metric_map: HashMap<String, (u64, u64)>) {
     let mut metrics_vec: Vec<(String, (u64, u64))> = metric_map
@@ -214,11 +146,6 @@ fn log_bench_data(bench_data: BenchData, mode: BenchMode) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    if let Ok(rollup_trace) = env::var("ROLLUP_TRACE") {
-        if let Err(e) = log4rs::init_config(get_config(&rollup_trace)) {
-            eprintln!("Error initializing logger: {:?}", e);
-        }
-    }
     // Run the risc0 benchmarks
     run(BenchRisc0STF::new(), risc0::MOCK_DA_ELF, BenchMode::Risc0).await?;
 
