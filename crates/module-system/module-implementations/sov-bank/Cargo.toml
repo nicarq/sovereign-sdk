@@ -41,7 +41,7 @@ native = [
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",
-	"sov-chain-state/native"
+	"sov-chain-state/native",
 ]
 cli = ["native"]
 test-utils = []

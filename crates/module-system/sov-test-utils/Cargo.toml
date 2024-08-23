@@ -15,7 +15,7 @@ publish = false
 workspace = true
 
 [dependencies]
-derivative = {workspace = true}
+derivative = { workspace = true }
 derive_more = { workspace = true }
 anyhow = { workspace = true }
 axum-server = { workspace = true }
@@ -57,9 +57,11 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
 rockbound = { workspace = true }
 paste = "1.0.15"
+reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
+
 
 [features]
 default = []
@@ -67,12 +69,12 @@ default = []
 # dependency, so it's optional.
 demo-stf = ["dep:demo-stf"]
 arbitrary = [
-	"ethereum-types/arbitrary",
-	"sov-db/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-sequencer-registry/arbitrary",
-	"sov-state/arbitrary",
-	"rockbound/arbitrary"
+    "ethereum-types/arbitrary",
+    "sov-db/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-state/arbitrary",
+    "rockbound/arbitrary"
 ]

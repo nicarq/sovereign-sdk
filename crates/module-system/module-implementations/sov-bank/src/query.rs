@@ -1,10 +1,13 @@
-//! Defines rpc queries exposed by the bank module, along with the relevant types
+//! Defines RPC and REST queries exposed by the bank module, along with the relevant types.
+
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::prelude::{axum, UnwrapInfallible};
+use sov_modules_api::rest::utils::{errors, ApiResult, Path};
+use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::ApiStateAccessor;
 
-use crate::{get_token_id, Amount, Bank, TokenId};
+use crate::{get_token_id, Amount, Bank, Coins, TokenId};
 
 /// Structure returned by the `balance_of` rpc method.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
@@ -67,5 +70,32 @@ impl<S: sov_modules_api::Spec> Bank<S> {
         salt: u64,
     ) -> RpcResult<TokenId> {
         Ok(get_token_id::<S>(&token_name, &sender, salt))
+    }
+}
+
+/// Axum routes.
+impl<S: sov_modules_api::Spec> Bank<S> {
+    async fn route_balance(
+        state: ApiState<Self, S>,
+        Path((token_id, user_address)): Path<(TokenId, S::Address)>,
+    ) -> ApiResult<Coins> {
+        let amount = state
+            .get_balance_of(&user_address, token_id, &mut state.api_state_accessor())
+            .unwrap_infallible()
+            .ok_or_else(|| errors::not_found_404("Balance", user_address))?;
+
+        Ok(Coins { amount, token_id }.into())
+    }
+}
+
+impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
+    type Spec = S;
+    fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
+        axum::Router::new()
+            .route(
+                "/tokens/:tokenId/balances/:address",
+                axum::routing::get(Self::route_balance),
+            )
+            .with_state(state)
     }
 }

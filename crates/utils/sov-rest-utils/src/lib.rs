@@ -60,7 +60,7 @@ pub type ApiResult<T, E = Response> = Result<ResponseObject<T>, E>;
 ///
 /// These two cases are usually but not always exclusive, notably in the case of
 /// partial success.
-#[derive(Debug, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct ResponseObject<T> {
     /// Core response data when successful.
@@ -68,7 +68,7 @@ pub struct ResponseObject<T> {
     pub data: Option<T>,
     /// A list of errors that occurred during the request. If the list is empty,
     /// the request was successful.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub errors: Vec<ErrorObject>,
     /// Metadata about the response, if present or needed (e.g. remaining
     /// requests available in the current rate limit window). This will be empty
@@ -121,7 +121,7 @@ impl IntoResponse for ErrorObject {
 pub type JsonObject = serde_json::Map<String, serde_json::Value>;
 
 /// Inspired from <https://jsonapi.org/format/#error-objects>.
-#[derive(Debug, serde::Serialize, PartialEq, Eq)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ErrorObject {
     /// The HTTP status that best describes the error.
     #[serde(with = "serde_status_code")]
@@ -134,12 +134,21 @@ pub struct ErrorObject {
 
 mod serde_status_code {
     use axum::http::StatusCode;
+    use serde::Deserialize;
 
     pub fn serialize<S>(status_code: &StatusCode, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         serializer.serialize_u16(status_code.as_u16())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<StatusCode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let code = u16::deserialize(deserializer)?;
+        StatusCode::from_u16(code).map_err(serde::de::Error::custom)
     }
 }
 

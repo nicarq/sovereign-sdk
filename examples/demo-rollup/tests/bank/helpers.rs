@@ -8,6 +8,7 @@ use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
+use sov_modules_api::rest::utils::{ErrorObject, ResponseObject};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
@@ -193,14 +194,35 @@ pub(crate) async fn assert_balance(
     user_address: <TestSpec as Spec>::Address,
     version: Option<u64>,
 ) -> anyhow::Result<()> {
-    let balance_response = sov_bank::BankRpcClient::<TestSpec>::balance_of(
+    let balance_response_rpc = sov_bank::BankRpcClient::<TestSpec>::balance_of(
         &client.rpc,
         version,
         user_address,
         token_id,
     )
     .await?;
-    assert_eq!(balance_response.amount.unwrap_or_default(), assert_amount);
+    assert_eq!(
+        balance_response_rpc.amount.unwrap_or_default(),
+        assert_amount
+    );
+
+    let height_param: String = version
+        .map(|h| format!("?height={}", h))
+        .unwrap_or_default();
+    let balance_url = format!(
+        "/modules/bank/tokens/{}/balances/{}{}",
+        token_id, user_address, height_param
+    );
+
+    let balance_response_rest = client
+        .query_rest_endpoint::<ResponseObject<Coins>>(&balance_url)
+        .await?;
+
+    assert_eq!(Vec::<ErrorObject>::new(), balance_response_rest.errors);
+    let rest_amount = balance_response_rest.data.unwrap().amount;
+
+    assert_eq!(assert_amount, rest_amount);
+
     Ok(())
 }
 
