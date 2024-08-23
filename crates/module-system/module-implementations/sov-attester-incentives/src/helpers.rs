@@ -55,8 +55,8 @@ where
         attester: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
@@ -235,8 +235,8 @@ where
         sender: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
     ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
@@ -296,8 +296,8 @@ where
         attester: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
-            StorageProof<<S::Storage as Storage>::Proof>,
             <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
     ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
@@ -352,7 +352,7 @@ where
 
     pub(crate) fn check_challenge_outputs_against_transition(
         &self,
-        public_outputs: StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
+        public_outputs: &StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {

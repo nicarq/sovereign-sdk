@@ -221,8 +221,8 @@ pub mod framework {
         ) -> Result<
             Attestation<
                 <MockDaSpec as DaSpec>::SlotHash,
-                StorageProof<<<TestSpec as Spec>::Storage as Storage>::Proof>,
                 <<TestSpec as Spec>::Storage as Storage>::Root,
+                StorageProof<<<TestSpec as Spec>::Storage as Storage>::Proof>,
             >,
             Infallible,
         > {
