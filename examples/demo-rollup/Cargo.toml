@@ -66,8 +66,7 @@ secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 
-# Only needed for NFT script.
-sov-test-utils = { workspace = true, optional = true }
+sov-sequencer-json-client = { workspace = true }
 
 [dev-dependencies]
 sov-rng-da-service = { workspace = true }
@@ -108,21 +107,20 @@ criterion = "0.5.1"
 
 [features]
 default = []
-nft-script = ["sov-test-utils"]
 bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
 
 bench = [
-	"hex",
-	"risc0/bench",
-	"sp1/bench",
-	"sov-celestia-adapter/bench",
-	"sov-modules-api/bench",
-	"sov-modules-stf-blueprint/bench",
-	"sov-risc0-adapter/bench",
-	"sov-state/bench",
-	"sov-sequencer-registry/bench",
-	"sov-sp1-adapter/bench",
-	"sov-cycle-utils",
+    "hex",
+    "risc0/bench",
+    "sp1/bench",
+    "sov-celestia-adapter/bench",
+    "sov-modules-api/bench",
+    "sov-modules-stf-blueprint/bench",
+    "sov-risc0-adapter/bench",
+    "sov-state/bench",
+    "sov-sequencer-registry/bench",
+    "sov-sp1-adapter/bench",
+    "sov-cycle-utils",
 ]
 offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
 
@@ -151,7 +149,6 @@ path = "src/sov-cli/main.rs"
 [[bin]]
 name = "sov-nft-script"
 path = "src/bin/sov_nft_script.rs"
-required-features = ["nft-script"]
 
 [[bin]]
 name = "sov-demo-rollup"
