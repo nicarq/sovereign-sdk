@@ -2,8 +2,8 @@ use std::cmp::max;
 
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    AggregatedProofPublicData, DaSpec, EventEmitter, Gas, SerializedAggregatedProof, Spec,
-    StateAccessorError, TxState, Zkvm,
+    AggregatedProofPublicData, DaSpec, EventEmitter, Gas, InvalidProofError,
+    SerializedAggregatedProof, Spec, StateAccessorError, TxState, Zkvm,
 };
 use thiserror::Error;
 
@@ -41,6 +41,21 @@ pub enum ProcessProofError<S: Spec> {
 
     #[error("An error occurred when trying to access the state, error: {0}")]
     StateAccessorError(#[from] StateAccessorError<S::Gas>),
+}
+
+impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
+    fn from(error: ProcessProofError<S>) -> Self {
+        match error {
+            ProcessProofError::InvalidProof => InvalidProofError::ProofInvalid(error.to_string()),
+            ProcessProofError::ProverNotBonded | ProcessProofError::BondNotHighEnough => {
+                InvalidProofError::PreconditionNotMet(error.to_string())
+            }
+            ProcessProofError::StateAccessorError(e) => {
+                InvalidProofError::StateAccess(e.to_string())
+            }
+            ProcessProofError::TransferFailure(e) => InvalidProofError::RewardFailure(e),
+        }
+    }
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {

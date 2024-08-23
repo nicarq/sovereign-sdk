@@ -196,8 +196,8 @@ macro_rules! generate_zk_runtime {
                     Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
                         ::sov_modules_api::ProofReceiptContents::AggregateProof(data, proof)
                     ),
-                    Err(_e) => {
-                        ::sov_modules_api::ProofOutcome::Invalid
+                    Err(e) => {
+                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
                     }
                 }
             }
@@ -231,18 +231,52 @@ macro_rules! assert_matches {
     ($value:expr, $pattern:pat) => {
         assert_matches!($value, $pattern, "")
     };
+    ($value:expr, $pattern:pat if $guard:expr) => {
+        assert_matches!($value, $pattern if $guard, "")
+    };
     ($value:expr, $pattern:pat, $message:expr) => {{
-        let value = $value;
-        assert!(
-            matches!(value, $pattern),
-            "{}Assertion failed:\nExpected: {}\nReceived: {:?}",
-            if $message.is_empty() {
-                String::new()
-            } else {
-                format!("{}\n", $message)
-            },
-            stringify!($pattern),
-            value
-        );
+        match $value {
+            $pattern => (),
+            ref _v => panic!(
+                "{}Assertion failed:\nExpected: {}\nReceived: {:?}",
+                if $message.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}\n", $message)
+                },
+                stringify!($pattern),
+                _v
+            ),
+        }
+    }};
+    ($value:expr, $pattern:pat if $guard:expr, $message:expr) => {{
+        match $value {
+            v @ $pattern => {
+                if !($guard) {
+                    panic!(
+                        "{}Assertion failed:\nExpected: {} if {}\nReceived: {:?}",
+                        if $message.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{}\n", $message)
+                        },
+                        stringify!($pattern),
+                        stringify!($guard),
+                        v
+                    )
+                }
+            }
+            ref _v => panic!(
+                "{}Assertion failed:\nExpected: {} if {}\nReceived: {:?}",
+                if $message.is_empty() {
+                    String::new()
+                } else {
+                    format!("{}\n", $message)
+                },
+                stringify!($pattern),
+                stringify!($guard),
+                _v
+            ),
+        }
     }};
 }

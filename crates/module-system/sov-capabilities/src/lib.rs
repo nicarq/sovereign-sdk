@@ -188,7 +188,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Proof validation failed {:?}", e);
-                ProofOutcome::Invalid
+                ProofOutcome::Invalid(e.into())
             }
         }
     }
@@ -208,7 +208,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Attestation validation failed {:?}", e);
-                ProofOutcome::Invalid
+                ProofOutcome::Invalid(e.into())
             }
         }
     }
@@ -232,7 +232,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
             Err(e) => {
                 // TODO #815: correctly handle errors
                 error!("Attestation validation failed {:?}", e);
-                ProofOutcome::Invalid
+                ProofOutcome::Invalid(e.into())
             }
         }
     }
