@@ -26,7 +26,7 @@ serde_json = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-test-utils = { workspace = true }
 tempfile = { workspace = true }
-simple-nft-module = { version = "*", features = ["native"], path = "." }
+simple-nft-module = { path = ".", features = ["native"] }
 
 [features]
 default = []
@@ -38,4 +38,3 @@ native = [
     "sov-rollup-interface/native",
     "sov-state/native",
 ]
-test = ["native"]
