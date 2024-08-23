@@ -28,6 +28,7 @@ mod sorting;
 pub mod errors;
 
 #[doc(hidden)]
+#[cfg(test)]
 pub mod test_utils;
 
 use std::fmt::Debug;
@@ -42,7 +43,6 @@ pub use axum_extractors::{Path, Query};
 use futures::StreamExt;
 pub use pagination::{PageSelection, Pagination};
 pub use sorting::{Sorting, SortingOrder};
-use tower_http::compression::CompressionLayer;
 use tower_http::cors::CorsLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
 use tower_http::trace::TraceLayer;
@@ -188,8 +188,6 @@ where
             tower::ServiceBuilder::new()
                 // Tracing.
                 .layer(TraceLayer::new_for_http())
-                // Compress responses with GZIP.
-                .layer(CompressionLayer::new())
                 // Propagate `X-Request-Id`s from requests to responses.
                 .layer(PropagateHeaderLayer::new(HeaderName::from_static(
                     "x-request-id",
