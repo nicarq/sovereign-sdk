@@ -41,7 +41,11 @@ where
         Box::pin(async move {
             let result = fut.await;
 
-            tracing::trace!(time=?start.elapsed(), success = result.is_ok(), "Request call completed");
+            tracing::trace!(
+                time_ms = start.elapsed().as_millis(),
+                success = result.is_ok(),
+                "Request call completed"
+            );
 
             result
         })
