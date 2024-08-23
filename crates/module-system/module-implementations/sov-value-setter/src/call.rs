@@ -37,7 +37,8 @@ pub enum CallMessage {
 
 /// Example of a custom error.
 #[derive(Debug, Error)]
-enum SetValueError {
+pub enum SetValueError {
+    /// Value tried to be set by a user that wasn't admin.
     #[error("Only admin can change the value")]
     WrongSender,
 }

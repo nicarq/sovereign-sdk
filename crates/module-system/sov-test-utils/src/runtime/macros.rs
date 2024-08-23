@@ -51,7 +51,7 @@ macro_rules! generate_runtime {
             }
 
             fn base_fee_recipient(&self) -> impl $crate::runtime::Payable<S> {
-                ::sov_bank::IntoPayable::to_payable(&self.$base_fee_recipient.id)
+                $crate::runtime::IntoPayable::to_payable(&self.$base_fee_recipient.id)
             }
         }
 
