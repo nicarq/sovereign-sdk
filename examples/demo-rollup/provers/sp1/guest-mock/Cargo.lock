@@ -1778,7 +1778,7 @@ dependencies = [
  "hex",
  "rand_core",
  "serde",
- "sha2 0.9.8",
+ "sha2 0.9.9",
  "thiserror",
  "zeroize",
 ]
@@ -5570,8 +5570,8 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.9.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.9.8#afdbfb09c325f8a69c01d540ec9a261e3637725d"
+version = "0.9.9"
+source = "git+https://github.com/sp1-patches/RustCrypto-hashes?branch=patch-v0.9.9#db82a4848f8d033eab544255e1efa036cc06f054"
 dependencies = [
  "block-buffer 0.9.0",
  "cfg-if",
@@ -7723,13 +7723,3 @@ dependencies = [
  "sha3",
  "subtle",
 ]
-
-[[patch.unused]]
-name = "secp256k1"
-version = "0.27.0"
-source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?rev=5f425f1223cfc7cd0cee61335268629659dc6007#5f425f1223cfc7cd0cee61335268629659dc6007"
-
-[[patch.unused]]
-name = "secp256k1"
-version = "0.28.2"
-source = "git+https://github.com/Sovereign-Labs/rust-secp256k1.git?rev=c921ac680bc998c738d83adac4c916eb4b191094#c921ac680bc998c738d83adac4c916eb4b191094"
