@@ -1,6 +1,6 @@
 .PHONY: help
 
-EXTRA_DIRS := crates/fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia
+EXTRA_DIRS := crates/fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia examples/demo-rollup/provers/sp1/guest-mock examples/demo-rollup/provers/sp1/guest-celestia
 
 # Default is 256[^1], but `proptest` can be slow[^2] and local testing is not
 # the place to run expensive, long-running tests with property checking. That's
@@ -28,7 +28,7 @@ total-clean:
 	$(MAKE) -C examples/demo-rollup clean-wallet;
 	@for dir in $(EXTRA_DIRS); do \
     	echo "Running cargo clean in $$dir"; \
-    	(cd $$dir && cargo clean); \
+    	(cargo clean --manifest-path "$$dir/Cargo.toml"); \
     done;
 	rm -rf "examples/demo-rollup/tests/evm/uniswap/node_modules"
 
@@ -92,7 +92,7 @@ extra-check:   ## cargo check in non attached crates
 	cargo check
 	@for dir in $(EXTRA_DIRS); do \
 		echo "Running cargo check in $$dir"; \
-		(cd $$dir && cargo check); \
+		(cargo check --manifest-path "$$dir/Cargo.toml"); \
 	done
 
 lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's not supported by risc0
