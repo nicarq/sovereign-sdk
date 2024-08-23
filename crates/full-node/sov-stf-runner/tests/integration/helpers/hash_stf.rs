@@ -72,7 +72,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type PreState = ProverStorage<S>;
     type ChangeSet = NativeChangeSet;
     type TxReceiptContents = ();
-    type ProofReceiptContents = ();
+    type StorageProof = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
     type Condition = Cond;
@@ -151,7 +151,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 
             proof_receipts.push(ProofReceipt {
                 blob_hash: [0u8; 32],
-                outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot>::Valid(
+                outcome: ProofOutcome::<Self::Address, Da, Self::StateRoot, _>::Valid(
                     ProofReceiptContents::AggregateProof(
                         public_data,
                         SerializedAggregatedProof {
@@ -159,7 +159,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                         },
                     ),
                 ),
-                extra_data: (),
             });
         }
 

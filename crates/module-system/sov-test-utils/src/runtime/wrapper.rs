@@ -15,15 +15,13 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{
     BatchSequencerReceipt, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
     GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, RawTx,
-    RuntimeEventProcessor, Spec, StateAccessor, StateCheckpoint, TxScratchpad, TypedEvent,
-    UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
+    RuntimeEventProcessor, SovProofOutcome, Spec, StateAccessor, StateCheckpoint, TxScratchpad,
+    TypedEvent, UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::stf::ProofOutcome;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
-use sov_state::Storage;
 
 use super::traits::{
     EndSlotHookRegistry, MinimalGenesis, MinimalRuntime, PostTxHookRegistry, StandardRuntime,
@@ -574,7 +572,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         self.inner
             .process_aggregated_proof(proof, prover_address, state)
     }
@@ -584,7 +582,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         self.inner.process_attestation(proof, prover_address, state)
     }
 
@@ -594,7 +592,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         transition_num: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         self.inner
             .process_challenge(proof, transition_num, prover_address, state)
     }

@@ -11,7 +11,7 @@ use sov_modules_api::{
     DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt, Spec,
     StateCheckpoint, TxScratchpad, WorkingSet,
 };
-use sov_state::Storage;
+use sov_state::{Storage, StorageProof};
 
 use crate::Runtime;
 
@@ -87,11 +87,7 @@ where
             let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();
 
             ProcessProofOutput {
-                proof_receipt: ProofReceipt {
-                    blob_hash,
-                    outcome,
-                    extra_data: (),
-                },
+                proof_receipt: ProofReceipt { blob_hash, outcome },
                 checkpoint: tx_scratchpad.commit(),
             }
         }
@@ -103,8 +99,14 @@ where
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) struct ProcessProofOutput<S: Spec, Da: DaSpec> {
-    pub(crate) proof_receipt: ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
+    pub(crate) proof_receipt: ProofReceipt<
+        S::Address,
+        Da,
+        <S::Storage as Storage>::Root,
+        StorageProof<<S::Storage as Storage>::Proof>,
+    >,
     pub(crate) checkpoint: StateCheckpoint<S>,
 }
 
@@ -240,14 +242,19 @@ where
     }
 }
 
+#[allow(clippy::type_complexity)]
 fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     blob_hash: [u8; 32],
     reason: InvalidProofError,
-) -> ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()> {
+) -> ProofReceipt<
+    S::Address,
+    Da,
+    <S::Storage as Storage>::Root,
+    StorageProof<<S::Storage as Storage>::Proof>,
+> {
     ProofReceipt {
         blob_hash,
         outcome: ProofOutcome::Invalid(reason),
-        extra_data: (),
     }
 }
 

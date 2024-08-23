@@ -145,7 +145,7 @@ macro_rules! generate_optimistic_runtime {
                 _proof: ::sov_modules_api::SerializedAggregatedProof,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
 
@@ -155,7 +155,7 @@ macro_rules! generate_optimistic_runtime {
                 _proof: ::sov_modules_api::SerializedAttestation,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
 
@@ -165,7 +165,7 @@ macro_rules! generate_optimistic_runtime {
                 _transition_num: u64,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
 
@@ -191,7 +191,7 @@ macro_rules! generate_zk_runtime {
                 proof: ::sov_modules_api::SerializedAggregatedProof,
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 match self.prover_incentives.process_proof(&proof, prover_address, state) {
                     Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
                         ::sov_modules_api::ProofReceiptContents::AggregateProof(data, proof)
@@ -207,7 +207,7 @@ macro_rules! generate_zk_runtime {
                 _proof: ::sov_modules_api::SerializedAttestation,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
 
@@ -217,7 +217,7 @@ macro_rules! generate_zk_runtime {
                 _transition_num: u64,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::ProofOutcome<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root> {
+            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
                 ::sov_modules_api::ProofOutcome::Ignored
             }
         }

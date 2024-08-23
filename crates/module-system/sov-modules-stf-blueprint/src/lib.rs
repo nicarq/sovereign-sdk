@@ -25,7 +25,7 @@ use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::TxHash;
 use sov_state::storage::StateUpdate;
-use sov_state::Storage;
+use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
@@ -277,7 +277,7 @@ where
 
     type BatchReceiptContents = BatchSequencerReceipt<Da>;
 
-    type ProofReceiptContents = ();
+    type StorageProof = StorageProof<<S::Storage as Storage>::Proof>;
 
     type Witness = <S::Storage as Storage>::Witness;
 

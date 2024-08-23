@@ -9,7 +9,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome,
-    ProofReceiptContents, Spec, StateCheckpoint, Storage, TxScratchpad, UnlimitedGasMeter,
+    ProofReceiptContents, SovProofOutcome, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
     WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -176,7 +176,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         let result = self
             .prover_incentives
             .process_proof(&proof, prover_address, state);
@@ -198,7 +198,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         let result = self
             .attester_incentives
             .process_attestation(prover_address, proof, state);
@@ -219,7 +219,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         transition_num: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root> {
+    ) -> SovProofOutcome<S, Da> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
             &proof,

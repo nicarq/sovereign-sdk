@@ -18,7 +18,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type GenesisParams = ();
     type PreState = ();
     type ChangeSet = ();
-    type ProofReceiptContents = ();
+    type StorageProof = ();
     type TxReceiptContents = ();
     type BatchReceiptContents = ();
     type Witness = ();

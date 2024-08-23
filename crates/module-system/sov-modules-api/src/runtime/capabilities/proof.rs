@@ -1,10 +1,8 @@
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
-use sov_rollup_interface::stf::ProofOutcome;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_state::Storage;
 
-use crate::{Spec, WorkingSet};
+use crate::{SovProofOutcome, Spec, WorkingSet};
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
@@ -15,7 +13,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root>;
+    ) -> SovProofOutcome<S, Da>;
 
     /// Called by the stf once the attestation is received.
     fn process_attestation(
@@ -23,7 +21,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         proof: SerializedAttestation,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root>;
+    ) -> SovProofOutcome<S, Da>;
 
     /// Called by the stf once the challenge is received.
     fn process_challenge(
@@ -32,5 +30,5 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         transition_num: u64,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> ProofOutcome<S::Address, Da, <S::Storage as Storage>::Root>;
+    ) -> SovProofOutcome<S, Da>;
 }

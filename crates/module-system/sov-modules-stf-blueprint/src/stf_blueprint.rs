@@ -6,6 +6,7 @@ use sov_modules_api::{
     BatchSequencerOutcome, BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage,
 };
 use sov_rollup_interface::stf::StoredEvent;
+use sov_state::StorageProof;
 use tracing::{debug, info};
 
 use crate::batch_processing::{apply_batch, BatchReceipt};
@@ -137,7 +138,12 @@ where
         raw_proof: Vec<u8>,
         checkpoint: StateCheckpoint<S>,
     ) -> (
-        ProofReceipt<S::Address, Da, <S::Storage as Storage>::Root, ()>,
+        ProofReceipt<
+            S::Address,
+            Da,
+            <S::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
+        >,
         StateCheckpoint<S>,
     ) {
         let res = process_proof(

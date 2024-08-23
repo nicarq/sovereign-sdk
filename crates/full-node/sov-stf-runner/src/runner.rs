@@ -559,7 +559,7 @@ where
 
     fn collect_aggregated_proofs(
         receipts: impl Iterator<
-            Item = ProofReceipt<Stf::Address, Da::Spec, Stf::StateRoot, Stf::ProofReceiptContents>,
+            Item = ProofReceipt<Stf::Address, Da::Spec, Stf::StateRoot, Stf::StorageProof>,
         >,
     ) -> Vec<AggregatedProof> {
         let mut aggregated_proofs: Vec<AggregatedProof> = Vec::new();
