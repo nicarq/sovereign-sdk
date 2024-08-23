@@ -9501,6 +9501,7 @@ dependencies = [
  "sov-rng-da-service",
  "sov-rollup-interface",
  "sov-sequencer",
+ "sov-sequencer-json-client",
  "sov-sequencer-registry",
  "sov-sp1-adapter",
  "sov-state",
