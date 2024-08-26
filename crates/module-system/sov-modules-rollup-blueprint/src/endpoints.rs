@@ -2,7 +2,8 @@ use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::{BatchSequencerOutcome, RuntimeEventProcessor, Spec};
+use sov_modules_api::hooks::ApplyBatchHooks;
+use sov_modules_api::{RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::{
@@ -36,7 +37,11 @@ where
     {
         let ledger_axum_router = LedgerRoutes::<
             LedgerDb,
-            BatchSequencerOutcome,
+            // Can keep hard-coding:
+            // BatchSequencerReceipt<B::DaSpec>,
+            // or use some associated type.
+            // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
+            <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult,
             TxReceiptContents,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");

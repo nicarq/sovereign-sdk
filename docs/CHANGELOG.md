@@ -1,3 +1,4 @@
+- #1267 Fixes HTTP 500 in Ledger REST API `slots/<number>` endpoint.
 - #1261 Return Attestation and Challenge in ProofReceipt 
 - #1252 Add `Attestation` data in the `ProofReceiptContents::Attestation` variant.
 - #1245 Add `sov-attester-incentive` to the rollup's `Runtime`. Adds relevant config files.
