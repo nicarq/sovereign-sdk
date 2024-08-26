@@ -53,8 +53,9 @@ mod blueprint {
     use sov_db::schema::{DeltaReader, SchemaBatch};
     use sov_modules_api::capabilities::Authenticator;
     use sov_modules_api::execution_mode::ExecutionMode;
+    use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::runtime::capabilities::Kernel;
-    use sov_modules_api::{BatchSequencerOutcome, ProofSerializer, Spec, Zkvm};
+    use sov_modules_api::{ProofSerializer, Spec, Zkvm};
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
@@ -398,7 +399,7 @@ mod blueprint {
     {
         type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>;
         type Da = B::DaService;
-        type BatchReceipt = BatchSequencerOutcome;
+        type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
         type TxReceipt = TxReceiptContents;
     }
 }
