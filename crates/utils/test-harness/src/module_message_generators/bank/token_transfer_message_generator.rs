@@ -88,11 +88,11 @@ impl<S: Spec> TokenTransferMessageGenerator<S> {
     /// use sov_modules_api::PrivateKey;
     /// use sov_modules_api::EncodeCall;
     /// use sov_modules_stf_blueprint::Runtime;
-    /// use test_harness_lib::AccountPoolConfig;
+    /// use sov_test_harness::AccountPoolConfig;
     /// use sov_modules_api::{Spec, CryptoSpec};
     /// use sov_modules_api::capabilities::Authenticator;
     /// use sov_modules_api::transaction::PriorityFeeBips;
-    /// use test_harness_lib::{TokenTransferMessageGenerator, AccountPool, GasFundingConfig};
+    /// use sov_test_harness::{TokenTransferMessageGenerator, AccountPool, GasFundingConfig};
     ///
     /// async fn foo<R, S, Da, Auth>() -> anyhow::Result<()>
     /// where

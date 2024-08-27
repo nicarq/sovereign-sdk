@@ -1,8 +1,21 @@
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Read};
 use std::path::Path;
 
+use serde::de::DeserializeOwned;
 use sov_modules_api::Spec;
+
+pub(crate) fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
+    let mut contents = String::new();
+    {
+        let mut file = File::open(path)?;
+        file.read_to_string(&mut contents)?;
+    }
+
+    let result: R = toml::from_str(&contents)?;
+
+    Ok(result)
+}
 
 /// Create [`sov_bank::BankConfig`] from a genesis directory.
 pub fn get_bank_config<S: Spec>(

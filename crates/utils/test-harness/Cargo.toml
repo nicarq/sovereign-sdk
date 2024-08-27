@@ -1,5 +1,5 @@
 [package]
-name = "test-harness"
+name = "sov-test-harness"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,9 +18,11 @@ async-trait = { workspace = true }
 derive_more = { workspace = true }
 borsh = { workspace = true }
 clap = { workspace = true }
+derive-getters = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 jsonrpsee = { workspace = true, features = ["client"] }
+rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
@@ -29,7 +31,6 @@ tokio = { workspace = true, features = ["signal"] }
 tracing = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
-demo-stf = { workspace = true, features = ["native"] }
 sov-celestia-adapter = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-cli = { workspace = true }
@@ -42,4 +43,3 @@ sov-nonces = { workspace = true, features = ["native"] }
 sov-prover-incentives = { workspace =  true }
 sov-risc0-adapter = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
-test-harness-lib = { workspace = true }

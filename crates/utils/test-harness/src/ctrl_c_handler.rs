@@ -1,8 +1,9 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use test_harness_lib::SerializedPreparedCallMessage;
 use tokio::sync::mpsc::Sender;
+
+use crate::SerializedPreparedCallMessage;
 
 pub(crate) fn start_ctrl_c_handler(
     should_stop: Arc<AtomicBool>,

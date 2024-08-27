@@ -385,7 +385,7 @@ impl DaService for CelestiaService {
         RelevantProofs { proof, batch }
     }
 
-    #[instrument(skip(blob), err)]
+    #[instrument(skip(self, blob), err)]
     async fn send_transaction(
         &self,
         blob: &[u8],
@@ -397,7 +397,7 @@ impl DaService for CelestiaService {
             .map_err(MaybeRetryable::Transient)
     }
 
-    #[instrument(skip(aggregated_proof), err)]
+    #[instrument(skip(self, aggregated_proof), err)]
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof: &[u8],

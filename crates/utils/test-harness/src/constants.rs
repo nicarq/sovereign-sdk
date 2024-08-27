@@ -8,5 +8,7 @@ use std::time::Duration;
 #[allow(dead_code)]
 pub(crate) const CELESTIA_MAX_TX_BYTES: u64 = 1973430;
 
+pub(crate) const DEFAULT_MAX_FEE: u64 = 10_000_000;
+
 pub(crate) const DEFAULT_CHANNEL_SIZE: usize = 10_000;
 pub(crate) const TIME_OUT_DURATION: Duration = Duration::from_secs(30);
