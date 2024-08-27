@@ -91,12 +91,6 @@ impl SequencerReward {
     }
 }
 
-impl<GU: Gas> From<TransactionConsumption<GU>> for SequencerReward {
-    fn from(value: TransactionConsumption<GU>) -> Self {
-        Self(value.priority_fee())
-    }
-}
-
 /// Computes the transaction consumption for a given transaction.
 /// This function is only used by the [`crate::WorkingSet`] to build a [`TransactionConsumption`] at the end of a transaction execution.
 pub(crate) fn transaction_consumption_helper<S: Spec>(
