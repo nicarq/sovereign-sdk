@@ -88,22 +88,7 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The amount that was withdrawn from the provers bond.
         amount_withdrawn: u64,
     },
-    /// The prover has been slashed. The reason describes why the prover was slashed.
-    ProverSlashed {
-        /// The address of the prover that was slashed.
-        prover: S::Address,
-        /// The reason the prover was slashed.
-        reason: SlashingReason,
-    },
-    /// The prover has been penalized (fined). The reason describes why the prover was fined.
-    ProverPenalized {
-        /// The address of the prover that was penalized.
-        prover: S::Address,
-        /// The amount the prover was penalized, this is taken from their bond.
-        amount: u64,
-        /// The reason the prover was penalized.
-        reason: PenalizationReason,
-    },
+
     /// Event for processing a valid proof
     ProcessedValidProof {
         /// The address of the prover that submitted a proof that was processed and determined to
