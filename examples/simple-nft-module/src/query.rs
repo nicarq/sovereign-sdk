@@ -13,13 +13,6 @@ pub struct OwnerResponse<S: Spec> {
     pub owner: Option<S::Address>,
 }
 
-/// Response for `getNftsCount` method.
-#[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
-pub struct NftsCountResponse {
-    /// The amount of NFTs owned by a certain address.
-    pub count: u64,
-}
-
 impl<S: Spec> NonFungibleToken<S> {
     /// Get the owner of a token
     pub fn get_owner<Reader: StateReader<User>>(
