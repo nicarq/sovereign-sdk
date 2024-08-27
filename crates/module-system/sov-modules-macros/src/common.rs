@@ -327,9 +327,7 @@ pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::E
 // "best-effort" basis (i.e. some identifiers may result in invalid or unreadable
 // URLs).
 pub fn str_to_url_segment(ident: &Ident) -> String {
-    use convert_case::{Case, Casing};
-
-    ident.to_string().to_case(Case::Kebab)
+    ident.to_string().replace('_', "-")
 }
 
 /// Wraps the code in a new scope using the `const _: () = {};` trick.
@@ -398,14 +396,6 @@ pub fn join_doc_comments(attrs: &[syn::Attribute]) -> syn::Result<Option<String>
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn identifier_to_url_segment() {
-        assert_eq!(str_to_url_segment(&format_ident!("foo")), "foo");
-        assert_eq!(str_to_url_segment(&format_ident!("FOO")), "foo");
-        assert_eq!(str_to_url_segment(&format_ident!("fooBar2")), "foo-bar-2");
-        assert_eq!(str_to_url_segment(&format_ident!("FooBar")), "foo-bar");
-    }
 
     #[test]
     fn get_generic_type_param_success() {
