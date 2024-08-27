@@ -12,6 +12,7 @@ use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray,
@@ -169,6 +170,38 @@ where
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
         query(&mut self.current_state())
+    }
+
+    /// A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
+    /// Updates the state of the rollup by committing the changes of the given closure.
+    pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
+        let header = MockBlockHeader {
+            height: self.curr_slot_number(),
+            prev_hash: self.slot_receipts.last().unwrap().block_header.hash,
+            hash: [0; 32].into(),
+            time: Time::now(),
+        };
+
+        let (stf_state, _) = self
+            .storage_manager
+            .create_state_for(&header)
+            .expect("Impossible to create queryiable state. This is a bug.");
+
+        let mut state = StateCheckpoint::<S>::new(stf_state.clone());
+
+        query(&mut state);
+
+        let (reads_writes, _, witness) = state.freeze();
+
+        let (_new_state_root, change_set) = stf_state
+            .validate_and_materialize(reads_writes, &witness)
+            .unwrap();
+
+        self.storage_manager
+            .save_change_set(&header, change_set, Default::default())
+            .unwrap();
+
+        self.storage_manager.finalize(&header).unwrap();
     }
 
     /// Allows to query the current kernel state.

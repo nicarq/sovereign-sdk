@@ -3,15 +3,17 @@ use std::sync::Arc;
 
 use sov_attester_incentives::{CustomError, UnbondingInfo};
 use sov_mock_da::MockAddress;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::RegistrationError;
 use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     AsUser, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+    TEST_ROLLUP_FINALITY_PERIOD,
 };
 
-use crate::helpers::{setup, TestAttesterIncentives, RT, S};
+use crate::helpers::{setup, TestAttesterIncentives, TestRuntimeEvent, RT, S};
 
 const INIT_BONDING_HEIGHT: u64 = TEST_LIGHT_CLIENT_FINALIZED_HEIGHT;
 
@@ -68,80 +70,71 @@ fn check_attester_bonded_and_start_unbond(
     gas_consumed_attester_ref_2.load(std::sync::atomic::Ordering::SeqCst)
 }
 
-// TODO(ross-weir): Re-add: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192
-// #[test]
-// fn try_unbond_successful() {
-//     let (mut runner, attester, _, _) = setup();
-//
-//     let attester_address = attester.user_info.address();
-//     let attester_bond = attester.bond;
-//     let attester_balance = attester.user_info.balance();
-//
-//     let gas_consumed_start_unbonding =
-//         check_attester_bonded_and_start_unbond(&mut runner, &attester);
-//
-//     let gas_consumed_attester_ref_1 = Arc::new(AtomicU64::new(gas_consumed_start_unbonding));
-//     let gas_consumed_attester_ref_2 = gas_consumed_attester_ref_1.clone();
-//
-//     runner.execute_slots(vec![
-//         // Execute empty slots to finalize unbonding. Artificially increase the light client finalized height.
-//         SlotTestCase::empty().with_end_slot_hook(Box::new(move |state| {
-//             // Increase the light client finalized height
-//             TestAttesterIncentives::default()
-//                 .light_client_finalized_height
-//                 .set(&(INIT_BONDING_HEIGHT + TEST_ROLLUP_FINALITY_PERIOD), state)
-//                 .unwrap_infallible();
-//         })),
-//         // Finalize unbonding
-//         SlotTestCase::from_rewarded_batch(vec![TxTestCase::<RT, _, _>::applied_with_hook(
-//             attester.create_plain_message::<TestAttesterIncentives>(
-//                 sov_attester_incentives::CallMessage::ExitAttester,
-//             ),
-//             Box::new(move |state| {
-//                 // Test that the unbonding attester event is emitted
-//                 assert!(state.inner().events().iter().any(|event| {
-//                     event.downcast_ref::<Event<S>>()
-//                         == Some(&Event::ExitedAttester {
-//                             amount_withdrawn: attester_bond,
-//                         })
-//                 }));
-//
-//                 assert_eq!(
-//                     TestAttesterIncentives::default()
-//                         .unbonding_attesters
-//                         .get(&attester_address, state)
-//                         .unwrap_infallible(),
-//                     None,
-//                     "The attester should not be part of the unbonding set anymore"
-//                 );
-//
-//                 assert_eq!(
-//                     TestAttesterIncentives::default()
-//                         .bonded_attesters
-//                         .get(&attester_address, state)
-//                         .unwrap_infallible(),
-//                     None,
-//                     "The attester should not be part of the bonded set anymore"
-//                 );
-//
-//                 gas_consumed_attester_ref_1.fetch_add(
-//                     state.inner().gas_used_value(),
-//                     std::sync::atomic::Ordering::SeqCst,
-//                 );
-//             }),
-//         )])
-//         .with_end_slot_hook(Box::new(move |state| {
-//             // Check the final balance of the attester
-//             assert_eq!(
-//                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
-//                 Some(
-//                     attester_balance + attester_bond
-//                         - gas_consumed_attester_ref_2.load(std::sync::atomic::Ordering::SeqCst)
-//                 )
-//             );
-//         })),
-//     ]);
-// }
+#[test]
+fn try_unbond_successful() {
+    let (mut runner, attester, _, _) = setup();
+
+    let attester_address = attester.user_info.address();
+    let attester_bond = attester.bond;
+    let attester_balance = attester.user_info.balance();
+
+    let gas_consumed_start_unbonding =
+        check_attester_bonded_and_start_unbond(&mut runner, &attester);
+
+    // Execute empty slots to finalize unbonding. Artificially increase the light client finalized height.
+    runner.__apply_to_state(|state| {
+        // Increase the light client finalized height
+        TestAttesterIncentives::default()
+            .light_client_finalized_height
+            .set(&(INIT_BONDING_HEIGHT + TEST_ROLLUP_FINALITY_PERIOD), state)
+            .unwrap_infallible();
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: attester.create_plain_message::<TestAttesterIncentives>(
+            sov_attester_incentives::CallMessage::ExitAttester,
+        ),
+        assert: Box::new(move |result, state| {
+            // Test that the unbonding attester event is emitted
+            assert!(result.events.iter().any(|event| {
+                event
+                    == &TestRuntimeEvent::attester_incentives(
+                        sov_attester_incentives::Event::ExitedAttester {
+                            amount_withdrawn: attester_bond,
+                        },
+                    )
+            }));
+
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .unbonding_attesters
+                    .get(&attester_address, state)
+                    .unwrap_infallible(),
+                None,
+                "The attester should not be part of the unbonding set anymore"
+            );
+
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .bonded_attesters
+                    .get(&attester_address, state)
+                    .unwrap_infallible(),
+                None,
+                "The attester should not be part of the bonded set anymore"
+            );
+
+            // Check the final balance of the attester
+            assert_eq!(
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
+                Some(
+                    attester_balance + attester_bond
+                        - result.gas_used
+                        - gas_consumed_start_unbonding
+                )
+            );
+        }),
+    });
+}
 
 #[test]
 fn try_unbond_too_early() {
