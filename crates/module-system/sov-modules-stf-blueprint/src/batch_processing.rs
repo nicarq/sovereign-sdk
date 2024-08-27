@@ -612,7 +612,7 @@ where
     ApplyTxResult::<S> {
         tx_scratchpad,
         receipt,
-        sequencer_reward: transaction_consumption.into(),
+        sequencer_reward: SequencerReward(transaction_consumption.priority_fee()),
     }
 }
 
