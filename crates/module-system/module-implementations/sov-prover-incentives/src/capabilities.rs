@@ -2,13 +2,13 @@ use std::cmp::max;
 
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
-    AggregatedProofPublicData, DaSpec, EventEmitter, Gas, InvalidProofError,
-    SerializedAggregatedProof, Spec, StateAccessorError, TxState, Zkvm,
+    AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
+    StateAccessorError, TxState, Zkvm,
 };
 use thiserror::Error;
 
 use crate::event::SlashingReason;
-use crate::{Event, ProverIncentives};
+use crate::ProverIncentives;
 
 #[derive(Debug, Error)]
 enum ErrorOrSlashed<S: Spec> {
@@ -80,12 +80,6 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         if old_balance < minimum_bond {
             return Err(ProcessProofError::BondNotHighEnough);
         };
-        let new_balance = old_balance.checked_sub(minimum_bond).expect(
-            "Underflow happened, while it should've been checked previously. This is a bug.",
-        );
-        // Lock the prover's bond amount.
-        self.bonded_provers
-            .set(prover_address, &new_balance, state)?;
 
         let code_commitment = self
             .chain_state
@@ -101,13 +95,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             Ok(public_outputs) => public_outputs,
             Err(e) => {
                 tracing::debug!(verification_error = ?e, "Slashing prover for invalid proof");
-                self.emit_event(
-                    state,
-                    Event::<S>::ProverSlashed {
-                        prover: prover_address.clone(),
-                        reason: crate::event::SlashingReason::ProofInvalid,
-                    },
-                );
+
+                self.slash_prover(prover_address, state)?;
 
                 return Err(ProcessProofError::InvalidProof(
                     "Verification failed".to_string(),
@@ -121,13 +110,9 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 ErrorOrSlashed::Error(err) => return Err(err.into()),
                 ErrorOrSlashed::Slashed(reason) => {
                     tracing::debug!(?reason, "Slashing prover");
-                    self.emit_event(
-                        state,
-                        Event::<S>::ProverSlashed {
-                            prover: prover_address.clone(),
-                            reason: reason.clone(),
-                        },
-                    );
+
+                    self.slash_prover(prover_address, state)?;
+
                     return Err(ProcessProofError::InvalidProof(format!(
                         "Invalid output {}",
                         reason
@@ -136,8 +121,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             }
         }
 
-        // Let's check the initial and final state values
-        let new_staked_balance = self.try_reward_prover(
+        self.try_reward_prover(
             public_outputs.initial_slot_number,
             public_outputs.final_slot_number,
             old_balance,
@@ -145,11 +129,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             state,
         )?;
 
-        // Unlock the prover's bond
-        self.bonded_provers
-            .set(prover_address, &new_staked_balance, state)?;
-
         Ok(public_outputs)
+    }
+
+    fn slash_prover(
+        &self,
+        prover_address: &S::Address,
+        state: &mut impl TxState<S>,
+    ) -> Result<(), StateAccessorError<S::Gas>> {
+        self.bonded_provers.delete(prover_address, state)
     }
 
     /// Computes the total reward from the aggregated state transition and rewards the prover with the unclaimed
@@ -159,9 +147,9 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         init_slot_num: u64,
         final_slot_num: u64,
         old_balance: u64,
-        sender: &S::Address,
+        prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<u64, ProcessProofError<S>> {
+    ) -> Result<(), ProcessProofError<S>> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
@@ -195,24 +183,42 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(&max(first_available_reward, final_slot_num), state)?;
 
         if first_claimed_reward > final_slot_num {
-            // We need to fine the prover
-            let fine = self
-                .proving_penalty
-                .get(state)?
-                .expect("Should be set at genesis");
-
-            self.emit_event(
-                state,
-                Event::<S>::ProverPenalized {
-                    prover: sender.clone(),
-                    amount: fine,
-                    reason: crate::event::PenalizationReason::ProofAlreadyProcessed,
-                },
-            );
-
-            return Ok(old_balance - fine);
+            // Penalize the prover
+            self.penalize_prover(old_balance, prover_address, state)?;
+        } else {
+            self.reward_prover(total_reward, prover_address, state)?;
         }
+        Ok(())
+    }
 
+    fn penalize_prover(
+        &self,
+        old_balance: u64,
+        prover_address: &S::Address,
+        state: &mut impl TxState<S>,
+    ) -> Result<(), ProcessProofError<S>> {
+        // Penalize the prover
+        let fine = self
+            .proving_penalty
+            .get(state)?
+            .expect("Should be set at genesis");
+
+        let new_balance = old_balance
+            .checked_sub(fine)
+            .expect("We already checked that the balance is greater than the fine");
+
+        self.bonded_provers
+            .set(prover_address, &new_balance, state)?;
+
+        Ok(())
+    }
+
+    fn reward_prover(
+        &self,
+        total_reward: u64,
+        prover_address: &S::Address,
+        state: &mut impl TxState<S>,
+    ) -> Result<(), ProcessProofError<S>> {
         // We only reward a portion of the total reward - we burn some of it
         // to avoid the provers to collude to prove empty blocks.
         let reward_amount = self.burn_rate().apply(total_reward);
@@ -223,18 +229,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
 
         self.bank
-            .transfer_from(self.id.to_payable(), sender, coins, state)
+            .transfer_from(self.id.to_payable(), prover_address, coins, state)
             .map_err(|err| ProcessProofError::TransferFailure(err.to_string()))?;
 
-        self.emit_event(
-            state,
-            Event::<S>::ProcessedValidProof {
-                prover: sender.clone(),
-                reward: reward_amount,
-            },
-        );
-
-        Ok(old_balance)
+        Ok(())
     }
 
     /// Check that the initial and final state values of the proof output are valid against the chain state module

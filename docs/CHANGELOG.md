@@ -1,3 +1,4 @@
+- #1290 Refactors slashing mechanism in the prover incentives module.
 - #1264 Makes testing-harness generic over runtime.
 - #1267 Fixes HTTP 500 in Ledger REST API `slots/<number>` endpoint.
 - #1261 Return Attestation and Challenge in ProofReceipt 

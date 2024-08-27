@@ -23,13 +23,11 @@ fn assert_slashed(
         &context.outcome.unwrap().outcome,
         ProofOutcome::Invalid(e) if matches!(e, InvalidProofError::ProofInvalid(s) if s == slash_reason)
     );
-    assert_eq!(
-        TestProverIncentives::default()
-            .bonded_provers
-            .get(&prover.address(), state)
-            .unwrap(),
-        Some(0)
-    );
+    assert!(TestProverIncentives::default()
+        .bonded_provers
+        .get(&prover.address(), state)
+        .unwrap()
+        .is_none());
 }
 
 fn prepare_for_slashing() -> (TestRunner<RT, S>, TestProver<S>, AggregatedProofPublicData) {
