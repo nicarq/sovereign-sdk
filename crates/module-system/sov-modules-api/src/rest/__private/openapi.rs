@@ -50,7 +50,7 @@ pub fn state_value_paths() -> OpenApiPaths {
 /// [`StateMap`](crate::containers::StateMap).
 pub fn state_map_paths() -> OpenApiPaths {
     vec![(
-        "/{key}/".to_string(),
+        "/items/{key}/".to_string(),
         json!({
             "get": {
                 "operationId": "get_state_map",
