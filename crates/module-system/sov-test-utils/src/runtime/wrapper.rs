@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 
+use sov_accounts::Accounts;
 use sov_bank::{Bank, IntoPayable};
 use sov_modules_api::capabilities::{
     AuthenticationResult, AuthorizationData, AuthorizationResult, GasEnforcer, HasCapabilities,
@@ -169,6 +170,10 @@ impl<S: Spec, Da: DaSpec, T: MinimalGenesis<S, Da = Da> + TxHooks<Spec = S>> Min
 
     fn bank_config(config: &<T as Genesis>::Config) -> &<Bank<S> as Genesis>::Config {
         T::bank_config(config)
+    }
+
+    fn accounts_config(config: &Self::Config) -> &<Accounts<S> as Genesis>::Config {
+        T::accounts_config(config)
     }
 }
 
@@ -352,6 +357,10 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> MinimalRuntime<S, Da>
     fn base_fee_recipient(&self) -> impl sov_bank::Payable<S> {
         self.inner.base_fee_recipient()
     }
+
+    fn accounts(&self) -> &Accounts<S> {
+        self.inner.accounts()
+    }
 }
 
 impl<S, Da, T, M> EncodeCall<M> for TestRuntimeWrapper<S, Da, T>
@@ -525,11 +534,15 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         height: u64,
         state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> anyhow::Result<Context<S>> {
-        let sender = auth_tx.default_address.clone().unwrap();
         let sequencer = self
             .sequencer_registry()
             .resolve_da_address(sequencer, state)?
             .expect("Sequencer is no longer registered by the time of context resolution. This is a bug");
+        let sender = self.accounts().resolve_sender_address(
+            &auth_tx.default_address,
+            &auth_tx.credential_id,
+            state,
+        )?;
         Ok(Context::new(
             sender,
             auth_tx.credentials.clone(),
@@ -542,9 +555,13 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         &self,
         auth_tx: &Self::AuthorizationData,
         height: u64,
-        _state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> anyhow::Result<Context<S>> {
-        let sender = auth_tx.default_address.clone().unwrap();
+        let sender = self.accounts().resolve_sender_address(
+            &auth_tx.default_address,
+            &auth_tx.credential_id,
+            state,
+        )?;
         // The tx sender & sequencer are the same entity
         Ok(Context::new(
             sender.clone(),

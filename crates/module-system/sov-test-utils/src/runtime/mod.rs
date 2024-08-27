@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+pub use sov_accounts::Accounts;
 pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,

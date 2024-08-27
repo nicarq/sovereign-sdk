@@ -113,6 +113,7 @@ impl<S: Spec> BondedTestChallenger<S> {
                 private_key: challenger.user_info.private_key().clone(),
                 available_gas_balance: challenger.user_info.available_gas_balance - bond,
                 token_balances: Vec::new(),
+                custom_credential_id: None,
             },
             bond,
         }

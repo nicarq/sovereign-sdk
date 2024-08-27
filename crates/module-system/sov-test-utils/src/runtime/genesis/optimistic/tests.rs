@@ -1,3 +1,4 @@
+use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_kernels::basic::BasicKernelGenesisConfig;
@@ -164,6 +165,8 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
             },
             tokens: vec![],
         },
+
+        accounts: AccountConfig { accounts: vec![] },
     }
 }
 
