@@ -1,208 +1,308 @@
-use std::convert::Infallible;
-
 use simple_nft_module::{
     CallMessage, Event, NonFungibleToken, NonFungibleTokenConfig, OwnerResponse,
 };
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::test_utils::generate_address as gen_addr_generic;
-use sov_modules_api::{Context, Module, Spec, StateCheckpoint};
+use sov_modules_api::{Error, Spec, TxEffect};
 use sov_state::ProverStorage;
-use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::TestStorageSpec;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{
+    generate_optimistic_runtime, AsUser, MockDaSpec, TestStorageSpec, TestUser, TransactionTestCase,
+};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Storage = ProverStorage<TestStorageSpec>;
-fn generate_address(name: &str) -> <S as Spec>::Address {
-    gen_addr_generic::<S>(name)
+
+generate_optimistic_runtime!(TestNftModuleRuntime <= nft: NonFungibleToken<S>);
+
+/// Holds the role for the nft tests:
+/// - admin: the module admin
+/// - owner_0: owns the nft 0
+/// - owner_1: owns the nft 1
+/// - external_user: a user that is not the owner of the nft
+pub struct TestRoles<S: Spec> {
+    pub admin: TestUser<S>,
+    pub owner_0: TestUser<S>,
+    pub owner_1: TestUser<S>,
+    pub external_user: TestUser<S>,
+}
+
+/// Sets up the test runtime by generating a genesis config with a single nft that has
+fn setup() -> (
+    TestRoles<S>,
+    TestRunner<TestNftModuleRuntime<S, MockDaSpec>, S>,
+) {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(4);
+
+    let nft_admin = genesis_config.additional_accounts.first().unwrap().clone();
+    let owner_0 = genesis_config.additional_accounts[1].clone();
+    let owner_1 = genesis_config.additional_accounts[2].clone();
+    let external_user = genesis_config.additional_accounts[3].clone();
+
+    let genesis_config = GenesisConfig::from_minimal_config(
+        genesis_config.clone().into(),
+        NonFungibleTokenConfig {
+            admin: nft_admin.address(),
+            owners: vec![(0, owner_0.address()), (1, owner_1.address())],
+        },
+    );
+
+    let runner = TestRunner::new_with_genesis(
+        genesis_config.into_genesis_params(),
+        TestNftModuleRuntime::default(),
+    );
+
+    (
+        TestRoles {
+            admin: nft_admin,
+            owner_0,
+            owner_1,
+            external_user,
+        },
+        runner,
+    )
+}
+
+/// Tries to mint an nft
+#[test]
+fn mint_succeeds() {
+    let (TestRoles { external_user, .. }, mut runner) = setup();
+
+    const NFT_ID: u64 = 2;
+
+    runner.execute_transaction(TransactionTestCase {
+        input: external_user
+            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                result.events[0],
+                TestNftModuleRuntimeEvent::nft(Event::Mint { id: NFT_ID })
+            );
+
+            // Check that the nft is owned by the user
+            assert_eq!(
+                NonFungibleToken::<S>::default()
+                    .get_owner(NFT_ID, state)
+                    .unwrap_infallible(),
+                OwnerResponse {
+                    owner: Some(external_user.address())
+                }
+            );
+        }),
+    });
+}
+
+/// Tries to mint an nft that already exists
+#[test]
+fn cannot_mint_twice() {
+    let (TestRoles { external_user, .. }, mut runner) = setup();
+
+    const NFT_ID: u64 = 2;
+
+    runner.execute(
+        external_user.create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+        None,
+    );
+
+    runner.execute_transaction(TransactionTestCase {
+        input: external_user
+            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.outcome,
+                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
+                    "Token with id {} already exists",
+                    NFT_ID
+                )))
+            );
+        }),
+    });
+}
+
+/// Transfers an nft from one owner to another. Has to be done by the nft owner himself.
+#[test]
+fn transfer_succeeds() {
+    let (
+        TestRoles {
+            owner_0,
+            external_user,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    const NFT_ID: u64 = 0;
+
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_0.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+            id: NFT_ID,
+            to: external_user.address(),
+        }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                result.events[0],
+                TestNftModuleRuntimeEvent::nft(Event::Transfer { id: NFT_ID })
+            );
+
+            assert_eq!(
+                NonFungibleToken::<S>::default()
+                    .get_owner(NFT_ID, state)
+                    .unwrap_infallible(),
+                OwnerResponse {
+                    owner: Some(external_user.address())
+                }
+            );
+        }),
+    });
+}
+
+/// Checks that the nft module admin cannot transfer nfts
+#[test]
+fn admin_cannot_transfer_token() {
+    let (TestRoles { admin, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 0;
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+            id: NFT_ID,
+            to: admin.address(),
+        }),
+        assert: Box::new(move |result, _state| {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                assert_eq!(
+                    err.to_string(),
+                    "Only token owner can transfer token",
+                    "The error message should be \"Only owner can transfer token\""
+                );
+            } else {
+                panic!(
+                    "The transaction should have reverted, instead the outcome was {:?}",
+                    result.outcome
+                );
+            }
+        }),
+    });
 }
 
 #[test]
-fn genesis_and_mint() -> Result<(), Infallible> {
-    // Preparation
-    let admin = generate_address("admin");
-    let owner1 = generate_address("owner2");
-    let owner2 = generate_address("owner2");
-    let sequencer = generate_address("sequencer");
-    let config: NonFungibleTokenConfig<S> = NonFungibleTokenConfig {
-        admin,
-        owners: vec![(0, owner1)],
-    };
+fn other_token_user_cannot_transfer_token() {
+    let (TestRoles { owner_1, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 0;
 
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
-    let nft = NonFungibleToken::default();
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_1.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+            id: NFT_ID,
+            to: owner_1.address(),
+        }),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.outcome,
+                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
+                    "Only token owner can transfer token"
+                ))),
+                "The transaction should have reverted, instead the outcome was {:?}",
+                result.outcome
+            );
+        }),
+    });
+}
 
-    let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
+/// Check that one cannot transfer a token that does not exist
+#[test]
+fn cannot_transfer_non_existent_token() {
+    let (TestRoles { owner_0, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 42;
 
-    // Genesis
-    let genesis_result = nft.genesis(&config, &mut genesis_state);
-    assert!(genesis_result.is_ok());
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_0.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+            id: NFT_ID,
+            to: owner_0.address(),
+        }),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.outcome,
+                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
+                    "Token with id {} does not exist",
+                    NFT_ID
+                ))),
+                "The transaction should have reverted, instead the outcome was {:?}",
+                result.outcome
+            );
+        }),
+    });
+}
 
-    let query1: OwnerResponse<S> = nft.get_owner(0, &mut genesis_state)?;
-    assert_eq!(query1.owner, Some(owner1));
+/// Burns an nft successfully
+#[test]
+fn burn_succeeds() {
+    let (TestRoles { owner_0, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 0;
 
-    let query2: OwnerResponse<S> = nft.get_owner(1, &mut genesis_state)?;
-    assert!(query2.owner.is_none());
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_0
+            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                result.events[0],
+                TestNftModuleRuntimeEvent::nft(Event::Burn { id: NFT_ID })
+            );
 
-    let checkpoint = genesis_state.checkpoint();
-    let mut state = checkpoint.to_working_set_unmetered();
-
-    // Mint, anybody can mint
-    let mint_message = CallMessage::Mint { id: 1 };
-    let owner2_context = Context::<S>::new(owner2, Default::default(), sequencer, 1);
-    nft.call(mint_message.clone(), &owner2_context, &mut state)
-        .expect("Minting failed");
-
-    let typed_event = state.take_event(0).unwrap();
-
-    assert_eq!(
-        typed_event.downcast::<Event>().unwrap(),
-        Event::Mint { id: 1 }
-    );
-
-    let (mut checkpoint, _, _) = state.checkpoint();
-    let query3: OwnerResponse<S> = nft.get_owner(1, &mut checkpoint)?;
-    assert_eq!(query3.owner, Some(owner2));
-
-    let mut state = checkpoint.to_working_set_unmetered();
-    // Try to mint again same token, should fail
-    let mint_attempt = nft.call(mint_message, &owner2_context, &mut state);
-
-    assert!(mint_attempt.is_err());
-    let error_message = mint_attempt.err().unwrap().to_string();
-    assert_eq!("Token with id 1 already exists", error_message);
-
-    Ok(())
+            assert_eq!(
+                NonFungibleToken::<S>::default()
+                    .get_owner(NFT_ID, state)
+                    .unwrap_infallible(),
+                OwnerResponse { owner: None }
+            );
+        }),
+    });
 }
 
 #[test]
-fn transfer() -> Result<(), Infallible> {
-    // Preparation
-    let admin = generate_address("admin");
-    let sequencer = generate_address("sequencer");
-    let admin_context = Context::<S>::new(admin, Default::default(), sequencer, 1);
-    let owner1 = generate_address("owner2");
-    let owner1_context = Context::<S>::new(owner1, Default::default(), sequencer, 1);
-    let owner2 = generate_address("owner2");
-    let config: NonFungibleTokenConfig<S> = NonFungibleTokenConfig {
-        admin,
-        owners: vec![(0, admin), (1, owner1), (2, owner2)],
-    };
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
-    let nft = NonFungibleToken::default();
-    let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
-    nft.genesis(&config, &mut genesis_state).unwrap();
+fn only_owner_can_burn() {
+    let (TestRoles { owner_1, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 0;
 
-    let checkpoint = genesis_state.checkpoint();
-    let mut state = checkpoint.to_working_set_unmetered();
-
-    let transfer_message = CallMessage::Transfer { id: 1, to: owner2 };
-
-    // admin cannot transfer token of the owner1
-    let transfer_attempt = nft.call(transfer_message.clone(), &admin_context, &mut state);
-
-    assert!(transfer_attempt.is_err());
-    let error_message = transfer_attempt.err().unwrap().to_string();
-    assert_eq!("Only token owner can transfer token", error_message);
-
-    let (mut checkpoint, _, _) = state.checkpoint();
-
-    let query_token_owner =
-        |token_id: u64, working_set: &mut StateCheckpoint<S>| -> Option<<S as Spec>::Address> {
-            let query: OwnerResponse<S> = nft.get_owner(token_id, working_set).unwrap_infallible();
-            query.owner
-        };
-
-    // Normal transfer
-    let token1_owner = query_token_owner(1, &mut checkpoint);
-    assert_eq!(Some(owner1), token1_owner);
-
-    let mut state = checkpoint.to_working_set_unmetered();
-
-    nft.call(transfer_message, &owner1_context, &mut state)
-        .expect("Transfer failed");
-
-    let typed_event = state.take_event(0).unwrap();
-
-    assert_eq!(
-        typed_event.downcast::<Event>().unwrap(),
-        Event::Transfer { id: 1 }
-    );
-
-    let (mut checkpoint, _, _) = state.checkpoint();
-
-    let token1_owner = query_token_owner(1, &mut checkpoint);
-    assert_eq!(Some(owner2), token1_owner);
-
-    // Attempt to transfer non existing token
-    let transfer_message = CallMessage::Transfer { id: 3, to: admin };
-
-    let mut state = checkpoint.to_working_set_unmetered();
-    let transfer_attempt = nft.call(transfer_message, &owner1_context, &mut state);
-
-    assert!(transfer_attempt.is_err());
-    let error_message = transfer_attempt.err().unwrap().to_string();
-    assert_eq!("Token with id 3 does not exist", error_message);
-
-    Ok(())
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_1
+            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.outcome,
+                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
+                    "Only token owner can burn token"
+                ))),
+                "The transaction should have reverted, instead the outcome was {:?}",
+                result.outcome
+            );
+        }),
+    });
 }
 
 #[test]
-fn burn() -> Result<(), Infallible> {
-    // Preparation
-    let admin = generate_address("admin");
-    let sequencer = generate_address("sequencer");
-    let admin_context = Context::<S>::new(admin, Default::default(), sequencer, 1);
-    let owner1 = generate_address("owner2");
-    let owner1_context = Context::<S>::new(owner1, Default::default(), sequencer, 1);
-    let config: NonFungibleTokenConfig<S> = NonFungibleTokenConfig {
-        admin,
-        owners: vec![(0, owner1)],
-    };
+fn cannot_burn_non_existent_token() {
+    let (TestRoles { owner_0, .. }, mut runner) = setup();
+    const NFT_ID: u64 = 42;
 
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state = StateCheckpoint::<S>::new(new_finalized_storage(tmpdir.path()));
-    let nft = NonFungibleToken::default();
-    let mut genesis_state = state.to_genesis_state_accessor::<NonFungibleToken<S>>(&config);
-    nft.genesis(&config, &mut genesis_state).unwrap();
-
-    let checkpoint = genesis_state.checkpoint();
-
-    let burn_message = CallMessage::Burn { id: 0 };
-
-    let mut state = checkpoint.to_working_set_unmetered();
-    // Only owner can burn token
-    let burn_attempt = nft.call(burn_message.clone(), &admin_context, &mut state);
-
-    assert!(burn_attempt.is_err());
-    let error_message = burn_attempt.err().unwrap().to_string();
-    assert_eq!("Only token owner can burn token", error_message);
-
-    // Normal burn
-    nft.call(burn_message.clone(), &owner1_context, &mut state)
-        .expect("Burn failed");
-    assert!(!state.events().is_empty());
-
-    let typed_event = state.take_event(0).unwrap();
-
-    assert_eq!(
-        typed_event.downcast::<Event>().unwrap(),
-        Event::Burn { id: 0 }
-    );
-
-    let (mut checkpoint, _, _) = state.checkpoint();
-
-    let query: OwnerResponse<S> = nft.get_owner(0, &mut checkpoint)?;
-
-    assert!(query.owner.is_none());
-
-    let mut state = checkpoint.to_working_set_unmetered();
-
-    let burn_attempt = nft.call(burn_message, &owner1_context, &mut state);
-    assert!(burn_attempt.is_err());
-    let error_message = burn_attempt.err().unwrap().to_string();
-    assert_eq!("Token with id 0 does not exist", error_message);
-
-    Ok(())
+    runner.execute_transaction(TransactionTestCase {
+        input: owner_0
+            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(
+                result.outcome,
+                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
+                    "Token with id {} does not exist",
+                    NFT_ID
+                ))),
+                "The transaction should have reverted, instead the outcome was {:?}",
+                result.outcome
+            );
+        }),
+    });
 }
