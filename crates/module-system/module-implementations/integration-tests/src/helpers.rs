@@ -1,3 +1,4 @@
+use sov_accounts::AccountConfig;
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, GasTokenConfig};
 use sov_chain_state::{ChainState, ChainStateConfig};
@@ -193,6 +194,7 @@ impl TestRollup {
                     maximum_attested_height: attester_params.maximum_attested_height,
                     light_client_finalized_height: attester_params.light_client_finalized_height,
                 },
+                accounts: AccountConfig { accounts: vec![] },
             };
 
         let kernel_config: <TestKernel<S, Da> as Kernel<S, Da>>::GenesisConfig =

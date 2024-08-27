@@ -1,4 +1,4 @@
-use sov_modules_api::{CryptoSpec, Module, PrivateKey, Spec};
+use sov_modules_api::{CredentialId, CryptoSpec, Module, PrivateKey, PublicKey, Spec};
 
 mod attester_incentives;
 mod prover;
@@ -9,8 +9,8 @@ pub use prover::{TestProver, TestProverConfig};
 pub use sequencer::{TestSequencer, TestSequencerConfig};
 
 use super::TransactionType;
-use crate::default_test_tx_details;
 use crate::runtime::genesis::TestTokenName;
+use crate::{default_test_tx_details, TEST_DEFAULT_USER_BALANCE};
 
 /// A minimal representation of a token held by a given user.
 #[derive(Debug, Clone)]
@@ -32,6 +32,8 @@ pub struct TestUser<S: Spec> {
     pub available_gas_balance: u64,
     /// The balances of the user for each non-gas token.
     pub token_balances: Vec<UserTokenInfo>,
+    /// A custom credential id that can be defined at genesis.
+    pub custom_credential_id: Option<CredentialId>,
 }
 
 impl<S: Spec> TestUser<S> {
@@ -41,7 +43,13 @@ impl<S: Spec> TestUser<S> {
             private_key,
             available_gas_balance: balance,
             token_balances: Vec::new(),
+            custom_credential_id: None,
         }
+    }
+
+    /// Generates a new user with the default balance.
+    pub fn generate_with_default_balance() -> Self {
+        Self::generate(TEST_DEFAULT_USER_BALANCE)
     }
 
     /// Generates a new user with the given balance.
@@ -50,12 +58,20 @@ impl<S: Spec> TestUser<S> {
             private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate(),
             available_gas_balance: balance,
             token_balances: Vec::new(),
+            custom_credential_id: None,
         }
     }
 
     /// Adds a balance to the user for the given test token.
     pub fn add_token_info(mut self, info: UserTokenInfo) -> Self {
         self.token_balances.push(info);
+
+        self
+    }
+
+    /// Adds a custom credential id to the user.
+    pub fn add_credential_id(mut self, credential_id: CredentialId) -> Self {
+        self.custom_credential_id = Some(credential_id);
 
         self
     }
@@ -68,6 +84,17 @@ impl<S: Spec> TestUser<S> {
     /// Returns the private key of the user.
     pub fn private_key(&self) -> &<S::CryptoSpec as CryptoSpec>::PrivateKey {
         &self.private_key
+    }
+
+    /// Returns the credential id of the user.
+    pub fn credential_id(&self) -> CredentialId {
+        if let Some(credential_id) = self.custom_credential_id {
+            credential_id
+        } else {
+            self.private_key
+                .pub_key()
+                .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
+        }
     }
 
     /// Returns the balance of the user.

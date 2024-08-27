@@ -1,0 +1,323 @@
+use sov_accounts::{Accounts, CallMessage, Response};
+use sov_modules_api::{CredentialId, Error, PrivateKey, PublicKey, Spec, TxEffect};
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{
+    generate_optimistic_runtime, AsUser, MockDaSpec, TestHasher, TestPrivateKey, TestUser,
+    TransactionTestCase,
+};
+
+type S = sov_test_utils::TestSpec;
+
+generate_optimistic_runtime!(TestAccountsRuntime <=);
+
+type RT = TestAccountsRuntime<S, MockDaSpec>;
+
+struct TestData<S: Spec> {
+    account_1: TestUser<S>,
+    account_2: TestUser<S>,
+    non_registered_account: TestUser<S>,
+}
+
+/// We setup genesis with three accounts, two of which are registered at genesis.
+fn setup() -> (TestData<S>, TestRunner<RT, S>) {
+    let genesis_config = HighLevelOptimisticGenesisConfig::generate().add_accounts(vec![
+        TestUser::generate_with_default_balance().add_credential_id(CredentialId([0u8; 32])),
+        TestUser::generate_with_default_balance().add_credential_id(CredentialId([1u8; 32])),
+        TestUser::generate_with_default_balance(),
+    ]);
+
+    let user_1 = genesis_config.additional_accounts[0].clone();
+    let user_2 = genesis_config.additional_accounts[1].clone();
+    let user_3 = genesis_config.additional_accounts[2].clone();
+
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
+
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    (
+        TestData {
+            account_1: user_1,
+            account_2: user_2,
+            non_registered_account: user_3,
+        },
+        runner,
+    )
+}
+
+#[test]
+fn test_config_account() {
+    let (
+        TestData {
+            account_1: user, ..
+        },
+        mut runner,
+    ) = setup();
+
+    // The account is registered at genesis.
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+        let response = accounts.get_account(user.credential_id(), state).unwrap();
+        assert_eq!(
+            response,
+            Response::AccountExists {
+                addr: user.address()
+            }
+        );
+    });
+}
+
+#[test]
+fn test_update_account() {
+    let (
+        TestData {
+            account_1: user, ..
+        },
+        mut runner,
+    ) = setup();
+
+    let new_credential = TestPrivateKey::generate()
+        .pub_key()
+        .credential_id::<TestHasher>();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user
+            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+
+            let accounts = Accounts::<S>::default();
+
+            // New account with the new public key and an old address is created.
+            assert_eq!(
+                accounts.get_account(new_credential, state).unwrap(),
+                Response::AccountExists {
+                    addr: user.address()
+                }
+            );
+            // Account corresponding to the old credential still exists.
+            assert_eq!(
+                accounts.get_account(user.credential_id(), state).unwrap(),
+                Response::AccountExists {
+                    addr: user.address()
+                }
+            );
+
+            assert_ne!(new_credential, user.credential_id());
+        }),
+    });
+}
+
+#[test]
+fn test_update_account_fails() {
+    let (
+        TestData {
+            account_1,
+            account_2,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: account_1.create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(
+            account_2.credential_id(),
+        )),
+        assert: Box::new(move |result, _state| {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                assert_eq!(err.to_string(), "New CredentialId already exists");
+            }
+        }),
+    });
+}
+
+#[test]
+fn test_register_new_account() {
+    let (
+        TestData {
+            non_registered_account,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    // The account is empty at the start because it is not registered at genesis.
+    assert_eq!(non_registered_account.custom_credential_id, None);
+
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+        let response = accounts
+            .get_account(non_registered_account.credential_id(), state)
+            .unwrap();
+        assert_eq!(response, Response::AccountEmpty);
+    });
+
+    let new_credential = TestPrivateKey::generate()
+        .pub_key()
+        .credential_id::<TestHasher>();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: non_registered_account
+            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
+        assert: Box::new(move |result, state| {
+            assert_eq!(result.outcome, TxEffect::Successful(()));
+
+            let accounts = Accounts::<S>::default();
+
+            // New account with the new public key and an old address is created.
+            assert_eq!(
+                accounts.get_account(new_credential, state).unwrap(),
+                Response::AccountExists {
+                    addr: non_registered_account.address()
+                }
+            );
+
+            // The default credential of the account exists
+            assert_eq!(
+                accounts
+                    .get_account(non_registered_account.credential_id(), state)
+                    .unwrap(),
+                Response::AccountExists {
+                    addr: non_registered_account.address()
+                }
+            );
+
+            assert_ne!(new_credential, non_registered_account.credential_id());
+        }),
+    });
+}
+
+#[test]
+fn test_resolve_sender_address_non_default_address() {
+    let (
+        TestData {
+            non_registered_account,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(&None, &non_registered_account.credential_id(), state)
+                .unwrap_err()
+                .to_string(),
+            format!(
+                "No default address found for {}",
+                non_registered_account.credential_id()
+            )
+        );
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(
+                    &Some(non_registered_account.address()),
+                    &non_registered_account.credential_id(),
+                    state
+                )
+                .unwrap(),
+            non_registered_account.address()
+        );
+    });
+}
+
+#[test]
+fn test_resolve_sender_address_default_address() {
+    let (TestData { account_1, .. }, mut runner) = setup();
+
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(&None, &account_1.credential_id(), state)
+                .unwrap(),
+            account_1.address()
+        );
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(
+                    &Some(account_1.address()),
+                    &account_1.credential_id(),
+                    state
+                )
+                .unwrap(),
+            account_1.address()
+        );
+    });
+}
+
+/// Tests what happens if one tries to resolve an address when there is more than one credential available.
+#[test]
+fn test_resolve_address_if_more_than_one_credential() {
+    let (
+        TestData {
+            non_registered_account,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let credential_1 = TestPrivateKey::generate()
+        .pub_key()
+        .credential_id::<TestHasher>();
+
+    let credential_2 = TestPrivateKey::generate()
+        .pub_key()
+        .credential_id::<TestHasher>();
+
+    runner.execute(
+        non_registered_account
+            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_1)),
+        None,
+    );
+
+    runner.execute(
+        non_registered_account
+            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_2)),
+        None,
+    );
+
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(&None, &credential_1, state)
+                .unwrap(),
+            non_registered_account.address()
+        );
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(&None, &credential_2, state)
+                .unwrap(),
+            non_registered_account.address()
+        );
+    });
+}
+
+/// Test that when one precises a default address, this address is used and the credentials are not resolved.
+#[test]
+fn test_resolve_with_different_default_address() {
+    let (TestData { account_1, .. }, mut runner) = setup();
+
+    let random_credential = TestPrivateKey::generate()
+        .pub_key()
+        .credential_id::<TestHasher>();
+
+    runner.query_state(|state| {
+        let accounts = Accounts::<S>::default();
+
+        assert_eq!(
+            accounts
+                .resolve_sender_address(&Some(account_1.address()), &random_credential, state)
+                .unwrap(),
+            account_1.address()
+        );
+    });
+}

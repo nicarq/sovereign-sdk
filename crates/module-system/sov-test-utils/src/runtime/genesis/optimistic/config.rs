@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use sov_accounts::{AccountConfig, AccountData, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
@@ -23,6 +24,8 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
     pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
     /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
+    /// The accounts config.
+    pub accounts: <Accounts<S> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of an optimistic genesis config. This config
@@ -284,6 +287,19 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                     authorized_minters: vec![],
                 },
                 tokens: Self::parse_token_configs(additional_accounts),
+            },
+            accounts: AccountConfig {
+                accounts: {
+                    additional_accounts
+                        .iter()
+                        .filter_map(|user| {
+                            user.custom_credential_id.map(|credential_id| AccountData {
+                                credential_id,
+                                address: user.address(),
+                            })
+                        })
+                        .collect()
+                },
             },
         }
     }

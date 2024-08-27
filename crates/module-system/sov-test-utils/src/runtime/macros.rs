@@ -24,6 +24,8 @@ macro_rules! generate_runtime {
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
             /// The bank module.
             pub bank: $crate::runtime::Bank<S>,
+            /// The accounts module
+            pub accounts: $crate::runtime::Accounts<S>,
             /// The module that will receive the base fee.
             pub $base_fee_recipient: $base_fee_recipient_ty,
             $(
@@ -52,6 +54,10 @@ macro_rules! generate_runtime {
 
             fn base_fee_recipient(&self) -> impl $crate::runtime::Payable<S> {
                 $crate::runtime::IntoPayable::to_payable(&self.$base_fee_recipient.id)
+            }
+
+            fn accounts(&self) -> &$crate::runtime::Accounts<S> {
+                &self.accounts
             }
         }
 
@@ -86,6 +92,10 @@ macro_rules! generate_runtime {
             fn bank_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
                 &config.bank
             }
+
+            fn accounts_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Accounts<S> as ::sov_modules_api::Genesis>::Config {
+                &config.accounts
+            }
         }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da> {
@@ -97,6 +107,7 @@ macro_rules! generate_runtime {
                 Self {
                     sequencer_registry: minimal_config.sequencer_registry,
                     bank: minimal_config.bank,
+                    accounts: minimal_config.accounts,
                     $base_fee_recipient: minimal_config.$base_fee_recipient,
                     $(
                         $module_name,
