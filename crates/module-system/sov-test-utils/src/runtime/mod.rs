@@ -15,7 +15,8 @@ use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray,
-    Genesis, InfallibleStateAccessor, Module, RuntimeEventProcessor, SlotData, Spec,
+    Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor, SlotData,
+    Spec, StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
@@ -168,6 +169,25 @@ where
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
         query(&mut self.current_state())
+    }
+
+    /// Allows to query the current kernel state.
+    pub fn query_kernel_state<Output>(
+        &mut self,
+        query: impl FnOnce(&mut KernelWorkingSet<S>) -> Output,
+    ) -> Output {
+        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
+            self.storage_manager
+                .create_state_after(&slot_receipt.block_header)
+        } else {
+            self.storage_manager.create_bootstrap_state()
+        }
+        .expect("Impossible to create queryiable state. This is a bug.");
+
+        let state = &mut StateCheckpoint::new(stf_state);
+
+        let mut kernel_ws = KernelWorkingSet::from_kernel(self.stf.kernel(), state);
+        query(&mut kernel_ws)
     }
 
     /// Builds a new test runner and runs genesis.
