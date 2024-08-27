@@ -8,12 +8,12 @@ use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, RawTx, Spec};
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
-use test_harness_lib::{Account, AccountPool, SerializedPreparedCallMessage};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::sleep;
 
 use crate::args::Args;
 use crate::constants::TIME_OUT_DURATION;
+use crate::{Account, AccountPool, SerializedPreparedCallMessage};
 
 pub(crate) struct DaBlobSender<S: Spec, Auth: Authenticator> {
     config: Args,

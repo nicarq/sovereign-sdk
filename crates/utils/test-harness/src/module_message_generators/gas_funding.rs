@@ -8,7 +8,8 @@ use jsonrpsee::http_client::HttpClientBuilder;
 use sov_bank::{Amount, Bank, BankRpcClient, CallMessage, GAS_TOKEN_ID};
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
-use sov_rollup_interface::services::da::DaService;
+use sov_modules_stf_blueprint::Runtime;
+use sov_rollup_interface::da::DaSpec;
 use tokio::sync::mpsc::Sender;
 
 use super::{MessageSender, MessageSenderT};
@@ -20,7 +21,7 @@ use crate::{get_bank_config, PreparedCallMessage, SerializedPreparedCallMessage}
 const MINIMAL_WHALE_BALANCE: u64 = 5_000_000;
 
 /// [`GasFundingConfig`] holds the values required to create gas funding transactions,
-/// which mint and transfer the rollup's gas token to accounts in the [`crate::AccountPool`].
+/// which mint and transfer the rollup's gas token to accounts in the [`AccountPool`].
 #[derive(Clone, Debug, Constructor, Getters)]
 pub struct GasFundingConfig {
     /// This is use to create an client in order to query the rollup for account balances,
@@ -144,13 +145,18 @@ pub async fn get_gas_funding_txs<S: Spec>(
 /// and is based on initial test-harness configuration. The gas funding messages consist of transactions that
 /// mint and allocate the rollup's gas funding token to all the accounts in the account pool, so that those
 /// accounts may take part in broadcasting call messages.
-pub async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
+pub async fn get_gas_funding_message_sender<S, Da, R>(
     genesis_dir: String,
     rpc_url: String,
     account_pool: AccountPool<S>,
     serialized_messages_tx: Sender<SerializedPreparedCallMessage>,
     should_stop: Arc<AtomicBool>,
-) -> anyhow::Result<Box<dyn MessageSenderT>> {
+) -> anyhow::Result<Box<dyn MessageSenderT>>
+where
+    S: Spec,
+    Da: DaSpec,
+    R: Runtime<S, Da> + sov_modules_api::EncodeCall<Bank<S>> + 'static,
+{
     let gas_funding_txs =
         get_gas_funding_txs(GasFundingConfig::new(rpc_url, genesis_dir), &account_pool).await?;
     tracing::debug!(
@@ -158,12 +164,7 @@ pub async fn get_gas_funding_message_sender<S: Spec, Da: DaService>(
         "Gas funding messages have been generated"
     );
 
-    let message_sender: MessageSender<
-        demo_stf::runtime::Runtime<S, <Da as DaService>::Spec>,
-        <Da as DaService>::Spec,
-        S,
-        Bank<S>,
-    > = MessageSender::new(
+    let message_sender: MessageSender<R, Da, S, Bank<S>> = MessageSender::new(
         "gas funding",
         should_stop.clone(),
         Box::new(gas_funding_txs.into_iter()),

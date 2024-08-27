@@ -2408,9 +2408,9 @@ dependencies = [
 
 [[package]]
 name = "derive-getters"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a6433aac097572ea8ccc60b3f2e756c661c9aeed9225cdd4d0cb119cb7ff6ba"
+checksum = "74ef43543e701c01ad77d3a5922755c6a1d71b22d942cb8042be4994b380caff"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -9507,6 +9507,7 @@ dependencies = [
  "sov-sp1-adapter",
  "sov-state",
  "sov-stf-runner",
+ "sov-test-harness",
  "sov-test-utils",
  "sov-value-setter",
  "sp1",
@@ -10179,6 +10180,41 @@ dependencies = [
  "sov-test-utils",
  "strum 0.26.3",
  "tempfile",
+ "thiserror",
+ "tokio",
+ "toml",
+ "tracing",
+ "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "sov-test-harness"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "borsh",
+ "clap",
+ "derive-getters",
+ "derive_more",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "sov-bank",
+ "sov-celestia-adapter",
+ "sov-cli",
+ "sov-ledger-json-client",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-modules-macros",
+ "sov-modules-stf-blueprint",
+ "sov-nonces",
+ "sov-prover-incentives",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
  "thiserror",
  "tokio",
  "toml",
@@ -11175,65 +11211,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
-]
-
-[[package]]
-name = "test-harness"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "clap",
- "demo-stf",
- "derive_more",
- "futures",
- "hex",
- "jsonrpsee",
- "serde",
- "serde_json",
- "sov-bank",
- "sov-celestia-adapter",
- "sov-cli",
- "sov-ledger-json-client",
- "sov-mock-zkvm",
- "sov-modules-api",
- "sov-modules-macros",
- "sov-modules-stf-blueprint",
- "sov-nonces",
- "sov-prover-incentives",
- "sov-risc0-adapter",
- "sov-rollup-interface",
- "test-harness-lib",
- "thiserror",
- "tokio",
- "toml",
- "tracing",
- "tracing-subscriber 0.3.18",
-]
-
-[[package]]
-name = "test-harness-lib"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "demo-stf",
- "derive-getters",
- "derive_more",
- "jsonrpsee",
- "rand 0.8.5",
- "serde_json",
- "sov-bank",
- "sov-cli",
- "sov-modules-api",
- "sov-modules-stf-blueprint",
- "sov-nonces",
- "sov-prover-incentives",
- "sov-rollup-interface",
- "tokio",
- "tracing",
 ]
 
 [[package]]

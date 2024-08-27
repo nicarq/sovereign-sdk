@@ -65,6 +65,7 @@ clap = { workspace = true }
 secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
+sov-test-harness = { workspace = true }
 
 sov-sequencer-json-client = { workspace = true }
 
@@ -153,3 +154,7 @@ path = "src/bin/sov_nft_script.rs"
 [[bin]]
 name = "sov-demo-rollup"
 path = "src/main.rs"
+
+[[bin]]
+name = "sov-demo-celestia-harness"
+path = "src/test-harness/sov_demo_celestia_harness.rs"

@@ -22,7 +22,7 @@ pub enum RegistrationError<
         amount_to_add: u64,
     },
 
-    #[error("Stake amount below the minimum.")]
+    #[error("Stake amount={bond_amount} below the minimum={minimum_bond_amount}")]
     /// Stake amount below the minimum needed.
     InsufficientStakeAmount {
         /// The address of the sender's account.

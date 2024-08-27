@@ -1,15 +1,19 @@
+mod account;
+mod config;
+
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
 use std::sync::Arc;
 
+use anyhow::Context;
 use derive_more::{Deref, DerefMut};
 use jsonrpsee::http_client::HttpClientBuilder;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_modules_api::Spec;
 
-use super::{Account, AccountPoolConfig};
+pub use self::account::Account;
+pub use self::config::AccountPoolConfig;
 
-/* */
 /// The [`AccountPool`] is a structure holding a pool of accounts_from_disc that consist of:
 ///
 /// - Existing accounts whose private keys are known, that are defined at rollup
@@ -25,6 +29,7 @@ use super::{Account, AccountPoolConfig};
 #[derive(Clone, Deref, DerefMut)]
 pub struct AccountPool<S: Spec>(Arc<AccountPoolInner<S>>);
 
+/// Actual holder of the data
 pub struct AccountPoolInner<S: Spec> {
     /// The index of an account in the [`ordered_accounts`] of this pool that is capable
     /// of minting the gas token of the rollup.
@@ -144,7 +149,10 @@ impl<S: Spec> AccountPool<S> {
         // TODO @gskapka pass in a flag to opt out of this if you know the accounts from file have a nonce of 0?
         // Refreshing nonces before generating new users to avoid non needed RPC calls.
         for account in &mut accounts {
-            account.refresh_nonce(&client).await?;
+            account
+                .refresh_nonce(&client)
+                .await
+                .context("Failed to refresh nonces. Is rollup node running?")?;
         }
 
         accounts.append(&mut Account::generate_n_random(

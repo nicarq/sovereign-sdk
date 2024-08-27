@@ -1,48 +1,54 @@
+#![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+mod account_pool;
 mod args;
 mod constants;
 mod ctrl_c_handler;
 mod da_blob_sender;
 mod harness_config;
-mod logging;
+mod module_message_generators;
+mod prepared_call_messages;
 mod slot_watcher;
-mod types;
 mod utils;
 
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+pub use account_pool::*;
 use anyhow::Context;
+use args::Args;
 use clap::Parser;
 use constants::DEFAULT_CHANNEL_SIZE;
+use ctrl_c_handler::start_ctrl_c_handler;
+use da_blob_sender::DaBlobSender;
 use harness_config::HarnessConfig;
+pub use module_message_generators::*;
+pub use prepared_call_messages::*;
 use slot_watcher::start_slot_watcher_task;
+use sov_bank::Bank;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::RollupParams;
 use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
+use sov_modules_stf_blueprint::Runtime;
+use sov_prover_incentives::ProverIncentives;
 use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
-use test_harness_lib::{
-    get_bank_config, get_gas_funding_message_sender, get_message_senders, AccountPool,
-    AccountPoolConfig, SerializedPreparedCallMessage,
-};
-use types::{ThisAuth, ThisDaService, ThisSpec};
+pub use utils::*;
 
-use crate::args::Args;
-use crate::ctrl_c_handler::start_ctrl_c_handler;
-use crate::da_blob_sender::DaBlobSender;
-use crate::logging::initialize_logging;
-
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    start::<ThisSpec, ThisDaService, ThisAuth>().await
-}
-
-async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<()> {
-    initialize_logging();
+/// Starting the actual harness.
+pub async fn start<S, Da, Auth, R>() -> anyhow::Result<()>
+where
+    S: Spec,
+    Da: DaService,
+    Auth: Authenticator,
+    R: Runtime<S, Da::Spec>
+        + sov_modules_api::EncodeCall<Bank<S>>
+        + sov_modules_api::EncodeCall<ProverIncentives<S, Da::Spec>>
+        + 'static,
+{
     let config = Args::parse();
 
     let bank_config = get_bank_config::<S>(&config.genesis_dir)?;
@@ -81,7 +87,7 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
     )
     .await;
 
-    let gas_funding_message_sender = get_gas_funding_message_sender::<S, Da>(
+    let gas_funding_message_sender = get_gas_funding_message_sender::<S, Da::Spec, R>(
         config.genesis_dir.clone(),
         config.rpc_url.clone(),
         account_pool.clone(),
@@ -91,7 +97,7 @@ async fn start<S: Spec, Da: DaService, Auth: Authenticator>() -> anyhow::Result<
     .await?;
     tracing::debug!("Gas funding messages sender gas been initialized");
 
-    let module_message_senders = get_message_senders::<S, Da>(
+    let module_message_senders = get_message_senders::<S, Da::Spec, R>(
         should_stop.clone(),
         account_pool.clone(),
         serialized_messages_tx.clone(),
