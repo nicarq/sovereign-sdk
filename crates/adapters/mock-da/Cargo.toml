@@ -24,7 +24,7 @@ serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 hex = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
-tokio = { workspace = true, optional = true, features = ["test-util"] }
+tokio = { workspace = true, optional = true, features = ["test-util", "macros"] }
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
 sov-rollup-interface = { workspace = true }
