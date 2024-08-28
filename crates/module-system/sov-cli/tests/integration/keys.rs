@@ -91,8 +91,9 @@ fn test_key_import() {
     let key_and_address = import_key_file(
         &mut wallet_state,
         &app_dir,
-        Some("my-test-key"),
+        Some(key_name),
         "my-test-key.json",
+        false,
     )
     .unwrap();
     assert_eq!(1, wallet_state.addresses.len());
@@ -110,6 +111,42 @@ fn test_key_import() {
             .pub_key()
             .to_address::<<TestSpec as Spec>::Address>()
     );
+}
+
+#[test]
+fn test_key_import_duplicate() {
+    let app_dir = tempfile::tempdir().unwrap();
+    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    assert_eq!(0, wallet_state.addresses.len());
+
+    let key_name = "my-test-key";
+
+    import_key_file(
+        &mut wallet_state,
+        &app_dir,
+        Some(key_name),
+        "my-test-key.json",
+        false,
+    )
+    .unwrap();
+    assert_eq!(1, wallet_state.addresses.len());
+
+    let res = import_key_file(
+        &mut wallet_state,
+        &app_dir,
+        Some(key_name),
+        "my-test-key.json",
+        false,
+    );
+    assert!(res.is_err());
+    let res = import_key_file(
+        &mut wallet_state,
+        &app_dir,
+        Some(key_name),
+        "my-test-key.json",
+        true,
+    );
+    assert!(res.is_ok());
 }
 
 #[test]
@@ -134,6 +171,7 @@ fn test_duplicate_nickname_generate() {
         &app_dir,
         Some(key_name),
         "my-test-key.json",
+        false,
     );
     assert!(result.is_err());
     let import_error = result.unwrap_err();
@@ -247,6 +285,7 @@ fn import_key_file<Tx, S>(
     app_dir: impl AsRef<Path>,
     nickname: Option<&str>,
     key_filename: &str,
+    skip_if_present: bool,
 ) -> anyhow::Result<PrivateKeyAndAddress<S>>
 where
     Tx: BorshSerialize + BorshDeserialize + serde::Serialize + serde::de::DeserializeOwned,
@@ -260,6 +299,7 @@ where
         nickname: nickname.map(str::to_string),
         address_override: None,
         path: key_path,
+        skip_if_present,
     };
     workflow.run(wallet_state, &app_dir)?;
 
