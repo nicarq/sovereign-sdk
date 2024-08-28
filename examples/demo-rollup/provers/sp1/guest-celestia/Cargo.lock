@@ -8037,3 +8037,8 @@ dependencies = [
  "sha3",
  "subtle",
 ]
+
+[[patch.unused]]
+name = "curve25519-dalek-ng"
+version = "4.1.1"
+source = "git+https://github.com/sp1-patches/curve25519-dalek-ng?rev=8dd77b2#8dd77b20f3e78965a0cc57070a04465b9d52c49e"
