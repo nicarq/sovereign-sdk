@@ -75,7 +75,7 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, StorageProof> {
 
 /// The contents of a proof receipt.
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProofReceiptContents<Address, Da: DaSpec, Root, StorageProof> {
     /// A receipt for an aggregate proof contains the public data form the proof and the serialized proof.
     AggregateProof(AggregatedProofPublicData, SerializedAggregatedProof),
@@ -95,7 +95,7 @@ pub enum ExecutionContext {
 }
 
 /// The error returned when the proof that was processed is invalid.
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, Error, Eq, PartialEq)]
 pub enum InvalidProofError {
     /// A precondition for processing the proof was not met.
     #[error("A precondition required to process the proof was not met: {0}")]
@@ -113,7 +113,7 @@ pub enum InvalidProofError {
 
 /// The outcome of a proof
 #[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProofOutcome<Address, Da: DaSpec, Root, StorageProof> {
     /// The blob was filtered out as irrelevant
     Ignored,

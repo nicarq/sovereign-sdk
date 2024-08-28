@@ -22,13 +22,13 @@ where
     /// Queries the state of the module.
     pub fn get_attester_bond_amount<Reader: StateReader<User>>(
         &self,
-        address: S::Address,
+        address: &S::Address,
         state: &mut Reader,
     ) -> Result<BondAmountResponse, Reader::Error> {
         Ok(BondAmountResponse {
             value: self
                 .bonded_attesters
-                .get(&address, state)?
+                .get(address, state)?
                 .unwrap_or_default(),
         })
     }
