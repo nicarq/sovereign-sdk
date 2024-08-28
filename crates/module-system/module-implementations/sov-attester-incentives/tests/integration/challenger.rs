@@ -93,7 +93,7 @@ fn setup_with_wrong_attestation() -> (
             // Check that the attester was slashed
             assert_eq!(
                 TestAttesterIncentives::default()
-                    .get_attester_bond_amount(genesis_attester_address, state)
+                    .get_attester_bond_amount(&genesis_attester_address, state)
                     .unwrap_infallible()
                     .value,
                 0,

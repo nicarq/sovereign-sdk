@@ -5,13 +5,15 @@ use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{
-    ApiStateAccessor, DaSpec, ProofSerializer, SerializedAttestation, SovApiProofSerializer, Spec,
+    ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer, SerializedAttestation,
+    SovApiProofSerializer, Spec,
 };
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{
-    generate_optimistic_runtime, AsUser, TestAttester, TestChallenger, TestUser, TransactionType,
+    assert_matches, generate_optimistic_runtime, AsUser, ProofTestCase, ProofType, TestAttester,
+    TestChallenger, TestUser, TransactionType,
 };
 
 pub(crate) type S = sov_test_utils::TestSpec;
@@ -149,4 +151,28 @@ pub(crate) fn make_attestation_blob(
     SovApiProofSerializer::<S>::new()
         .serialize_attestation_blob_with_metadata(serialized_attestation)
         .unwrap()
+}
+
+pub(crate) fn create_test_case(
+    genesis_attester: TestAttester<S>,
+    serialized_attestation: Vec<u8>,
+) -> ProofTestCase<S, MockDaSpec> {
+    ProofTestCase {
+        input: ProofType::Inline(serialized_attestation),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .bonded_attesters
+                    .get(&genesis_attester.user_info.address(), state)
+                    .unwrap(),
+                Some(genesis_attester.bond),
+                "Bonded amount should not have changed"
+            );
+
+            // TODO #1292: check rewards.
+        }),
+    }
 }
