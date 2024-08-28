@@ -5356,7 +5356,6 @@ dependencies = [
  "sha2 0.10.8",
  "sov-wallet-format",
  "thiserror",
- "tokio",
  "tracing",
 ]
 
