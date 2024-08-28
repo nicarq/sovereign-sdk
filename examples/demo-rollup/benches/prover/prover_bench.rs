@@ -22,7 +22,7 @@ use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
@@ -264,6 +264,7 @@ where
             filtered_block.header(),
             &filtered_block.validity_condition(),
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         for r in result.batch_receipts {

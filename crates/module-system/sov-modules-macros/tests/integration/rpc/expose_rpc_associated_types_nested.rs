@@ -2,7 +2,7 @@ use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, ExecutionContext,
     MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
 };
 use sov_state::ZkStorage;
@@ -146,7 +146,7 @@ fn main() {
     let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([12; 32].as_ref()).unwrap();
-    let context = Context::<S>::new(sender, Default::default(), sequencer, 1);
+    let context = Context::<S>::new(sender, Default::default(), sequencer, 1, ExecutionContext::Node);
 
     let _ = runtime
         .dispatch_call(module, &mut working_set, &context)

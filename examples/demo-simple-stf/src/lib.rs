@@ -68,6 +68,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
+        _execution_context: sov_rollup_interface::stf::ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,

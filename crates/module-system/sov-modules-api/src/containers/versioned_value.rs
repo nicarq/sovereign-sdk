@@ -133,7 +133,9 @@ mod tests {
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
-    use crate::{Address, Context, KernelWorkingSet, StateCheckpoint, VersionedStateValue};
+    use crate::{
+        Address, Context, ExecutionContext, KernelWorkingSet, StateCheckpoint, VersionedStateValue,
+    };
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -167,6 +169,7 @@ mod tests {
                     Default::default(),
                     sequencer,
                     1,
+                    ExecutionContext::Node,
                 ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(
@@ -179,6 +182,7 @@ mod tests {
                 Default::default(),
                 sequencer,
                 4,
+                ExecutionContext::Node,
             ));
             // Try to read the value from user space with the slot number set to 4. Should succeed.
             assert_eq!(
@@ -216,6 +220,7 @@ mod tests {
                     Default::default(),
                     sequencer,
                     1,
+                    ExecutionContext::Node,
                 ));
                 // Try to read the value from user space with the slot number set to 1. Should fail.
                 assert_eq!(
@@ -230,6 +235,7 @@ mod tests {
                     Default::default(),
                     sequencer,
                     2,
+                    ExecutionContext::Node,
                 ));
 
                 assert_eq!(
@@ -244,6 +250,7 @@ mod tests {
                 Default::default(),
                 sequencer,
                 4,
+                ExecutionContext::Node,
             ));
             assert_eq!(
                 value.get_current(&mut versioned_state).unwrap_infallible(),

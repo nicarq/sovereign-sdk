@@ -1,7 +1,9 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};
-use sov_rollup_interface::stf::{ApplySlotOutput, BatchReceipt, StateTransitionFunction};
+use sov_rollup_interface::stf::{
+    ApplySlotOutput, BatchReceipt, ExecutionContext, StateTransitionFunction,
+};
 use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
 
 /// A mock implementation of the [`StateTransitionFunction`]
@@ -41,6 +43,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         _relevant_blobs: RelevantBlobIters<I>,
+        _execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,

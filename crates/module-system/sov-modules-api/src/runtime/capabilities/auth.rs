@@ -40,8 +40,8 @@ use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
 use crate::{
-    Context, CryptoSpec, DispatchCall, GasMeter, MeteredBorshDeserialize, MeteredHasher,
-    PreExecWorkingSet, RawTx, Spec, TxScratchpad, UnlimitedGasMeter,
+    Context, CryptoSpec, DispatchCall, ExecutionContext, GasMeter, MeteredBorshDeserialize,
+    MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad, UnlimitedGasMeter,
 };
 
 /// The chain id of the rollup.
@@ -95,6 +95,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         height: u64,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
     /// Resolves the context for an unregistered transaction.
@@ -103,6 +104,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         auth_data: &Self::AuthorizationData,
         height: u64,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
     /// Prevents duplicate transactions from running.

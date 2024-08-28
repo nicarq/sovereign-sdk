@@ -18,8 +18,9 @@ use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, DispatchCall, Error, Gas, GasArray, Genesis, KernelWorkingSet,
-    RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter, WorkingSet,
+    BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
+    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
+    WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -333,6 +334,7 @@ where
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
+        execution_context: ExecutionContext,
     ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
@@ -387,6 +389,7 @@ where
                     &gas_price,
                     visible_height,
                     is_registered,
+                    execution_context,
                 );
 
                 batch_receipts.push(batch_receipt);

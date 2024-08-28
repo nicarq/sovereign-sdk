@@ -2,7 +2,7 @@ mod modules;
 use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
 use sov_modules_api::{
-    Address, Context, DispatchCall, EncodeCall, Genesis, MessageCodec, ModuleInfo, Spec,
+    Address, Context, DispatchCall, EncodeCall, ExecutionContext, Genesis, MessageCodec, ModuleInfo, Spec,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -32,7 +32,7 @@ fn main() {
 
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context: Context<ZkTestSpec> = Context::new(sender, Default::default(), sequencer, 1);
+    let context: Context<ZkTestSpec> = Context::new(sender, Default::default(), sequencer, 1, ExecutionContext::Node);
 
     let value = 11;
     {

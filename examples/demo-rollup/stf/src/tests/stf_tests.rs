@@ -3,7 +3,7 @@ use std::vec;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::transaction::SequencerReward;
-use sov_modules_api::{ApiStateAccessor, Batch, BatchSequencerOutcome, Spec};
+use sov_modules_api::{ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, Spec};
 use sov_modules_stf_blueprint::{StfBlueprint, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::services::da::SlotData;
@@ -60,6 +60,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             &block_1.header,
             &block_1.validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
         assert_eq!(1, result.batch_receipts.len());
         // 2 transactions from value setter
@@ -137,6 +138,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         &block_1.header,
         &block_1.validity_cond,
         relevant_blobs.as_iters(),
+        ExecutionContext::Node,
     );
 
     assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -222,6 +224,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
         &block_1.header,
         &block_1.validity_cond,
         relevant_blobs.as_iters(),
+        ExecutionContext::Node,
     );
 
     assert_eq!(2, apply_block_result.batch_receipts.len());
@@ -299,6 +302,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
         &block_1.header,
         &block_1.validity_cond,
         relevant_blobs.as_iters(),
+        ExecutionContext::Node,
     );
 
     // Ensure that the batch was rejected for containing too many txs.
@@ -357,6 +361,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
         &block_1.header,
         &block_1.validity_cond,
         relevant_blobs.as_iters(),
+        ExecutionContext::Node,
     );
 
     assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -450,6 +455,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         &block_1.header,
         &block_1.validity_cond,
         relevant_blobs.as_iters(),
+        ExecutionContext::Node,
     );
 
     assert_eq!(

@@ -15,7 +15,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
     Address, Batch, BlobData, BlobDataWithId, BlobReaderTrait, Context, DaSpec, DispatchCall,
-    KernelWorkingSet, MessageCodec, Module, RawTx, Spec, StateCheckpoint,
+    ExecutionContext, KernelWorkingSet, MessageCodec, Module, RawTx, Spec, StateCheckpoint,
 };
 use sov_sequencer_registry::SequencerConfig;
 use sov_state::{ProverStorage, Storage};
@@ -959,6 +959,7 @@ impl TestRuntime<S, MockDaSpec> {
                     Default::default(),
                     REGULAR_REWARD_ROLLUP,
                     1,
+                    ExecutionContext::Node,
                 ),
                 &mut state,
             )

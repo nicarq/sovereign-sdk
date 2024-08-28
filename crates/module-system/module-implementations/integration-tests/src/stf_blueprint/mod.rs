@@ -6,8 +6,8 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{Credentials, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, Context, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray, KernelWorkingSet, PrivateKey,
-    Spec, StateCheckpoint,
+    Batch, Context, CryptoSpec, DaSpec, EncodeCall, ExecutionContext, Gas, GasArray,
+    KernelWorkingSet, PrivateKey, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::crypto::PublicKey;
@@ -84,7 +84,13 @@ impl TestRollup {
 
                 self.stf()
                     .runtime()
-                    .resolve_context(&auth_data, &seq_da_addr, height, &mut pre_exec_ws)
+                    .resolve_context(
+                        &auth_data,
+                        &seq_da_addr,
+                        height,
+                        &mut pre_exec_ws,
+                        ExecutionContext::Node,
+                    )
                     .unwrap()
             })
             .collect();

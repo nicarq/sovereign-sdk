@@ -11,8 +11,8 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall,
-    Error, Gas, GasArray, GasMeter, PreExecWorkingSet, RawTx, Spec, StateCheckpoint, TxScratchpad,
-    UnlimitedGasMeter, WorkingSet,
+    Error, ExecutionContext, Gas, GasArray, GasMeter, PreExecWorkingSet, RawTx, Spec,
+    StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, error, info, warn};
@@ -33,6 +33,7 @@ pub type BatchReceipt<Da> =
 const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+#[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, Da, RT, K>(
     runtime: &RT,
@@ -42,6 +43,7 @@ pub(crate) fn apply_batch<S, Da, RT, K>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     is_registered_sequencer: bool,
+    execution_context: ExecutionContext,
 ) -> (BatchReceipt<Da>, StateCheckpoint<S>, S::Gas)
 where
     S: Spec,
@@ -102,6 +104,7 @@ where
                 gas_price,
                 height,
                 tx_scratchpad,
+                execution_context,
             )
         } else {
             process_unauthorized_tx(
@@ -111,6 +114,7 @@ where
                 gas_price,
                 height,
                 tx_scratchpad,
+                execution_context,
             )
         };
 
@@ -252,6 +256,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     scratchpad: TxScratchpad<S>,
+    execution_context: ExecutionContext,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
@@ -308,6 +313,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         sequencer_da_address,
         height,
         &mut pre_exec_working_set,
+        execution_context,
     );
     let ctx = match maybe_ctx {
         Ok(ctx) => ctx,
@@ -419,6 +425,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     tx_scratchpad: TxScratchpad<S>,
+    execution_context: ExecutionContext,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     let mut pre_exec_working_set =
         tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new_with_price(gas_price.clone()));
@@ -444,6 +451,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         &auth_data,
         height,
         &mut pre_exec_working_set,
+        execution_context,
     ) {
         Ok(ctx) => ctx,
         Err(e) => {

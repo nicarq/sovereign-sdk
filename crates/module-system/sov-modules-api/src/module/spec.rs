@@ -12,7 +12,7 @@ use sov_state::{Storage, StorageProof, Witness};
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
-use crate::{PublicKeyExt, SignatureExt};
+use crate::{ExecutionContext, PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
@@ -163,6 +163,8 @@ pub struct Context<S: Spec> {
     sequencer: S::Address,
     /// The height to report. This is set by the kernel when the context is created
     visible_height: u64,
+    /// Describes the context in which the transaction is being executed.
+    execution_context: ExecutionContext,
     phantom: core::marker::PhantomData<S>,
 }
 
@@ -177,18 +179,25 @@ impl<S: Spec> Context<S> {
         &self.sequencer
     }
 
+    /// Returns the rollup address of the sequencer which included the transaction.
+    pub fn execution_context(&self) -> &ExecutionContext {
+        &self.execution_context
+    }
+
     /// Constructs a new Context.
     pub fn new(
         sender: S::Address,
         sender_credentials: Credentials,
         sequencer: S::Address,
         height: u64,
+        execution_context: ExecutionContext,
     ) -> Self {
         Self {
             sender_credentials,
             sender,
             sequencer,
             visible_height: height,
+            execution_context,
             phantom: core::marker::PhantomData,
         }
     }
@@ -226,7 +235,13 @@ mod arbitrary {
             let sender = u.arbitrary()?;
             let sequencer = u.arbitrary()?;
             let height = u.arbitrary()?;
-            Ok(Self::new(sender, Default::default(), sequencer, height))
+            Ok(Self::new(
+                sender,
+                Default::default(),
+                sequencer,
+                height,
+                crate::ExecutionContext::Node,
+            ))
         }
     }
 }
