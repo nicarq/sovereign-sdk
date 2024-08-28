@@ -1,15 +1,31 @@
-use std::convert::Infallible;
-
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateValue, ApiStateAccessor, CallResponse, Context, GenesisState, Module,
-    ModuleError, ModuleId, ModuleInfo, Spec, StateCheckpoint, TxState, WorkingSet,
+    AccessoryStateValue, CallResponse, Context, GenesisState, Module, ModuleError, ModuleId,
+    ModuleInfo, Spec, StateAccessor, TxState,
 };
-use sov_state::Storage;
-use sov_test_utils::storage::SimpleStorageManager;
-use sov_test_utils::{TestSpec, TestStorageSpec as StorageSpec};
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{generate_optimistic_runtime, AsUser};
 
-#[derive(ModuleInfo)]
-pub struct TestModule<S: Spec> {
+type S = sov_test_utils::TestSpec;
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    borsh::BorshSerialize,
+    borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
+pub enum CallMessage {
+    SetAccessoryValue(u32),
+    Nop(u32),
+}
+
+#[derive(ModuleInfo, Clone)]
+pub struct TestAccessoryModule<S: Spec> {
     #[id]
     id: ModuleId,
 
@@ -20,10 +36,10 @@ pub struct TestModule<S: Spec> {
     phantom: std::marker::PhantomData<S>,
 }
 
-impl<S: Spec> Module for TestModule<S> {
+impl<S: Spec> Module for TestAccessoryModule<S> {
     type Spec = S;
     type Config = ();
-    type CallMessage = ();
+    type CallMessage = CallMessage;
     type Event = ();
 
     fn genesis(
@@ -36,102 +52,75 @@ impl<S: Spec> Module for TestModule<S> {
 
     fn call(
         &self,
-        _msg: Self::CallMessage,
+        msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
-        _state: &mut impl TxState<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<CallResponse, ModuleError> {
-        unimplemented!()
+        match msg {
+            CallMessage::SetAccessoryValue(value) => {
+                let unmetered_state = &mut state.to_unmetered();
+
+                self.accessory_state
+                    .set(&value, unmetered_state)
+                    .unwrap_infallible();
+
+                Ok(CallResponse::default())
+            }
+            CallMessage::Nop(_) => Ok(CallResponse::default()),
+        }
     }
 }
+
+generate_optimistic_runtime!(TestAccessoryRuntime <= accessory_module: TestAccessoryModule<S>);
 
 /// Check that:
 /// 1. Accessory state does not change normal state root hash.
 /// 2. Accessory state is reverted together with normal state.
 /// Changes are returned explicitly by storage trait.
 #[test]
-fn test_accessory_value_setter() -> Result<(), Infallible> {
-    let module = TestModule::<TestSpec>::default();
+fn test_accessory_value_setter() {
+    // Generate a genesis config, then overwrite the attester key/address with ones that
+    // we know. We leave the other values untouched.
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let user = genesis_config.additional_accounts.first().unwrap().clone();
 
-    // 0. Genesis
-    let storage = storage_manager.create_storage();
-    let state = <StateCheckpoint<TestSpec>>::new(storage.clone());
+    // Run genesis registering the attester and sequencer we've generated.
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ());
 
-    let mut genesis_state = state.to_genesis_state_accessor::<TestModule<TestSpec>>(&());
+    let mut runner = TestRunner::new_with_genesis(
+        genesis.into_genesis_params(),
+        TestAccessoryRuntime::default(),
+    );
 
-    module.genesis(&(), &mut genesis_state).unwrap();
+    let (result_with_update, _, _) = runner.simulate(
+        user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
+        None,
+    );
 
-    let (reads_writes, _, witness) = genesis_state.checkpoint().freeze();
-    let (state_root_hash_initial, change_set_genesis) = storage
-        .validate_and_materialize(reads_writes, &witness)
-        .unwrap();
-    storage_manager.commit(change_set_genesis);
+    let root_hash_with_update = result_with_update.state_root.user_hash();
+    let gas_consumed_with_update = result_with_update.batch_receipts[0].tx_receipts[0]
+        .gas_used
+        .clone();
 
-    // 1. Check that root hash is not changed after
-    let storage = storage_manager.create_storage();
-    let mut state = <StateCheckpoint<TestSpec>>::new(storage.clone());
+    let (result_without_update, _, _) = runner.simulate(
+        user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)),
+        None,
+    );
 
-    module.accessory_state.set(&42, &mut state)?;
-
-    let (state_writes, accessory_writes, witness) = state.freeze();
-    let (state_root_hash_after, change_set_after) = storage
-        .validate_and_materialize_with_accessory_update(
-            state_writes,
-            &witness,
-            accessory_writes.freeze(),
-        )
-        .unwrap();
+    let root_hash_without_update = result_without_update.state_root.user_hash();
+    let gas_consumed_without_update = result_without_update.batch_receipts[0].tx_receipts[0]
+        .gas_used
+        .clone();
 
     assert_eq!(
-        state_root_hash_initial, state_root_hash_after,
+        gas_consumed_with_update, gas_consumed_without_update,
+        "Gas consumption has been changed by accessory writes"
+    );
+
+    assert_eq!(
+        root_hash_with_update, root_hash_without_update,
         "State root has been changed by accessory writes"
     );
-
-    storage_manager.commit(change_set_after);
-    let storage = storage_manager.create_storage();
-
-    let mut api_accessor = <ApiStateAccessor<TestSpec>>::new(storage.clone());
-
-    assert_eq!(
-        42,
-        module.accessory_state.get(&mut api_accessor)?.unwrap(),
-        "AccessoryStateValue read has returned an incorrect value"
-    );
-
-    let mut ws = <WorkingSet<TestSpec>>::new_deprecated(storage.clone());
-
-    module.accessory_state.set(&1000, &mut ws)?;
-
-    let (tx_scratchpad, _gas_meter) = ws.revert();
-    let checkpoint = tx_scratchpad.revert();
-    let (state_writes, accessory_writes, witness) = checkpoint.freeze();
-    let (state_root_hash_after, change_set_after) = storage
-        .validate_and_materialize_with_accessory_update(
-            state_writes,
-            &witness,
-            accessory_writes.freeze(),
-        )
-        .unwrap();
-
-    assert_eq!(
-        state_root_hash_initial, state_root_hash_after,
-        "State root has been changed by accessory revert"
-    );
-
-    storage_manager.commit(change_set_after);
-    let storage = storage_manager.create_storage();
-    let mut api_state_accessor = ApiStateAccessor::<TestSpec>::new(storage.clone());
-
-    assert_eq!(
-        42,
-        module
-            .accessory_state
-            .get(&mut api_state_accessor)?
-            .unwrap(),
-        "AccessoryStateValue revert has failed"
-    );
-
-    Ok(())
 }

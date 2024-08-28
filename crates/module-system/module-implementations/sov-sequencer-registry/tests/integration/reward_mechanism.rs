@@ -24,7 +24,7 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
 
     // We first execute a normal transaction with no priority fee (ie the sequencer does not get rewarded).
     // This way we can know how much gas was consumed. Check that the sequencer balance was not updated
-    let (output, _) = runner.simulate(
+    let (output, _, _) = runner.simulate(
         admin
             .create_plain_message::<sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(VALUE_SETTER_NEW_CONST),

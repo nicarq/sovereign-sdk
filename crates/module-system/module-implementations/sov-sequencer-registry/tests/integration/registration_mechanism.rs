@@ -9,7 +9,8 @@ use sov_modules_api::TxEffect;
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
-    AsUser, BatchTestCase, TransactionTestCase, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
+    AsUser, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
@@ -35,6 +36,7 @@ fn test_default_sequencer() {
     ) = setup();
 
     let test_sequencer_address = test_sequencer.user_info.address();
+    let test_sequencer_da_address = test_sequencer.da_address;
     let test_sequencer_initial_balance = test_sequencer.user_info.available_gas_balance;
 
     let custom_priority_fee = PriorityFeeBips::from_percentage(10);
@@ -52,6 +54,13 @@ fn test_default_sequencer() {
                         + custom_priority_fee.apply(result.gas_used).unwrap()
                 ),
                 "The sequencer should have been rewarded the execution funds "
+            );
+
+            assert_eq!(
+                TestSequencerRegistry::default()
+                    .resolve_da_address(&test_sequencer_da_address, state)
+                    .unwrap_infallible(),
+                Some(test_sequencer_address)
             );
         }),
     });
@@ -489,7 +498,31 @@ fn test_non_registered_sequencer_is_not_allowed() {
                 .is_err(),
             "Non-registered sequencers should not be allowed"
         );
+
+        assert_eq!(
+            TestSequencerRegistry::default()
+                .resolve_da_address(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                .unwrap_infallible(),
+            None
+        );
     });
+}
+
+#[test]
+fn test_non_registered_sequencer_cannot_send_batches() {
+    let (TestRoles { admin, .. }, mut runner) = setup();
+
+    let outcome = runner.execute(
+        BatchType(vec![admin.create_plain_message::<TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                amount: TEST_DEFAULT_USER_STAKE,
+            },
+        )]),
+        Some(NON_DEFAULT_SEQUENCER_DA_ADDRESS.into()),
+    );
+
+    assert!(outcome.batch_receipts.is_empty());
 }
 
 /// We should not be able to increase the stake amount (through deposit) for a non-registered sequencer.

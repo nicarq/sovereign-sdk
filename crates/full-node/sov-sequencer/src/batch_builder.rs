@@ -9,10 +9,13 @@ use sov_modules_api::capabilities::{
     Authenticator, KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
 };
 use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ExecutionContext, Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint,
 };
-use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
+use sov_modules_stf_blueprint::{
+    process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError, TxProcessingErrorReason,
+};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use tokio::sync::watch;
@@ -101,7 +104,8 @@ where
         &self,
         mempool_tx: &MempoolTx,
         ctx: &mut BatchConstructionContext<S>,
-    ) -> anyhow::Result<Option<sov_modules_stf_blueprint::TransactionReceipt>> {
+    ) -> Result<Option<sov_modules_stf_blueprint::TransactionReceipt>, TxProcessingErrorReason>
+    {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
         let tx_len = mempool_tx.tx_bytes.len();
@@ -131,8 +135,7 @@ where
             }) => {
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = Some(tx_scratchpad.revert());
-
-                bail!("An error occurred when trying to add the tx to the batch: {reason}")
+                Err(reason)
             }
             Ok(ApplyTxResult {
                 tx_scratchpad,
@@ -141,12 +144,7 @@ where
             }) => {
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = Some(tx_scratchpad.commit());
-
-                let current_reward = ctx.reward;
-                let reward = Into::<u64>::into(sequencer_reward);
-                ctx.reward = current_reward.checked_add(reward).ok_or_else(|| {
-                    anyhow::anyhow!("Rewarding the sequencer would cause overflow")
-                })?;
+                ctx.reward.accumulate(sequencer_reward);
 
                 Ok(Some(receipt))
             }
@@ -279,7 +277,7 @@ where
 
         let mut ctx = BatchConstructionContext {
             visible_height,
-            reward: 0,
+            reward: SequencerReward::ZERO,
             gas_price,
             state_checkpoint: Some(state_checkpoint),
             current_batch_size_in_bytes: 0,
@@ -296,7 +294,19 @@ where
         let mut cursor = self.mempool_cursor(&ctx);
 
         while let Some(mempool_tx) = self.mempool.next(&mut cursor) {
-            let tx_receipt = self.try_add_tx_to_batch(&mempool_tx, &mut ctx)?;
+            let tx_receipt = match self.try_add_tx_to_batch(&mempool_tx, &mut ctx) {
+                Ok(txr) => txr,
+                Err(TxProcessingErrorReason::Nonce { .. }) => {
+                    tracing::info!(
+                        hash = %mempool_tx.hash,
+                        "Transaction processing error due to nonce; ignoring tx",
+                    );
+                    continue;
+                }
+                Err(reason) => {
+                    bail!("An non-recoverable error occurred when trying to add the tx to the batch: {reason}")
+                }
+            };
 
             match tx_receipt.map(|r| r.receipt) {
                 Some(TxEffect::Successful(_)) => {
@@ -356,7 +366,7 @@ where
 
 struct BatchConstructionContext<S: Spec> {
     visible_height: u64,
-    reward: u64,
+    reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,
     state_checkpoint: Option<StateCheckpoint<S>>,
     current_batch_size_in_bytes: usize,
@@ -397,14 +407,14 @@ mod tests {
         TestAuth<S, MockDaSpec>,
     >;
 
-    fn generate_random_valid_tx() -> Vec<u8> {
+    fn generate_random_valid_tx(nonce: u64) -> Vec<u8> {
         let private_key = TestPrivateKey::generate();
         let mut rng = rand::thread_rng();
         let value: u32 = rng.gen();
-        generate_valid_tx(&private_key, value)
+        generate_valid_tx(&private_key, nonce, value)
     }
 
-    fn generate_valid_tx(private_key: &TestPrivateKey, value: u32) -> Vec<u8> {
+    fn generate_valid_tx(private_key: &TestPrivateKey, nonce: u64, value: u32) -> Vec<u8> {
         let msg = CallMessage::SetValue(value);
         let msg =
             <TestOptimisticRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
@@ -412,7 +422,6 @@ mod tests {
         let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
         let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
-        let nonce = 1;
 
         borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
@@ -436,13 +445,15 @@ mod tests {
         (0..length).map(|_| rng.gen()).collect()
     }
 
-    fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey) -> Vec<u8> {
+    fn generate_signed_tx_with_invalid_payload(
+        private_key: &TestPrivateKey,
+        nonce: u64,
+    ) -> Vec<u8> {
         let msg = generate_random_bytes();
         let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
         let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
-        let nonce = 1;
 
         borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
@@ -545,7 +556,7 @@ mod tests {
 
         #[tokio::test]
         async fn accept_valid_tx() {
-            let tx = generate_random_valid_tx();
+            let tx = generate_random_valid_tx(0);
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -563,7 +574,7 @@ mod tests {
 
         #[tokio::test]
         async fn reject_tx_too_big() {
-            let tx = generate_random_valid_tx();
+            let tx = generate_random_valid_tx(0);
             let batch_size = tx.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
@@ -595,14 +606,14 @@ mod tests {
             let (mut batch_builder, _storage) =
                 create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer_da_address);
 
-            for _ in 0..MAX_TX_POOL_SIZE {
-                let tx = generate_random_valid_tx();
+            for i in 0..MAX_TX_POOL_SIZE {
+                let tx = generate_random_valid_tx(i as u64);
                 batch_builder.accept_tx(tx).await.unwrap();
             }
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
 
-            let tx = generate_random_valid_tx();
+            let tx = generate_random_valid_tx(MAX_TX_POOL_SIZE as u64);
             batch_builder.accept_tx(tx).await.unwrap();
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
@@ -630,7 +641,7 @@ mod tests {
         #[tokio::test]
         async fn reject_signed_tx_with_invalid_payload() {
             let private_key = TestPrivateKey::generate();
-            let tx = generate_signed_tx_with_invalid_payload(&private_key);
+            let tx = generate_signed_tx_with_invalid_payload(&private_key, 0);
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -692,8 +703,8 @@ mod tests {
 
             let txs = [
                 // Two identical txs...
-                generate_valid_tx(&admin.private_key, 1),
-                generate_valid_tx(&admin.private_key, 1),
+                generate_valid_tx(&admin.private_key, 0, 1),
+                generate_valid_tx(&admin.private_key, 0, 1),
             ];
 
             let (mut batch_builder, _storage) =
@@ -713,8 +724,8 @@ mod tests {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
                 // Should be included: 113 bytes
-                generate_valid_tx(&value_setter_admin, 1),
-                generate_valid_tx(&value_setter_admin, 2),
+                generate_valid_tx(&value_setter_admin, 0, 1),
+                generate_valid_tx(&value_setter_admin, 1, 2),
             ];
 
             let batch_size = txs[0].len() * 3 + 1;
@@ -746,13 +757,13 @@ mod tests {
 
             let txs = [
                 // Should be included
-                generate_valid_tx(&admin.private_key, 1),
+                generate_valid_tx(&admin.private_key, 0, 1),
                 // Should be rejected, not admin
-                generate_valid_tx(&additional_account.private_key, 2),
+                generate_valid_tx(&additional_account.private_key, 0, 2),
                 // Should be included
-                generate_valid_tx(&admin.private_key, 3),
+                generate_valid_tx(&admin.private_key, 1, 3),
                 // Should be skipped, more than batch size
-                generate_valid_tx(&admin.private_key, 4),
+                generate_valid_tx(&admin.private_key, 2, 4),
             ];
 
             let batch_size = txs[0].len() + txs[2].len() + 1;

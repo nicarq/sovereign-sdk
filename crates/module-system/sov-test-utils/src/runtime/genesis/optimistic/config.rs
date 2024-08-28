@@ -5,6 +5,7 @@ use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{DaSpec, Genesis, Spec};
+use sov_nonces::Nonces;
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
 use crate::interface::AsUser;
@@ -25,6 +26,8 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
     pub accounts: <Accounts<S> as Genesis>::Config,
+    /// The nonces config.
+    pub nonces: <Nonces<S> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of an optimistic genesis config. This config
@@ -319,6 +322,7 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                         .collect()
                 },
             },
+            nonces: (),
         }
     }
 }

@@ -9885,6 +9885,7 @@ dependencies = [
  "sov-nonces",
  "sov-state",
  "sov-test-utils",
+ "sov-value-setter",
  "tempfile",
 ]
 
@@ -10259,6 +10260,7 @@ dependencies = [
  "sov-modules-api",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
+ "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer",

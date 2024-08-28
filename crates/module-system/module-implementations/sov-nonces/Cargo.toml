@@ -26,6 +26,7 @@ sov-nonces = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-test-utils = { workspace = true }
+sov-value-setter = { workspace = true }
 
 [features]
 default = []
@@ -36,9 +37,10 @@ arbitrary = [
     "sov-test-utils/arbitrary",
 ]
 native = [
-    "jsonrpsee",
-    "schemars",
-    "sov-modules-api/native",
-    "sov-nonces/native",
-    "sov-state/native",
+	"jsonrpsee",
+	"schemars",
+	"sov-modules-api/native",
+	"sov-nonces/native",
+	"sov-state/native",
+	"sov-value-setter/native"
 ]
