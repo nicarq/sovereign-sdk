@@ -59,10 +59,10 @@ paths:
 
 components:
   parameters:
-    height:
-      name: height
+    rollup_height:
+      name: rollup_height
       in: query
-      description: The height of the block to query. If not provided, the latest available block is used.
+      description: The height of the rollup to query. If not provided, the rollup head is used.
       required: false
       schema:
         type: integer

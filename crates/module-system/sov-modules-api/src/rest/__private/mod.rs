@@ -27,10 +27,10 @@ pub struct StateItemInfo {
 
 pub fn maybe_archival_accessor<S: Spec>(
     api_state_accessor: ApiStateAccessor<S>,
-    height_opt: Option<u64>,
+    rollup_height_opt: Option<u64>,
 ) -> ApiStateAccessor<S> {
-    if let Some(height) = height_opt {
-        api_state_accessor.get_archival_at(height)
+    if let Some(rollup_height) = rollup_height_opt {
+        api_state_accessor.get_archival_at(rollup_height)
     } else {
         api_state_accessor
     }

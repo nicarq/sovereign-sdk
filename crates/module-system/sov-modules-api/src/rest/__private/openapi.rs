@@ -12,11 +12,11 @@ type OpenApiPaths = Vec<(String, serde_json::Value)>;
 /// This should ideally be a reusable parameter defined in `#/parameters`, but
 /// [`utoipa::openapi::path::Parameter`] doesn't support `$ref` at the time of
 /// writing.
-fn height_param() -> utoipa::openapi::path::Parameter {
+fn rollup_height_param() -> utoipa::openapi::path::Parameter {
     serde_json::from_value(json!({
-        "name": "height",
+        "name": "rollup_height",
         "in": "query",
-        "description": "The block height to query the state at. Optional. If not provided, the latest block is used.",
+        "description": "The height of the rollup to query. If not provided, the rollup head is used.",
         "required": false,
         "schema": {
             "type": "integer",
@@ -35,7 +35,7 @@ pub fn state_value_paths() -> OpenApiPaths {
             "get": {
                 "operationId": "get_state_value",
                 "summary": "Get the value of a `StateValue`.",
-                "parameters": [height_param()],
+                "parameters": [rollup_height_param()],
                 "responses": {
                     "200": {
                         "$ref": "#/components/responses/StateValueResponse"
@@ -55,7 +55,7 @@ pub fn state_map_paths() -> OpenApiPaths {
             "get": {
                 "operationId": "get_state_map",
                 "summary": "Get the value of a `StateMap` element.",
-                "parameters": [height_param()],
+                "parameters": [rollup_height_param()],
                 "responses": {
                     "200": {
                         "$ref": "#/components/responses/StateMapElementResponse"
@@ -76,7 +76,7 @@ pub fn state_vec_paths() -> OpenApiPaths {
                 "get": {
                     "operationId": "get_state_vec",
                     "summary": "Get general information about a `StateVec`, including its length.",
-                    "parameters": [height_param()],
+                    "parameters": [rollup_height_param()],
                     "responses": {
                         "200": {
                             "$ref": "#/components/responses/StateVecResponse"
@@ -92,7 +92,7 @@ pub fn state_vec_paths() -> OpenApiPaths {
                     "operationId": "get_state_vec_item",
                     "summary": "Get the value of a `StateVec` element.",
                     "parameters": [
-                        height_param(),
+                        rollup_height_param(),
                         {
                             "name": "index",
                             "in": "path",

@@ -23,8 +23,8 @@ use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
 use super::{
-    maybe_archival_accessor, HeightQueryParam, ModuleSendSync, NamespacedStateMap,
-    NamespacedStateVec, StateItemInfo, StorageReceiver,
+    maybe_archival_accessor, ModuleSendSync, NamespacedStateMap, NamespacedStateVec,
+    RollupHeightQueryParam, StateItemInfo, StorageReceiver,
 };
 use crate::value::NamespacedStateValue;
 use crate::{ApiStateAccessor, Module, StateReader};
@@ -76,11 +76,11 @@ where
 {
     async fn get_state_value_route(
         State(state): State<Self>,
-        height_opt: Option<Query<HeightQueryParam>>,
+        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let mut state_accessor = maybe_archival_accessor(
             ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
-            height_opt.map(|q| q.0.height),
+            rollup_height_opt.map(|q| q.0.rollup_height),
         );
 
         let state_value = NamespacedStateValue::<N, T, Codec>::with_codec(
@@ -121,12 +121,12 @@ where
 {
     fn checkpoint_and_vec(
         &self,
-        height_opt: Option<Query<HeightQueryParam>>,
+        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> (ApiStateAccessor<M::Spec>, NamespacedStateVec<N, T, Codec>) {
         (
             maybe_archival_accessor(
                 ApiStateAccessor::new(self.storage.borrow().clone()),
-                height_opt.map(|q| q.0.height),
+                rollup_height_opt.map(|q| q.0.rollup_height),
             ),
             NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default()),
         )
@@ -134,9 +134,10 @@ where
 
     async fn get_state_vec_route(
         State(state): State<Self>,
-        height_opt: Option<Query<HeightQueryParam>>,
+        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
+        let (mut api_state_accessor, state_vec) =
+            Self::checkpoint_and_vec(&state, rollup_height_opt);
 
         let length = state_vec.len(&mut api_state_accessor).unwrap_infallible();
         Ok(StateItemContents::Vec { length }.into())
@@ -145,9 +146,10 @@ where
     async fn get_state_vec_item_route(
         State(state): State<Self>,
         Path(item_index): Path<usize>,
-        height_opt: Option<Query<HeightQueryParam>>,
+        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut api_state_accessor, state_vec) = Self::checkpoint_and_vec(&state, height_opt);
+        let (mut api_state_accessor, state_vec) =
+            Self::checkpoint_and_vec(&state, rollup_height_opt);
 
         let value = state_vec
             .get(item_index, &mut api_state_accessor)
@@ -203,11 +205,11 @@ where
     async fn get_state_map_item_route(
         State(state): State<Self>,
         Path(key): Path<K>,
-        height_opt: Option<Query<HeightQueryParam>>,
+        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<K, V>> {
         let mut working_set = maybe_archival_accessor(
             ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
-            height_opt.map(|q| q.0.height),
+            rollup_height_opt.map(|q| q.0.rollup_height),
         );
         let state_map = NamespacedStateMap::<N, K, V, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
