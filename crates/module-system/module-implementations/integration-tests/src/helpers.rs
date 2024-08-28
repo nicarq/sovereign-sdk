@@ -1,18 +1,17 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
-use sov_bank::{Bank, BankConfig, GasTokenConfig};
-use sov_chain_state::{ChainState, ChainStateConfig};
+use sov_bank::{BankConfig, GasTokenConfig};
+use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
+use sov_modules_api::{DaSpec, Spec, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
-use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+use sov_sequencer_registry::SequencerConfig;
 use sov_state::Storage;
-use sov_test_utils::runtime::traits::MinimalRuntime;
 use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime};
 use sov_test_utils::storage::SimpleStorageManager;
 pub(crate) use sov_test_utils::TestStorageSpec as StorageSpec;
@@ -114,24 +113,8 @@ impl TestRollup {
         self.stf().kernel()
     }
 
-    pub(crate) fn initial_base_fee_per_gas(&self) -> <<S as Spec>::Gas as Gas>::Price {
-        ChainState::<S, Da>::initial_base_fee_per_gas()
-    }
-
-    pub(crate) fn bank(&self) -> &Bank<S> {
-        self.stf().runtime().bank()
-    }
-
-    pub(crate) fn sequencer_registry(&self) -> &SequencerRegistry<S, Da> {
-        self.stf().runtime().sequencer_registry()
-    }
-
     pub(crate) fn storage(&mut self) -> <S as Spec>::Storage {
         self.storage_manager.create_storage()
-    }
-
-    pub(crate) fn new_state_checkpoint(&mut self) -> StateCheckpoint<S> {
-        StateCheckpoint::new(self.storage().clone())
     }
 
     fn create_genesis_config(
