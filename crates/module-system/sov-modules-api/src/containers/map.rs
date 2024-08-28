@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use anyhow::ensure;
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{EncodeKeyLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
+use sov_state::{EncodeLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
 #[cfg(feature = "native")]
 use sov_state::{StateItemDecoder, Storage};
 use thiserror::Error;
@@ -114,15 +114,19 @@ where
     Codec::KeyCodec: StateItemCodec<K>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
-    fn slot_key<Q>(&self, key: &Q) -> SlotKey
+    fn slot_key<Kq>(&self, key: &Kq) -> SlotKey
     where
-        Q: ?Sized,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Kq: ?Sized,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
     {
         SlotKey::new(self.prefix(), key, self.codec().key_codec())
     }
 
-    fn slot_value(&self, value: &V) -> SlotValue {
+    fn slot_value<Vq>(&self, value: &Vq) -> SlotValue
+    where
+        Vq: ?Sized,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+    {
         SlotValue::new(value, self.codec().value_codec())
     }
 
@@ -130,15 +134,18 @@ where
     ///
     /// The key may be any borrowed form of the
     /// map’s key type.
-    pub fn set<Q, Writer: StateWriter<N>>(
+    pub fn set<Kq, Vq, Writer>(
         &self,
-        key: &Q,
-        value: &V,
+        key: &Kq,
+        value: &Vq,
         state: &mut Writer,
     ) -> Result<(), Writer::Error>
     where
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Q: ?Sized,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        Kq: ?Sized,
+        Vq: ?Sized,
+        Writer: StateWriter<N>,
     {
         state.set(&self.slot_key(key), self.slot_value(value))
     }
@@ -148,7 +155,7 @@ where
     ///
     /// # Examples
     ///
-    /// The key may be any item that implements [`EncodeKeyLike`] the map's key type
+    /// The key may be any item that implements [`EncodeLike`] the map's key type
     /// using your chosen codec.
     ///
     /// ```
@@ -162,7 +169,7 @@ where
     /// }
     /// ```
     ///
-    /// If the map's key type does not implement [`EncodeKeyLike`] for your desired
+    /// If the map's key type does not implement [`EncodeLike`] for your desired
     /// target type, you'll have to convert the key to something else. An
     /// example of this would be "slicing" an array to use in [`Vec`]-keyed
     /// maps:
@@ -175,32 +182,30 @@ where
     ///     map.get(&key[..], state)
     /// }
     /// ```
-    pub fn get<Q, Reader: StateReader<N>>(
-        &self,
-        key: &Q,
-        state: &mut Reader,
-    ) -> Result<Option<V>, Reader::Error>
+    pub fn get<Kq, Reader>(&self, key: &Kq, state: &mut Reader) -> Result<Option<V>, Reader::Error>
     where
         Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
         Codec::ValueCodec: StateItemCodec<V>,
-        Q: ?Sized,
+        Kq: ?Sized,
+        Reader: StateReader<N>,
     {
         state.get_decoded(&self.slot_key(key), self.codec())
     }
 
     /// Returns the value corresponding to the key or [`StateMapError`] if key is absent from
     /// the map.
-    pub fn get_or_err<Q, Reader: StateReader<N>>(
+    pub fn get_or_err<Kq, Reader>(
         &self,
-        key: &Q,
+        key: &Kq,
         state: &mut Reader,
     ) -> Result<ValueOrError<V, N>, Reader::Error>
     where
         Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
         Codec::ValueCodec: StateItemCodec<V>,
-        Q: ?Sized,
+        Kq: ?Sized,
+        Reader: StateReader<N>,
     {
         Ok(self.get(key, state)?.ok_or_else(|| {
             StateMapError::MissingValue(
@@ -213,16 +218,17 @@ where
 
     /// Removes a key from the map, returning the corresponding value (or
     /// [`None`] if the key is absent).
-    pub fn remove<Q, ReaderAndWriter: StateReaderAndWriter<N>>(
+    pub fn remove<Kq, ReaderAndWriter>(
         &self,
-        key: &Q,
+        key: &Kq,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
         Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
         Codec::ValueCodec: StateItemCodec<V>,
-        Q: ?Sized,
+        Kq: ?Sized,
+        ReaderAndWriter: StateReaderAndWriter<N>,
     {
         state.remove_decoded(&self.slot_key(key), self.codec())
     }
@@ -231,16 +237,17 @@ where
     /// [`StateMapError`] if the key is absent).
     ///
     /// Use [`NamespacedStateMap::remove`] if you want an [`Option`] instead of a [`Result`].
-    pub fn remove_or_err<Q, ReaderAndWriter: StateReaderAndWriter<N>>(
+    pub fn remove_or_err<Kq, ReaderAndWriter>(
         &self,
-        key: &Q,
+        key: &Kq,
         state: &mut ReaderAndWriter,
     ) -> Result<ValueOrError<V, N>, <ReaderAndWriter as StateWriter<N>>::Error>
     where
         Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
         Codec::ValueCodec: StateItemCodec<V>,
-        Q: ?Sized,
+        Kq: ?Sized,
+        ReaderAndWriter: StateReaderAndWriter<N>,
     {
         Ok(self.remove(key, state)?.ok_or_else(|| {
             StateMapError::MissingValue(
@@ -255,15 +262,12 @@ where
     ///
     /// This is equivalent to [`NamespacedStateMap::remove`], but doesn't deserialize and
     /// return the value before deletion.
-    pub fn delete<Q, Writer: StateWriter<N>>(
-        &self,
-        key: &Q,
-        state: &mut Writer,
-    ) -> Result<(), Writer::Error>
+    pub fn delete<Kq, Writer>(&self, key: &Kq, state: &mut Writer) -> Result<(), Writer::Error>
     where
         Codec: StateCodec,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
-        Q: ?Sized,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
+        Kq: ?Sized,
+        Writer: StateWriter<N>,
     {
         state.delete(&self.slot_key(key))
     }
@@ -277,10 +281,14 @@ where
     Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<K>,
 {
-    pub fn get_with_proof<Q, W>(&self, key: &Q, state: &mut W) -> sov_state::StorageProof<W::Proof>
+    pub fn get_with_proof<Kq, W>(
+        &self,
+        key: &Kq,
+        state: &mut W,
+    ) -> sov_state::StorageProof<W::Proof>
     where
-        Q: ?Sized,
-        Codec::KeyCodec: EncodeKeyLike<Q, K>,
+        Kq: ?Sized,
+        Codec::KeyCodec: EncodeLike<Kq, K>,
         W: ProvenStateAccessor<N>,
     {
         state.get_with_proof(self.slot_key(key))

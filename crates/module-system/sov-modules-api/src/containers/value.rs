@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
+use sov_state::{EncodeLike, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec};
 use thiserror::Error;
 
 use crate::{StateReader, StateReaderAndWriter, StateWriter};
@@ -93,11 +93,12 @@ where
     }
 
     /// Sets the value.
-    pub fn set<Writer: StateWriter<N>>(
-        &self,
-        value: &V,
-        state: &mut Writer,
-    ) -> Result<(), Writer::Error> {
+    pub fn set<Vq, Writer>(&self, value: &V, state: &mut Writer) -> Result<(), Writer::Error>
+    where
+        Vq: ?Sized,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        Writer: StateWriter<N>,
+    {
         state.set(&self.slot_key(), self.slot_value(value))
     }
 
