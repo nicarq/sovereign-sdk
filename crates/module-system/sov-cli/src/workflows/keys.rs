@@ -34,6 +34,9 @@ pub enum KeyWorkflow<S: sov_modules_api::Spec> {
         #[clap(short, long)]
         /// The path to the key file
         path: PathBuf,
+        #[arg(short, long)]
+        /// Import is not performed is key with given nickname or address already in the store.
+        skip_if_present: bool,
     },
     /// List the keys in this wallet
     List,
@@ -76,11 +79,29 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 nickname,
                 address_override,
                 path,
+                skip_if_present,
             } => {
                 // Try to load the key as a sanity check.
                 let private_key = load_key::<S>(&path)?;
                 let public_key = private_key.pub_key();
                 let address = address_override.unwrap_or_else(|| (&public_key).into());
+
+                if skip_if_present {
+                    let identifier = if let Some(nickname) = nickname.clone() {
+                        KeyIdentifier::ByNickname { nickname }
+                    } else {
+                        KeyIdentifier::ByAddress {
+                            address: address.clone(),
+                        }
+                    };
+                    if wallet_state.addresses.get_address(&identifier).is_some() {
+                        println!(
+                            "A key with identifier {} already exists. Skipping import!",
+                            identifier
+                        );
+                        return Ok(());
+                    }
+                }
                 wallet_state
                     .addresses
                     .add(address.clone(), nickname, public_key, path)?;

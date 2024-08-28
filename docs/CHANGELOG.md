@@ -1,5 +1,6 @@
 - #1290 Refactors slashing mechanism in the prover incentives module.
 - #1287 Breaking Change: Adds `FromStr` trait bound to a `BlockHashTrait`. 
+- #1291 New flag `--skip-if-present`: `sov-cli keys import --skip-if-present` allows to skip importing file if was previously imported.
 - #1264 Makes testing-harness generic over runtime.
 - #1267 Fixes HTTP 500 in Ledger REST API `slots/<number>` endpoint.
 - #1261 Return Attestation and Challenge in ProofReceipt 
