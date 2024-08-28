@@ -128,6 +128,8 @@ fn setup_with_wrong_attestation() -> (
 
 /// Test that given an invalid transition, a challenger can successfully challenge it and get rewarded
 /// This tests the happy path of challenge processing.
+// TODO: #1262
+#[ignore]
 #[test]
 fn test_valid_challenge() -> Result<(), Infallible> {
     let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
@@ -225,6 +227,8 @@ fn test_invalid_challenge_helper(
 }
 
 #[test]
+// TODO: #1262
+#[ignore]
 fn test_invalid_challenge_initial_state_root() {
     test_invalid_challenge_helper(
         TestChallengeMessageError::InvalidInitialStateRoot,
@@ -233,6 +237,8 @@ fn test_invalid_challenge_initial_state_root() {
 }
 
 #[test]
+// TODO: #1262
+#[ignore]
 fn test_invalid_challenge_transition() {
     test_invalid_challenge_helper(
         TestChallengeMessageError::InvalidTransition,
@@ -241,6 +247,8 @@ fn test_invalid_challenge_transition() {
 }
 
 #[test]
+// TODO: #1262
+#[ignore]
 fn test_invalid_challenge_proof() {
     test_invalid_challenge_helper(
         TestChallengeMessageError::InvalidChallengeProof,

@@ -110,6 +110,13 @@ impl ProofSerializer for DummyProofSerializer {
     ) -> anyhow::Result<Vec<u8>> {
         Ok(serialized_proof.raw_aggregated_proof)
     }
+
+    fn serialize_attestation_blob_with_metadata(
+        &self,
+        _serialized_attestation: sov_modules_api::SerializedAttestation,
+    ) -> anyhow::Result<Vec<u8>> {
+        unimplemented!()
+    }
 }
 
 #[allow(clippy::type_complexity)]

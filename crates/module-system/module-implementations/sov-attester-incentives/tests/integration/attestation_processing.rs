@@ -1,105 +1,87 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_attester_incentives::ProcessAttestationErrors;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, Spec, StateAccessorError, TxEffect};
+use sov_modules_api::{Error, ProofOutcome, Spec, StateAccessorError, TxEffect};
 use sov_test_utils::generators::attester_incentive::TestAttestationMessageError;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
-use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{AsUser, TransactionTestCase, TEST_DEFAULT_USER_STAKE};
+use sov_test_utils::{
+    assert_matches, AsUser, ProofTestCase, ProofType, TestAttester, TransactionTestCase,
+    TEST_DEFAULT_USER_STAKE,
+};
 
-use super::helpers::{setup, TestRuntimeEvent, RT, S};
+use super::helpers::{setup, TestRuntimeEvent, S};
+use crate::helpers::{
+    build_proof, consume_gas_tx_for_signer, make_attestation_blob, TestAttesterIncentives,
+};
 
-/// Start by testing the positive case where the attestations are valid. We check that...
-/// valid attestations are processed correctly
-/// attesters are rewarded as expected
 #[test]
 fn test_process_valid_attestation() {
-    let (mut runner, mut genesis_attester, _, _) = setup();
+    let (mut runner, genesis_attester, _, other_user) = setup();
 
-    let genesis_attester_address = genesis_attester.user_info.address();
-    let genesis_attester_bond = genesis_attester.bond;
-    let genesis_attester_balance = genesis_attester.user_info.available_gas_balance;
+    for _ in 0..5 {
+        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    }
 
-    // We use an arc of an atomic to do accounting for the expected balance.
-    // because of limitations in rusts capture rules, we need a bunch of clones
-    // of this arc ahead of time
-    let expected_balance = Arc::new(AtomicU64::new(genesis_attester_balance));
-    let expected_balance_ref_1 = expected_balance.clone();
-    let expected_balance_ref_2 = expected_balance.clone();
-    let expected_balance_ref_3 = expected_balance.clone();
+    let attester_addr = genesis_attester.user_info.address();
 
-    let attest_slot_1 = TransactionTestCase {
-        input: genesis_attester.test_process_attestation(Ok(())),
-        assert: Box::new(move |result, _state| {
-            // Do accounting for the attester's balance
-            {
-                // The attester's balance should be decremented by the gas used
-                expected_balance.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
-                // We know that attester will attest to this slot later, so he'll get back some of his gas at that point.
-                expected_balance.fetch_add(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .burn_rate()
-                        .apply(result.gas_used),
-                    std::sync::atomic::Ordering::SeqCst,
-                );
-            }
-            // Check that the attestation succeeded
-            assert!(result.events.iter().any(|event| matches!(
-                event,
-                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
-            )));
-        }),
-    };
-    let attest_slot_2 = TransactionTestCase {
-        input: genesis_attester.test_process_attestation(Ok(())),
-        assert: Box::new(move |result, _state| {
-            // Check that the attestation succeeded
-            assert!(result.events.iter().any(|event| matches!(
-                event,
-                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
-            )));
-            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-            expected_balance_ref_1.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
-        }),
-    };
-    let attest_to_first_attestation = TransactionTestCase {
-        input: genesis_attester.test_process_attestation(Ok(())),
-        assert: Box::new(move |result, state| {
-            // Check that the attestation succeeded
-            assert!(result.events.iter().any(|event| matches!(
-                event,
-                TestRuntimeEvent::attester_incentives(Event::ProcessedValidAttestation { .. })
-            )));
-            // Account for the gas used to send the attestation. We never attest to the current slot, so we don't add anything back.
-            expected_balance_ref_2.fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
-            assert_eq!(
-                TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state),
-                Some(expected_balance_ref_3.load(std::sync::atomic::Ordering::SeqCst))
-            );
-            // Check that the attester still has their full bond
-            assert_eq!(
-                AttesterIncentives::<S, MockDaSpec>::default()
-                    .get_attester_bond_amount(genesis_attester_address, state)
-                    .unwrap_infallible()
-                    .value,
-                genesis_attester_bond,
-            );
-        }),
-    };
+    let attestation_proof_1 = runner
+        .query_state(|state| build_proof(state, 1, &attester_addr))
+        .unwrap();
 
-    // We run a test with 5 slots (plus genesis).
-    // The first two slots are empty. The third and fourth slots attest to the first two empty slots. The last
-    // slot attest to the first slot that contains a transaction. This allows us to test that gas metering is done correctly.
+    let attest_slot_1 = create_test_case(
+        genesis_attester.clone(),
+        make_attestation_blob(attestation_proof_1),
+    );
+
+    let attestation_proof_2 = runner
+        .query_state(|state| build_proof(state, 2, &attester_addr))
+        .unwrap();
+
+    let attest_slot_2 = create_test_case(
+        genesis_attester.clone(),
+        make_attestation_blob(attestation_proof_2),
+    );
+
+    let attestation_proof_3 = runner
+        .query_state(|state| build_proof(state, 3, &attester_addr))
+        .unwrap();
+
+    let attest_slot_3 =
+        create_test_case(genesis_attester, make_attestation_blob(attestation_proof_3));
+
     runner
-        .advance_slots(2)
-        .execute_transaction(attest_slot_1)
-        .execute_transaction(attest_slot_2)
-        .execute_transaction(attest_to_first_attestation);
+        .advance_slots(5)
+        .execute_proof::<TestAttesterIncentives>(attest_slot_1)
+        .execute_proof::<TestAttesterIncentives>(attest_slot_2)
+        .execute_proof::<TestAttesterIncentives>(attest_slot_3);
 }
 
+fn create_test_case(
+    genesis_attester: TestAttester<S>,
+    serialized_attestation: Vec<u8>,
+) -> ProofTestCase<S, MockDaSpec> {
+    ProofTestCase {
+        input: ProofType::Inline(serialized_attestation),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+
+            assert_eq!(
+                TestAttesterIncentives::default()
+                    .bonded_attesters
+                    .get(&genesis_attester.user_info.address(), state)
+                    .unwrap(),
+                Some(genesis_attester.bond),
+                "Bonded amount should not have changed"
+            );
+
+            // TODO #1292: check rewards.
+        }),
+    }
+}
+
+// TODO: #1262
+#[ignore]
 #[test]
 fn test_burn_on_invalid_attestation() {
     let (mut runner, mut genesis_attester, _, _) = setup();

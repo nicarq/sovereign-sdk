@@ -1,7 +1,18 @@
+use std::convert::Infallible;
+
+use sov_attester_incentives::Attestation;
+use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
+use sov_modules_api::{
+    ApiStateAccessor, DaSpec, ProofSerializer, SerializedAttestation, SovApiProofSerializer, Spec,
+};
+use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
-use sov_test_utils::{generate_optimistic_runtime, TestAttester, TestChallenger, TestUser};
+use sov_test_utils::{
+    generate_optimistic_runtime, AsUser, TestAttester, TestChallenger, TestUser, TransactionType,
+};
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -66,4 +77,76 @@ pub(crate) fn setup() -> SetupParams {
         genesis_challenger,
         additional_account,
     )
+}
+
+pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<Bank<S>, S> {
+    let recipient = TestUser::<S>::generate(0);
+    signer.create_plain_message(sov_bank::CallMessage::Transfer {
+        to: recipient.address(),
+        coins: sov_bank::Coins {
+            amount: 1000,
+            token_id: GAS_TOKEN_ID,
+        },
+    })
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn build_proof(
+    state: &mut ApiStateAccessor<S>,
+    slot_to_attest: u64,
+    user_address: &<S as Spec>::Address,
+) -> Result<
+    Attestation<
+        <MockDaSpec as DaSpec>::SlotHash,
+        <<S as Spec>::Storage as Storage>::Root,
+        StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+    >,
+    Infallible,
+> {
+    let chain_state = ChainState::<S, MockDaSpec>::default();
+
+    // Get the values for the transition being attested
+    let current_transition = chain_state
+        .get_historical_transitions(slot_to_attest, state)?
+        .unwrap();
+
+    let prev_root = if slot_to_attest == 1 {
+        chain_state.get_genesis_hash(state)?
+    } else {
+        chain_state
+            .get_historical_transitions(slot_to_attest - 1, state)?
+            .map(|t| *t.post_state_root())
+    }
+    .unwrap();
+
+    let mut archival_state = state.get_archival_at(slot_to_attest);
+
+    let proof_of_bond = TestAttesterIncentives::default()
+        .bonded_attesters
+        .get_with_proof(user_address, &mut archival_state);
+
+    Ok(Attestation {
+        initial_state_root: prev_root,
+        slot_hash: *current_transition.slot_hash(),
+        post_state_root: *current_transition.post_state_root(),
+        proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
+            claimed_transition_num: slot_to_attest,
+            proof: proof_of_bond,
+        },
+    })
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn make_attestation_blob(
+    attestation: Attestation<
+        <MockDaSpec as DaSpec>::SlotHash,
+        <<S as Spec>::Storage as Storage>::Root,
+        StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+    >,
+) -> Vec<u8> {
+    let serialized_attestation = SerializedAttestation::from_attestation(&attestation).unwrap();
+
+    SovApiProofSerializer::<S>::new()
+        .serialize_attestation_blob_with_metadata(serialized_attestation)
+        .unwrap()
 }
