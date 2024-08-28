@@ -207,7 +207,7 @@ pub(crate) async fn assert_balance(
     );
 
     let height_param: String = version
-        .map(|h| format!("?height={}", h))
+        .map(|h| format!("?rollup_height={}", h))
         .unwrap_or_default();
     let balance_url = format!(
         "/modules/bank/tokens/{}/balances/{}{}",

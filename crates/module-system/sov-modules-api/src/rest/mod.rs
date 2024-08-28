@@ -185,7 +185,7 @@ pub struct ApiState<T, S: Spec> {
     #[deref]
     inner: Arc<T>,
     storage_receiver: StorageReceiver<S>,
-    height: Option<u64>,
+    rollup_height: Option<u64>,
 }
 
 impl<T, S: Spec> ApiState<T, S> {
@@ -195,7 +195,7 @@ impl<T, S: Spec> ApiState<T, S> {
         Self {
             inner: Arc::new(inner),
             storage_receiver,
-            height: None,
+            rollup_height: None,
         }
     }
 
@@ -213,7 +213,7 @@ impl<T, S: Spec> ApiState<T, S> {
         let storage = self.storage().clone();
         let state_accessor = ApiStateAccessor::new(storage);
 
-        maybe_archival_accessor(state_accessor, self.height)
+        maybe_archival_accessor(state_accessor, self.rollup_height)
     }
 }
 
@@ -228,19 +228,19 @@ where
         parts: &mut axum::http::request::Parts,
         state: &ApiState<T, S>,
     ) -> Result<Self, Self::Rejection> {
-        let height = Query::<HeightQueryParam>::from_request_parts(parts, state)
+        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
             .await
             .ok()
-            .map(|q| q.0.height);
+            .map(|q| q.0.rollup_height);
 
         let mut state = state.clone();
-        state.height = height;
+        state.rollup_height = rollup_height;
 
         Ok(state)
     }
 }
 
 #[derive(Copy, Clone, Debug, Deserialize)]
-pub(crate) struct HeightQueryParam {
-    pub height: u64,
+pub(crate) struct RollupHeightQueryParam {
+    pub rollup_height: u64,
 }

@@ -1,5 +1,6 @@
 - #1299 Updates tests in attester-incentives
 - #1275 Adds an `ExecutionContext` enum to `stf::apply_slot` and `Context::new`. This enum allows callees to distinguish between sequencer execution and normal "full node" execution.
+- #1297 Renames the `?height=...` query parameter in the REST API to `?rollup_height=...`.
 - #1290 Refactors slashing mechanism in the prover incentives module.
 - #1287 Breaking Change: Adds `FromStr` trait bound to a `BlockHashTrait`. 
 - #1291 New flag `--skip-if-present`: `sov-cli keys import --skip-if-present` allows to skip importing file if was previously imported.
