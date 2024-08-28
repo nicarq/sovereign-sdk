@@ -90,8 +90,7 @@ fn test_sequencer_reward_in_stf(rollup: &mut TestRollup, max_fee: u64) -> Result
         [0; 32],
     );
 
-    let exec_simulation =
-        rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0, None);
+    let exec_simulation = rollup.execution_simulation(1, init_root_hash, vec![blob.clone()], 0);
 
     assert_eq!(exec_simulation.len(), 1, "The execution simulation failed");
     assert_eq!(

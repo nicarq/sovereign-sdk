@@ -1,5 +1,5 @@
 use sov_accounts::AccountConfig;
-use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
+use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig, GasTokenConfig};
 use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -7,12 +7,10 @@ use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidity
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::da::Time;
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{DaSpec, Gas, GasArray, Spec, StateCheckpoint, Zkvm};
+use sov_modules_api::{DaSpec, Gas, Spec, StateCheckpoint, Zkvm};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, Runtime, StfBlueprint};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
-use sov_state::namespaces::User;
-use sov_state::storage::{NativeStorage, StorageProof};
 use sov_state::Storage;
 use sov_test_utils::runtime::traits::MinimalRuntime;
 use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime};
@@ -97,24 +95,7 @@ pub(crate) type TestKernel<S, Da> = BasicKernel<S, Da>;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ExecutionSimulationVars {
-    pub state_root: <<S as Spec>::Storage as Storage>::Root,
     pub batch_receipts: Vec<BatchReceipt<MockDaSpec>>,
-    pub state_proof: Option<StorageProof<<<S as Spec>::Storage as Storage>::Proof>>,
-    gas_consumed_slot: Vec<<S as Spec>::Gas>,
-}
-
-impl ExecutionSimulationVars {
-    pub(crate) fn gas_consumed_value(&self) -> u64 {
-        self.gas_consumed_slot
-            .iter()
-            .zip(self.batch_receipts.iter())
-            .map(|(gas_consumed_batch, batch_receipt)| {
-                gas_consumed_batch.value(&<<S as Spec>::Gas as Gas>::Price::from_slice(
-                    &batch_receipt.gas_price,
-                ))
-            })
-            .sum()
-    }
 }
 
 pub(crate) struct TestRollup {
@@ -137,10 +118,6 @@ impl TestRollup {
         ChainState::<S, Da>::initial_base_fee_per_gas()
     }
 
-    pub(crate) fn attester_incentives(&self) -> &AttesterIncentives<S, Da> {
-        &self.stf().runtime().inner.attester_incentives
-    }
-
     pub(crate) fn bank(&self) -> &Bank<S> {
         self.stf().runtime().bank()
     }
@@ -155,10 +132,6 @@ impl TestRollup {
 
     pub(crate) fn new_state_checkpoint(&mut self) -> StateCheckpoint<S> {
         StateCheckpoint::new(self.storage().clone())
-    }
-
-    pub(crate) fn storage_manager(&mut self) -> &mut SimpleStorageManager<StorageSpec> {
-        &mut self.storage_manager
     }
 
     fn create_genesis_config(
@@ -251,22 +224,10 @@ impl TestRollup {
         mut prev_root_hash: <<S as Spec>::Storage as Storage>::Root,
         blobs: Vec<MockBlob>,
         height: u8,
-        attester_address: Option<<S as Spec>::Address>,
     ) -> Vec<ExecutionSimulationVars> {
         let mut ret_exec_vars = Vec::<ExecutionSimulationVars>::new();
 
         for i in 0..rounds {
-            let state_proof = attester_address.map(|attester_address| {
-                self.storage().get_with_proof::<User>(
-                    self.stf()
-                        .runtime()
-                        .inner
-                        .attester_incentives
-                        .get_attester_storage_key(attester_address),
-                    None,
-                )
-            });
-
             // We apply a new transaction with the same values
             let slot: MockBlock = MockBlock {
                 header: MockBlockHeader {
@@ -300,25 +261,7 @@ impl TestRollup {
 
             prev_root_hash = new_root_hash;
 
-            let gas_proved = batch_receipts
-                .iter()
-                .map(|batch_receipt| {
-                    batch_receipt.tx_receipts.iter().fold(
-                        <S as Spec>::Gas::zero(),
-                        |mut acc, tx_receipt| {
-                            acc.combine(&<S as Spec>::Gas::from_slice(&tx_receipt.gas_used));
-                            acc
-                        },
-                    )
-                })
-                .collect();
-
-            ret_exec_vars.push(ExecutionSimulationVars {
-                state_root: new_root_hash,
-                batch_receipts,
-                state_proof,
-                gas_consumed_slot: gas_proved,
-            });
+            ret_exec_vars.push(ExecutionSimulationVars { batch_receipts });
         }
 
         ret_exec_vars

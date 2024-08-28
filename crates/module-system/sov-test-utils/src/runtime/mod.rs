@@ -172,7 +172,7 @@ where
         query(&mut self.current_state())
     }
 
-    /// A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
+    /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
     /// Updates the state of the rollup by committing the changes of the given closure.
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
         let header = MockBlockHeader {
