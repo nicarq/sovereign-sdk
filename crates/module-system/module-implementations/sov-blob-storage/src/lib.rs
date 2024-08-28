@@ -58,7 +58,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     pub fn store_batches(
         &self,
         slot_number: TransitionHeight,
-        batches: &Vec<(BlobDataWithId, Da::Address)>,
+        batches: &[(BlobDataWithId, Da::Address)],
         state: &mut StateCheckpoint<S>,
     ) {
         self.deferred_blobs

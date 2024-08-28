@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{Accessory, CompileTimeNamespace, Kernel, User};
-use sov_state::{Prefix, StateCodec, StateItemCodec};
+use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec};
 use thiserror::Error;
 use unwrap_infallible::UnwrapInfallible;
 
@@ -106,12 +106,17 @@ where
     /// Sets a value in the vector.
     /// If the index is out of bounds, returns an error.
     /// To push a value to the end of the StateVec, use [`NamespacedStateVec::push`].
-    pub fn set<ReaderAndWriter: StateReaderAndWriter<N>>(
+    pub fn set<Vq, ReaderAndWriter>(
         &self,
         index: usize,
-        value: &V,
+        value: &Vq,
         state: &mut ReaderAndWriter,
-    ) -> Result<Result<(), StateVecError<N>>, <ReaderAndWriter as StateWriter<N>>::Error> {
+    ) -> Result<Result<(), StateVecError<N>>, <ReaderAndWriter as StateWriter<N>>::Error>
+    where
+        Vq: ?Sized,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        ReaderAndWriter: StateReaderAndWriter<N>,
+    {
         let len = self.len(state)?;
 
         Ok(if index < len {
@@ -156,11 +161,16 @@ where
     }
 
     /// Pushes a value to the end of the vector.
-    pub fn push<ReaderAndWriter: StateReaderAndWriter<N>>(
+    pub fn push<Vq, ReaderAndWriter>(
         &self,
-        value: &V,
+        value: &Vq,
         state: &mut ReaderAndWriter,
-    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
+    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error>
+    where
+        Vq: ?Sized,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        ReaderAndWriter: StateReaderAndWriter<N>,
+    {
         let len = self.len(state)?;
 
         self.elems().set(&len, value, state)?;
@@ -239,15 +249,19 @@ where
         Ok(())
     }
 
-    /// Sets all values in the tector.
+    /// Sets all values in the vector.
     ///
     /// If the length of the provided values is less than the length of the
     /// vector, the remaining values will be removed from storage.
-    pub fn set_all<ReaderAndWriter: StateReaderAndWriter<N>>(
+    pub fn set_all<Vq, ReaderAndWriter>(
         &self,
-        values: Vec<V>,
+        values: Vec<Vq>,
         state: &mut ReaderAndWriter,
-    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error> {
+    ) -> Result<(), <ReaderAndWriter as StateWriter<N>>::Error>
+    where
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+        ReaderAndWriter: StateReaderAndWriter<N>,
+    {
         let old_len = self.len(state)?;
         let new_len = values.len();
 

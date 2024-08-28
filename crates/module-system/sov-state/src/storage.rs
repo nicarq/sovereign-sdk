@@ -9,7 +9,7 @@ use serde::Serialize;
 use sov_wallet_format::UniversalWallet;
 
 use crate::bytes::Prefix;
-use crate::codec::{EncodeKeyLike, StateItemCodec};
+use crate::codec::EncodeLike;
 use crate::jmt::Version;
 use crate::namespaces::{ProvableCompileTimeNamespace, ProvableNamespace};
 use crate::{StateAccesses, Witness};
@@ -69,10 +69,10 @@ impl SlotKey {
     /// Creates a new [`SlotKey`] that combines a prefix and a key.
     pub fn new<K, Q, KC>(prefix: &Prefix, key: &Q, codec: &KC) -> Self
     where
-        KC: EncodeKeyLike<Q, K>,
+        KC: EncodeLike<Q, K>,
         Q: ?Sized,
     {
-        let encoded_key = codec.encode_key_like(key);
+        let encoded_key = codec.encode_like(key);
 
         let mut full_key = Vec::<u8>::with_capacity(prefix.len().saturating_add(encoded_key.len()));
         full_key.extend(prefix.as_ref());
@@ -135,11 +135,12 @@ impl From<Vec<u8>> for SlotValue {
 
 impl SlotValue {
     /// Create a new storage value by serializing the input with the given codec.
-    pub fn new<V, VC>(value: &V, codec: &VC) -> Self
+    pub fn new<V, Vq, VC>(value: &Vq, codec: &VC) -> Self
     where
-        VC: StateItemCodec<V>,
+        Vq: ?Sized,
+        VC: EncodeLike<Vq, V>,
     {
-        let encoded_value = codec.encode(value);
+        let encoded_value = codec.encode_like(value);
         Self {
             value: Arc::new(encoded_value),
         }

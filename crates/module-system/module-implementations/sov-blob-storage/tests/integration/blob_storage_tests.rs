@@ -89,9 +89,9 @@ fn store_and_retrieve_standard() {
     let slot_3_batches = &batches[3..4];
     let slot_4_batches = &batches[4..5];
 
-    blob_storage.store_batches(2, &slot_2_batches.to_vec(), &mut state_checkpoint);
-    blob_storage.store_batches(3, &slot_3_batches.to_vec(), &mut state_checkpoint);
-    blob_storage.store_batches(4, &slot_4_batches.to_vec(), &mut state_checkpoint);
+    blob_storage.store_batches(2, slot_2_batches, &mut state_checkpoint);
+    blob_storage.store_batches(3, slot_3_batches, &mut state_checkpoint);
+    blob_storage.store_batches(4, slot_4_batches, &mut state_checkpoint);
 
     assert_eq!(
         slot_2_batches,

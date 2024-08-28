@@ -78,20 +78,20 @@ pub trait StateCodec: Default + Clone + Send + Sync + 'static {
 /// A trait for codecs which know how to serialize a type `Ref` as if it were
 /// some other type `Target`.
 ///
-/// A good example of this is BorshCodec, which knows how to serialize a
-/// `[T;N]` as if it were a `Vec<T>` even though the two types have different
+/// A good example of this is [`BorshCodec`], which knows how to serialize a
+/// `[T;N]` as if it were a [`Vec<T>`] even though the two types have different
 /// encodings by default.
-pub trait EncodeKeyLike<Ref: ?Sized, Target> {
+pub trait EncodeLike<Ref: ?Sized, Target>: StateItemEncoder<Target> {
     /// Encodes a reference to `Ref` as if it were a reference to `Target`.
-    fn encode_key_like(&self, borrowed: &Ref) -> Vec<u8>;
+    fn encode_like(&self, borrowed: &Ref) -> Vec<u8>;
 }
 
-// All items can be encoded like themselves by all codecs
-impl<C, T> EncodeKeyLike<T, T> for C
+/// All items can be encoded like themselves by all codecs.
+impl<C, T> EncodeLike<T, T> for C
 where
     C: StateItemCodec<T>,
 {
-    fn encode_key_like(&self, borrowed: &T) -> Vec<u8> {
+    fn encode_like(&self, borrowed: &T) -> Vec<u8> {
         self.encode(borrowed)
     }
 }
@@ -113,7 +113,7 @@ mod tests {
         fn test_borsh_slice_encode_alike(vec in arb_vec_i32()) {
             let codec = BorshCodec;
             assert_eq!(
-                <BorshCodec as EncodeKeyLike<[i32], Vec<i32>>>::encode_key_like(&codec, &vec[..]),
+                <BorshCodec as EncodeLike<[i32], Vec<i32>>>::encode_like(&codec, &vec[..]),
                 codec.encode(&vec)
             );
         }

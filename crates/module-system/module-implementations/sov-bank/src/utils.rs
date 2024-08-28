@@ -3,7 +3,7 @@ use std::hash::Hash;
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::{CryptoSpec, ModuleId, Spec};
-use sov_state::codec::{BcsCodec, BorshCodec, EncodeKeyLike};
+use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 
 use crate::TokenId;
 
@@ -192,21 +192,22 @@ impl<'a, S: Spec> From<&'a ModuleId> for TokenHolderRef<'a, S> {
     }
 }
 
-// Implement the `encode_key_like` trait, marking for Rustc that TokenHolderRef and TokenHolder can be serialized
-// identically for all of our supported codecs
-mod encode_key_like {
+// Implement the [`EncodeLike`] trait, marking for Rustc that [`TokenHolderRef`]
+// and [`TokenHolder`] can be serialized identically for all of our supported
+// codecs.
+mod encode_like {
     use sov_state::StateItemEncoder;
 
     use super::*;
 
-    impl<S: Spec> EncodeKeyLike<TokenHolderRef<'_, S>, TokenHolder<S>> for BcsCodec {
-        fn encode_key_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
+    impl<S: Spec> EncodeLike<TokenHolderRef<'_, S>, TokenHolder<S>> for BcsCodec {
+        fn encode_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
             self.encode(borrowed)
         }
     }
 
-    impl<S: Spec> EncodeKeyLike<TokenHolderRef<'_, S>, TokenHolder<S>> for BorshCodec {
-        fn encode_key_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
+    impl<S: Spec> EncodeLike<TokenHolderRef<'_, S>, TokenHolder<S>> for BorshCodec {
+        fn encode_like(&self, borrowed: &TokenHolderRef<'_, S>) -> Vec<u8> {
             self.encode(borrowed)
         }
     }
