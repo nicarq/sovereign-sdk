@@ -611,10 +611,10 @@ where
         .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
 
     debug!(
-    tx_hash = hex::encode(raw_tx_hash),
-    receipt = ?receipt.receipt,
-    consumption = %transaction_consumption,
-    "Transaction has been executed",
+        tx_hash = hex::encode(raw_tx_hash),
+        receipt = ?receipt.receipt,
+        consumption = %transaction_consumption,
+        "Transaction has been executed",
     );
 
     ApplyTxResult::<S> {

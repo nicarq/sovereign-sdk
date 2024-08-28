@@ -41,6 +41,7 @@ sov-prover-incentives = { workspace = true, features = ["native"] }
 sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
+sov-nonces = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true, features = ["native"] }
 sov-ledger-apis = { workspace = true }
 sov-ledger-json-client = { workspace = true }
@@ -78,5 +79,6 @@ arbitrary = [
 	"sov-sequencer-registry/arbitrary",
 	"sov-state/arbitrary",
 	"rockbound/arbitrary",
-	"sov-accounts/arbitrary"
+	"sov-accounts/arbitrary",
+	"sov-nonces/arbitrary"
 ]

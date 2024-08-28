@@ -26,6 +26,8 @@ macro_rules! generate_runtime {
             pub bank: $crate::runtime::Bank<S>,
             /// The accounts module
             pub accounts: $crate::runtime::Accounts<S>,
+            /// The nonces module
+            pub nonces: $crate::runtime::Nonces<S>,
             /// The module that will receive the base fee.
             pub $base_fee_recipient: $base_fee_recipient_ty,
             $(
@@ -58,6 +60,10 @@ macro_rules! generate_runtime {
 
             fn accounts(&self) -> &$crate::runtime::Accounts<S> {
                 &self.accounts
+            }
+
+            fn nonces(&self) -> &$crate::runtime::Nonces<S> {
+                &self.nonces
             }
         }
 
@@ -108,6 +114,7 @@ macro_rules! generate_runtime {
                     sequencer_registry: minimal_config.sequencer_registry,
                     bank: minimal_config.bank,
                     accounts: minimal_config.accounts,
+                    nonces: minimal_config.nonces,
                     $base_fee_recipient: minimal_config.$base_fee_recipient,
                     $(
                         $module_name,

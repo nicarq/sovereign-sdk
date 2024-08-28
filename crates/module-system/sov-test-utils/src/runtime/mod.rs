@@ -21,6 +21,7 @@ use sov_modules_api::{
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
+pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -54,6 +55,8 @@ pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
 mod tests;
 
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
+
+type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<Da: DaSpec> {
@@ -280,21 +283,25 @@ where
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
         >,
         sequencer: <MockDaSpec as DaSpec>::Address,
-    ) -> RelevantBlobs<MockBlob>
+    ) -> (RelevantBlobs<MockBlob>, NoncesMap<S>)
     where
         RT: EncodeCall<M>,
     {
+        let mut nonces = self.nonces.clone();
         let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
         let raw_txns = txs
             .into_iter()
-            .map(|tx| tx.to_raw_tx::<RT>(&mut self.nonces, &mut state))
+            .map(|tx| tx.to_raw_tx::<RT>(&mut nonces, &mut state))
             .collect::<Vec<_>>();
         let batch = Batch::new(raw_txns);
         let blob = MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer);
-        RelevantBlobs {
-            batch_blobs: vec![blob],
-            proof_blobs: vec![],
-        }
+        (
+            RelevantBlobs {
+                batch_blobs: vec![blob],
+                proof_blobs: vec![],
+            },
+            nonces,
+        )
     }
 
     /// Simulates execution of the provided input without committing to the updated state.
@@ -304,7 +311,7 @@ where
         &mut self,
         input: T,
         override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
-    ) -> (TestApplySlotOutput<RT, S>, MockBlockHeader)
+    ) -> (TestApplySlotOutput<RT, S>, MockBlockHeader, NoncesMap<S>)
     where
         M: Module,
         RT: EncodeCall<M>,
@@ -316,7 +323,7 @@ where
             .expect("Block builds on height zero");
         let slot_input: SlotInput<S, M> = input.into();
         let sequencer = override_sequencer.unwrap_or(self.default_sequencer_da_address);
-        let mut blobs = match slot_input {
+        let (mut blobs, nonces) = match slot_input {
             SlotInput::Transaction(tx) => self.txs_to_blobs(vec![tx], &stf_state, sequencer),
             SlotInput::Batch(batch) => self.txs_to_blobs(batch.0, &stf_state, sequencer),
             SlotInput::Proof(proof) => {
@@ -327,10 +334,13 @@ where
                     }
                 };
                 let blob = MockBlob::new_with_hash(proof_bytes, sequencer);
-                RelevantBlobs {
-                    batch_blobs: vec![],
-                    proof_blobs: vec![blob],
-                }
+                (
+                    RelevantBlobs {
+                        batch_blobs: vec![],
+                        proof_blobs: vec![blob],
+                    },
+                    self.nonces.clone(),
+                )
             }
         };
         (
@@ -344,6 +354,7 @@ where
                 ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
             ),
             block_header,
+            nonces,
         )
     }
 
@@ -358,8 +369,9 @@ where
         M: Module,
         RT: EncodeCall<M>,
     {
-        let (result, block_header) = self.simulate(input, override_sequencer);
-        self.commit_apply_slot_output(&result, &block_header);
+        let (result, block_header, nonces) = self.simulate(input, override_sequencer);
+        self.commit_apply_slot_output(&result, &block_header, nonces);
+
         result
     }
 
@@ -367,6 +379,7 @@ where
         &mut self,
         output: &TestApplySlotOutput<RT, S>,
         header: &MockBlockHeader,
+        nonces: NoncesMap<S>,
     ) {
         self.storage_manager
             .save_change_set(header, output.change_set.clone(), SchemaBatch::new())
@@ -376,6 +389,7 @@ where
             block_header: header.clone(),
             batch_receipts: output.batch_receipts.clone(),
         });
+        self.nonces = nonces;
     }
 
     /// Advance the rollup `slots_to_advance` slots without executing
@@ -400,7 +414,7 @@ where
                 blobs.as_iters(),
                 ExecutionContext::Node,
             );
-            self.commit_apply_slot_output(&result, &block_header);
+            self.commit_apply_slot_output(&result, &block_header, self.nonces.clone());
         }
         self
     }

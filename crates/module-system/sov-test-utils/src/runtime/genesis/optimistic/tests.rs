@@ -167,6 +167,8 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
         },
 
         accounts: AccountConfig { accounts: vec![] },
+
+        nonces: (),
     }
 }
 

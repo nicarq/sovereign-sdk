@@ -10,6 +10,7 @@ use sov_modules_api::{
     BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall, Genesis,
     RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
+use sov_nonces::Nonces;
 use sov_sequencer_registry::SequencerRegistry;
 
 use super::wrapper::EndSlotClosure;
@@ -26,6 +27,8 @@ pub trait MinimalRuntime<S: Spec, Da: DaSpec>: Default {
     /// Returns a reference to the recipient of the base fees.
     /// This is typically either `AttesterIncentives` optimistic or `ProverIncentives` for provable mode respectively.
     fn base_fee_recipient(&self) -> impl Payable<S>;
+    /// Returns a reference to the nonces module.
+    fn nonces(&self) -> &Nonces<S>;
 }
 
 /// A trait which allows access to the contents of the genesis configuration

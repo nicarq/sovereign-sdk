@@ -2,6 +2,7 @@ use sov_accounts::{AccountConfig, Accounts};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{DaSpec, Genesis, Spec};
+use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
 
@@ -22,6 +23,8 @@ pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
     pub accounts: <Accounts<S> as Genesis>::Config,
+    /// The nonces config.
+    pub nonces: <Nonces<S> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of a ZK genesis config.
@@ -165,6 +168,7 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                 tokens: vec![],
             },
             accounts: AccountConfig { accounts: vec![] },
+            nonces: (),
         }
     }
 }

@@ -21,6 +21,7 @@ use sov_modules_api::{
     WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
+use sov_nonces::Nonces;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
@@ -362,6 +363,10 @@ impl<S: Spec, Da: DaSpec, T: StandardRuntime<S, Da>> MinimalRuntime<S, Da>
     fn accounts(&self) -> &Accounts<S> {
         self.inner.accounts()
     }
+
+    fn nonces(&self) -> &Nonces<S> {
+        self.inner.nonces()
+    }
 }
 
 impl<S, Da, T, M> EncodeCall<M> for TestRuntimeWrapper<S, Da, T>
@@ -520,11 +525,12 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
     fn check_uniqueness<Meter: GasMeter<S::Gas>>(
         &self,
-        _auth_tx: &Self::AuthorizationData,
+        auth_tx: &Self::AuthorizationData,
         _context: &Context<S>,
-        _state: &mut PreExecWorkingSet<S, Meter>,
+        state: &mut PreExecWorkingSet<S, Meter>,
     ) -> anyhow::Result<()> {
-        Ok(())
+        self.nonces()
+            .check_nonce(&auth_tx.credential_id, auth_tx.nonce, state)
     }
 
     /// Resolves the context for a transaction.
@@ -579,10 +585,12 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
     /// Marks a transaction as having been executed, preventing it from executing again.
     fn mark_tx_attempted(
         &self,
-        _auth_tx: &Self::AuthorizationData,
+        auth_tx: &Self::AuthorizationData,
         _sequencer: &Da::Address,
-        _tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S>,
     ) {
+        self.nonces()
+            .mark_tx_attempted(&auth_tx.credential_id, tx_scratchpad);
     }
 }
 
