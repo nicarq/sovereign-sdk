@@ -81,4 +81,26 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
 
         Ok(serialized_proof_with_details)
     }
+
+    fn serialize_attestation_blob_with_metadata(
+        &self,
+        serialized_attestation: SerializedAttestation,
+    ) -> anyhow::Result<Vec<u8>> {
+        let details = TxDetails::<S> {
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+            max_fee: 10_000_000,
+            gas_limit: None,
+            chain_id: config_value!("CHAIN_ID"),
+        };
+
+        let proof_with_details = SerializeProofWithDetails {
+            proof: ProofType::OptimisticProofAttestation(serialized_attestation),
+            details,
+        };
+
+        // TODO: Put SerializedAggregatedProof directly on chain without wrapping in a vec <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1065>
+        let serialized_proof_with_details = borsh::to_vec(&borsh::to_vec(&proof_with_details)?)?;
+
+        Ok(serialized_proof_with_details)
+    }
 }

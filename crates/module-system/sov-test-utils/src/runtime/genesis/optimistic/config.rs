@@ -10,10 +10,9 @@ use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use crate::interface::AsUser;
 use crate::runtime::genesis::TestTokenName;
 use crate::{
-    TestAttester, TestAttesterConfig, TestChallenger, TestSequencer, TestSequencerConfig, TestSpec,
-    TestUser, UserTokenInfo, TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE,
-    TEST_GAS_TOKEN_NAME, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT,
-    TEST_ROLLUP_FINALITY_PERIOD,
+    TestAttester, TestChallenger, TestSequencer, TestSpec, TestUser, UserTokenInfo,
+    TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
+    TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 /// A genesis config for a minimal optimsitic runtime
@@ -94,18 +93,23 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
-        let attester = TestAttester::generate(TestAttesterConfig {
+        let prover_sequencer =
+            TestUser::generate(TEST_DEFAULT_USER_STAKE * 2 + TEST_DEFAULT_USER_BALANCE);
+
+        let attester = TestAttester {
+            user_info: prover_sequencer.clone(),
             bond: TEST_DEFAULT_USER_STAKE,
-            free_balance: TEST_DEFAULT_USER_BALANCE, // Give the attester extra tokens to pay for gas
-        });
+            slot_to_attest: 1,
+        };
+
         let challenger =
             TestChallenger::generate(TEST_DEFAULT_USER_STAKE + TEST_DEFAULT_USER_BALANCE);
 
-        let sequencer = TestSequencer::generate(TestSequencerConfig {
-            bond: TEST_DEFAULT_USER_STAKE,
-            additional_balance: TEST_DEFAULT_USER_BALANCE,
+        let sequencer = TestSequencer {
+            user_info: prover_sequencer,
             da_address: MockAddress::from([172; 32]),
-        });
+            bond: TEST_DEFAULT_USER_STAKE,
+        };
 
         Self::with_defaults(attester, challenger, sequencer, vec![])
     }
@@ -264,23 +268,37 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                             .map(|user| (user.address(), user.balance()))
                             .collect();
 
-                        // We need to add the bond to the initial balance because genesis deduces the bond from the bank balance.
-                        additional_accounts_vec.append(&mut vec![
-                            (
-                                initial_sequencer.as_user().address(),
+                        let sequencer = initial_sequencer.as_user();
+                        let attester = initial_attester.as_user();
+
+                        if sequencer.address() == attester.address() {
+                            assert_eq!(sequencer.available_gas_balance, attester.available_gas_balance, "Sequencer and prover balances should be equal if they are the same user");
+
+                            additional_accounts_vec.append(&mut vec![(
+                                sequencer.address(),
                                 initial_sequencer.bond
-                                    + initial_sequencer.as_user().available_gas_balance,
-                            ),
-                            (
-                                initial_attester.as_user().address(),
-                                initial_attester.bond
-                                    + initial_attester.as_user().available_gas_balance,
-                            ),
-                            (
-                                initial_challenger.as_user().address(),
-                                initial_challenger.as_user().available_gas_balance,
-                            ),
-                        ]);
+                                    + initial_attester.bond
+                                    + sequencer.available_gas_balance,
+                            )]);
+                        } else {
+                            // We need to add the bond to the initial balance because genesis deduces the bond from the bank balance.
+                            additional_accounts_vec.append(&mut vec![
+                                (
+                                    initial_sequencer.as_user().address(),
+                                    initial_sequencer.bond
+                                        + initial_sequencer.as_user().available_gas_balance,
+                                ),
+                                (
+                                    initial_attester.as_user().address(),
+                                    initial_attester.bond
+                                        + initial_attester.as_user().available_gas_balance,
+                                ),
+                                (
+                                    initial_challenger.as_user().address(),
+                                    initial_challenger.as_user().available_gas_balance,
+                                ),
+                            ]);
+                        }
 
                         additional_accounts_vec
                     },

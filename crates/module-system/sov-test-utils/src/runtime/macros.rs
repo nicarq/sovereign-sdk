@@ -163,11 +163,18 @@ macro_rules! generate_optimistic_runtime {
 
             fn process_attestation(
                 &self,
-                _proof: ::sov_modules_api::SerializedAttestation,
-                _prover_address: &S::Address,
-                _state: &mut ::sov_modules_api::WorkingSet<S>,
+                proof: ::sov_modules_api::SerializedAttestation,
+                prover_address: &S::Address,
+                state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                ::sov_modules_api::ProofOutcome::Ignored
+                match self.attester_incentives.process_attestation(prover_address, proof, state) {
+                    Ok(attestation) => ::sov_modules_api::ProofOutcome::Valid(
+                        ::sov_modules_api::ProofReceiptContents::Attestation(attestation)
+                    ),
+                    Err(e) => {
+                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
+                    }
+                }
             }
 
             fn process_challenge(
