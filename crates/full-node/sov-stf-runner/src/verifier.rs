@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::zk::{
     StateTransitionPublicData, StateTransitionWitnessWithAddress, ZkvmGuest,
 };
@@ -55,6 +55,7 @@ where
             &data.da_block_header,
             &validity_condition,
             data.relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         let out: StateTransitionPublicData<Stf::Address, Da::Spec, _> = StateTransitionPublicData {

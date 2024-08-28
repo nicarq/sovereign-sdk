@@ -1,6 +1,6 @@
 use module_template::{CallMessage, Event, ExampleModule, ExampleModuleConfig};
 use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
-use sov_modules_api::{Address, Context, Module, Spec, StateCheckpoint};
+use sov_modules_api::{Address, Context, ExecutionContext, Module, Spec, StateCheckpoint};
 use sov_state::ZkStorage;
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestSpec, TestStorageSpec, ZkTestSpec};
@@ -18,7 +18,13 @@ fn test_value_setter() {
     // Test Native-Context
     let state = {
         let config = ExampleModuleConfig {};
-        let context = Context::<TestSpec>::new(admin, Default::default(), sequencer, 1);
+        let context = Context::<TestSpec>::new(
+            admin,
+            Default::default(),
+            sequencer,
+            1,
+            ExecutionContext::Node,
+        );
         test_value_setter_helper(context, &config, state)
     };
 
@@ -27,7 +33,13 @@ fn test_value_setter() {
     // Test Zk-Context
     {
         let config = ExampleModuleConfig {};
-        let zk_context = Context::<ZkTestSpec>::new(admin, Default::default(), sequencer, 1);
+        let zk_context = Context::<ZkTestSpec>::new(
+            admin,
+            Default::default(),
+            sequencer,
+            1,
+            ExecutionContext::Node,
+        );
         let zk_state = StateCheckpoint::with_witness(ZkStorage::new(), witness);
         test_value_setter_helper(zk_context, &config, zk_state);
     }

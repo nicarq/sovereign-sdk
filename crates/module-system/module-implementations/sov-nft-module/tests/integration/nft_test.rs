@@ -29,8 +29,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         collection_uri: collection_uri.to_string(),
     };
 
-    let creator_context =
-        Context::<TestSpec>::new(creator_address, Default::default(), sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(
+        creator_address,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
 
     // Create Collection
     nft.call(
@@ -113,8 +118,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         collection_uri: new_collection_uri.to_string(),
     };
 
-    let creator_context =
-        Context::<TestSpec>::new(creator_address, Default::default(), sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(
+        creator_address,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
 
     let mut working_set = state.to_working_set_unmetered();
     nft.call(
@@ -137,8 +147,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         collection_name: ne_collection_name.to_string(),
     };
 
-    let creator_context =
-        Context::<TestSpec>::new(creator_address, Default::default(), sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(
+        creator_address,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
 
     let mut working_set = state.to_working_set_unmetered();
     let freeze_response = nft.call(
@@ -168,8 +183,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         collection_name: collection_name.to_string(),
     };
 
-    let creator_context =
-        Context::<TestSpec>::new(creator_address, Default::default(), sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(
+        creator_address,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
 
     let mut working_set = state.to_working_set_unmetered();
     nft.call(
@@ -192,8 +212,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         collection_uri: un_updated_collection_uri.to_string(),
     };
 
-    let creator_context =
-        Context::<TestSpec>::new(creator_address, Default::default(), sequencer_address, 1);
+    let creator_context = Context::<TestSpec>::new(
+        creator_address,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
 
     let mut working_set = state.to_working_set_unmetered();
     let update_response = nft.call(
@@ -296,6 +321,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         Default::default(),
         sequencer_address,
         1,
+        sov_modules_api::ExecutionContext::Node,
     );
     let transfer_nft_message = CallMessage::TransferNft {
         collection_id,
@@ -326,6 +352,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         Default::default(),
         sequencer_address,
         1,
+        sov_modules_api::ExecutionContext::Node,
     );
     let transfer_nft_message = CallMessage::TransferNft {
         collection_id,
@@ -438,7 +465,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // transfer NFT by owner
     let target_address = private_key_1.to_address();
     let owner = private_key_2.to_address();
-    let owner_context = Context::<TestSpec>::new(owner, Default::default(), sequencer_address, 1);
+    let owner_context = Context::<TestSpec>::new(
+        owner,
+        Default::default(),
+        sequencer_address,
+        1,
+        sov_modules_api::ExecutionContext::Node,
+    );
     let transfer_nft_message = CallMessage::TransferNft {
         collection_id,
         token_id,

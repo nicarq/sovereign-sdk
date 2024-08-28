@@ -85,6 +85,15 @@ pub enum ProofReceiptContents<Address, Da: DaSpec, Root, StorageProof> {
     Attestation(Attestation<Da::SlotHash, Root, StorageProof>),
 }
 
+/// The context in which the execution is happening.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ExecutionContext {
+    /// The transaction is being executed by a sequencer before inclusion.
+    Sequencer,
+    /// The transaction is being executed by a node after inclusion.
+    Node,
+}
+
 /// The error returned when the proof that was processed is invalid.
 #[derive(Debug, Clone, Error)]
 pub enum InvalidProofError {
@@ -208,7 +217,7 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     /// which is why we use a generic here instead of an associated type.
     ///
     /// Commits state changes to the database
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::type_complexity, clippy::too_many_arguments)]
     fn apply_slot<'a, I>(
         &self,
         pre_state_root: &Self::StateRoot,
@@ -217,6 +226,7 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
+        execution_context: ExecutionContext,
     ) -> ApplySlotOutput<InnerVm, OuterVm, Da, Self>
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>;

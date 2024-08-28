@@ -13,7 +13,7 @@ use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rng_da_service::RngDaService;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
@@ -86,6 +86,7 @@ fn rollup_bench(_bench: &mut Criterion) {
                 &filtered_block.header,
                 &filtered_block.validity_cond,
                 blobs[height as usize].as_iters(),
+                ExecutionContext::Node,
             );
             current_root = apply_block_result.state_root;
             storage_manager.commit(apply_block_result.change_set);

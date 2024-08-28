@@ -3,7 +3,8 @@ use std::marker::PhantomData;
 use sov_modules_api::capabilities::SequencerRemuneration;
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
-    BatchSequencerOutcome, BatchWithId, DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage,
+    BatchSequencerOutcome, BatchWithId, DaSpec, ExecutionContext, Gas, ProofReceipt, Spec,
+    StateCheckpoint, Storage,
 };
 use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
@@ -71,6 +72,7 @@ where
         gas_price: &<S::Gas as Gas>::Price,
         visible_height: u64,
         is_registered_sequencer: bool,
+        execution_context: ExecutionContext,
     ) -> (StateCheckpoint<S>, BatchReceipt<Da>, S::Gas) {
         let (batch_receipt, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
             &self.runtime,
@@ -80,6 +82,7 @@ where
             gas_price,
             visible_height,
             is_registered_sequencer,
+            execution_context,
         );
 
         let batch_sequencer_receipt = &batch_receipt.inner;

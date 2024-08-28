@@ -9,7 +9,7 @@ use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::{
-    Context, CredentialId, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
+    Context, CredentialId, ExecutionContext, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
 };
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
@@ -72,7 +72,7 @@ fuzz_target!(
         for i in 0..iterations {
             // we use slices for better select performance
             let sender = addresses.choose(rng).unwrap();
-            let context = Context::<S>::new(*sender, Default::default(), sequencer, i as u64);
+            let context = Context::<S>::new(*sender, Default::default(), sequencer, i as u64, ExecutionContext::Node);
 
             // clear previous state
             let previous = state.get(sender).unwrap().as_hex();

@@ -6,7 +6,8 @@ use reth_primitives::{Address, Bytes};
 use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::Credentials;
 use sov_modules_api::{
-    Context, KernelWorkingSet, Module, StateAccessor, StateCheckpoint, VersionedStateReadWriter,
+    Context, ExecutionContext, KernelWorkingSet, Module, StateAccessor, StateCheckpoint,
+    VersionedStateReadWriter,
 };
 use sov_state::VisibleHash;
 use sov_test_utils::storage::new_finalized_storage;
@@ -68,6 +69,7 @@ fn call_test() -> Result<(), Infallible> {
                 Credentials::new(signer),
                 sequencer_address,
                 1,
+                ExecutionContext::Node,
             );
             evm.call(tx, &context, &mut working_set).unwrap();
         }
@@ -139,6 +141,7 @@ fn failed_transaction_test() -> Result<(), Infallible> {
             Credentials::new(signer),
             sequencer_address,
             1,
+            ExecutionContext::Node,
         );
 
         evm.call(message, &context, &mut working_set).unwrap();

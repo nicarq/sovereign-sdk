@@ -3,7 +3,7 @@ use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockValidityCond};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::da::RelevantBlobIters;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 
 #[test]
 fn test_stf_success() {
@@ -51,6 +51,7 @@ fn test_stf_success() {
         &MockBlockHeader::default(),
         &MockValidityCond::default(),
         relevant_blobs,
+        ExecutionContext::Node,
     );
 
     assert_eq!(2, result.batch_receipts.len());

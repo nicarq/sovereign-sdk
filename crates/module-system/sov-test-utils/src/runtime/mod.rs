@@ -23,7 +23,7 @@ pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -340,6 +340,7 @@ where
                 &block_header,
                 &Default::default(),
                 blobs.as_iters(),
+                ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
             ),
             block_header,
         )
@@ -396,6 +397,7 @@ where
                 &block_header,
                 &Default::default(),
                 blobs.as_iters(),
+                ExecutionContext::Node,
             );
             self.commit_apply_slot_output(&result, &block_header);
         }

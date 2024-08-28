@@ -9,7 +9,9 @@ use sov_modules_api::capabilities::{
     Authenticator, KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
 };
 use sov_modules_api::runtime::capabilities::Kernel;
-use sov_modules_api::{Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint};
+use sov_modules_api::{
+    ExecutionContext, Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint,
+};
 use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
@@ -119,6 +121,7 @@ where
             &ctx.gas_price,
             ctx.visible_height,
             tx_scratchpad,
+            ExecutionContext::Sequencer,
         );
 
         match res {

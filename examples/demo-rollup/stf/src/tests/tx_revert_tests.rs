@@ -4,7 +4,8 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS}
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    ApiStateAccessor, Batch, BatchSequencerOutcome, PrivateKey, PublicKey, Spec, StateCheckpoint,
+    ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, PrivateKey, PublicKey, Spec,
+    StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -68,6 +69,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
             &block_1.header,
             &block_1.validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -169,6 +171,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
             &block_1.header,
             &block_1.validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
@@ -259,6 +262,7 @@ fn test_tx_bad_nonce() {
             &block_1.header,
             &block_1.validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         // When the nonce is not correct, the transaction receipt does not appear in the block
@@ -353,6 +357,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             &block_1.header,
             &block_1.validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());

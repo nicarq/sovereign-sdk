@@ -237,6 +237,7 @@ fn get_result_from_blocks(
             &block.header,
             &block.validity_cond,
             relevant_blobs.as_iters(),
+            sov_modules_api::ExecutionContext::Node,
         );
 
         state_root = result.state_root;

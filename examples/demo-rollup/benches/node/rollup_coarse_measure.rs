@@ -25,7 +25,7 @@ use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 use sov_rollup_interface::da::{BlockHeaderTrait, RelevantBlobs};
 use sov_rollup_interface::services::da::SlotData;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_state::StorageRoot;
@@ -291,6 +291,7 @@ fn setup(
         &setup_block_header,
         &Default::default(),
         setup_blobs.as_iters(),
+        ExecutionContext::Node,
     );
     current_root = apply_block_result.state_root;
 
@@ -406,6 +407,7 @@ async fn main() -> anyhow::Result<()> {
             &filtered_header,
             &validity_cond,
             relevant_blobs.as_iters(),
+            ExecutionContext::Node,
         );
         apply_block_time += now.elapsed();
         current_root = apply_block_result.state_root;

@@ -14,10 +14,11 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    BatchSequencerReceipt, BatchWithId, Context, DispatchCall, EncodeCall, Gas, GasMeter, Genesis,
-    GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo, PreExecWorkingSet, RawTx,
-    RuntimeEventProcessor, SovProofOutcome, Spec, StateAccessor, StateCheckpoint, TxScratchpad,
-    TypedEvent, UnlimitedGasMeter, UnmeteredStateWrapper, WorkingSet,
+    BatchSequencerReceipt, BatchWithId, Context, DispatchCall, EncodeCall, ExecutionContext, Gas,
+    GasMeter, Genesis, GenesisState, MeteredBorshDeserializeError, Module, ModuleInfo,
+    PreExecWorkingSet, RawTx, RuntimeEventProcessor, SovProofOutcome, Spec, StateAccessor,
+    StateCheckpoint, TxScratchpad, TypedEvent, UnlimitedGasMeter, UnmeteredStateWrapper,
+    WorkingSet,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::DaSpec;
@@ -533,6 +534,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         sequencer: &Da::Address,
         height: u64,
         state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sequencer = self
             .sequencer_registry()
@@ -548,6 +550,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             auth_tx.credentials.clone(),
             sequencer,
             height,
+            execution_context,
         ))
     }
 
@@ -556,6 +559,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_tx: &Self::AuthorizationData,
         height: u64,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts().resolve_sender_address(
             &auth_tx.default_address,
@@ -568,6 +572,7 @@ impl<T: StandardRuntime<S, Da>, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             auth_tx.credentials.clone(),
             sender,
             height,
+            execution_context,
         ))
     }
 

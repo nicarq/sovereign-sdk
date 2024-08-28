@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::rpc::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::services::da::{DaService, SlotData};
 use sov_rollup_interface::stf::{
-    ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
+    ExecutionContext, ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
 };
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
@@ -444,6 +444,7 @@ where
                 &filtered_block_header,
                 &filtered_block.validity_condition(),
                 relevant_blobs.as_iters(),
+                ExecutionContext::Node,
             );
 
             // Getting relevant proofs

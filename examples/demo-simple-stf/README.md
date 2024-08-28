@@ -157,7 +157,7 @@ use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::{MockZkvm, MockZkVerifier};
 use sov_rollup_interface::da::RelevantBlobIters;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 
 fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
@@ -204,6 +204,7 @@ fn test_stf_success() {
         &MockBlockHeader::default(),
         &MockValidityCond::default(),
         relevant_blobs,
+        ExecutionContext::Node,
     );
 
     assert_eq!(2, result.batch_receipts.len());

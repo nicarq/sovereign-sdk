@@ -413,10 +413,10 @@ note: required by a bound in `Runtime`
 107 | struct Runtime<T: TestSpec, S: Spec> {
     |                                ^^^^ required by this bound in `Runtime`
 
-error[E0061]: this function takes 4 arguments but 3 arguments were supplied
+error[E0061]: this function takes 5 arguments but 4 arguments were supplied
    --> tests/integration/rpc/expose_rpc_first_generic_not_spec.rs:135:19
     |
-135 |     let context = Context::<S>::new(sender, sequencer, 1);
+135 |     let context = Context::<S>::new(sender, sequencer, 1, ExecutionContext::Node);
     |                   ^^^^^^^^^^^^^^^^^         --------- an argument of type `Credentials` is missing
     |
 note: associated function defined here
@@ -426,5 +426,5 @@ note: associated function defined here
     |            ^^^
 help: provide the argument
     |
-135 |     let context = Context::<S>::new(sender, /* Credentials */, sequencer, 1);
-    |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+135 |     let context = Context::<S>::new(sender, /* Credentials */, sequencer, 1, ExecutionContext::Node);
+    |                                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

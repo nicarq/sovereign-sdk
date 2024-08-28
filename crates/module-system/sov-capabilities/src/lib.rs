@@ -8,7 +8,7 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    Context, DaSpec, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome,
+    Context, DaSpec, ExecutionContext, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome,
     ProofReceiptContents, SovProofOutcome, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
     WorkingSet,
 };
@@ -128,6 +128,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         sequencer: &Da::Address,
         height: u64,
         state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
@@ -144,6 +145,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             auth_data.credentials.clone(),
             sequencer,
             height,
+            execution_context,
         ))
     }
 
@@ -152,6 +154,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         auth_data: &Self::AuthorizationData,
         height: u64,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
@@ -164,6 +167,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
             auth_data.credentials.clone(),
             sender,
             height,
+            execution_context,
         ))
     }
 }
