@@ -93,7 +93,17 @@ impl AsRef<[u8]> for TmHash {
 
 impl core::fmt::Display for TmHash {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+        write!(f, "0x{}", self.0)
+    }
+}
+
+impl core::str::FromStr for TmHash {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let stripped = s.strip_prefix("0x").unwrap_or(s);
+        let inner = celestia_tendermint::Hash::from_str(stripped)?;
+        Ok(TmHash(inner))
     }
 }
 
@@ -437,5 +447,47 @@ impl CelestiaVerifier {
             }
         }
         Ok(NamespaceGroup::from_shares(verified_shares))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use proptest::prelude::*;
+
+    use super::*;
+
+    fn test_serialize_roundtrip(raw: [u8; 32]) {
+        let tm_hash = TmHash::try_from(raw).unwrap();
+        let serde_serialized = serde_json::to_string(&tm_hash).unwrap();
+        let serde_deserialized: TmHash = serde_json::from_str(&serde_serialized).unwrap();
+
+        assert_eq!(tm_hash, serde_deserialized);
+
+        let borsh_serialized = borsh::to_vec(&tm_hash).unwrap();
+        let borsh_deserialized: TmHash = borsh::from_slice(&borsh_serialized).unwrap();
+
+        assert_eq!(tm_hash, borsh_deserialized);
+    }
+
+    fn test_str_roundtrip(raw: [u8; 32]) {
+        let tm_hash = TmHash::try_from(raw).unwrap();
+        let s = tm_hash.to_string();
+        let restored = TmHash::from_str(&s).expect("TmHash::from_str failed");
+
+        assert_eq!(tm_hash, restored);
+    }
+
+    proptest! {
+        #[test]
+        fn proptest_str_roundtrip(raw: [u8; 32]) {
+            test_str_roundtrip(raw);
+        }
+
+        #[test]
+        fn proptest_serde_roundtrip(raw: [u8; 32]) {
+            test_serialize_roundtrip(raw);
+        }
     }
 }

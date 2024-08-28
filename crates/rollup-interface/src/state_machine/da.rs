@@ -210,6 +210,10 @@ pub trait BlockHashTrait:
     + AsRef<[u8]>
     + core::hash::Hash
     + core::fmt::Display
+    // Warning: `FromStr` and `ToString` are will be removed in future. 
+    // See https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1286 for more details.
+    + core::str::FromStr
+    + ToString
     + BorshSerialize
     + BorshDeserialize
 {

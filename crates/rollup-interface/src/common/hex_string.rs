@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
@@ -85,13 +86,7 @@ where
     {
         let bytes = if deserializer.is_human_readable() {
             let string: String = serde::Deserialize::deserialize(deserializer)?;
-            let s = string
-                .strip_prefix("0x")
-                .ok_or_else(|| serde::de::Error::custom("Missing 0x prefix"))?;
-
-            hex::decode(s)
-                .map_err(|e| anyhow::anyhow!("failed to decode hex: {}", e))
-                .map_err(serde::de::Error::custom)?
+            parse_vec_u8(&string).map_err(serde::de::Error::custom)?
         } else {
             serde::Deserialize::deserialize(deserializer)?
         };
@@ -111,6 +106,17 @@ impl<T: BorshSerialize> BorshSerialize for HexString<T> {
 impl<T: BorshDeserialize> BorshDeserialize for HexString<T> {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         T::deserialize_reader(reader).map(Self)
+    }
+}
+
+impl<T: TryFrom<Vec<u8>>> FromStr for HexString<T> {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = parse_vec_u8(s)?;
+        Ok(HexString(bytes.try_into().map_err(|_| {
+            anyhow::anyhow!("Invalid hex string length")
+        })?))
     }
 }
 
@@ -156,9 +162,18 @@ pub mod hex_string_serde {
     }
 }
 
+fn parse_vec_u8(s: &str) -> anyhow::Result<Vec<u8>> {
+    let s = s
+        .strip_prefix("0x")
+        .ok_or_else(|| anyhow::anyhow!("Missing 0x prefix"))?;
+
+    hex::decode(s).map_err(|e| anyhow::anyhow!(e))
+}
+
 #[cfg(test)]
 mod tests {
     use std::fmt::Debug;
+    use std::str::FromStr;
 
     use proptest::proptest;
 
@@ -166,7 +181,7 @@ mod tests {
 
     /// Serializes, then deserializes a value with [`serde_json`], then asserts
     /// equality.
-    pub fn test_serialization_roundtrip_equality_json<T>(item: T)
+    fn test_serialization_roundtrip_equality_json<T>(item: T)
     where
         T: serde::Serialize + serde::de::DeserializeOwned + PartialEq + Debug,
     {
@@ -175,10 +190,21 @@ mod tests {
         assert_eq!(item, deserialized);
     }
 
+    fn test_str_roundtrip(item: HexString) {
+        let s = item.to_string();
+        let restored = HexString::from_str(&s).expect("HexString::from_str should pass");
+        assert_eq!(item, restored);
+    }
+
     proptest! {
         #[test]
         fn hex_string_serialization_roundtrip(item: HexString) {
             test_serialization_roundtrip_equality_json(item);
+        }
+
+        #[test]
+        fn hex_string_str_roundtrip(item: HexString) {
+            test_str_roundtrip(item);
         }
     }
 }

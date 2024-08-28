@@ -58,6 +58,15 @@ impl core::fmt::Display for MockHash {
     }
 }
 
+impl core::str::FromStr for MockHash {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let inner = HexHash::from_str(s)?;
+        Ok(MockHash(inner.0))
+    }
+}
+
 impl AsRef<[u8]> for MockHash {
     fn as_ref(&self) -> &[u8] {
         &self.0
