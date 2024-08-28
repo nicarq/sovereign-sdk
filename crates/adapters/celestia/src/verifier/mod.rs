@@ -65,9 +65,6 @@ impl BlobReaderTrait for BlobWithSender {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Clone, Eq, Hash, Serialize, Deserialize)]
-// Important: #[repr(transparent)] is required for safety as long as we're using
-// std::mem::transmute to implement AsRef<TmHash> for tendermint::Hash
-#[repr(transparent)]
 pub struct TmHash(pub celestia_tendermint::Hash);
 
 impl BorshSerialize for TmHash {
@@ -108,15 +105,6 @@ impl TmHash {
             // TODO: add special casing for the genesis block at a higher level
             celestia_tendermint::Hash::None => unreachable!("Only the genesis block has a None hash, and we use a placeholder in that corner case")
         }
-    }
-}
-
-impl AsRef<TmHash> for celestia_tendermint::Hash {
-    fn as_ref(&self) -> &TmHash {
-        // Safety: #[repr(transparent)] guarantees that the memory layout of TmHash is
-        // the same as tendermint::Hash, so this `transmute` is sound.
-        // See https://doc.rust-lang.org/nomicon/other-reprs.html#reprtransparent
-        unsafe { std::mem::transmute(self) }
     }
 }
 
