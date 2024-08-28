@@ -83,7 +83,8 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
-type TestApplySlotOutput<RT, S> = ApplySlotOutput<
+/// The output of the apply slot function in the test runner
+pub type TestApplySlotOutput<RT, S> = ApplySlotOutput<
     <S as Spec>::InnerZkvm,
     <S as Spec>::OuterZkvm,
     MockDaSpec,
