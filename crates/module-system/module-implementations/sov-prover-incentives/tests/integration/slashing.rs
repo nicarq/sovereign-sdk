@@ -4,7 +4,7 @@ use sov_modules_api::{
 };
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, ProofAssertContext, ProofTestCase, ProofType, TestProver, TestSpec, TestUser,
+    assert_matches, ProofAssertContext, ProofInput, ProofTestCase, TestProver, TestSpec, TestUser,
 };
 
 use crate::helpers::{
@@ -50,7 +50,7 @@ fn test_invalid_proof_slashed() {
     let (mut runner, prover, _) = setup();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(())),
+        input: ProofInput(serialize_proof(())),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(result, state, &prover.user_info, "Verification failed");
@@ -66,7 +66,7 @@ fn test_invalid_genesis_hash_slashed() {
         .clone_from(&aggregated_proof.final_state_root);
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -87,7 +87,7 @@ fn test_invalid_initial_state_root() {
         .clone_from(&aggregated_proof.final_state_root);
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -108,7 +108,7 @@ fn test_invalid_final_slot_hash() {
         .clone_from(&aggregated_proof.initial_slot_hash);
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -129,7 +129,7 @@ fn test_invalid_final_state_root() {
         .clone_from(&aggregated_proof.initial_state_root);
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -150,7 +150,7 @@ fn test_invalid_initial_slot_hash() {
         .clone_from(&aggregated_proof.final_slot_hash);
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -169,7 +169,7 @@ fn test_invalid_initial_slot_number() {
     aggregated_proof.initial_slot_number = 5555;
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -188,7 +188,7 @@ fn test_invalid_final_slot_number() {
     aggregated_proof.final_slot_number = 0;
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
@@ -209,7 +209,7 @@ fn test_invalid_validity_condition() {
         .push(borsh::to_vec(&MockValidityCond { is_valid: false }).unwrap());
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(

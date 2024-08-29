@@ -1,8 +1,6 @@
 use sov_modules_api::Spec;
 
 use super::{AsUser, TestUser};
-use crate::generators::attester_incentive::framework::TestChallengeGenerator;
-use crate::TestSpec;
 
 /// A test attester.
 #[derive(Debug, Clone)]
@@ -80,8 +78,6 @@ impl<S: Spec> AsUser<S> for TestChallenger<S> {
     }
 }
 
-impl TestChallengeGenerator for TestChallenger<TestSpec> {}
-
 /// A bonded test challenger.
 #[derive(Debug, Clone)]
 pub struct BondedTestChallenger<S: Spec> {
@@ -100,8 +96,6 @@ impl<S: Spec> AsUser<S> for BondedTestChallenger<S> {
         &mut self.user_info
     }
 }
-
-impl TestChallengeGenerator for BondedTestChallenger<TestSpec> {}
 
 impl<S: Spec> BondedTestChallenger<S> {
     /// Creates a new bonded challenger from a challenger and a bond amount. The bond amount is subtracted from the challenger's free balance.

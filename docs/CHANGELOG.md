@@ -1,3 +1,4 @@
+#1322 Remove ProcessAttestation & ProcessChallenge call messages from the sov-attester-incentives.
 - #1320 Updates challenger tests in attester-incentives module for invalid challenges.
 - #1314 Updates challenger tests in attester-incentives module.
 - #1314 Updates challenger tests in attester-incentives module.

@@ -1,5 +1,5 @@
 use sov_modules_api::ProofOutcome;
-use sov_test_utils::{assert_matches, ProofTestCase, ProofType};
+use sov_test_utils::{assert_matches, ProofInput, ProofTestCase};
 
 use crate::helpers::{
     build_proof, consume_gas_tx_for_signer, serialize_proof, setup, TestProverIncentives,
@@ -19,7 +19,7 @@ fn test_valid_proof() {
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
@@ -59,7 +59,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
@@ -86,7 +86,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
-        input: ProofType::Inline(serialize_proof(aggregated_proof)),
+        input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });

@@ -31,8 +31,8 @@ pub use tokio::sync::watch::Receiver;
 use crate::storage::SimpleStorageManager;
 use crate::{
     generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase,
-    ProofAssertContext, ProofTestCase, ProofType, SlotInput, TestStfBlueprint,
-    TransactionAssertContext, TransactionTestCase, TransactionType,
+    ProofAssertContext, ProofTestCase, SlotInput, TestStfBlueprint, TransactionAssertContext,
+    TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
@@ -285,13 +285,7 @@ where
             SlotInput::Transaction(tx) => self.txs_to_blobs(vec![tx], &stf_state, sequencer),
             SlotInput::Batch(batch) => self.txs_to_blobs(batch.0, &stf_state, sequencer),
             SlotInput::Proof(proof) => {
-                let proof_bytes = match proof {
-                    ProofType::Inline(proof) => proof,
-                    ProofType::Configuration(proof) => {
-                        proof.from_state(&mut ApiStateAccessor::<S>::new(stf_state.clone()))
-                    }
-                };
-                let blob = MockBlob::new_with_hash(proof_bytes, sequencer);
+                let blob = MockBlob::new_with_hash(proof.0, sequencer);
                 (
                     RelevantBlobs {
                         batch_blobs: vec![],

@@ -7,7 +7,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::TxReceiptContents;
 use sov_state::{Storage, StorageProof};
 
-use super::{BatchType, ProofType, TransactionType};
+use super::{BatchType, ProofInput, TransactionType};
 
 type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S>)>;
 
@@ -123,7 +123,7 @@ pub type ProofTestAssert<S, Da> = TestAssertion<ProofAssertContext<S, Da>, S>;
 /// A test case that applies the provided proof input and asserts the result.
 pub struct ProofTestCase<S: Spec, Da: DaSpec> {
     /// Input for the test case.
-    pub input: ProofType<S>,
+    pub input: ProofInput,
     /// Optionally specify the DA address of the sequencer of the batch.
     ///
     /// If this is not provided the default sequencer address in the `TestRunner` will be used.
