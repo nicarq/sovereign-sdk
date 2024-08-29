@@ -63,7 +63,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da> {
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_evm::authenticate(&tx.data, pre_exec_ws)?;
-        let call = TestRuntimeCall::evm(runtime_call);
+        let call = TestRuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))
     }
