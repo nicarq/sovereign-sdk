@@ -57,8 +57,6 @@ pub mod interface;
 
 pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use interface::*;
-/// Re-export so can be accessed in consuming crates.
-pub use paste::paste;
 pub use sov_mock_da::verifier::MockDaSpec;
 use sov_modules_api::PrivateKey;
 use sov_rollup_interface::execution_mode::{Native, Zk};

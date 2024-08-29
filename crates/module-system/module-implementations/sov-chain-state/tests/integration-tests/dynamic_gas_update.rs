@@ -60,7 +60,6 @@ fn setup_dynamic_gas_update_tests() -> (
     let mut runtime = TestChainStateRuntime::<S, MockDaSpec>::default();
 
     runtime
-        .inner
         .bank
         .override_gas_config(sov_bank::BankGasConfig::<<S as Spec>::Gas> {
             mint: gas_target.clone(),

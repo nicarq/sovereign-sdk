@@ -41,7 +41,7 @@ fn gas_test_setup(
                 freeze: Gas::zero(),
             };
 
-            runtime.inner.bank.override_gas_config(config);
+            runtime.bank.override_gas_config(config);
         }
     });
 
