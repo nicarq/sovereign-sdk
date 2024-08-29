@@ -1,7 +1,7 @@
 ## Offchain testing
 
 ### Introduction
-This readme outlines the steps to demonstrate the offchain processing functionality that is part of the `sov-nft-module`
+This readme outlines the steps to demonstrate the offchain processing functionality that is part of the `sov-nft` module
 
 ### Steps
 * Install postgres on your system
@@ -9,7 +9,7 @@ This readme outlines the steps to demonstrate the offchain processing functional
 * Create the tables necessary for offchain processing
 
 ```bash
-psql postgres -f sovereign/module-system/module-implementations/sov-nft-module/src/init_db.sql
+psql postgres -f sovereign/module-system/module-implementations/sov-nft/src/init_db.sql
 ```
 * The above command runs the `init_db.sql` script which creates 3 tables
   * `collections` - tracking the NFT collections that have been created, their supply and other info
@@ -48,7 +48,7 @@ rm -rf demo_data; POSTGRES_CONNECTION_STRING="postgresql://username:password@loc
 ```
 * Explanation of the above command
   * `rm -rf demo_data` is to wipe the rollup state. For testing it's better to start with clean state
-  * `POSTGRES_CONNECTION_STRING` is to allow the offchain component of the `sov-nft-module` to connect to postgres instance
+  * `POSTGRES_CONNECTION_STRING` is to allow the offchain component of the `sov-nft` module to connect to postgres instance
   * `--features offchain` is necessary to enable offchain processing. Without the feature, the functions are no-ops
   * `--da-layer mock` is used to run an in-memory local DA layer
 * Run the NFT minting script

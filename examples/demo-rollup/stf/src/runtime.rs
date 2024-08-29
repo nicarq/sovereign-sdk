@@ -63,7 +63,7 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     /// The Nonces module.
     pub nonces: sov_nonces::Nonces<S>,
     /// The NFT module.
-    pub nft: sov_nft_module::NonFungibleToken<S>,
+    pub nft: sov_nft::NonFungibleToken<S>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S>,

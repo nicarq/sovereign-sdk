@@ -2,7 +2,7 @@
 
 ### Understanding the Module System
 
-The Sovereign Software Development Kit (SDK) includes a [Module System](../../module-system/README.md),
+The Sovereign Software Development Kit (SDK) includes a [Module System](../../crates/module-system/README.md),
 which serves as a catalog of concrete and opinionated implementations for the rollup interface.
 These modules are the fundamental building blocks of a rollup and include:
 
@@ -15,7 +15,7 @@ These modules are the fundamental building blocks of a rollup and include:
 
 **Note**: This tutorial focuses on illustrating the usage of the Sovereign SDK by creating a simple NFT module.
 The focus here is on the module system and not the application logic. For a more complete NFT module, please refer
-to [sov-nft-module](../../module-system/module-implementations/sov-nft-module)
+to [sov-nft module](../../crates/module-system/module-implementations/sov-nft/README.md)
 
 In this tutorial, we will focus on developing an application-level module. Users of this module will be able to mint
 unique tokens, transfer them to each other, or burn them. Users can also check the ownership of a particular token. For
@@ -25,7 +25,7 @@ simplicity, each token represents only an ID and won't hold any metadata.
 
 ### Structure and dependencies
 
-The Sovereign SDK provides a [module-template](../../module-system/module-implementations/module-template/README.md),
+The Sovereign SDK provides a [module-template](../../crates/module-system/module-implementations/module-template/README.md),
 which is boilerplate that can be customized to easily build modules.
 
 ```text

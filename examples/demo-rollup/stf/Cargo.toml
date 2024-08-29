@@ -25,7 +25,7 @@ sov-sequencer-registry = { workspace = true }
 sov-prover-incentives = { workspace = true }
 sov-attester-incentives = { workspace = true }
 sov-bank = { workspace = true }
-sov-nft-module = { workspace = true }
+sov-nft = { workspace = true }
 sov-kernels = { workspace = true }
 sov-capabilities = { workspace = true }
 
@@ -49,7 +49,7 @@ sov-modules-stf-blueprint = { workspace = true, features = ["test-utils"] }
 
 [features]
 default = []
-offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
+offchain = ["demo-stf/offchain", "sov-nft/offchain"]
 native = [
     "demo-stf/native",
     "jsonrpsee",
@@ -64,7 +64,7 @@ native = [
     "sov-mock-zkvm/native",
     "sov-modules-api/native",
     "sov-modules-stf-blueprint/native",
-    "sov-nft-module/native",
+    "sov-nft/native",
     "sov-nonces/native",
     "sov-prover-incentives/native",
     "sov-attester-incentives/native",

@@ -6,11 +6,11 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
-use sov_nft_module::utils::{
+use sov_nft::utils::{
     get_collection_id, get_create_collection_message, get_mint_nft_message,
     get_transfer_nft_message,
 };
-use sov_nft_module::{CallMessage, CollectionId};
+use sov_nft::{CallMessage, CollectionId};
 use sov_rollup_interface::execution_mode::Native;
 use sov_rollup_interface::zk::CryptoSpec;
 

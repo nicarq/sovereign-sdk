@@ -13,7 +13,7 @@ pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
 use sov_modules_api::prelude::*;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-pub use sov_nft_module::NonFungibleTokenConfig;
+pub use sov_nft::NonFungibleTokenConfig;
 use sov_prover_incentives::ProverIncentivesConfig;
 pub use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;

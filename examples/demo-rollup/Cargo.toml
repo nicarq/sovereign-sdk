@@ -24,7 +24,7 @@ sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
-sov-nft-module = { workspace = true }
+sov-nft = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
 sov-ledger-apis = { workspace = true }
 risc0 = { path = "./provers/risc0" }
@@ -76,7 +76,7 @@ sov-mock-da = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
-sov-nft-module = { workspace = true, features = ["native"] }
+sov-nft = { workspace = true, features = ["native"] }
 sov-ledger-json-client = { workspace = true }
 sov-modules-macros = { workspace = true }
 sov-test-utils = { workspace = true }
@@ -123,7 +123,7 @@ bench = [
     "sov-sp1-adapter/bench",
     "sov-cycle-utils",
 ]
-offchain = ["demo-stf/offchain", "sov-nft-module/offchain"]
+offchain = ["demo-stf/offchain", "sov-nft/offchain"]
 
 [[bench]]
 name = "rollup_bench"

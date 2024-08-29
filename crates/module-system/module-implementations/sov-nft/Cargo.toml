@@ -1,11 +1,12 @@
 [package]
-name = "sov-nft-module"
+name = "sov-nft"
 description = "A Sovereign SDK module for managing non-fungible tokens"
 version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
+homepage = { workspace = true }
 license = { workspace = true }
-homepage = "sovereign.xyz"
+repository = { workspace = true }
 publish = false
 
 [lints]
@@ -26,17 +27,17 @@ tokio = { workspace = true, features = ["rt-multi-thread"], optional = true }
 tracing = { workspace = true, optional = true }
 
 [dev-dependencies]
-sov-nft-module = { version = "*", features = ["native"], path = "." }
+sov-nft = { version = "*", features = ["native"], path = "." }
 tempfile = { workspace = true }
 sov-test-utils = { workspace = true }
 
 [features]
 default = []
-offchain = ["postgres", "sov-nft-module/offchain", "tokio", "tracing"]
+offchain = ["postgres", "sov-nft/offchain", "tokio", "tracing"]
 native = [
     "jsonrpsee",
     "schemars",
     "sov-modules-api/native",
-    "sov-nft-module/native",
+    "sov-nft/native",
     "sov-state/native",
 ]
