@@ -6,8 +6,8 @@ use alloy_eips::eip1559::BaseFeeParams;
 use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, U256};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::StateMap;
-use sov_state::Prefix;
+use sov_modules_api::{StateMap, StateReader};
+use sov_state::{Prefix, User};
 
 pub(crate) mod conversions;
 pub(crate) mod db;
@@ -23,7 +23,7 @@ use sov_state::codec::BcsCodec;
 
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone)]
-pub(crate) struct DbAccount {
+pub struct DbAccount {
     pub(crate) info: AccountInfo,
     pub(crate) storage: StateMap<U256, U256, BcsCodec>,
 }
@@ -47,6 +47,15 @@ impl DbAccount {
             info,
             storage: StateMap::with_codec(prefix, BcsCodec {}),
         }
+    }
+
+    /// Lookup the storage at the specified index for the account.
+    pub fn get_storage<Accessor: StateReader<User>>(
+        &self,
+        index: &U256,
+        state: &mut Accessor,
+    ) -> Result<Option<U256>, Accessor::Error> {
+        self.storage.get(index, state)
     }
 
     fn create_storage_prefix(parent_prefix: &Prefix, address: Address) -> Prefix {
