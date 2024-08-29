@@ -1,3 +1,5 @@
+- #1320 Updates challenger tests in attester-incentives module for invalid challenges.
+- #1314 Updates challenger tests in attester-incentives module.
 - #1314 Updates challenger tests in attester-incentives module.
 - #1316 Renames `sov-nft-module` to `sov-nft`. Runtimes that use it need update `Cargo.toml` and runtime definition.
 - #1306 Updates tests in attester-incentives part 2.
