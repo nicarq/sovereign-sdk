@@ -10,12 +10,13 @@ pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, T
 pub use sov_chain_state::ChainStateConfig;
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockBlob, MockBlockHeader, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
+use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray,
-    Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor, Spec,
-    StateCheckpoint,
+    ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Gas,
+    GasArray, Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor,
+    Spec, StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
@@ -30,12 +31,15 @@ pub use tokio::sync::watch::Receiver;
 
 use crate::storage::SimpleStorageManager;
 use crate::{
-    generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase,
-    ProofAssertContext, ProofTestCase, SlotInput, TestStfBlueprint, TransactionAssertContext,
-    TransactionTestCase, TransactionType,
+    generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
+    ProofAssertContext, ProofTestCase, SlotInput, TestStfBlueprintWithKernel,
+    TransactionAssertContext, TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
+
+/// A [`TestRunner`] with a [`BasicKernel`].
+pub type TestRunner<RT, S> = TestRunnerWithKernel<RT, BasicKernel<S, MockDaSpec>, S>;
 
 generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>);
 
@@ -75,8 +79,12 @@ impl<Da: DaSpec> SlotReceipt<Da> {
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
-pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
-    stf: StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>,
+pub struct TestRunnerWithKernel<
+    RT: Runtime<S, MockDaSpec>,
+    K: KernelSlotHooks<S, MockDaSpec>,
+    S: Spec,
+> {
+    stf: StfBlueprint<S, MockDaSpec, RT, K>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<MockDaSpec>>,
     state_root: <S::Storage as Storage>::Root,
@@ -84,12 +92,15 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
-/// The output of the apply slot function in the test runner
-pub type TestApplySlotOutput<RT, S> = ApplySlotOutput<
+/// The output of the runner
+pub type TestApplySlotOutput<RT, S> =
+    TestApplySlotOutputWithKernel<RT, BasicKernel<S, MockDaSpec>, S>;
+
+type TestApplySlotOutputWithKernel<RT, K, S> = ApplySlotOutput<
     <S as Spec>::InnerZkvm,
     <S as Spec>::OuterZkvm,
     MockDaSpec,
-    TestStfBlueprint<RT, S>,
+    TestStfBlueprintWithKernel<RT, K, S>,
 >;
 
 /// The output of the runner
@@ -102,10 +113,11 @@ pub struct RunnerOutput<S: Spec> {
     pub root: <<S as Spec>::Storage as Storage>::Root,
 }
 
-impl<RT, S> TestRunner<RT, S>
+impl<RT, K, S> TestRunnerWithKernel<RT, K, S>
 where
     RT: Runtime<S, MockDaSpec> + MinimalGenesis<S, Da = MockDaSpec>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
+    K: KernelSlotHooks<S, MockDaSpec> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {
@@ -198,15 +210,11 @@ where
 
     /// Builds a new test runner and runs genesis.
     pub fn new_with_genesis(
-        genesis_config: GenesisParams<
-            <RT as Genesis>::Config,
-            BasicKernelGenesisConfig<S, MockDaSpec>,
-        >,
+        genesis_config: GenesisParams<<RT as Genesis>::Config, K::GenesisConfig>,
         runtime: RT,
     ) -> Self {
         // Use the runtime to create an STF blueprint
-        let stf =
-            StfBlueprint::<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>::with_runtime(runtime);
+        let stf = StfBlueprint::<S, MockDaSpec, RT, K>::with_runtime(runtime);
 
         // ----- Setup and run genesis ---------
         let temp_dir = tempfile::tempdir().unwrap();
@@ -238,31 +246,43 @@ where
     }
 
     fn txs_to_blobs<M: Module>(
-        &self,
         txs: Vec<TransactionType<M, S>>,
-        stf_state: &ProverStorage<
-            DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
-        >,
         sequencer: <MockDaSpec as DaSpec>::Address,
-    ) -> (RelevantBlobs<MockBlob>, NoncesMap<S>)
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> RelevantBlobs<MockBlob>
     where
         RT: EncodeCall<M>,
     {
-        let mut nonces = self.nonces.clone();
-        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
-        let raw_txns = txs
+        Self::batches_to_blobs(vec![(BatchType(txs), sequencer)], nonces, state)
+    }
+
+    /// Builds [`RelevantBlobs`] from a list of [`BatchType`]s.
+    pub fn batches_to_blobs<M: Module>(
+        batches: Vec<(BatchType<M, S>, MockAddress)>,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> RelevantBlobs<MockBlob>
+    where
+        RT: EncodeCall<M>,
+    {
+        let blobs = batches
             .into_iter()
-            .map(|tx| tx.to_raw_tx::<RT>(&mut nonces, &mut state))
+            .map(|(batch, sequencer)| {
+                let raw_txns = batch
+                    .0
+                    .into_iter()
+                    .map(|tx| tx.to_raw_tx::<RT>(nonces, state))
+                    .collect::<Vec<_>>();
+                let batch = Batch::new(raw_txns);
+                MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer)
+            })
             .collect::<Vec<_>>();
-        let batch = Batch::new(raw_txns);
-        let blob = MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer);
-        (
-            RelevantBlobs {
-                batch_blobs: vec![blob],
-                proof_blobs: vec![],
-            },
-            nonces,
-        )
+
+        RelevantBlobs {
+            batch_blobs: blobs,
+            proof_blobs: vec![],
+        }
     }
 
     /// Simulates execution of the provided input without committing to the updated state.
@@ -272,7 +292,7 @@ where
         &self,
         input: T,
         override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
-    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>)
+    ) -> (TestApplySlotOutputWithKernel<RT, K, S>, NoncesMap<S>)
     where
         M: Module,
         RT: EncodeCall<M>,
@@ -281,19 +301,26 @@ where
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<S, M> = input.into();
         let sequencer = override_sequencer.unwrap_or(self.default_sequencer_da_address);
-        let (mut blobs, nonces) = match slot_input {
-            SlotInput::Transaction(tx) => self.txs_to_blobs(vec![tx], &stf_state, sequencer),
-            SlotInput::Batch(batch) => self.txs_to_blobs(batch.0, &stf_state, sequencer),
+
+        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
+        let mut nonces = self.nonces.clone();
+
+        let mut blobs = match slot_input {
+            SlotInput::Transaction(tx) => {
+                Self::txs_to_blobs(vec![tx], sequencer, &mut nonces, &mut state)
+            }
+            SlotInput::Batch(batch) => {
+                Self::txs_to_blobs(batch.0, sequencer, &mut nonces, &mut state)
+            }
             SlotInput::Proof(proof) => {
                 let blob = MockBlob::new_with_hash(proof.0, sequencer);
-                (
-                    RelevantBlobs {
-                        batch_blobs: vec![],
-                        proof_blobs: vec![blob],
-                    },
-                    self.nonces.clone(),
-                )
+
+                RelevantBlobs {
+                    batch_blobs: vec![],
+                    proof_blobs: vec![blob],
+                }
             }
+            SlotInput::Blobs(blobs) => blobs,
         };
         (
             self.stf.apply_slot(
@@ -315,7 +342,7 @@ where
         &mut self,
         input: T,
         override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
-    ) -> TestApplySlotOutput<RT, S>
+    ) -> TestApplySlotOutputWithKernel<RT, K, S>
     where
         M: Module,
         RT: EncodeCall<M>,
@@ -328,7 +355,7 @@ where
 
     fn commit_apply_slot_output(
         &mut self,
-        output: &TestApplySlotOutput<RT, S>,
+        output: &TestApplySlotOutputWithKernel<RT, K, S>,
         nonces: NoncesMap<S>,
     ) {
         self.storage_manager.commit(output.change_set.clone());

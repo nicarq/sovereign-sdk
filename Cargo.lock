@@ -9133,9 +9133,12 @@ dependencies = [
  "sov-kernels",
  "sov-mock-da",
  "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
  "sov-test-utils",
+ "sov-value-setter",
  "tempfile",
  "tracing",
 ]
