@@ -46,6 +46,11 @@ pub fn expose_rpc(
         pub fn get_rpc_methods #impl_generics (storage: ::jsonrpsee::tokio::sync::watch::Receiver<
             S::Storage
         >) -> ::jsonrpsee::RpcModule<()> #where_clause {
+            // The attributes from merge operations may generate "unused doc
+            // comment" warnings. Just to be safe, we ignore absolutely all
+            // warnings.
+            #![allow(warnings)]
+
             use sov_modules_api::__rpc_macros_private::ModuleWithRpcServer;
 
             let runtime = <#runtime_type as ::core::default::Default>::default();
