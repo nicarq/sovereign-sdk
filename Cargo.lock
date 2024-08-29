@@ -2355,7 +2355,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
- "sov-stf-runner",
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",

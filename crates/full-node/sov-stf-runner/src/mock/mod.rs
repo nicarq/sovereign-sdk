@@ -1,3 +1,5 @@
+//! Testing utilities.
+
 use std::marker::PhantomData;
 
 use sov_rollup_interface::da::{DaSpec, RelevantBlobIters};

@@ -7,7 +7,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{StateTransitionFunction, StateTransitionVerifier};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
@@ -20,7 +20,6 @@ use tracing::{debug, error, info};
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
 use crate::prover_service::stf_info::BlockProof;
-use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RawGenesisStateRoot, RollupProverConfig,
     StateTransitionInfo,

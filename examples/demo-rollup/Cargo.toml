@@ -17,7 +17,7 @@ workspace = true
 sov-celestia-adapter = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 const-rollup-config = { workspace = true }
-sov-stf-runner = { workspace = true, features = ["native"] }
+sov-stf-runner = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
 
 sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }

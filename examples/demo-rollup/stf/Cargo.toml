@@ -19,7 +19,6 @@ jsonrpsee = { workspace = true, features = ["jsonrpsee-http-client", "server-cor
 tokio = { workspace = true, features = ["sync"], optional = true }
 tracing = { workspace = true }
 
-sov-stf-runner = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-cli = { workspace = true, optional = true }
 sov-sequencer-registry = { workspace = true }
@@ -72,7 +71,6 @@ native = [
     "sov-rollup-interface/native",
     "sov-sequencer-registry/native",
     "sov-state/native",
-    "sov-stf-runner/native",
     "sov-value-setter/native",
     "tokio",
 ]

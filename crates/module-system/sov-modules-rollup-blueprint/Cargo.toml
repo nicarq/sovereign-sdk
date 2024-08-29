@@ -17,7 +17,7 @@ workspace = true
 [dependencies]
 derivative = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
-sov-stf-runner = { workspace = true, features = ["native"], optional = true }
+sov-stf-runner = { workspace = true, optional = true }
 sov-state = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-cli = { workspace = true, optional = true }
@@ -49,7 +49,6 @@ native = [
     "sov-sequencer",
     "sov-state/native",
     "sov-stf-runner",
-    "sov-stf-runner?/native",
     "tokio",
     "sov-sequencer-registry/native"
 ]

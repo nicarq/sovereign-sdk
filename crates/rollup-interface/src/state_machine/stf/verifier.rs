@@ -1,11 +1,10 @@
 use std::marker::PhantomData;
 
-use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier};
-use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-use sov_rollup_interface::zk::{
-    StateTransitionPublicData, StateTransitionWitnessWithAddress, ZkvmGuest,
-};
-/// Verifies a state transition
+use crate::da::{BlockHeaderTrait, DaVerifier};
+use crate::stf::{ExecutionContext, StateTransitionFunction};
+use crate::zk::{StateTransitionPublicData, StateTransitionWitnessWithAddress, ZkvmGuest};
+
+/// Verifies a state transition.
 pub struct StateTransitionVerifier<ST, Da, InnerVm, OuterVm>
 where
     Da: DaVerifier,
