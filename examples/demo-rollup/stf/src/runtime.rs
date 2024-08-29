@@ -30,8 +30,6 @@
 //! `Runtime::decode_call` accepts serialized call message and returns a type that implements the `DispatchCall` trait.
 //!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
 
-#![allow(unused_doc_comments)]
-
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 #[cfg(feature = "native")]
