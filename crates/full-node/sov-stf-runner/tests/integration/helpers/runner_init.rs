@@ -170,6 +170,7 @@ pub async fn initialize_runner(
             .expect("Prover address is not valid"),
         },
         sequencer: SequencerConfig {
+            max_allowed_blocks_behind: 5,
             batch_builder: FairBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,

@@ -29,17 +29,21 @@ pub enum TxStatus<BlobHash> {
     /// The transaction was successfully submitted to a sequencer and it's
     /// sitting in the mempool waiting to be included in a batch.
     Submitted,
+    /// The transaction was successfully submitted to a **preferred sequencer**,
+    /// it received a soft confirmation, and it's guaranteed to be included in a
+    /// future batch.
+    Confirmed,
     /// The transaction was published to the DA as part of a batch, but it may
     /// not be finalized or processed by the rollup node yet.
     Published {
         #[allow(missing_docs)]
-        da_transaction_id: BlobHash,
+        da_tx_hash: BlobHash,
     },
     /// The transaction was published to the DA and the rollup node has
     /// processed it.
     Processed {
         #[allow(missing_docs)]
-        da_transaction_id: BlobHash,
+        da_tx_hash: BlobHash,
     },
 }
 
@@ -221,7 +225,7 @@ mod tests {
         txsm.notify(
             TxHash::new([2; 32]),
             TxStatus::Published {
-                da_transaction_id: MockHash([100; 32]),
+                da_tx_hash: MockHash([100; 32]),
             },
         );
 
@@ -236,7 +240,7 @@ mod tests {
         assert_eq!(
             txsm.get_cached(&TxHash::new([2; 32])),
             Some(TxStatus::Published {
-                da_transaction_id: MockHash([100; 32])
+                da_tx_hash: MockHash([100; 32])
             })
         );
     }
@@ -287,7 +291,7 @@ mod tests {
             txsm.notify(
                 TxHash::new([1; 32]),
                 TxStatus::Published {
-                    da_transaction_id: MockHash([101; 32]),
+                    da_tx_hash: MockHash([101; 32]),
                 },
             );
             wait().await;
@@ -311,7 +315,7 @@ mod tests {
             assert_eq!(
                 txsm.get_cached(&TxHash::new([1; 32])),
                 Some(TxStatus::Published {
-                    da_transaction_id: MockHash([101; 32])
+                    da_tx_hash: MockHash([101; 32])
                 })
             );
             assert_eq!(txsm.get_cached(&TxHash::new([2; 32])), None);

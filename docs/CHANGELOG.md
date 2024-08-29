@@ -6,6 +6,7 @@
 - #1312 Made changes to the module structure of the `sov-rollup-interface` crate. You'll now find full-node-related code and interfaces in `sov_rollup_interface::node`; we suggest using `cargo doc` to better navigate the new crate structure.
 - #1306 Updates tests in attester-incentives part 2.
 - #1276 Migrates sov-cli to using raw REST API requests. `rpc` subcommand replaced with `api`.
+- #1308 Removes the associated type `FullNodeBlueprint::DaConfig` and moves it over to `DaService::Config`. This is most often used as the second generic of `RollupConfig`, which should become `RollupConfig<..., <Self::DaService as DaService>::Config, ...>`.
 - #1299 Updates tests in attester-incentives
 - #1275 Adds an `ExecutionContext` enum to `stf::apply_slot` and `Context::new`. This enum allows callees to distinguish between sequencer execution and normal "full node" execution.
 - #1297 Renames the `?height=...` query parameter in the REST API to `?rollup_height=...`.

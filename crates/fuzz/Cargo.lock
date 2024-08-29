@@ -5388,6 +5388,7 @@ dependencies = [
  "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
+ "sov-stf-runner",
  "tokio",
  "tokio-stream",
  "tracing",

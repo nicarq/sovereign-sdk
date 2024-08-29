@@ -98,7 +98,8 @@ impl DaSyncState {
         Ok(())
     }
 
-    fn status(&self) -> SyncStatus {
+    /// Latest known sync status.
+    pub fn status(&self) -> SyncStatus {
         let current = self
             .synced_da_height
             .load(std::sync::atomic::Ordering::Acquire);

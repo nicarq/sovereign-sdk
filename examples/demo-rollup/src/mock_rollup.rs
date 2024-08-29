@@ -5,7 +5,7 @@ use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::{MockDaConfig, MockDaSpec};
+use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
@@ -16,7 +16,7 @@ use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
-use sov_rollup_interface::node::da::DaServiceWithRetries;
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::{FairBatchBuilderConfig, SequencerDb};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage, ZkStorage};
@@ -42,7 +42,6 @@ where
 #[async_trait]
 impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     type DaService = DaServiceWithRetries<StorableMockDaService>;
-    type DaConfig = MockDaConfig;
     type InnerZkvmHost = Risc0Host<'static>;
     type OuterZkvmHost = MockZkvm;
 
@@ -82,7 +81,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         da_service: &Self::DaService,
         rollup_config: &RollupConfig<
             <Self::Spec as Spec>::Address,
-            Self::DaConfig,
+            <Self::DaService as DaService>::Config,
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
     ) -> anyhow::Result<RuntimeEndpoints> {
@@ -113,7 +112,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<
             <Self::Spec as Spec>::Address,
-            Self::DaConfig,
+            <Self::DaService as DaService>::Config,
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
     ) -> Self::DaService {
@@ -127,7 +126,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         prover_config: RollupProverConfig,
         rollup_config: &RollupConfig<
             <Self::Spec as Spec>::Address,
-            Self::DaConfig,
+            <Self::DaService as DaService>::Config,
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
         _da_service: &Self::DaService,
@@ -154,7 +153,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         &self,
         rollup_config: &RollupConfig<
             <Self::Spec as Spec>::Address,
-            Self::DaConfig,
+            <Self::DaService as DaService>::Config,
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
     ) -> anyhow::Result<Self::StorageManager> {

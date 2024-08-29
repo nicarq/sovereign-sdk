@@ -3,6 +3,7 @@
 
 use std::str::FromStr;
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
 use celestia_rpc::prelude::*;
@@ -73,6 +74,7 @@ pub struct CelestiaService {
     read_client: Arc<TimedHttpClient>,
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
+    safe_lead_time: Duration,
 }
 
 impl CelestiaService {
@@ -80,12 +82,14 @@ impl CelestiaService {
         client: TimedHttpClient,
         rollup_batch_namespace: Namespace,
         rollup_proof_namespace: Namespace,
+        safe_lead_time: Duration,
     ) -> Self {
         Self {
             submit_client: Arc::new(Mutex::new(client.clone())),
             read_client: Arc::new(client),
             rollup_batch_namespace,
             rollup_proof_namespace,
+            safe_lead_time,
         }
     }
 
@@ -144,6 +148,13 @@ pub struct CelestiaConfig {
     /// The timeout for a Celestia RPC request, in seconds
     #[serde(default = "default_request_timeout_seconds")]
     pub celestia_rpc_timeout_seconds: u64,
+    /// See [`DaService::safe_lead_time`].
+    #[serde(default = "default_safe_lead_time_ms")]
+    pub safe_lead_time_ms: u64,
+}
+
+fn default_safe_lead_time_ms() -> u64 {
+    500
 }
 
 fn default_rpc_addr() -> String {
@@ -185,6 +196,7 @@ impl CelestiaService {
             client,
             chain_params.rollup_batch_namespace,
             chain_params.rollup_proof_namespace,
+            Duration::from_millis(config.safe_lead_time_ms),
         )
     }
 }
@@ -232,9 +244,8 @@ impl Fee for CelestiaFee {
 #[async_trait]
 impl DaService for CelestiaService {
     type Spec = CelestiaSpec;
-
+    type Config = CelestiaConfig;
     type Verifier = CelestiaVerifier;
-
     type FilteredBlock = FilteredCelestiaBlock;
     type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
     type Error = MaybeRetryable<BoxError>;
@@ -306,6 +317,10 @@ impl DaService for CelestiaService {
         // and network is always guaranteed to be secure,
         // it can work even if the node is still catching up
         self.get_head_block_header().await
+    }
+
+    fn safe_lead_time(&self) -> Duration {
+        self.safe_lead_time
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
@@ -547,6 +562,7 @@ mod tests {
             celestia_rpc_address: mock_server.uri(),
             max_celestia_response_body_size: 120_000,
             celestia_rpc_timeout_seconds: timeout_sec,
+            safe_lead_time_ms: 0,
         };
 
         let params = RollupParams {

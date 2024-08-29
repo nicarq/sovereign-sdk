@@ -14,7 +14,8 @@ use sov_modules_api::{
     ExecutionContext, Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{
-    process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError, TxProcessingErrorReason,
+    process_tx, ApplyTxResult, Runtime, TransactionReceipt, TxEffect, TxProcessingError,
+    TxProcessingErrorReason,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
@@ -103,19 +104,19 @@ where
     fn try_add_tx_to_batch(
         &self,
         mempool_tx: &MempoolTx,
-        ctx: &mut BatchConstructionContext<S>,
-    ) -> Result<Option<sov_modules_stf_blueprint::TransactionReceipt>, TxProcessingErrorReason>
-    {
+        mut ctx: BatchConstructionContext<S>,
+    ) -> (
+        BatchConstructionContext<S>,
+        Result<Option<TransactionReceipt>, TxProcessingErrorReason>,
+    ) {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
         let tx_len = mempool_tx.tx_bytes.len();
         if ctx.current_batch_size_in_bytes + tx_len > self.max_batch_size_bytes {
-            return Ok(None);
+            return (ctx, Ok(None));
         }
 
-        // TODO(`<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/625>`). Hack: we need to temporarily take ownership of the `StateCheckpoint` to be able to call [`sov_modules_api::runtime::capabilities::SequencerAuthorization::authorize_sequencer`].
-        let state_checkpoint = ctx.state_checkpoint.take().unwrap();
-        let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
+        let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
         let res = process_tx(
             &self.runtime,
             &RawTx {
@@ -134,8 +135,9 @@ where
                 reason,
             }) => {
                 // ...and immediately store the new `StateCheckpoint`.
-                ctx.state_checkpoint = Some(tx_scratchpad.revert());
-                Err(reason)
+                ctx.state_checkpoint = tx_scratchpad.revert();
+
+                (ctx, Err(reason))
             }
             Ok(ApplyTxResult {
                 tx_scratchpad,
@@ -143,10 +145,10 @@ where
                 sequencer_reward,
             }) => {
                 // ...and immediately store the new `StateCheckpoint`.
-                ctx.state_checkpoint = Some(tx_scratchpad.commit());
+                ctx.state_checkpoint = tx_scratchpad.commit();
                 ctx.reward.accumulate(sequencer_reward);
 
-                Ok(Some(receipt))
+                (ctx, Ok(Some(receipt)))
             }
         }
     }
@@ -169,6 +171,8 @@ where
     K: Kernel<S, Da> + KernelSlotHooks<S, Da> + 'static,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
+    type Config = FairBatchBuilderConfig<Da>;
+
     /// Attempt to add transaction to the mempool.
     ///
     /// The transaction is discarded if:
@@ -279,7 +283,7 @@ where
             visible_height,
             reward: SequencerReward::ZERO,
             gas_price,
-            state_checkpoint: Some(state_checkpoint),
+            state_checkpoint,
             current_batch_size_in_bytes: 0,
         };
 
@@ -294,16 +298,20 @@ where
         let mut cursor = self.mempool_cursor(&ctx);
 
         while let Some(mempool_tx) = self.mempool.next(&mut cursor) {
-            let tx_receipt = match self.try_add_tx_to_batch(&mempool_tx, &mut ctx) {
-                Ok(txr) => txr,
-                Err(TxProcessingErrorReason::Nonce { .. }) => {
+            let tx_receipt = match self.try_add_tx_to_batch(&mempool_tx, ctx) {
+                (c, Ok(txr)) => {
+                    ctx = c;
+                    txr
+                }
+                (c, Err(TxProcessingErrorReason::Nonce { .. })) => {
                     tracing::info!(
                         hash = %mempool_tx.hash,
                         "Transaction processing error due to nonce; ignoring tx",
                     );
+                    ctx = c;
                     continue;
                 }
-                Err(reason) => {
+                (_c, Err(reason)) => {
                     bail!("An non-recoverable error occurred when trying to add the tx to the batch: {reason}")
                 }
             };
@@ -365,10 +373,10 @@ where
 }
 
 struct BatchConstructionContext<S: Spec> {
+    state_checkpoint: StateCheckpoint<S>,
     visible_height: u64,
     reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,
-    state_checkpoint: Option<StateCheckpoint<S>>,
     current_batch_size_in_bytes: usize,
 }
 

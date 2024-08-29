@@ -76,6 +76,7 @@ mod blueprint {
     use crate::RollupBlueprint;
 
     /// This trait defines how to crate all the necessary dependencies required by a rollup.
+    #[allow(clippy::type_complexity)]
     #[async_trait]
     pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M>
     where
@@ -86,8 +87,6 @@ mod blueprint {
     {
         /// Data Availability service.
         type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Clone;
-        /// Data Availability config.
-        type DaConfig: Send + Sync + 'static;
 
         /// Host of the inner zkVM program.
         type InnerZkvmHost: ZkvmHost + Send;
@@ -128,7 +127,7 @@ mod blueprint {
             da_service: &Self::DaService,
             rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
         ) -> anyhow::Result<RuntimeEndpoints>;
@@ -144,7 +143,7 @@ mod blueprint {
             kernel_genesis: <Self::Kernel as Kernel<Self::Spec, Self::DaSpec>>::GenesisConfig,
             _rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
         ) -> anyhow::Result<
@@ -169,7 +168,7 @@ mod blueprint {
             &self,
             rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
         ) -> Self::DaService;
@@ -180,7 +179,7 @@ mod blueprint {
             prover_config: RollupProverConfig,
             rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
             da_service: &Self::DaService,
@@ -192,7 +191,7 @@ mod blueprint {
             &self,
             rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
         ) -> anyhow::Result<Self::StorageManager>;
@@ -218,7 +217,7 @@ mod blueprint {
             >>::GenesisConfig,
             rollup_config: RollupConfig<
                 <Self::Spec as Spec>::Address,
-                Self::DaConfig,
+                <Self::DaService as DaService>::Config,
                 FairBatchBuilderConfig<Self::DaSpec>,
             >,
             prover_config: Option<RollupProverConfig>,

@@ -42,5 +42,6 @@ bind_port = 12346
 aggregated_proof_block_jump = 1
 prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
 
-[sequencer.batch_builder]
+[sequencer]
+max_allowed_blocks_behind = 5
 sequencer_address = "0000000000000000000000000000000000000000000000000000000000000000"
