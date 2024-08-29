@@ -189,13 +189,8 @@ impl<S: Spec, M: Module> From<Vec<TransactionType<M, S>>> for BatchType<M, S> {
     }
 }
 
-/// Defines the type of proof that can be sent to the runtime.
-pub enum ProofType<S: Spec> {
-    /// Provide the proof upfront as a byte array.
-    Inline(Vec<u8>),
-    /// Derive the proof at a later point in time utilizing the current rollup state.
-    Configuration(Box<dyn FromState<S, Output = Vec<u8>>>),
-}
+/// Defines the proof that can be sent to the runtime.
+pub struct ProofInput(pub Vec<u8>);
 
 /// Input that can be executed in a slot ran by the test runtime.
 #[derive(derive_more::From)]
@@ -205,5 +200,5 @@ pub enum SlotInput<S: Spec, M: Module> {
     /// Execute a batch as input to a slot.
     Batch(BatchType<M, S>),
     /// Execute a proof as input to a slot.
-    Proof(ProofType<S>),
+    Proof(ProofInput),
 }

@@ -4,14 +4,10 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{CallResponse, Context, DaSpec, StateAccessorError, TxState};
-use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
 use tracing::error;
 
-use crate::{Amount, AttesterIncentives, ProcessAttestationErrors, ProcessChallengeErrors};
+use crate::Amount;
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
 #[derive(
@@ -22,12 +18,10 @@ use crate::{Amount, AttesterIncentives, ProcessAttestationErrors, ProcessChallen
     Deserialize,
     Clone,
     sov_modules_api::macros::UniversalWallet,
+    PartialEq,
+    Eq,
 )]
-#[derivative(
-    PartialEq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq"),
-    Eq(bound = "<S::Storage as Storage>::Proof: PartialEq + Eq")
-)]
-pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
+pub enum CallMessage {
     /// Register an attester, the parameter is the bond amount
     RegisterAttester(Amount),
     /// Start the first phase of the two-phase exit process
@@ -38,23 +32,12 @@ pub enum CallMessage<S: sov_modules_api::Spec, Da: DaSpec> {
     RegisterChallenger(Amount),
     /// Exit a challenger
     ExitChallenger,
-    /// Processes an attestation.
-    ProcessAttestation(
-        #[allow(clippy::type_complexity)]
-        Attestation<
-            Da::SlotHash,
-            <S::Storage as Storage>::Root,
-            StorageProof<<S::Storage as Storage>::Proof>,
-        >,
-    ),
-    /// Processes a challenge. The challenge is encoded as a [`Vec<u8>`]. The second parameter is the transition number
-    ProcessChallenge(Vec<u8>, TransitionHeight),
     /// Increases the balance of the attester.    
     DepositAttester(Amount),
 }
 
 // Manually implement Debug to remove spurious Debug bound on S::Storage
-impl<S: sov_modules_api::Spec, Da: DaSpec> Debug for CallMessage<S, Da> {
+impl Debug for CallMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::RegisterAttester(arg0) => f.debug_tuple("RegisterAttester").field(arg0).finish(),
@@ -65,14 +48,6 @@ impl<S: sov_modules_api::Spec, Da: DaSpec> Debug for CallMessage<S, Da> {
                 f.debug_tuple("RegisterChallenger").field(arg0).finish()
             }
             Self::ExitChallenger => write!(f, "ExitChallenger"),
-            Self::ProcessAttestation(arg0) => {
-                f.debug_tuple("ProcessAttestation").field(arg0).finish()
-            }
-            Self::ProcessChallenge(arg0, arg1) => f
-                .debug_tuple("ProcessChallenge")
-                .field(arg0)
-                .field(arg1)
-                .finish(),
         }
     }
 }
@@ -110,39 +85,4 @@ pub enum SlashingReason {
     #[error("No invalid transition to challenge")]
     /// No invalid transition to challenge.
     NoInvalidTransition,
-}
-
-impl<S, Da> AttesterIncentives<S, Da>
-where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
-{
-    /// Try to process an attestation if the attester is bonded.
-    /// This function returns an error (hence ignores the transaction) when the attester is not bonded
-    /// or when the module is unable to verify the bonding proof.
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn process_attestation_call(
-        &self,
-        context: &Context<S>,
-        attestation: Attestation<
-            Da::SlotHash,
-            <S::Storage as Storage>::Root,
-            StorageProof<<S::Storage as Storage>::Proof>,
-        >,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
-        self.process_attestation_helper(context.sender(), &attestation, state)?;
-        Ok(sov_modules_api::CallResponse::default())
-    }
-
-    pub(crate) fn process_challenge_call(
-        &self,
-        context: &Context<S>,
-        proof: &[u8],
-        transition_num: TransitionHeight,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse, ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
-        self.process_challenge_helper(context.sender(), proof, transition_num, state)?;
-        Ok(sov_modules_api::CallResponse::default())
-    }
 }

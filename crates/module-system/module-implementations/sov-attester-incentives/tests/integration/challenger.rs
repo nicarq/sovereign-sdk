@@ -10,7 +10,7 @@ use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, BondedTestChallenger, ProofTestCase, ProofType, TestAttester, TransactionTestCase,
+    AsUser, BondedTestChallenger, ProofInput, ProofTestCase, TestAttester, TransactionTestCase,
     TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
@@ -90,7 +90,7 @@ fn setup_with_wrong_attestation() -> (
             StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |_result, state| {
                 // TODO #1292:
@@ -149,7 +149,7 @@ fn test_valid_challenge() -> Result<(), Infallible> {
         .unwrap();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-        input: ProofType::Inline(make_challenge_blob(challenge_proof, true, 1)),
+        input: ProofInput(make_challenge_blob(challenge_proof, true, 1)),
         override_sequencer: None,
         assert: Box::new(move |_result, state| {
             assert_eq!(
@@ -190,7 +190,7 @@ fn test_invalid_challenge_helper(
     let _bonded_challenger_balance = bonded_challenger.user_info.balance();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-        input: ProofType::Inline(challenge_blob),
+        input: ProofInput(challenge_blob),
         override_sequencer: None,
         assert: Box::new(move |_result, state| {
             // TODO: #1262

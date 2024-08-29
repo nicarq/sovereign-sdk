@@ -13,7 +13,7 @@ use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{
-    assert_matches, generate_optimistic_runtime, AsUser, ProofTestCase, ProofType, TestAttester,
+    assert_matches, generate_optimistic_runtime, AsUser, ProofInput, ProofTestCase, TestAttester,
     TestChallenger, TestUser, TransactionType,
 };
 
@@ -159,7 +159,7 @@ pub(crate) fn create_test_case(
     serialized_attestation: Vec<u8>,
 ) -> ProofTestCase<S, MockDaSpec> {
     ProofTestCase {
-        input: ProofType::Inline(serialized_attestation),
+        input: ProofInput(serialized_attestation),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });

@@ -5,7 +5,7 @@ use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::{
-    AsUser, ProofTestCase, ProofType, TransactionTestCase, TEST_DEFAULT_USER_STAKE,
+    AsUser, ProofInput, ProofTestCase, TransactionTestCase, TEST_DEFAULT_USER_STAKE,
 };
 
 use super::helpers::{setup, TestRuntimeEvent, S};
@@ -76,7 +76,7 @@ fn test_burn_on_invalid_attestation() {
         attestation_proof.proof_of_bond.claimed_transition_num = 2;
 
         ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_eq!(
@@ -118,7 +118,7 @@ fn test_burn_on_invalid_attestation() {
             StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
 
         ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |_result, state| {
                 // TODO: #1292
@@ -177,7 +177,7 @@ fn test_burn_on_invalid_attestation() {
             StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
 
         ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |_result, state| {
                 // TODO #1292:

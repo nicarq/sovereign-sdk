@@ -5,7 +5,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::ProofOutcome;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, ProofTestCase, ProofType, TestAttester, TEST_ROLLUP_FINALITY_PERIOD,
+    assert_matches, ProofInput, ProofTestCase, TestAttester, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 use crate::helpers::{build_proof, make_attestation_blob, setup, TestAttesterIncentives, RT, S};
@@ -29,7 +29,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
             .unwrap();
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
@@ -75,7 +75,7 @@ fn test_cannot_attest_below_max_attested_height() {
     // Now try to attest to a block at height 1. This is stricly below `MAX_ATTESTED_HEIGHT - TEST_ROLLUP_FINALITY_PERIOD`.
     // The transaction should revert.
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-        input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+        input: ProofInput(make_attestation_blob(attestation_proof)),
         override_sequencer: None,
         assert: Box::new(move |_result, state| {
         // TODO: #1262
@@ -126,7 +126,7 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
         .unwrap();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-        input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+        input: ProofInput(make_attestation_blob(attestation_proof)),
         override_sequencer: None,
         assert: Box::new(move |_result, state| {
         // TODO: #1262
@@ -171,7 +171,7 @@ fn test_can_attest_within_allowed_range() {
             .unwrap();
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
-            input: ProofType::Inline(make_attestation_blob(attestation_proof)),
+            input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });

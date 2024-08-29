@@ -118,7 +118,7 @@ where
 
     type Config = AttesterIncentivesConfig<S>;
 
-    type CallMessage = call::CallMessage<S, Da>;
+    type CallMessage = call::CallMessage;
 
     type Event = Event<S>;
 
@@ -155,13 +155,6 @@ where
                 .register_challenger(bond_amount, context.sender(), state)
                 .map_err(|err| err.into()),
             call::CallMessage::ExitChallenger => self.exit_challenger(context, state),
-            call::CallMessage::ProcessAttestation(attestation) => self
-                .process_attestation_call(context, attestation, state)
-                .map_err(|error| error.into()),
-
-            call::CallMessage::ProcessChallenge(proof, transition) => self
-                .process_challenge_call(context, &proof, transition, state)
-                .map_err(|error| error.into()),
         }
         .map_err(|e| e.into());
         if let Err(ref err) = res {
