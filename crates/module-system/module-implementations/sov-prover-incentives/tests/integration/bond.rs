@@ -9,7 +9,7 @@ pub(crate) type S = sov_test_utils::TestSpec;
 
 #[test]
 fn test_genesis_bond() {
-    let (mut runner, genesis_prover, _) = setup();
+    let (runner, genesis_prover, _) = setup();
 
     runner.query_state(|state| {
         assert_eq!(

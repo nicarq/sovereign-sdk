@@ -389,7 +389,7 @@ fn test_get_preferred_sequencer() {
         TestRoles {
             default_sequencer, ..
         },
-        mut runner,
+        runner,
     ) = setup();
 
     runner.query_state(|state| {
@@ -489,7 +489,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
 #[test]
 fn test_non_registered_sequencer_is_not_allowed() {
-    let (_, mut runner) = setup();
+    let (_, runner) = setup();
 
     runner.query_state(|state| {
         assert!(

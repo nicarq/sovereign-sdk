@@ -6,7 +6,7 @@ use crate::{setup, MockDaSpec, S};
 
 #[test]
 fn chain_state_kernel_genesis() {
-    let (_, mut runner) = setup();
+    let (_, runner) = setup();
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(

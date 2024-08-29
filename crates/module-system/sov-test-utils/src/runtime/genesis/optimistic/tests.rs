@@ -274,7 +274,7 @@ fn test_define_token_with_state() {
         },
     );
 
-    let mut runner = TestRunner::new_with_genesis(
+    let runner = TestRunner::new_with_genesis(
         genesis_config.into_genesis_params(),
         TestOptimisticRuntime::<TestSpec, MockDaSpec>::default(),
     );

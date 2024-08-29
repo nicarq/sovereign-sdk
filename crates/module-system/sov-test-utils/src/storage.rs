@@ -45,7 +45,7 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     }
 
     /// Create a new [` ProverStorage `] that has a view only on data written to disc.
-    pub fn create_storage(&mut self) -> ProverStorage<S> {
+    pub fn create_storage(&self) -> ProverStorage<S> {
         let state_reader = DeltaReader::new(self.state.clone(), Vec::new());
         let state_db = StateDb::with_delta_reader(state_reader).unwrap();
 
@@ -70,7 +70,7 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
 pub fn new_finalized_storage<S: MerkleProofSpec>(
     path: impl AsRef<std::path::Path>,
 ) -> ProverStorage<S> {
-    let mut storage_manager = SimpleStorageManager::<S>::new(path);
+    let storage_manager = SimpleStorageManager::<S>::new(path);
     storage_manager.create_storage()
 }
 

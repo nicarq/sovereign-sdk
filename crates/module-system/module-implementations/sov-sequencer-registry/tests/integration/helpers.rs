@@ -54,7 +54,7 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-    let mut runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
 
     runner.query_state(|state| {
         // Check that the sequencer account is bonded

@@ -52,7 +52,7 @@ pub(crate) fn setup() -> SetupParams {
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
-    let mut runner =
+    let runner =
         TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
 
     runner.query_state(|state| {
