@@ -110,7 +110,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis = BasicKernelGenesisConfig {
+        let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
                 inner_code_commitment: MockCodeCommitment::default(),
@@ -200,7 +200,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis = BasicKernelGenesisConfig {
+        let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
                 inner_code_commitment: MockCodeCommitment::default(),

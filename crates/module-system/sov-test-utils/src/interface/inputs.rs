@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
+use sov_mock_da::MockBlob;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
+use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::FromState;
 
@@ -201,4 +203,6 @@ pub enum SlotInput<S: Spec, M: Module> {
     Batch(BatchType<M, S>),
     /// Execute a proof as input to a slot.
     Proof(ProofInput),
+    /// Execute pre-encoded blobs as input to a slot.
+    Blobs(RelevantBlobs<MockBlob>),
 }

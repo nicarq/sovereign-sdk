@@ -87,6 +87,8 @@ pub type TestSignature = <TestCryptoSpec as CryptoSpec>::Signature;
 pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
 /// The default storage spec type. Uses a [`TestHasher`] for hashing.
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
+/// The default STF blueprint type. Uses [`MockDaSpec`] for DA and custom kernel.
+pub type TestStfBlueprintWithKernel<RT, K, S> = StfBlueprint<S, MockDaSpec, RT, K>;
 /// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`BasicKernel`] for kernel.
 pub type TestStfBlueprint<RT, S> = StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>;
 /// The default [`sov_db::storage_manager::NativeStorageManager`], that can be used with [`ProverStorage`] and [`TestStorageSpec`].

@@ -112,6 +112,18 @@ macro_rules! generate_runtime {
                     }
                 }
             }
+
+            #[allow(unused)]
+            /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`] with a custom kernel config.
+            pub fn into_genesis_params_with_kernel<GenesisKernelConfig> (
+                self,
+                kernel_config: GenesisKernelConfig,
+            ) -> $crate::runtime::GenesisParams<Self, GenesisKernelConfig>{
+                $crate::runtime::GenesisParams {
+                    runtime: self,
+                    kernel: kernel_config,
+                }
+            }
         }
 
         $(

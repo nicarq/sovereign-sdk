@@ -34,16 +34,22 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-kernels = { workspace = true, features = ["native", "test-utils"] }
+sov-value-setter = { workspace = true }
+sov-rollup-interface = { workspace = true }
+sov-modules-stf-blueprint = { workspace = true }
 
 [features]
 default = []
 native = [
-    "sov-bank/native",
-    "sov-blob-storage/native",
-    "sov-chain-state/native",
-    "sov-kernels/native",
-    "sov-mock-da/native",
-    "sov-modules-api/native",
-    "sov-sequencer-registry/native",
-    "sov-state/native",
+	"sov-bank/native",
+	"sov-blob-storage/native",
+	"sov-chain-state/native",
+	"sov-kernels/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-rollup-interface/native",
+	"sov-value-setter/native"
 ]

@@ -1,123 +1,117 @@
+use std::collections::HashMap;
+
 use sov_blob_storage::BlobStorage;
-use sov_chain_state::{ChainState, ChainStateConfig};
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{
-    BlobData, BlobDataWithId, KernelModule, KernelWorkingSet, RawTx, StateCheckpoint,
-};
-use sov_test_utils::storage::new_finalized_storage;
+use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
+use sov_modules_api::{BlobReaderTrait, DaSpec};
+use sov_rollup_interface::da::RelevantBlobs;
+use sov_test_utils::runtime::ValueSetter;
+
+use crate::{build_blobs, setup, TestData};
 
 type S = sov_test_utils::TestSpec;
 type Da = MockDaSpec;
 
 #[test]
 fn empty_test() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut working_set = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
+    let (_, runner) = setup();
 
-    let chain_state = ChainState::<S, Da>::default();
-    let initial_slot_number = 1;
-    let chain_state_config = ChainStateConfig {
-        current_time: Default::default(),
-        genesis_da_height: 0,
-        inner_code_commitment: Default::default(),
-        outer_code_commitment: Default::default(),
-    };
-    chain_state
-        .genesis_unchecked(
-            &chain_state_config,
-            &mut KernelWorkingSet::uninitialized(&mut working_set),
-        )
-        .unwrap();
-
-    let blob_storage = BlobStorage::<S, Da>::default();
-
-    let blobs = blob_storage.take_blobs_for_slot_number(initial_slot_number, &mut working_set);
-
-    assert!(blobs.is_empty());
+    runner.query_state(|state| {
+        assert!(BlobStorage::<S, Da>::default()
+            .take_blobs_for_slot_number(1, state)
+            .is_empty());
+    });
 }
 
+fn check_received_blobs(
+    sent_blobs: Vec<MockBlob>,
+    received_batch_hashes_and_sender: Vec<([u8; 32], <MockDaSpec as DaSpec>::Address)>,
+) {
+    assert_eq!(sent_blobs.len(), received_batch_hashes_and_sender.len());
+
+    sent_blobs
+        .into_iter()
+        .zip(received_batch_hashes_and_sender)
+        .for_each(
+            |(mock_blob, (received_batch_id, received_sender_address))| {
+                assert_eq!(mock_blob.hash(), MockHash(received_batch_id));
+                assert_eq!(mock_blob.sender(), received_sender_address);
+            },
+        );
+}
+
+/// Tests that the blob storage module can store and retrieve blobs.
+/// The test creates a batch of blobs, and then checks that the blobs are stored and retrieved correctly by
+/// comparing the hashes of the blobs sent and the hashes of the receipts received.
 #[test]
 fn store_and_retrieve_standard() {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
+    let (
+        TestData {
+            user,
+            preferred_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup();
 
-    let chain_state = ChainState::<S, Da>::default();
-    let chain_state_config = ChainStateConfig {
-        current_time: Default::default(),
-        genesis_da_height: 0,
-        inner_code_commitment: Default::default(),
-        outer_code_commitment: Default::default(),
-    };
-    chain_state
-        .genesis_unchecked(
-            &chain_state_config,
-            &mut KernelWorkingSet::uninitialized(&mut state_checkpoint),
-        )
-        .unwrap();
+    runner.query_state(|state| {
+        let blob_storage = BlobStorage::<S, Da>::default();
 
-    let blob_storage = BlobStorage::<S, Da>::default();
+        assert!(blob_storage.take_blobs_for_slot_number(1, state).is_empty());
+        assert!(blob_storage.take_blobs_for_slot_number(2, state).is_empty());
+        assert!(blob_storage.take_blobs_for_slot_number(3, state).is_empty());
+        assert!(blob_storage.take_blobs_for_slot_number(4, state).is_empty());
+    });
 
-    assert!(blob_storage
-        .take_blobs_for_slot_number(1, &mut state_checkpoint)
-        .is_empty());
-    assert!(blob_storage
-        .take_blobs_for_slot_number(2, &mut state_checkpoint)
-        .is_empty());
-    assert!(blob_storage
-        .take_blobs_for_slot_number(3, &mut state_checkpoint)
-        .is_empty());
-    assert!(blob_storage
-        .take_blobs_for_slot_number(4, &mut state_checkpoint)
-        .is_empty());
+    runner.advance_slots(1);
 
-    let sender = MockAddress::from([1u8; 32]);
+    let mut nonces = HashMap::new();
 
-    let mut batches = Vec::new();
-    for i in 1..=5 {
-        let txs = vec![RawTx {
-            data: vec![i * 3 + 1, i * 3 + 2, i * 3 + 3],
-        }];
+    // Create three slots, each containing a batch of blobs.
+    // We should receive three receipts in the same order as the blobs were sent.
+    let slots = vec![
+        build_blobs(
+            &user,
+            vec![vec![preferred_sequencer.clone(); 3]],
+            &mut nonces,
+            &mut runner,
+        ),
+        build_blobs(
+            &user,
+            vec![vec![preferred_sequencer.clone()]],
+            &mut nonces,
+            &mut runner,
+        ),
+        build_blobs(
+            &user,
+            vec![vec![preferred_sequencer.clone()]],
+            &mut nonces,
+            &mut runner,
+        ),
+    ];
 
-        let batch = BlobDataWithId {
-            data: BlobData::new_batch(txs),
-            id: [i; 32],
-        };
-        batches.push((batch, sender));
+    let mut batch_ids_and_sender = Vec::new();
+    for slot in slots.clone() {
+        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(slot, None);
+
+        batch_ids_and_sender.push(
+            result
+                .batch_receipts
+                .iter()
+                .map(|b| (b.batch_hash, preferred_sequencer.da_address))
+                .collect::<Vec<_>>(),
+        );
     }
 
-    let slot_2_batches = &batches[..3];
-    let slot_3_batches = &batches[3..4];
-    let slot_4_batches = &batches[4..5];
-
-    blob_storage.store_batches(2, slot_2_batches, &mut state_checkpoint);
-    blob_storage.store_batches(3, slot_3_batches, &mut state_checkpoint);
-    blob_storage.store_batches(4, slot_4_batches, &mut state_checkpoint);
-
-    assert_eq!(
-        slot_2_batches,
-        blob_storage.take_blobs_for_slot_number(2, &mut state_checkpoint)
+    check_received_blobs(
+        slots[0].clone().batch_blobs,
+        batch_ids_and_sender[0].clone(),
     );
-    assert!(blob_storage
-        .take_blobs_for_slot_number(2, &mut state_checkpoint)
-        .is_empty());
-
-    assert_eq!(
-        slot_3_batches,
-        blob_storage
-            .take_blobs_for_slot_number(3, &mut state_checkpoint)
-            .as_slice()
+    check_received_blobs(
+        slots[1].clone().batch_blobs,
+        batch_ids_and_sender[1].clone(),
     );
-    assert!(blob_storage
-        .take_blobs_for_slot_number(3, &mut state_checkpoint)
-        .is_empty());
-
-    assert_eq!(
-        slot_4_batches,
-        blob_storage
-            .take_blobs_for_slot_number(4, &mut state_checkpoint)
-            .as_slice()
+    check_received_blobs(
+        slots[2].clone().batch_blobs,
+        batch_ids_and_sender[2].clone(),
     );
-    assert!(blob_storage
-        .take_blobs_for_slot_number(4, &mut state_checkpoint)
-        .is_empty());
 }

@@ -7,8 +7,8 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Batch, BlobDataWithId, KernelModule, KernelModuleInfo, KernelStateValue, KernelWorkingSet,
-    ModuleId, StateCheckpoint, StateMap,
+    Batch, BlobDataWithId, InfallibleStateAccessor, KernelModule, KernelModuleInfo,
+    KernelStateValue, KernelWorkingSet, ModuleId, StateMap,
 };
 use sov_state::codec::BcsCodec;
 
@@ -59,7 +59,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
         &self,
         slot_number: TransitionHeight,
         batches: &[(BlobDataWithId, Da::Address)],
-        state: &mut StateCheckpoint<S>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
         self.deferred_blobs
             .set(&slot_number, batches, state)
@@ -71,7 +71,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
     pub fn take_blobs_for_slot_number(
         &self,
         slot_height: TransitionHeight,
-        state: &mut StateCheckpoint<S>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Vec<(BlobDataWithId, Da::Address)> {
         self.deferred_blobs
             .remove(&slot_height, state)
@@ -81,7 +81,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
 
     pub(crate) fn get_preferred_sequencer(
         &self,
-        state: &mut StateCheckpoint<S>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Option<Da::Address> {
         self.sequencer_registry
             .get_preferred_sequencer(state)
