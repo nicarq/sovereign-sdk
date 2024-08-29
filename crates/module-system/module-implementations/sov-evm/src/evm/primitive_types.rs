@@ -31,7 +31,7 @@ pub(crate) struct TransactionSignedAndRecovered {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Block {
+pub struct Block {
     /// Block header.
     pub(crate) header: Header,
 
@@ -46,6 +46,11 @@ impl Block {
             transactions: self.transactions,
         }
     }
+
+    /// Returns the transactions contained within the block.
+    pub fn transactions_ref(&self) -> &Range<u64> {
+        &self.transactions
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -58,11 +63,11 @@ pub(crate) struct SealedBlock {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct Receipt {
-    pub(crate) receipt: reth_primitives::Receipt,
-    pub(crate) gas_used: u64,
-    pub(crate) log_index_start: u64,
-    pub(crate) error: Option<EVMError<u8>>,
+pub struct Receipt {
+    pub receipt: reth_primitives::Receipt,
+    pub gas_used: u64,
+    pub log_index_start: u64,
+    pub error: Option<EVMError<u8>>,
 }
 
 impl From<TransactionSignedAndRecovered> for TransactionSignedEcRecovered {

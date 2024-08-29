@@ -1,4 +1,3 @@
-mod call_tests;
 mod cfg_tests;
 mod genesis_tests;
 mod hooks_tests;

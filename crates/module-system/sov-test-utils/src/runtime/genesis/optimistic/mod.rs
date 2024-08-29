@@ -1,4 +1,4 @@
-pub use config::HighLevelOptimisticGenesisConfig;
+pub use config::{HighLevelOptimisticGenesisConfig, MinimalOptimisticGenesisConfig};
 
 /// Contains genesis configuration utils for the optimistic runtime.
 pub mod config;

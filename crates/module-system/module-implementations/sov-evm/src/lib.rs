@@ -27,11 +27,14 @@ mod helpers;
 pub use authenticate::authenticate;
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
+use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
-    Context, Error, GenesisState, ModuleId, ModuleInfo, StateAccessor, TxState,
+    AccessoryStateReader, AccessoryStateReaderAndWriter, Context, Error, GenesisState,
+    InfallibleStateReaderAndWriter, ModuleId, ModuleInfo, StateAccessor, StateReader, TxState,
     UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
+use sov_state::User;
 
 use crate::event::Event;
 use crate::evm::db::EvmDb;
@@ -43,8 +46,9 @@ pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 #[cfg(feature = "native")]
 pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
 
+/// A pending Ethereum transaction.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
-pub(crate) struct PendingTransaction {
+pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
     pub(crate) receipt: Receipt,
 }
@@ -153,5 +157,38 @@ impl<S: sov_modules_api::Spec> Evm<S> {
             self.code.clone(),
             infallible_state_accessor,
         )
+    }
+
+    /// Access the Ethereum transaction receipts.
+    pub fn receipts<Accessor: AccessoryStateReaderAndWriter>(
+        &self,
+        state: &mut Accessor,
+    ) -> Vec<Receipt> {
+        self.receipts.collect_infallible(state)
+    }
+
+    /// Lookup an Ethereum account by address.
+    pub fn get_account<Accessor: StateReader<User>>(
+        &self,
+        address: &Address,
+        state: &mut Accessor,
+    ) -> Result<Option<DbAccount>, Accessor::Error> {
+        self.accounts.get(address, state)
+    }
+
+    /// Get the currently pending head block.
+    pub fn pending_head<Accessor: AccessoryStateReader>(
+        &self,
+        state: &mut Accessor,
+    ) -> Option<Block> {
+        self.pending_head.get(state).unwrap_infallible()
+    }
+
+    /// Access the pending Ethereum transactions.
+    pub fn pending_transactions<Accessor: InfallibleStateReaderAndWriter<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Vec<PendingTransaction> {
+        self.pending_transactions.collect_infallible(state)
     }
 }
