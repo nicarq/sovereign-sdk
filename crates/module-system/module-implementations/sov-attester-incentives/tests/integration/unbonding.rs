@@ -175,12 +175,13 @@ fn try_unbond_too_early() {
 /// The attester tries to unbond without bonding
 #[test]
 fn try_unbond_without_bonding() {
-    let (mut runner, _, additional_account, _) = setup();
+    let (mut runner, _, _, additional_account) = setup();
 
-    let additional_account_address = additional_account.user_info.address();
+    let additional_account_address = additional_account.address();
 
     runner.query_state(|state| {
         // Check that the additional account is not bonded
+
         assert_eq!(
             TestAttesterIncentives::default()
                 .bonded_attesters

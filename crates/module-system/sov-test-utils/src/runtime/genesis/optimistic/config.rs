@@ -97,7 +97,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     /// and no additional accounts.
     pub fn generate() -> Self {
         let prover_sequencer =
-            TestUser::generate(TEST_DEFAULT_USER_STAKE * 2 + TEST_DEFAULT_USER_BALANCE);
+            TestUser::generate(TEST_DEFAULT_USER_STAKE * 3 + TEST_DEFAULT_USER_BALANCE);
 
         let attester = TestAttester {
             user_info: prover_sequencer.clone(),
@@ -105,8 +105,9 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
             slot_to_attest: 1,
         };
 
-        let challenger =
-            TestChallenger::generate(TEST_DEFAULT_USER_STAKE + TEST_DEFAULT_USER_BALANCE);
+        let challenger = TestChallenger {
+            user_info: prover_sequencer.clone(),
+        };
 
         let sequencer = TestSequencer {
             user_info: prover_sequencer,

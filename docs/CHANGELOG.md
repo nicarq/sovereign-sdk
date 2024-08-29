@@ -1,3 +1,4 @@
+- #1314 Updates challenger tests in attester-incentives module.
 - #1316 Renames `sov-nft-module` to `sov-nft`. Runtimes that use it need update `Cargo.toml` and runtime definition.
 - #1306 Updates tests in attester-incentives part 2.
 - #1276 Migrates sov-cli to using raw REST API requests. `rpc` subcommand replaced with `api`.

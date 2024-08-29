@@ -4,9 +4,10 @@ use sov_attester_incentives::Attestation;
 use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
     ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer, SerializedAttestation,
-    SovApiProofSerializer, Spec,
+    SerializedChallenge, SovApiProofSerializer, Spec, StateTransitionPublicData,
 };
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -175,4 +176,67 @@ pub(crate) fn create_test_case(
             // TODO #1292: check rewards.
         }),
     }
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn build_challenge(
+    state: &mut ApiStateAccessor<S>,
+    challenge_slot: u64,
+    prover_address: <S as Spec>::Address,
+) -> Result<
+    StateTransitionPublicData<
+        <S as Spec>::Address,
+        MockDaSpec,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+    Infallible,
+> {
+    let chain_state = ChainState::<S, MockDaSpec>::default();
+    // Get the values for the transition being attested
+    let current_transition = chain_state
+        .get_historical_transitions(challenge_slot, state)?
+        .unwrap();
+
+    let prev_root = if challenge_slot == 1 {
+        chain_state.get_genesis_hash(state)?
+    } else {
+        chain_state
+            .get_historical_transitions(challenge_slot - 1, state)?
+            .map(|t| *t.post_state_root())
+    }
+    .unwrap();
+
+    let challenge: StateTransitionPublicData<
+        _,
+        MockDaSpec,
+        <<S as Spec>::Storage as Storage>::Root,
+    > = StateTransitionPublicData {
+        initial_state_root: prev_root,
+        final_state_root: *current_transition.post_state_root(),
+        slot_hash: *current_transition.slot_hash(),
+        validity_condition: *current_transition.validity_condition(),
+        prover_address,
+    };
+
+    Ok(challenge)
+}
+
+#[allow(clippy::type_complexity)]
+pub(crate) fn make_challenge_blob(
+    challenge: StateTransitionPublicData<
+        <S as Spec>::Address,
+        MockDaSpec,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+    is_valid: bool,
+    challenge_slot: u64,
+) -> Vec<u8> {
+    let serialized_challenge = MockZkvm::create_serialized_proof(is_valid, challenge);
+    let serialized_challenge = SerializedChallenge {
+        raw_challenge: serialized_challenge,
+    };
+
+    SovApiProofSerializer::<S>::new()
+        .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
+        .unwrap()
 }
