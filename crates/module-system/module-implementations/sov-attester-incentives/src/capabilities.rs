@@ -5,15 +5,15 @@ use std::fmt::Display;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    EventEmitter, Gas, InvalidProofError, SerializedAttestation, SerializedChallenge,
-    StateAccessorError, StateTransitionPublicData, TxState, Zkvm,
+    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, StateAccessorError,
+    StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::{Storage, StorageProof};
 use thiserror::Error;
 use tracing::error;
 
 use super::call::SlashingReason;
-use crate::{AttesterIncentives, Event};
+use crate::AttesterIncentives;
 
 /// Error raised while processing the attester incentives.
 #[derive(Debug, Error, PartialEq, Eq)]
@@ -237,13 +237,6 @@ where
             return Ok(());
         }
 
-        self.emit_event(
-            state,
-            Event::<S>::ProcessedValidAttestation {
-                attester: sender.clone(),
-            },
-        );
-
         // Now we have to check whether the claimed_transition_num is the max_attested_height.
         // If so, update the maximum attested height and reward the sender
         if attestation.proof_of_bond.claimed_transition_num == new_height_to_attest {
@@ -383,13 +376,6 @@ where
 
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(&transition_num, state)?;
-
-                self.emit_event(
-                    state,
-                    Event::<S>::ProcessedValidProof {
-                        challenger: sender.clone(),
-                    },
-                );
 
                 Ok(Some(public_output))
             }

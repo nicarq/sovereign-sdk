@@ -5,16 +5,13 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    EventEmitter, StateAccessor, StateAccessorError, StateTransitionPublicData, StateWriter,
-    TxState,
+    StateAccessor, StateAccessorError, StateTransitionPublicData, StateWriter, TxState,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
 use tracing::{debug, error};
 
-use crate::{
-    AttesterIncentives, Event, ProcessAttestationErrors, ProcessChallengeErrors, SlashingReason,
-};
+use crate::{AttesterIncentives, ProcessAttestationErrors, ProcessChallengeErrors, SlashingReason};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
@@ -120,7 +117,7 @@ where
     pub(crate) fn slash_attester<TxStateAccessor: TxState<S>>(
         &self,
         user: &S::Address,
-        reason: SlashingReason,
+        _reason: SlashingReason,
         state: &mut TxStateAccessor,
     ) -> Result<u64, <TxStateAccessor as StateWriter<User>>::Error> {
         // We have to remove the attester from the unbonding set
@@ -132,15 +129,6 @@ where
         // We have to deplete the attester's bonded account, it amounts to removing the attester from the bonded set
         let reward = bonded_set.get(user, state)?.unwrap_or_default();
         bonded_set.remove(user, state)?;
-
-        // We raise an event
-        self.emit_event(
-            state,
-            Event::<S>::UserSlashed {
-                address: user.clone(),
-                reason,
-            },
-        );
 
         Ok(reward)
     }
@@ -192,14 +180,6 @@ where
         state: &mut impl TxState<S>,
     ) -> Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
         self.bonded_challengers.remove(user, state)?;
-
-        self.emit_event(
-            state,
-            Event::UserSlashed {
-                address: user.clone(),
-                reason,
-            },
-        );
 
         error!(
             error = ?reason,
@@ -331,14 +311,6 @@ where
                     }
 
                     Ok(e) => {
-                        self.emit_event(
-                            state,
-                            Event::UserSlashed {
-                                address: attester.clone(),
-                                reason: SlashingReason::TransitionInvalid,
-                            },
-                        );
-
                         return Err(e);
                     }
                 }

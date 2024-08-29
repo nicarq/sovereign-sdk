@@ -54,14 +54,4 @@ pub enum Event<S: sov_modules_api::Spec> {
         /// The number of tokens returned to the caller's bank balance.
         amount_withdrawn: u64,
     },
-    /// Event for processing a valid attestation
-    ProcessedValidAttestation {
-        /// The address of the attester.
-        attester: S::Address,
-    },
-    /// Event for processing a valid proof
-    ProcessedValidProof {
-        /// The address of the challenger.
-        challenger: S::Address,
-    },
 }
