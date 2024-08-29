@@ -49,7 +49,7 @@ fn test_setting_value() {
             );
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                TestRuntimeEvent::value_setter(
+                TestRuntimeEvent::ValueSetter(
                     Event::NewValue(value)
                 ) if *value == 5
             )));

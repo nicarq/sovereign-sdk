@@ -79,7 +79,7 @@ fn mint_succeeds() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestNftModuleRuntimeEvent::nft(Event::Mint { id: NFT_ID })
+                TestNftModuleRuntimeEvent::Nft(Event::Mint { id: NFT_ID })
             );
 
             // Check that the nft is owned by the user
@@ -146,7 +146,7 @@ fn transfer_succeeds() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestNftModuleRuntimeEvent::nft(Event::Transfer { id: NFT_ID })
+                TestNftModuleRuntimeEvent::Nft(Event::Transfer { id: NFT_ID })
             );
 
             assert_eq!(
@@ -251,7 +251,7 @@ fn burn_succeeds() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestNftModuleRuntimeEvent::nft(Event::Burn { id: NFT_ID })
+                TestNftModuleRuntimeEvent::Nft(Event::Burn { id: NFT_ID })
             );
 
             assert_eq!(

@@ -197,7 +197,7 @@ fn test_invalid_challenge_helper(
             //  assert!(
             //    result.events.iter().any(|event| matches!(
             //        event,
-            //        TestRuntimeEvent::attester_incentives(Event::UserSlashed {
+            //        TestRuntimeEvent::AttesterIncentives(Event::UserSlashed {
             //            address,
             //            reason
             //        }) if *address == bonded_challenger_address && *reason == slashing_reason

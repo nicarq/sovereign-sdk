@@ -1,7 +1,9 @@
 use proc_macro2::{Span, TokenStream};
 use syn::DeriveInput;
 
-use crate::common::{get_generics_type_param, StructDef, StructFieldExtractor, CALL};
+use crate::common::{
+    get_generics_type_param, pascal_case_ident, StructDef, StructFieldExtractor, CALL,
+};
 
 impl<'a> StructDef<'a> {
     fn create_message_codec(&self) -> TokenStream {
@@ -12,7 +14,7 @@ impl<'a> StructDef<'a> {
         let where_clause = &self.where_clause;
 
         let fns = self.fields.iter().map(|field| {
-            let variant = &field.ident;
+            let variant = pascal_case_ident(&field.ident);
             let ty = &field.ty;
 
             let call_doc = format!("Encodes {} call message.", field.ident);

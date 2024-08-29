@@ -11,9 +11,9 @@ struct Runtime<S: Spec> {
 
 fn main() {
     // Check to see if the runtime events are getting initialized correctly
-    let _event = RuntimeEvent::<TestSpec>::first(first_test_module::Event::FirstModuleEnum1(10));
-    let _event = RuntimeEvent::<TestSpec>::first(first_test_module::Event::FirstModuleEnum2);
+    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum1(10));
+    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum2);
     let _event =
-        RuntimeEvent::<TestSpec>::first(first_test_module::Event::FirstModuleEnum3(vec![1; 3]));
-    let _event = RuntimeEvent::<TestSpec>::second(second_test_module::Event::SecondModuleEnum);
+        RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum3(vec![1; 3]));
+    let _event = RuntimeEvent::<TestSpec>::Second(second_test_module::Event::SecondModuleEnum);
 }

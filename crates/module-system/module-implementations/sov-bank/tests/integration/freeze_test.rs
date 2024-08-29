@@ -26,7 +26,7 @@ fn freeze_token_happy_path() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenFrozen {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenFrozen {
                     freezer: sov_bank::utils::TokenHolder::User(minter_address),
                     token_id
                 }),

@@ -1,7 +1,7 @@
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields};
 
-use crate::common::{doc_attributes, StructFieldExtractor};
+use crate::common::{doc_attributes, pascal_case_ident, StructFieldExtractor};
 
 type CliWalletArgSpec = (
     proc_macro2::TokenStream,
@@ -49,7 +49,7 @@ pub(crate) fn derive_cli_wallet(
         };
 
         let module_path = type_path.path.clone();
-        let field_name = field.ident.clone();
+        let field_name = pascal_case_ident(&field.ident);
         let doc_str = format!("A subcommand for the `{}` module", &field_name);
         let doc_contents = format!("A clap argument for the `{}` module", &field_name);
 
@@ -340,7 +340,7 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
     let mut convert_cases = vec![];
 
     for variant in &data_enum.variants {
-        let variant_name = &variant.ident;
+        let variant_name = pascal_case_ident(&variant.ident);
         let variant_docs = doc_attributes(&variant.attrs);
 
         let mut named_variant_fields =

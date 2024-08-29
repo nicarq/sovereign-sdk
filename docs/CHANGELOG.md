@@ -1,4 +1,5 @@
 #1322 Remove ProcessAttestation & ProcessChallenge call messages from the sov-attester-incentives.
+- #1323 Modifies the `Event`, `DispatchCall`, `MessageCodec`, and `CliWallet` proc-macros to generate `enum`s with `PascalCase` instead of `snake_case`, as per Rust naming conventions.
 - #1320 Updates challenger tests in attester-incentives module for invalid challenges.
 - #1314 Updates challenger tests in attester-incentives module.
 - #1314 Updates challenger tests in attester-incentives module.

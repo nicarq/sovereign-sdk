@@ -102,7 +102,7 @@ fn test_new_sequencer_registration() {
                 // Assert that a registration event has been emitted
                 assert!(result.events.iter().any(|event| matches!(
                     event,
-                    TestRuntimeEvent::sequencer_registry(
+                    TestRuntimeEvent::SequencerRegistry(
                         sov_sequencer_registry::Event::Registered { sequencer, amount }
                     ) if *sequencer == other_sequencer_address && *amount == TEST_DEFAULT_USER_STAKE
                 )));
@@ -273,7 +273,7 @@ fn test_exit_happy_path() {
             // Assert that an exit event has been emitted
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                TestRuntimeEvent::sequencer_registry(
+                TestRuntimeEvent::SequencerRegistry(
                     sov_sequencer_registry::Event::Exited { sequencer, amount_withdrawn }
                 ) if *sequencer == other_sequencer_address && *amount_withdrawn == 100000000
             )));

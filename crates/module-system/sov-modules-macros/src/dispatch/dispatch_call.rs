@@ -2,7 +2,8 @@ use proc_macro2::Span;
 use syn::DeriveInput;
 
 use crate::common::{
-    get_derived_enum_attrs, get_generics_type_param, StructDef, StructFieldExtractor, CALL,
+    get_derived_enum_attrs, get_generics_type_param, pascal_case_ident, StructDef,
+    StructFieldExtractor, CALL,
 };
 
 impl<'a> StructDef<'a> {
@@ -10,7 +11,7 @@ impl<'a> StructDef<'a> {
         self.fields
             .iter()
             .map(|field| {
-                let name = &field.ident;
+                let name = pascal_case_ident(&field.ident);
                 let ty = &field.ty;
 
                 quote::quote!(
@@ -26,22 +27,24 @@ impl<'a> StructDef<'a> {
         let type_generics = &self.type_generics;
 
         let match_legs = self.fields.iter().map(|field| {
-            let name = &field.ident;
+            let variant_ident = pascal_case_ident(&field.ident);
+            let field_ident = &field.ident;
 
             quote::quote!(
-                #enum_ident::#name(message)=>{
-                    ::sov_modules_api::Module::call(&self.#name, message, context, state)
+                #enum_ident::#variant_ident(message) => {
+                    ::sov_modules_api::Module::call(&self.#field_ident, message, context, state)
                 },
             )
         });
 
         let match_legs_address = self.fields.iter().map(|field| {
-            let name = &field.ident;
+            let variant_ident = pascal_case_ident(&field.ident);
+            let field_ident = &field.ident;
             let ty = &field.ty;
 
             quote::quote!(
-                #enum_ident::#name(message)=>{
-                   <#ty as ::sov_modules_api::ModuleInfo>::id(&self.#name)
+                #enum_ident::#variant_ident(message)=>{
+                   <#ty as ::sov_modules_api::ModuleInfo>::id(&self.#field_ident)
                 },
             )
         });

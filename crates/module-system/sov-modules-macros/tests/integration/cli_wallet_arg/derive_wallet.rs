@@ -125,7 +125,7 @@ pub struct Runtime<S: Spec> {
 fn main() {
     use sov_modules_api::prelude::clap::Parser;
 
-    let expected_foo = RuntimeCall::first(first_test_module::MyStruct {
+    let expected_foo = RuntimeCall::First(first_test_module::MyStruct {
         first_field: 1,
         str_field: "hello".to_string(),
     });
@@ -143,7 +143,7 @@ fn main() {
     let foo_ir: RuntimeMessage<JsonStringArg, TestSpec> = foo_from_cli.try_into().unwrap();
     assert_eq!(expected_foo, foo_ir.try_into().unwrap());
 
-    let expected_bar = RuntimeCall::second(second_test_module::MyEnum::Bar(2));
+    let expected_bar = RuntimeCall::Second(second_test_module::MyEnum::Bar(2));
     let bar_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
         <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from(&[
             "main",

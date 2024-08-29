@@ -27,7 +27,7 @@ pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
     /// let runtime_event = context.events[0];
     /// matches!(
     ///     &runtime_event,
-    ///     GeneratedRuntimeEvent::bank(
+    ///     GeneratedRuntimeEvent::Bank(
     ///         sov_bank::event::Event::TokenCreated { .. }
     /// ));
     /// ```

@@ -14,7 +14,7 @@ type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
 #[test]
 fn test_display_tx() {
-    let msg: RuntimeCall<S, Da> = RuntimeCall::bank(CallMessage::Transfer {
+    let msg: RuntimeCall<S, Da> = RuntimeCall::Bank(CallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
         )
@@ -31,6 +31,6 @@ fn test_display_tx() {
     let schema = CompiledSchema::of::<RuntimeCall<S, Da>>();
     assert_eq!(
         schema.display(&data).unwrap(),
-        r#"bank.Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks}}"#
+        r#"Bank.Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks}}"#
     );
 }

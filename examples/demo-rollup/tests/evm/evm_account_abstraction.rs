@@ -50,7 +50,7 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     let mut credentials = [0; 32];
     credentials[12..].copy_from_slice(&from_addr.to_fixed_bytes());
 
-    let msg = RuntimeCall::<TestSpec, MockDaSpec>::accounts(
+    let msg = RuntimeCall::<TestSpec, MockDaSpec>::Accounts(
         sov_accounts::CallMessage::InsertCredentialId(credentials.into()),
     );
 

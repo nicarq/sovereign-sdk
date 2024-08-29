@@ -56,7 +56,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
             >(&raw_tx.data, pre_exec_ws)?;
 
         match &runtime_call {
-            RuntimeCall::sequencer_registry(sov_sequencer_registry::CallMessage::Register {
+            RuntimeCall::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {
                 ..
             }) => Ok((tx_and_raw_hash, auth_data, runtime_call)),
             _ => Err(UnregisteredAuthenticationError::RuntimeCall)?,
@@ -120,7 +120,7 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_evm::authenticate::<Self::Spec, Meter>(tx, stake_meter)?;
-        let call = RuntimeCall::evm(runtime_call);
+        let call = RuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))
     }

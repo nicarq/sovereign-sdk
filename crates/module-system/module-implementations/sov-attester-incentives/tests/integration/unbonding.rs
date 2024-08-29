@@ -98,7 +98,7 @@ fn try_unbond_successful() {
             // Test that the unbonding attester event is emitted
             assert!(result.events.iter().any(|event| {
                 event
-                    == &TestRuntimeEvent::attester_incentives(
+                    == &TestRuntimeEvent::AttesterIncentives(
                         sov_attester_incentives::Event::ExitedAttester {
                             amount_withdrawn: attester_bond,
                         },
