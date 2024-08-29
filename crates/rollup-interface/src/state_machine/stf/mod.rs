@@ -3,24 +3,28 @@
 //!
 //! The most important trait in this module is the [`StateTransitionFunction`], which defines the
 //! main event loop of the rollup.
-use std::fmt::Debug;
+
 mod events;
+#[cfg(any(test, feature = "arbitrary"))]
+pub mod fuzzing;
 mod proof_serializer;
+mod transaction;
+mod verifier;
+
+use std::fmt::Debug;
+
 pub use events::*;
+pub use proof_serializer::*;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-mod transaction;
-pub use proof_serializer::*;
 use thiserror::Error;
 pub use transaction::*;
+pub use verifier::StateTransitionVerifier;
 
 use super::optimistic::Attestation;
 use crate::da::{DaSpec, RelevantBlobIters};
 use crate::zk::aggregated_proof::{AggregatedProofPublicData, SerializedAggregatedProof};
 use crate::zk::{StateTransitionPublicData, ValidityCondition, Zkvm};
-
-#[cfg(any(test, feature = "arbitrary"))]
-pub mod fuzzing;
 
 /// The configuration of a full node of the rollup which creates zk proofs.
 pub struct ProverConfig;

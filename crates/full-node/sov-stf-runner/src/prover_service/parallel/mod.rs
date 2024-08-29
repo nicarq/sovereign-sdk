@@ -9,12 +9,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::services::da::DaService;
-use sov_rollup_interface::stf::StateTransitionFunction;
+use sov_rollup_interface::stf::{StateTransitionFunction, StateTransitionVerifier};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use super::{ProverService, ProverServiceError, RawGenesisStateRoot};
-use crate::verifier::StateTransitionVerifier;
 use crate::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
 };
