@@ -50,6 +50,8 @@ pub struct SovApiProofSerializer<S: Spec> {
     _phantom: std::marker::PhantomData<S>,
 }
 
+const MAX_FEE: u64 = 10_000_000;
+
 impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
     fn new() -> Self
     where
@@ -64,7 +66,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
         &self,
         serialized_proof: SerializedAggregatedProof,
     ) -> anyhow::Result<Vec<u8>> {
-        let details: TxDetails<S> = make_details(10_000_000);
+        let details: TxDetails<S> = make_details(MAX_FEE);
 
         let proof_with_details = SerializeProofWithDetails {
             proof: ProofType::ZkAggregatedProof(serialized_proof),
@@ -80,7 +82,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
         &self,
         serialized_attestation: SerializedAttestation,
     ) -> anyhow::Result<Vec<u8>> {
-        let details: TxDetails<S> = make_details(10_000_000);
+        let details: TxDetails<S> = make_details(MAX_FEE);
 
         let proof_with_details = SerializeProofWithDetails {
             proof: ProofType::OptimisticProofAttestation(serialized_attestation),
@@ -97,7 +99,7 @@ impl<S: Spec> ProofSerializer for SovApiProofSerializer<S> {
         serialized_challenge: SerializedChallenge,
         slot_height: u64,
     ) -> anyhow::Result<Vec<u8>> {
-        let details: TxDetails<S> = make_details(10_000_000);
+        let details: TxDetails<S> = make_details(MAX_FEE);
 
         let proof_with_details = SerializeProofWithDetails {
             proof: ProofType::OptimisticProofChallenge(serialized_challenge, slot_height),

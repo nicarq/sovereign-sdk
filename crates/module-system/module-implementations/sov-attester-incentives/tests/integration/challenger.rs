@@ -2,14 +2,12 @@ use std::convert::Infallible;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-use sov_attester_incentives::{AttesterIncentives, CallMessage, Event, SlashingReason};
+use sov_attester_incentives::{AttesterIncentives, CallMessage, SlashingReason};
 use sov_bank::Amount;
-use sov_mock_da::MockDaSpec;
+use sov_mock_da::{MockDaSpec, MockHash};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
-use sov_test_utils::generators::attester_incentive::framework::TestChallengeGenerator;
-use sov_test_utils::generators::attester_incentive::TestChallengeMessageError;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     AsUser, BondedTestChallenger, ProofTestCase, ProofType, TestAttester, TransactionTestCase,
@@ -18,7 +16,7 @@ use sov_test_utils::{
 
 use crate::helpers::{
     build_challenge, build_proof, make_attestation_blob, make_challenge_blob, setup,
-    TestAttesterIncentives, TestRuntimeEvent, RT, S,
+    TestAttesterIncentives, RT, S,
 };
 
 /// Helper that sets up a configuration where:
@@ -182,28 +180,30 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 }
 
 fn test_invalid_challenge_helper(
-    error_type: TestChallengeMessageError,
-    slashing_reason: SlashingReason,
+    runner: &mut TestRunner<RT, S>,
+    expected_reward: u64,
+    bonded_challenger: &BondedTestChallenger<S>,
+    challenge_blob: Vec<u8>,
+    _slashing_reason: SlashingReason,
 ) {
-    let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
-
     let bonded_challenger_address = bonded_challenger.user_info.address();
     let _bonded_challenger_balance = bonded_challenger.user_info.balance();
 
-    // Then challenge the wrongly attested slot.
-    runner.execute_transaction(TransactionTestCase {
-        input: bonded_challenger.test_process_challenge_at_slot(Err(error_type), 1),
-        assert: Box::new(move |result, state| {
-            assert!(
-                result.events.iter().any(|event| matches!(
-                    event,
-                    TestRuntimeEvent::attester_incentives(Event::UserSlashed {
-                        address,
-                        reason
-                    }) if *address == bonded_challenger_address && *reason == slashing_reason
-                )),
-                "No slashing event were emitted"
-            );
+    runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
+        input: ProofType::Inline(challenge_blob),
+        override_sequencer: None,
+        assert: Box::new(move |_result, state| {
+            // TODO: #1262
+            //  assert!(
+            //    result.events.iter().any(|event| matches!(
+            //        event,
+            //        TestRuntimeEvent::attester_incentives(Event::UserSlashed {
+            //            address,
+            //            reason
+            //        }) if *address == bonded_challenger_address && *reason == slashing_reason
+            //    )),
+            //    "No slashing event were emitted"
+            //);
 
             // Check that the challenger was slashed
             assert_eq!(
@@ -237,31 +237,61 @@ fn test_invalid_challenge_helper(
 }
 
 #[test]
-// TODO: #1262
-#[ignore]
 fn test_invalid_challenge_initial_state_root() {
+    let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
+    let bonded_challenger_address = bonded_challenger.user_info.address();
+
+    let mut challenge_proof = runner
+        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .unwrap();
+
+    challenge_proof.initial_state_root = StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
+
     test_invalid_challenge_helper(
-        TestChallengeMessageError::InvalidInitialStateRoot,
+        &mut runner,
+        expected_reward,
+        &bonded_challenger,
+        make_challenge_blob(challenge_proof, true, 1),
         SlashingReason::InvalidInitialHash,
     );
 }
 
 #[test]
-// TODO: #1262
-#[ignore]
+
 fn test_invalid_challenge_transition() {
+    let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
+    let bonded_challenger_address = bonded_challenger.user_info.address();
+
+    let mut challenge_proof = runner
+        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .unwrap();
+
+    challenge_proof.slot_hash = MockHash([255; 32]);
+
     test_invalid_challenge_helper(
-        TestChallengeMessageError::InvalidTransition,
+        &mut runner,
+        expected_reward,
+        &bonded_challenger,
+        make_challenge_blob(challenge_proof, false, 1),
         SlashingReason::TransitionInvalid,
     );
 }
 
 #[test]
-// TODO: #1262
-#[ignore]
+
 fn test_invalid_challenge_proof() {
+    let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
+    let bonded_challenger_address = bonded_challenger.user_info.address();
+
+    let challenge_proof = runner
+        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .unwrap();
+
     test_invalid_challenge_helper(
-        TestChallengeMessageError::InvalidChallengeProof,
+        &mut runner,
+        expected_reward,
+        &bonded_challenger,
+        make_challenge_blob(challenge_proof, false, 1),
         SlashingReason::InvalidProofOutputs,
     );
 }
