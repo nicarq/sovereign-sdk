@@ -94,9 +94,10 @@ pub use sov_rollup_interface::common::HexHash;
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{CredentialId, PublicKey, Signature};
 pub use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
-pub use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 #[cfg(feature = "native")]
-pub use sov_rollup_interface::services::da::SlotData;
+pub use sov_rollup_interface::node::da::SlotData;
+pub use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
+pub use sov_rollup_interface::reexports::digest;
 pub use sov_rollup_interface::stf::*;
 pub use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
@@ -104,7 +105,7 @@ pub use sov_rollup_interface::zk::aggregated_proof::{
 pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
-pub use sov_rollup_interface::{digest, execution_mode, BasicAddress, RollupAddress};
+pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::Storage;
 pub use sov_wallet_format;
 pub use state::*;

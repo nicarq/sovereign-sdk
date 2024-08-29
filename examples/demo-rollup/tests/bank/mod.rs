@@ -11,7 +11,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Batch, RawTx};
-use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_test_utils::{ApiClient, TestSpec};
 
 const TOKEN_SALT: u64 = 0;

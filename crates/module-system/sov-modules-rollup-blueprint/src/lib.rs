@@ -59,7 +59,7 @@ mod blueprint {
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
-    use sov_rollup_interface::services::da::DaService;
+    use sov_rollup_interface::node::da::DaService;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_sequencer::{

@@ -12,7 +12,7 @@ use sov_rollup_interface::da::{
     Time,
 };
 #[cfg(feature = "native")]
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::Bytes;
 use sov_wallet_format::UniversalWallet;
 

@@ -1,5 +1,4 @@
 //! Defines types that are related to the `AggregatedProof`.
-use alloc::vec::Vec;
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};

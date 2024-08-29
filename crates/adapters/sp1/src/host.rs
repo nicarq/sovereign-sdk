@@ -1,7 +1,7 @@
 //! Implementation of the SP1 host for the Sovereign ZkvmHost trait.
 
 use serde::Serialize;
-use sov_rollup_interface::anyhow;
+use sov_rollup_interface::reexports::anyhow;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 use sp1_sdk::{HookEnv, ProverClient, SP1Stdin};
 

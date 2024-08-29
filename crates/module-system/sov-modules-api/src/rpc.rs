@@ -4,7 +4,7 @@ use sov_db::ledger_db::event_helper::{
     get_events_by_key_helper, get_events_by_key_slot_range_helper,
 };
 use sov_db::ledger_db::LedgerDb;
-use sov_rollup_interface::rpc::{LedgerStateProvider, PaginatedEventResponse};
+use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, PaginatedEventResponse};
 use sov_rollup_interface::stf::StoredEvent;
 
 /// A [`LedgerStateProviderExt`] provides a way to query the ledger for events by module.

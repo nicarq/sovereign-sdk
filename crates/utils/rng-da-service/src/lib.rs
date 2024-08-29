@@ -16,7 +16,7 @@ use sov_modules_api::{Batch, CryptoSpec, EncodeCall, GasUnit, PrivateKey, Public
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
+use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData};
 use sov_test_utils::{
     TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };

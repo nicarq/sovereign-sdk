@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use tokio::sync::mpsc;

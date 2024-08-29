@@ -12,8 +12,8 @@ use sov_modules_api::rest::utils::{ErrorObject, ResponseObject};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
-use sov_rollup_interface::rpc::FinalityStatus;
-use sov_rollup_interface::services::da::DaServiceWithRetries;
+use sov_rollup_interface::node::da::DaServiceWithRetries;
+use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{

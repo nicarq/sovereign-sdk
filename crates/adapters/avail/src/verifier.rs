@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaSpec, DaVerifier};
-use sov_rollup_interface::services::da::{RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::node::da::{RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::zk::{ValidityCondition, ValidityConditionChecker};
 use thiserror::Error;
 

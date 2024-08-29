@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
-use sov_rollup_interface::rpc::{BatchResponse, TxResponse};
+use sov_rollup_interface::node::ledger_api::{BatchResponse, TxResponse};
 use sov_rollup_interface::stf::{StoredEvent, TransactionReceipt, TxReceiptContents};
 
 /// A cheaply cloneable bytes abstraction for use within the trust boundary of the node

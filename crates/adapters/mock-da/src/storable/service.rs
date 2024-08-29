@@ -9,7 +9,7 @@ use futures::StreamExt;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs,
 };
-use sov_rollup_interface::services::da::{DaService, MaybeRetryable, SlotData};
+use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData};
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, sleep};
 

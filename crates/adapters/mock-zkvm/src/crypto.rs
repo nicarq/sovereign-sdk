@@ -11,7 +11,7 @@ use ed25519_dalek::{
 };
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 #[cfg(feature = "native")]
-use sov_rollup_interface::schemars;
+use sov_rollup_interface::reexports::schemars;
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]

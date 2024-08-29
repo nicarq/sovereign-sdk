@@ -14,8 +14,8 @@ use sov_rest_utils::{
     ErrorObject, Path,
 };
 use sov_rollup_interface::da::DaBlobHash;
-use sov_rollup_interface::services::batch_builder::AcceptTxError;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::batch_builder::AcceptTxError;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;

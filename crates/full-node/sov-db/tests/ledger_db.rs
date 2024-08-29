@@ -2,7 +2,7 @@ use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvm;
-use sov_rollup_interface::rpc::LedgerStateProvider;
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };

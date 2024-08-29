@@ -22,7 +22,7 @@ pub mod jmt {
 #[cfg(feature = "native")]
 pub use prover_storage::ProverStorage;
 use sha2::digest::typenum::U32;
-use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::reexports::digest::Digest;
 pub use storage_internals::{SparseMerkleProof, StorageRoot, VisibleHash};
 pub use zk_storage::ZkStorage;
 

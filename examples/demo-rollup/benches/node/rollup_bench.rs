@@ -12,7 +12,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rng_da_service::RngDaService;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;

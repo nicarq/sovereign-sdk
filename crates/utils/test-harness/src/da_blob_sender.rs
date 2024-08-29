@@ -7,7 +7,7 @@ use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, RawTx, Spec};
-use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::sleep;
 

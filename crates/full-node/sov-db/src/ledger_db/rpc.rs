@@ -5,7 +5,7 @@ use futures::StreamExt;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{Schema, SeekKeyEncoder};
 use serde::de::DeserializeOwned;
-use sov_rollup_interface::rpc::{
+use sov_rollup_interface::node::ledger_api::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,

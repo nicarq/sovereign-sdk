@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockValidityCond};
 use sov_mock_zkvm::MockZkVerifier;
-use sov_rollup_interface::services::da::DaServiceWithRetries;
+use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_stf_runner::InitVariant;
 
 use crate::helpers::hash_stf::HashStf;

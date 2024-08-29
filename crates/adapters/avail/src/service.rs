@@ -9,7 +9,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use reqwest::StatusCode;
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::da::{DaService, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::node::da::{DaService, RelevantBlobs, RelevantProofs};
 use sp_core::crypto::Pair as PairTrait;
 use sp_keyring::sr25519::sr25519::Pair;
 use subxt::tx::PairSigner;

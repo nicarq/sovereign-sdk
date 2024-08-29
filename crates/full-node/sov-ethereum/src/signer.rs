@@ -6,7 +6,7 @@ use sov_evm::{Evm, RlpEvmTransaction};
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::ApiStateAccessor;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::da::DaService;
 
 use crate::{to_jsonrpsee_error_object, Ethereum, ETH_RPC_ERROR};
 

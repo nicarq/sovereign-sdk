@@ -1,6 +1,9 @@
-//! The `node` module defines types traits which are used by the full node but
-//! are not part of the rollup's state machine. These types/traits are never invoked
-//! inside of a zkVM, so they may be non-deterministic, have access to networking/disk, etc.
-#[cfg(feature = "native")]
-pub mod rpc;
-pub mod services;
+//! Types, traits, or utilities that are used by the full node but are not part
+//! of the rollup's state machine.
+//!
+//! This code is **never** used inside of zkVMs, so it can be non-deterministic,
+//! access system resources or networking, write data to disk, etc..
+
+pub mod batch_builder;
+pub mod da;
+pub mod ledger_api;

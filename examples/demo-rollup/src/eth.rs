@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use demo_stf::authentication::EvmAuth;
 use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_modules_api::Spec;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::da::DaService;
 use tokio::sync::watch;
 
 // register ethereum methods.

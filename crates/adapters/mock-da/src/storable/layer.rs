@@ -240,7 +240,7 @@ mod tests {
     use std::time::Duration;
 
     use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
-    use sov_rollup_interface::services::da::SlotData;
+    use sov_rollup_interface::node::da::SlotData;
     use testcontainers_modules::postgres::Postgres;
     use testcontainers_modules::testcontainers::runners::AsyncRunner;
     use tokio::task::JoinHandle;

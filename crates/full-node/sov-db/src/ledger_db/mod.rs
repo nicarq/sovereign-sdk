@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex, RwLock};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{Schema, SchemaBatch};
 use serde::Serialize;
-use sov_rollup_interface::rpc::AggregatedProofResponse;
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
+use sov_rollup_interface::node::ledger_api::AggregatedProofResponse;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TxReceiptContents};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 

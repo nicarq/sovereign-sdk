@@ -7,7 +7,7 @@ use anyhow::Context;
 use base64::prelude::*;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use sov_rollup_interface::rpc::FinalityStatus;
+use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};

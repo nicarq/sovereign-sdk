@@ -5,16 +5,15 @@
 
 #![deny(missing_docs)]
 
-extern crate alloc;
-
 pub mod common;
 mod state_machine;
-#[cfg(all(feature = "native", feature = "schemars"))]
-pub use schemars;
 pub use state_machine::*;
+#[cfg(feature = "native")]
+pub mod node;
 
-#[cfg(feature = "native")]
-mod node;
-#[cfg(feature = "native")]
-pub use node::*;
-pub use {anyhow, digest};
+/// Useful third-party crate re-exports.
+pub mod reexports {
+    #[cfg(feature = "native")]
+    pub use schemars;
+    pub use {anyhow, digest};
+}

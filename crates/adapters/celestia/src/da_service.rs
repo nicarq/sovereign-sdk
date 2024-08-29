@@ -18,7 +18,7 @@ use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
-use sov_rollup_interface::services::da::{DaService, Fee, MaybeRetryable};
+use sov_rollup_interface::node::da::{DaService, Fee, MaybeRetryable};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tower::ServiceBuilder;
@@ -513,7 +513,7 @@ mod tests {
     use celestia_types::Blob as JsonBlob;
     use serde_json::json;
     use sov_rollup_interface::da::{BlockHeaderTrait, DaVerifier, RelevantBlobs};
-    use sov_rollup_interface::services::da::DaService;
+    use sov_rollup_interface::node::da::DaService;
     use wiremock::matchers::{bearer_token, body_json, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
