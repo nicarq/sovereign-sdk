@@ -84,7 +84,7 @@ mod test {
         }
 
         {
-            let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+            let storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
             let storage = storage_manager.create_storage();
             for test in tests {
                 assert_eq!(

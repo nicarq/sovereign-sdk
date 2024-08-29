@@ -51,7 +51,7 @@ fn test_config_account() {
         TestData {
             account_1: user, ..
         },
-        mut runner,
+        runner,
     ) = setup();
 
     // The account is registered at genesis.
@@ -194,7 +194,7 @@ fn test_resolve_sender_address_non_default_address() {
             non_registered_account,
             ..
         },
-        mut runner,
+        runner,
     ) = setup();
 
     runner.query_state(|state| {
@@ -226,7 +226,7 @@ fn test_resolve_sender_address_non_default_address() {
 
 #[test]
 fn test_resolve_sender_address_default_address() {
-    let (TestData { account_1, .. }, mut runner) = setup();
+    let (TestData { account_1, .. }, runner) = setup();
 
     runner.query_state(|state| {
         let accounts = Accounts::<S>::default();
@@ -304,7 +304,7 @@ fn test_resolve_address_if_more_than_one_credential() {
 /// Test that when one precises a default address, this address is used and the credentials are not resolved.
 #[test]
 fn test_resolve_with_different_default_address() {
-    let (TestData { account_1, .. }, mut runner) = setup();
+    let (TestData { account_1, .. }, runner) = setup();
 
     let random_credential = TestPrivateKey::generate()
         .pub_key()

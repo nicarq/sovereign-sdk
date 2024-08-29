@@ -8,16 +8,14 @@ pub use sov_attester_incentives::{
 use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
 pub use sov_chain_state::ChainStateConfig;
-use sov_db::schema::SchemaBatch;
-use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
+use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::da::Time;
+use sov_mock_da::{MockBlob, MockBlockHeader, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, CryptoSpec, DaSpec, EncodeCall, Gas, GasArray,
-    Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor, SlotData,
-    Spec, StateCheckpoint,
+    Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor, Spec,
+    StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::GenesisParams;
 use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
@@ -25,12 +23,12 @@ pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-use sov_rollup_interface::storage::HierarchicalStorageManager;
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::runtime::traits::EndSlotHookRegistry;
+use crate::storage::SimpleStorageManager;
 use crate::{
     generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase,
     ProofAssertContext, ProofTestCase, ProofType, SlotInput, TestStfBlueprint,
@@ -60,7 +58,6 @@ type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, 
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
 pub struct SlotReceipt<Da: DaSpec> {
-    block_header: Da::BlockHeader,
     batch_receipts: Vec<BatchReceipt<Da>>,
 }
 
@@ -82,7 +79,7 @@ pub struct TestRunner<RT: Runtime<S, MockDaSpec>, S: Spec> {
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<MockDaSpec>>,
     state_root: <S::Storage as Storage>::Root,
-    storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<DefaultSpecWithHasher<S>>>,
+    storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
 }
 
@@ -149,14 +146,8 @@ where
         &self.nonces
     }
 
-    fn current_state(&mut self) -> ApiStateAccessor<S> {
-        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
-            self.storage_manager
-                .create_state_after(&slot_receipt.block_header)
-        } else {
-            self.storage_manager.create_bootstrap_state()
-        }
-        .expect("Impossible to create queryiable state. This is a bug.");
+    fn current_state(&self) -> ApiStateAccessor<S> {
+        let stf_state = self.storage_manager.create_storage();
 
         ApiStateAccessor::<S>::new(stf_state)
     }
@@ -170,7 +161,7 @@ where
     /// Simply returning the [`ApiStateAccessor`] would not be sufficient because the state may be updated while
     /// the [`ApiStateAccessor`] still exists.
     pub fn query_state<Output>(
-        &mut self,
+        &self,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
         query(&mut self.current_state())
@@ -179,17 +170,7 @@ where
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
     /// Updates the state of the rollup by committing the changes of the given closure.
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
-        let header = MockBlockHeader {
-            height: self.curr_slot_number(),
-            prev_hash: self.slot_receipts.last().unwrap().block_header.hash,
-            hash: [0; 32].into(),
-            time: Time::now(),
-        };
-
-        let (stf_state, _) = self
-            .storage_manager
-            .create_state_for(&header)
-            .expect("Impossible to create queryiable state. This is a bug.");
+        let stf_state = self.storage_manager.create_storage();
 
         let mut state = StateCheckpoint::<S>::new(stf_state.clone());
 
@@ -201,25 +182,15 @@ where
             .validate_and_materialize(reads_writes, &witness)
             .unwrap();
 
-        self.storage_manager
-            .save_change_set(&header, change_set, Default::default())
-            .unwrap();
-
-        self.storage_manager.finalize(&header).unwrap();
+        self.storage_manager.commit(change_set);
     }
 
     /// Allows to query the current kernel state.
     pub fn query_kernel_state<Output>(
-        &mut self,
+        &self,
         query: impl FnOnce(&mut KernelWorkingSet<S>) -> Output,
     ) -> Output {
-        let (stf_state, _) = if let Some(slot_receipt) = self.slot_receipts.last() {
-            self.storage_manager
-                .create_state_after(&slot_receipt.block_header)
-        } else {
-            self.storage_manager.create_bootstrap_state()
-        }
-        .expect("Impossible to create queryiable state. This is a bug.");
+        let stf_state = self.storage_manager.create_storage();
 
         let state = &mut StateCheckpoint::new(stf_state);
 
@@ -241,24 +212,16 @@ where
 
         // ----- Setup and run genesis ---------
         let temp_dir = tempfile::tempdir().unwrap();
-        let mut storage_manager = NativeStorageManager::new(temp_dir.path())
-            .expect("ProverStorageManager initialization has failed");
+        let mut storage_manager = SimpleStorageManager::new(temp_dir.path());
 
         let default_sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
                 .seq_da_address;
 
-        let genesis_block = MockBlock::default();
-        let (stf_state, _) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
+        let stf_state = storage_manager.create_storage();
         let (state_root, change_set) = stf.init_chain(stf_state, genesis_config);
 
-        storage_manager
-            .save_change_set(genesis_block.header(), change_set, SchemaBatch::new())
-            .unwrap();
-        // Write it to the database immediately
-        storage_manager.finalize(&genesis_block.header).unwrap();
+        storage_manager.commit(change_set);
 
         // ----- End genesis ---------
 
@@ -277,7 +240,7 @@ where
     }
 
     fn txs_to_blobs<M: Module>(
-        &mut self,
+        &self,
         txs: Vec<TransactionType<M, S>>,
         stf_state: &ProverStorage<
             DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
@@ -308,19 +271,16 @@ where
     /// This is useful to retreive non-deterministic outcomes associated with execution such as
     /// dynamic gas prices.
     pub fn simulate<T: Into<SlotInput<S, M>>, M>(
-        &mut self,
+        &self,
         input: T,
         override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
-    ) -> (TestApplySlotOutput<RT, S>, MockBlockHeader, NoncesMap<S>)
+    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>)
     where
         M: Module,
         RT: EncodeCall<M>,
     {
         let block_header = self.next_header();
-        let (stf_state, _) = self
-            .storage_manager
-            .create_state_for(&block_header)
-            .expect("Block builds on height zero");
+        let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<S, M> = input.into();
         let sequencer = override_sequencer.unwrap_or(self.default_sequencer_da_address);
         let (mut blobs, nonces) = match slot_input {
@@ -353,7 +313,6 @@ where
                 blobs.as_iters(),
                 ExecutionContext::Node, // We care more about testing the full node than the sequencer simulation
             ),
-            block_header,
             nonces,
         )
     }
@@ -369,8 +328,8 @@ where
         M: Module,
         RT: EncodeCall<M>,
     {
-        let (result, block_header, nonces) = self.simulate(input, override_sequencer);
-        self.commit_apply_slot_output(&result, &block_header, nonces);
+        let (result, nonces) = self.simulate(input, override_sequencer);
+        self.commit_apply_slot_output(&result, nonces);
 
         result
     }
@@ -378,15 +337,11 @@ where
     fn commit_apply_slot_output(
         &mut self,
         output: &TestApplySlotOutput<RT, S>,
-        header: &MockBlockHeader,
         nonces: NoncesMap<S>,
     ) {
-        self.storage_manager
-            .save_change_set(header, output.change_set.clone(), SchemaBatch::new())
-            .unwrap();
+        self.storage_manager.commit(output.change_set.clone());
         self.state_root = output.state_root;
         self.slot_receipts.push(SlotReceipt {
-            block_header: header.clone(),
             batch_receipts: output.batch_receipts.clone(),
         });
         self.nonces = nonces;
@@ -397,10 +352,7 @@ where
     pub fn advance_slots(&mut self, slots_to_advance: usize) -> &mut Self {
         for _ in 0..slots_to_advance {
             let block_header = self.next_header();
-            let (stf_state, _) = self
-                .storage_manager
-                .create_state_for(&block_header)
-                .expect("Block builds on height zero");
+            let stf_state = self.storage_manager.create_storage();
             let mut blobs = RelevantBlobs {
                 proof_blobs: vec![],
                 batch_blobs: vec![],
@@ -414,7 +366,7 @@ where
                 blobs.as_iters(),
                 ExecutionContext::Node,
             );
-            self.commit_apply_slot_output(&result, &block_header, self.nonces.clone());
+            self.commit_apply_slot_output(&result, self.nonces.clone());
         }
         self
     }

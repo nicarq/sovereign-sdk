@@ -89,12 +89,12 @@ fn test_accessory_value_setter() {
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ());
 
-    let mut runner = TestRunner::new_with_genesis(
+    let runner = TestRunner::new_with_genesis(
         genesis.into_genesis_params(),
         TestAccessoryRuntime::default(),
     );
 
-    let (result_with_update, _, _) = runner.simulate(
+    let (result_with_update, _) = runner.simulate(
         user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
         None,
     );
@@ -104,7 +104,7 @@ fn test_accessory_value_setter() {
         .gas_used
         .clone();
 
-    let (result_without_update, _, _) = runner.simulate(
+    let (result_without_update, _) = runner.simulate(
         user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)),
         None,
     );
