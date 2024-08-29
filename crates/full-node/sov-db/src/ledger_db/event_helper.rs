@@ -1,6 +1,6 @@
 use anyhow::{ensure, Context};
 use borsh::BorshDeserialize;
-use sov_rollup_interface::rpc::{EventIdentifier, PaginatedEventResponse};
+use sov_rollup_interface::node::ledger_api::{EventIdentifier, PaginatedEventResponse};
 use sov_rollup_interface::stf::{EventKey, StoredEvent};
 
 use crate::ledger_db::rpc::LedgerRpcReader;

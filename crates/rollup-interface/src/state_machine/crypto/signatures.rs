@@ -1,15 +1,14 @@
 //! Asymmetric cryptography primitive definitions
 
-use alloc::string::String;
-use core::fmt::Debug;
-use core::hash;
+use std::borrow::ToOwned;
+use std::fmt::Debug;
+use std::hash;
 
 use digest::typenum::U32;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
 
 use super::CredentialId;
-use crate::alloc::borrow::ToOwned;
 
 /// Representation of a signature verification error.
 #[derive(Debug, thiserror::Error)]
@@ -125,7 +124,8 @@ impl From<PublicKeyHex> for String {
 
 #[cfg(test)]
 mod tests {
-    use crate::alloc::string::ToString;
+    use std::string::ToString;
+
     use crate::crypto::PublicKeyHex;
 
     #[test]

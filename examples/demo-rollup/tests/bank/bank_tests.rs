@@ -5,8 +5,8 @@ use sov_bank::utils::TokenHolder;
 use sov_bank::Coins;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
-use sov_rollup_interface::rpc::FinalityStatus;
-use sov_rollup_interface::services::da::DaServiceWithRetries;
+use sov_rollup_interface::node::da::DaServiceWithRetries;
+use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_test_utils::{ApiClient, TestSpec};
 
 use super::helpers::*;

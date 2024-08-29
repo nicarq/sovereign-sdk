@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
 
 use super::header::AvailHeader;
 use super::transaction::AvailBlobTransaction;

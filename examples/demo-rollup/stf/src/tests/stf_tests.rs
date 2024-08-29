@@ -6,7 +6,7 @@ use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, Spec};
 use sov_modules_stf_blueprint::{StfBlueprint, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::generators::bank::get_default_token_id;

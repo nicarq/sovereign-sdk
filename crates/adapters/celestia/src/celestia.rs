@@ -20,7 +20,7 @@ use prost::Message;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, NanoSeconds, Time};
 #[cfg(feature = "native")]
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
 use tracing::trace;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
@@ -356,7 +356,7 @@ fn next_pfb(mut data: &mut BlobRefIterator) -> Result<(MsgPayForBlobs, TxPositio
 #[cfg(test)]
 mod tests {
     use celestia_types::ExtendedHeader;
-    use sov_rollup_interface::services::da::SlotData;
+    use sov_rollup_interface::node::da::SlotData;
     use sov_rollup_interface::zk::ValidityCondition;
 
     use crate::{CelestiaHeader, CompactHeader};

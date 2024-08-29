@@ -9,7 +9,7 @@ use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::RawTx;
 use sov_modules_macros::config_value;
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
 

@@ -17,7 +17,7 @@ use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError, TxProcessingErrorReason,
 };
 use sov_rollup_interface::da::DaSpec;
-use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
+use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use tokio::sync::watch;
 use tracing::error;
 
@@ -550,7 +550,7 @@ mod tests {
     }
 
     mod accept_tx {
-        use sov_rollup_interface::services::batch_builder::BatchBuilder;
+        use sov_rollup_interface::node::batch_builder::BatchBuilder;
 
         use super::*;
 
@@ -664,7 +664,7 @@ mod tests {
     }
 
     mod build_batch {
-        use sov_rollup_interface::services::batch_builder::BatchBuilder;
+        use sov_rollup_interface::node::batch_builder::BatchBuilder;
         use sov_test_utils::storage::SimpleStorageManager;
 
         use super::*;

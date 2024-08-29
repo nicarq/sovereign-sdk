@@ -8,7 +8,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::{Batch, RawTx, StateTransitionFunction};
-use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage, Storage};

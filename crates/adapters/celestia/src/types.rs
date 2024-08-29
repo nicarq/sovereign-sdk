@@ -19,7 +19,7 @@ use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::CountedBufReader;
 #[cfg(feature = "native")]
-use sov_rollup_interface::services::da::SlotData;
+use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::Bytes;
 use tracing::{debug, info, trace};
 

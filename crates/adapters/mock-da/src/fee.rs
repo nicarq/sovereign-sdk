@@ -1,5 +1,5 @@
 //! Implementation of [`Fee`] trait for both or the [`crate::MockDaService`] and [`crate::storable::service::StorableMockDaService`].
-use sov_rollup_interface::services::da::Fee;
+use sov_rollup_interface::node::da::Fee;
 
 /// A fee implementation for the [`crate::MockDaService`] and [`crate::storable::service::StorableMockDaService`].
 /// Fees are currently unused.

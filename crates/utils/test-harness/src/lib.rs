@@ -35,7 +35,7 @@ use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime;
 use sov_prover_incentives::ProverIncentives;
-use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 pub use utils::*;
 
 /// Starting the actual harness.

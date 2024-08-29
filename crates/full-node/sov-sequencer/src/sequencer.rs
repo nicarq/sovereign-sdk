@@ -7,9 +7,9 @@ use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::{Batch, RawTx, TxReceiptContents};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
-use sov_rollup_interface::rpc::{ItemOrHash, LedgerStateProvider, QueryMode};
-use sov_rollup_interface::services::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
-use sov_rollup_interface::services::da::DaService;
+use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
+use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::TxHash;
 use tokio::sync::Mutex;
 use tracing::info;
@@ -269,7 +269,7 @@ mod tests {
     use sov_mock_da::{MockAddress, MockDaService};
     use sov_modules_api::prelude::*;
     use sov_rollup_interface::da::BlobReaderTrait;
-    use sov_rollup_interface::services::batch_builder::TxWithHash;
+    use sov_rollup_interface::node::batch_builder::TxWithHash;
     use sov_sequencer_json_client::types;
     use sov_test_utils::sequencer::TestSequencerSetup;
 

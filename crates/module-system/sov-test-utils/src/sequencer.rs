@@ -7,7 +7,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
-use sov_rollup_interface::services::batch_builder::BatchBuilder;
+use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::{

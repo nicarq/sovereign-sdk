@@ -12,8 +12,8 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
 use sov_modules_api::{Address, Batch, ProofSerializer, RawTx};
-use sov_rollup_interface::rpc::{AggregatedProofResponse, LedgerStateProvider};
-use sov_rollup_interface::services::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,

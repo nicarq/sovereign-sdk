@@ -1,7 +1,7 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{CryptoSpec, Spec};
-use sov_rollup_interface::digest::Digest;
+use sov_rollup_interface::reexports::digest::Digest;
 use sov_rollup_interface::TxHash;
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::TestOptimisticRuntime;

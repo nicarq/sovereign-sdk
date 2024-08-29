@@ -1,22 +1,16 @@
 //! The da module defines traits used by the full node to interact with the DA layer.
 
-use alloc::vec::Vec;
 use core::fmt::{Debug, Display};
 use std::time::Duration;
 
-#[cfg(feature = "native")]
-use backon::Retryable;
-use backon::{BackoffBuilder, ExponentialBuilder};
+use backon::{BackoffBuilder, ExponentialBuilder, Retryable};
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-#[cfg(feature = "native")]
 use tracing::error;
 
-use crate::da::{BlockHeaderTrait, DaBlobHash, RelevantBlobs, RelevantProofs};
-#[cfg(feature = "native")]
-use crate::da::{DaSpec, DaVerifier};
+use crate::da::{BlockHeaderTrait, DaBlobHash, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs};
 use crate::zk::ValidityCondition;
 
 /// Perform a checked arithmetic, returning None if the result is invalid.
@@ -118,7 +112,6 @@ impl<E> From<E> for MaybeRetryable<E> {
 ///
 /// The DaService has two responsibilities - fetching data from the DA layer, transforming the
 /// data into a representation that can be efficiently verified in circuit.
-#[cfg(feature = "native")]
 #[async_trait::async_trait]
 pub trait DaService: Send + Sync + 'static {
     /// A handle to the types used by the DA layer.
@@ -251,7 +244,6 @@ where
 }
 
 /// A wrapper around a [`DaService`] adding retry logic based on the supplied backoff policy.
-#[cfg(feature = "native")]
 #[derive(Clone)]
 pub struct DaServiceWithRetries<D> {
     da_service: D,
@@ -260,7 +252,6 @@ pub struct DaServiceWithRetries<D> {
     backoff_policy: ExponentialBuilder,
 }
 
-#[cfg(feature = "native")]
 impl<D: DaService> DaServiceWithRetries<D> {
     /// Creates a wrapped [`DaService`]` where methods have retry logic enabled using
     /// the supplied exponential back-off policy.

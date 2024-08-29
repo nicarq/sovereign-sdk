@@ -6,7 +6,7 @@ use std::sync::Arc;
 use futures::stream::FuturesOrdered;
 use futures::{Stream, StreamExt};
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::node::da::{DaService, SlotData};
 use tokio::sync::mpsc::Receiver;
 
 // With the block size up to 10 MB, it should fit into 32 GB of RAM.

@@ -81,7 +81,9 @@ pub type TestPrivateKey = <TestCryptoSpec as CryptoSpec>::PrivateKey;
 pub type TestPublicKey = <TestCryptoSpec as CryptoSpec>::PublicKey;
 /// The default signature type. This is the [`sov_rollup_interface::crypto::Signature`] type defined by the [`TestCryptoSpec`].
 pub type TestSignature = <TestCryptoSpec as CryptoSpec>::Signature;
-/// The default hasher type. This is the hasher type ([`sov_rollup_interface::digest::Digest`]) defined by the [`TestCryptoSpec`].
+/// The default hasher type. This is the hasher type
+/// ([`sov_rollup_interface::reexports::digest::Digest`]) defined by the
+/// [`TestCryptoSpec`].
 pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
 /// The default storage spec type. Uses a [`TestHasher`] for hashing.
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;

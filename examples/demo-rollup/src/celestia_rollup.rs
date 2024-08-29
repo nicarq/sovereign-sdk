@@ -16,7 +16,7 @@ use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlu
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
-use sov_rollup_interface::services::da::DaServiceWithRetries;
+use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::{FairBatchBuilderConfig, SequencerDb};

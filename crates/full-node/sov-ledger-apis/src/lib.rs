@@ -25,7 +25,7 @@ use sov_rest_utils::{
     Path, Query,
 };
 use sov_rollup_interface::common::{HexHash, HexString};
-use sov_rollup_interface::rpc::{
+use sov_rollup_interface::node::ledger_api::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
     FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,

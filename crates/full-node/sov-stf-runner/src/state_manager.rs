@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
-use sov_rollup_interface::services::da::{DaService, SlotData};
+use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
@@ -289,7 +289,7 @@ mod tests {
     };
     use sov_mock_zkvm::MockZkvm;
     use sov_modules_stf_blueprint::TxReceiptContents;
-    use sov_rollup_interface::services::da::DaServiceWithRetries;
+    use sov_rollup_interface::node::da::DaServiceWithRetries;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_state::{
