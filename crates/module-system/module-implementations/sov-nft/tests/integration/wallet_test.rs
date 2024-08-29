@@ -3,7 +3,7 @@ use std::str::FromStr;
 use borsh::BorshDeserialize;
 use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
 use sov_modules_api::Spec;
-use sov_nft_module::{CallMessage, CollectionId, UserAddress};
+use sov_nft::{CallMessage, CollectionId, UserAddress};
 use sov_test_utils::TestSpec;
 
 type S = TestSpec;

@@ -1,8 +1,8 @@
 use std::convert::Infallible;
 
 use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
-use sov_nft_module::utils::get_collection_id;
-use sov_nft_module::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
+use sov_nft::utils::get_collection_id;
+use sov_nft::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageSpec as StorageSpec};
 

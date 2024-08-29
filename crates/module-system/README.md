@@ -12,8 +12,8 @@ and a powerful templating system for implementing complex state transitions.
 ## Modules: The Basic Building Block
 
 The basic building block of the Module System is a `module`. Modules are structs in Rust, and are _required_ to implement the `Module` trait.
-You can find a complete tutorial showing how to implement a custom module [here](../examples/simple-nft-module/README.md).
-Modules typically live in their own crates (you can find a template [here](./module-implementations/module-template/)) so that they're easily
+You can find a complete tutorial showing how to implement a custom module [here](../../examples/simple-nft-module/README.md).
+Modules typically live in their own crates (you can find a template [here](./module-implementations/module-template)) so that they're easily
 re-usable. A typical struct definition for a module looks something like this:
 
 ```rust
@@ -128,7 +128,7 @@ The aforementioned `Bank` struct, with the gas configuration, will look like thi
 pub struct Bank<S: sov_modules_api::Spec> {
     /// The id of the bank module.
     #[id]
-    pub(crate) id ModuleId,
+    pub(crate) id: ModuleId,
 
     /// The gas configuration of the sov-bank module.
     #[gas]
@@ -217,7 +217,7 @@ This will generate a public trait in the bank crate called `BankRpcServer`, whic
 }
 ```
 
-For an example of how to instantiate the generated trait as a server bound to a specific port, see the [demo-rollup](../examples/demo-rollup/) package.
+For an example of how to instantiate the generated trait as a server bound to a specific port, see the [demo-rollup](../../examples/demo-rollup) package.
 
 **Note that only one impl block per module may be annotated with `rpc_gen`**, but that the block may contain as many `rpc_method` annotations as you want.
 
@@ -318,7 +318,7 @@ Merkle tree backed by RocksDB. But if you're running in zk mode the `Storage` ty
 its data from a set of "hints" provided by the prover. Because all the rollups modules are generic, none of them need to worry
 about this distinction.
 
-For more information on `Context` and `Spec`, and to see some example implementations, check out the [`sov_modules_api`](./sov-modules-api/) docs.
+For more information on `Context` and `Spec`, and to see some example implementations, check out the [`sov_modules_api`](./sov-modules-api/README.md) docs.
 
 ### Module CallMessage and `schemars::JsonSchema`.
 

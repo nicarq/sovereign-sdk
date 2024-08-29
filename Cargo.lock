@@ -2349,7 +2349,7 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nft-module",
+ "sov-nft",
  "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
@@ -9499,7 +9499,7 @@ dependencies = [
  "sov-modules-macros",
  "sov-modules-rollup-blueprint",
  "sov-modules-stf-blueprint",
- "sov-nft-module",
+ "sov-nft",
  "sov-risc0-adapter",
  "sov-rng-da-service",
  "sov-rollup-interface",
@@ -9854,7 +9854,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-nft-module"
+name = "sov-nft"
 version = "0.3.0"
 dependencies = [
  "anyhow",
@@ -9864,7 +9864,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
- "sov-nft-module",
+ "sov-nft",
  "sov-state",
  "sov-test-utils",
  "tempfile",

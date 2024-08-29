@@ -1,6 +1,6 @@
 # NFT Module
 
-The `sov-nft-module` is a plug-and-play module designed to simplify the process of creating NFT (Non-Fungible Token) applications. It's customizable and can be integrated with other modules in the Sovereign SDK.
+The `sov-nft` module is a plug-and-play module designed to simplify the process of creating NFT (Non-Fungible Token) applications. It's customizable and can be integrated with other modules in the Sovereign SDK.
 
 ## Table of Contents
 
@@ -77,7 +77,7 @@ pub struct Nft<S: Spec> {
 
 ## Calls
 
-The `sov-nft-module` allows you to interact and mutate state through the following calls:
+The `sov-nft` module allows you to interact and mutate state through the following calls:
 
 ### CreateCollection
 

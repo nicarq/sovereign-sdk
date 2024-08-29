@@ -16,7 +16,7 @@ This guide demonstrates how to add off-chain compute and storage capabilities to
 
 ## Tutorial Outline
 
-In this tutorial, we will enhance the `sov-nft-module` with offchain capabilities to:
+In this tutorial, we will enhance the `sov-nft` module with offchain capabilities to:
 
 1. Catalog NFT Collections
 2. Track NFTs minted to the collections created in the first step
@@ -73,7 +73,7 @@ brew install postgres@14
   );
   ```
 
-- The first 2 tables as created above are straightforward and map directly to the two primary data structures in the `sov-nft-module` - `Collection` and `Nft`
+- The first 2 tables as created above are straightforward and map directly to the two primary data structures in the `sov-nft` module - `Collection` and `Nft`
 - The `collections` table uses `collection_id` as its primary key.
 - The `nfts` table employs a combination of `collection_id` and `nft_id` as its primary key, given that each NFT is unique within its collection.
 - We will create one more table that can show the benefits of indexing
@@ -97,7 +97,7 @@ CREATE TABLE top_owners
 
 ### 3. Create the Offchain Functions
 
-- **Initialization**: With the tables set up, it's time to add offchain functionality to the [sov-nft-module](../sov-nft-module).
+- **Initialization**: With the tables set up, it's time to add offchain functionality to the [sov-nft module](../sov-nft).
 - **Using the `#[offchain]` proc macro**: This is available in the [sov-modules-macros](../../sov-modules-macros/src/lib.rs) crate. Functions marked with this macro will only execute by the rollup when the `offchain` feature flag is active.
   - If the `offchain` feature is enabled: the function is present as defined.
   - If the `offchain` feature is absent: the function body is replaced with an empty definition.
@@ -126,7 +126,7 @@ CREATE TABLE top_owners
   }
   ```
 
-- **Setting Up `offchain.rs`**: Start by creating an `offchain.rs` file in the `sov-nft-module` and import the `offchain` macro.
+- **Setting Up `offchain.rs`**: Start by creating an `offchain.rs` file in the `sov-nft` module and import the `offchain` macro.
 
 ```rust
 use sov_modules_macros::offchain;
@@ -465,7 +465,7 @@ let rows = client
 ### 4. Insert Offchain functionality into the module
 
 - We now need to import the functions and insert them into the calls that handle transactions for the module
-- We have the following call messages supported by the `sov-nft-module`. Fields for the variants excluded for readability - the full definition of the enum is here [call.rs](src/call.rs)
+- We have the following call messages supported by the `sov-nft` module. Fields for the variants excluded for readability - the full definition of the enum is here [call.rs](src/call.rs)
 
 ```
 pub enum CallMessage<S: Spec> {
@@ -534,19 +534,19 @@ use crate::offchain::{update_collection, update_nft};
 
 ### 5. Propagate the `offchain` feature
 
-- We added the `offchain` feature to the `sov-nft-module`, but this feature needs to be passed in from the `demo-rollup` binary
+- We added the `offchain` feature to the `sov-nft` module, but this feature needs to be passed in from the `demo-rollup` binary
 - The dependency is as follows -
   - `demo-rollup`
   - `demo-stf`
-  - `sov-nft-module`
+  - `sov-nft`
 - `demo-rollup` already has the offchain flag and if passed in, conditionally includes `demo-stf` with the feature enabled
 - `demo-stf` also has the offchain feature. But the module we just created is a new one, so we need to ensure that `demo-stf` includes out module with the `offchain` flag enabled.
-- Modify [Cargo.toml](../../../examples/demo-rollup/stf/Cargo.toml)
+- Modify [Cargo.toml](../../../../examples/demo-rollup/stf/Cargo.toml)
 
 ```
 [features]
 ...
-offchain = ["sov-nft-module/offchain"]
+offchain = ["sov-nft/offchain"]
 ```
 
 ### 6. Test the functionality
@@ -559,13 +559,13 @@ rm -rf demo_data; POSTGRES_CONNECTION_STRING="postgresql://username:password@loc
 ```
 
 - `rm -rf demo_data` is to wipe the rollup state. For testing its better to start with clean state
-- `POSTGRES_CONNECTION_STRING` is to allow the offchain component of the `sov-nft-module` to connect to postgres instance. Replace `username:password` with your specific setup. If there is no password, the string would be `postgresql://username@localhost/postgres`
+- `POSTGRES_CONNECTION_STRING` is to allow the offchain component of the `sov-nft` module to connect to postgres instance. Replace `username:password` with your specific setup. If there is no password, the string would be `postgresql://username@localhost/postgres`
 - `--features offchain` is necessary to enable offchain processing. Without the feature, the functions are no-ops
 - `--da-layer mock` is used to run an in-memory local DA layer
 - If necessary, you can re-create all the tables with a script instead of creating them manually as above
 
 ```bash
-psql postgres -f sovereign/module-system/module-implementations/sov-nft-module/src/init_db.sql
+psql postgres -f sovereign/module-system/module-implementations/sov-nft/src/init_db.sql
 ```
 
 - Submit some transactions using the NFT minting script
@@ -578,7 +578,6 @@ $ cargo run
 - The above script creates 3 NFT collections
   - It creates 20 NFTs for 2 of the collections
   - Also creates 6 transfers.
-- Specifics of the logic can be seen in [main.rs](../../../utils/nft-utils/src/main.rs) and [lib.rs](../../../utils/nft-utils/src/lib.rs)
 - The tables can be explored by connecting to postgres and running sample queries
 - Running the following query can show the top owners for a specific collection
 

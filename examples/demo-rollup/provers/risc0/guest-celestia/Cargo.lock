@@ -1334,7 +1334,7 @@ dependencies = [
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nft-module",
+ "sov-nft",
  "sov-nonces",
  "sov-prover-incentives",
  "sov-rollup-interface",
@@ -3691,7 +3691,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-nft-module"
+name = "sov-nft"
 version = "0.3.0"
 dependencies = [
  "anyhow",
