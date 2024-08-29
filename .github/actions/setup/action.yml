@@ -41,7 +41,7 @@ runs:
     # Other tools and dependencies
     - uses: rui314/setup-mold@v1
     - name: Install Protoc
-      uses: arduino/setup-protoc@v2
+      uses: arduino/setup-protoc@v3
       with:
         version: "23.2"
         repo-token: ${{ inputs.github_token }}
