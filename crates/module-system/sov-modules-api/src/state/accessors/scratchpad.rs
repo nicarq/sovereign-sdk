@@ -217,29 +217,6 @@ impl<S: Spec> StateCheckpoint<S> {
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
-
-    /// Produces a metered [`WorkingSet`] from this [`StateCheckpoint`].
-    /// This is useful for tests that need to bypass pre-execution checks.
-    ///
-    /// ## Deprecated(@theochap)
-    /// This method is deprecated and will be removed in the future. Please refrain from writing tests that use this method.
-    pub fn to_working_set_deprecated(
-        self,
-        tx: &AuthenticatedTransactionData<S>,
-        gas_price: &<S::Gas as Gas>::Price,
-    ) -> WorkingSet<S> {
-        let stashed_working_set = TxScratchpad {
-            delta: RevertableWriter::new(self.delta),
-        };
-
-        WorkingSet {
-            delta: RevertableWriter::new(stashed_working_set),
-            events: Default::default(),
-            gas_meter: tx.gas_meter(gas_price),
-            max_fee: tx.max_fee,
-            max_priority_fee_bips: tx.max_priority_fee_bips,
-        }
-    }
 }
 
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
