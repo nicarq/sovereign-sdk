@@ -150,11 +150,14 @@
       "description": "Sequencer configuration.",
       "type": "object",
       "required": [
-        "batch_builder"
+        "max_allowed_blocks_behind"
       ],
       "properties": {
-        "batch_builder": {
-          "description": "Batch builder configuration."
+        "max_allowed_blocks_behind": {
+          "description": "The sequencer won't process incoming requests unless the node is within this many blocks behind the DA chain head.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
         }
       }
     },

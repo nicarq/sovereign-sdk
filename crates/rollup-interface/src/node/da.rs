@@ -117,6 +117,10 @@ pub trait DaService: Send + Sync + 'static {
     /// A handle to the types used by the DA layer.
     type Spec: DaSpec;
 
+    /// [`serde`]-compatible configuration data for this [`DaService`]. Parsed
+    /// from TOML.
+    type Config: Send + Sync + 'static;
+
     /// The verifier for this DA layer.
     type Verifier: DaVerifier<Spec = Self::Spec> + Clone;
 
@@ -137,10 +141,23 @@ pub trait DaService: Send + Sync + 'static {
     type Fee: Fee;
 
     /// Fetch the block at the given height, waiting for one to be mined if necessary.
+    ///
     /// The returned block may not be final, and can be reverted without a consensus violation.
-    /// Call it for the same height are allowed to return different results.
+    /// Calls to this method for the same height are allowed to return different results.
     /// Should always returns the block at that height on the best fork.
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error>;
+
+    /// How long the node should wait after a block is produced before
+    /// submitting a transaction.
+    ///
+    /// The returned value must be low for the node to be reasonably confident
+    /// that the transaction will be included in the next block.
+    ///
+    /// The [`DaService`] is allowed to adjust this value based on network
+    /// conditions. Set to [`Duration::ZERO`] by default.
+    fn safe_lead_time(&self) -> Duration {
+        Duration::ZERO
+    }
 
     /// Fetch the [`DaSpec::BlockHeader`] of the last finalized block.
     /// If there's no finalized block yet, it should return an error.
@@ -296,6 +313,7 @@ where
 {
     type Error = E;
     type Spec = D::Spec;
+    type Config = D::Config;
     type Verifier = D::Verifier;
     type FilteredBlock = D::FilteredBlock;
 
@@ -324,6 +342,10 @@ where
             "send_transaction",
         )
         .await
+    }
+
+    fn safe_lead_time(&self) -> Duration {
+        self.da_service.safe_lead_time()
     }
 
     async fn send_aggregated_zk_proof(

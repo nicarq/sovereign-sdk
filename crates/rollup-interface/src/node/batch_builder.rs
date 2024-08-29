@@ -7,7 +7,10 @@ use crate::TxHash;
 /// [`BatchBuilder`] trait is responsible for managing a mempool and building
 /// batches.
 #[async_trait]
-pub trait BatchBuilder: Send + Sync + 'static {
+pub trait BatchBuilder: Sized + Send + Sync + 'static {
+    /// Configuration values parsed from TOML for this [`BatchBuilder`].
+    type Config: Send + Sync + 'static;
+
     /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
     /// implementation itself is responsible for "encoding" the transaction.
     ///

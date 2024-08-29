@@ -26,7 +26,6 @@ pub type TxIdWithinMempool = u128;
 #[derivative(Debug)]
 pub struct FairMempool<Da: DaSpec> {
     max_txs_count: usize,
-    #[derivative(Debug = "ignore")] // Way too noisy.
     tx_status_manager: TxStatusManager<Da>,
     sequencer_db: SequencerDb,
     // Transaction data

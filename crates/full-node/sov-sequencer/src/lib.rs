@@ -7,14 +7,15 @@ mod drop_notifier;
 mod mempool;
 mod rest_api;
 mod sequencer;
+mod spec;
 mod tx_status;
 
 pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
 pub use db::{MempoolTx, SequencerDb};
-pub use rest_api::sequencer_rest_api_server;
-pub use sequencer::{GenericSequencerSpec, Sequencer, SequencerSpec};
+pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::TxHash;
+pub use spec::{GenericSequencerSpec, SequencerSpec};
 pub use tx_status::TxStatusManager;
 
 pub use crate::tx_status::TxStatus;

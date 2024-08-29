@@ -16,8 +16,8 @@ use crate::in_memory::fork::PlannedFork;
 use crate::types::{GENESIS_BLOCK, GENESIS_HEADER, WAIT_ATTEMPT_PAUSE};
 use crate::utils::hash_to_array;
 use crate::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
-    MockHash,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier,
+    MockFee, MockHash,
 };
 
 const DEFAULT_WAIT_ATTEMPTS: u64 = 100;
@@ -260,6 +260,7 @@ fn block_hash(height: u64, blob_hashes: &[MockHash], prev_hash: [u8; 32]) -> Moc
 #[async_trait]
 impl DaService for MockDaService {
     type Spec = MockDaSpec;
+    type Config = MockDaConfig;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;

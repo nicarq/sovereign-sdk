@@ -155,6 +155,7 @@ impl StorableMockDaService {
 #[async_trait]
 impl DaService for StorableMockDaService {
     type Spec = MockDaSpec;
+    type Config = MockDaConfig;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;

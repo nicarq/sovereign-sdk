@@ -6,10 +6,7 @@ use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-use sov_sequencer::{
-    sequencer_rest_api_server, FairBatchBuilder, FairBatchBuilderConfig, SequencerDb,
-    TxStatusManager,
-};
+use sov_sequencer::{FairBatchBuilder, FairBatchBuilderConfig, SequencerDb, TxStatusManager};
 use sov_stf_runner::SequencerConfig;
 use tokio::sync::watch;
 
@@ -70,10 +67,9 @@ where
             ledger_db.clone(),
         );
 
-        endpoints.axum_router = endpoints.axum_router.nest(
-            "/sequencer",
-            sequencer_rest_api_server("/sequencer").with_state(sequencer),
-        );
+        endpoints.axum_router = endpoints
+            .axum_router
+            .nest("/sequencer", sequencer.rest_api_server("/sequencer"));
     }
 
     Ok(endpoints)

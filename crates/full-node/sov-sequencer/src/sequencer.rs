@@ -1,11 +1,8 @@
-use std::marker::PhantomData;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use serde::de::DeserializeOwned;
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::{Batch, RawTx, TxReceiptContents};
+use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use sov_rollup_interface::node::da::DaService;
@@ -17,43 +14,7 @@ use tracing::info;
 use super::tx_status::{TxStatus, TxStatusManager};
 use super::SubmittedBatchInfo;
 use crate::drop_notifier::{DropNotification, DropNotifier};
-
-/// A bunch of associated types that define the behavior of a [`Sequencer`].
-pub trait SequencerSpec: Clone + Send + Sync + 'static {
-    /// The [`BatchBuilder`] that the sequencer uses to process submitted
-    /// transactions and assemble them into batches.
-    type BatchBuilder: BatchBuilder;
-    /// The [`DaService`] that the sequencer uses to communicate with the DA
-    /// layer.
-    type Da: DaService;
-    /// The type of the batch receipt that the rollup stores in the [`LedgerDb`].
-    type BatchReceipt: DeserializeOwned + Send + Sync;
-    /// The type of the transaction receipt that the rollup stores in the
-    /// [`LedgerDb`].
-    type TxReceipt: TxReceiptContents;
-}
-
-/// A [`SequencerSpec`] with explicit generic types.
-#[derive(derivative::Derivative)]
-#[derivative(Clone(bound = ""))]
-pub struct GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>(
-    PhantomData<(B, Da, Auth, BatchReceipt, TxReceipt)>,
-);
-
-impl<B, Da, Auth, BatchReceipt, TxReceipt> SequencerSpec
-    for GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>
-where
-    B: BatchBuilder,
-    Da: DaService,
-    Auth: Authenticator,
-    BatchReceipt: DeserializeOwned + Send + Sync + 'static,
-    TxReceipt: TxReceiptContents,
-{
-    type BatchBuilder = B;
-    type Da = Da;
-    type BatchReceipt = BatchReceipt;
-    type TxReceipt = TxReceipt;
-}
+use crate::SequencerSpec;
 
 /// Single data structure that manages mempool and batch producing.
 #[derive(Clone, derive_more::Deref)]
@@ -167,7 +128,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             self.tx_status_manager.notify(
                 tx_hash,
                 TxStatus::Published {
-                    da_transaction_id: da_tx_id.clone(),
+                    da_tx_hash: da_tx_id.clone(),
                 },
             );
         }
@@ -203,36 +164,6 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 }
 
-async fn notify_processed_slot<Ss: SequencerSpec>(
-    inner: Arc<Inner<Ss>>,
-    ledger_db: &LedgerDb,
-    slot_number: u64,
-) -> anyhow::Result<()> {
-    let slot = ledger_db
-        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt>(slot_number, QueryMode::Full)
-        .await?;
-    for batch in slot.unwrap().batches.unwrap_or_default().iter() {
-        let ItemOrHash::Full(batch) = batch else {
-            continue;
-        };
-        for tx in batch.txs.as_deref().unwrap_or_default().iter() {
-            let ItemOrHash::Full(tx) = tx else {
-                continue;
-            };
-
-            let da_transaction_id =
-                <DaBlobHash<<Ss::Da as DaService>::Spec>>::try_from(batch.hash)?;
-            let tx_hash = TxHash::new(tx.hash);
-
-            inner
-                .tx_status_manager
-                .notify(tx_hash, TxStatus::Published { da_transaction_id });
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn sequencer_background_task<Ss: SequencerSpec>(
     inner: Arc<Inner<Ss>>,
     ledger_db: LedgerDb,
@@ -253,6 +184,35 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
                     break;
                 }
             }
+        }
+    }
+
+    Ok(())
+}
+
+async fn notify_processed_slot<Ss: SequencerSpec>(
+    inner: Arc<Inner<Ss>>,
+    ledger_db: &LedgerDb,
+    slot_number: u64,
+) -> anyhow::Result<()> {
+    let slot = ledger_db
+        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt>(slot_number, QueryMode::Full)
+        .await?;
+    for batch in slot.unwrap().batches.unwrap_or_default().iter() {
+        let ItemOrHash::Full(batch) = batch else {
+            continue;
+        };
+        for tx in batch.txs.as_deref().unwrap_or_default().iter() {
+            let ItemOrHash::Full(tx) = tx else {
+                continue;
+            };
+
+            let da_tx_hash = <DaBlobHash<<Ss::Da as DaService>::Spec>>::try_from(batch.hash)?;
+            let tx_hash = TxHash::new(tx.hash);
+
+            inner
+                .tx_status_manager
+                .notify(tx_hash, TxStatus::Published { da_tx_hash });
         }
     }
 
@@ -297,6 +257,8 @@ mod tests {
     // This allows to show an effect of batch builder
     #[async_trait]
     impl BatchBuilder for MockBatchBuilder {
+        type Config = ();
+
         async fn accept_tx(&mut self, tx: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
             self.mempool.push(tx.clone());
             Ok(TxWithHash {

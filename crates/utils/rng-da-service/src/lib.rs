@@ -6,8 +6,8 @@ use demo_stf::runtime::Runtime;
 use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
-    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockDaVerifier, MockFee,
-    MockHash, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
+    MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier,
+    MockFee, MockHash, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
@@ -53,6 +53,7 @@ impl RngDaService {
 #[async_trait]
 impl DaService for RngDaService {
     type Spec = MockDaSpec;
+    type Config = MockDaConfig;
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;

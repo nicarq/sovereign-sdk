@@ -30,7 +30,8 @@ bind_port = 12346
 aggregated_proof_block_jump = 1
 prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
 
-[sequencer.batch_builder]
+[sequencer]
+max_allowed_blocks_behind = 5
 # DA address of this sequencer. Should match address of connected bridge/full node.
 # Taken from ../../docker/credentials/bridge-0.addr
 sequencer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"

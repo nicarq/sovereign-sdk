@@ -73,7 +73,11 @@ pub struct RollupConfig<Address, DaServiceConfig, BatchBuilderConfig> {
 /// Sequencer configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 pub struct SequencerConfig<B> {
+    /// The sequencer won't process incoming requests unless the node is within
+    /// this many blocks behind the DA chain head.
+    pub max_allowed_blocks_behind: u64,
     /// Batch builder configuration.
+    #[serde(flatten)]
     pub batch_builder: B,
 }
 
@@ -124,12 +128,13 @@ mod tests {
             celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
             celestia_rpc_address = "http://localhost:11111/"
             max_celestia_response_body_size = 980
+            safe_lead_time_ms = 10
             [storage]
             path = "/tmp"
             [runner]
             genesis_height = 31337
             da_polling_interval_ms = 10000
-             concurrent_sync_tasks = 18
+            concurrent_sync_tasks = 18
             [runner.rpc_config]
             bind_host = "127.0.0.1"
             bind_port = 12345
@@ -139,7 +144,8 @@ mod tests {
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
-            [sequencer.batch_builder]
+            [sequencer]
+            max_allowed_blocks_behind = 5
             sequencer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
         "#;
 
@@ -171,6 +177,7 @@ mod tests {
                 celestia_rpc_address: "http://localhost:11111/".into(),
                 max_celestia_response_body_size: 980,
                 celestia_rpc_timeout_seconds: 60,
+                safe_lead_time_ms: 10,
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
@@ -183,6 +190,7 @@ mod tests {
                 .unwrap(),
             },
             sequencer: SequencerConfig {
+                max_allowed_blocks_behind: 5,
                 batch_builder: FairBatchBuilderConfig {
                     mempool_max_txs_count: None,
                     max_batch_size_bytes: None,

@@ -36,38 +36,37 @@ pub(crate) fn openapi_spec() -> serde_json::Value {
         .clone()
 }
 
-/// Creates a new Axum router for the sequencer.
-pub fn sequencer_rest_api_server<Ss: SequencerSpec>(
-    path_prefix: &str,
-) -> axum::Router<Sequencer<Ss>> {
-    preconfigured_router_layers(
-        axum::Router::new()
-            // See:
-            // - https://github.com/juhaku/utoipa/issues/599
-            // - https://github.com/juhaku/utoipa/issues/734
-            .merge(
-                SwaggerUi::new("/swagger-ui")
-                    .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                    .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
-            )
-            .route("/txs", axum::routing::post(Sequencer::<Ss>::axum_accept_tx))
-            .route(
-                "/txs/:tx_hash",
-                axum::routing::get(Sequencer::<Ss>::axum_get_tx),
-            )
-            .route(
-                "/txs/:tx_hash/ws",
-                axum::routing::get(Sequencer::<Ss>::axum_get_tx_ws),
-            )
-            .route(
-                "/batches",
-                axum::routing::post(Sequencer::<Ss>::axum_submit_batch),
-            ),
-    )
-}
-
 // Web server and Axum-related methods.
 impl<Ss: SequencerSpec> Sequencer<Ss> {
+    /// Creates a new Axum router for this sequencer.
+    pub fn rest_api_server(&self, path_prefix: &str) -> axum::Router<()> {
+        preconfigured_router_layers(
+            axum::Router::new()
+                // See:
+                // - https://github.com/juhaku/utoipa/issues/599
+                // - https://github.com/juhaku/utoipa/issues/734
+                .merge(
+                    SwaggerUi::new("/swagger-ui")
+                        .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
+                        .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
+                )
+                .route(
+                    "/txs/:tx_hash",
+                    axum::routing::get(Sequencer::<Ss>::axum_get_tx),
+                )
+                .route(
+                    "/txs/:tx_hash/ws",
+                    axum::routing::get(Sequencer::<Ss>::axum_get_tx_ws),
+                )
+                .route("/txs", axum::routing::post(Sequencer::<Ss>::axum_accept_tx))
+                .route(
+                    "/batches",
+                    axum::routing::post(Sequencer::<Ss>::axum_submit_batch),
+                )
+                .with_state(self.clone()),
+        )
+    }
+
     async fn send_initial_status_to_ws(
         &self,
         tx_hash: TxHash,

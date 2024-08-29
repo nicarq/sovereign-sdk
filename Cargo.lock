@@ -9884,6 +9884,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sequencer-json-client",
  "sov-state",
+ "sov-stf-runner",
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",
