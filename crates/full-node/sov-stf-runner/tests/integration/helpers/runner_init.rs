@@ -117,6 +117,14 @@ impl ProofSerializer for DummyProofSerializer {
     ) -> anyhow::Result<Vec<u8>> {
         unimplemented!()
     }
+
+    fn serialize_challenge_blob_with_metadata(
+        &self,
+        _serialized_challenge: sov_modules_api::SerializedChallenge,
+        _slot_height: u64,
+    ) -> anyhow::Result<Vec<u8>> {
+        unimplemented!()
+    }
 }
 
 #[allow(clippy::type_complexity)]

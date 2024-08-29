@@ -186,12 +186,20 @@ macro_rules! generate_optimistic_runtime {
 
             fn process_challenge(
                 &self,
-                _proof: ::sov_modules_api::SerializedChallenge,
-                _transition_num: u64,
-                _prover_address: &S::Address,
-                _state: &mut ::sov_modules_api::WorkingSet<S>,
+                proof: ::sov_modules_api::SerializedChallenge,
+                transition_num: u64,
+                prover_address: &S::Address,
+                state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                ::sov_modules_api::ProofOutcome::Ignored
+                match self.attester_incentives.process_challenge(prover_address,&proof, transition_num, state) {
+                    Ok(Some(challenge)) => ::sov_modules_api::ProofOutcome::Valid(
+                        ::sov_modules_api::ProofReceiptContents::BlockProof(challenge)
+                    ),
+                    Ok(None) => ::sov_modules_api::ProofOutcome::Ignored,
+                    Err(e) => {
+                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
+                    }
+                }
             }
 
         }

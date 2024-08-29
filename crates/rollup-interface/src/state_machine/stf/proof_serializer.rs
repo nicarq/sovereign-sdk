@@ -1,4 +1,4 @@
-use crate::optimistic::SerializedAttestation;
+use crate::optimistic::{SerializedAttestation, SerializedChallenge};
 use crate::zk::aggregated_proof::SerializedAggregatedProof;
 
 /// Serialize proof blob and adds metadata needed for verification.
@@ -18,5 +18,12 @@ pub trait ProofSerializer: Send + Sync {
     fn serialize_attestation_blob_with_metadata(
         &self,
         serialized_attestation: SerializedAttestation,
+    ) -> anyhow::Result<Vec<u8>>;
+
+    /// Creates a challenge blob with metadata needed for verification.
+    fn serialize_challenge_blob_with_metadata(
+        &self,
+        serialized_challenge: SerializedChallenge,
+        slot_height: u64,
     ) -> anyhow::Result<Vec<u8>>;
 }
