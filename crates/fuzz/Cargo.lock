@@ -5500,7 +5500,6 @@ dependencies = [
  "ethers-core",
  "hex",
  "jsonrpsee",
- "paste",
  "reqwest 0.12.7",
  "rockbound",
  "serde",

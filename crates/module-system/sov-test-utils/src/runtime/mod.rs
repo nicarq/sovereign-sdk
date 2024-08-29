@@ -17,8 +17,8 @@ use sov_modules_api::{
     Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RuntimeEventProcessor, Spec,
     StateCheckpoint,
 };
-pub use sov_modules_stf_blueprint::GenesisParams;
-use sov_modules_stf_blueprint::{Runtime, StfBlueprint, TransactionReceipt};
+pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
+use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
 pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -26,8 +26,8 @@ use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
+pub use tokio::sync::watch::Receiver;
 
-use crate::runtime::traits::EndSlotHookRegistry;
 use crate::storage::SimpleStorageManager;
 use crate::{
     generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase,
@@ -42,12 +42,13 @@ generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<
 /// Utilities for generating genesis configs.
 pub mod genesis;
 
+/// Types needed for runtime capabilities.
+pub mod capabilities;
+/// Utilities for hooks relating to test runtimes.
+pub mod hooks;
 /// Traits used to define interfaces for the runtime.
 pub mod traits;
-/// Defines a [`TestRuntimeWrapper`] which allows to override hooks using closures.
-pub mod wrapper;
-use traits::{MinimalGenesis, PostTxHookRegistry};
-pub use wrapper::{TestRuntimeWrapper, WorkingSetClosure};
+use traits::MinimalGenesis;
 
 #[cfg(test)]
 mod tests;
@@ -103,10 +104,7 @@ pub struct RunnerOutput<S: Spec> {
 
 impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S, MockDaSpec>
-        + PostTxHookRegistry<S, MockDaSpec>
-        + EndSlotHookRegistry<S, MockDaSpec>
-        + MinimalGenesis<S, Da = MockDaSpec>,
+    RT: Runtime<S, MockDaSpec> + MinimalGenesis<S, Da = MockDaSpec>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
 {
     /// Returns the runtime of the test runner.

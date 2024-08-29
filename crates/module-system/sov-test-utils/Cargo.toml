@@ -58,7 +58,6 @@ tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 jsonrpsee = { workspace = true }
 rockbound = { workspace = true }
-paste = "1.0.15"
 reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]

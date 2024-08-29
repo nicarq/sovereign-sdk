@@ -8,7 +8,9 @@ macro_rules! generate_runtime {
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
         base_fee_recipient: $base_fee_recipient:ident : $base_fee_recipient_ty:path,
-        minimal_genesis_config_type: $minimal_genesis_config_ty:path
+        minimal_genesis_config_type: $minimal_genesis_config_ty:path,
+        impl_capabilities: [$($capability:ident),* $(,)?],
+        impl_hooks: [$($hook:ident),* $(,)?]
     ) => {
         /// Generated test runtime implementation using the testing framework.
         #[derive(
@@ -19,7 +21,7 @@ macro_rules! generate_runtime {
             ::sov_modules_api::Event,
             ::sov_modules_api::MessageCodec
         )]
-        pub struct __GeneratedRuntimeInternals<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
+        pub struct $id<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
             /// The sequencer registry module.
             pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
             /// The bank module.
@@ -36,16 +38,7 @@ macro_rules! generate_runtime {
             ),*
         }
 
-        /// A type alias for the generated runtime.
-        pub type $id<S, Da> = $crate::runtime::wrapper::TestRuntimeWrapper<S, Da, __GeneratedRuntimeInternals<S, Da>>;
-
-        $crate::paste! {
-            /// A type alias for the `RuntimeEvent`s generated for the test runtime.
-            #[allow(dead_code)]
-            pub type [<$id Event>]<S,Da> = __GeneratedRuntimeInternalsEvent<S, Da>;
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for __GeneratedRuntimeInternals<S, Da> {
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for $id<S, Da> {
             fn bank(&self) -> &$crate::runtime::Bank<S> {
                 &self.bank
             }
@@ -67,29 +60,7 @@ macro_rules! generate_runtime {
             }
         }
 
-        impl <S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::hooks::TxHooks for __GeneratedRuntimeInternals<S, Da> {
-            type Spec = S;
-            type TxState = ::sov_modules_api::WorkingSet<S>;
-
-            fn pre_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _state: &mut Self::TxState,
-            ) -> ::anyhow::Result<()> {
-                Ok(())
-            }
-
-            fn post_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _ctx: &::sov_modules_api::Context<S>,
-                _state: &mut Self::TxState,
-            ) -> ::anyhow::Result<()> {
-                Ok(())
-            }
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for __GeneratedRuntimeInternals<S, Da> {
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for $id<S, Da> {
             type Da = Da;
             fn sequencer_registry_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
                 &config.sequencer_registry
@@ -142,6 +113,49 @@ macro_rules! generate_runtime {
                 }
             }
         }
+
+        $(
+            $crate::impl_runtime_capability!($id<S, Da>, $capability);
+        )*
+
+        $(
+            $crate::impl_runtime_hook!($id<S, Da>, $hook);
+        )*
+
+        impl<S, Da> ::sov_modules_api::capabilities::HasCapabilities<S, Da> for $id<S, Da> where
+            S: ::sov_modules_api::Spec,
+            Da: ::sov_modules_api::DaSpec,
+        {
+            type Capabilities<'a> = Self
+                where
+                Self: 'a,;
+            type SequencerStakeMeter = $crate::runtime::capabilities::SequencerStakeMeter<S::Gas>;
+
+            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
+
+            fn capabilities(&self) -> Self::Capabilities<'_> {
+                Self::default()
+            }
+        }
+
+        impl<S, Da> $crate::runtime::Runtime<S, Da> for $id<S, Da> where
+            S: ::sov_modules_api::Spec,
+            Da: ::sov_modules_api::DaSpec,
+        {
+            type GenesisConfig = <Self as ::sov_modules_api::Genesis>::Config;
+
+            type GenesisPaths = ();
+
+            fn endpoints(
+                _storage: $crate::runtime::Receiver<S::Storage>,
+            ) -> $crate::runtime::RuntimeEndpoints {
+                unimplemented!()
+            }
+
+            fn genesis_config(_genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
+                unimplemented!()
+            }
+        }
     };
 }
 
@@ -154,10 +168,12 @@ macro_rules! generate_optimistic_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
-            minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>
+            minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
+            impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
+            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {
             fn process_aggregated_proof(
                 &self,
                 _proof: ::sov_modules_api::SerializedAggregatedProof,
@@ -215,10 +231,12 @@ macro_rules! generate_zk_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             base_fee_recipient: prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
-            minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>
+            minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
+            impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
+            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for __GeneratedRuntimeInternals<S, Da> {
+        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {
             fn process_aggregated_proof(
                 &self,
                 proof: ::sov_modules_api::SerializedAggregatedProof,
