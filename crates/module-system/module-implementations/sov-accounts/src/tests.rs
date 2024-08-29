@@ -1,6 +1,6 @@
 use sov_modules_api::prelude::*;
 use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
-use sov_modules_api::{Address, CredentialId};
+use sov_modules_api::Address;
 
 use crate::query::Response;
 use crate::CallMessage;
@@ -53,18 +53,17 @@ fn test_response_deserialization_on_wrong_hrp() {
 
 #[test]
 fn test_display_accounts_call() {
-    #[derive(
-        Debug, Clone, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet,
-    )]
+    #[derive(Debug, Clone, PartialEq, borsh::BorshSerialize, UniversalWallet)]
     enum RuntimeCall {
         Accounts(CallMessage),
     }
 
-    let msg = RuntimeCall::Accounts(CallMessage::InsertCredentialId(CredentialId([1; 32])));
+    let msg = RuntimeCall::Accounts(CallMessage::InsertCredentialId([1; 32].into()));
 
     let schema = CompiledSchema::of::<RuntimeCall>();
+    // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1303
     assert_eq!(
+        r#"Accounts.InsertCredentialId0x0101010101010101010101010101010101010101010101010101010101010101"#,
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-        r#"Accounts.InsertCredentialId(0x0101010101010101010101010101010101010101010101010101010101010101)"#
     );
 }

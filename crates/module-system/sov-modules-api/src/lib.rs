@@ -89,6 +89,7 @@ pub use rpc::*;
 pub use runtime::*;
 #[cfg(feature = "native")]
 pub use schemars;
+pub use sov_rollup_interface::common::HexHash;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{CredentialId, PublicKey, Signature};
@@ -163,11 +164,17 @@ pub mod prelude {
     pub extern crate tracing;
 
     pub extern crate anyhow;
+    #[cfg(feature = "arbitrary")]
+    pub extern crate arbitrary;
     #[cfg(feature = "native")]
     pub extern crate axum;
     pub extern crate bech32;
     #[cfg(feature = "native")]
     pub extern crate clap;
+    #[cfg(feature = "arbitrary")]
+    pub extern crate proptest;
+    #[cfg(feature = "arbitrary")]
+    pub extern crate proptest_derive;
     pub extern crate serde;
     #[cfg(feature = "native")]
     pub extern crate serde_json;

@@ -13,7 +13,6 @@ use sov_rollup_interface::common::HexString;
 
 use crate::wallet_state::{sign_tx, KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
-use crate::workflows::NO_ACCOUNTS_FOUND;
 use crate::UnsignedTransactionWithoutNonce;
 
 #[derive(clap::Parser, Clone)]
@@ -104,18 +103,8 @@ where
             } => {
                 let tx: UnsignedTransactionWithoutNonce<S, <RT as DispatchCall>::Decodable> =
                     transaction.load()?;
-                let account = if let Some(nickname) = key_nickname {
-                    let id = KeyIdentifier::<S>::ByNickname { nickname };
-                    let addr = wallet_state.addresses.get_address(&id);
-                    addr.ok_or_else(|| {
-                        anyhow::format_err!("No account found matching identifier: {}", id)
-                    })?
-                } else {
-                    wallet_state
-                        .addresses
-                        .default_address()
-                        .ok_or_else(|| anyhow::format_err!(NO_ACCOUNTS_FOUND))?
-                };
+                let id = key_nickname.map(|nickname| KeyIdentifier::<S>::ByNickname { nickname });
+                let account = wallet_state.resolve_account(id.as_ref())?;
 
                 let private_key = load_key::<S>(&account.location).with_context(|| {
                     format!("Unable to load key {}", account.location.display())

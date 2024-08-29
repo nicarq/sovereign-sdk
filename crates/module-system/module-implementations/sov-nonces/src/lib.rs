@@ -23,7 +23,6 @@ pub struct Nonces<S: Spec> {
     #[state]
     pub(crate) nonces: sov_modules_api::StateMap<CredentialId, u64>,
 
-    /// PhantomData
     #[phantom]
     phantom: std::marker::PhantomData<S>,
 }

@@ -1,4 +1,5 @@
 - #1306 Updates tests in attester-incentives part 2.
+- #1276 Migrates sov-cli to using raw REST API requests. `rpc` subcommand replaced with `api`.
 - #1299 Updates tests in attester-incentives
 - #1275 Adds an `ExecutionContext` enum to `stf::apply_slot` and `Context::new`. This enum allows callees to distinguish between sequencer execution and normal "full node" execution.
 - #1297 Renames the `?height=...` query parameter in the REST API to `?rollup_height=...`.

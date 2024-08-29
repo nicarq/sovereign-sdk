@@ -107,7 +107,7 @@ Your batch was submitted to the sequencer for publication. Response: "Submitted 
 0: 0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0
 ```
 
-The transaction hash can be used to query the RPC endpoint to fetch events belonging to the transaction, which should in
+The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci
@@ -170,7 +170,7 @@ Usage: sov-cli <COMMAND>
 Commands:
   transactions  Generate, sign, list and remove transactions
   keys          View and manage keys associated with this wallet
-  rpc           Query the current state of the rollup and send transactions
+  node          Query the current state of the rollup and send transactions
   help          Print this message or the help of the given subcommand(s)
 
 Options:
@@ -342,15 +342,14 @@ batch, you can import them now. Finally, let's submit your transaction to the ro
 
 ```bash,test-ci
 $ sleep 20  # Wait a bit for the `make test-create-token` transaction to be processed.
-$ ./../../target/debug/sov-cli rpc submit-batch by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
+$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
 #### 5. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ sleep 20  # Wait a bit for the block to be processed by the node
-$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345 | jq -c -M
-{"jsonrpc":"2.0","id":1,"result":{"amount":1000000}}
+curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
+{"data":{"amount":1000000,"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"meta":{}}
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
@@ -371,7 +370,7 @@ By default, this implementation prints the state root and the number of blobs pr
 other data, you'll
 want to use our REST API server. You can configure its host and port in `rollup_config.toml`.
 
-You can get an overview of all available endpoints by reading the OpenAPI specification [here](../../full-node//sov-ledger-apis//openapi-v3.yaml). Here's just a few example queries:
+You can get an overview of all available endpoints by reading the OpenAPI specification [here](../../crates/full-node/sov-ledger-apis/openapi-v3.yaml). Here's just a few example queries:
 
 - `http://localhost:12346/ledger/events/17`
 - `http://localhost:12346/ledger/txs/50/events/0`

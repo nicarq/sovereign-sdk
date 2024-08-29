@@ -5026,17 +5026,18 @@ dependencies = [
  "borsh",
  "derive_more",
  "directories",
+ "futures",
  "hex",
- "jsonrpsee",
+ "reqwest 0.12.7",
  "semver 1.0.22",
  "serde",
  "serde_json",
  "sov-bank",
  "sov-ledger-json-client",
  "sov-modules-api",
- "sov-nonces",
  "sov-rollup-interface",
  "sov-sequencer-json-client",
+ "tokio",
 ]
 
 [[package]]
@@ -5353,6 +5354,7 @@ dependencies = [
  "proptest-derive",
  "schemars",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "sov-wallet-format",
  "thiserror",

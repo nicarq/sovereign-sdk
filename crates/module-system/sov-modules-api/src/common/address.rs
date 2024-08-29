@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use sha2::digest::typenum::U32;
 use sha2::Digest;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
 use sov_wallet_format::schema::Schema;
@@ -359,6 +360,12 @@ impl<H> From<[u8; 32]> for Address<H> {
             addr,
             phantom: std::marker::PhantomData,
         }
+    }
+}
+
+impl<H> From<HexHash> for Address<H> {
+    fn from(value: HexHash) -> Self {
+        Self::from(value.0)
     }
 }
 

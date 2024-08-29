@@ -23,8 +23,43 @@ pub type HexHash = HexString<[u8; 32]>;
     derive_more::AsRef,
     sov_wallet_format::UniversalWallet,
 )]
-#[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
+)]
 pub struct HexString<T = Vec<u8>>(pub T);
+
+#[cfg(feature = "native")]
+impl schemars::JsonSchema for HexString {
+    fn schema_name() -> String {
+        "HexString".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]+$",
+            "description": "A `0x`-prefixed hexadecimal string (uppercase or lowercase) of variable length.",
+        }))
+        .unwrap()
+    }
+}
+
+#[cfg(feature = "native")]
+impl schemars::JsonSchema for HexHash {
+    fn schema_name() -> String {
+        "HexHash".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{64}$",
+            "description": "32 bytes in hexadecimal format, with `0x` prefix.",
+        }))
+        .unwrap()
+    }
+}
 
 impl<T> HexString<T> {
     /// Creates a new [`HexString`] from its inner contents.

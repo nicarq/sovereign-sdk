@@ -21,8 +21,7 @@ workspace = true
 base64 = { workspace = true }
 derive_more = { workspace = true, features = ["display"] }
 sov-modules-api = { workspace = true, features = ["native"] }
-sov-bank = { workspace = true, features = ["native"] }
-sov-nonces = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-ledger-json-client = { workspace = true }
 sov-sequencer-json-client = { workspace = true }
@@ -33,7 +32,9 @@ borsh = { workspace = true }
 semver = "1.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-jsonrpsee = { workspace = true, features = ["client"] }
+reqwest = { workspace = true, features = ["json"] }
+tokio = { workspace = true, features = ["macros"] }
+futures = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

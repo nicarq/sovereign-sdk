@@ -22,7 +22,7 @@ async-trait = { workspace = true }
 backon = { workspace = true, optional = true }
 borsh = { workspace = true }
 bytes = { workspace = true, default-features = true }
-derive_more = { workspace = true, features = ["as_ref", "display"] }
+derive_more = { workspace = true, features = ["as_ref", "display", "from", "from_str"] }
 digest = { workspace = true }
 futures = { workspace = true, optional = true, features = ["alloc"] }
 hex = { workspace = true }
@@ -51,6 +51,7 @@ native = [
     "schemars",
     "sov-rollup-interface/native",
     "tracing",
+	"serde_json",
 ]
 arbitrary = [
     "dep:arbitrary",
