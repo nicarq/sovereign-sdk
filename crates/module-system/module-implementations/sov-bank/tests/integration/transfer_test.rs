@@ -43,7 +43,7 @@ fn transfer_token_happy_path() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenTransferred {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
                     from: TokenHolder::User(user_high_token_balance_address),
                     to: TokenHolder::User(user_no_token_balance_address),
                     coins: Coins {
@@ -281,7 +281,7 @@ fn transfer_receiver_does_not_have_balance() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenTransferred {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(receiver_address),
                     coins: Coins {
@@ -336,7 +336,7 @@ fn transfer_sender_equals_receiver() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenTransferred {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(sender_address),
                     coins: Coins {
@@ -379,7 +379,7 @@ fn transfer_send_zero_amount() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenTransferred {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(receiver_address),
                     coins: Coins {
@@ -424,7 +424,7 @@ fn test_transfer_gas_token() {
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenTransferred {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenTransferred {
                     from: TokenHolder::User(sender_address),
                     to: TokenHolder::User(receiver_address),
                     coins: Coins {

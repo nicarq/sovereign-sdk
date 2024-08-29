@@ -45,7 +45,7 @@ fn test_topup_existing_bond() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                TestRuntimeEvent::prover_incentives(Event::Deposited {
+                TestRuntimeEvent::ProverIncentives(Event::Deposited {
                     prover,
                     deposit
                 }) if *prover == prover_address && *deposit == extra_bond_amount
@@ -86,7 +86,7 @@ fn test_bonding_new_prover() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                TestRuntimeEvent::prover_incentives(Event::Registered {
+                TestRuntimeEvent::ProverIncentives(Event::Registered {
                     prover,
                     amount
                 }) if *prover == user_address && *amount == bond_amount
@@ -117,7 +117,7 @@ fn test_unbonding() {
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
-                TestRuntimeEvent::prover_incentives(Event::Exited { .. })
+                TestRuntimeEvent::ProverIncentives(Event::Exited { .. })
             )));
             assert_eq!(
                 genesis_prover.user_info.available_gas_balance + genesis_prover.bond

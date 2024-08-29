@@ -42,7 +42,7 @@ fn generate_call_message<S: Spec, Da: DaSpec>(
     let mut messages = Vec::with_capacity(payloads.len());
 
     for payload in payloads {
-        messages.push(runtime::RuntimeCall::value_setter(
+        messages.push(runtime::RuntimeCall::ValueSetter(
             sov_value_setter::CallMessage::SetManyValues(payload),
         ));
     }

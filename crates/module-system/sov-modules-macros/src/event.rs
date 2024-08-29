@@ -4,6 +4,7 @@ use syn::DeriveInput;
 use super::common::{
     get_derived_enum_attrs, get_generics_type_param, StructDef, StructFieldExtractor,
 };
+use crate::common::pascal_case_ident;
 
 pub(crate) const EVENT: &str = "Event";
 
@@ -16,7 +17,7 @@ impl<'a> StructDef<'a> {
         self.fields
             .iter()
             .map(|field| {
-                let name = &field.ident;
+                let name = pascal_case_ident(&field.ident);
                 let ty = &field.ty;
 
                 quote::quote!(
@@ -82,7 +83,7 @@ impl EventMacro {
         let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &enum_attributes);
 
         let event_cases = struct_def.fields.iter().map(|field| {
-            let name = &field.ident;
+            let name = pascal_case_ident(&field.ident);
             let module_ty = &field.ty;
 
             quote::quote! {
@@ -99,10 +100,12 @@ impl EventMacro {
         let event_enum_name = struct_def.enum_ident(EVENT);
 
         let from_event_cases = struct_def.fields.iter().map(|field| {
-            let variant_name = &field.ident;
+            let variant_name = pascal_case_ident(&field.ident);
+            let module_name = pascal_case_ident(&field.ident);
+
             quote::quote! {
                 #event_enum_name::#variant_name(ref event) => {
-                     stringify!(#variant_name)
+                    stringify!(#module_name)
                 }
             }
         });

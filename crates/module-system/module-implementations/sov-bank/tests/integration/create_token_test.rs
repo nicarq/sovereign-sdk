@@ -44,7 +44,7 @@ fn create_token() {
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenCreated {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenCreated {
                     token_name: token_name.clone(),
                     coins: sov_bank::Coins {
                         amount: INITIAL_TOKEN_BALANCE,
@@ -128,7 +128,7 @@ fn create_token_and_mint() {
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenCreated {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenCreated {
                     token_name: token_name.clone(),
                     coins: sov_bank::Coins {
                         amount: INITIAL_TOKEN_BALANCE,
@@ -162,7 +162,7 @@ fn create_token_and_mint() {
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
-                TestBankRuntimeEvent::bank(sov_bank::event::Event::TokenMinted {
+                TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenMinted {
                     mint_to_identity: sov_bank::utils::TokenHolder::User(
                         user_no_token_balance_address
                     ),

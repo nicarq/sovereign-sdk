@@ -40,7 +40,7 @@ fn burn_deployed_tokens_happy_path() {
             assert_eq!(result.outcome, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
-                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
                         amount: user_token_balance,
@@ -314,7 +314,7 @@ fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
             assert_eq!(result.outcome, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
-                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
                         amount: 0,
@@ -477,7 +477,7 @@ fn burn_gas_token_also_works() {
             assert_eq!(result.outcome, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
-                TestBankRuntimeEvent::bank(Event::TokenBurned {
+                TestBankRuntimeEvent::Bank(Event::TokenBurned {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
                         amount: user_gas_balance / 2,

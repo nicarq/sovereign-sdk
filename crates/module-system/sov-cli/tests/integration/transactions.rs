@@ -18,7 +18,7 @@ fn test_import_transaction_from_string() {
     let app_dir = tempfile::tempdir().unwrap();
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::Bank {
         contents: default_json_string_arg_for_test("requests/create_token.json"),
     };
 
@@ -38,7 +38,7 @@ fn test_import_transaction_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 
@@ -58,7 +58,7 @@ fn test_import_transaction_from_file() {
 fn transaction_is_serialized_correctly() {
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
-    let runtime_call = RuntimeCall::bank(call_message_from_file("requests/create_token.json"));
+    let runtime_call = RuntimeCall::Bank(call_message_from_file("requests/create_token.json"));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let chain_id = 0;
@@ -109,7 +109,7 @@ fn transaction_not_signed_without_accounts() {
     let app_dir = tempfile::tempdir().unwrap();
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
     let workflow = TransactionWorkflow::Sign {
@@ -143,11 +143,11 @@ fn transaction_signed_properly_from_file() {
     import_key(&mut wallet_state, &app_dir);
 
     let bank_create_token_path = "requests/create_token.json";
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
         contents: default_file_name_arg_for_test(bank_create_token_path),
     };
     let runtime_call =
-        RuntimeCall::<TestSpec, MockDaSpec>::bank(call_message_from_file(bank_create_token_path));
+        RuntimeCall::<TestSpec, MockDaSpec>::Bank(call_message_from_file(bank_create_token_path));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let nonce = 11;
@@ -201,11 +201,11 @@ fn transaction_signed_properly_from_json_string() {
     import_key(&mut wallet_state, &app_dir);
 
     let create_token_path = "requests/create_token.json";
-    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::Bank {
         contents: default_json_string_arg_for_test(create_token_path),
     };
     let runtime_call =
-        RuntimeCall::<TestSpec, MockDaSpec>::bank(call_message_from_file(create_token_path));
+        RuntimeCall::<TestSpec, MockDaSpec>::Bank(call_message_from_file(create_token_path));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let workflow = TransactionWorkflow::Sign {
@@ -258,7 +258,7 @@ fn transaction_signed_by_account_nickname() {
     // Just a check which key is "default", in case if logic changes.
     assert_eq!(key1, default_key);
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 
@@ -302,7 +302,7 @@ fn transaction_outputs_json() {
     let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 

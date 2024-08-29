@@ -82,7 +82,7 @@ fn events() -> Vec<StoredEvent> {
         TokenId::from_str("token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6")
             .unwrap();
 
-    let event_value1 = TestEvent::bank(sov_bank::event::Event::TokenCreated {
+    let event_value1 = TestEvent::Bank(sov_bank::event::Event::TokenCreated {
         token_name: "token".to_string(),
         coins: Coins {
             amount: 0,
@@ -91,7 +91,7 @@ fn events() -> Vec<StoredEvent> {
         minter: holder.clone(),
         authorized_minters: vec![],
     });
-    let event_value2 = TestEvent::bank(sov_bank::event::Event::TokenFrozen {
+    let event_value2 = TestEvent::Bank(sov_bank::event::Event::TokenFrozen {
         token_id,
         freezer: holder,
     });

@@ -116,7 +116,7 @@ pub(crate) fn create_keys_and_addresses() -> (
 pub(crate) fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
     let user_address: <TestSpec as Spec>::Address = key.to_address();
     let msg =
-        RuntimeCall::<TestSpec, MockDaSpec>::bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
+        RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             salt: TOKEN_SALT,
             token_name: TOKEN_NAME.to_string(),
             initial_balance: 1000,
@@ -148,7 +148,7 @@ pub(crate) fn build_transfer_token_tx(
     nonce: u64,
 ) -> Transaction<TestSpec> {
     let msg =
-        RuntimeCall::<TestSpec, MockDaSpec>::bank(sov_bank::CallMessage::<TestSpec>::Transfer {
+        RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::Transfer {
             to: recipient,
             coins: Coins { amount, token_id },
         });
@@ -292,8 +292,8 @@ pub(crate) async fn assert_bank_event<S: Spec>(
 ) -> anyhow::Result<()> {
     let event_response = client.ledger.get_event_by_id(event_number).await?;
 
-    // Ensure "bank" is present in response json
-    assert_eq!(event_response.data.module.name, "bank");
+    // Ensure "Bank" is present in response json
+    assert_eq!(event_response.data.module.name, "Bank");
 
     let event_value = serde_json::Value::Object(event_response.data.value.clone());
 

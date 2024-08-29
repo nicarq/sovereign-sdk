@@ -155,7 +155,7 @@ fn test_burn_on_invalid_attestation() {
             assert: Box::new(move |result, state| {
                 assert!(result.events.iter().any(|event| matches!(
                     event,
-                    TestRuntimeEvent::attester_incentives(Event::RegisteredAttester { .. })
+                    TestRuntimeEvent::AttesterIncentives(Event::RegisteredAttester { .. })
                 )));
                 assert_eq!(
                     AttesterIncentives::<S, MockDaSpec>::default()

@@ -31,7 +31,7 @@ pub fn build_transaction(
     message: CallMessage<DemoSpec>,
     nonce: u64,
 ) -> Transaction<DemoSpec> {
-    let runtime_encoded_message = RuntimeCall::<DemoSpec, MockDaSpec>::nft(message);
+    let runtime_encoded_message = RuntimeCall::<DemoSpec, MockDaSpec>::Nft(message);
     let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = DEFAULT_MAX_PRIORITY_FEE;
     let max_fee = DEFAULT_MAX_FEE;

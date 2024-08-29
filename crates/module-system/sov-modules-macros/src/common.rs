@@ -1,3 +1,4 @@
+use convert_case::{Case, Casing};
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, ToTokens};
 use syn::punctuated::Punctuated;
@@ -201,7 +202,6 @@ impl<'a> StructDef<'a> {
         let impl_generics = &self.impl_generics;
         let where_clause = &self.where_clause;
         quote::quote! {
-            #[allow(non_camel_case_types)]
             #(#extra_attributes)*
             pub enum #enum_ident #impl_generics #where_clause {
                 #(#enum_legs)*
@@ -210,8 +210,11 @@ impl<'a> StructDef<'a> {
     }
 
     pub(crate) fn enum_ident(&self, postfix: &'static str) -> Ident {
-        let ident = &self.ident;
-        format_ident!("{ident}{postfix}")
+        pascal_case_ident(&format_ident!(
+            "{}{postfix}",
+            &self.ident,
+            span = Span::call_site()
+        ))
     }
 }
 
@@ -328,6 +331,11 @@ pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::E
 // URLs).
 pub fn str_to_url_segment(ident: &Ident) -> String {
     ident.to_string().replace('_', "-")
+}
+
+/// Converts an identifier to `PascalCase`.
+pub fn pascal_case_ident(ident: &Ident) -> Ident {
+    Ident::new(&ident.to_string().to_case(Case::Pascal), ident.span())
 }
 
 /// Wraps the code in a new scope using the `const _: () = {};` trick.
