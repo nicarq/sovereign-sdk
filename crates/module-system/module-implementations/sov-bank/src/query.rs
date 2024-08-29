@@ -1,9 +1,10 @@
 //! Defines RPC and REST queries exposed by the bank module, along with the relevant types.
 
+use axum::routing::get;
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
-use sov_modules_api::rest::utils::{errors, ApiResult, Path};
+use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::ApiStateAccessor;
 
@@ -86,6 +87,25 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 
         Ok(Coins { amount, token_id }.into())
     }
+
+    async fn route_total_supply(
+        state: ApiState<Self, S>,
+        Path(token_id): Path<TokenId>,
+    ) -> ApiResult<Coins> {
+        let amount = state
+            .get_total_supply_of(&token_id, &mut state.api_state_accessor())
+            .unwrap_infallible()
+            .ok_or_else(|| errors::not_found_404("Token", token_id))?;
+
+        Ok(Coins { amount, token_id }.into())
+    }
+
+    async fn route_find_token_id(
+        params: Query<types::FindTokenIdQueryParams<S::Address>>,
+    ) -> ApiResult<types::TokenIdResponse> {
+        let token_id = get_token_id::<S>(&params.token_name, &params.sender, params.salt);
+        Ok(types::TokenIdResponse { token_id }.into())
+    }
 }
 
 impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
@@ -94,8 +114,30 @@ impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
         axum::Router::new()
             .route(
                 "/tokens/:tokenId/balances/:address",
-                axum::routing::get(Self::route_balance),
+                get(Self::route_balance),
             )
+            .route(
+                "/tokens/:tokenId/total-supply",
+                get(Self::route_total_supply),
+            )
+            .route("/tokens", get(Self::route_find_token_id))
             .with_state(state)
+    }
+}
+
+#[allow(missing_docs)]
+pub mod types {
+    use super::*;
+
+    #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
+    pub struct FindTokenIdQueryParams<Addr> {
+        pub token_name: String,
+        pub sender: Addr,
+        pub salt: u64,
+    }
+
+    #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
+    pub struct TokenIdResponse {
+        pub token_id: TokenId,
     }
 }

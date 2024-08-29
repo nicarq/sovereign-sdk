@@ -12,6 +12,9 @@ use sov_modules_api::{clap, CryptoSpec, PrivateKey};
 
 use crate::UnsignedTransactionWithoutNonce;
 
+const NO_ACCOUNTS_FOUND: &str =
+    "No accounts found. You can generate one with the `keys generate` subcommand";
+
 /// A struct representing the current state of the CLI wallet
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned")]
@@ -23,8 +26,6 @@ where
     pub unsent_transactions: Vec<UnsignedTransactionWithoutNonce<S, Tx>>,
     /// The addresses in the wallet
     pub addresses: AddressList<S>,
-    /// The RPC URL
-    pub rpc_url: Option<String>,
     /// The REST API URL
     pub rest_api_url: Option<String>,
     /// The version of the library that serialized the state.
@@ -42,7 +43,6 @@ where
             addresses: AddressList {
                 addresses: Vec::new(),
             },
-            rpc_url: None,
             rest_api_url: None,
             version: env!("CARGO_PKG_VERSION").to_string(),
         }
@@ -131,6 +131,26 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
             })
             .collect()
     }
+
+    /// Resolving id into AddressEntry
+    pub fn resolve_account(
+        &mut self,
+        account_id: Option<&KeyIdentifier<S>>,
+    ) -> anyhow::Result<&AddressEntry<S>> {
+        match account_id {
+            None => self
+                .addresses
+                .default_address()
+                .ok_or_else(|| anyhow::format_err!(NO_ACCOUNTS_FOUND)),
+            Some(id) => {
+                let addr = self.addresses.get_address(id);
+
+                addr.ok_or_else(|| {
+                    anyhow::format_err!("No account found matching identifier: {}", id)
+                })
+            }
+        }
+    }
 }
 
 /// Returns borsh serialized [`Transaction`].
@@ -216,9 +236,9 @@ impl<S: sov_modules_api::Spec> AddressList<S> {
     }
 
     /// Get an address by identifier
-    pub fn get_address(&mut self, identifier: &KeyIdentifier<S>) -> Option<&mut AddressEntry<S>> {
+    pub fn get_address(&mut self, identifier: &KeyIdentifier<S>) -> Option<&AddressEntry<S>> {
         self.addresses
-            .iter_mut()
+            .iter()
             .find(|entry| entry.matches(identifier))
     }
 

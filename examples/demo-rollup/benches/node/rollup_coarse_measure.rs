@@ -138,6 +138,7 @@ where
         .pub_key()
         .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>()
         .0
+         .0
         .into();
 
     (addr, pk)

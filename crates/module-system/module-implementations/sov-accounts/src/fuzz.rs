@@ -1,12 +1,11 @@
 use arbitrary::{Arbitrary, Unstructured};
-use sov_modules_api::{CredentialId, CryptoSpec, Module, Spec, StateCheckpoint};
+use sov_modules_api::{CryptoSpec, Module, Spec, StateCheckpoint};
 
 use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 
 impl<'a> Arbitrary<'a> for CallMessage {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let credential_id = <[u8; 32]>::arbitrary(u)?;
-        Ok(Self::InsertCredentialId(CredentialId(credential_id)))
+        Ok(Self::InsertCredentialId(u.arbitrary()?))
     }
 }
 
@@ -16,15 +15,16 @@ where
     S::Address: Arbitrary<'a>,
 {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
-        let addr = u.arbitrary()?;
-        Ok(Self { addr })
+        Ok(Self {
+            addr: u.arbitrary()?,
+        })
     }
 }
 
 impl<'a, Addr: arbitrary::Arbitrary<'a>> Arbitrary<'a> for AccountData<Addr> {
     fn arbitrary(u: &mut Unstructured<'a>) -> arbitrary::Result<Self> {
         Ok(Self {
-            credential_id: CredentialId(u.arbitrary()?),
+            credential_id: u.arbitrary()?,
             address: u.arbitrary()?,
         })
     }

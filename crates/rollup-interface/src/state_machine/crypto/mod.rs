@@ -5,10 +5,11 @@ pub use simple_hasher::NoOpHasher;
 mod signatures;
 pub use signatures::*;
 
+use crate::common::HexHash;
+
 /// Type that represents an identifier for an authorizer of the transaction.
-/// The credential is a [u8; 32] array.
+/// The credential is a [`HexHash`].
 /// For example, this can be a padded EVM address or a hash of a rollup public key.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -22,22 +23,30 @@ pub use signatures::*;
     Clone,
     Copy,
     sov_wallet_format::UniversalWallet,
+    derive_more::Display,
+    derive_more::FromStr,
+    derive_more::From,
 )]
-pub struct CredentialId(pub [u8; 32]);
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
+)]
+pub struct CredentialId(pub HexHash);
 
-impl core::str::FromStr for CredentialId {
-    type Err = anyhow::Error;
+#[cfg(feature = "native")]
+impl schemars::JsonSchema for CredentialId {
+    fn schema_name() -> String {
+        "CredentialId".to_string()
+    }
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.trim_start_matches("0x");
-        let decoded = <[u8; 32] as hex::FromHex>::from_hex(s)?;
-        Ok(Self(decoded))
+    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        HexHash::json_schema(gen)
     }
 }
 
-impl core::fmt::Display for CredentialId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0x{}", hex::encode(self.0))
+impl From<[u8; 32]> for CredentialId {
+    fn from(value: [u8; 32]) -> Self {
+        Self(HexHash::new(value))
     }
 }
 
@@ -50,26 +59,32 @@ mod tests {
     use super::*;
 
     fn check_str_and_back(credential_id: CredentialId) {
-        let s1 = credential_id.to_string();
-        let s2 = s1.replace("0x", "");
-        let credential_id_2 = CredentialId::from_str(&s1).unwrap();
-        let credential_id_3 = CredentialId::from_str(&s2).unwrap();
-        assert_eq!(credential_id, credential_id_2);
-        assert_eq!(credential_id, credential_id_3);
+        let s = credential_id.to_string();
+        let credential_id_recovered = CredentialId::from_str(&s).unwrap();
+        assert_eq!(credential_id, credential_id_recovered);
     }
 
     #[test]
     fn test_hash_str_and_back_simple() {
         for i in 0..1 {
-            let credential_id = CredentialId([i as u8; 32]);
+            let credential_id = CredentialId(HexHash::new([i as u8; 32]));
             check_str_and_back(credential_id);
         }
+    }
+
+    #[test]
+    fn test_removed_0x_prefix() {
+        let credential_id = CredentialId(HexHash::new([10u8; 32]));
+        let s = credential_id.to_string().replace("0x", "");
+        let result = CredentialId::from_str(&s);
+        assert!(result.is_err());
+        assert_eq!("Missing 0x prefix", result.unwrap_err().to_string());
     }
 
     proptest! {
         #[test]
         fn test_arbitrary_hash_str_and_back(input in prop::array::uniform32(any::<u8>())) {
-            let credential_id = CredentialId(input);
+            let credential_id = CredentialId(HexHash::new(input));
             check_str_and_back(credential_id);
         }
     }

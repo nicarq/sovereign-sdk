@@ -4,7 +4,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_cli::wallet_state::WalletState;
 use sov_cli::workflows::keys::KeyWorkflow;
-use sov_cli::workflows::rpc::RpcWorkflows;
+use sov_cli::workflows::node::NodeWorkflows;
 use sov_cli::workflows::transactions::TransactionWorkflow;
 use sov_cli::{clap, wallet_dir};
 use sov_modules_api::clap::Parser;
@@ -23,7 +23,7 @@ enum Workflows<File: clap::Subcommand, Json: clap::Subcommand, S: Spec> {
     #[clap(subcommand)]
     Keys(KeyWorkflow<S>),
     #[clap(subcommand)]
-    Rpc(RpcWorkflows<S>),
+    Node(NodeWorkflows<S>),
 }
 
 #[derive(clap::Parser)]
@@ -92,7 +92,7 @@ where
                     std::io::stdout(),
                 )?,
             Workflows::Keys(inner) => inner.run(&mut wallet_state, app_dir)?,
-            Workflows::Rpc(inner) => {
+            Workflows::Node(inner) => {
                 inner.run(&mut wallet_state, app_dir).await?;
             }
         }

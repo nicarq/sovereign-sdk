@@ -160,7 +160,7 @@ Usage: sov-cli <COMMAND>
 Commands:
   transactions  Generate, sign, list and remove transactions
   keys          View and manage keys associated with this wallet
-  rpc           Query the current state of the rollup and send transactions
+  node          Query the current state of the rollup and send transactions
   help          Print this message or the help of the given subcommand(s)
 
 Options:
@@ -314,7 +314,7 @@ batch, you can import them now. Finally, let's submit your transaction to the ro
 'true' parameter after `submit-batch` indicates, that command will wait for batch to be processed by the node.
 
 ```bash,test-ci
-$ ./../../target/debug/sov-cli rpc submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94 
+$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94 
 ```
 
 This command will use your default private key.
@@ -322,8 +322,8 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -sS -X POST -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"bank_supplyOf","params":{"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"id":1}' http://127.0.0.1:12345
-{"jsonrpc":"2.0","id":1,"result":{"amount":1000000}}
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
+{"data":{"amount":1000000,"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"meta":{}}
 ```
 
 ### Makefile

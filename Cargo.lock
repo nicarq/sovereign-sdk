@@ -9375,8 +9375,9 @@ dependencies = [
  "demo-stf",
  "derive_more",
  "directories",
+ "futures",
  "hex",
- "jsonrpsee",
+ "reqwest 0.12.5",
  "semver 1.0.23",
  "serde",
  "serde_json",
@@ -9384,11 +9385,11 @@ dependencies = [
  "sov-ledger-json-client",
  "sov-mock-da",
  "sov-modules-api",
- "sov-nonces",
  "sov-rollup-interface",
  "sov-sequencer-json-client",
  "sov-test-utils",
  "tempfile",
+ "tokio",
 ]
 
 [[package]]

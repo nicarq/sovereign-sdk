@@ -19,15 +19,9 @@
   ],
   "definitions": {
     "CredentialId": {
-      "description": "Type that represents an identifier for an authorizer of the transaction. The credential is a [u8; 32] array. For example, this can be a padded EVM address or a hash of a rollup public key.",
-      "type": "array",
-      "items": {
-        "type": "integer",
-        "format": "uint8",
-        "minimum": 0.0
-      },
-      "maxItems": 32,
-      "minItems": 32
+      "description": "32 bytes in hexadecimal format, with `0x` prefix.",
+      "type": "string",
+      "pattern": "^0x[a-fA-F0-9]{64}$"
     }
   }
 }

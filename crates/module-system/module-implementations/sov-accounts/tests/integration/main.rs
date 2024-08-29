@@ -1,5 +1,5 @@
 use sov_accounts::{Accounts, CallMessage, Response};
-use sov_modules_api::{CredentialId, Error, PrivateKey, PublicKey, Spec, TxEffect};
+use sov_modules_api::{Error, PrivateKey, PublicKey, Spec, TxEffect};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -22,8 +22,8 @@ struct TestData<S: Spec> {
 /// We setup genesis with three accounts, two of which are registered at genesis.
 fn setup() -> (TestData<S>, TestRunner<RT, S>) {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate().add_accounts(vec![
-        TestUser::generate_with_default_balance().add_credential_id(CredentialId([0u8; 32])),
-        TestUser::generate_with_default_balance().add_credential_id(CredentialId([1u8; 32])),
+        TestUser::generate_with_default_balance().add_credential_id([0u8; 32].into()),
+        TestUser::generate_with_default_balance().add_credential_id([1u8; 32].into()),
         TestUser::generate_with_default_balance(),
     ]);
 
