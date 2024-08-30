@@ -8,19 +8,15 @@ use std::rc::Rc;
 
 pub use api_client::ApiClient;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Bank, BankConfig, GasTokenConfig, GAS_TOKEN_ID};
 pub use sov_db::schema::SchemaBatch;
 use sov_mock_da::{MockAddress, MockBlob};
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{
-    Batch, CryptoSpec, DaSpec, GasArray, GasUnit, Module, RawTx, Spec, StateCheckpoint,
-};
+use sov_modules_api::{Batch, CryptoSpec, DaSpec, GasArray, Module, RawTx, Spec};
 pub use sov_modules_stf_blueprint::SkippedReason;
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::stf::TxReceiptContents;
@@ -58,11 +54,8 @@ pub mod interface;
 pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use interface::*;
 pub use sov_mock_da::verifier::MockDaSpec;
-use sov_modules_api::PrivateKey;
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
-
-use crate::storage::new_finalized_storage;
 
 /// The default test spec. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
@@ -152,67 +145,6 @@ impl TxReceiptContents for TestTxReceiptContents {
     type Skipped = u32;
     type Reverted = u32;
     type Successful = u32;
-}
-
-/// Test helper: Generates an empty transaction with the given gas parameters.
-///
-/// ## Deprecated
-/// This function is deprecated and will be removed in the future to use the testing framework. Please refrain from using it in new tests.
-pub fn generate_empty_tx_deprecated(
-    max_priority_fee_bips: PriorityFeeBips,
-    max_fee: u64,
-    gas_limit: Option<GasUnit<2>>,
-) -> Transaction<TestSpec> {
-    Transaction::new_signed_tx(
-        &TestPrivateKey::generate(),
-        UnsignedTransaction::new(vec![], 0, max_priority_fee_bips, max_fee, 0, gas_limit),
-    )
-}
-
-/// Simple setup, initializes a bank with a sender having an initial balance.
-/// This is a useful helper for tests that need to initialize a bank.
-///
-/// ## Deprecated
-/// This function is deprecated and will be removed in the future to use the testing framework. Please refrain from using it in new tests.
-pub fn simple_bank_setup_deprecated(
-    initial_balance: u64,
-) -> (
-    <TestSpec as Spec>::Address,
-    Bank<TestSpec>,
-    StateCheckpoint<TestSpec>,
-) {
-    let bank = Bank::<TestSpec>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let state_checkpoint = StateCheckpoint::new(new_finalized_storage(tmpdir.path()));
-
-    let sender_address = generate_address::<TestSpec>("just_sender");
-
-    let token_name = "Token1".to_owned();
-    let token_id = GAS_TOKEN_ID;
-
-    let bank_config = BankConfig::<TestSpec> {
-        gas_token_config: GasTokenConfig {
-            token_name,
-            address_and_balances: vec![(sender_address, initial_balance)],
-            authorized_minters: vec![],
-        },
-        tokens: vec![],
-    };
-    let mut genesis_state_accessor =
-        state_checkpoint.to_genesis_state_accessor::<Bank<TestSpec>>(&bank_config);
-    bank.genesis(&bank_config, &mut genesis_state_accessor)
-        .unwrap();
-
-    let mut checkpoint = genesis_state_accessor.checkpoint();
-
-    assert_eq!(
-        bank.get_balance_of(&sender_address, token_id, &mut checkpoint)
-            .unwrap_infallible(),
-        Some(initial_balance),
-        "Invalid initial balance"
-    );
-
-    (sender_address, bank, checkpoint)
 }
 
 /// Builds a [`MockBlob`] from a [`Batch`] and a given address.

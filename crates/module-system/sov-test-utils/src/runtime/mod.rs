@@ -141,6 +141,11 @@ where
         self.slot_receipts.len() as u64 + 1
     }
 
+    /// Returns the current virtual slot number.
+    pub fn virtual_slot(&self) -> u64 {
+        self.query_kernel_state(|kernel| kernel.virtual_slot())
+    }
+
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
     /// This can be used to check the balance of an address in closures.
     pub fn bank_gas_balance(
