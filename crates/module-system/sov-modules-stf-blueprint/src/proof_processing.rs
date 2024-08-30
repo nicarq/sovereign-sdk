@@ -8,8 +8,8 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt, Spec,
-    StateCheckpoint, TxScratchpad, WorkingSet,
+    DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
+    ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -67,24 +67,51 @@ where
                 }
             };
 
-            let outcome = match proof_with_details.proof {
-                ProofType::ZkAggregatedProof(proof) => runtime
-                    .capabilities()
-                    .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set),
-                ProofType::OptimisticProofAttestation(proof) => runtime
-                    .capabilities()
-                    .process_attestation(proof, &sequencer_rollup_address, &mut working_set),
-                ProofType::OptimisticProofChallenge(proof, transition_num) => {
+            let (should_revert, outcome) = match proof_with_details.proof {
+                ProofType::ZkAggregatedProof(proof) => {
+                    let result = runtime.capabilities().process_aggregated_proof(
+                        proof,
+                        &sequencer_rollup_address,
+                        &mut working_set,
+                    );
+
+                    match result {
+                        Ok((pub_data, proof)) => (
+                            false,
+                            ProofOutcome::Valid(ProofReceiptContents::AggregateProof(
+                                pub_data, proof,
+                            )),
+                        ),
+                        Err(e) => (e.is_revertable(), ProofOutcome::Invalid(e)),
+                    }
+                }
+
+                ProofType::OptimisticProofAttestation(proof) => (
+                    false,
+                    runtime.capabilities().process_attestation(
+                        proof,
+                        &sequencer_rollup_address,
+                        &mut working_set,
+                    ),
+                ),
+
+                ProofType::OptimisticProofChallenge(proof, transition_num) => (
+                    false,
                     runtime.capabilities().process_challenge(
                         proof,
                         transition_num,
                         &sequencer_rollup_address,
                         &mut working_set,
-                    )
-                }
+                    ),
+                ),
             };
 
-            let (tx_scratchpad, _transaction_consumption, _events) = working_set.finalize();
+            let (tx_scratchpad, _transaction_consumption) = if should_revert {
+                working_set.revert()
+            } else {
+                let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
+                (tx_scratchpad, transaction_consumption)
+            };
 
             ProcessProofOutput {
                 proof_receipt: ProofReceipt { blob_hash, outcome },

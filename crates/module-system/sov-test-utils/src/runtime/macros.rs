@@ -191,8 +191,8 @@ macro_rules! generate_optimistic_runtime {
                 _proof: ::sov_modules_api::SerializedAggregatedProof,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                ::sov_modules_api::ProofOutcome::Ignored
+            ) -> std::result::Result<(::sov_modules_api::AggregatedProofPublicData, ::sov_modules_api::SerializedAggregatedProof), ::sov_modules_api::InvalidProofError> {
+                unimplemented!()
             }
 
 
@@ -254,15 +254,12 @@ macro_rules! generate_zk_runtime {
                 proof: ::sov_modules_api::SerializedAggregatedProof,
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                match self.prover_incentives.process_proof(&proof, prover_address, state) {
-                    Ok(data) => ::sov_modules_api::ProofOutcome::Valid(
-                        ::sov_modules_api::ProofReceiptContents::AggregateProof(data, proof)
-                    ),
-                    Err(e) => {
-                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
-                    }
-                }
+            ) -> std::result::Result<(::sov_modules_api::AggregatedProofPublicData, ::sov_modules_api::SerializedAggregatedProof), ::sov_modules_api::InvalidProofError> {
+                let result = self
+                     .prover_incentives
+                     .process_proof(&proof, prover_address, state)?;
+
+                Ok((result, proof))
             }
 
             fn process_attestation(
@@ -271,7 +268,7 @@ macro_rules! generate_zk_runtime {
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                ::sov_modules_api::ProofOutcome::Ignored
+                unimplemented!()
             }
 
             fn process_challenge(
@@ -281,7 +278,7 @@ macro_rules! generate_zk_runtime {
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
             ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                ::sov_modules_api::ProofOutcome::Ignored
+                unimplemented!()
             }
         }
     };

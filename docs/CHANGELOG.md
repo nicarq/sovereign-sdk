@@ -1,5 +1,6 @@
 - #1335 Removes the previously deprecated method `StateCheckpoint::to_working_set_deprecated`. If you still use this method, please migrate your code to the testing framework available in `sov_test_utils`.
 - #1332 Remove events from AttesterIncentives capabilities 
+- #1328 Add reverts support in `prover-incentives` module.
 - #1322 Remove ProcessAttestation & ProcessChallenge call messages from the sov-attester-incentives.
 - #1323 Modifies the `Event`, `DispatchCall`, `MessageCodec`, and `CliWallet` proc-macros to generate `enum`s with `PascalCase` instead of `snake_case`, as per Rust naming conventions.
 - #1320 Updates challenger tests in attester-incentives module for invalid challenges.

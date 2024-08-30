@@ -8,9 +8,9 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
-    Context, DaSpec, ExecutionContext, Gas, GasMeter, ModuleInfo, PreExecWorkingSet, ProofOutcome,
-    ProofReceiptContents, SovProofOutcome, Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter,
-    WorkingSet,
+    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, GasMeter, InvalidProofError,
+    ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceiptContents, SovProofOutcome, Spec,
+    StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
@@ -180,21 +180,12 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> SovProofOutcome<S, Da> {
+    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError> {
         let result = self
             .prover_incentives
-            .process_proof(&proof, prover_address, state);
+            .process_proof(&proof, prover_address, state)?;
 
-        match result {
-            Ok(pub_data) => {
-                ProofOutcome::Valid(ProofReceiptContents::AggregateProof(pub_data, proof))
-            }
-            Err(e) => {
-                // TODO #815: correctly handle errors
-                error!("Proof validation failed {:?}", e);
-                ProofOutcome::Invalid(e.into())
-            }
-        }
+        Ok((result, proof))
     }
 
     fn process_attestation(

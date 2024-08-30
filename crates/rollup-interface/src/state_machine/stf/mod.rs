@@ -104,15 +104,28 @@ pub enum InvalidProofError {
     /// A precondition for processing the proof was not met.
     #[error("A precondition required to process the proof was not met: {0}")]
     PreconditionNotMet(String),
-    /// The proof that was submitted was invalid.
-    #[error("Proof is invalid: {0}")]
-    ProofInvalid(String),
+    /// The prover was slashed for invalid proof.
+    #[error("Prover was slashed: {0}")]
+    ProverSlashed(String),
+    /// The prover was penalized.
+    #[error("Prover was penalized: {0}")]
+    ProverPenalized(String),
     /// Failed to reward the submitter of the proof.
     #[error("Failed to reward submitter: {0}. Rewarding module might not have enough funds. This is a bug!")]
     RewardFailure(String),
     /// An error occurred when accessing the state
     #[error("Error occurred when accessing the state, error: {0}")]
     StateAccess(String),
+}
+
+impl InvalidProofError {
+    /// Checks if the error is revertable.
+    pub fn is_revertable(&self) -> bool {
+        !matches!(
+            self,
+            InvalidProofError::ProverSlashed(_) | InvalidProofError::ProverPenalized(_)
+        )
+    }
 }
 
 /// The outcome of a proof

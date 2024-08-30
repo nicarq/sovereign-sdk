@@ -2,7 +2,10 @@ use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, ProofProcessor, RuntimeAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DaSpec, DispatchCall, Spec};
+use sov_modules_api::{
+    AggregatedProofPublicData, DaSpec, DispatchCall, InvalidProofError, SerializedAggregatedProof,
+    Spec,
+};
 use sov_test_utils::runtime::capabilities::SequencerStakeMeter;
 use sov_test_utils::{generate_runtime, TestSpec};
 
@@ -21,7 +24,7 @@ impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
         _proof: sov_modules_api::SerializedAggregatedProof,
         _prover_address: &<S as Spec>::Address,
         _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> sov_modules_api::SovProofOutcome<S, Da> {
+    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError> {
         unimplemented!()
     }
 

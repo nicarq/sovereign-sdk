@@ -30,8 +30,11 @@ pub enum ProcessProofError<S: Spec> {
     )]
     TransferFailure(String),
 
-    #[error("The aggregated proof is invalid: {0}")]
-    InvalidProof(String),
+    #[error("Prover slashed: {0}")]
+    ProverSlashedNoRevert(String),
+
+    #[error("Prover penalized: {0}")]
+    ProverPenalizedNoRevert(String),
 
     #[error("Prover is not bonded at the time of the transaction")]
     ProverNotBonded,
@@ -46,7 +49,12 @@ pub enum ProcessProofError<S: Spec> {
 impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
     fn from(error: ProcessProofError<S>) -> Self {
         match error {
-            ProcessProofError::InvalidProof(e) => InvalidProofError::ProofInvalid(e.to_string()),
+            ProcessProofError::ProverSlashedNoRevert(e) => {
+                InvalidProofError::ProverSlashed(e.to_string())
+            }
+            ProcessProofError::ProverPenalizedNoRevert(e) => {
+                InvalidProofError::ProverPenalized(e.to_string())
+            }
             ProcessProofError::ProverNotBonded | ProcessProofError::BondNotHighEnough => {
                 InvalidProofError::PreconditionNotMet(error.to_string())
             }
@@ -56,6 +64,11 @@ impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
             ProcessProofError::TransferFailure(e) => InvalidProofError::RewardFailure(e),
         }
     }
+}
+
+enum Paycheck {
+    Penalized,
+    Rewarded(u64),
 }
 
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
@@ -97,8 +110,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                 tracing::debug!(verification_error = ?e, "Slashing prover for invalid proof");
 
                 self.slash_prover(prover_address, state)?;
-
-                return Err(ProcessProofError::InvalidProof(
+                // The state won't be reverted.
+                return Err(ProcessProofError::ProverSlashedNoRevert(
                     "Verification failed".to_string(),
                 ));
             }
@@ -112,8 +125,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                     tracing::debug!(?reason, "Slashing prover");
 
                     self.slash_prover(prover_address, state)?;
-
-                    return Err(ProcessProofError::InvalidProof(format!(
+                    // The state won't be reverted.
+                    return Err(ProcessProofError::ProverSlashedNoRevert(format!(
                         "Invalid output {}",
                         reason
                     )));
@@ -121,15 +134,23 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             }
         }
 
-        self.try_reward_prover(
+        match self.calculate_reward(
             public_outputs.initial_slot_number,
             public_outputs.final_slot_number,
-            old_balance,
-            prover_address,
             state,
-        )?;
-
-        Ok(public_outputs)
+        )? {
+            Paycheck::Penalized => {
+                self.penalize_prover(old_balance, prover_address, state)?;
+                // The state won't be reverted.
+                Err(ProcessProofError::ProverPenalizedNoRevert(
+                    "Prover penalized".to_string(),
+                ))
+            }
+            Paycheck::Rewarded(total_reward) => {
+                self.reward_prover(total_reward, prover_address, state)?;
+                Ok(public_outputs)
+            }
+        }
     }
 
     fn slash_prover(
@@ -142,14 +163,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
     /// Computes the total reward from the aggregated state transition and rewards the prover with the unclaimed
     /// transition rewards. If all the rewards were already claimed, the prover is fined by a constant amount.
-    fn try_reward_prover(
+    fn calculate_reward(
         &self,
         init_slot_num: u64,
         final_slot_num: u64,
-        old_balance: u64,
-        prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessProofError<S>> {
+    ) -> Result<Paycheck, ProcessProofError<S>> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
@@ -183,12 +202,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .set(&max(first_available_reward, final_slot_num), state)?;
 
         if first_claimed_reward > final_slot_num {
-            // Penalize the prover
-            self.penalize_prover(old_balance, prover_address, state)?;
+            Ok(Paycheck::Penalized)
         } else {
-            self.reward_prover(total_reward, prover_address, state)?;
+            Ok(Paycheck::Rewarded(total_reward))
         }
-        Ok(())
     }
 
     fn penalize_prover(
