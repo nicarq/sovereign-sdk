@@ -23,4 +23,23 @@ where
 
         state.update_true_slot_number(new_height);
     }
+
+    /// Returns the base fee per gas accessible at the current *virtual* slot.
+    /// This value is safe to be used in the transaction execution context.
+    ///
+    /// ## Note
+    /// If there is no in-progress transition at the current virtual slot, the initial base fee per gas is returned.
+    pub fn base_fee_per_gas(
+        &self,
+        state: &mut KernelWorkingSet<S>,
+    ) -> <S::Gas as sov_modules_api::Gas>::Price {
+        if let Some(in_progress_transition) = self.in_progress_transition.get(
+            &self.next_visible_slot_number(state).unwrap_infallible(),
+            state,
+        ) {
+            in_progress_transition.gas_info.base_fee_per_gas
+        } else {
+            Self::initial_base_fee_per_gas()
+        }
+    }
 }
