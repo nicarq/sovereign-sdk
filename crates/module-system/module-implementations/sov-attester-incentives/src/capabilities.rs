@@ -55,7 +55,7 @@ impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for I
     fn from(error: ProcessAttestationErrors<AccessorError>) -> Self {
         match error {
             ProcessAttestationErrors::AttesterSlashed(reason) => {
-                InvalidProofError::ProofInvalid(format!("{}", reason))
+                InvalidProofError::ProverSlashed(format!("{}", reason))
             }
             ProcessAttestationErrors::InvalidAttestationFormat
             | ProcessAttestationErrors::AttesterNotBonded
@@ -98,7 +98,7 @@ impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for Inv
     fn from(error: ProcessChallengeErrors<AccessorError>) -> Self {
         match error {
             ProcessChallengeErrors::ChallengerSlashed(reason) => {
-                InvalidProofError::ProofInvalid(reason.to_string())
+                InvalidProofError::ProverSlashed(reason.to_string())
             }
             ProcessChallengeErrors::ChallengerNotBonded => {
                 InvalidProofError::PreconditionNotMet(format!("{}", error))

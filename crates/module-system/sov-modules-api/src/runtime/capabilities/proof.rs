@@ -1,6 +1,9 @@
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
-use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
+use sov_rollup_interface::stf::InvalidProofError;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregatedProofPublicData, SerializedAggregatedProof,
+};
 
 use crate::{SovProofOutcome, Spec, WorkingSet};
 
@@ -13,7 +16,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> SovProofOutcome<S, Da>;
+    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError>;
 
     /// Called by the stf once the attestation is received.
     fn process_attestation(

@@ -1,4 +1,4 @@
-use sov_modules_api::ProofOutcome;
+use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_test_utils::{assert_matches, ProofInput, ProofTestCase};
 
 use crate::helpers::{
@@ -89,7 +89,11 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
         input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+            match result.outcome.unwrap().outcome {
+                ProofOutcome::Invalid(InvalidProofError::ProverPenalized(_)) => {}
+                _ => panic!("Expected prover to be penalized"),
+            }
+
             let prover_incentives = TestProverIncentives::default();
             let penalty = prover_incentives
                 .proving_penalty
