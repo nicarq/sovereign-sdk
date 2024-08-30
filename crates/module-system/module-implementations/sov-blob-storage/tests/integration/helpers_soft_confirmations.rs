@@ -71,6 +71,8 @@ pub fn setup_soft_confirmation_kernel() -> (
 }
 
 /// Sets up a test runtime and returns a [`TestData`] struct. Registers the regular sequencer
+/// Note: with this setup, the first available sequence number is 1. This is because the
+/// sequencer number 0 is used to register the non-preferred sequencer.
 pub fn setup_with_registration_soft_confirmation_kernel() -> (
     TestData<S>,
     TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
@@ -148,9 +150,13 @@ pub fn build_soft_confirmation_blobs(
 /// - Slot 4: Send [] | Receive [ Blob 4 ]
 ///
 /// Then the `receive_order` parameter should be [ [0], [3], [1, 2], [4] ].
+///
+/// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
+/// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_soft_confirmation(
     sending_order: Vec<Vec<(TestSequencer<S, MockDaSpec>, SequencerInfo)>>,
     receive_order: Vec<Vec<usize>>,
+    virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
 ) {
     let mut nonces = HashMap::new();
@@ -160,5 +166,10 @@ pub fn assert_blobs_are_correctly_received_soft_confirmation(
         .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, runner))
         .collect::<Vec<_>>();
 
-    assert_blobs_are_correctly_received_helper(slots_to_send, receive_order, runner);
+    assert_blobs_are_correctly_received_helper(
+        slots_to_send,
+        receive_order,
+        virtual_slot_heights_increases,
+        runner,
+    );
 }

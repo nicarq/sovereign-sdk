@@ -51,6 +51,7 @@ fn store_and_retrieve_standard_basic_kernel() {
     assert_blobs_are_correctly_received_basic_kernel(
         slots,
         vec![vec![0, 1, 2], vec![3], vec![4]],
+        vec![1, 1, 1],
         &mut runner,
     );
 }

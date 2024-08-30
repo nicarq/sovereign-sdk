@@ -87,15 +87,19 @@ pub fn build_basic_blobs(
 /// The `receive_order` parameter is the list of indexes of the batches that we expect to receive.
 ///
 /// Example: If we have the following situation:
-/// - Slot 1: Send [ (Blob 0, sequencer A, Preferred { slots_to_advance: 1, sequence_number: 0 }), (Blob 1, sequencer B, Regular), (Blob 2, sequencer B, Regular) ] | Receive [ Blob 0 ]
-/// - Slot 2: Send [ (Blob 3, sequencer A, Preferred { slots_to_advance: 1, sequence_number: 1 }), (Blob 4, sequencer B, Regular) ] | Receive [ Blob 3 ]
-/// - Slot 3: Send [] | Receive [ Blob 1, Blob 2 ]
-/// - Slot 4: Send [] | Receive [ Blob 4 ]
+/// - Slot 1: Send [ (Blob 0), (Blob 1), (Blob 2) ] | Receive [ Blob 0, Blob 1, Blob 2 ]
+/// - Slot 2: Send [ (Blob 3), (Blob 4) ] | Receive [ Blob 3, Blob 4 ]
+/// - Slot 3: Send [] | Receive [ ]
+/// - Slot 4: Send [] | Receive [ ]
 ///
-/// Then the `receive_order` parameter should be [ [0], [3], [1, 2], [4] ].
+/// Then the `receive_order` parameter should be [ [0, 1, 2], [3, 4], [0], [0] ].
+///
+/// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
+/// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_basic_kernel(
     sending_order: Vec<Vec<TestSequencer<S, MockDaSpec>>>,
     receive_order: Vec<Vec<usize>>,
+    virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<BasicKernel<S, MockDaSpec>>,
 ) {
     let mut nonces = HashMap::new();
@@ -105,5 +109,10 @@ pub fn assert_blobs_are_correctly_received_basic_kernel(
         .map(|blobs_slot_info| build_basic_blobs(blobs_slot_info, &mut nonces, runner))
         .collect::<Vec<_>>();
 
-    assert_blobs_are_correctly_received_helper(slots_to_send, receive_order, runner);
+    assert_blobs_are_correctly_received_helper(
+        slots_to_send,
+        receive_order,
+        virtual_slot_heights_increases,
+        runner,
+    );
 }

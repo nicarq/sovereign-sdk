@@ -8,13 +8,13 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::{SlotReceipt, TestRunnerWithKernel, ValueSetter};
 use sov_test_utils::{generate_optimistic_runtime, TestSequencer, TestUser};
 
-mod capability_tests;
-
 mod helpers_basic_kernel;
 mod helpers_soft_confirmations;
 
-mod basic_kernel;
+mod base_sequencing;
+mod recovery_mode;
 mod soft_confirmation;
+mod unregistered_sequencer;
 
 pub type S = sov_test_utils::TestSpec;
 pub type Da = MockDaSpec;
@@ -31,6 +31,15 @@ pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
 pub type RT = TestBlobStorageRuntime<S, MockDaSpec>;
 
 generate_optimistic_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
+
+/// Returns the current virtual slot number in the runner.
+pub fn virtual_slot<
+    K: KernelSlotHooks<S, Da> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+>(
+    runner: &TestRunner<K>,
+) -> u64 {
+    runner.query_kernel_state(|kernel| kernel.virtual_slot())
+}
 
 /// Returns the last `k` slot receipts
 pub fn last_slot_receipts<
@@ -58,6 +67,25 @@ fn format_batch_receipts(
         .collect::<Vec<_>>()
 }
 
+fn check_virtual_slot_height(
+    slot_num: usize,
+    expected_virtual_slot_heights_increases: Vec<u64>,
+    current_virtual_slot_height: u64,
+    new_virtual_slot_height: u64,
+) {
+    let expected_virtual_slot_height = expected_virtual_slot_heights_increases[slot_num];
+
+    assert_eq!(
+        expected_virtual_slot_heights_increases[slot_num],
+        new_virtual_slot_height - current_virtual_slot_height,
+        "The virtual slot height increase for the slot {} is not correct. Expected {}, but got new slot height {}, current slot height {}.",
+        slot_num,
+        expected_virtual_slot_height,
+        new_virtual_slot_height,
+        current_virtual_slot_height,
+    );
+}
+
 /// This helper method asserts that given slots to send and an expected order of receipts, the
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
@@ -66,16 +94,41 @@ fn assert_blobs_are_correctly_received_helper<
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<usize>>,
+    expected_virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<K>,
 ) {
-    for slot in slots_to_send.clone() {
+    assert_eq!(receive_order.len(), expected_virtual_slot_heights_increases.len() , "The number of slots to receive and the number of expected virtual slot heights don't match.");
+
+    let mut current_virtual_slot_height = virtual_slot(runner);
+
+    for (slot_num, slot) in slots_to_send.clone().into_iter().enumerate() {
         runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(slot, None);
+
+        let new_virtual_slot_height = virtual_slot(runner);
+        check_virtual_slot_height(
+            slot_num,
+            expected_virtual_slot_heights_increases.clone(),
+            current_virtual_slot_height,
+            new_virtual_slot_height,
+        );
+        current_virtual_slot_height = new_virtual_slot_height;
     }
 
     // If this inequality is verified, it means that we need to run a few empty slots because
     // we are waiting for the blobs to be deferred.
     if receive_order.len() > slots_to_send.len() {
-        runner.advance_slots(receive_order.len() - slots_to_send.len());
+        for slot_num in 0..(receive_order.len() - slots_to_send.len()) {
+            runner.advance_slots(1);
+
+            let new_virtual_slot_height = virtual_slot(runner);
+            check_virtual_slot_height(
+                slot_num + slots_to_send.len(),
+                expected_virtual_slot_heights_increases.clone(),
+                current_virtual_slot_height,
+                new_virtual_slot_height,
+            );
+            current_virtual_slot_height = new_virtual_slot_height;
+        }
     }
 
     assert!(runner.receipts().len() >= receive_order.len(), "The execution has not produced enough receipts! Expected at least {} receipts, but got {}.", 
