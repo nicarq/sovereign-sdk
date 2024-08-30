@@ -64,7 +64,7 @@ install-risc0-toolchain:
 	cargo +risc0 --version
 
 install-sp1-toolchain:
-	curl -L https://sp1.succinct.xyz | bash
+	curl -L https://raw.githubusercontent.com/succinctlabs/sp1/main/sp1up/install | bash
 	~/.sp1/bin/sp1up --token "$$GITHUB_TOKEN"
 	~/.sp1/bin/cargo-prove prove --version
 	~/.sp1/bin/cargo-prove prove install-toolchain
