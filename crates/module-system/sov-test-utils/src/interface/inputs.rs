@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sov_mock_da::MockBlob;
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -205,4 +205,28 @@ pub enum SlotInput<S: Spec, M: Module> {
     Proof(ProofInput),
     /// Execute pre-encoded blobs as input to a slot.
     Blobs(RelevantBlobs<MockBlob>),
+}
+
+/// Information about the sequencer to use in soft-confirmation mode
+#[derive(Clone)]
+pub enum SequencerInfo {
+    /// This is a preferred sequencer
+    Preferred {
+        /// The number of virtual slots to advance
+        slots_to_advance: u64,
+        /// The sequence number for this batch
+        sequence_number: u64,
+    },
+    /// This is a regular sequencer
+    Regular,
+}
+
+/// Information to build blobs in soft-confirmation mode
+pub struct SoftConfirmationBlobInfo<S: Spec, M: Module> {
+    /// The batch to be included in the blob
+    pub batch_type: BatchType<M, S>,
+    /// The address of the sequencer
+    pub sequencer_address: MockAddress,
+    /// Additional information about the sequencer
+    pub sequencer_info: SequencerInfo,
 }

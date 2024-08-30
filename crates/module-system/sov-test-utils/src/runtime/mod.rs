@@ -7,6 +7,7 @@ pub use sov_attester_incentives::{
 };
 use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
+use sov_blob_storage::PreferredBatchData;
 pub use sov_chain_state::ChainStateConfig;
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -32,8 +33,8 @@ pub use tokio::sync::watch::Receiver;
 use crate::storage::SimpleStorageManager;
 use crate::{
     generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
-    ProofAssertContext, ProofTestCase, SlotInput, TestStfBlueprintWithKernel,
-    TransactionAssertContext, TransactionTestCase, TransactionType,
+    ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput, SoftConfirmationBlobInfo,
+    TestStfBlueprintWithKernel, TransactionAssertContext, TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
@@ -75,6 +76,11 @@ impl<Da: DaSpec> SlotReceipt<Da> {
     /// Returns the last transaction receipt in the last batch receipt of the slot receipt.
     pub fn last_tx_receipt(&self) -> &TransactionReceipt {
         self.last_batch_receipt().tx_receipts.last().unwrap()
+    }
+
+    /// Returns the batch receipts contained in the slot receipt.
+    pub fn batch_receipts(&self) -> &[BatchReceipt<Da>] {
+        &self.batch_receipts
     }
 }
 
@@ -258,6 +264,8 @@ where
     }
 
     /// Builds [`RelevantBlobs`] from a list of [`BatchType`]s.
+    ///
+    /// Note: This should be used with a [`BasicKernel`] implementation.
     pub fn batches_to_blobs<M: Module>(
         batches: Vec<(BatchType<M, S>, MockAddress)>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
@@ -277,6 +285,55 @@ where
                 let batch = Batch::new(raw_txns);
                 MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer)
             })
+            .collect::<Vec<_>>();
+
+        RelevantBlobs {
+            batch_blobs: blobs,
+            proof_blobs: vec![],
+        }
+    }
+
+    /// Builds [`RelevantBlobs`] from a list of [`SoftConfirmationBlobInfo`]s.
+    ///
+    /// To be used in soft-confirmation mode, ie with a [`sov_kernels::soft_confirmations::SoftConfirmationsKernel`] implementation.
+    pub fn soft_confirmation_batches_to_blobs<M: Module>(
+        batches: Vec<SoftConfirmationBlobInfo<S, M>>,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> RelevantBlobs<MockBlob>
+    where
+        RT: EncodeCall<M>,
+    {
+        let blobs = batches
+            .into_iter()
+            .map(
+                |SoftConfirmationBlobInfo {
+                     batch_type: batch,
+                     sequencer_address,
+                     sequencer_info,
+                 }| {
+                    let raw_txns = batch
+                        .0
+                        .into_iter()
+                        .map(|tx| tx.to_raw_tx::<RT>(nonces, state))
+                        .collect::<Vec<_>>();
+
+                    let serialized_batch = match sequencer_info {
+                        SequencerInfo::Preferred {
+                            slots_to_advance,
+                            sequence_number,
+                        } => borsh::to_vec(&PreferredBatchData {
+                            sequence_number,
+                            data: Batch::new(raw_txns),
+                            virtual_slots_to_advance: slots_to_advance as u8,
+                        })
+                        .unwrap(),
+                        SequencerInfo::Regular => borsh::to_vec(&Batch::new(raw_txns)).unwrap(),
+                    };
+
+                    MockBlob::new_with_hash(serialized_batch, sequencer_address)
+                },
+            )
             .collect::<Vec<_>>();
 
         RelevantBlobs {

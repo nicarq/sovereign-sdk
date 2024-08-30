@@ -1,30 +1,25 @@
 use std::collections::HashMap;
 
-use sov_chain_state::ChainStateConfig;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
+use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
+use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec};
+use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_sequencer_registry::SequencerRegistry;
-use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{TestRunnerWithKernel, ValueSetter, ValueSetterConfig};
-use sov_test_utils::{
-    generate_optimistic_runtime, AsUser, BatchType, TestSequencer, TestUser,
-    TEST_DEFAULT_USER_STAKE,
-};
+use sov_test_utils::runtime::{SlotReceipt, TestRunnerWithKernel, ValueSetter};
+use sov_test_utils::{generate_optimistic_runtime, TestSequencer, TestUser};
 
-mod blob_storage_tests;
 mod capability_tests;
 
+mod helpers_basic_kernel;
+mod helpers_soft_confirmations;
+
+mod basic_kernel;
+mod soft_confirmation;
+
 pub type S = sov_test_utils::TestSpec;
+pub type Da = MockDaSpec;
 
-generate_optimistic_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
-
-pub type RT = TestBlobStorageRuntime<S, MockDaSpec>;
-
-pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
-
-pub type SlotConfigInfo = Vec<TestSequencer<S, MockDaSpec>>;
+pub type SlotConfigInfo<SequencerInfo> = Vec<SequencerInfo>;
 
 pub struct TestData<S: Spec> {
     pub user: TestUser<S>,
@@ -32,101 +27,105 @@ pub struct TestData<S: Spec> {
     pub regular_sequencer: TestSequencer<S, MockDaSpec>,
 }
 
-pub fn setup() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpec>>) {
-    // Generate a genesis config, then overwrite the attester key/address with ones that
-    // we know. We leave the other values untouched.
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
+pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
+pub type RT = TestBlobStorageRuntime<S, MockDaSpec>;
 
-    let preferred_sequencer = genesis_config.initial_sequencer.clone();
-    let user_account = genesis_config.additional_accounts.first().unwrap().clone();
+generate_optimistic_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
-    let regular_sequencer = genesis_config.additional_accounts[1].clone();
-    let regular_sequencer_da_address = MockAddress::new([42; 32]);
-
-    let regular_sequencer = TestSequencer {
-        user_info: regular_sequencer,
-        da_address: regular_sequencer_da_address,
-        bond: TEST_DEFAULT_USER_STAKE,
-    };
-
-    // Run genesis registering the attester and sequencer we've generated.
-    let genesis = GenesisConfig::from_minimal_config(
-        genesis_config.into(),
-        ValueSetterConfig {
-            admin: user_account.address(),
-        },
+/// Returns the last `k` slot receipts
+pub fn last_slot_receipts<
+    K: KernelSlotHooks<S, Da> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+>(
+    runner: &TestRunner<K>,
+    k: usize,
+) -> &[SlotReceipt<MockDaSpec>] {
+    assert!(
+        k <= runner.receipts().len(),
+        "k must be less than or equal to the number of slots. k={}, number of slots={}",
+        k,
+        runner.receipts().len()
     );
-
-    let runner = TestRunnerWithKernel::<_, BasicKernel<S, MockDaSpec>, _>::new_with_genesis(
-        genesis.into_genesis_params_with_kernel(BasicKernelGenesisConfig {
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                genesis_da_height: 0,
-                inner_code_commitment: Default::default(),
-                outer_code_commitment: Default::default(),
-            },
-        }),
-        TestBlobStorageRuntime::default(),
-    );
-
-    (
-        TestData {
-            user: user_account,
-            preferred_sequencer,
-            regular_sequencer,
-        },
-        runner,
-    )
+    &runner.receipts()[runner.receipts().len() - k..]
 }
 
-/// Sets up a test runtime and returns a [`TestData`] struct.
-pub fn setup_with_registration() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpec>>) {
-    let (test_data, mut runner) = setup();
-
-    let regular_sequencer = &test_data.regular_sequencer;
-    let regular_sequencer_da_address = regular_sequencer.da_address;
-
-    runner.execute(
-        regular_sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
-            sov_sequencer_registry::CallMessage::Register {
-                da_address: regular_sequencer_da_address.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
-            },
-        ),
-        None,
-    );
-
-    (test_data, runner)
+/// Formats a batch receipt into a tuple of (batch_hash, sender) used for testing the blob storage.
+fn format_batch_receipts(
+    batch_receipts: &[BatchReceipt<MockDaSpec>],
+) -> Vec<([u8; 32], <MockDaSpec as DaSpec>::Address)> {
+    batch_receipts
+        .iter()
+        .map(|b| (b.batch_hash, b.inner.da_address))
+        .collect::<Vec<_>>()
 }
 
-/// Builds a [`RelevantBlobs`] struct from a list of [`SlotConfigInfo`]s.
-/// This struct populates the batches with simple [`ValueSetter`] messages. One
-/// can specify special sequencer addresses for each batch.
-fn build_blobs(
-    admin: &TestUser<S>,
-    slot_info: Vec<SlotConfigInfo>,
-    nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<BasicKernel<S, MockDaSpec>>,
-) -> RelevantBlobs<MockBlob> {
-    let batches = slot_info
-        .into_iter()
-        .flat_map(|batches_config_info| {
-            let mut batches = Vec::new();
-            for (i, sequencer) in batches_config_info.into_iter().enumerate() {
-                batches.push((
-                    BatchType(vec![admin.create_plain_message::<ValueSetter<S>>(
-                        sov_value_setter::CallMessage::SetValue((i + 1) as u32),
-                    )]),
-                    sequencer.da_address,
-                ));
-            }
+/// This helper method asserts that given slots to send and an expected order of receipts, the
+/// [`TestRunner`] will emit the receipts in the expected order. This helper method is
+/// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
+fn assert_blobs_are_correctly_received_helper<
+    K: KernelSlotHooks<S, MockDaSpec> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+>(
+    slots_to_send: Vec<RelevantBlobs<MockBlob>>,
+    receive_order: Vec<Vec<usize>>,
+    runner: &mut TestRunner<K>,
+) {
+    for slot in slots_to_send.clone() {
+        runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(slot, None);
+    }
 
-            batches
+    // If this inequality is verified, it means that we need to run a few empty slots because
+    // we are waiting for the blobs to be deferred.
+    if receive_order.len() > slots_to_send.len() {
+        runner.advance_slots(receive_order.len() - slots_to_send.len());
+    }
+
+    assert!(runner.receipts().len() >= receive_order.len(), "The execution has not produced enough receipts! Expected at least {} receipts, but got {}.", 
+        receive_order.len(), runner.receipts().len());
+
+    // We get all the receipts we received during the execution.
+    let received_slots = last_slot_receipts(runner, receive_order.len())
+        .iter()
+        .map(|s| format_batch_receipts(s.batch_receipts()))
+        .collect::<Vec<_>>();
+
+    // We get all the blobs we sent during the execution. We flatten the map to have the list of blobs independently of the slots.
+    let sent_slots = slots_to_send
+        .iter()
+        .flat_map(|blobs| {
+            blobs
+                .batch_blobs
+                .iter()
+                .map(|blob| (blob.hash(), blob.sender()))
         })
         .collect::<Vec<_>>();
 
-    runner.query_state(|state| {
-        TestRunner::<BasicKernel<S, MockDaSpec>>::batches_to_blobs(batches, nonces, state)
-    })
+    // We check that the blobs we received are the ones we sent in the correct order.
+    for (received_slot_num, sent_blob_nums) in receive_order.iter().enumerate() {
+        assert_eq!(
+            sent_blob_nums.len(),
+            received_slots[received_slot_num].len(),
+
+            "We have not received the expected number of blobs for the slot {}. Expected {}, but got {}.",
+            received_slot_num,
+            sent_blob_nums.len(),
+            received_slots[received_slot_num].len()
+        );
+
+        for (received_batch_num, sent_blob_num) in sent_blob_nums.iter().enumerate() {
+            assert_eq!(
+                sent_slots[*sent_blob_num].0,
+                MockHash(received_slots[received_slot_num][received_batch_num].0),
+                "The blob hash for the blob number {} in the slot {} is not correct.",
+                received_batch_num,
+                received_slot_num,
+            );
+
+            assert_eq!(
+                sent_slots[*sent_blob_num].1,
+                received_slots[received_slot_num][received_batch_num].1,
+                "The blob sender for the blob number {} in the slot {} is not correct.",
+                received_batch_num,
+                received_slot_num,
+            );
+        }
+    }
 }
