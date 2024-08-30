@@ -24,7 +24,7 @@ fn test_executing_eth_transaction() {
         input: reth_primitives::Bytes::from(contract.byte_code().to_vec()),
         access_list: Default::default(),
     });
-    let signed_eth_tx = account.sign(create_contract_tx_request);
+    let (signed_eth_tx, _) = account.sign(create_contract_tx_request);
     let create_contract_tx = RawTx {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
@@ -42,7 +42,7 @@ fn test_executing_eth_transaction() {
         ),
         access_list: Default::default(),
     });
-    let signed_eth_tx = account.sign(set_arg_eth_tx);
+    let (signed_eth_tx, _) = account.sign(set_arg_eth_tx);
     let set_value_tx = RawTx {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
@@ -87,7 +87,7 @@ fn test_failed_tx_doesnt_update_evm_module_state() {
         input: reth_primitives::Bytes::from(contract.byte_code().to_vec()),
         access_list: Default::default(),
     });
-    let signed_eth_tx = no_balance_account.sign(create_contract_tx_request);
+    let (signed_eth_tx, _) = no_balance_account.sign(create_contract_tx_request);
     let create_contract_tx = RawTx {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };

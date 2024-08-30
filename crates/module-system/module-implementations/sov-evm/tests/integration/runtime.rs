@@ -111,6 +111,14 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
         >,
     ) {
         self.evm.begin_slot_hook(pre_state_root, state);
+        assert!(
+            self.evm.block_env(state.get_ws_mut()).unwrap().is_some(),
+            "Block env should be set by the begin slot hook"
+        );
+        assert!(
+            self.evm.head(state.get_ws_mut()).unwrap().is_some(),
+            "Head should be set by the begin slot hook"
+        );
     }
 
     fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<Self::Spec>) {
