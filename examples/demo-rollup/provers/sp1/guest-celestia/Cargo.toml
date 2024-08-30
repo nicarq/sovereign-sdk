@@ -19,12 +19,13 @@ sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-mo
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
 
 [patch.crates-io]
-sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.8" }
-sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.9" }
-curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-curve25519-v4.1.3" }
-tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
-curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", rev = "f5607edd61ad8e9d80c9be933cd119f4008044d9" }
-ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+# Disabled until patches with correct revisions are provided
+#sha2-v0-10-8 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.10.8" }
+#sha2-v0-9-9 = { git = "https://github.com/sp1-patches/RustCrypto-hashes", package = "sha2", branch = "patch-v0.9.9" }
+#curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", rev = "1d73fd95f1a76bee8f46643cf78bbccc1fb06ede" }
+#curve25519-dalek-ng = { git = "https://github.com/sp1-patches/curve25519-dalek-ng", rev = "8dd77b2" }
+#ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", rev = "2b2c4b43344bc4daf5b1326f367f2d9d661eeabb" }
+#tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", rev = "bf0b28f63510a90c7b6c21ac6ff461c93ecd2331" }
 # Not compatible at the moment
 #revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
 #reth-primitives = { git = "https://github.com/sp1-patches/reth.git", branch = "sp1-reth" }
