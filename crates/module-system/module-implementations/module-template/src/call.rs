@@ -16,7 +16,16 @@ use crate::ExampleModule;
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, UniversalWallet)]
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    UniversalWallet,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub enum CallMessage {
     SetValue(u32),
 }
