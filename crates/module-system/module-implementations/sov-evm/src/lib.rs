@@ -167,6 +167,22 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         self.receipts.collect_infallible(state)
     }
 
+    /// Access the Ethereum transactions.
+    pub fn transactions<Accessor: AccessoryStateReaderAndWriter>(
+        &self,
+        state: &mut Accessor,
+    ) -> Vec<TransactionSignedAndRecovered> {
+        self.transactions.collect_infallible(state)
+    }
+
+    /// Access the Ethereum blocks.
+    pub fn blocks<Accessor: AccessoryStateReaderAndWriter>(
+        &self,
+        state: &mut Accessor,
+    ) -> Vec<SealedBlock> {
+        self.blocks.collect_infallible(state)
+    }
+
     /// Lookup an Ethereum account by address.
     pub fn get_account<Accessor: StateReader<User>>(
         &self,
@@ -184,11 +200,47 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         self.pending_head.get(state).unwrap_infallible()
     }
 
+    /// Get the current head block.
+    pub fn head<Accessor: StateReader<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<Option<Block>, Accessor::Error> {
+        self.head.get(state)
+    }
+
+    /// Get the current block env.
+    pub fn block_env<Accessor: StateReader<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<Option<BlockEnv>, Accessor::Error> {
+        self.block_env.get(state)
+    }
+
     /// Access the pending Ethereum transactions.
     pub fn pending_transactions<Accessor: InfallibleStateReaderAndWriter<User>>(
         &self,
         state: &mut Accessor,
     ) -> Vec<PendingTransaction> {
         self.pending_transactions.collect_infallible(state)
+    }
+
+    /// Lookup the height of an Ethereum block based on the supplied hash.
+    pub fn get_block_height_by_hash<Accessor: AccessoryStateReader>(
+        &self,
+        block_hash: &B256,
+        state: &mut Accessor,
+    ) -> Option<u64> {
+        self.block_hashes.get(block_hash, state).unwrap_infallible()
+    }
+
+    /// Lookup the index of a Ethereum transaction based on the supplied hash.
+    pub fn get_tx_index_by_hash<Accessor: AccessoryStateReader>(
+        &self,
+        tx_hash: &B256,
+        state: &mut Accessor,
+    ) -> Option<u64> {
+        self.transaction_hashes
+            .get(tx_hash, state)
+            .unwrap_infallible()
     }
 }

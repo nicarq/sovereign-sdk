@@ -21,13 +21,20 @@ pub struct RlpEvmTransaction {
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct TransactionSignedAndRecovered {
+pub struct TransactionSignedAndRecovered {
     /// Signer of the transaction
     pub(crate) signer: Address,
     /// Signed transaction
     pub(crate) signed_transaction: TransactionSigned,
     /// Block the transaction was added to
     pub(crate) block_number: u64,
+}
+
+impl TransactionSignedAndRecovered {
+    /// The signed transaction that was recovered.
+    pub fn signed_transaction(&self) -> &TransactionSigned {
+        &self.signed_transaction
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
@@ -46,20 +53,27 @@ impl Block {
             transactions: self.transactions,
         }
     }
-
-    /// Returns the transactions contained within the block.
-    pub fn transactions_ref(&self) -> &Range<u64> {
-        &self.transactions
-    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
-pub(crate) struct SealedBlock {
+pub struct SealedBlock {
     /// Block header.
     pub(crate) header: SealedHeader,
 
     /// Transactions in this block.
     pub(crate) transactions: Range<u64>,
+}
+
+impl SealedBlock {
+    /// Returns the block header.
+    pub fn header(&self) -> &SealedHeader {
+        &self.header
+    }
+
+    /// Returns the block transactions.
+    pub fn transactions(&self) -> &Range<u64> {
+        &self.transactions
+    }
 }
 
 #[derive(Debug, PartialEq, Clone, serde::Serialize, serde::Deserialize)]

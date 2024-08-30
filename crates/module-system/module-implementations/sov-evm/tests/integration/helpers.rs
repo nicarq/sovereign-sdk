@@ -1,4 +1,4 @@
-use reth_primitives::{Address, U256};
+use reth_primitives::{Address, TransactionSigned, U256};
 use reth_rpc_types::TypedTransactionRequest;
 use secp256k1::rand::SeedableRng as _;
 use secp256k1::{PublicKey, SecretKey};
@@ -30,15 +30,11 @@ impl EvmAccount {
         reth_primitives::public_key_to_address(self.public_key())
     }
 
-    pub fn sign(&self, tx: TypedTransactionRequest) -> RlpEvmTransaction {
+    pub fn sign(&self, tx: TypedTransactionRequest) -> (RlpEvmTransaction, TransactionSigned) {
         let signer = DevSigner::new(vec![self.0]);
-        RlpEvmTransaction {
-            rlp: signer
-                .sign_transaction(tx, self.address())
-                .unwrap()
-                .envelope_encoded()
-                .to_vec(),
-        }
+        let signed_tx = signer.sign_transaction(tx, self.address()).unwrap();
+        let rlp = signed_tx.envelope_encoded().to_vec();
+        (RlpEvmTransaction { rlp }, signed_tx)
     }
 }
 
