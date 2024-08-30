@@ -13,10 +13,10 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::genesis::TestTokenName;
-use crate::runtime::{ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner};
+use crate::runtime::{ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner, GAS_TOKEN_ID};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
-    TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo, GAS_TOKEN_ID,
+    TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
     TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
