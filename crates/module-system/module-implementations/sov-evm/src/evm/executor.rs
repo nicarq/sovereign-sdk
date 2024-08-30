@@ -8,7 +8,8 @@ use revm::{Database, DatabaseCommit, EvmBuilder};
 
 use crate::evm::conversions::create_tx_env;
 
-pub(crate) fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
+/// Execute an Ethereum transaction and commit it to the database.
+pub fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
     tx: &TransactionSignedNoHash,

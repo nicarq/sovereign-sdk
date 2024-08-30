@@ -13,10 +13,9 @@ pub(crate) mod conversions;
 pub(crate) mod db;
 mod db_commit;
 pub(crate) mod db_init;
-pub(crate) mod executor;
+/// EVM execution utilities
+pub mod executor;
 pub(crate) mod primitive_types;
-#[cfg(test)]
-mod tests;
 
 pub use primitive_types::RlpEvmTransaction;
 use sov_state::codec::BcsCodec;
