@@ -48,6 +48,11 @@ impl DbAccount {
         }
     }
 
+    /// The account info associated with this db account.
+    pub fn account_info(&self) -> &AccountInfo {
+        &self.info
+    }
+
     /// Lookup the storage at the specified index for the account.
     pub fn get_storage<Accessor: StateReader<User>>(
         &self,

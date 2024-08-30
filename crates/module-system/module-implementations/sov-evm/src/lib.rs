@@ -217,6 +217,14 @@ impl<S: sov_modules_api::Spec> Evm<S> {
         self.block_env.get(state)
     }
 
+    /// Get the Evm chain config.
+    pub fn cfg<Accessor: StateReader<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<Option<EvmChainConfig>, Accessor::Error> {
+        self.cfg.get(state)
+    }
+
     /// Access the pending Ethereum transactions.
     pub fn pending_transactions<Accessor: InfallibleStateReaderAndWriter<User>>(
         &self,
