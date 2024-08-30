@@ -203,7 +203,7 @@ where
     ) -> <S::Gas as Gas>::Price {
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
-        let gas_price = self.kernel.begin_slot_hook(
+        self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
@@ -221,7 +221,7 @@ where
         self.runtime
             .begin_slot_hook(visible_hash, &mut versioned_working_set);
 
-        gas_price
+        self.kernel.base_fee_per_gas(state_checkpoint)
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]

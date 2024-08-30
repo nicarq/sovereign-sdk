@@ -38,7 +38,10 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut StateCheckpoint<Self::Spec>,
-    ) -> <S::Gas as Gas>::Price;
+    );
     /// Called at the end of a slot
     fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut StateCheckpoint<Self::Spec>);
+
+    /// Returns the base fee per gas accessible at the current *virtual* slot.
+    fn base_fee_per_gas(&self, state: &mut StateCheckpoint<Self::Spec>) -> <S::Gas as Gas>::Price;
 }

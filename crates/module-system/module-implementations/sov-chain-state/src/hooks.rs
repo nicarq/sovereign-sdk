@@ -1,6 +1,6 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Gas, KernelWorkingSet, Spec};
+use sov_modules_api::{KernelWorkingSet, Spec};
 use sov_state::Storage;
 
 use crate::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
@@ -13,7 +13,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelWorkingSet<S>,
-    ) -> <S::Gas as Gas>::Price {
+    ) {
         let gas_info = if self
             .genesis_root
             .get(state.inner)
@@ -67,8 +67,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
 
         self.time.set_true_current(&slot_header.time(), state);
 
-        let new_base_fee = gas_info.base_fee_per_gas.clone();
-
         self.in_progress_transition.set_true_current(
             &TransitionInProgress {
                 slot_hash: slot_header.hash(),
@@ -77,8 +75,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             },
             state,
         );
-
-        new_base_fee
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot

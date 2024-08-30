@@ -264,18 +264,10 @@ where
     async fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
 
-        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/224
-        //     Use Kernel Hooks to get correct gas price
-        // K: KernelSlotHooks<C, Da>>
-        //let gas_price = self.kernel.begin_slot_hook(
-        //    slot_header,
-        //    validity_condition,
-        //    pre_state_root,
-        //    state_checkpoint,
-        //);
-
         let mut state_checkpoint = StateCheckpoint::new(self.current_storage.borrow().clone());
-        let gas_price = <S::Gas as Gas>::Price::ZEROED;
+
+        let gas_price = self.kernel.base_fee_per_gas(&mut state_checkpoint);
+
         let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut state_checkpoint);
         let visible_height = kernel_working_set.virtual_slot();
 

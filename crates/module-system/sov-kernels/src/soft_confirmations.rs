@@ -79,14 +79,14 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
-    ) -> <S::Gas as Gas>::Price {
+    ) {
         let mut state = KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state.begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
             &mut state,
-        )
+        );
     }
 
     fn end_slot_hook(
@@ -96,6 +96,14 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
     ) {
         let mut state = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state.end_slot_hook(gas_used, &mut state);
+    }
+
+    fn base_fee_per_gas(
+        &self,
+        state: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+    ) -> <<S as Spec>::Gas as Gas>::Price {
+        let mut state = sov_modules_api::KernelWorkingSet::from_kernel(self, state);
+        self.chain_state.base_fee_per_gas(&mut state)
     }
 }
 

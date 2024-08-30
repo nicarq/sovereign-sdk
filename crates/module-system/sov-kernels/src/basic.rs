@@ -92,10 +92,10 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
-    ) -> <S::Gas as Gas>::Price {
+    ) {
         let mut ws = KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state
-            .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws)
+            .begin_slot_hook(slot_header, validity_condition, pre_state_root, &mut ws);
     }
 
     fn end_slot_hook(
@@ -105,6 +105,15 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
     ) {
         let mut ws = KernelWorkingSet::from_kernel(self, state_checkpoint);
         self.chain_state.end_slot_hook(gas_used, &mut ws);
+    }
+
+    fn base_fee_per_gas(
+        &self,
+        state: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+    ) -> <<S as Spec>::Gas as Gas>::Price {
+        let mut ws = KernelWorkingSet::from_kernel(self, state);
+
+        self.chain_state.base_fee_per_gas(&mut ws)
     }
 }
 
