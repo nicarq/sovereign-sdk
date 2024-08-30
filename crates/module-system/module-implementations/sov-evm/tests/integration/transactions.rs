@@ -70,6 +70,35 @@ fn test_executing_eth_transaction() {
             assert_eq!(U256::from(5), storage_value);
         }),
     });
+
+    let set_arg_eth_tx = TypedTransactionRequest::EIP1559(EIP1559TransactionRequest {
+        chain_id: config_value!("CHAIN_ID"),
+        nonce: 2,
+        max_priority_fee_per_gas: Default::default(),
+        max_fee_per_gas: U256::from(reth_primitives::constants::MIN_PROTOCOL_BASE_FEE * 2),
+        gas_limit: U256::from(1_000_000u64),
+        kind: TxKind::Call(contract_addr),
+        value: Default::default(),
+        input: reth_primitives::Bytes::from(
+            hex::decode(hex::encode(&contract.set_call_data(92))).unwrap(),
+        ),
+        access_list: Default::default(),
+    });
+    let (signed_eth_tx, _) = account.sign(set_arg_eth_tx);
+    let set_value_tx = RawTx {
+        data: borsh::to_vec(&signed_eth_tx).unwrap(),
+    };
+
+    runner.execute_batch(BatchTestCase {
+        input: vec![TransactionType::<Evm<S>, S>::PreSigned(set_value_tx)].into(),
+        override_sequencer: None,
+        assert: Box::new(move |_result, state| {
+            let evm = Evm::<S>::default();
+            let db_account = evm.get_account(&contract_addr, state).unwrap().unwrap();
+            let storage_value = db_account.get_storage(&U256::ZERO, state).unwrap().unwrap();
+            assert_eq!(U256::from(92), storage_value);
+        }),
+    });
 }
 
 #[test]

@@ -9,7 +9,8 @@ use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
 
-pub(crate) struct EvmDb<Ws> {
+/// A queryable EVM database.
+pub struct EvmDb<Ws> {
     pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
     pub(crate) state: Ws,

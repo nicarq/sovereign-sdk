@@ -1,3 +1,4 @@
+mod contracts;
 mod helpers;
 mod runtime;
 mod state;

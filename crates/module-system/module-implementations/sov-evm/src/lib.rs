@@ -147,7 +147,8 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
 }
 
 impl<S: sov_modules_api::Spec> Evm<S> {
-    pub(crate) fn get_db<'a, Ws: StateAccessor>(
+    /// Get a EvmDb instance for the supplied state.
+    pub fn get_db<'a, Ws: StateAccessor>(
         &self,
         state: &'a mut Ws,
     ) -> EvmDb<UnmeteredStateWrapper<'a, Ws>> {
