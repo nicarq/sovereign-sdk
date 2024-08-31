@@ -31,7 +31,7 @@ rand = { workspace = true, optional = true }
 sp1-lib = { workspace = true }
 
 sha2 = { workspace = true }
-ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", branch = "patch-v2.1.0" }
+ed25519-consensus = { version = "=2.1.0" }
 
 arbitrary = { workspace = true, optional = true }
 cfg-if = "1.0.0"

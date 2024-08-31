@@ -1514,7 +1514,7 @@ dependencies = [
  "celestia-tendermint-proto",
  "digest 0.10.7",
  "ed25519",
- "ed25519-consensus 2.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ed25519-consensus",
  "flex-error",
  "futures",
  "num-traits",
@@ -2174,21 +2174,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve25519-dalek-ng"
-version = "4.1.1"
-source = "git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=patch-v4.1.1#8dd77b20f3e78965a0cc57070a04465b9d52c49e"
-dependencies = [
- "anyhow",
- "byteorder",
- "cfg-if",
- "digest 0.9.0",
- "rand_core 0.6.4",
- "sp1-lib",
- "subtle-ng",
- "zeroize",
-]
-
-[[package]]
 name = "darling"
 version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2619,19 +2604,7 @@ version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3c8465edc8ee7436ffea81d21a019b16676ee3db267aa8d5a8d729581ecf998b"
 dependencies = [
- "curve25519-dalek-ng 4.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "hex",
- "rand_core 0.6.4",
- "sha2 0.9.9",
- "zeroize",
-]
-
-[[package]]
-name = "ed25519-consensus"
-version = "2.1.0"
-source = "git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0#2b2c4b43344bc4daf5b1326f367f2d9d661eeabb"
-dependencies = [
- "curve25519-dalek-ng 4.1.1 (git+https://github.com/sp1-patches/curve25519-dalek-ng.git?branch=patch-v4.1.1)",
+ "curve25519-dalek-ng",
  "hex",
  "rand_core 0.6.4",
  "serde",
@@ -9958,7 +9931,7 @@ dependencies = [
  "bytemuck",
  "cfg-if",
  "digest 0.10.7",
- "ed25519-consensus 2.1.0 (git+https://github.com/sp1-patches/ed25519-consensus?branch=patch-v2.1.0)",
+ "ed25519-consensus",
  "hex",
  "rand 0.8.5",
  "serde",
