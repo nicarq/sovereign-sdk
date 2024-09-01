@@ -31,7 +31,7 @@
 //!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
 
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
-use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
+use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet, UniversalWallet};
 use sov_modules_api::prelude::*;
@@ -107,14 +107,14 @@ impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
     type Capabilities<'a> = StandardCapabilities<'a, S, Da>;
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
     type AuthorizationData = AuthorizationData<S>;
-    fn capabilities(&self) -> Self::Capabilities<'_> {
-        StandardCapabilities {
+    fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
+        Guard::new(StandardCapabilities {
             bank: &self.bank,
             sequencer_registry: &self.sequencer_registry,
             accounts: &self.accounts,
             nonces: &self.nonces,
             prover_incentives: &self.prover_incentives,
             attester_incentives: &self.attester_incentives,
-        }
+        })
     }
 }

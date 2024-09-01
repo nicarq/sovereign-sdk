@@ -259,7 +259,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
-    let (_, mut pre_exec_working_set) = match runtime.capabilities().authorize_sequencer(
+    let (_, mut pre_exec_working_set) = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_da_address,
         gas_price,
         scratchpad,
@@ -288,7 +288,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             }
             Err(AuthenticationError::Invalid(reason)) => {
                 // Applies the outcome of the transaction execution to update the sequencer's state.
-                let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
                     AuthenticationError::Invalid(reason.clone()),
                     pre_exec_working_set,
@@ -307,7 +307,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let maybe_ctx = runtime.capabilities().resolve_context(
+    let maybe_ctx = runtime.runtime_authorization().resolve_context(
         &auth_data,
         sequencer_da_address,
         height,
@@ -319,7 +319,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         Err(err) => {
             let err_string = err.to_string();
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+            let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
                 sequencer_da_address,
                 err,
                 pre_exec_working_set,
@@ -336,15 +336,15 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(err) =
-        runtime
-            .capabilities()
-            .check_uniqueness(&auth_data, &ctx, &mut pre_exec_working_set)
-    {
+    if let Err(err) = runtime.runtime_authorization().check_uniqueness(
+        &auth_data,
+        &ctx,
+        &mut pre_exec_working_set,
+    ) {
         let err_string = err.to_string();
 
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-        let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+        let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
             sequencer_da_address,
             err,
             pre_exec_working_set,
@@ -361,7 +361,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 
     let working_set =
         match runtime
-            .capabilities()
+            .gas_enforcer()
             .try_reserve_gas(tx, ctx.sender(), pre_exec_working_set)
         {
             Ok(working_set) => working_set,
@@ -371,7 +371,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             }) => {
                 let reason_string = reason.to_string();
                 // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                let tx_scratchpad = runtime.capabilities().penalize_sequencer(
+                let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
                     reason,
                     pre_exec_working_set,
@@ -446,12 +446,14 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let ctx = match runtime.capabilities().resolve_unregistered_context(
-        &auth_data,
-        height,
-        &mut pre_exec_working_set,
-        execution_context,
-    ) {
+    let ctx = match runtime
+        .runtime_authorization()
+        .resolve_unregistered_context(
+            &auth_data,
+            height,
+            &mut pre_exec_working_set,
+            execution_context,
+        ) {
         Ok(ctx) => ctx,
         Err(e) => {
             return Err(TxProcessingError {
@@ -465,11 +467,11 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) =
-        runtime
-            .capabilities()
-            .check_uniqueness(&auth_data, &ctx, &mut pre_exec_working_set)
-    {
+    if let Err(e) = runtime.runtime_authorization().check_uniqueness(
+        &auth_data,
+        &ctx,
+        &mut pre_exec_working_set,
+    ) {
         return Err(TxProcessingError {
             tx_scratchpad: pre_exec_working_set.into(),
             reason: TxProcessingErrorReason::Nonce {
@@ -491,7 +493,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 
     let working_set =
         match runtime
-            .capabilities()
+            .gas_enforcer()
             .try_reserve_gas(tx, ctx.sender(), pre_exec_working_set)
         {
             Ok(working_set) => working_set,
@@ -598,15 +600,15 @@ where
     };
 
     runtime
-        .capabilities()
+        .runtime_authorization()
         .mark_tx_attempted(auth_data, sequencer, &mut tx_scratchpad);
 
     runtime
-        .capabilities()
+        .gas_enforcer()
         .refund_remaining_gas(&ctx, &transaction_consumption, &mut tx_scratchpad);
 
     runtime
-        .capabilities()
+        .gas_enforcer()
         .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
 
     debug!(

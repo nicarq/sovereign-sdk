@@ -69,17 +69,17 @@ where
 
             let receipt_contents = match proof_with_details.proof {
                 ProofType::ZkAggregatedProof(proof) => runtime
-                    .capabilities()
+                    .proof_processor()
                     .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set)
                     .map(|(pub_data, proof)| ProofReceiptContents::AggregateProof(pub_data, proof)),
 
                 ProofType::OptimisticProofAttestation(proof) => runtime
-                    .capabilities()
+                    .proof_processor()
                     .process_attestation(proof, &sequencer_rollup_address, &mut working_set)
                     .map(|attestation| ProofReceiptContents::Attestation(attestation)),
 
                 ProofType::OptimisticProofChallenge(proof, transition_num) => runtime
-                    .capabilities()
+                    .proof_processor()
                     .process_challenge(
                         proof,
                         transition_num,
@@ -176,7 +176,7 @@ where
         gas_price: &<S::Gas as Gas>::Price,
         tx_scratchpad: TxScratchpad<S>,
     ) -> PreExecWorkingSetResult<S, Da, RT> {
-        match self.runtime.capabilities().authorize_sequencer(
+        match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             gas_price,
             tx_scratchpad,
@@ -209,7 +209,7 @@ where
             <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
         >,
     ) -> WorkflowResult<WorkingSet<S>, S, Da> {
-        match self.runtime.capabilities().try_reserve_gas(
+        match self.runtime.gas_enforcer().try_reserve_gas(
             &auth_tx,
             sequencer_rollup_address,
             pre_exec_working_set,
@@ -242,7 +242,7 @@ where
         mut state: StateCheckpoint<S>,
     ) -> ProcessProofOutput<S, Da> {
         self.runtime
-            .capabilities()
+            .sequencer_remuneration()
             .slash_sequencer(self.sequencer_da_address, &mut state);
 
         ProcessProofOutput {
@@ -264,7 +264,7 @@ where
             <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
         >,
     ) -> TxScratchpad<S> {
-        self.runtime.capabilities().penalize_sequencer(
+        self.runtime.sequencer_authorization().penalize_sequencer(
             self.sequencer_da_address,
             reason,
             pre_exec_working_set,

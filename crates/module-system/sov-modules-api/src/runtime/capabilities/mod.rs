@@ -21,6 +21,18 @@ pub use sequencer::*;
 
 use crate::{GasMeter, Spec};
 
+/// Wrapper around an inner type that prevents accessing it.
+pub struct Guard<T> {
+    inner: T,
+}
+
+impl<T> Guard<T> {
+    /// Create a new guarded instance.
+    pub fn new(inner: T) -> Self {
+        Self { inner }
+    }
+}
+
 /// Indicates that a type provides the necessary capabilities for a runtime.
 pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
@@ -47,7 +59,63 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     type AuthorizationData;
 
     /// Fetches the capabilities from the runtime.
-    fn capabilities(&self) -> Self::Capabilities<'_>;
+    ///
+    /// This method is only intended to be used internally on the [`HasCapabilities`] trait, if you
+    /// need to access a capability do so with the constructor method.
+    ///
+    /// The returned struct is wrapped in a guard to prevent access from code outside of the trait.
+    /// Without the guard it would be possible to implement an override for a capability and
+    /// accidently use the default implementation leading subtle type mismatch bugs.
+    ///
+    /// For example, if I override [`HasCapabilities::gas_enforcer`] to return a different [`GasEnforcer`]
+    /// implementation but then used `HasCapabilities::capabilities().try_reserve_gas` instead of
+    /// `HasCapabilities::gas_enforcer().try_reserve_gas` I would use the default implementation instead of
+    /// the override.
+    fn capabilities(&self) -> Guard<Self::Capabilities<'_>>;
+
+    /// Returns the [`GasEnforcer`] implementation on [`HasCapabilities::Capabilities`].
+    ///
+    /// This method can be overriden to provide a custom implementation.
+    fn gas_enforcer(&self) -> impl GasEnforcer<S, Da> {
+        self.capabilities().inner
+    }
+
+    /// Returns the [`SequencerAuthorization`] implementation on [`HasCapabilities::Capabilities`].
+    ///
+    /// This method can be overriden to provide a custom implementation.
+    fn sequencer_authorization(
+        &self,
+    ) -> impl SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter> {
+        self.capabilities().inner
+    }
+
+    /// Returns the [`RuntimeAuthorization`] implementation on [`HasCapabilities::Capabilities`].
+    ///
+    /// This method can be overriden to provide a custom implementation.
+    fn runtime_authorization(
+        &self,
+    ) -> impl RuntimeAuthorization<
+        S,
+        Da,
+        SequencerStakeMeter = Self::SequencerStakeMeter,
+        AuthorizationData = Self::AuthorizationData,
+    > {
+        self.capabilities().inner
+    }
+
+    /// Returns the [`ProofProcessor`] implementation on [`HasCapabilities::Capabilities`].
+    ///
+    /// This method can be overriden to provide a custom implementation.
+    fn proof_processor(&self) -> impl ProofProcessor<S, Da> {
+        self.capabilities().inner
+    }
+
+    /// Returns the [`SequencerRemuneration`] implementation on [`HasCapabilities::Capabilities`].
+    ///
+    /// This method can be overriden to provide a custom implementation.
+    fn sequencer_remuneration(&self) -> impl SequencerRemuneration<S, Da> {
+        self.capabilities().inner
+    }
 }
 
 #[cfg(feature = "test-utils")]
