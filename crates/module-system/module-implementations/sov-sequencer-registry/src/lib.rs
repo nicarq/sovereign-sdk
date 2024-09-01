@@ -30,7 +30,7 @@ use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
     ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue,
-    TxState,
+    TxScratchpad, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -295,28 +295,17 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     /// Transfers the reward from the module's account to the sequencer's account.
     ///
     /// # Safety note:
-    /// This method panics if:
-    /// - The sequencer is not registered.
-    /// - The module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
+    /// This method panics if the module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
     pub fn reward_sequencer(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &S::Address,
         amount: u64,
-        state: &mut StateCheckpoint<S>,
+        state: &mut TxScratchpad<S>,
     ) {
-        let AllowedSequencer {
-            address: rollup_address,
-            balance: _,
-        } = self
-            .allowed_sequencers
-            .get(sequencer, state)
-            .unwrap_infallible()
-            .expect("Sequencer must be allowed.");
-
         self.bank
             .transfer_from(
                 self.id().to_payable(),
-                &rollup_address,
+                sequencer,
                 Coins {
                     amount,
                     token_id: GAS_TOKEN_ID,

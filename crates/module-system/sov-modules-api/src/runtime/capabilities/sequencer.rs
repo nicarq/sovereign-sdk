@@ -80,9 +80,9 @@ pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
     /// Reward the sequencer for correctly processing the transaction batch.
     fn reward_sequencer(
         &self,
-        sender: &Da::Address,
+        sender: &S::Address,
         reward: SequencerReward,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        state: &mut TxScratchpad<S>,
     );
 
     /// Slash the sequencer for malicious behavior.

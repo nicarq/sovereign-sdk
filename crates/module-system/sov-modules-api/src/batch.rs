@@ -87,10 +87,6 @@ pub enum BatchSequencerOutcome {
         /// Reason why the batch was ignored.
         String,
     ),
-    /// The sequencer is not rewardable for the submitted batch.
-    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
-    /// The batch might be applied but there is nobody to reward.
-    NotRewardable,
 }
 
 /// A receipt for a batch that was submitted by a sequencer to the DA layer.

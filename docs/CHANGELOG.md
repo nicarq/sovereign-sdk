@@ -1,3 +1,4 @@
+- #1365 Simplify sequencer reward workflow.
 - #1360 attester-incentive & prover-incentives: Ensure that the helper methods only read the state.
 - #1358 Adds a mechanism for individually overriding capabilities on the `HasCapabilities` trait.
     - All usages of `runtime.capabilities()` should updated to the capability name in `snake_case`.

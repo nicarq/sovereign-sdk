@@ -3,7 +3,7 @@ use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationResult, AuthorizeSequencerError, GasEnforcer,
     HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
-    TryReserveGasError, UnregisteredAuthenticationError,
+    SequencerRemuneration, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
@@ -224,19 +224,13 @@ where
         }
     }
 
-    let sequencer_outcome = if is_registered_sequencer {
-        BatchSequencerOutcome::Rewarded(accumulated_reward)
-    } else {
-        BatchSequencerOutcome::NotRewardable
-    };
-
     (
         BatchReceipt {
             batch_hash: batch_with_id.id,
             tx_receipts,
             inner: BatchSequencerReceipt {
                 da_address: sequencer_da_address,
-                outcome: sequencer_outcome,
+                outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
             },
             gas_price: gas_price.to_vec(),
         },
@@ -551,7 +545,7 @@ fn apply_tx<S, RT, Da>(
     raw_tx_hash: TxHash,
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
-    sequencer: &Da::Address,
+    sequencer_da_address: &Da::Address,
 ) -> ApplyTxResult<S>
 where
     S: Spec,
@@ -599,9 +593,11 @@ where
         }
     };
 
-    runtime
-        .runtime_authorization()
-        .mark_tx_attempted(auth_data, sequencer, &mut tx_scratchpad);
+    runtime.runtime_authorization().mark_tx_attempted(
+        auth_data,
+        sequencer_da_address,
+        &mut tx_scratchpad,
+    );
 
     runtime
         .gas_enforcer()
@@ -610,6 +606,13 @@ where
     runtime
         .gas_enforcer()
         .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
+
+    let sequencer_reward = SequencerReward(transaction_consumption.priority_fee());
+    runtime.sequencer_remuneration().reward_sequencer(
+        ctx.sequencer(),
+        sequencer_reward,
+        &mut tx_scratchpad,
+    );
 
     debug!(
         tx_hash = hex::encode(raw_tx_hash),
@@ -621,7 +624,7 @@ where
     ApplyTxResult::<S> {
         tx_scratchpad,
         receipt,
-        sequencer_reward: SequencerReward(transaction_consumption.priority_fee()),
+        sequencer_reward,
     }
 }
 

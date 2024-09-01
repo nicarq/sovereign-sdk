@@ -149,8 +149,7 @@ impl<S: Spec> Bank<S> {
         &self,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,
-        // The address that receives the transaction tip. Typically, the module id of the `SequencerRegistry` module.
-        tip_recipient: &impl Payable<S>,
+
         tx_consumption: &TransactionConsumption<S::Gas>,
         tx_scratchpad: &mut TxScratchpad<S>,
     ) {
@@ -164,17 +163,6 @@ impl<S: Spec> Bank<S> {
             tx_scratchpad,
         )
         .expect("Transferring the consumed base fee gas is infallible");
-
-        self.transfer_from(
-            self.id.to_payable(),
-            tip_recipient.as_token_holder(),
-            Coins {
-                amount: tx_consumption.priority_fee(),
-                token_id: GAS_TOKEN_ID,
-            },
-            tx_scratchpad,
-        )
-        .expect("Transferring the consumed gas tip is infallible");
     }
 
     /// Refunds any remaining gas to the payer from the bank module after the transaction is processed.
