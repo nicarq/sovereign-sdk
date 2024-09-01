@@ -4,8 +4,11 @@ use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{StateAccessor, StateAccessorError, StateTransitionPublicData, TxState};
+use sov_modules_api::{
+    StateAccessor, StateAccessorError, StateReader, StateTransitionPublicData, TxState,
+};
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
+use sov_state::User;
 use tracing::debug;
 
 use crate::{AttesterIncentives, ProcessAttestationErrors, SlashingReason};
@@ -43,7 +46,7 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_initial_hash(
+    pub(crate) fn check_initial_hash<ST: StateReader<User>>(
         &self,
         claimed_transition_height: TransitionHeight,
         attestation: &Attestation<
@@ -51,8 +54,8 @@ where
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CheckInitialHashStatus, StateAccessorError<S::Gas>> {
+        state: &mut ST,
+    ) -> anyhow::Result<CheckInitialHashStatus, ST::Error> {
         // Normal state
         if let Some(transition) = self
             .chain_state
@@ -153,7 +156,7 @@ where
     /// The proof must refer to a valid state of the rollup. The initial root hash must represent a state between
     /// the bonding proof one and the current state.
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_bonding_proof(
+    pub(crate) fn check_bonding_proof<ST: StateReader<User>>(
         &self,
         sender: &S::Address,
         attestation: &Attestation<
@@ -161,8 +164,8 @@ where
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
-        state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+        state: &mut ST,
+    ) -> Result<(), ProcessAttestationErrors<ST::Error>> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
@@ -213,7 +216,7 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_transition(
+    pub(crate) fn check_transition<ST: StateReader<User>>(
         &self,
         claimed_transition_height: TransitionHeight,
         attestation: &Attestation<
@@ -221,8 +224,8 @@ where
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
-        state: &mut impl TxState<S>,
-    ) -> Result<CheckTransitionStatus, StateAccessorError<S::Gas>> {
+        state: &mut ST,
+    ) -> Result<CheckTransitionStatus, ST::Error> {
         if let Some(curr_tx) = self
             .chain_state
             .get_historical_transitions(claimed_transition_height, state)?
@@ -249,12 +252,12 @@ where
         Ok(CheckTransitionStatus::Valid)
     }
 
-    pub(crate) fn check_challenge_outputs_against_transition(
+    pub(crate) fn check_challenge_outputs_against_transition<ST: StateReader<User>>(
         &self,
         public_outputs: &StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: TransitionHeight,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<Option<SlashingReason>, StateAccessorError<S::Gas>> {
+        state: &mut ST,
+    ) -> anyhow::Result<Option<SlashingReason>, ST::Error> {
         let transition = match self.chain_state.get_historical_transitions(height, state)? {
             Some(transition) => transition,
             None => return Ok(Some(SlashingReason::TransitionInvalid)),

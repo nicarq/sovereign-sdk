@@ -3,24 +3,13 @@ use std::cmp::max;
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
-    StateAccessorError, TxState, Zkvm,
+    StateAccessorError, StateReader, TxState, Zkvm,
 };
+use sov_state::User;
 use thiserror::Error;
 
 use crate::event::SlashingReason;
 use crate::ProverIncentives;
-
-#[derive(Debug, Error)]
-enum ErrorOrSlashed<S: Spec> {
-    Error(#[from] StateAccessorError<S::Gas>),
-    Slashed(SlashingReason),
-}
-
-impl<S: Spec> From<SlashingReason> for ErrorOrSlashed<S> {
-    fn from(value: SlashingReason) -> Self {
-        ErrorOrSlashed::Slashed(value)
-    }
-}
 
 /// Error raised while processing the aggregated proof.
 #[derive(Debug, Error)]
@@ -117,21 +106,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             }
         };
 
-        // Check that the public outputs are valid
-        if let Err(err) = self.check_proof_outputs(&public_outputs, state) {
-            match err {
-                ErrorOrSlashed::Error(err) => return Err(err.into()),
-                ErrorOrSlashed::Slashed(reason) => {
-                    tracing::debug!(?reason, "Slashing prover");
+        if let Some(slashing_reason) = self.check_proof_outputs(&public_outputs, state)? {
+            tracing::debug!(?slashing_reason, "Slashing prover");
 
-                    self.slash_prover(prover_address, state)?;
-                    // The state won't be reverted.
-                    return Err(ProcessProofError::ProverSlashedNoRevert(format!(
-                        "Invalid output {}",
-                        reason
-                    )));
-                }
-            }
+            self.slash_prover(prover_address, state)?;
+            // The state won't be reverted.
+            return Err(ProcessProofError::ProverSlashedNoRevert(format!(
+                "Invalid output {}",
+                slashing_reason
+            )));
         }
 
         match self.calculate_reward(
@@ -253,11 +236,11 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     }
 
     /// Check that the initial and final state values of the proof output are valid against the chain state module
-    fn check_proof_outputs(
+    fn check_proof_outputs<ST: StateReader<User>>(
         &self,
         public_outputs: &AggregatedProofPublicData,
-        state: &mut impl TxState<S>,
-    ) -> Result<(), ErrorOrSlashed<S>> {
+        state: &mut ST,
+    ) -> Result<Option<SlashingReason>, ST::Error> {
         let expected_genesis_hash = self
             .chain_state
             .get_genesis_hash(state)?
@@ -265,16 +248,19 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We have to check that the genesis hash is valid
         if expected_genesis_hash.as_ref() != public_outputs.genesis_state_root {
-            return Err(SlashingReason::IncorrectGenesisHash.into());
+            return Ok(Some(SlashingReason::IncorrectGenesisHash));
         }
 
         // We start with the initial state values
         let initial_slot_num = public_outputs.initial_slot_number;
 
-        let initial_transition = self
+        let initial_transition = match self
             .chain_state
             .get_historical_transitions(initial_slot_num, state)?
-            .ok_or(SlashingReason::InitialTransitionDoesNotExist)?;
+        {
+            Some(initial_transition) => initial_transition,
+            None => return Ok(Some(SlashingReason::InitialTransitionDoesNotExist)),
+        };
 
         let initial_state_root = if let Some(prev_transition) = self
             .chain_state
@@ -286,28 +272,32 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         };
 
         if initial_state_root.as_ref() != public_outputs.initial_state_root {
-            return Err(SlashingReason::IncorrectInitialStateRoot.into());
+            return Ok(Some(SlashingReason::IncorrectInitialStateRoot));
         }
 
         let initial_transition_hash = initial_transition.slot_hash();
 
         if initial_transition_hash.as_ref() != public_outputs.initial_slot_hash {
-            return Err(SlashingReason::IncorrectInitialSlotHash.into());
+            return Ok(Some(SlashingReason::IncorrectInitialSlotHash));
         }
 
         // Let's move on to the final state values
         let final_slot_num = public_outputs.final_slot_number;
-        let expected_final_transition = self
+
+        let expected_final_transition = match self
             .chain_state
             .get_historical_transitions(final_slot_num, state)?
-            .ok_or(SlashingReason::FinalTransitionDoesNotExist)?;
+        {
+            Some(expected_final_transition) => expected_final_transition,
+            None => return Ok(Some(SlashingReason::FinalTransitionDoesNotExist)),
+        };
 
         if expected_final_transition.post_state_root().as_ref() != public_outputs.final_state_root {
-            return Err(SlashingReason::IncorrectFinalStateRoot.into());
+            return Ok(Some(SlashingReason::IncorrectFinalStateRoot));
         }
 
         if expected_final_transition.slot_hash().as_ref() != public_outputs.final_slot_hash {
-            return Err(SlashingReason::IncorrectFinalSlotHash.into());
+            return Ok(Some(SlashingReason::IncorrectFinalSlotHash));
         }
 
         // We may also want to check the integrity of the validity conditions along the way
@@ -315,7 +305,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         if public_outputs.validity_conditions.len()
             != (final_slot_num - initial_slot_num + 1) as usize
         {
-            return Err(SlashingReason::IncorrectValidityConditions.into());
+            return Ok(Some(SlashingReason::IncorrectValidityConditions));
         }
 
         // We are checking all the validity conditions up to `final_slot_num` included.
@@ -331,13 +321,13 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
                         .expect("Should always be able to serialize the validity condition")
                         != output_condition.clone()
                     {
-                        return Err(SlashingReason::IncorrectValidityConditions.into());
+                        return Ok(Some(SlashingReason::IncorrectValidityConditions));
                     }
                 }
-                None => return Err(SlashingReason::IncorrectValidityConditions.into()),
+                None => return Ok(Some(SlashingReason::IncorrectValidityConditions)),
             }
         }
 
-        Ok(())
+        Ok(None)
     }
 }
