@@ -327,10 +327,10 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 
     /// Return the genesis hash of the module.
-    pub fn get_genesis_hash<Accessor: StateAccessor>(
+    pub fn get_genesis_hash<Accessor: StateReader<User>>(
         &self,
         state: &mut Accessor,
-    ) -> Result<Option<<S::Storage as Storage>::Root>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
         self.genesis_root.get(state)
     }
 
@@ -375,7 +375,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
-    pub fn get_historical_transitions<Accessor: StateAccessor>(
+    pub fn get_historical_transitions<Accessor: StateReader<User>>(
         &self,
         transition_num: TransitionHeight,
         state: &mut Accessor,
