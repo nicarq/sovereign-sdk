@@ -45,7 +45,6 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         // TODO(@theochap): In the next PR this method will become failible
         self.bank.allocate_consumed_gas(
             &self.prover_incentives.id().to_payable(),
-            &self.sequencer_registry.id().to_payable(),
             tx_consumption,
             tx_scratchpad,
         );
@@ -223,12 +222,12 @@ impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
 {
     fn reward_sequencer(
         &self,
-        sender: &Da::Address,
+        sender: &S::Address,
         reward: SequencerReward,
-        state_checkpoint: &mut StateCheckpoint<S>,
+        state: &mut TxScratchpad<S>,
     ) {
         self.sequencer_registry
-            .reward_sequencer(sender, reward.into(), state_checkpoint);
+            .reward_sequencer(sender, reward.into(), state);
     }
 
     fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>) {

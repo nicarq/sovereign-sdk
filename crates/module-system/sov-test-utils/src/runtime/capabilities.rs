@@ -80,13 +80,10 @@ macro_rules! impl_runtime_capability {
                 tx_consumption: &::sov_modules_api::transaction::TransactionConsumption<S::Gas>,
                 tx_scratchpad: &mut ::sov_modules_api::TxScratchpad<S>,
             ) {
-                use ::sov_modules_api::ModuleInfo as _;
                 use $crate::runtime::traits::MinimalRuntime;
-                use $crate::runtime::IntoPayable as _;
 
                 self.bank().allocate_consumed_gas(
                     &self.base_fee_recipient(),
-                    &self.sequencer_registry().id().to_payable(),
                     tx_consumption,
                     tx_scratchpad,
                 );
@@ -148,14 +145,14 @@ macro_rules! impl_runtime_capability {
         {
             fn reward_sequencer(
                 &self,
-                sender: &Da::Address,
+                sender: &S::Address,
                 reward: ::sov_modules_api::transaction::SequencerReward,
-                state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S>,
+                state: &mut ::sov_modules_api::TxScratchpad<S>,
             ) {
                 $crate::runtime::traits::MinimalRuntime::sequencer_registry(self).reward_sequencer(
                     sender,
                     reward.into(),
-                    state_checkpoint,
+                    state,
                 );
             }
 

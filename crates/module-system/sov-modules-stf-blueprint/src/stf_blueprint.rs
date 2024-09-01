@@ -99,24 +99,15 @@ where
         self.runtime
             .end_batch_hook(batch_sequencer_receipt, &mut next_checkpoint);
 
-        match &batch_sequencer_receipt.outcome {
-            BatchSequencerOutcome::Rewarded(reward) => {
-                info!(sequencer_da_address =
-                    %batch_sequencer_receipt.da_address, ?reward, "Rewarding sequencer");
-                self.runtime.sequencer_remuneration().reward_sequencer(
-                    &batch_sequencer_receipt.da_address,
-                    *reward,
-                    &mut next_checkpoint,
-                );
-            }
-            BatchSequencerOutcome::Slashed(reason) => {
-                info!(sequencer_da_address =
-                    %batch_sequencer_receipt.da_address, ?reason, "Slashing sequencer");
-                self.runtime
-                    .sequencer_remuneration()
-                    .slash_sequencer(&batch_sequencer_receipt.da_address, &mut next_checkpoint);
-            }
-            BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}
+        info!(sequencer_da_address =
+            ?batch_sequencer_receipt.da_address, ?batch_sequencer_receipt.outcome, "BatchSequencerOutcome ");
+
+        if let BatchSequencerOutcome::Slashed(reason) = &batch_sequencer_receipt.outcome {
+            info!(sequencer_da_address =
+                %batch_sequencer_receipt.da_address, ?reason, "Slashing sequencer");
+            self.runtime
+                .sequencer_remuneration()
+                .slash_sequencer(&batch_sequencer_receipt.da_address, &mut next_checkpoint);
         }
 
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {

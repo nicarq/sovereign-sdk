@@ -229,7 +229,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     for batch_receipt in apply_block_result.batch_receipts.iter() {
         assert_eq!(
             batch_receipt.inner.outcome,
-            BatchSequencerOutcome::NotRewardable
+            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
         );
         let tx_receipt = &batch_receipt.tx_receipts;
 
@@ -464,7 +464,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     let first_registered_receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
         first_registered_receipt.inner.outcome,
-        BatchSequencerOutcome::NotRewardable
+        BatchSequencerOutcome::Rewarded(SequencerReward::ZERO)
     );
 
     // ensure the filler blobs have the right outcome

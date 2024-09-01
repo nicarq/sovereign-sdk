@@ -17,10 +17,6 @@ pub enum BatchSequencerOutcome {
         /// Reason why the batch was ignored.
         String,
     ),
-    /// The sequencer is not rewardable for the submitted batch.
-    /// This occurs when an unregistered sequencer submits a batch directly to the DA.
-    /// The batch might be applied but there is nobody to reward.
-    NotRewardable,
     /// The batch was dropped and should not be included in the slot receipt. This can happen if the sequencer is not registered.
     Dropped,
 }
@@ -28,14 +24,6 @@ pub enum BatchSequencerOutcome {
 impl PartialEq<sov_modules_api::BatchSequencerOutcome> for BatchSequencerOutcome {
     fn eq(&self, other: &sov_modules_api::BatchSequencerOutcome) -> bool {
         match (self, other) {
-            (
-                BatchSequencerOutcome::Rewarded,
-                sov_modules_api::BatchSequencerOutcome::Rewarded(_),
-            )
-            | (
-                BatchSequencerOutcome::NotRewardable,
-                sov_modules_api::BatchSequencerOutcome::NotRewardable,
-            ) => true,
             (
                 BatchSequencerOutcome::Slashed(a),
                 sov_modules_api::BatchSequencerOutcome::Slashed(b),
