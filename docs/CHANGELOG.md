@@ -1,3 +1,4 @@
+- #1353 Removes the `Batch` argument from the `begin_batch_hook` to allow the preferred sequencer to process batches.
 - #1352 adds a way to retrieve the `base_fee_per_gas` in the sequencer at the current virtual height. To do that we added a method to the `ChainState` that returns the current `base_fee_per_gas` at the virtual slot and a method to the `KernelSlotHooks` trait that allows easy access from the `Kernel`. It also removes the output from the `begin_slot` hook in the `KernelSlotHooks` trait, to allow more consistency accross the hooks (they shouldn't return anything).
 - #1335 Removes the previously deprecated method `StateCheckpoint::to_working_set_deprecated`. If you still use this method, please migrate your code to the testing framework available in `sov_test_utils`.
 - #1332 Remove events from AttesterIncentives capabilities 

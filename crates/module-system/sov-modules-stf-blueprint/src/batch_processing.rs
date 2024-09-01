@@ -59,8 +59,7 @@ where
     );
 
     // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&batch_with_id, &sequencer_da_address, &mut checkpoint)
-    {
+    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut checkpoint) {
         error!(
             error = %e,
             batch_id = hex::encode(batch_with_id.id),

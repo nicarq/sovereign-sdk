@@ -50,7 +50,6 @@ macro_rules! impl_runtime_hook {
 
             fn begin_batch_hook(
                 &self,
-                _batch: &::sov_modules_api::BatchWithId,
                 _sender: &Da::Address,
                 _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S>,
             ) -> anyhow::Result<()> {
