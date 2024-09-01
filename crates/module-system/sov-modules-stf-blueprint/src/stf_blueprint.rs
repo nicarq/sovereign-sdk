@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::capabilities::SequencerRemuneration;
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::runtime::capabilities::{KernelSlotHooks, SequencerRemuneration};
 use sov_modules_api::{
     BatchSequencerOutcome, BatchWithId, DaSpec, ExecutionContext, Gas, ProofReceipt, Spec,
     StateCheckpoint, Storage,
@@ -104,7 +103,7 @@ where
             BatchSequencerOutcome::Rewarded(reward) => {
                 info!(sequencer_da_address =
                     %batch_sequencer_receipt.da_address, ?reward, "Rewarding sequencer");
-                self.runtime.capabilities().reward_sequencer(
+                self.runtime.sequencer_remuneration().reward_sequencer(
                     &batch_sequencer_receipt.da_address,
                     *reward,
                     &mut next_checkpoint,
@@ -114,7 +113,7 @@ where
                 info!(sequencer_da_address =
                     %batch_sequencer_receipt.da_address, ?reason, "Slashing sequencer");
                 self.runtime
-                    .capabilities()
+                    .sequencer_remuneration()
                     .slash_sequencer(&batch_sequencer_receipt.da_address, &mut next_checkpoint);
             }
             BatchSequencerOutcome::Ignored(_) | BatchSequencerOutcome::NotRewardable => {}

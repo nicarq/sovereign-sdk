@@ -205,8 +205,7 @@ where
         let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
 
         let runtime = R::default();
-        let runtime_capabilities = runtime.capabilities();
-        let mut pre_exec_ws = match runtime_capabilities.authorize_sequencer(
+        let mut pre_exec_ws = match runtime.sequencer_authorization().authorize_sequencer(
             &self.sequencer,
             &<S::Gas as Gas>::Price::ZEROED,
             tx_scratchpad,

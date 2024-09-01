@@ -1,4 +1,7 @@
 - #1360 attester-incentive & prover-incentives: Ensure that the helper methods only read the state.
+- #1358 Adds a mechanism for individually overriding capabilities on the `HasCapabilities` trait.
+    - All usages of `runtime.capabilities()` should updated to the capability name in `snake_case`.
+      For example, `runtime.capabilities().try_reserve_gas` should become `runtime.gas_enforcer().try_reserve_gas`.
 - #1344 Adds revertable errors to the `sov-attester-incentives` module.
 - #1353 Removes the `Batch` argument from the `begin_batch_hook` to allow the preferred sequencer to process batches.
 - #1352 adds a way to retrieve the `base_fee_per_gas` in the sequencer at the current virtual height. To do that we added a method to the `ChainState` that returns the current `base_fee_per_gas` at the virtual slot and a method to the `KernelSlotHooks` trait that allows easy access from the `Kernel`. It also removes the output from the `begin_slot` hook in the `KernelSlotHooks` trait, to allow more consistency accross the hooks (they shouldn't return anything).

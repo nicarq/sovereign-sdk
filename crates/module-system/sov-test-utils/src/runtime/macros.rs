@@ -145,8 +145,8 @@ macro_rules! generate_runtime {
 
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
 
-            fn capabilities(&self) -> Self::Capabilities<'_> {
-                Self::default()
+            fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
+                ::sov_modules_api::capabilities::Guard::new(Self::default())
             }
         }
 
