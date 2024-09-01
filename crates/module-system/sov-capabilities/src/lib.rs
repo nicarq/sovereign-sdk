@@ -3,13 +3,12 @@ use sov_modules_api::capabilities::{
     AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, RuntimeAuthorization,
     SequencerAuthorization, SequencerRemuneration, TryReserveGasError,
 };
-use sov_modules_api::prelude::tracing::error;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, GasMeter, InvalidProofError,
-    ModuleInfo, PreExecWorkingSet, ProofOutcome, ProofReceiptContents, SovProofOutcome, Spec,
+    ModuleInfo, PreExecWorkingSet, SovAttestation, SovStateTransitionPublicData, Spec,
     StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -193,19 +192,12 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> SovProofOutcome<S, Da> {
+    ) -> Result<SovAttestation<S, Da>, InvalidProofError> {
         let result = self
             .attester_incentives
-            .process_attestation(prover_address, proof, state);
+            .process_attestation(prover_address, proof, state)?;
 
-        match result {
-            Ok(attestation) => ProofOutcome::Valid(ProofReceiptContents::Attestation(attestation)),
-            Err(e) => {
-                // TODO #815: correctly handle errors
-                error!("Attestation validation failed {:?}", e);
-                ProofOutcome::Invalid(e.into())
-            }
-        }
+        Ok(result)
     }
 
     fn process_challenge(
@@ -214,23 +206,15 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         transition_num: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> SovProofOutcome<S, Da> {
+    ) -> Result<SovStateTransitionPublicData<S, Da>, InvalidProofError> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
             &proof,
             transition_num,
             state,
-        );
+        )?;
 
-        match result {
-            Ok(Some(challenge)) => ProofOutcome::Valid(ProofReceiptContents::BlockProof(challenge)),
-            Ok(None) => ProofOutcome::Ignored,
-            Err(e) => {
-                // TODO #815: correctly handle errors
-                error!("Attestation validation failed {:?}", e);
-                ProofOutcome::Invalid(e.into())
-            }
-        }
+        Ok(result)
     }
 }
 
