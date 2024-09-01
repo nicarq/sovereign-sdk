@@ -120,8 +120,8 @@ pub enum InvalidProofError {
 
 impl InvalidProofError {
     /// Checks if the error is revertable.
-    pub fn is_revertable(&self) -> bool {
-        !matches!(
+    pub fn is_not_revertable(&self) -> bool {
+        matches!(
             self,
             InvalidProofError::ProverSlashed(_) | InvalidProofError::ProverPenalized(_)
         )

@@ -4,14 +4,11 @@ use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{
-    StateAccessor, StateAccessorError, StateTransitionPublicData, StateWriter, TxState,
-};
+use sov_modules_api::{StateAccessor, StateAccessorError, StateTransitionPublicData, TxState};
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
-use sov_state::User;
-use tracing::{debug, error};
+use tracing::debug;
 
-use crate::{AttesterIncentives, ProcessAttestationErrors, ProcessChallengeErrors, SlashingReason};
+use crate::{AttesterIncentives, ProcessAttestationErrors, SlashingReason};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
@@ -49,14 +46,13 @@ where
     pub(crate) fn check_initial_hash(
         &self,
         claimed_transition_height: TransitionHeight,
-        attester: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+    ) -> anyhow::Result<CheckInitialHashStatus, StateAccessorError<S::Gas>> {
         // Normal state
         if let Some(transition) = self
             .chain_state
@@ -64,12 +60,7 @@ where
         {
             if transition.post_state_root() != &attestation.initial_state_root {
                 // The initial root hashes don't match, just slash the attester
-                self.slash_attester_burn_reward(
-                    attester,
-                    SlashingReason::InvalidInitialHash,
-                    state,
-                )?;
-                return Ok(());
+                return Ok(CheckInitialHashStatus::Slash);
             }
         } else {
             // Genesis state
@@ -83,13 +74,7 @@ where
                 .checked_sub(1)
                 .expect("Transition height must be > 0");
             if genesis_height != previous {
-                self.slash_attester_burn_reward(
-                    attester,
-                    SlashingReason::TransitionNotFound,
-                    state,
-                )?;
-
-                return Ok(());
+                return Ok(CheckInitialHashStatus::Slash);
             }
 
             if self
@@ -98,28 +83,21 @@ where
                 .expect("The initial hash should be set")
                 != attestation.initial_state_root
             {
-                // Slash the attester, and burn the fees
-                self.slash_attester_burn_reward(
-                    attester,
-                    SlashingReason::InvalidInitialHash,
-                    state,
-                )?;
-
-                return Ok(());
+                // Slash the attester
+                return Ok(CheckInitialHashStatus::Slash);
             }
             // Normal state
         }
 
-        Ok(())
+        Ok(CheckInitialHashStatus::Valid)
     }
 
     /// A helper function that simply slashes an attester and returns a reward value
     pub(crate) fn slash_attester<TxStateAccessor: TxState<S>>(
         &self,
         user: &S::Address,
-        _reason: SlashingReason,
         state: &mut TxStateAccessor,
-    ) -> Result<u64, <TxStateAccessor as StateWriter<User>>::Error> {
+    ) -> Result<u64, StateAccessorError<S::Gas>> {
         // We have to remove the attester from the unbonding set
         // to prevent him from skipping the first phase
         // unbonding if he bonds himself again.
@@ -138,13 +116,9 @@ where
         &self,
         attester: &S::Address,
         height: TransitionHeight,
-        reason: SlashingReason,
         state: &mut TxStateAccessor,
-    ) -> Result<
-        ProcessAttestationErrors<StateAccessorError<S::Gas>>,
-        <TxStateAccessor as StateWriter<User>>::Error,
-    > {
-        let reward = self.slash_attester(attester, reason, state)?;
+    ) -> Result<(), StateAccessorError<S::Gas>> {
+        let reward = self.slash_attester(attester, state)?;
 
         let curr_reward_value = self
             .bad_transition_pool
@@ -153,37 +127,6 @@ where
 
         let new_value = curr_reward_value.saturating_add(reward);
         self.bad_transition_pool.set(&height, &new_value, state)?;
-
-        Ok(ProcessAttestationErrors::AttesterSlashed(reason))
-    }
-
-    pub(crate) fn slash_attester_burn_reward(
-        &self,
-        user: &S::Address,
-        reason: SlashingReason,
-        state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
-        if let Err(e) = self.slash_attester(user, reason, state) {
-            error!(
-                error = ?e,
-                "Error raised when trying to slash the attester. Attester not slashed and transaction reverted"
-            );
-            return Err(e.into());
-        };
-        Ok(())
-    }
-
-    pub(crate) fn slash_challenger_burn_reward(
-        &self,
-        user: &S::Address,
-        reason: SlashingReason,
-        state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
-        self.bonded_challengers.remove(user, state)?;
-
-        error!(
-            error = ?reason,
-            "The user was slashed");
 
         Ok(())
     }
@@ -273,14 +216,13 @@ where
     pub(crate) fn check_transition(
         &self,
         claimed_transition_height: TransitionHeight,
-        attester: &S::Address,
         attestation: &Attestation<
             Da::SlotHash,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
+    ) -> Result<CheckTransitionStatus, StateAccessorError<S::Gas>> {
         if let Some(curr_tx) = self
             .chain_state
             .get_historical_transitions(claimed_transition_height, state)?
@@ -297,29 +239,14 @@ where
                 // Check if the attestation has the same slot_hash and post_state_root as the actual transition
                 // that we found in state. If not, slash the attester.
                 // If so, the attestation is valid, so return Ok
-                match self.slash_and_invalidate_attestation(
-                    attester,
-                    claimed_transition_height,
-                    SlashingReason::TransitionInvalid,
-                    state,
-                ) {
-                    Err(e) => {
-                        error!(
-                            error = ?e,
-                            "An error occurred while slashing the attester. Attester not slashed and transaction reverted");
-                        return Err(e.into());
-                    }
-
-                    Ok(e) => {
-                        return Err(e);
-                    }
-                }
+                return Ok(CheckTransitionStatus::SlashInvalidateWrongHash);
             }
         } else {
             // Case where we cannot get the transition from the chain state historical transitions.
-            self.slash_attester_burn_reward(attester, SlashingReason::TransitionNotFound, state)?;
+            return Ok(CheckTransitionStatus::SlashedNoHistoricalTransition);
         }
-        Ok(())
+
+        Ok(CheckTransitionStatus::Valid)
     }
 
     pub(crate) fn check_challenge_outputs_against_transition(
@@ -327,13 +254,11 @@ where
         public_outputs: &StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
         height: TransitionHeight,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessChallengeErrors<StateAccessorError<S::Gas>>> {
-        let transition = self
-            .chain_state
-            .get_historical_transitions(height, state)?
-            .ok_or(ProcessChallengeErrors::slashed(
-                SlashingReason::TransitionInvalid,
-            ))?;
+    ) -> anyhow::Result<Option<SlashingReason>, StateAccessorError<S::Gas>> {
+        let transition = match self.chain_state.get_historical_transitions(height, state)? {
+            Some(transition) => transition,
+            None => return Ok(Some(SlashingReason::TransitionInvalid)),
+        };
 
         let initial_hash = {
             if let Some(prev_transition) = self
@@ -349,23 +274,37 @@ where
         };
 
         if public_outputs.initial_state_root != initial_hash {
-            return Err(ProcessChallengeErrors::slashed(
-                SlashingReason::InvalidInitialHash,
-            ));
+            return Ok(Some(SlashingReason::InvalidInitialHash));
         }
 
         if &public_outputs.slot_hash != transition.slot_hash() {
-            return Err(ProcessChallengeErrors::slashed(
-                SlashingReason::TransitionInvalid,
-            ));
+            return Ok(Some(SlashingReason::TransitionInvalid));
         }
 
         if public_outputs.validity_condition != *transition.validity_condition() {
-            return Err(ProcessChallengeErrors::slashed(
-                SlashingReason::TransitionInvalid,
-            ));
+            return Ok(Some(SlashingReason::TransitionInvalid));
         }
 
+        Ok(None)
+    }
+
+    pub(crate) fn slash_challenger(
+        &self,
+        sender: &S::Address,
+        state: &mut impl TxState<S>,
+    ) -> anyhow::Result<(), StateAccessorError<S::Gas>> {
+        self.bonded_challengers.remove(sender, state)?;
         Ok(())
     }
+}
+
+pub(crate) enum CheckInitialHashStatus {
+    Valid,
+    Slash,
+}
+
+pub(crate) enum CheckTransitionStatus {
+    Valid,
+    SlashedNoHistoricalTransition,
+    SlashInvalidateWrongHash,
 }

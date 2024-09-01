@@ -4,8 +4,9 @@ use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_rollup_interface::crypto::Signature;
-use sov_rollup_interface::stf::ProofOutcome;
-use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
+use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::optimistic::Attestation;
+use sov_rollup_interface::zk::{CryptoSpec, StateTransitionPublicData, Zkvm};
 use sov_rollup_interface::RollupAddress;
 use sov_state::{Storage, StorageProof, Witness};
 
@@ -213,13 +214,16 @@ impl<S: Spec> Context<S> {
     }
 }
 
-/// Simplified type alias for ProofOutcome
-pub type SovProofOutcome<S, Da> = ProofOutcome<
-    <S as Spec>::Address,
-    Da,
+/// Simplified type alias for Attestation
+pub type SovAttestation<S, Da> = Attestation<
+    <Da as DaSpec>::SlotHash,
     <<S as Spec>::Storage as Storage>::Root,
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
 >;
+
+/// Simplified type alias for StateTransitionPublicData
+pub type SovStateTransitionPublicData<S, Da> =
+    StateTransitionPublicData<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root>;
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary {

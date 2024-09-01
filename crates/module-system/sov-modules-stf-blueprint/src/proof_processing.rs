@@ -67,50 +67,53 @@ where
                 }
             };
 
-            let (should_revert, outcome) = match proof_with_details.proof {
-                ProofType::ZkAggregatedProof(proof) => {
-                    let result = runtime.capabilities().process_aggregated_proof(
-                        proof,
-                        &sequencer_rollup_address,
-                        &mut working_set,
-                    );
+            let receipt_contents = match proof_with_details.proof {
+                ProofType::ZkAggregatedProof(proof) => runtime
+                    .capabilities()
+                    .process_aggregated_proof(proof, &sequencer_rollup_address, &mut working_set)
+                    .map(|(pub_data, proof)| ProofReceiptContents::AggregateProof(pub_data, proof)),
 
-                    match result {
-                        Ok((pub_data, proof)) => (
-                            false,
-                            ProofOutcome::Valid(ProofReceiptContents::AggregateProof(
-                                pub_data, proof,
-                            )),
-                        ),
-                        Err(e) => (e.is_revertable(), ProofOutcome::Invalid(e)),
-                    }
-                }
+                ProofType::OptimisticProofAttestation(proof) => runtime
+                    .capabilities()
+                    .process_attestation(proof, &sequencer_rollup_address, &mut working_set)
+                    .map(|attestation| ProofReceiptContents::Attestation(attestation)),
 
-                ProofType::OptimisticProofAttestation(proof) => (
-                    false,
-                    runtime.capabilities().process_attestation(
-                        proof,
-                        &sequencer_rollup_address,
-                        &mut working_set,
-                    ),
-                ),
-
-                ProofType::OptimisticProofChallenge(proof, transition_num) => (
-                    false,
-                    runtime.capabilities().process_challenge(
+                ProofType::OptimisticProofChallenge(proof, transition_num) => runtime
+                    .capabilities()
+                    .process_challenge(
                         proof,
                         transition_num,
                         &sequencer_rollup_address,
                         &mut working_set,
-                    ),
-                ),
+                    )
+                    .map(|challenge| ProofReceiptContents::BlockProof(challenge)),
             };
 
-            let (tx_scratchpad, _transaction_consumption) = if should_revert {
-                working_set.revert()
-            } else {
-                let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
-                (tx_scratchpad, transaction_consumption)
+            let (outcome, tx_scratchpad, _transaction_consumption) = match receipt_contents {
+                Ok(receipt_contents) => {
+                    let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
+                    (
+                        ProofOutcome::Valid(receipt_contents),
+                        tx_scratchpad,
+                        transaction_consumption,
+                    )
+                }
+                Err(e) if e.is_not_revertable() => {
+                    let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
+                    (
+                        ProofOutcome::Invalid(e),
+                        tx_scratchpad,
+                        transaction_consumption,
+                    )
+                }
+                Err(e) => {
+                    let (tx_scratchpad, transaction_consumption) = working_set.revert();
+                    (
+                        ProofOutcome::Invalid(e),
+                        tx_scratchpad,
+                        transaction_consumption,
+                    )
+                }
             };
 
             ProcessProofOutput {

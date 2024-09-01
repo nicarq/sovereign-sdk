@@ -78,9 +78,9 @@ pub enum SlashingReason {
     /// The initial hash of the transition is invalid.
     InvalidInitialHash,
 
-    #[error("The proof opening raised an error")]
-    /// The proof verification raised an error
-    InvalidProofOutputs,
+    #[error("The zk proof is invalid")]
+    /// The zk proof is invalid
+    InvalidZkProof,
 
     #[error("No invalid transition to challenge")]
     /// No invalid transition to challenge.

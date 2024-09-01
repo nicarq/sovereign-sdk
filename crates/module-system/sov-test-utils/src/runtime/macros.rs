@@ -201,15 +201,12 @@ macro_rules! generate_optimistic_runtime {
                 proof: ::sov_modules_api::SerializedAttestation,
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                match self.attester_incentives.process_attestation(prover_address, proof, state) {
-                    Ok(attestation) => ::sov_modules_api::ProofOutcome::Valid(
-                        ::sov_modules_api::ProofReceiptContents::Attestation(attestation)
-                    ),
-                    Err(e) => {
-                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
-                    }
-                }
+            )  -> std::result::Result<
+            ::sov_modules_api::SovAttestation<S,Da>,
+            ::sov_modules_api::InvalidProofError,
+             > {
+                Ok(self.attester_incentives.process_attestation(prover_address, proof, state)? )
+
             }
 
             fn process_challenge(
@@ -218,19 +215,12 @@ macro_rules! generate_optimistic_runtime {
                 transition_num: u64,
                 prover_address: &S::Address,
                 state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                match self.attester_incentives.process_challenge(prover_address,&proof, transition_num, state) {
-                    Ok(Some(challenge)) => ::sov_modules_api::ProofOutcome::Valid(
-                        ::sov_modules_api::ProofReceiptContents::BlockProof(challenge)
-                    ),
-                    Ok(None) => ::sov_modules_api::ProofOutcome::Ignored,
-                    Err(e) => {
-                        ::sov_modules_api::ProofOutcome::Invalid(e.into())
+            ) -> std::result::Result<
+                    ::sov_modules_api::StateTransitionPublicData<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root>,
+                    ::sov_modules_api::InvalidProofError> {
+                        Ok(self.attester_incentives.process_challenge(prover_address,&proof, transition_num, state)? )
                     }
-                }
             }
-
-        }
     };
 }
 
@@ -267,7 +257,10 @@ macro_rules! generate_zk_runtime {
                 _proof: ::sov_modules_api::SerializedAttestation,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
+            ) -> std::result::Result<
+            ::sov_modules_api::SovAttestation<S,Da>,
+            ::sov_modules_api::InvalidProofError,
+             > {
                 unimplemented!()
             }
 
@@ -277,8 +270,10 @@ macro_rules! generate_zk_runtime {
                 _transition_num: u64,
                 _prover_address: &S::Address,
                 _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> ::sov_modules_api::SovProofOutcome<S, Da> {
-                unimplemented!()
+            ) -> std::result::Result<
+                    ::sov_modules_api::StateTransitionPublicData<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root>,
+                    ::sov_modules_api::InvalidProofError> {
+                       unimplemented!()
             }
         }
     };

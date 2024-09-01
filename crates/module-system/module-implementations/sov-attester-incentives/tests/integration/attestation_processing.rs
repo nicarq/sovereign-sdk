@@ -201,7 +201,7 @@ fn test_burn_on_invalid_attestation() {
                         .get(&2, state)
                         .unwrap_infallible(),
                     Some(attester_bond),
-                    "The transition should exist in the pool"
+                    "The transition should exist in the bad_transition_pool"
                 );
             }),
         }

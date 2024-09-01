@@ -292,6 +292,6 @@ fn test_invalid_challenge_proof() {
         expected_reward,
         &bonded_challenger,
         make_challenge_blob(challenge_proof, false, 1),
-        SlashingReason::InvalidProofOutputs,
+        SlashingReason::InvalidZkProof,
     );
 }

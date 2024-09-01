@@ -4,7 +4,7 @@ use sov_modules_api::capabilities::{AuthorizationData, ProofProcessor, RuntimeAu
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, DispatchCall, InvalidProofError, SerializedAggregatedProof,
-    Spec,
+    SovAttestation, SovStateTransitionPublicData, Spec,
 };
 use sov_test_utils::runtime::capabilities::SequencerStakeMeter;
 use sov_test_utils::{generate_runtime, TestSpec};
@@ -33,7 +33,7 @@ impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
         _proof: sov_modules_api::SerializedAttestation,
         _prover_address: &<S as Spec>::Address,
         _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> sov_modules_api::SovProofOutcome<S, Da> {
+    ) -> Result<SovAttestation<S, Da>, InvalidProofError> {
         unimplemented!()
     }
 
@@ -43,7 +43,7 @@ impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
         _transition_num: u64,
         _prover_address: &<S as Spec>::Address,
         _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> sov_modules_api::SovProofOutcome<S, Da> {
+    ) -> anyhow::Result<SovStateTransitionPublicData<S, Da>, InvalidProofError> {
         unimplemented!()
     }
 }

@@ -3,16 +3,16 @@ use core::result::Result::Ok;
 use std::fmt::Display;
 
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, StateAccessorError,
-    StateTransitionPublicData, TxState, Zkvm,
+    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
+    SovStateTransitionPublicData, StateAccessorError, StateTransitionPublicData, TxState, Zkvm,
 };
-use sov_state::storage::{Storage, StorageProof};
+use sov_state::storage::Storage;
 use thiserror::Error;
 use tracing::error;
 
 use super::call::SlashingReason;
+use crate::helpers::{CheckInitialHashStatus, CheckTransitionStatus};
 use crate::AttesterIncentives;
 
 /// Error raised while processing the attester incentives.
@@ -24,7 +24,7 @@ pub enum ProcessAttestationErrors<AccessorError> {
 
     #[error("Attester slashed: {0}")]
     /// Attester slashed
-    AttesterSlashed(SlashingReason),
+    AttesterSlashedNoRevert(SlashingReason),
 
     #[error("Attester is not bonded at the time of the transaction")]
     /// Attester is not bonded at the time of the transaction
@@ -54,7 +54,7 @@ pub enum ProcessAttestationErrors<AccessorError> {
 impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for InvalidProofError {
     fn from(error: ProcessAttestationErrors<AccessorError>) -> Self {
         match error {
-            ProcessAttestationErrors::AttesterSlashed(reason) => {
+            ProcessAttestationErrors::AttesterSlashedNoRevert(reason) => {
                 InvalidProofError::ProverSlashed(format!("{}", reason))
             }
             ProcessAttestationErrors::InvalidAttestationFormat
@@ -79,7 +79,7 @@ impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for I
 pub enum ProcessChallengeErrors<AccessorError> {
     #[error("Challenger slashed")]
     /// The user was slashed. Reason specified by [`SlashingReason`]
-    ChallengerSlashed(#[source] SlashingReason),
+    ChallengerSlashedNoRevert(#[source] SlashingReason),
 
     #[error("Challenger is not bonded at the time of the transaction")]
     /// User is not bonded at the time of the transaction
@@ -97,7 +97,7 @@ pub enum ProcessChallengeErrors<AccessorError> {
 impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for InvalidProofError {
     fn from(error: ProcessChallengeErrors<AccessorError>) -> Self {
         match error {
-            ProcessChallengeErrors::ChallengerSlashed(reason) => {
+            ProcessChallengeErrors::ChallengerSlashedNoRevert(reason) => {
                 InvalidProofError::ProverSlashed(reason.to_string())
             }
             ProcessChallengeErrors::ChallengerNotBonded => {
@@ -108,12 +108,6 @@ impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for Inv
                 InvalidProofError::StateAccess(e.to_string())
             }
         }
-    }
-}
-
-impl<AccessorError> ProcessChallengeErrors<AccessorError> {
-    pub(crate) fn slashed(value: SlashingReason) -> Self {
-        Self::ChallengerSlashed(value)
     }
 }
 
@@ -131,40 +125,20 @@ where
         sender: &S::Address,
         serialized_attestation: SerializedAttestation,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<
-        Attestation<
-            Da::SlotHash,
-            <S::Storage as Storage>::Root,
-            StorageProof<<S::Storage as Storage>::Proof>,
-        >,
-        ProcessAttestationErrors<StateAccessorError<S::Gas>>,
-    > {
+    ) -> anyhow::Result<SovAttestation<S, Da>, ProcessAttestationErrors<StateAccessorError<S::Gas>>>
+    {
         let attestation = serialized_attestation.to_attestation().map_err(|e| {
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-        self.process_attestation_helper(sender, &attestation, state)?;
-        Ok(attestation)
-    }
 
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn process_attestation_helper(
-        &self,
-        sender: &S::Address,
-        attestation: &Attestation<
-            Da::SlotHash,
-            <S::Storage as Storage>::Root,
-            StorageProof<<S::Storage as Storage>::Proof>,
-        >,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), ProcessAttestationErrors<StateAccessorError<S::Gas>>> {
         // We first need to check that the attester is still in the bonding set
         if self.bonded_attesters.get(sender, state)?.is_none() {
             return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 
         // If the bonding proof in the attestation is invalid, light clients will ignore the attestation. In that case, we should too.
-        self.check_bonding_proof(sender, attestation, state)?;
+        self.check_bonding_proof(sender, &attestation, state)?;
 
         // We suppose that these values are always defined, otherwise we panic
         let last_attested_height = self
@@ -210,31 +184,50 @@ where
         // Hence we don't want to return an error after this point, but rather slash the attester and exit gracefully.
 
         // First compare the initial hashes
-        if let Err(err) = self.check_initial_hash(
+
+        let check_initial_hash_status = self.check_initial_hash(
             attestation.proof_of_bond.claimed_transition_num,
-            sender,
-            attestation,
+            &attestation,
             state,
-        ) {
-            error!(
-                error = ?err,
-                ?attestation,
-                "Error raised when checking initial hashes for attestation");
-            return Ok(());
+        )?;
+
+        if matches!(check_initial_hash_status, CheckInitialHashStatus::Slash) {
+            let reason = SlashingReason::InvalidInitialHash;
+            self.slash_attester(sender, state)?;
+            error!(reason = ?reason, "Attester was slashed");
+            // The state won't be reverted.
+            return Err(ProcessAttestationErrors::AttesterSlashedNoRevert(reason));
         }
 
-        // Then compare the transition
-        if let Err(err) = self.check_transition(
+        let check_transition = self.check_transition(
             attestation.proof_of_bond.claimed_transition_num,
-            sender,
-            attestation,
+            &attestation,
             state,
-        ) {
-            error!(
-                error = ?err,
-                ?attestation,
-                "Error raised when checking the transition for attestation");
-            return Ok(());
+        )?;
+
+        match check_transition {
+            CheckTransitionStatus::SlashedNoHistoricalTransition => {
+                let reason = SlashingReason::TransitionNotFound;
+                self.slash_attester(sender, state)?;
+                error!(reason = ?reason, "Attester was slashed");
+
+                // The state won't be reverted.
+                return Err(ProcessAttestationErrors::AttesterSlashedNoRevert(reason));
+            }
+            CheckTransitionStatus::SlashInvalidateWrongHash => {
+                let reason = SlashingReason::TransitionInvalid;
+                error!(reason = ?reason, "Attester was slashed");
+
+                self.slash_and_invalidate_attestation(
+                    sender,
+                    attestation.proof_of_bond.claimed_transition_num,
+                    state,
+                )?;
+
+                // The state won't be reverted.
+                return Err(ProcessAttestationErrors::AttesterSlashedNoRevert(reason));
+            }
+            CheckTransitionStatus::Valid => {}
         }
 
         // Now we have to check whether the claimed_transition_num is the max_attested_height.
@@ -254,15 +247,13 @@ where
 
             self.transfer_tokens_to_sender(sender, self.burn_rate().apply(reward), state)
                 .map_err(|err| {
-                    error!(
-                        error = ?err,
-                        "Error raised transferring reward to the attester");
+                    error!( error = ?err, "Error raised transferring reward to the attester");
                     ProcessAttestationErrors::RewardTransferFailure(err.to_string())
                 })?;
         }
 
         // Then we can optimistically process the transaction
-        Ok(())
+        Ok(attestation)
     }
 
     /// Try to process a zk proof if the challenger is bonded.
@@ -277,28 +268,10 @@ where
         transition_num: TransitionHeight,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<
-        Option<StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>>,
+        SovStateTransitionPublicData<S, Da>,
         ProcessChallengeErrors<StateAccessorError<S::Gas>>,
     > {
-        self.process_challenge_helper(
-            sender,
-            &serialized_challenge.raw_challenge,
-            transition_num,
-            state,
-        )
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn process_challenge_helper(
-        &self,
-        sender: &S::Address,
-        proof: &[u8],
-        transition_num: TransitionHeight,
-        state: &mut impl TxState<S>,
-    ) -> anyhow::Result<
-        Option<StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>>,
-        ProcessChallengeErrors<StateAccessorError<S::Gas>>,
-    > {
+        let proof = &serialized_challenge.raw_challenge;
         // Get the challenger's old balance.
         // Revert if they aren't bonded
         let old_balance = self
@@ -327,15 +300,13 @@ where
             .get_or_err(&transition_num, state)?
         {
             Ok(reward) => reward,
-            Err(err) => {
-                error!(error = ?err, "Challenger slashed");
-                self.slash_challenger_burn_reward(
-                    sender,
-                    SlashingReason::NoInvalidTransition,
-                    state,
-                )?;
+            Err(_err) => {
+                let reason = SlashingReason::NoInvalidTransition;
+                error!(reason = ?reason, "Challenger slashed");
+                self.slash_challenger(sender, state)?;
 
-                return Ok(None);
+                // The state won't be reverted.
+                return Err(ProcessChallengeErrors::ChallengerSlashedNoRevert(reason));
             }
         };
 
@@ -348,18 +319,22 @@ where
         match public_outputs_opt {
             Ok(public_output) => {
                 // We have to perform the checks to ensure that the challenge is valid while the attestation isn't.
-                if let Err(err) = self.check_challenge_outputs_against_transition(
+
+                let check = self.check_challenge_outputs_against_transition(
                     &public_output,
                     transition_num,
                     state,
-                ) {
-                    if let ProcessChallengeErrors::ChallengerSlashed(err) = err {
-                        self.slash_challenger_burn_reward(sender, err, state)?;
-                        return Ok(None);
-                    }
+                )?;
 
-                    return Err(err);
-                };
+                if let Some(slashing_reason) = check {
+                    error!(reason = ?slashing_reason, "Challenger slashed: Invalid outputs");
+                    self.slash_challenger(sender, state)?;
+
+                    // The state won't be reverted.
+                    return Err(ProcessChallengeErrors::ChallengerSlashedNoRevert(
+                        slashing_reason,
+                    ));
+                }
 
                 // Reward the sender
                 self.transfer_tokens_to_sender(
@@ -368,25 +343,22 @@ where
                     state,
                 )
                 .map_err(|err| {
-                    error!(
-                            error = ?err,
-                            "Error raised transferring reward to the challenger");
+                    error!(error = ?err,"Error raised transferring reward to the challenger");
                     ProcessChallengeErrors::RewardTransferFailure(err.to_string())
                 })?;
 
                 // Now remove the bad transition from the pool
                 self.bad_transition_pool.remove(&transition_num, state)?;
-
-                Ok(Some(public_output))
+                Ok(public_output)
             }
-            Err(_err) => {
+            Err(err) => {
                 // Slash the challenger
-                self.slash_challenger_burn_reward(
-                    sender,
-                    SlashingReason::InvalidProofOutputs,
-                    state,
-                )?;
-                Ok(None)
+                let reason = SlashingReason::InvalidZkProof;
+                error!(reason = ?reason, error = ?err, "Challenger slashed: Invalid zk proof");
+                self.slash_challenger(sender, state)?;
+
+                // The state won't be reverted.
+                Err(ProcessChallengeErrors::ChallengerSlashedNoRevert(reason))
             }
         }
     }
