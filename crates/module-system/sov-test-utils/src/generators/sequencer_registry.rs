@@ -5,7 +5,7 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{CryptoSpec, DaSpec, Spec};
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
-use crate::{Message, MessageGenerator};
+use crate::generators::{Message, MessageGenerator};
 
 /// Defines the data required to register a sequencer.
 pub struct RegisterData<S: Spec> {
@@ -100,7 +100,7 @@ impl<S: Spec, Da: DaSpec> MessageGenerator for SequencerRegistryMessageGenerator
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
-    ) -> Vec<crate::Message<Self::Spec, Self::Module>> {
+    ) -> Vec<crate::generators::Message<Self::Spec, Self::Module>> {
         let mut messages = Vec::<Message<S, SequencerRegistry<S, Da>>>::new();
         let mut nonce = 0;
 

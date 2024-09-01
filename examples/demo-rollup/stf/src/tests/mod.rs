@@ -2,9 +2,9 @@ use std::path::Path;
 
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_mock_da::MockDaSpec;
-use sov_modules_api::{DaSpec, Spec};
-use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
+use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_modules_api::{Batch, DaSpec, RawTx, Spec};
+use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, StfBlueprint};
 
 use crate::genesis_config::{create_genesis_config, GenesisPaths};
 use crate::runtime::{GenesisConfig, Runtime};
@@ -53,4 +53,37 @@ pub(crate) fn read_private_keys<S: Spec>() -> TestPrivateKeys<S> {
         token_deployer,
         tx_signer,
     }
+}
+
+/// Builds a [`MockBlob`] from a [`Batch`] and a given address.
+pub fn new_test_blob_from_batch(
+    batch: Batch,
+    address: &[u8],
+    hash: [u8; 32],
+) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let address = MockAddress::try_from(address).unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
+    MockBlob::new(data, address, hash)
+}
+
+/// Builds a new test blob for direct sequencer registration.
+pub fn new_test_blob_for_direct_registration(
+    tx: RawTx,
+    address: &[u8],
+    hash: [u8; 32],
+) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let batch = tx;
+    let address = MockAddress::try_from(address).unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
+    MockBlob::new(data, address, hash)
+}
+
+/// Checks if the given [`BatchReceipt`] contains any events.
+pub fn has_tx_events<Da: DaSpec>(apply_blob_outcome: &BatchReceipt<Da>) -> bool {
+    let events = apply_blob_outcome
+        .tx_receipts
+        .iter()
+        .flat_map(|receipts| receipts.events.iter());
+
+    events.peekable().peek().is_some()
 }

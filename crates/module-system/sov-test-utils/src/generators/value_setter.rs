@@ -1,3 +1,4 @@
+use generators::{Message, MessageGenerator, Rc};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_value_setter::ValueSetter;
 

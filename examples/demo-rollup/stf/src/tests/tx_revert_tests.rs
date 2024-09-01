@@ -12,10 +12,7 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::storage::SimpleStorageManager;
-use sov_test_utils::{
-    has_tx_events_deprecated, new_test_blob_from_batch_deprecated, TestHasher, TestSpec,
-    TestStorageSpec,
-};
+use sov_test_utils::{TestHasher, TestSpec, TestStorageSpec};
 
 use super::{create_genesis_config_for_tests, read_private_keys, RuntimeTest};
 use crate::runtime::Runtime;
@@ -23,7 +20,7 @@ use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
     simulate_da_with_revert_msg,
 };
-use crate::tests::StfBlueprintTest;
+use crate::tests::{has_tx_events, new_test_blob_from_batch, StfBlueprintTest};
 
 // Assume there was a proper address and we converted it to bytes already.
 const SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
@@ -53,8 +50,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
         storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
-        let blob =
-            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -155,8 +151,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
 
-        let blob =
-            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -188,7 +183,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         );
 
         // The batch receipt contains no events.
-        assert!(!has_tx_events_deprecated(&apply_blob_outcome));
+        assert!(!has_tx_events(&apply_blob_outcome));
         storage_manager.commit(apply_block_result.change_set);
         storage_manager.create_storage()
     };
@@ -243,8 +238,7 @@ fn test_tx_bad_nonce() {
 
         let txs = simulate_da_with_bad_nonce(admin_key);
 
-        let blob =
-            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -341,8 +335,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let txs = simulate_da_with_bad_serialization(admin_key.clone());
-        let blob =
-            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -372,7 +365,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         );
 
         // The batch receipt contains no events.
-        assert!(!has_tx_events_deprecated(&apply_blob_outcome));
+        assert!(!has_tx_events(&apply_blob_outcome));
         storage_manager.commit(apply_block_result.change_set);
         storage_manager.create_storage()
     };

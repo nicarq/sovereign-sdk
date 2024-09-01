@@ -11,17 +11,17 @@ use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::storage::{NativeStorageManager, SimpleStorageManager};
-use sov_test_utils::{
-    has_tx_events_deprecated, new_test_blob_for_direct_registration,
-    new_test_blob_from_batch_deprecated, SchemaBatch, TestSpec, TestStorageManager,
-};
+use sov_test_utils::{SchemaBatch, TestSpec, TestStorageManager};
 
 use super::da_simulation::simulate_da_with_multiple_direct_registration_msg;
 use crate::runtime::Runtime;
 use crate::tests::da_simulation::{
     simulate_da, simulate_da_with_incorrect_direct_registration_msg,
 };
-use crate::tests::{create_genesis_config_for_tests, read_private_keys, StfBlueprintTest, S};
+use crate::tests::{
+    create_genesis_config_for_tests, has_tx_events, new_test_blob_for_direct_registration,
+    new_test_blob_from_batch, read_private_keys, StfBlueprintTest, S,
+};
 
 #[test]
 fn test_demo_values_in_db() -> Result<(), Infallible> {
@@ -43,8 +43,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
         storage_manager.commit(stf_change_set);
 
         let txs = simulate_da(admin_private_key);
-        let blob =
-            new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -74,7 +73,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             "Sequencer execution should have succeeded but failed "
         );
 
-        assert!(has_tx_events_deprecated(&apply_blob_outcome),);
+        assert!(has_tx_events(&apply_blob_outcome),);
         storage_manager.commit(result.change_set);
     };
 
@@ -120,8 +119,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let txs = simulate_da(admin_private_key);
 
-    let blob =
-        new_test_blob_from_batch_deprecated(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -150,7 +148,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         "Sequencer execution should have succeeded but failed"
     );
 
-    assert!(has_tx_events_deprecated(&apply_blob_outcome),);
+    assert!(has_tx_events(&apply_blob_outcome),);
 
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
 
@@ -288,7 +286,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     // ensure there's more than 1 tx. This batch will be rejected,
     assert!(txs.len() > 1);
 
-    let blob = new_test_blob_from_batch_deprecated(Batch { txs }, &direct_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch(Batch { txs }, &direct_sequencer, [0; 32]);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
