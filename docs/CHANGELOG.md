@@ -1,3 +1,4 @@
+- #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
 - #1374 Add gas handling in the stf-blueprint::process_proof.
 - #1377 Enables REST API endpoints for `AttesterIncentives` module.
 - #1369 add an extra generic type to the `sov_evm::authenticate` function. This generic enables conversion between `reth::address` and `Spec::Address`. This change is only breaking for users of the EVM module.

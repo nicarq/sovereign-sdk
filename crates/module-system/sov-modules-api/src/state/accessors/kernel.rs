@@ -26,8 +26,8 @@ pub struct VersionedStateReadWriter<'a, S> {
 impl<'a, S: Spec> VersionedStateReadWriter<'a, StateCheckpoint<S>> {
     /// Instantiates a [`VersionedStateReadWriter`] from a kernel working set.
     /// Sets the `slot_num` to the virtual slot number of the kernel.
-    pub fn from_kernel_ws_virtual(
-        kernel_ws: KernelWorkingSet<'a, S>,
+    pub fn from_kernel_ws_virtual<'b: 'a>(
+        kernel_ws: &'b mut KernelWorkingSet<'a, S>,
     ) -> VersionedStateReadWriter<'a, StateCheckpoint<S>> {
         VersionedStateReadWriter {
             state: kernel_ws.inner,

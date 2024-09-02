@@ -212,7 +212,7 @@ where
 
         // We build and pass down the VersionedStateReadWriter to the [`begin_slot_hook`] method to have access to context
         // aware information.
-        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, state_checkpoint);
+        let kernel_working_set = &mut KernelWorkingSet::from_kernel(&self.kernel, state_checkpoint);
         let mut versioned_working_set =
             VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
 
