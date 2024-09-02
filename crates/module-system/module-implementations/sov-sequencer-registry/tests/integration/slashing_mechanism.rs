@@ -212,7 +212,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 "The additional sequencer should be registered"
             );
             gas_consumed_registration_ref
-                .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
         }),
     };
     let slash_sequencer = BatchTestCase {

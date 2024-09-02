@@ -160,6 +160,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                         },
                     ),
                 ),
+                gas_used: Default::default(),
+                gas_price: Default::default(),
             });
         }
 

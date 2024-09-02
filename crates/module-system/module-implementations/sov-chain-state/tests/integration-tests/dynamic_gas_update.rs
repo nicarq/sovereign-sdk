@@ -106,7 +106,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
             assert_eq!(result.outcome, TxEffect::Successful(()));
 
             assert!(
-                result.gas_used
+                result.gas_value_used
                     > gas_target.value(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas()),
                 "The gas used should be greater than the gas target"
             );
@@ -156,7 +156,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
             assert_eq!(result.outcome, TxEffect::Successful(()));
 
             assert!(
-                result.gas_used
+                result.gas_value_used
                     < gas_target.value(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas()),
                 "The gas used should be lower than the gas target"
             );

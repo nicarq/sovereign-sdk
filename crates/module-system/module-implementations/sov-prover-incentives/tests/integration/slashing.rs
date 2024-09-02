@@ -20,7 +20,7 @@ fn assert_slashed(
     slash_reason: &str,
 ) {
     assert_matches!(
-        &context.outcome.unwrap().outcome,
+        &context.proof_receipt.outcome,
         ProofOutcome::Invalid(e) if matches!(e, InvalidProofError::ProverSlashed(s) if s == slash_reason)
     );
     assert!(TestProverIncentives::default()

@@ -32,7 +32,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
             input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |result, state| {
-                assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+                assert_matches!(result.proof_receipt.outcome, ProofOutcome::Valid { .. });
 
                 assert_eq!(
                     TestAttesterIncentives::default()
@@ -174,7 +174,7 @@ fn test_can_attest_within_allowed_range() {
             input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
             assert: Box::new(move |result, state| {
-                assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+                assert_matches!(result.proof_receipt.outcome, ProofOutcome::Valid { .. });
 
                 // Ensure that the `MAX_ATTESTED_HEIGHT` does not increase.
                 let max_attested_height = TestAttesterIncentives::default()

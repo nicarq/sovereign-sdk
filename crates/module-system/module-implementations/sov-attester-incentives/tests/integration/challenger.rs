@@ -57,7 +57,7 @@ fn setup_with_wrong_attestation() -> (
 
             // Update the challenger balance (because they consumed some gas and bonded)
             expected_challenger_balance
-                .fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&genesis_challenger_address, state),

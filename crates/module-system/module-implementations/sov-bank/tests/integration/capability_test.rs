@@ -47,10 +47,10 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(sender_balance - result.gas_used)
+                Some(sender_balance - result.gas_value_used)
             );
 
-            assert!( 0 < result.gas_used && result.gas_used < sender_balance, "The gas used should be posittive and less than the sender balance, which is the max fee amount");
+            assert!( 0 < result.gas_value_used && result.gas_value_used < sender_balance, "The gas used should be posittive and less than the sender balance, which is the max fee amount");
         }),
     });
 }
@@ -134,11 +134,11 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
                 Bank::<S>::default()
                     .get_balance_of(&sender.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(sender.available_gas_balance - result.gas_used)
+                Some(sender.available_gas_balance - result.gas_value_used)
             );
 
             assert!(
-                0 < result.gas_used && result.gas_used == gas_used_value_simulation,
+                0 < result.gas_value_used && result.gas_value_used == gas_used_value_simulation,
                 "The gas used should be positive and exactly the max fee amount."
             );
         }),
@@ -185,13 +185,13 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
                     .unwrap_infallible(),
                 Some(
                     sender.available_gas_balance
-                        - result.gas_used
-                        - PRIORITY_FEE.apply(result.gas_used).unwrap()
+                        - result.gas_value_used
+                        - PRIORITY_FEE.apply(result.gas_value_used).unwrap()
                 )
             );
 
             assert!(
-                0 < result.gas_used && result.gas_used < sender_balance,
+                0 < result.gas_value_used && result.gas_value_used < sender_balance,
                 "The gas used should be positive and lower than the sender balance, which is the max fee amount"
             );
         }),

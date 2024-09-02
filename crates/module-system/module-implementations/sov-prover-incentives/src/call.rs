@@ -49,7 +49,7 @@ type ProverRegistryError<S: Spec, ST: StateAccessor> =
 impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// The burn rate of the reward price for the provers.
     /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
-    pub(crate) const fn burn_rate(&self) -> BurnRate {
+    pub const fn burn_rate(&self) -> BurnRate {
         const PERCENT_BASE_FEE_TO_BURN: u8 = config_value!("PERCENT_BASE_FEE_TO_BURN");
 
         BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
