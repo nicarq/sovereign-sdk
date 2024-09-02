@@ -44,7 +44,7 @@ pub struct UnbondingInfo {
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(Clone, ModuleInfo)]
+#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
 pub struct AttesterIncentives<S, Da>
 where
     S: Spec,
@@ -61,6 +61,7 @@ where
     pub rollup_finality_period: sov_modules_api::StateValue<TransitionHeight>,
 
     /// The set of bonded attesters and their bonded amount.
+    #[rest_api(include)]
     #[state]
     pub bonded_attesters: sov_modules_api::StateMap<S::Address, Amount>,
 
@@ -80,6 +81,7 @@ where
     pub bad_transition_pool: sov_modules_api::StateMap<TransitionHeight, Amount>,
 
     /// The set of bonded challengers and their bonded amount.
+    #[rest_api(include)]
     #[state]
     pub bonded_challengers: sov_modules_api::StateMap<S::Address, Amount>,
 
