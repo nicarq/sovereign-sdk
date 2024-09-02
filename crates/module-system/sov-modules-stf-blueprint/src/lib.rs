@@ -407,11 +407,12 @@ where
                     checkpoint = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {
-                    let (receipt, next_checkpoint) =
+                    let (receipt, next_checkpoint, gas_used) =
                         self.process_proof(blob.id, sender, &gas_price, proof, checkpoint);
 
                     checkpoint = next_checkpoint;
                     proof_receipts.push(receipt);
+                    total_gas.combine(&gas_used);
                 }
             }
         }

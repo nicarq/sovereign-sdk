@@ -599,9 +599,11 @@ where
         &mut tx_scratchpad,
     );
 
-    runtime
-        .gas_enforcer()
-        .refund_remaining_gas(&ctx, &transaction_consumption, &mut tx_scratchpad);
+    runtime.gas_enforcer().refund_remaining_gas(
+        ctx.sender(),
+        &transaction_consumption,
+        &mut tx_scratchpad,
+    );
 
     runtime
         .gas_enforcer()

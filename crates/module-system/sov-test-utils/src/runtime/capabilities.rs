@@ -91,12 +91,12 @@ macro_rules! impl_runtime_capability {
 
             fn refund_remaining_gas(
                 &self,
-                context: &::sov_modules_api::Context<S>,
+                sender: &S::Address,
                 tx_consumption: &::sov_modules_api::transaction::TransactionConsumption<S::Gas>,
                 tx_scratchpad: &mut ::sov_modules_api::TxScratchpad<S>,
             ) {
                 $crate::runtime::traits::MinimalRuntime::bank(self).refund_remaining_gas(
-                    context.sender(),
+                    sender,
                     tx_consumption,
                     tx_scratchpad,
                 );

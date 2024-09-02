@@ -63,12 +63,12 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
 
     fn refund_remaining_gas(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         tx_consumption: &TransactionConsumption<S::Gas>,
         tx_scratchpad: &mut TxScratchpad<S>,
     ) {
         self.bank
-            .refund_remaining_gas(context.sender(), tx_consumption, tx_scratchpad);
+            .refund_remaining_gas(sender, tx_consumption, tx_scratchpad);
     }
 }
 
