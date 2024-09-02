@@ -16,7 +16,9 @@ services:
     # uncomment to provide amount of sequencers to provision (default: 1)
     # command: [ "/opt/entrypoint.sh", "2" ]
     volumes:
-      - credentials:/credentials
+      - type: bind
+        source: ./credentials
+        target: /credentials
       - genesis:/genesis
     networks:
       - monitoring-network
@@ -42,7 +44,10 @@ services:
     ports:
       - 26658:26658
     volumes:
-      - credentials:/credentials:consistent
+      - type: bind
+        source: ./credentials
+        target: /credentials
+        consistency: consistent
       - genesis:/genesis
     networks:
       - monitoring-network
@@ -122,13 +127,6 @@ services:
     command: [ "/opt/toxiproxy/configure.sh" ]
 
 volumes:
-  # local volume where sequencer's credentials can persist
-  credentials:
-    driver: local
-    driver_opts:
-      type: "none"
-      o: "bind"
-      device: "./credentials"
   # a temporary fs where the genesis hash is announced
   genesis:
     driver_opts:
