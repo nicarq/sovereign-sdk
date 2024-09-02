@@ -113,6 +113,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
+                operating_mode: sov_chain_state::OperatingMode::Optimistic,
                 inner_code_commitment: MockCodeCommitment::default(),
                 outer_code_commitment: MockCodeCommitment::default(),
                 genesis_da_height: 0,
@@ -203,6 +204,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
+                operating_mode: sov_chain_state::OperatingMode::Optimistic,
                 inner_code_commitment: MockCodeCommitment::default(),
                 outer_code_commitment: MockCodeCommitment::default(),
                 genesis_da_height: 0,

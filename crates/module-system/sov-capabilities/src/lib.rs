@@ -42,12 +42,23 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         tx_consumption: &TransactionConsumption<S::Gas>,
         tx_scratchpad: &mut TxScratchpad<S>,
     ) {
-        // TODO(@theochap): In the next PR this method will become failible
-        self.bank.allocate_consumed_gas(
-            &self.prover_incentives.id().to_payable(),
-            tx_consumption,
-            tx_scratchpad,
+        let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
+        let reward_attester_incentives = self.attester_incentives.should_reward_fees(tx_scratchpad);
+
+        assert!(
+            reward_prover_incentives ^ reward_attester_incentives,
+            "Exactly one of prover or attester incentives should be rewarded"
         );
+
+        let rewarded_module = if reward_prover_incentives {
+            self.prover_incentives.id().to_payable()
+        } else {
+            self.attester_incentives.id().to_payable()
+        };
+
+        // TODO(@theochap): In the next PR this method will become failible
+        self.bank
+            .allocate_consumed_gas(&rewarded_module, tx_consumption, tx_scratchpad);
     }
 
     fn refund_remaining_gas(

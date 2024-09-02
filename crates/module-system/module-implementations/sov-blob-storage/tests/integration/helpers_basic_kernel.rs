@@ -1,9 +1,9 @@
-use sov_chain_state::ChainStateConfig;
+use sov_chain_state::{ChainStateConfig, OperatingMode};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{BatchType, TestSequencer, TEST_DEFAULT_USER_STAKE};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -16,9 +16,7 @@ use crate::{
 pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpec>>) {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
-
+    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
     let preferred_sequencer = genesis_config.initial_sequencer.clone();
     let user_account = genesis_config.additional_accounts.first().unwrap().clone();
 
@@ -43,6 +41,7 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpe
         genesis.into_genesis_params_with_kernel(BasicKernelGenesisConfig {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
+                operating_mode: OperatingMode::Zk,
                 genesis_da_height: 0,
                 inner_code_commitment: Default::default(),
                 outer_code_commitment: Default::default(),

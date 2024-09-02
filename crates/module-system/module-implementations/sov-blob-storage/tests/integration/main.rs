@@ -6,7 +6,7 @@ use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec};
 use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::{SlotReceipt, TestRunnerWithKernel, ValueSetter};
-use sov_test_utils::{generate_optimistic_runtime, TestSequencer, TestUser};
+use sov_test_utils::{generate_zk_runtime, TestSequencer, TestUser};
 
 mod helpers_basic_kernel;
 mod helpers_soft_confirmations;
@@ -30,7 +30,7 @@ pub struct TestData<S: Spec> {
 pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
 pub type RT = TestBlobStorageRuntime<S, MockDaSpec>;
 
-generate_optimistic_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
+generate_zk_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
 /// Returns the current virtual slot number in the runner.
 pub fn virtual_slot<

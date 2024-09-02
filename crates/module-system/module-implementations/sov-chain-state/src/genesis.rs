@@ -4,7 +4,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{KernelWorkingSet, Zkvm};
 
-use crate::ChainState;
+use crate::{ChainState, OperatingMode};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -13,6 +13,9 @@ pub struct ChainStateConfig<S: sov_modules_api::Spec> {
     /// So the format depends on DA layer time representation.
     /// Most probably is used for bridging purposes.
     pub current_time: Time,
+
+    /// The mode that the rollup will be operating in.
+    pub operating_mode: OperatingMode,
 
     /// The code commitment to be used for verifying the rollup's execution.
     pub inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
@@ -33,6 +36,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     ) -> Result<()> {
         tracing::info!(
             current_time = ?config.current_time,
+            operating_mode = ?config.operating_mode,
             genesis_da_height = config.genesis_da_height,
             inner_code_commitment = ?config.inner_code_commitment,
             outer_code_commitment = ?config.outer_code_commitment,
@@ -42,6 +46,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         self.next_visible_slot_number.set(&1, state)?;
 
         self.time.set_true_current(&config.current_time, state);
+        self.operating_mode.set(&config.operating_mode, state)?;
 
         self.inner_code_commitment
             .set(&config.inner_code_commitment, state)?;

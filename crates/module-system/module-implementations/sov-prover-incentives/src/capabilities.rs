@@ -33,6 +33,9 @@ pub enum ProcessProofError<S: Spec> {
 
     #[error("An error occurred when trying to access the state, error: {0}")]
     StateAccessorError(#[from] StateAccessorError<S::Gas>),
+
+    #[error("Prover incentives called with invalid operating mode")]
+    InvalidOperatingMode,
 }
 
 impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
@@ -44,7 +47,9 @@ impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
             ProcessProofError::ProverPenalizedNoRevert(e) => {
                 InvalidProofError::ProverPenalized(e.to_string())
             }
-            ProcessProofError::ProverNotBonded | ProcessProofError::BondNotHighEnough => {
+            ProcessProofError::ProverNotBonded
+            | ProcessProofError::BondNotHighEnough
+            | ProcessProofError::InvalidOperatingMode => {
                 InvalidProofError::PreconditionNotMet(error.to_string())
             }
             ProcessProofError::StateAccessorError(e) => {
@@ -68,6 +73,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
     ) -> Result<AggregatedProofPublicData, ProcessProofError<S>> {
+        if !self.should_reward_fees(state) {
+            return Err(ProcessProofError::InvalidOperatingMode);
+        }
+
         // Get the prover's old balance.
         // Revert if they aren't bonded
         let old_balance = match self.bonded_provers.get(prover_address, state)? {

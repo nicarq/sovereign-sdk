@@ -211,6 +211,15 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
     }
 }
 
+/// Flag indicating what mode the rollup is operating in.
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum OperatingMode {
+    /// The rollup is currently executing in optimistic mode.
+    Optimistic,
+    /// The rollup is currently executing in zk mode.
+    Zk,
+}
+
 /// The chain state module definition. Contains the current state of the da layer.
 #[derive(Clone, KernelModuleInfo)]
 pub struct ChainState<S: Spec, Da: DaSpec> {
@@ -230,6 +239,10 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The current time, as reported by the DA layer
     #[state]
     time: sov_modules_api::VersionedStateValue<Time>,
+
+    /// The mode that the rollup is operating in.
+    #[state]
+    operating_mode: sov_modules_api::StateValue<OperatingMode>,
 
     /// A record of all previous state transitions which are available to the VM.
     /// Currently, this includes *all* historical state transitions, but that may change in the future.
@@ -381,6 +394,17 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         state: &mut Accessor,
     ) -> Result<Option<StateTransition<S, Da>>, <Accessor as StateReader<User>>::Error> {
         self.historical_transitions.get(&transition_num, state)
+    }
+
+    /// Returns the current operating mode of the rollup.
+    pub fn operating_mode<Accessor: StateReader<User>>(
+        &self,
+        state: &mut Accessor,
+    ) -> Result<OperatingMode, Accessor::Error> {
+        Ok(self
+            .operating_mode
+            .get(state)?
+            .expect("Operating mode must be set at initialization"))
     }
 }
 
