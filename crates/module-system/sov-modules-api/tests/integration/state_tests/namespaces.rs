@@ -170,7 +170,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     // Check that we can get the current value with a standard working set
     let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone());
     let mut state_checkpoint = working_set.checkpoint().0;
-    let kernel_working_set = KernelWorkingSet::uninitialized(&mut state_checkpoint);
+    let kernel_working_set = &mut KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
     let val = state_value
         .get_current(&mut versioned_reader)?
