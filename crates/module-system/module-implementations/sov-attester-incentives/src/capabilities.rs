@@ -49,6 +49,10 @@ pub enum ProcessAttestationErrors<AccessorError> {
     #[error("Error occurred when accessing the state, error: {0}")]
     /// An error occurred when accessing the state
     StateAccessError(#[from] AccessorError),
+
+    #[error("Attester incentives called with invalid operating mode")]
+    /// An error occurred due to incorrect operating mode of the rollup.
+    InvalidOperatingMode,
 }
 
 impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for InvalidProofError {
@@ -61,6 +65,7 @@ impl<AccessorError: Display> From<ProcessAttestationErrors<AccessorError>> for I
             | ProcessAttestationErrors::AttesterNotBonded
             | ProcessAttestationErrors::InvalidBondingProof
             | ProcessAttestationErrors::InvalidTransitionInvariant
+            | ProcessAttestationErrors::InvalidOperatingMode
             | ProcessAttestationErrors::InvalidBondFormat => {
                 InvalidProofError::PreconditionNotMet(format!("{}", error))
             }
@@ -92,6 +97,10 @@ pub enum ProcessChallengeErrors<AccessorError> {
     #[error("Error occurred when accessing the state, error: {0}")]
     /// An error occurred when accessing the state
     StateAccessError(#[from] AccessorError),
+
+    #[error("Attester incentives called with invalid operating mode")]
+    /// An error occurred due to incorrect operating mode of the rollup.
+    InvalidOperatingMode,
 }
 
 impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for InvalidProofError {
@@ -100,7 +109,8 @@ impl<AccessorError: Display> From<ProcessChallengeErrors<AccessorError>> for Inv
             ProcessChallengeErrors::ChallengerSlashedNoRevert(reason) => {
                 InvalidProofError::ProverSlashed(reason.to_string())
             }
-            ProcessChallengeErrors::ChallengerNotBonded => {
+            ProcessChallengeErrors::ChallengerNotBonded
+            | ProcessChallengeErrors::InvalidOperatingMode => {
                 InvalidProofError::PreconditionNotMet(format!("{}", error))
             }
             ProcessChallengeErrors::RewardTransferFailure(e) => InvalidProofError::RewardFailure(e),
@@ -127,6 +137,10 @@ where
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<SovAttestation<S, Da>, ProcessAttestationErrors<StateAccessorError<S::Gas>>>
     {
+        if !self.should_reward_fees(state) {
+            return Err(ProcessAttestationErrors::InvalidOperatingMode);
+        }
+
         let attestation = serialized_attestation.to_attestation().map_err(|e| {
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
@@ -271,6 +285,10 @@ where
         SovStateTransitionPublicData<S, Da>,
         ProcessChallengeErrors<StateAccessorError<S::Gas>>,
     > {
+        if !self.should_reward_fees(state) {
+            return Err(ProcessChallengeErrors::InvalidOperatingMode);
+        }
+
         let proof = &serialized_challenge.raw_challenge;
         // Get the challenger's old balance.
         // Revert if they aren't bonded

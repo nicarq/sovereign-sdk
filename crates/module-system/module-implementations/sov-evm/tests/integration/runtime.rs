@@ -12,6 +12,7 @@ use sov_test_utils::{generate_runtime, TestSpec};
 generate_runtime! {
     name: TestRuntime,
     modules: [evm: Evm<S>],
+    operating_mode: sov_test_utils::runtime::OperatingMode::Zk,
     base_fee_recipient: attester_incentives: sov_test_utils::runtime::AttesterIncentives<S, Da>,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
     impl_capabilities: [GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],

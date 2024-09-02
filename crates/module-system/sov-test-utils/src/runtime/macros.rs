@@ -7,6 +7,7 @@ macro_rules! generate_runtime {
     (
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
+        operating_mode: $operating_mode:path,
         base_fee_recipient: $base_fee_recipient:ident : $base_fee_recipient_ty:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         impl_capabilities: [$($capability:ident),* $(,)?],
@@ -106,6 +107,7 @@ macro_rules! generate_runtime {
                     kernel: $crate::runtime::BasicKernelGenesisConfig {
                         chain_state: $crate::runtime::ChainStateConfig {
                             current_time: Default::default(),
+                            operating_mode: $operating_mode,
                             inner_code_commitment: Default::default(),
                             outer_code_commitment: Default::default(),
                             genesis_da_height: 0,
@@ -181,6 +183,7 @@ macro_rules! generate_optimistic_runtime {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
+            operating_mode: $crate::runtime::OperatingMode::Optimistic,
             base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
             impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
@@ -235,6 +238,7 @@ macro_rules! generate_zk_runtime {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
+            operating_mode: $crate::runtime::OperatingMode::Zk,
             base_fee_recipient: prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
             impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],

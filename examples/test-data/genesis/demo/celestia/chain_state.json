@@ -1,12 +1,13 @@
 {
-  "current_time": {
-    "secs": 0,
-    "nanos": 0
-  },
-  "inner_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0],
-  "outer_code_commitment": [
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0
-  ],
-  "genesis_da_height": 3
+    "current_time": {
+        "secs": 0,
+        "nanos": 0
+    },
+    "operating_mode": "Zk",
+    "inner_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0],
+    "outer_code_commitment": [
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0
+    ],
+    "genesis_da_height": 3
 }

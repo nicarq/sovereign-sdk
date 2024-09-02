@@ -15,8 +15,12 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_bank::Amount;
+use sov_chain_state::OperatingMode;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
+use sov_modules_api::{
+    Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
+};
+use sov_state::User;
 
 pub use crate::event::Event;
 
@@ -82,6 +86,12 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
+        if !self.should_reward_fees(state) {
+            return Err(anyhow::anyhow!(
+                "Prover incentives call message received when operating in optimistic mode"
+            )
+            .into());
+        }
         match msg {
             call::CallMessage::Register(bond_amount) => {
                 self.register(bond_amount, context.sender(), state)
@@ -92,5 +102,15 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
             }
         }
         .map_err(|e| Error::ModuleError(e.into()))
+    }
+}
+
+impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
+    /// Returns a bool indicating if the [`ProverIncentives`] module should be paid fees.
+    pub fn should_reward_fees<Accessor: StateReader<User>>(&self, state: &mut Accessor) -> bool {
+        self.chain_state
+            .operating_mode(state)
+            .expect("Operating mode retrieval should be infallible")
+            == OperatingMode::Zk
     }
 }

@@ -21,9 +21,13 @@ pub use capabilities::{ProcessAttestationErrors, ProcessChallengeErrors};
 pub use query::*;
 pub use registration::CustomError;
 use sov_bank::{Amount, BurnRate};
+use sov_chain_state::OperatingMode;
 use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState};
+use sov_modules_api::{
+    Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
+};
+use sov_state::User;
 
 pub use crate::event::Event;
 
@@ -137,6 +141,12 @@ where
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, Error> {
+        if !self.should_reward_fees(state) {
+            return Err(anyhow::anyhow!(
+                "Attester incentives call message received when operating in zk mode"
+            )
+            .into());
+        }
         let res = match msg {
             call::CallMessage::RegisterAttester(bond_amount) => self
                 .register_attester(bond_amount, context.sender(), state)
@@ -163,5 +173,15 @@ where
             tracing::debug!("Attester incentives call succeeded!");
         }
         res
+    }
+}
+
+impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
+    /// Returns a bool indicating if the [`AttesterIncentives`] module should be paid fees.
+    pub fn should_reward_fees<Accessor: StateReader<User>>(&self, state: &mut Accessor) -> bool {
+        self.chain_state
+            .operating_mode(state)
+            .expect("Operating mode retrieval should be infallible")
+            == OperatingMode::Optimistic
     }
 }

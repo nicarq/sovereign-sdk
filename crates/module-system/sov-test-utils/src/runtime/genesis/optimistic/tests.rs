@@ -89,6 +89,7 @@ fn run_value_setter_txs_with_assertions(
     let kernel_genesis = BasicKernelGenesisConfig {
         chain_state: ChainStateConfig {
             current_time: Default::default(),
+            operating_mode: sov_chain_state::OperatingMode::Optimistic,
             inner_code_commitment: MockCodeCommitment::default(),
             outer_code_commitment: MockCodeCommitment::default(),
             genesis_da_height: 0,

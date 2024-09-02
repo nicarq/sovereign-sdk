@@ -1,4 +1,4 @@
-use sov_chain_state::ChainStateConfig;
+use sov_chain_state::{ChainStateConfig, OperatingMode};
 use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
@@ -6,7 +6,7 @@ use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
-use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{
     AsUser, BatchType, SequencerInfo, SoftConfirmationBlobInfo, TestSequencer,
     TEST_DEFAULT_USER_STAKE,
@@ -23,11 +23,7 @@ pub fn setup_soft_confirmation_kernel() -> (
     TestData<S>,
     TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
 ) {
-    // Generate a genesis config, then overwrite the attester key/address with ones that
-    // we know. We leave the other values untouched.
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
-
+    let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
     let preferred_sequencer = genesis_config.initial_sequencer.clone();
     let user_account = genesis_config.additional_accounts.first().unwrap().clone();
 
@@ -52,6 +48,7 @@ pub fn setup_soft_confirmation_kernel() -> (
         genesis.into_genesis_params_with_kernel(SoftConfirmationsKernelGenesisConfig {
             chain_state: ChainStateConfig {
                 current_time: Default::default(),
+                operating_mode: OperatingMode::Zk,
                 genesis_da_height: 0,
                 inner_code_commitment: Default::default(),
                 outer_code_commitment: Default::default(),
