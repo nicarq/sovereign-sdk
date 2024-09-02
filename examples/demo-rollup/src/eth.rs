@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use anyhow::Context as _;
 use demo_stf::authentication::EvmAuth;
+use demo_stf::runtime::EthereumToRollupAddressConverter;
 use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
 use sov_modules_api::Spec;
 use sov_rollup_interface::node::da::DaService;
@@ -12,7 +13,10 @@ pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
     da_service: Da,
     storage: watch::Receiver<<S as Spec>::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<()>
+where
+    EthereumToRollupAddressConverter: TryInto<S::Address>,
+{
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();
         EthRpcConfig {

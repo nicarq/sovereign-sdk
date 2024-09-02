@@ -27,6 +27,7 @@ mod helpers;
 pub use authenticate::authenticate;
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
+pub use reth_primitives::Address as EvmAddress;
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, Context, Error, GenesisState,
