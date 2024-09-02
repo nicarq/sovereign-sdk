@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use backon::ExponentialBuilder;
 use demo_stf::authentication::ModAuth;
-use demo_stf::runtime::Runtime;
+use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
@@ -35,6 +35,8 @@ pub struct CelestiaDemoRollup<M> {
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
     DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+    EthereumToRollupAddressConverter:
+        TryInto<<DefaultSpec<Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
 {
     type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
     type DaSpec = CelestiaSpec;

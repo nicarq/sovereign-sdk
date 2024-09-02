@@ -39,6 +39,7 @@ use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
 use sov_sequencer_registry::SequencerStakeMeter;
 
+pub use crate::authentication::EthereumToRollupAddressConverter;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
 /// The `demo-stf runtime`.
@@ -71,6 +72,7 @@ impl<S, Da> sov_modules_stf_blueprint::Runtime<S, Da> for Runtime<S, Da>
 where
     S: Spec,
     Da: DaSpec,
+    EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
     type GenesisConfig = GenesisConfig<S, Da>;
 

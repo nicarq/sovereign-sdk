@@ -19,9 +19,9 @@ pub use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
 pub use sov_value_setter::ValueSetterConfig;
 
-/// Creates config for a rollup with some default settings, the config is used in demos and tests.
-use crate::runtime::GenesisConfig;
 use crate::runtime::Runtime;
+/// Creates config for a rollup with some default settings, the config is used in demos and tests.
+use crate::runtime::{EthereumToRollupAddressConverter, GenesisConfig};
 
 /// Paths pointing to genesis files.
 pub struct GenesisPaths {
@@ -67,7 +67,10 @@ impl GenesisPaths {
 /// the given directory.
 pub fn create_genesis_config<S: Spec, Da: DaSpec>(
     genesis_paths: &GenesisPaths,
-) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig> {
+) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig>
+where
+    EthereumToRollupAddressConverter: TryInto<S::Address>,
+{
     let bank_config: BankConfig<S> = read_genesis_json(&genesis_paths.bank_genesis_path)?;
 
     let sequencer_registry_config: SequencerConfig<S, Da> =

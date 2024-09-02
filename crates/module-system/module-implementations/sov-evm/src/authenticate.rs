@@ -12,8 +12,22 @@ use sov_rollup_interface::TxHash;
 use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};
 
-/// Authenticate raw evm transaction.
-pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
+/// Authenticates a raw evm transaction.
+///
+/// Due to unfortnate limitations of the Rust type system, this function is generic over an `EvmToRollupAddressConverter` which
+/// is required to implement `From<reth_primitives::Address>` and `TryInto<S::Address>`. If the caller wishes to support deriving
+/// rollup addresses from the evm address, their implementation of `EvmToRollupAddressConverter` should always return Some(S::Address).
+/// Otherwise, they should simply return None.
+///
+/// # Security
+///
+/// If the caller does plan to derive rollup addresses from evm addresses, they should be sure that their scheme for doing so is deterministic and
+/// collision resistant. You don't want someone to be able to pick a rollup address that someone else is already using!
+pub fn authenticate<
+    S: Spec,
+    Meter: GasMeter<S::Gas>,
+    EvmToRollupAddressConverter: From<reth_primitives::Address> + TryInto<S::Address>,
+>(
     raw_tx: &[u8],
     _pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
 ) -> AuthenticationResult<S, CallMessage, AuthorizationData<S>> {
@@ -55,11 +69,13 @@ pub fn authenticate<S: Spec, Meter: GasMeter<S::Gas>>(
         authenticated_tx,
     };
 
+    let signer: EvmToRollupAddressConverter = signer.into();
+
     let auth_data = AuthorizationData {
         nonce,
         credential_id,
         credentials,
-        default_address: None,
+        default_address: signer.try_into().ok(),
     };
     let call = CallMessage { rlp: tx_clone };
     Ok((tx_and_raw_hash, auth_data, call))

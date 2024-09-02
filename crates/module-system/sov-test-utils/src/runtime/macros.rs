@@ -11,6 +11,7 @@ macro_rules! generate_runtime {
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         impl_capabilities: [$($capability:ident),* $(,)?],
         impl_hooks: [$($hook:ident),* $(,)?]
+        runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*]
     ) => {
         /// Generated test runtime implementation using the testing framework.
         #[derive(
@@ -153,6 +154,7 @@ macro_rules! generate_runtime {
         impl<S, Da> $crate::runtime::Runtime<S, Da> for $id<S, Da> where
             S: ::sov_modules_api::Spec,
             Da: ::sov_modules_api::DaSpec,
+            $($runtime_trait_impl_bounds)*
         {
             type GenesisConfig = <Self as ::sov_modules_api::Genesis>::Config;
 
@@ -183,6 +185,7 @@ macro_rules! generate_optimistic_runtime {
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
             impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
+            runtime_trait_impl_bounds: []
         }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {
@@ -236,6 +239,7 @@ macro_rules! generate_zk_runtime {
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
             impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
+            runtime_trait_impl_bounds: []
         }
 
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {

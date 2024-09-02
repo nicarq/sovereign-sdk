@@ -56,6 +56,7 @@ pub trait RuntimeAuthenticator<S: Spec> {
     type SequencerStakeMeter: GasMeter<S::Gas>;
     /// The type that is passed to the authorizer.
     type AuthorizationData;
+
     /// Authenticates raw transaction.
     fn authenticate(
         &self,

@@ -16,6 +16,7 @@ generate_runtime! {
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
     impl_capabilities: [GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
     impl_hooks: [ApplyBatchHooks, TxHooks]
+    runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>]
 }
 
 impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
@@ -48,7 +49,35 @@ impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da> {
+/// A converter from an Ethereum address to a rollup address.
+pub struct EthereumToRollupAddressConverter([u8; 20]);
+
+impl From<sov_evm::EvmAddress> for EthereumToRollupAddressConverter {
+    fn from(address: sov_evm::EvmAddress) -> Self {
+        Self(address.into())
+    }
+}
+
+impl TryInto<reth_primitives::Address> for EthereumToRollupAddressConverter {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<reth_primitives::Address, Self::Error> {
+        Ok(reth_primitives::Address::from(self.0))
+    }
+}
+
+impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverter {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<sov_modules_api::Address<H>, Self::Error> {
+        anyhow::bail!("Not implemented")
+    }
+}
+
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da>
+where
+    EthereumToRollupAddressConverter: TryInto<S::Address>,
+{
     type Decodable = <Self as DispatchCall>::Decodable;
 
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
@@ -65,7 +94,7 @@ impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da> {
         Self::AuthorizationData,
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_evm::authenticate(&tx.data, pre_exec_ws)?;
+            sov_evm::authenticate::<_, _, EthereumToRollupAddressConverter>(&tx.data, pre_exec_ws)?;
         let call = TestRuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))

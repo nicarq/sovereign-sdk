@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use demo_stf::authentication::ModAuth;
-use demo_stf::runtime::Runtime;
+use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
@@ -32,6 +32,8 @@ pub struct MockDemoRollup<M> {
 impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
 where
     DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+    EthereumToRollupAddressConverter:
+        TryInto<<DefaultSpec<Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
 {
     type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
     type DaSpec = MockDaSpec;

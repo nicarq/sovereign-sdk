@@ -16,7 +16,10 @@ use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da> {
+impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da>
+where
+    EthereumToRollupAddressConverter: TryInto<S::Address>,
+{
     type Decodable = <Self as DispatchCall>::Decodable;
 
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
@@ -105,7 +108,31 @@ pub struct EvmAuth<S: Spec, Da: DaSpec> {
     _phantom: PhantomData<(S, Da)>,
 }
 
-impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
+/// A converter from an Ethereum address to a rollup address.
+pub struct EthereumToRollupAddressConverter(
+    /// The raw bytes of the ethereum address.
+    pub [u8; 20],
+);
+
+impl From<sov_evm::EvmAddress> for EthereumToRollupAddressConverter {
+    fn from(address: sov_evm::EvmAddress) -> Self {
+        Self(address.into())
+    }
+}
+
+impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverter {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<sov_modules_api::Address<H>, Self::Error> {
+        anyhow::bail!("Not implemented")
+    }
+}
+
+impl<S: Spec<Address = Addr>, Da: DaSpec, Addr> Authenticator for EvmAuth<S, Da>
+where
+    EthereumToRollupAddressConverter: TryInto<Addr>,
+    Addr: Send + Sync,
+{
     type Spec = S;
     type DispatchCall = Runtime<S, Da>;
     type AuthorizationData = AuthorizationData<S>;
@@ -118,8 +145,11 @@ impl<S: Spec, Da: DaSpec> Authenticator for EvmAuth<S, Da> {
         <Self::DispatchCall as DispatchCall>::Decodable,
         Self::AuthorizationData,
     > {
-        let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_evm::authenticate::<Self::Spec, Meter>(tx, stake_meter)?;
+        let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
+            Self::Spec,
+            Meter,
+            EthereumToRollupAddressConverter,
+        >(tx, stake_meter)?;
         let call = RuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))

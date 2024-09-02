@@ -1,3 +1,4 @@
+- #1369 add an extra generic type to the `sov_evm::authenticate` function. This generic enables conversion between `reth::address` and `Spec::Address`. This change is only breaking for users of the EVM module.
 - #1365 Simplify sequencer reward workflow.
 - #1360 attester-incentive & prover-incentives: Ensure that the helper methods only read the state.
 - #1358 Adds a mechanism for individually overriding capabilities on the `HasCapabilities` trait.
