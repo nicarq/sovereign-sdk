@@ -393,7 +393,7 @@ fn test_define_token_with_mint() {
             },
         ),
         assert: Box::new(move |receipt, state| {
-            assert_eq!(receipt.outcome, TxEffect::Successful(()));
+            assert_eq!(receipt.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<TestSpec>::default()

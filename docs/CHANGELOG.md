@@ -1,3 +1,4 @@
+- #1388 Make the naming in the sov-test-utils more consistent.
 - #1383 Extend `prover-incentoves::test_valid_proof` test to check gas usage. 
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.

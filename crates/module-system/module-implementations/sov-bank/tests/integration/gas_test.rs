@@ -79,7 +79,7 @@ fn gas_price_constants_are_charged_correctly() {
                   user_initial_balance,
               }| {
             Box::new(move |result, state| {
-                assert_eq!(result.outcome, TxEffect::Successful(()));
+                assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
                 let user_final_balance = Bank::<S>::default()
                     .get_balance_of(&user_address, GAS_TOKEN_ID, state)
@@ -108,7 +108,7 @@ fn gas_price_constants_are_charged_correctly() {
                   user_address,
               }| {
             Box::new(move |result, state| {
-                assert_eq!(result.outcome, TxEffect::Successful(()));
+                assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
                 let user_final_balance = Bank::<S>::default()
                     .get_balance_of(&user_address, GAS_TOKEN_ID, state)
@@ -148,7 +148,7 @@ fn config_constants_are_charged_correctly() {
                   user_address,
               }| {
             Box::new(move |result, state| {
-                assert_eq!(result.outcome, TxEffect::Successful(()));
+                assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
                 let user_final_balance = Bank::<S>::default()
                     .get_balance_of(&user_address, GAS_TOKEN_ID, state)
@@ -174,7 +174,7 @@ fn config_constants_are_charged_correctly() {
                   user_address,
               }| {
             Box::new(move |result, state| {
-                assert_eq!(result.outcome, TxEffect::Successful(()));
+                assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
                 let user_final_balance = Bank::<S>::default()
                     .get_balance_of(&user_address, GAS_TOKEN_ID, state)
@@ -208,11 +208,11 @@ fn not_enough_gas_wont_panic() {
         |_| {
             Box::new(move |result, _state| {
                 assert!(
-                    matches!(result.outcome, TxEffect::Reverted(..)),
+                    matches!(result.tx_receipt, TxEffect::Reverted(..)),
                     "The transaction outcome is incorrect"
                 );
 
-                if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                     let mut chain = err.chain();
                     assert_eq!(chain.len(), 1, "The error chain is incorrect");
 
@@ -237,11 +237,11 @@ fn very_high_gas_to_charge_wont_panic_or_overflow() {
         |_| {
             Box::new(move |result, _state| {
                 assert!(
-                    matches!(result.outcome, TxEffect::Reverted(..)),
+                    matches!(result.tx_receipt, TxEffect::Reverted(..)),
                     "The transaction outcome is incorrect"
                 );
 
-                if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+                if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                     let mut chain = err.chain();
                     assert_eq!(chain.len(), 1, "The error chain is incorrect");
 

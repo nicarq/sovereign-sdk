@@ -492,7 +492,7 @@ where
         let result = self.execute(batch_test.input, Some(sender_da_address));
         let ctx = BatchAssertContext {
             sender_da_address,
-            outcome: result.batch_receipts.first().cloned(),
+            batch_receipt: result.batch_receipts.first().cloned(),
         };
         (batch_test.assert)(ctx, &mut self.current_state());
         self
@@ -513,15 +513,22 @@ where
             .unwrap_or(self.default_sequencer_da_address);
 
         let result = self.execute(proof_test.input, Some(sender_da_address));
-        let proof_receipt = result.proof_receipts[0].clone();
+        let proof_receipt = result.proof_receipts.first().cloned();
 
-        let gas_used = <S as Spec>::Gas::from_slice(&proof_receipt.gas_used);
-        let gas_price =
-            <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(&proof_receipt.gas_price);
+        let gas_value_used = if let Some(proof_receipt) = &proof_receipt {
+            let gas_used = <S as Spec>::Gas::from_slice(&proof_receipt.gas_used);
+            let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(
+                &proof_receipt.gas_price,
+            );
+
+            gas_used.value(&gas_price)
+        } else {
+            0
+        };
 
         let ctx = ProofAssertContext {
             proof_receipt,
-            gas_value_used: gas_used.value(&gas_price),
+            gas_value_used,
         };
         (proof_test.assert)(ctx, &mut self.current_state());
 

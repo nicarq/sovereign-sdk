@@ -52,7 +52,7 @@ fn test_enforces_chain_id() {
 
     runner.execute_transaction(TransactionTestCase {
         input: tx,
-        assert: Box::new(move |result, _state| assert!(result.outcome.is_successful())),
+        assert: Box::new(move |result, _state| assert!(result.tx_receipt.is_successful())),
     });
 
     let fake_chain_id = real_chain_id + 1;
@@ -71,7 +71,7 @@ fn test_enforces_chain_id() {
         input: vec![tx].into(),
         override_sequencer: None,
         assert: Box::new(move |result, _state| {
-            match &result.outcome.unwrap().inner.outcome {
+            match &result.batch_receipt.unwrap().inner.outcome {
                 sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
                     assert_eq!(
                         reason,

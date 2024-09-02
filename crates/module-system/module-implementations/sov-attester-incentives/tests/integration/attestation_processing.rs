@@ -80,7 +80,7 @@ fn test_burn_on_invalid_attestation() {
             override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_eq!(
-                    result.proof_receipt.outcome,
+                    result.proof_receipt.unwrap().outcome,
                     ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(
                         "Invalid bonding proof".to_string()
                     ))

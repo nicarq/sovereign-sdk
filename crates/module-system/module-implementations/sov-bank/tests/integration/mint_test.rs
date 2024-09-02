@@ -31,7 +31,7 @@ fn mint_token_success() {
             mint_to_address: user_no_token_balance.address(),
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -77,7 +77,7 @@ fn mint_token_fails_if_user_unauthorized() {
             mint_to_address: unauthorized_minter.address(),
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -142,7 +142,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
             mint_to_address: user.address(),
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -190,7 +190,7 @@ fn mint_token_account_balance_overflow() {
             mint_to_address: minter.address(),
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -239,7 +239,7 @@ fn mint_token_total_supply_overflow() {
             mint_to_address: minter.address(),
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.outcome {
+            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();

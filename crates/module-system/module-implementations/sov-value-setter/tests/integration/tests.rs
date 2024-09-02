@@ -64,7 +64,7 @@ fn test_setting_value_not_admin() {
     runner.execute_transaction(TransactionTestCase {
         input: non_admin.create_plain_message::<ValueSetter<S>>(CallMessage::SetValue(5)),
         assert: Box::new(|result, _state| {
-            match &result.outcome {
+            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
                         reason,

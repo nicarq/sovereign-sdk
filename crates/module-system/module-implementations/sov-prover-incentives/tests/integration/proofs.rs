@@ -82,7 +82,10 @@ fn test_valid_proof() {
         input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            assert_matches!(result.proof_receipt.outcome, ProofOutcome::Valid { .. });
+            assert_matches!(
+                result.proof_receipt.unwrap().outcome,
+                ProofOutcome::Valid { .. }
+            );
 
             assert_eq!(
                 get_user_balance(&prover_address, state),
@@ -121,7 +124,10 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
         input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            assert_matches!(result.proof_receipt.outcome, ProofOutcome::Valid { .. });
+            assert_matches!(
+                result.proof_receipt.unwrap().outcome,
+                ProofOutcome::Valid { .. }
+            );
             assert_eq!(
                 TestProverIncentives::default()
                     .bonded_provers
@@ -148,7 +154,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
         input: ProofInput(serialize_proof(aggregated_proof)),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            match result.proof_receipt.outcome {
+            match result.proof_receipt.unwrap().outcome {
                 ProofOutcome::Invalid(InvalidProofError::ProverPenalized(_)) => {}
                 _ => panic!("Expected prover to be penalized"),
             }

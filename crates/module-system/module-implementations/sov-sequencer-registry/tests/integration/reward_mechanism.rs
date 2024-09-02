@@ -139,7 +139,7 @@ fn test_penalize_sequencer() {
             )
             .with_max_fee(0),
         assert: Box::new(move |result, state| {
-            match &result.outcome {
+            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
                     if let SkippedReason::CannotReserveGas(error_message) = reason {
                         assert!(error_message.contains("The gas to charge is greater than the funds available in the meter."), "Error message doesn't contain with the expected phrase. Got: {}", error_message);
