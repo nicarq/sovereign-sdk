@@ -116,7 +116,10 @@ fn test_specify_non_default_sequencer_errors_if_not_registered() {
         .into(),
         override_sequencer: Some(<MockDaSpec as DaSpec>::Address::from([42; 32])),
         assert: Box::new(move |result, _state| {
-            assert!(result.outcome.is_none(), "Batch should have been dropped");
+            assert!(
+                result.batch_receipt.is_none(),
+                "Batch should have been dropped"
+            );
         }),
     });
 }
@@ -182,7 +185,7 @@ fn test_custom_transaction_details_chain_id() {
         .into(),
         override_sequencer: None,
         assert: Box::new(move |result, _state| {
-            match result.outcome.unwrap().inner.outcome {
+            match result.batch_receipt.unwrap().inner.outcome {
                 sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
                     assert_eq!(
                         reason,
@@ -208,7 +211,7 @@ fn test_custom_transaction_details_max_fee() {
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
             .with_max_fee(0),
         assert: Box::new(move |result, _state| {
-           match &result.outcome {
+           match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
                     if let SkippedReason::CannotReserveGas(error_message) = reason {
                         assert!(
@@ -240,7 +243,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(priority_fee_bips),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<S>::default()
@@ -265,7 +268,7 @@ fn test_custom_transaction_details_gas_limit() {
             .with_max_fee(admin.available_gas_balance)
             .with_gas_limit(Some(GasUnit::from_slice(&[admin.available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
-           match &result.outcome {
+           match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
                     if let SkippedReason::CannotReserveGas(error_message) = reason {
                         assert!(
@@ -292,7 +295,7 @@ fn test_default_transaction_details_works() {
         input: admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<S>::default()

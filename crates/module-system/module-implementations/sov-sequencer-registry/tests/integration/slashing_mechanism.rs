@@ -143,7 +143,7 @@ fn test_sequencer_without_enough_stake() {
             )
             .with_max_fee(0),
         assert: Box::new(move |result, _state| {
-           match &result.outcome {
+           match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
                     if let SkippedReason::CannotReserveGas(error_message) = reason {
                         assert!(
@@ -162,7 +162,7 @@ fn test_sequencer_without_enough_stake() {
         input: vec![malformed_transaction].into(),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            assert!(result.outcome.is_none(), "Batch should have been dropped");
+            assert!(result.batch_receipt.is_none(), "Batch should have been dropped");
             assert!(
                 TestSequencerRegistry::default()
                     .is_registered_sequencer(&additional_sequencer_da_address.into(), state)

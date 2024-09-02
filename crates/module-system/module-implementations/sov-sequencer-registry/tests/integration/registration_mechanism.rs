@@ -122,7 +122,7 @@ fn test_new_sequencer_registration() {
             .into(),
             override_sequencer: Some(other_sequencer_da_address),
             assert: Box::new(move |result, _state| {
-                assert!(result.outcome.unwrap().tx_receipts[0]
+                assert!(result.batch_receipt.unwrap().tx_receipts[0]
                     .receipt
                     .is_successful());
             }),
@@ -152,7 +152,7 @@ fn test_registration_not_enough_funds() {
                 amount: amount_to_register,
             },
         ),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,
@@ -200,7 +200,7 @@ fn test_registration_second_time() {
                 amount: TEST_DEFAULT_USER_STAKE,
             },
         ),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,
@@ -309,7 +309,7 @@ fn cannot_exit_with_own_batch() {
         input: default_sequencer.create_plain_message::<TestSequencerRegistry>(CallMessage::Exit {
             da_address: default_sequencer.da_address.as_ref().to_vec(),
         }),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,
@@ -363,7 +363,7 @@ fn test_exit_different_sender_fails() {
                 da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
             },
         ),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,
@@ -470,7 +470,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
                 amount: default_sequencer_balance + TEST_DEFAULT_USER_STAKE,
             },
         ),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,
@@ -545,7 +545,7 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
                 amount: TEST_DEFAULT_USER_STAKE,
             },
         ),
-        assert: Box::new(move |result, _state| match &result.outcome {
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
                     reason,

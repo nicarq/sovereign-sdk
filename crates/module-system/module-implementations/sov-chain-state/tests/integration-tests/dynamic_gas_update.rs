@@ -103,7 +103,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
             })
             .with_max_fee(u64::MAX / 2),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert!(
                 result.gas_value_used
@@ -153,7 +153,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
             })
             .with_max_fee(u64::MAX / 2),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert!(
                 result.gas_value_used

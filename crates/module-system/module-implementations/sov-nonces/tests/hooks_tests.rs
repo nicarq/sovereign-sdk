@@ -72,7 +72,7 @@ fn send_tx_works() {
     runner.execute_transaction(TransactionTestCase {
         input: generate_default_tx(0, &admin),
         assert: Box::new(move |ctx, state| {
-            assert_eq!(ctx.outcome, TxEffect::Successful(()));
+            assert_eq!(ctx.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Nonces::<S>::default()
@@ -87,7 +87,7 @@ fn send_tx_works() {
     runner.execute_transaction(TransactionTestCase {
         input: generate_default_tx(1, &admin),
         assert: Box::new(move |ctx, state| {
-            assert_eq!(ctx.outcome, TxEffect::Successful(()));
+            assert_eq!(ctx.tx_receipt, TxEffect::Successful(()));
             assert_eq!(
                 Nonces::<S>::default()
                     .nonce(&admin_credential_id, state)
@@ -107,7 +107,7 @@ fn send_tx_bad_nonce() {
         input: generate_default_tx(5, &admin),
         assert: Box::new(move |ctx, _state| {
             assert!(matches!(
-                ctx.outcome,
+                ctx.tx_receipt,
                 TxEffect::Skipped(SkippedReason::IncorrectNonce(..))
             ));
         }),

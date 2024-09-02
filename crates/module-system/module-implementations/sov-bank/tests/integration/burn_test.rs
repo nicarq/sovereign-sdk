@@ -37,7 +37,7 @@ fn burn_deployed_tokens_happy_path() {
             },
         ),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
@@ -94,12 +94,12 @@ fn burn_deployed_tokens_no_balance_fails() {
         ),
         assert: Box::new(move |result, state| {
             assert!(
-                matches!(result.outcome, TxEffect::Reverted(..)),
+                matches!(result.tx_receipt, TxEffect::Reverted(..)),
                 "The transaction should have been reverted"
             );
 
             // Burn by another user, who doesn't have tokens at all
-            match result.outcome {
+            match result.tx_receipt {
                 TxEffect::Reverted(Error::ModuleError(err)) => {
                     let mut chain = err.chain();
                     let message_1 = chain.next().unwrap().to_string();
@@ -169,7 +169,7 @@ fn burn_more_than_deployed_tokens_fails() {
                 },
             },
         ),
-        assert: Box::new(move |result, state| match result.outcome {
+        assert: Box::new(move |result, state| match result.tx_receipt {
             TxEffect::Reverted(Error::ModuleError(err)) => {
                 let mut chain = err.chain();
 
@@ -243,7 +243,7 @@ fn burn_more_than_available_balance_fails() {
                 },
             },
         ),
-        assert: Box::new(move |result, state| match result.outcome {
+        assert: Box::new(move |result, state| match result.tx_receipt {
             TxEffect::Reverted(Error::ModuleError(err)) => {
                 let mut chain = err.chain();
 
@@ -311,7 +311,7 @@ fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
             },
         ),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {
@@ -358,7 +358,7 @@ fn burn_deployed_tokens_zero_amount_doesnt_work_if_user_has_no_tokens() {
                 },
             },
         ),
-        assert: Box::new(move |result, _| match result.outcome {
+        assert: Box::new(move |result, _| match result.tx_receipt {
             TxEffect::Reverted(Error::ModuleError(err)) => {
                 let mut chain = err.chain();
 
@@ -413,11 +413,11 @@ fn burn_unknown_token_fails() {
         ),
         assert: Box::new(move |result, _| {
             assert!(
-                matches!(result.outcome, TxEffect::Reverted(..)),
+                matches!(result.tx_receipt, TxEffect::Reverted(..)),
                 "The transaction should have been reverted"
             );
 
-            match result.outcome {
+            match result.tx_receipt {
                 TxEffect::Reverted(Error::ModuleError(err)) => {
                     let mut chain = err.chain();
 
@@ -474,7 +474,7 @@ fn burn_gas_token_also_works() {
             },
         ),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 TestBankRuntimeEvent::Bank(Event::TokenBurned {

@@ -148,7 +148,7 @@ fn try_unbond_too_early() {
             sov_attester_incentives::CallMessage::ExitAttester,
         ),
         assert: Box::new(move |result, _state| {
-            match &result.outcome {
+            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
                         reason,
@@ -220,7 +220,7 @@ fn try_skip_two_phase_unbonding() {
             sov_attester_incentives::CallMessage::ExitAttester,
         ),
         assert: Box::new(move |result, _state| {
-            match &result.outcome {
+            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
                         reason,
@@ -284,7 +284,7 @@ fn try_bond_while_unbonding() {
             sov_attester_incentives::CallMessage::RegisterAttester(100),
         ),
         assert: Box::new(move |result, _state| {
-            match &result.outcome {
+            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
                         reason,

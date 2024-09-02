@@ -34,7 +34,7 @@ pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
     ///
     pub events: Vec<RT::RuntimeEvent>,
     /// The outcome of the transaction.
-    pub outcome: TxEffect<TxReceiptContents>,
+    pub tx_receipt: TxEffect<TxReceiptContents>,
 }
 
 impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
@@ -54,7 +54,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
             })
             .collect::<Vec<_>>();
         TransactionAssertContext {
-            outcome: receipt.receipt,
+            tx_receipt: receipt.receipt,
             events,
             gas_value_used,
         }
@@ -81,7 +81,7 @@ pub struct BatchAssertContext<Da: DaSpec> {
     ///
     /// This can be [`None`] if the batch was dropped before it was executed,
     /// this can happen if the sender was not a registered sequencer.
-    pub outcome: Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>>,
+    pub batch_receipt: Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>>,
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].
@@ -107,11 +107,13 @@ pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
     /// this can happen if the proof was malformed by the prover. Generally this should always be
     /// present.
     #[allow(clippy::type_complexity)]
-    pub proof_receipt: ProofReceipt<
-        <S as Spec>::Address,
-        Da,
-        <<S as Spec>::Storage as Storage>::Root,
-        StorageProof<<S::Storage as Storage>::Proof>,
+    pub proof_receipt: Option<
+        ProofReceipt<
+            <S as Spec>::Address,
+            Da,
+            <<S as Spec>::Storage as Storage>::Root,
+            StorageProof<<S::Storage as Storage>::Proof>,
+        >,
     >,
 
     /// The gas used to verify the proof.

@@ -41,7 +41,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<S>::default()
@@ -128,7 +128,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
             .with_max_fee(gas_used_value_simulation)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<S>::default()
@@ -177,7 +177,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
             .with_max_fee(sender_balance)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
 
             assert_eq!(
                 Bank::<S>::default()
@@ -238,7 +238,7 @@ fn test_reserve_gas_no_account() {
             },
         }),
         assert: Box::new(move |result, state| {
-            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.outcome {
+            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
                     ReserveGasErrorReason::<S>::AccountDoesNotExist {
@@ -303,7 +303,7 @@ fn test_reserve_gas_not_enough_balance() {
             })
             .with_max_fee(u64::MAX),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.outcome {
+            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
                     ReserveGasErrorReason::<S>::InsufficientBalanceToReserveGas.to_string(),
@@ -347,7 +347,7 @@ fn test_reserve_gas_price_too_high() {
             .with_max_fee(sender_balance)
             .with_gas_limit(Some(GasUnit::from_slice(&[sender_balance / 2; 2]))),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.outcome {
+            if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
                     ReserveGasErrorReason::<S>::CurrentGasPriceTooHigh.to_string(),

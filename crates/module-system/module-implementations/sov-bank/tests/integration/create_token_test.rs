@@ -40,7 +40,7 @@ fn create_token() {
             authorized_minters: vec![minter_address],
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
@@ -124,7 +124,7 @@ fn create_token_and_mint() {
             authorized_minters: vec![minter_address],
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
@@ -158,7 +158,7 @@ fn create_token_and_mint() {
             mint_to_address: user_no_token_balance_address,
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.outcome, TxEffect::Successful(()));
+            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
