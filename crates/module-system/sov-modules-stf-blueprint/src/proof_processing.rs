@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
     SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
-use sov_modules_api::transaction::AuthenticatedTransactionData;
+use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
     DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
@@ -89,7 +89,7 @@ where
                     .map(|challenge| ProofReceiptContents::BlockProof(challenge)),
             };
 
-            let (outcome, tx_scratchpad, _transaction_consumption) = match receipt_contents {
+            let (outcome, mut tx_scratchpad, transaction_consumption) = match receipt_contents {
                 Ok(receipt_contents) => {
                     let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
                     (
@@ -116,9 +116,27 @@ where
                 }
             };
 
+            runtime.gas_enforcer().refund_remaining_gas(
+                &sequencer_rollup_address,
+                &transaction_consumption,
+                &mut tx_scratchpad,
+            );
+
+            runtime
+                .gas_enforcer()
+                .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
+
+            let sequencer_reward = SequencerReward(transaction_consumption.priority_fee());
+            runtime.sequencer_remuneration().reward_sequencer(
+                &sequencer_rollup_address,
+                sequencer_reward,
+                &mut tx_scratchpad,
+            );
+
             ProcessProofOutput {
                 proof_receipt: ProofReceipt { blob_hash, outcome },
                 checkpoint: tx_scratchpad.commit(),
+                gas_used: transaction_consumption.base_fee().clone(),
             }
         }
         Err(_) => {
@@ -138,6 +156,8 @@ pub(crate) struct ProcessProofOutput<S: Spec, Da: DaSpec> {
         StorageProof<<S::Storage as Storage>::Proof>,
     >,
     pub(crate) checkpoint: StateCheckpoint<S>,
+
+    pub(crate) gas_used: S::Gas,
 }
 
 // Decides if the proof processing workflow should continue or return early.
@@ -196,6 +216,7 @@ where
                         reason
                     )),
                 ),
+                gas_used: S::Gas::zero(),
             }),
         }
     }
@@ -231,6 +252,7 @@ where
                             reason_str
                         )),
                     ),
+                    gas_used: S::Gas::zero(),
                 })
             }
         }
@@ -253,6 +275,7 @@ where
                     "Sequencer slashed for invalid serialization".to_string(),
                 ),
             ),
+            gas_used: S::Gas::zero(),
         }
     }
 

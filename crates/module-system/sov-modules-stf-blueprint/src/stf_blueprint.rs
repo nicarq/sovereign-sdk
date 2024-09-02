@@ -138,6 +138,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
         StateCheckpoint<S>,
+        S::Gas,
     ) {
         let res = process_proof(
             &self.runtime,
@@ -148,7 +149,7 @@ where
             checkpoint,
         );
 
-        (res.proof_receipt, res.checkpoint)
+        (res.proof_receipt, res.checkpoint, res.gas_used)
     }
 }
 

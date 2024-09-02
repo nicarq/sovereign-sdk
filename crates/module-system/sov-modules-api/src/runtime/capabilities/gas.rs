@@ -1,7 +1,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, TransactionConsumption};
-use crate::{Context, GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet};
+use crate::{GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
 pub struct TryReserveGasError<S: Spec, Meter: GasMeter<S::Gas>> {
@@ -54,7 +54,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// transaction sender from underpaying for this operation.
     fn refund_remaining_gas(
         &self,
-        context: &Context<S>,
+        sender: &S::Address,
         tx_consumption: &TransactionConsumption<S::Gas>,
         tx_scratchpad: &mut TxScratchpad<S>,
     );
