@@ -1,3 +1,5 @@
+use capabilities::mocks::MockKernel;
+use sov_mock_da::MockDaSpec;
 use sov_modules_api::*;
 use sov_state::{Prefix, Storage, StorageProof};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -17,7 +19,8 @@ fn make_user_map_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage.clone());
+    let mut state =
+        StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
     let map = StateMap::new(Prefix::new(vec![0]));
     map.set(&key, &value, &mut state).unwrap_infallible();
 
@@ -46,7 +49,8 @@ fn make_user_value_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut state = StateCheckpoint::<S>::new(storage.clone());
+    let mut state =
+        StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
     let state_val = StateValue::new(Prefix::new(vec![0]));
     state_val.set(&value, &mut state).unwrap_infallible();
 
@@ -157,7 +161,10 @@ fn test_archival_proof_gen() {
     let mut roots = vec![];
     for iter in 0..10 {
         let storage = storage_manager.create_storage();
-        let mut state = StateCheckpoint::<S>::new(storage.clone());
+        let mut state = StateCheckpoint::<S>::new(
+            storage.clone(),
+            &MockKernel::<S, MockDaSpec>::new(iter, iter),
+        );
         if iter % 2 == 0 {
             state_val.set(&iter, &mut state).unwrap_infallible();
         } else {
@@ -179,7 +186,7 @@ fn test_archival_proof_gen() {
     // Generate a proof at each archival state and validate it against the root
     let mut api_state_accessor = ApiStateAccessor::<S>::new(storage.clone());
     for iter in 0..10 {
-        let mut archival_accessor = api_state_accessor.get_archival_at((iter + 1) as u64); // Versions are 1-indexed
+        let mut archival_accessor = api_state_accessor.get_archival_at(iter + 1); // Versions are 1-indexed
         let proof = state_val.get_with_proof(&mut archival_accessor);
         let value = state_val
             .verify_proof::<S>(roots[iter as usize], proof)

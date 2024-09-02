@@ -3,8 +3,10 @@
 use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
 use sov_accounts::{Accounts, CallMessage};
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{Context, Module, StateCheckpoint};
 use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::MockDaSpec;
 
 type S = sov_test_utils::TestSpec;
 
@@ -12,13 +14,13 @@ type S = sov_test_utils::TestSpec;
 fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_finalized_storage(tmpdir.path());
-    let state = StateCheckpoint::new(storage);
+    let mut state = StateCheckpoint::new(storage, &MockKernel::<S, MockDaSpec>::default());
 
     let (seed, msgs) = input;
     let u = &mut Unstructured::new(seed);
-    let (maybe_accounts, state) = Accounts::arbitrary_workset(u, state);
+    let maybe_accounts = Accounts::arbitrary_workset(u, &mut state).unwrap();
 
-    let accounts: Accounts<S> = maybe_accounts.unwrap();
+    let accounts: Accounts<S> = maybe_accounts;
     let mut working_set = state.to_working_set_unmetered();
 
     for (ctx, msg) in msgs {

@@ -52,22 +52,19 @@ where
     /// Creates an arbitrary set of accounts and stores it under `state`.
     pub fn arbitrary_workset(
         u: &mut Unstructured<'a>,
-        state: StateCheckpoint<S>,
-    ) -> (arbitrary::Result<Self>, StateCheckpoint<S>) {
+        state: &mut StateCheckpoint<S>,
+    ) -> arbitrary::Result<Self> {
         let config: AccountConfig<S> = match u.arbitrary() {
             Ok(config) => config,
-            Err(e) => return (Err(e), state),
+            Err(e) => return Err(e),
         };
         let accounts = Accounts::default();
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
 
         if accounts.genesis(&config, &mut genesis_state).is_err() {
-            let state = genesis_state.checkpoint();
-            return (Err(arbitrary::Error::IncorrectFormat), state);
+            return Err(arbitrary::Error::IncorrectFormat);
         };
 
-        let state = genesis_state.checkpoint();
-
-        (Ok(accounts), state)
+        Ok(accounts)
     }
 }

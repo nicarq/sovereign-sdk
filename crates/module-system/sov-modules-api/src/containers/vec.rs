@@ -408,6 +408,7 @@ where
 mod test {
     use std::fmt::Debug;
 
+    use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkVerifier;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
@@ -416,6 +417,7 @@ mod test {
     use unwrap_infallible::UnwrapInfallible;
 
     use super::*;
+    use crate::capabilities::mocks::MockKernel;
     use crate::StateCheckpoint;
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
@@ -424,7 +426,8 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage);
+        let mut state: StateCheckpoint<TestSpec> =
+            StateCheckpoint::new(storage, &MockKernel::<TestSpec, MockDaSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = StateVec::<u32>::new(prefix);

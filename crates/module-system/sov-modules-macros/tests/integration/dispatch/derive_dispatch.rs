@@ -1,11 +1,13 @@
 mod modules;
 use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
-    Address, Context, DispatchCall, EncodeCall, ExecutionContext, Genesis, MessageCodec, ModuleInfo, Spec,
+    Address, Context, DispatchCall, EncodeCall, ExecutionContext, Genesis, MessageCodec,
+    ModuleInfo, Spec,
 };
 use sov_state::ZkStorage;
-use sov_test_utils::ZkTestSpec;
+use sov_test_utils::{MockDaSpec, ZkTestSpec};
 
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
 struct Runtime<S, T>
@@ -24,15 +26,24 @@ fn main() {
 
     let storage = ZkStorage::new();
 
-    let state = sov_modules_api::StateCheckpoint::new(storage);
+    let mut state = sov_modules_api::StateCheckpoint::new(
+        storage,
+        &MockKernel::<ZkTestSpec, MockDaSpec>::default(),
+    );
     let config = GenesisConfig::new((), (), ());
     let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered();
 
     let sender = Address::try_from([0; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context: Context<ZkTestSpec> = Context::new(sender, Default::default(), sequencer, 1, ExecutionContext::Node);
+    let context: Context<ZkTestSpec> = Context::new(
+        sender,
+        Default::default(),
+        sequencer,
+        1,
+        ExecutionContext::Node,
+    );
 
     let value = 11;
     {

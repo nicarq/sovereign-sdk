@@ -1,6 +1,6 @@
 /// Provides specialized working set wrappers for dealing with protected state.
 use sov_rollup_interface::da::DaSpec;
-use sov_state::{namespaces, CompileTimeNamespace, IsValueCached, SlotKey, SlotValue};
+use sov_state::{namespaces, CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, Storage};
 
 use self::checkpoints::StateCheckpoint;
 use self::internals::{Delta, RevertableWriter};
@@ -106,22 +106,22 @@ impl<'a, S: Spec> CachedAccessor<namespaces::Kernel>
 }
 
 /// A special wrapper over [`WorkingSet`] that allows access to kernel values to bootstrap the kernel working set
-pub struct BootstrapWorkingSet<'a, S: Spec> {
+pub struct BootstrapWorkingSet<'a, S: Storage> {
     /// The inner working set
-    pub(crate) inner: &'a mut StateCheckpoint<S>,
+    pub(super) inner: &'a mut Delta<S>,
 }
 
-impl<'a, S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWorkingSet<'a, S> {
+impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWorkingSet<'a, S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <Delta<S::Storage> as CachedAccessor<N>>::get_cached(&mut self.inner.delta, key)
+        <Delta<S> as CachedAccessor<N>>::get_cached(self.inner, key)
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <Delta<S::Storage> as CachedAccessor<N>>::set_cached(&mut self.inner.delta, key, value)
+        <Delta<S> as CachedAccessor<N>>::set_cached(self.inner, key, value)
     }
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <Delta<S::Storage> as CachedAccessor<N>>::delete_cached(&mut self.inner.delta, key)
+        <Delta<S> as CachedAccessor<N>>::delete_cached(self.inner, key)
     }
 }
 
@@ -143,7 +143,7 @@ impl<'a, S: Spec> VersionReader for KernelWorkingSet<'a, S> {
 
 impl<'a, S: Spec> KernelWorkingSet<'a, S> {
     /// This private method instantiates a bootstrap working set to initialize a kernel
-    fn get_bootstrap(inner: &'a mut StateCheckpoint<S>) -> BootstrapWorkingSet<'a, S> {
+    fn get_bootstrap(inner: &'a mut Delta<S::Storage>) -> BootstrapWorkingSet<'a, S::Storage> {
         BootstrapWorkingSet { inner }
     }
 
@@ -152,7 +152,8 @@ impl<'a, S: Spec> KernelWorkingSet<'a, S> {
         kernel: &K,
         state_checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {
-        let mut bootstrapper = KernelWorkingSet::get_bootstrap(state_checkpoint);
+        let mut bootstrapper = KernelWorkingSet::<S>::get_bootstrap(&mut state_checkpoint.delta);
+
         let true_slot_num = kernel.true_slot_number(&mut bootstrapper);
         let virtual_slot_num = kernel.visible_slot_number(&mut bootstrapper);
         Self {

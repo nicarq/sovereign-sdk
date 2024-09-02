@@ -35,10 +35,10 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
     #[cfg(feature = "native")]
     type GenesisPaths = SoftConfirmationsKernelGenesisPaths;
 
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state
             .next_visible_slot_number(state)
             .unwrap_infallible()

@@ -290,7 +290,8 @@ where
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
         // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
-        let mut state_checkpoint = StateCheckpoint::new(pre_state.clone());
+        let mut state_checkpoint =
+            StateCheckpoint::new::<K, _>(pre_state.clone(), &Default::default());
         let mut startup_ws = KernelWorkingSet::uninitialized(&mut state_checkpoint);
 
         // Important! The kernel *must* be initialized before the runtime, since runtime
@@ -306,9 +307,7 @@ where
             panic!("Runtime initialization must succeed {}", e);
         }
 
-        let checkpoint = working_set.checkpoint();
-
-        let (log, mut accessory_delta, witness) = checkpoint.freeze();
+        let (log, mut accessory_delta, witness) = state_checkpoint.freeze();
 
         let (genesis_hash, mut state_update) = pre_state
             .compute_state_update(log, &witness)
@@ -339,7 +338,8 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let mut checkpoint = StateCheckpoint::with_witness(pre_state.clone(), witness);
+        let mut checkpoint =
+            StateCheckpoint::with_witness(pre_state.clone(), witness, &self.kernel);
         let gas_price = self.begin_slot(
             &mut checkpoint,
             slot_header,

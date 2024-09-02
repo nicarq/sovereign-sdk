@@ -201,7 +201,7 @@ where
         }
 
         let storage: S::Storage = self.current_storage.borrow().clone();
-        let state_checkpoint = StateCheckpoint::new(storage);
+        let state_checkpoint = StateCheckpoint::new(storage, &self.kernel);
         let tx_scratchpad = state_checkpoint.to_tx_scratchpad();
 
         let runtime = R::default();
@@ -263,7 +263,8 @@ where
     async fn get_next_blob(&mut self, _height: u64) -> anyhow::Result<Vec<TxWithHash>> {
         tracing::debug!("get_next_blob has been called");
 
-        let mut state_checkpoint = StateCheckpoint::new(self.current_storage.borrow().clone());
+        let mut state_checkpoint =
+            StateCheckpoint::new(self.current_storage.borrow().clone(), &self.kernel);
 
         let gas_price = self.kernel.base_fee_per_gas(&mut state_checkpoint);
 
@@ -376,6 +377,7 @@ mod tests {
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
+    use sov_modules_api::capabilities::mocks::MockKernel;
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
     use sov_modules_api::{EncodeCall, Genesis, PrivateKey};
@@ -532,11 +534,14 @@ mod tests {
 
         let config = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let state = StateCheckpoint::<S>::new(storage.clone());
+        let mut state = StateCheckpoint::<S>::new::<MockKernel<S, MockDaSpec>, _>(
+            storage.clone(),
+            &Default::default(),
+        );
         let mut genesis_state =
             state.to_genesis_state_accessor::<TestOptimisticRuntime<S, MockDaSpec>>(&config);
         runtime.genesis(&config, &mut genesis_state).unwrap();
-        let (log, _, witness) = genesis_state.checkpoint().freeze();
+        let (log, _, witness) = state.freeze();
         let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
         storage_manager.commit(change_set);
 

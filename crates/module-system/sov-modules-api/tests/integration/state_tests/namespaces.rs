@@ -1,5 +1,7 @@
 use std::convert::Infallible;
 
+use sov_mock_da::MockDaSpec;
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
     KernelStateValue, KernelWorkingSet, StateCheckpoint, StateMap, StateValue,
     VersionedStateReadWriter, VersionedStateValue, WorkingSet,
@@ -18,13 +20,15 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
 
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
+    let mut kernel = MockKernel::default();
+
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &mut state)?;
     let _ = state_value.get(&mut state);
     state_value.set(&22, &mut state)?;
 
-    let storage = commit_to_storage(state, storage, &mut storage_manager);
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -55,17 +59,19 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
 
+    let mut kernel = MockKernel::default();
+
     let state_value = KernelStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
 
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
     let _ = state_value.get(&mut kernel_working_set);
     state_value.set(&22, &mut kernel_working_set)?;
 
-    let storage = commit_to_storage(state, storage, &mut storage_manager);
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -98,13 +104,15 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
 
     let state_value = StateMap::new(Prefix::new(vec![0]));
 
+    let mut kernel = MockKernel::default();
+
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone());
+    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &0, &mut state)?;
     let _ = state_value.get(&0, &mut state);
     state_value.set(&22, &0, &mut state)?;
 
-    let storage = commit_to_storage(state, storage, &mut storage_manager);
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -137,8 +145,10 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
 
+    let mut kernel = MockKernel::default();
+
     // Native execution
-    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone());
+    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone(), &kernel);
 
     let mut state = working_set.checkpoint().0;
     let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state);
@@ -146,7 +156,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let _ = state_value.get_current(&mut kernel_working_set);
     state_value.set_true_current(&22, &mut kernel_working_set);
 
-    let storage = commit_to_storage(state, storage, &mut storage_manager);
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
@@ -168,7 +178,8 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 
     // Check that we can get the current value with a standard working set
-    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone());
+    let working_set: WorkingSet<S> =
+        WorkingSet::new_deprecated(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
     let mut state_checkpoint = working_set.checkpoint().0;
     let kernel_working_set = &mut KernelWorkingSet::uninitialized(&mut state_checkpoint);
     let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);

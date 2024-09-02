@@ -5,7 +5,9 @@ use std::convert::Infallible;
 
 #[cfg(feature = "native")]
 use sov_state::Accessory;
-use sov_state::{SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User};
+use sov_state::{
+    Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
+};
 
 use super::genesis::GenesisStateAccessor;
 #[cfg(feature = "native")]
@@ -93,19 +95,26 @@ mod http_api {
 impl<S: Storage> AccessoryStateReader for AccessoryDelta<S> {}
 impl<S: Storage> AccessoryStateWriter for AccessoryDelta<S> {}
 
-impl<S: Spec> StateReader<User> for GenesisStateAccessor<S> {
+impl<'a, S: Spec> StateReader<User> for GenesisStateAccessor<'a, S> {
     inner_impl_unmetered_state_reader!(User);
 }
-impl<S: Spec> StateWriter<User> for GenesisStateAccessor<S> {
+impl<'a, S: Spec> StateWriter<User> for GenesisStateAccessor<'a, S> {
     inner_impl_unmetered_state_writer!(User);
 }
-impl<S: Spec> AccessoryStateWriter for GenesisStateAccessor<S> {}
+impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
 impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
     inner_impl_unmetered_state_reader!(User);
 }
 impl<S: Spec> StateWriter<User> for StateCheckpoint<S> {
     inner_impl_unmetered_state_writer!(User);
+}
+
+impl<S: Spec> StateReader<Kernel> for StateCheckpoint<S> {
+    inner_impl_unmetered_state_reader!(Kernel);
+}
+impl<S: Spec> StateWriter<Kernel> for StateCheckpoint<S> {
+    inner_impl_unmetered_state_writer!(Kernel);
 }
 
 impl<S: Spec> AccessoryStateWriter for StateCheckpoint<S> {}
@@ -177,7 +186,7 @@ pub mod kernel_state {
     use std::convert::Infallible;
 
     use sov_state::{
-        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
+        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, Storage, User,
     };
 
     use crate::state::accessors::seal::CachedAccessor;
@@ -202,17 +211,17 @@ pub mod kernel_state {
         inner_impl_unmetered_state_writer!(Kernel);
     }
 
-    impl<'a, S: Spec> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Storage> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);
     }
-    impl<'a, S: Spec> StateReader<User> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Storage> StateReader<User> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_reader!(User);
     }
 
-    impl<'a, S: Spec> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Storage> StateWriter<Kernel> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_writer!(Kernel);
     }
-    impl<'a, S: Spec> StateWriter<User> for BootstrapWorkingSet<'a, S> {
+    impl<'a, S: Storage> StateWriter<User> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_writer!(User);
     }
 

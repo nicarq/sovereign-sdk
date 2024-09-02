@@ -13,11 +13,13 @@ pub use versioned_vec::VersionedStateVec;
 
 #[cfg(test)]
 mod test {
+    use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkVerifier;
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
     use sov_test_utils::storage::SimpleStorageManager;
 
+    use crate::capabilities::mocks::MockKernel;
     use crate::execution_mode::Native;
     use crate::{CryptoSpec, StateWriter, Version, WorkingSet};
 
@@ -63,11 +65,12 @@ mod test {
         let tests = create_tests();
         {
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+            let mut kernel = MockKernel::<TestSpec, MockDaSpec>::default();
             for test in &tests {
                 {
                     let storage = storage_manager.create_storage();
                     let mut working_set: WorkingSet<TestSpec> =
-                        WorkingSet::new_deprecated(storage.clone());
+                        WorkingSet::new_deprecated(storage.clone(), &kernel);
                     StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())?;
                     let (checkpoint, _gas_meter, _) = working_set.checkpoint();
                     let (cache, _, witness) = checkpoint.freeze();
@@ -75,6 +78,7 @@ mod test {
                         .validate_and_materialize(cache, &witness)
                         .expect("storage is valid");
                     storage_manager.commit(change_set);
+                    kernel.increase_heights();
                     let storage = storage_manager.create_storage();
                     assert_eq!(
                         Some(test.value.clone()),
@@ -114,7 +118,10 @@ mod test {
         {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
-            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new_deprecated(storage.clone());
+            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new_deprecated(
+                storage.clone(),
+                &MockKernel::<TestSpec, MockDaSpec>::default(),
+            );
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.checkpoint().0.freeze();
             let (_, change_set) = storage

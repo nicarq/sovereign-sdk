@@ -1,8 +1,11 @@
+use sov_rollup_interface::da::DaSpec;
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 
 use super::internals::{AccessoryDelta, Delta};
-use super::UniversalStateAccessor;
-use crate::{Context, Spec, VersionedStateReadWriter};
+use super::{BootstrapWorkingSet, UniversalStateAccessor};
+use crate::capabilities::Kernel;
+use crate::state::traits::KernelWriter;
+use crate::{Context, Spec, VersionReader, VersionedStateReadWriter};
 
 /// This structure is responsible for storing the `read-write` set.
 ///
@@ -11,15 +14,17 @@ use crate::{Context, Spec, VersionedStateReadWriter};
 ///  2. With [`crate::WorkingSet::revert`].
 pub struct StateCheckpoint<S: Spec> {
     pub(super) delta: Delta<S::Storage>,
+    /// The actual current slot number
+    pub(super) true_slot_num: u64,
+    /// The slot number visible to user-space modules
+    pub(super) virtual_slot_num: u64,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
-    pub fn new(inner: S::Storage) -> Self {
-        Self {
-            delta: Delta::new(inner.clone(), None),
-        }
+    pub fn new<K: Kernel<S, Da>, Da: DaSpec>(inner: S::Storage, kernel: &K) -> Self {
+        Self::with_witness(inner, Default::default(), kernel)
     }
 
     /// Returns a handler for the kernel state (priveleged jmt state)
@@ -35,9 +40,21 @@ impl<S: Spec> StateCheckpoint<S> {
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness(inner: S::Storage, witness: <S::Storage as Storage>::Witness) -> Self {
+    pub fn with_witness<K: Kernel<S, Da>, Da: DaSpec>(
+        inner: S::Storage,
+        witness: <S::Storage as Storage>::Witness,
+        kernel: &K,
+    ) -> Self {
+        let mut delta = Delta::with_witness(inner.clone(), witness, None);
+        let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
+
+        let true_slot_num = kernel.true_slot_number(&mut bootstrap_state);
+        let virtual_slot_num = kernel.visible_slot_number(&mut bootstrap_state);
+
         Self {
-            delta: Delta::with_witness(inner.clone(), witness, None),
+            delta,
+            true_slot_num,
+            virtual_slot_num,
         }
     }
 
@@ -54,6 +71,18 @@ impl<S: Spec> StateCheckpoint<S> {
         <S::Storage as Storage>::Witness,
     ) {
         self.delta.freeze()
+    }
+}
+
+impl<S: Spec> VersionReader for StateCheckpoint<S> {
+    fn current_version(&self) -> u64 {
+        self.virtual_slot_num
+    }
+}
+
+impl<S: Spec> KernelWriter for StateCheckpoint<S> {
+    fn true_slot_number(&self) -> u64 {
+        self.true_slot_num
     }
 }
 
