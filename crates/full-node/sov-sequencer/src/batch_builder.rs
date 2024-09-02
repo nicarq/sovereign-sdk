@@ -377,11 +377,10 @@ mod tests {
     use rand::Rng;
     use sov_kernels::basic::BasicKernel;
     use sov_mock_da::{MockAddress, MockDaSpec};
-    use sov_modules_api::capabilities::mocks::MockKernel;
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-    use sov_modules_api::{EncodeCall, Genesis, PrivateKey};
-    use sov_state::{ProverStorage, Storage};
+    use sov_modules_api::{EncodeCall, PrivateKey, StateTransitionFunction};
+    use sov_state::ProverStorage;
     use sov_test_utils::auth::TestAuth;
     use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
     use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime, ValueSetterConfig};
@@ -518,7 +517,12 @@ mod tests {
         num_additional_accounts: usize,
     ) -> SetupOutput {
         let runtime = TestOptimisticRuntime::<S, MockDaSpec>::default();
-        let storage = storage_manager.create_storage();
+        let stf = sov_modules_stf_blueprint::StfBlueprint::<
+            S,
+            MockDaSpec,
+            TestOptimisticRuntime<S, MockDaSpec>,
+            BasicKernel<S, MockDaSpec>,
+        >::with_runtime(runtime);
 
         let genesis_config = HighLevelOptimisticGenesisConfig::generate()
             .add_accounts_with_default_balance(num_additional_accounts + 1);
@@ -531,18 +535,10 @@ mod tests {
 
         let additional_accounts = genesis_config.additional_accounts[1..].to_vec().clone();
         let sequencer = genesis_config.initial_sequencer.clone();
-
         let config = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
+        let stf_state = storage_manager.create_storage();
+        let (_, change_set) = stf.init_chain(stf_state, config.into_genesis_params());
 
-        let mut state = StateCheckpoint::<S>::new::<MockKernel<S, MockDaSpec>, _>(
-            storage.clone(),
-            &Default::default(),
-        );
-        let mut genesis_state =
-            state.to_genesis_state_accessor::<TestOptimisticRuntime<S, MockDaSpec>>(&config);
-        runtime.genesis(&config, &mut genesis_state).unwrap();
-        let (log, _, witness) = state.freeze();
-        let (_root_hash, change_set) = storage.validate_and_materialize(log, &witness).unwrap();
         storage_manager.commit(change_set);
 
         SetupOutput {

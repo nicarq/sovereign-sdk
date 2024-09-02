@@ -8,6 +8,7 @@ pub use sov_attester_incentives::{
 use sov_bank::GAS_TOKEN_ID;
 pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
 use sov_blob_storage::PreferredBatchData;
+pub use sov_capabilities::StandardProvenRollupCapabilities;
 pub use sov_chain_state::{ChainStateConfig, OperatingMode};
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -25,7 +26,7 @@ pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
+pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry, SequencerStakeMeter};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 pub use tokio::sync::watch::Receiver;
@@ -47,8 +48,6 @@ generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<
 /// Utilities for generating genesis configs.
 pub mod genesis;
 
-/// Types needed for runtime capabilities.
-pub mod capabilities;
 /// Utilities for hooks relating to test runtimes.
 pub mod hooks;
 /// Traits used to define interfaces for the runtime.

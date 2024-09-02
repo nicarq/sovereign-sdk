@@ -1,4 +1,5 @@
 use sov_accounts::{AccountConfig, Accounts};
+use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{DaSpec, Genesis, Spec};
@@ -19,6 +20,8 @@ pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
     pub sequencer_registry: <SequencerRegistry<S, Da> as Genesis>::Config,
     /// The prover incentives config.
     pub prover_incentives: <ProverIncentives<S, Da> as Genesis>::Config,
+    /// The attester incentives config.
+    pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
     /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
@@ -111,6 +114,7 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
     ) -> Self {
+        let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         Self {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
@@ -126,6 +130,18 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                     initial_prover.bond,
                 )],
             },
+            // unused in zk mode
+            attester_incentives: AttesterIncentivesConfig {
+                minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
+                minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
+                initial_attesters: vec![(
+                    attester_placeholder.address().clone(),
+                    attester_placeholder.balance(),
+                )],
+                rollup_finality_period: 0,
+                maximum_attested_height: 0,
+                light_client_finalized_height: 0,
+            },
             bank: BankConfig {
                 gas_token_config: sov_bank::GasTokenConfig {
                     token_name: gas_token_name,
@@ -134,6 +150,10 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
                             .iter()
                             .map(|user| (user.address(), user.balance()))
                             .collect();
+                        additional_accounts_vec.push((
+                            attester_placeholder.address(),
+                            attester_placeholder.balance(),
+                        ));
                         let sequencer = initial_sequencer.as_user();
                         let prover = initial_prover.as_user();
                         if sequencer.address() == prover.address() {
