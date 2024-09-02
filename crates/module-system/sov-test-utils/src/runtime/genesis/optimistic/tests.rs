@@ -7,6 +7,7 @@ use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, TxEffect};
+use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -132,6 +133,7 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
         init_balance >= seq_stake_amount,
         "sequencer cannot stake more than its initial balance"
     );
+    let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     crate::runtime::GenesisConfig {
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
@@ -150,7 +152,11 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
             maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
             light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
         },
-
+        prover_incentives: ProverIncentivesConfig {
+            minimum_bond: TEST_DEFAULT_USER_STAKE,
+            proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+            initial_provers: vec![(prover_placeholder.address(), prover_placeholder.balance())],
+        },
         bank: BankConfig {
             gas_token_config: sov_bank::GasTokenConfig {
                 token_name: token_name.clone(),
@@ -159,6 +165,7 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
                     additional_accounts_vec.append(&mut vec![
                         (seq_rollup_address, init_balance),
                         (admin.clone(), init_balance),
+                        (prover_placeholder.address(), prover_placeholder.balance()),
                     ]);
                     additional_accounts_vec
                 },

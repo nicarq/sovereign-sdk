@@ -6,6 +6,7 @@ use sov_bank::{Bank, BankConfig, TokenConfig};
 use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{DaSpec, Genesis, Spec};
 use sov_nonces::Nonces;
+use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 
 use crate::interface::AsUser;
@@ -22,6 +23,8 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
     pub sequencer_registry: <SequencerRegistry<S, Da> as Genesis>::Config,
     /// The attester incentives config.
     pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
+    /// The prover incentives config.
+    pub prover_incentives: <ProverIncentives<S, Da> as Genesis>::Config,
     /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
@@ -244,6 +247,7 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
     ) -> Self {
+        let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         Self {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
@@ -262,7 +266,15 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                 maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
                 light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
             },
-
+            // unused in optimistic mode
+            prover_incentives: ProverIncentivesConfig {
+                minimum_bond: TEST_DEFAULT_USER_STAKE,
+                proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+                initial_provers: vec![(
+                    prover_placeholder.address().clone(),
+                    prover_placeholder.balance(),
+                )],
+            },
             bank: BankConfig {
                 gas_token_config: sov_bank::GasTokenConfig {
                     token_name: gas_token_name,
@@ -271,6 +283,9 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
                             .iter()
                             .map(|user| (user.address(), user.balance()))
                             .collect();
+
+                        additional_accounts_vec
+                            .push((prover_placeholder.address(), prover_placeholder.balance()));
 
                         let sequencer = initial_sequencer.as_user();
                         let attester = initial_attester.as_user();

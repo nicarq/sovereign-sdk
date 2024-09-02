@@ -1,53 +1,17 @@
 use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::{AuthorizationData, ProofProcessor, RuntimeAuthenticator};
+use sov_modules_api::capabilities::{AuthorizationData, RuntimeAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{
-    AggregatedProofPublicData, DaSpec, DispatchCall, InvalidProofError, SerializedAggregatedProof,
-    SovAttestation, SovStateTransitionPublicData, Spec,
-};
-use sov_test_utils::runtime::capabilities::SequencerStakeMeter;
-use sov_test_utils::{generate_runtime, TestSpec};
+use sov_modules_api::{DaSpec, DispatchCall, Spec};
+use sov_test_utils::{generate_bare_runtime, TestSpec};
 
-generate_runtime! {
+generate_bare_runtime! {
     name: TestRuntime,
     modules: [evm: Evm<S>],
     operating_mode: sov_test_utils::runtime::OperatingMode::Zk,
-    base_fee_recipient: attester_incentives: sov_test_utils::runtime::AttesterIncentives<S, Da>,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
-    impl_capabilities: [GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
-    impl_hooks: [ApplyBatchHooks, TxHooks]
+    impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>]
-}
-
-impl<S: Spec, Da: DaSpec> ProofProcessor<S, Da> for TestRuntime<S, Da> {
-    fn process_aggregated_proof(
-        &self,
-        _proof: sov_modules_api::SerializedAggregatedProof,
-        _prover_address: &<S as Spec>::Address,
-        _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError> {
-        unimplemented!()
-    }
-
-    fn process_attestation(
-        &self,
-        _proof: sov_modules_api::SerializedAttestation,
-        _prover_address: &<S as Spec>::Address,
-        _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> Result<SovAttestation<S, Da>, InvalidProofError> {
-        unimplemented!()
-    }
-
-    fn process_challenge(
-        &self,
-        _proof: sov_modules_api::SerializedChallenge,
-        _transition_num: u64,
-        _prover_address: &<S as Spec>::Address,
-        _state: &mut sov_modules_api::WorkingSet<S>,
-    ) -> anyhow::Result<SovStateTransitionPublicData<S, Da>, InvalidProofError> {
-        unimplemented!()
-    }
 }
 
 /// A converter from an Ethereum address to a rollup address.
@@ -81,7 +45,7 @@ where
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
+    type SequencerStakeMeter = sov_test_utils::runtime::SequencerStakeMeter<S::Gas>;
 
     type AuthorizationData = AuthorizationData<S>;
 

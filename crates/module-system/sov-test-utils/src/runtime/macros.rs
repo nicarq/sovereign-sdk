@@ -1,17 +1,14 @@
-/// Base macro used for generating runtimes.
-/// Generally this should be wrapped by another macro to generate a specific concrete
-/// runtime implementation, optimistic vs proving for example with a simpiler interface
-/// for usage in general tests.
+/// Base for generating runtimes.
+/// Excludes the RuntimeAuthenticator trait to allow custom runtimes like EVM to provide their own
+/// implementation.
 #[macro_export]
-macro_rules! generate_runtime {
+macro_rules! generate_bare_runtime {
     (
         name: $id:ident,
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
         operating_mode: $operating_mode:path,
-        base_fee_recipient: $base_fee_recipient:ident : $base_fee_recipient_ty:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
-        impl_capabilities: [$($capability:ident),* $(,)?],
-        impl_hooks: [$($hook:ident),* $(,)?]
+        impl_hooks: [$($hook:ident),* $(,)?],
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*]
     ) => {
         /// Generated test runtime implementation using the testing framework.
@@ -32,48 +29,20 @@ macro_rules! generate_runtime {
             pub accounts: $crate::runtime::Accounts<S>,
             /// The nonces module
             pub nonces: $crate::runtime::Nonces<S>,
-            /// The module that will receive the base fee.
-            pub $base_fee_recipient: $base_fee_recipient_ty,
+            /// The attester incentives module.
+            pub attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            /// The prover incentives module.
+            pub prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
             $(
                 /// An external module [`$module_ty`] of the generated runtime.
                 pub $module_name: $module_ty
             ),*
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalRuntime<S, Da> for $id<S, Da> {
-            fn bank(&self) -> &$crate::runtime::Bank<S> {
-                &self.bank
-            }
-
-            fn sequencer_registry(&self) -> &$crate::runtime::SequencerRegistry<S, Da> {
-                &self.sequencer_registry
-            }
-
-            fn base_fee_recipient(&self) -> impl $crate::runtime::Payable<S> {
-                $crate::runtime::IntoPayable::to_payable(&self.$base_fee_recipient.id)
-            }
-
-            fn accounts(&self) -> &$crate::runtime::Accounts<S> {
-                &self.accounts
-            }
-
-            fn nonces(&self) -> &$crate::runtime::Nonces<S> {
-                &self.nonces
-            }
-        }
-
         impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for $id<S, Da> {
             type Da = Da;
             fn sequencer_registry_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
                 &config.sequencer_registry
-            }
-
-            fn bank_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Bank<S> as ::sov_modules_api::Genesis>::Config {
-                &config.bank
-            }
-
-            fn accounts_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::Accounts<S> as ::sov_modules_api::Genesis>::Config {
-                &config.accounts
             }
         }
 
@@ -88,7 +57,8 @@ macro_rules! generate_runtime {
                     bank: minimal_config.bank,
                     accounts: minimal_config.accounts,
                     nonces: minimal_config.nonces,
-                    $base_fee_recipient: minimal_config.$base_fee_recipient,
+                    prover_incentives: minimal_config.prover_incentives,
+                    attester_incentives: minimal_config.attester_incentives,
                     $(
                         $module_name,
                     )*
@@ -130,28 +100,8 @@ macro_rules! generate_runtime {
         }
 
         $(
-            $crate::impl_runtime_capability!($id<S, Da>, $capability);
-        )*
-
-        $(
             $crate::impl_runtime_hook!($id<S, Da>, $hook);
         )*
-
-        impl<S, Da> ::sov_modules_api::capabilities::HasCapabilities<S, Da> for $id<S, Da> where
-            S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
-        {
-            type Capabilities<'a> = Self
-                where
-                Self: 'a,;
-            type SequencerStakeMeter = $crate::runtime::capabilities::SequencerStakeMeter<S::Gas>;
-
-            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
-
-            fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
-                ::sov_modules_api::capabilities::Guard::new(Self::default())
-            }
-        }
 
         impl<S, Da> $crate::runtime::Runtime<S, Da> for $id<S, Da> where
             S: ::sov_modules_api::Spec,
@@ -172,6 +122,104 @@ macro_rules! generate_runtime {
                 unimplemented!()
             }
         }
+
+        impl<S, Da> ::sov_modules_api::capabilities::HasCapabilities<S, Da> for $id<S, Da> where
+            S: ::sov_modules_api::Spec,
+            Da: ::sov_modules_api::DaSpec,
+        {
+            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S, Da>;
+
+            type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
+
+            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
+
+            fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
+                ::sov_modules_api::capabilities::Guard::new(
+                    $crate::runtime::StandardProvenRollupCapabilities {
+                        bank: &self.bank,
+                        sequencer_registry: &self.sequencer_registry,
+                        accounts: &self.accounts,
+                        nonces: &self.nonces,
+                        prover_incentives: &self.prover_incentives,
+                        attester_incentives: &self.attester_incentives,
+                    }
+                )
+            }
+        }
+
+    };
+}
+
+/// Base macro used for generating runtimes.
+/// Generally this should be wrapped by another macro to generate a specific concrete
+/// runtime implementation, optimistic vs proving for example with a simpiler interface
+/// for usage in general tests.
+#[macro_export]
+macro_rules! generate_runtime {
+    (
+        name: $id:ident,
+        $($rest:tt)*
+    ) => {
+        $crate::generate_bare_runtime! {
+            name: $id,
+            $($rest)*
+        }
+
+        $crate::impl_standard_runtime_authenticator!($id<S, Da>);
+    };
+}
+
+/// Implements a default `RuntimeAuthenticator` that uses sov modules authentication.
+#[macro_export]
+macro_rules! impl_standard_runtime_authenticator {
+    ($runtime:ty) => {
+        impl<S, Da> ::sov_modules_api::capabilities::RuntimeAuthenticator<S> for $runtime
+        where
+            S: ::sov_modules_api::Spec,
+            Da: ::sov_modules_api::DaSpec,
+        {
+            type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
+            type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
+            type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
+
+            fn authenticate(
+                &self,
+                raw_tx: &::sov_modules_api::RawTx,
+                pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
+                    S,
+                    Self::SequencerStakeMeter,
+                >,
+            ) -> ::sov_modules_api::capabilities::AuthenticationResult<
+                S,
+                Self::Decodable,
+                Self::AuthorizationData,
+            > {
+                ::sov_modules_api::capabilities::authenticate::<S, Self, Self::SequencerStakeMeter>(
+                    &raw_tx.data,
+                    pre_exec_ws,
+                )
+            }
+
+            fn authenticate_unregistered(
+                &self,
+                raw_tx: &::sov_modules_api::RawTx,
+                pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
+                    S,
+                    ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
+                >,
+            ) -> ::sov_modules_api::capabilities::AuthenticationResult<
+                S,
+                Self::Decodable,
+                Self::AuthorizationData,
+                ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
+            > {
+                ::core::result::Result::Ok(::sov_modules_api::capabilities::authenticate::<
+                    S,
+                    Self,
+                    ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
+                >(&raw_tx.data, pre_exec_ws)?)
+            }
+        }
     };
 }
 
@@ -184,49 +232,10 @@ macro_rules! generate_optimistic_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: $crate::runtime::OperatingMode::Optimistic,
-            base_fee_recipient: attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
-            impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
-            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
+            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
         }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {
-            fn process_aggregated_proof(
-                &self,
-                _proof: ::sov_modules_api::SerializedAggregatedProof,
-                _prover_address: &S::Address,
-                _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> std::result::Result<(::sov_modules_api::AggregatedProofPublicData, ::sov_modules_api::SerializedAggregatedProof), ::sov_modules_api::InvalidProofError> {
-                unimplemented!()
-            }
-
-
-            fn process_attestation(
-                &self,
-                proof: ::sov_modules_api::SerializedAttestation,
-                prover_address: &S::Address,
-                state: &mut ::sov_modules_api::WorkingSet<S>,
-            )  -> std::result::Result<
-            ::sov_modules_api::SovAttestation<S,Da>,
-            ::sov_modules_api::InvalidProofError,
-             > {
-                Ok(self.attester_incentives.process_attestation(prover_address, proof, state)? )
-
-            }
-
-            fn process_challenge(
-                &self,
-                proof: ::sov_modules_api::SerializedChallenge,
-                transition_num: u64,
-                prover_address: &S::Address,
-                state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> std::result::Result<
-                    ::sov_modules_api::StateTransitionPublicData<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root>,
-                    ::sov_modules_api::InvalidProofError> {
-                        Ok(self.attester_incentives.process_challenge(prover_address,&proof, transition_num, state)? )
-                    }
-            }
     };
 }
 
@@ -239,50 +248,9 @@ macro_rules! generate_zk_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: $crate::runtime::OperatingMode::Zk,
-            base_fee_recipient: prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
-            impl_capabilities: [RuntimeAuthenticator, GasEnforcer, SequencerAuthorization, SequencerRemuneration, RuntimeAuthorization],
-            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks]
+            impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
-        }
-
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> ::sov_modules_api::capabilities::ProofProcessor<S, Da> for $id<S, Da> {
-            fn process_aggregated_proof(
-                &self,
-                proof: ::sov_modules_api::SerializedAggregatedProof,
-                prover_address: &S::Address,
-                state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> std::result::Result<(::sov_modules_api::AggregatedProofPublicData, ::sov_modules_api::SerializedAggregatedProof), ::sov_modules_api::InvalidProofError> {
-                let result = self
-                     .prover_incentives
-                     .process_proof(&proof, prover_address, state)?;
-
-                Ok((result, proof))
-            }
-
-            fn process_attestation(
-                &self,
-                _proof: ::sov_modules_api::SerializedAttestation,
-                _prover_address: &S::Address,
-                _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> std::result::Result<
-            ::sov_modules_api::SovAttestation<S,Da>,
-            ::sov_modules_api::InvalidProofError,
-             > {
-                unimplemented!()
-            }
-
-            fn process_challenge(
-                &self,
-                _proof: ::sov_modules_api::SerializedChallenge,
-                _transition_num: u64,
-                _prover_address: &S::Address,
-                _state: &mut ::sov_modules_api::WorkingSet<S>,
-            ) -> std::result::Result<
-                    ::sov_modules_api::StateTransitionPublicData<S::Address, Da, <S::Storage as ::sov_state::Storage>::Root>,
-                    ::sov_modules_api::InvalidProofError> {
-                       unimplemented!()
-            }
         }
     };
 }
