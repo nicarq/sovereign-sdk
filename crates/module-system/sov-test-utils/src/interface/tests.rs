@@ -14,7 +14,7 @@ type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
     /// The gas used to execute the transaction.
-    pub gas_used: u64,
+    pub gas_value_used: u64,
     /// The events raised by the transaction.
     ///
     /// The RuntimeEvent can be checked for specific module events, using the `sov_bank` module
@@ -41,7 +41,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
     /// Creates a [`TransactionAssertContext`] from the given [`TransactionReceipt`].
     pub fn from_receipt<S: Spec, Da: DaSpec>(
         receipt: TransactionReceipt<TxReceiptContents>,
-        gas_used: u64,
+        gas_value_used: u64,
     ) -> Self {
         let events = receipt
             .events
@@ -56,7 +56,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
         TransactionAssertContext {
             outcome: receipt.receipt,
             events,
-            gas_used,
+            gas_value_used,
         }
     }
 }
@@ -107,14 +107,15 @@ pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
     /// this can happen if the proof was malformed by the prover. Generally this should always be
     /// present.
     #[allow(clippy::type_complexity)]
-    pub outcome: Option<
-        ProofReceipt<
-            <S as Spec>::Address,
-            Da,
-            <<S as Spec>::Storage as Storage>::Root,
-            StorageProof<<S::Storage as Storage>::Proof>,
-        >,
+    pub proof_receipt: ProofReceipt<
+        <S as Spec>::Address,
+        Da,
+        <<S as Spec>::Storage as Storage>::Root,
+        StorageProof<<S::Storage as Storage>::Proof>,
     >,
+
+    /// The gas used to verify the proof.
+    pub gas_value_used: u64,
 }
 
 /// A closure used to assert the outcome of a [`ProofTestCase`].

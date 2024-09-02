@@ -246,7 +246,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(admin.available_gas_balance - result.gas_used - priority_fee_bips.apply(result.gas_used).unwrap()),
+                Some(admin.available_gas_balance - result.gas_value_used - priority_fee_bips.apply(result.gas_value_used).unwrap()),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction and the priority fee"
             );
 
@@ -298,7 +298,7 @@ fn test_default_transaction_details_works() {
                 Bank::<S>::default()
                     .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(admin.available_gas_balance - result.gas_used),
+                Some(admin.available_gas_balance - result.gas_value_used),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction"
             );
         }),

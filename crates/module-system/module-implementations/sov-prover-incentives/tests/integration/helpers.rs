@@ -60,7 +60,10 @@ pub(crate) fn build_proof(
     let vec_validity_cond = borsh::to_vec(&MockValidityCond { is_valid: true }).unwrap();
 
     Ok(AggregatedProofPublicData {
-        validity_conditions: vec![vec_validity_cond.clone(), vec_validity_cond],
+        validity_conditions: vec![
+            vec_validity_cond.clone();
+            (end_slot - initial_slot + 1) as usize
+        ],
         initial_slot_number: initial_slot,
         final_slot_number: end_slot,
         initial_state_root: genesis_hash.as_ref().to_vec(),

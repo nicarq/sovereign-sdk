@@ -140,7 +140,7 @@ where
         StateCheckpoint<S>,
         S::Gas,
     ) {
-        let res = process_proof(
+        let (res, state) = process_proof(
             &self.runtime,
             blob_hash,
             sender,
@@ -149,7 +149,7 @@ where
             checkpoint,
         );
 
-        (res.proof_receipt, res.checkpoint, res.gas_used)
+        (res.proof_receipt, state, res.gas_used)
     }
 }
 

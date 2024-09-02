@@ -75,6 +75,10 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, StorageProof> {
     pub blob_hash: [u8; 32],
     /// The outcome of the proof
     pub outcome: ProofOutcome<Address, Da, Root, StorageProof>,
+    /// Total gas incurred for this proof. This does not include the priority fee.
+    pub gas_used: Vec<u64>,
+    /// Computed gas price for this proof.
+    pub gas_price: Vec<u64>,
 }
 
 /// The contents of a proof receipt.

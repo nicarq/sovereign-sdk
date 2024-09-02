@@ -63,7 +63,7 @@ fn check_attester_bonded_and_start_unbond(
                 }),
             );
             gas_consumed_attester_ref_1
-                .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
         }),
     });
 
@@ -128,7 +128,7 @@ fn try_unbond_successful() {
                 TestRunner::<RT, S>::bank_gas_balance(&attester_address, state),
                 Some(
                     attester_balance + attester_bond
-                        - result.gas_used
+                        - result.gas_value_used
                         - gas_consumed_start_unbonding
                 )
             );

@@ -492,7 +492,7 @@ fn burn_gas_token_also_works() {
                 Bank::<S>::default()
                     .get_balance_of(&user_address, GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(user_gas_balance / 2 - result.gas_used),
+                Some(user_gas_balance / 2 - result.gas_value_used),
                 "The user's balance should be zero"
             );
         }),

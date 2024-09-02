@@ -162,7 +162,7 @@ pub(crate) fn create_test_case(
         input: ProofInput(serialized_attestation),
         override_sequencer: None,
         assert: Box::new(move |result, state| {
-            assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+            assert_matches!(result.proof_receipt.outcome, ProofOutcome::Valid { .. });
 
             assert_eq!(
                 TestAttesterIncentives::default()

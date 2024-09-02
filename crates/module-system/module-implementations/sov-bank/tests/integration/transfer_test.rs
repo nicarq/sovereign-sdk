@@ -445,7 +445,7 @@ fn test_transfer_gas_token() {
                 Bank::<S>::default()
                     .get_balance_of(&sender_address, GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(sender_initial_balance - result.gas_used - TRANSFER_AMOUNT)
+                Some(sender_initial_balance - result.gas_value_used - TRANSFER_AMOUNT)
             );
         }),
     });

@@ -1,3 +1,4 @@
+- #1383 Extend `prover-incentoves::test_valid_proof` test to check gas usage. 
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
 - #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`virtual_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.

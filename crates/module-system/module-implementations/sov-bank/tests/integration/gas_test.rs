@@ -88,12 +88,12 @@ fn gas_price_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_used,
+                    user_initial_balance - result.gas_value_used,
                     "the balance should decrease only by the gas used"
                 );
 
                 gas_consumed_without_price_ref
-                    .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                    .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
             })
         },
     );
@@ -117,14 +117,14 @@ fn gas_price_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_used,
+                    user_initial_balance - result.gas_value_used,
                     "the balance should decrease only by the gas used"
                 );
 
                 assert_eq!(
                 gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
                     + gas_to_charge_for_create_token.value(&bank_initial_gas_price),
-                result.gas_used,
+                result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
             })
@@ -157,12 +157,12 @@ fn config_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_used,
+                    user_initial_balance - result.gas_value_used,
                     "the balance should be unchanged with zeroed price"
                 );
 
                 gas_consumed_without_price_ref
-                    .fetch_add(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                    .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
             })
         },
     );
@@ -183,14 +183,14 @@ fn config_constants_are_charged_correctly() {
 
                 assert_eq!(
                     user_final_balance,
-                    user_initial_balance - result.gas_used,
+                    user_initial_balance - result.gas_value_used,
                     "the balance should be unchanged with zeroed price"
                 );
 
                 assert_eq!(
                 gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
                     + create_token_config_cost.value(&bank_initial_gas_price),
-                result.gas_used,
+                result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
             );
             })

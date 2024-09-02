@@ -511,11 +511,20 @@ where
         let sender_da_address = proof_test
             .override_sequencer
             .unwrap_or(self.default_sequencer_da_address);
+
         let result = self.execute(proof_test.input, Some(sender_da_address));
+        let proof_receipt = result.proof_receipts[0].clone();
+
+        let gas_used = <S as Spec>::Gas::from_slice(&proof_receipt.gas_used);
+        let gas_price =
+            <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(&proof_receipt.gas_price);
+
         let ctx = ProofAssertContext {
-            outcome: result.proof_receipts.first().cloned(),
+            proof_receipt,
+            gas_value_used: gas_used.value(&gas_price),
         };
         (proof_test.assert)(ctx, &mut self.current_state());
+
         self
     }
 }

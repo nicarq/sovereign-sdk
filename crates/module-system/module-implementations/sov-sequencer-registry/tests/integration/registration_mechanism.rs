@@ -51,7 +51,7 @@ fn test_default_sequencer() {
                 TestRunner::<RT, S>::bank_gas_balance(&test_sequencer_address, state),
                 Some(
                     test_sequencer_initial_balance
-                        + custom_priority_fee.apply(result.gas_used).unwrap()
+                        + custom_priority_fee.apply(result.gas_value_used).unwrap()
                 ),
                 "The sequencer should have been rewarded the execution funds "
             );
@@ -109,7 +109,9 @@ fn test_new_sequencer_registration() {
                 // Assert that the other sequencer balance has been updated
                 assert_eq!(
                     TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                    Some(TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE - result.gas_used)
+                    Some(
+                        TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE - result.gas_value_used
+                    )
                 );
             }),
         })
@@ -245,7 +247,7 @@ fn test_exit_happy_path() {
             );
             // Update the other sequencer's balance
             other_sequencer_balance_ref
-                .fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
@@ -279,7 +281,7 @@ fn test_exit_happy_path() {
             )));
             // Update the other sequencer's balance
             other_sequencer_balance_ref_1
-                .fetch_sub(result.gas_used, std::sync::atomic::Ordering::SeqCst);
+                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
             // Assert that the other sequencer balance has been updated and that he recovered his bond
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),

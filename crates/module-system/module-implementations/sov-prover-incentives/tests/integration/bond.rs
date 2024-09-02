@@ -61,7 +61,7 @@ fn test_topup_existing_bond() {
                 Bank::<S>::default()
                     .get_balance_of(&prover_address, GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - extra_bond_amount - result.gas_used),
+                Some(starting_free_balance - extra_bond_amount - result.gas_value_used),
             );
         }),
     };
@@ -102,7 +102,7 @@ fn test_bonding_new_prover() {
                 Bank::<S>::default()
                     .get_balance_of(&unbonded_user.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - bond_amount - result.gas_used),
+                Some(starting_free_balance - bond_amount - result.gas_value_used),
             );
         }),
     });
@@ -121,7 +121,7 @@ fn test_unbonding() {
             )));
             assert_eq!(
                 genesis_prover.user_info.available_gas_balance + genesis_prover.bond
-                    - result.gas_used,
+                    - result.gas_value_used,
                 Bank::<S>::default()
                     .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
                     .unwrap_infallible()

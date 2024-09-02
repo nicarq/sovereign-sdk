@@ -29,7 +29,7 @@ fn test_deposit_successful() {
                 Bank::<S>::default()
                     .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
                     .unwrap_infallible(),
-                Some(starting_free_balance - extra_bond - result.gas_used),
+                Some(starting_free_balance - extra_bond - result.gas_value_used),
             );
         }),
     });

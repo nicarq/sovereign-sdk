@@ -8,7 +8,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
-    DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
+    DaSpec, Gas, GasArray, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
@@ -31,7 +31,7 @@ pub(crate) fn process_proof<S, Da, RT>(
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S>,
-) -> ProcessProofOutput<S, Da>
+) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S>)
 where
     S: Spec,
     Da: DaSpec,
@@ -45,9 +45,9 @@ where
             let (sequencer_rollup_address, pre_exec_working_set) =
                 match workflow.authorize_sequencer(gas_price, state.to_tx_scratchpad()) {
                     WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
-                    WorkflowResult::EarlyReturn(out) => {
+                    WorkflowResult::EarlyReturn(out, state) => {
                         tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
-                        return out;
+                        return (out, state);
                     }
                 };
 
@@ -59,11 +59,11 @@ where
                 pre_exec_working_set,
             ) {
                 WorkflowResult::Proceed(working_set) => working_set,
-                WorkflowResult::EarlyReturn(out) => {
+                WorkflowResult::EarlyReturn(out, state) => {
                     tracing::debug!(
                         "{LOG_PREFIX}: unable to reserve gas for the proof verification"
                     );
-                    return out;
+                    return (out, state);
                 }
             };
 
@@ -133,11 +133,18 @@ where
                 &mut tx_scratchpad,
             );
 
-            ProcessProofOutput {
-                proof_receipt: ProofReceipt { blob_hash, outcome },
-                checkpoint: tx_scratchpad.commit(),
-                gas_used: transaction_consumption.base_fee().clone(),
-            }
+            (
+                ProcessProofOutput {
+                    proof_receipt: ProofReceipt {
+                        blob_hash,
+                        outcome,
+                        gas_used: transaction_consumption.base_fee().to_vec(),
+                        gas_price: gas_price.to_vec(),
+                    },
+                    gas_used: transaction_consumption.base_fee().clone(),
+                },
+                tx_scratchpad.commit(),
+            )
         }
         Err(_) => {
             // We could not deserialize the data from the DA. Penalize the sequencer and return early.
@@ -155,7 +162,6 @@ pub(crate) struct ProcessProofOutput<S: Spec, Da: DaSpec> {
         <S::Storage as Storage>::Root,
         StorageProof<<S::Storage as Storage>::Proof>,
     >,
-    pub(crate) checkpoint: StateCheckpoint<S>,
 
     pub(crate) gas_used: S::Gas,
 }
@@ -166,7 +172,7 @@ enum WorkflowResult<Arg, S: Spec, Da: DaSpec> {
     // Proceed with the proof processing.
     Proceed(Arg),
     // Early return from the proof processing.
-    EarlyReturn(ProcessProofOutput<S, Da>),
+    EarlyReturn(ProcessProofOutput<S, Da>, StateCheckpoint<S>),
 }
 
 struct ProofProcessingWorkflow<'a, S: Spec, Da: DaSpec, RT: Runtime<S, Da>> {
@@ -207,17 +213,19 @@ where
             Err(AuthorizeSequencerError {
                 reason,
                 tx_scratchpad,
-            }) => WorkflowResult::EarlyReturn(ProcessProofOutput {
-                checkpoint: tx_scratchpad.commit(),
-                proof_receipt: invalid_proof_receipt::<S, Da>(
-                    self.blob_hash,
-                    InvalidProofError::PreconditionNotMet(format!(
-                        "Failed to authorize sequencer: {}",
-                        reason
-                    )),
-                ),
-                gas_used: S::Gas::zero(),
-            }),
+            }) => WorkflowResult::EarlyReturn(
+                ProcessProofOutput {
+                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                        self.blob_hash,
+                        InvalidProofError::PreconditionNotMet(format!(
+                            "Failed to authorize sequencer: {}",
+                            reason
+                        )),
+                    ),
+                    gas_used: S::Gas::zero(),
+                },
+                tx_scratchpad.commit(),
+            ),
         }
     }
 
@@ -241,19 +249,20 @@ where
                 pre_exec_working_set,
             }) => {
                 let reason_str = reason.to_string();
-                WorkflowResult::EarlyReturn(ProcessProofOutput {
-                    checkpoint: self
-                        .penalize_sequencer(reason, pre_exec_working_set)
+                WorkflowResult::EarlyReturn(
+                    ProcessProofOutput {
+                        proof_receipt: invalid_proof_receipt::<S, Da>(
+                            self.blob_hash,
+                            InvalidProofError::PreconditionNotMet(format!(
+                                "Failed to reserve gas: {}",
+                                reason_str
+                            )),
+                        ),
+                        gas_used: S::Gas::zero(),
+                    },
+                    self.penalize_sequencer(reason, pre_exec_working_set)
                         .commit(),
-                    proof_receipt: invalid_proof_receipt::<S, Da>(
-                        self.blob_hash,
-                        InvalidProofError::PreconditionNotMet(format!(
-                            "Failed to reserve gas: {}",
-                            reason_str
-                        )),
-                    ),
-                    gas_used: S::Gas::zero(),
-                })
+                )
             }
         }
     }
@@ -262,21 +271,23 @@ where
         &self,
         blob_hash: [u8; 32],
         mut state: StateCheckpoint<S>,
-    ) -> ProcessProofOutput<S, Da> {
+    ) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S>) {
         self.runtime
             .sequencer_remuneration()
             .slash_sequencer(self.sequencer_da_address, &mut state);
 
-        ProcessProofOutput {
-            checkpoint: state,
-            proof_receipt: invalid_proof_receipt::<S, Da>(
-                blob_hash,
-                InvalidProofError::PreconditionNotMet(
-                    "Sequencer slashed for invalid serialization".to_string(),
+        (
+            ProcessProofOutput {
+                proof_receipt: invalid_proof_receipt::<S, Da>(
+                    blob_hash,
+                    InvalidProofError::PreconditionNotMet(
+                        "Sequencer slashed for invalid serialization".to_string(),
+                    ),
                 ),
-            ),
-            gas_used: S::Gas::zero(),
-        }
+                gas_used: S::Gas::zero(),
+            },
+            state,
+        )
     }
 
     fn penalize_sequencer(
@@ -308,6 +319,8 @@ fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     ProofReceipt {
         blob_hash,
         outcome: ProofOutcome::Invalid(reason),
+        gas_used: S::Gas::zero().to_vec(),
+        gas_price: Vec::new(),
     }
 }
 
