@@ -5,7 +5,7 @@ use sov_state::{
 };
 
 use super::checkpoints::StateCheckpoint;
-use super::internals::{Delta, RevertableWriter};
+use super::internals::RevertableWriter;
 use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
 use crate::module::Spec;
@@ -26,14 +26,14 @@ use crate::{Gas, GasMeter, GasMeteringError};
 /// This method tracks the gas consumed outside of the transaction lifecycle without explicitely consuming a finite resource.
 /// This should only be used in infailible methods.
 pub struct TxScratchpad<S: Spec> {
-    delta: RevertableWriter<Delta<S::Storage>>,
+    inner: RevertableWriter<StateCheckpoint<S>>,
 }
 
 impl<S: Spec> StateCheckpoint<S> {
     /// Transforms this [`StateCheckpoint`] into a [`TxScratchpad`].
     pub fn to_tx_scratchpad(self) -> TxScratchpad<S> {
         TxScratchpad::<S> {
-            delta: RevertableWriter::new(self.delta),
+            inner: RevertableWriter::new(self),
         }
     }
 }
@@ -46,16 +46,16 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> From<PreExecWorkingSet<S, Meter>> for TxS
 
 impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <RevertableWriter<Delta<S::Storage>> as UniversalStateAccessor>::get(
-            &mut self.delta,
+        <RevertableWriter<StateCheckpoint<S>> as UniversalStateAccessor>::get(
+            &mut self.inner,
             namespace,
             key,
         )
     }
 
     fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <RevertableWriter<Delta<S::Storage>> as UniversalStateAccessor>::set(
-            &mut self.delta,
+        <RevertableWriter<StateCheckpoint<S>> as UniversalStateAccessor>::set(
+            &mut self.inner,
             namespace,
             key,
             value,
@@ -63,8 +63,8 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
     }
 
     fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        <RevertableWriter<Delta<S::Storage>> as UniversalStateAccessor>::delete(
-            &mut self.delta,
+        <RevertableWriter<StateCheckpoint<S>> as UniversalStateAccessor>::delete(
+            &mut self.inner,
             namespace,
             key,
         )
@@ -74,16 +74,12 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
 impl<S: Spec> TxScratchpad<S> {
     /// Commits the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn commit(self) -> StateCheckpoint<S> {
-        StateCheckpoint {
-            delta: self.delta.commit(),
-        }
+        self.inner.commit()
     }
 
     /// Reverts the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn revert(self) -> StateCheckpoint<S> {
-        StateCheckpoint {
-            delta: self.delta.revert(),
-        }
+        self.inner.revert()
     }
 
     /// Converts this [`TxScratchpad`] into a [`PreExecWorkingSet`].
@@ -206,7 +202,7 @@ impl<S: Spec> StateCheckpoint<S> {
     /// This is useful for tests that don't need to track gas consumption.
     pub fn to_working_set_unmetered(self) -> WorkingSet<S> {
         let stashed_working_set = TxScratchpad {
-            delta: RevertableWriter::new(self.delta),
+            inner: RevertableWriter::new(self),
         };
 
         WorkingSet {
@@ -308,7 +304,7 @@ impl<S: Spec> WorkingSet<S> {
     ) -> Self {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
+            inner: RevertableWriter::new(state_checkpoint),
         };
 
         WorkingSet {
@@ -335,7 +331,7 @@ impl<S: Spec> WorkingSet<S> {
     pub fn new_deprecated(inner: S::Storage) -> Self {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
         let tx_scratchpad = TxScratchpad {
-            delta: RevertableWriter::new(state_checkpoint.delta),
+            inner: RevertableWriter::new(state_checkpoint),
         };
 
         WorkingSet {

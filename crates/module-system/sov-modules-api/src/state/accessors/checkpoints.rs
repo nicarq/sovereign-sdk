@@ -1,7 +1,7 @@
-use sov_state::{CompileTimeNamespace, IsValueCached, SlotKey, SlotValue, StateAccesses, Storage};
+use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 
 use super::internals::{AccessoryDelta, Delta};
-use super::seal::CachedAccessor;
+use super::UniversalStateAccessor;
 use crate::{Context, Spec, VersionedStateReadWriter};
 
 /// This structure is responsible for storing the `read-write` set.
@@ -57,17 +57,17 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for StateCheckpoint<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        CachedAccessor::<N>::get_cached(&mut self.delta, key)
+impl<S: Spec> UniversalStateAccessor for StateCheckpoint<S> {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+        UniversalStateAccessor::get(&mut self.delta, namespace, key)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        CachedAccessor::<N>::set_cached(&mut self.delta, key, value)
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+        UniversalStateAccessor::set(&mut self.delta, namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        CachedAccessor::<N>::delete_cached(&mut self.delta, key)
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        UniversalStateAccessor::delete(&mut self.delta, namespace, key)
     }
 }
 
