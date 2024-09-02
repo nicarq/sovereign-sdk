@@ -5,7 +5,6 @@ use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, PrivateKey, PublicKey, Spec,
-    StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -211,7 +210,7 @@ fn get_attester_stake_for_block(
 ) -> Result<u64, Infallible> {
     let stf_state = storage_manager.create_storage();
 
-    let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(stf_state);
+    let mut state: ApiStateAccessor<TestSpec> = ApiStateAccessor::new(stf_state);
     Ok(stf
         .runtime()
         .sequencer_registry
@@ -319,7 +318,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let balance = {
             let stf_state = storage_manager.create_storage();
             let runtime: RuntimeTest = Runtime::default();
-            let mut state = StateCheckpoint::<TestSpec>::new(stf_state.clone());
+            let mut state = ApiStateAccessor::<TestSpec>::new(stf_state.clone());
 
             let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
 

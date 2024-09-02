@@ -1,12 +1,14 @@
 use jsonrpsee::core::RpcResult;
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error, Genesis, ExecutionContext,
-    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
+    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error,
+    ExecutionContext, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
+    StateValue, TxState,
 };
 use sov_state::ZkStorage;
-use sov_test_utils::ZkTestSpec;
+use sov_test_utils::{MockDaSpec, ZkTestSpec};
 
 pub trait Message: 'static {
     type Caller: std::fmt::Display;
@@ -133,12 +135,12 @@ fn main() {
     type S = ZkTestSpec;
     type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();
-    let state = StateCheckpoint::new(storage);
+    let mut state = StateCheckpoint::new(storage, &MockKernel::<S, MockDaSpec>::default());
     let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
     let mut genesis_state = state.to_genesis_state_accessor::<RT>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered();
 
     let message: u32 = 33;
     let serialized_message =
@@ -146,7 +148,13 @@ fn main() {
     let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([12; 32].as_ref()).unwrap();
-    let context = Context::<S>::new(sender, Default::default(), sequencer, 1, ExecutionContext::Node);
+    let context = Context::<S>::new(
+        sender,
+        Default::default(),
+        sequencer,
+        1,
+        ExecutionContext::Node,
+    );
 
     let _ = runtime
         .dispatch_call(module, &mut working_set, &context)

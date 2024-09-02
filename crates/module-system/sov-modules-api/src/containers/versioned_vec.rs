@@ -334,8 +334,8 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage);
         let mut kernel = MockKernel::default();
+        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = VersionedStateVec::<u32>::new(prefix);

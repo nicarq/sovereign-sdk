@@ -2,9 +2,10 @@ mod modules;
 
 use modules::third_test_module::{self, ModuleThreeStorable};
 use modules::{first_test_module, second_test_module};
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{DispatchCall, Genesis, MessageCodec, Spec};
 use sov_state::ZkStorage;
-use sov_test_utils::ZkTestSpec;
+use sov_test_utils::{MockDaSpec, ZkTestSpec};
 
 // Debugging hint: To expand the macro in tests run: `cargo expand --test tests`
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
@@ -20,12 +21,15 @@ where
 
 fn main() {
     let storage = ZkStorage::new();
-    let state = sov_modules_api::StateCheckpoint::new(storage);
+    let mut state = sov_modules_api::StateCheckpoint::new(
+        storage,
+        &MockKernel::<ZkTestSpec, MockDaSpec>::default(),
+    );
     let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
     let config = GenesisConfig::new((), (), ());
     let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered();
 
     {
         let response = runtime

@@ -8,11 +8,12 @@ use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
 use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
     Context, CredentialId, ExecutionContext, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
 };
 use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::{TestHasher, TestPrivateKey};
+use sov_test_utils::{MockDaSpec, TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls
@@ -42,7 +43,7 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let state = StateCheckpoint::<S>::new(storage);
+        let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S, MockDaSpec>::default());
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let accounts: Vec<_> = keys
@@ -59,7 +60,7 @@ fuzz_target!(
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
         accounts.genesis(&config, &mut genesis_state).unwrap();
 
-        let mut working_set = genesis_state.checkpoint().to_working_set_unmetered();
+        let mut working_set = state.to_working_set_unmetered();
 
         // address list is constant for this test
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();
@@ -72,7 +73,13 @@ fuzz_target!(
         for i in 0..iterations {
             // we use slices for better select performance
             let sender = addresses.choose(rng).unwrap();
-            let context = Context::<S>::new(*sender, Default::default(), sequencer, i as u64, ExecutionContext::Node);
+            let context = Context::<S>::new(
+                *sender,
+                Default::default(),
+                sequencer,
+                i as u64,
+                ExecutionContext::Node,
+            );
 
             // clear previous state
             let previous = state.get(sender).unwrap().as_hex();

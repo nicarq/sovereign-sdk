@@ -1,15 +1,14 @@
 use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
 
 use super::checkpoints::StateCheckpoint;
-use super::internals::Delta;
 use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
 use crate::{Gas, GasMeter, GasMeteringError, Genesis, Spec, UnlimitedGasMeter};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
-pub struct GenesisStateAccessor<S: Spec> {
-    delta: Delta<S::Storage>,
+pub struct GenesisStateAccessor<'a, S: Spec> {
+    checkpoint: &'a mut StateCheckpoint<S>,
     pub(super) events: Vec<TypedEvent>,
     gas_meter: UnlimitedGasMeter<S::Gas>,
 }
@@ -17,33 +16,33 @@ pub struct GenesisStateAccessor<S: Spec> {
 impl<S: Spec> StateCheckpoint<S> {
     /// Produces an unmetered [`GenesisStateAccessor`] from a [`StateCheckpoint`] for genesis.
     pub fn to_genesis_state_accessor<G: Genesis>(
-        self,
+        &mut self,
         // This argument prevents this method from being called outside of genesis.
         _config: &G::Config,
     ) -> GenesisStateAccessor<S> {
         GenesisStateAccessor {
-            delta: self.delta,
+            checkpoint: self,
             gas_meter: UnlimitedGasMeter::new(),
             events: Default::default(),
         }
     }
 }
 
-impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for GenesisStateAccessor<S> {
+impl<'a, S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for GenesisStateAccessor<'a, S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        CachedAccessor::<N>::get_cached(&mut self.delta, key)
+        CachedAccessor::<N>::get_cached(self.checkpoint, key)
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        CachedAccessor::<N>::set_cached(&mut self.delta, key, value)
+        CachedAccessor::<N>::set_cached(self.checkpoint, key, value)
     }
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        CachedAccessor::<N>::delete_cached(&mut self.delta, key)
+        CachedAccessor::<N>::delete_cached(self.checkpoint, key)
     }
 }
 
-impl<S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<S> {
+impl<'a, S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<'a, S> {
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
@@ -61,12 +60,7 @@ impl<S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<S> {
     }
 }
 
-impl<S: Spec> GenesisStateAccessor<S> {
-    /// Creates a new [`StateCheckpoint`] from this [`GenesisStateAccessor`].
-    pub fn checkpoint(self) -> StateCheckpoint<S> {
-        StateCheckpoint { delta: self.delta }
-    }
-
+impl<'a, S: Spec> GenesisStateAccessor<'a, S> {
     /// Extracts all typed events from this working set.
     pub fn take_events(&mut self) -> Vec<TypedEvent> {
         core::mem::take(&mut self.events)
@@ -88,7 +82,7 @@ impl<S: Spec> GenesisStateAccessor<S> {
     }
 }
 
-impl<S: Spec> EventContainer for GenesisStateAccessor<S> {
+impl<'a, S: Spec> EventContainer for GenesisStateAccessor<'a, S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
         self.events.push(TypedEvent::new(event_key, event));
     }

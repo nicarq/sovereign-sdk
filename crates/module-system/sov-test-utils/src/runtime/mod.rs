@@ -193,7 +193,7 @@ where
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
         let stf_state = self.storage_manager.create_storage();
 
-        let mut state = StateCheckpoint::<S>::new(stf_state.clone());
+        let mut state = StateCheckpoint::<S>::new(stf_state.clone(), self.stf.kernel());
 
         query(&mut state);
 
@@ -213,7 +213,7 @@ where
     ) -> Output {
         let stf_state = self.storage_manager.create_storage();
 
-        let state = &mut StateCheckpoint::new(stf_state);
+        let state = &mut StateCheckpoint::new(stf_state, self.stf.kernel());
 
         let mut kernel_ws = KernelWorkingSet::from_kernel(self.stf.kernel(), state);
         query(&mut kernel_ws)

@@ -143,14 +143,15 @@ mod tests {
     fn test_kernel_state_value_as_value() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut working_set = StateCheckpoint::new(storage);
+
+        let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
+        let mut working_set = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
         let value = VersionedStateValue::<u64>::new(prefix.clone());
 
         // Initialize a value in the kernel state during slot 4
         {
-            let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
             let mut kernel_state = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
             value.set_true_current(&100, &mut kernel_state);
             assert_eq!(
@@ -196,11 +197,12 @@ mod tests {
     fn test_kernel_state_value_as_map() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut working_set = StateCheckpoint::new(storage);
+
+        let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
+        let mut working_set = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
         let value = VersionedStateValue::<u64>::new(prefix.clone());
-        let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
         {

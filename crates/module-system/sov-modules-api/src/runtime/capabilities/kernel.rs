@@ -24,9 +24,9 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sy
     ) -> anyhow::Result<()>;
 
     /// Return the current slot number
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
     /// Return the slot number at which transactions currently *appear* to be executing.
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state

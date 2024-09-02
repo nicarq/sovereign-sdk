@@ -1,4 +1,7 @@
 //! Runtime state machine definitions.
+
+#[cfg(feature = "test-utils")]
+use sov_rollup_interface::da::DaSpec;
 use sov_state::namespaces::User;
 use sov_state::{
     CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
@@ -8,6 +11,8 @@ use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
 use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
+#[cfg(feature = "test-utils")]
+use crate::capabilities::Kernel;
 use crate::module::Spec;
 use crate::state::events::TypedEvent;
 use crate::transaction::{
@@ -296,13 +301,19 @@ impl<S: Spec> WorkingSet<S> {
     }
 
     /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
+    /// Note: This method uses a [`MockKernel`] with a default height, this is not compatible with tests over multiple slots.
     #[cfg(test)]
     pub fn new_with_gas_meter(
         inner: S::Storage,
         remaining_funds: u64,
         price: &<S::Gas as Gas>::Price,
     ) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+        use sov_mock_da::MockDaSpec;
+
+        use crate::capabilities::mocks::MockKernel;
+
+        let state_checkpoint: StateCheckpoint<S> =
+            StateCheckpoint::new(inner, &MockKernel::<S, MockDaSpec>::default());
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
         };
@@ -328,8 +339,8 @@ impl<S: Spec> WorkingSet<S> {
     /// - the testing framework,
     /// - or [`crate::ApiStateAccessor::new`]
     /// - or [`StateCheckpoint::new`]
-    pub fn new_deprecated(inner: S::Storage) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner);
+    pub fn new_deprecated<Da: DaSpec, K: Kernel<S, Da>>(inner: S::Storage, kernel: &K) -> Self {
+        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
         };

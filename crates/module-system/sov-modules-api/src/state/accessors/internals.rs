@@ -26,6 +26,7 @@ pub(super) struct Delta<S: Storage> {
 }
 
 impl<S: Storage> Delta<S> {
+    #[cfg(feature = "native")]
     pub(super) fn new(inner: S, version: Option<u64>) -> Self {
         Self::with_witness(inner, Default::default(), version)
     }

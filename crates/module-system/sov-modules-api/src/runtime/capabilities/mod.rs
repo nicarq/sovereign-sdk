@@ -152,13 +152,19 @@ pub mod mocks {
             let kernel = Self::new(0, 0);
             KernelWorkingSet::from_kernel(&kernel, state_checkpoint)
         }
+
+        /// Simply increases all the heights by one
+        pub fn increase_heights(&mut self) {
+            self.true_slot_number += 1;
+            self.visible_slot_number += 1;
+        }
     }
 
     impl<S: Spec, Da: DaSpec> Kernel<S, Da> for MockKernel<S, Da> {
-        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_slot_number
         }
-        fn visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S>) -> u64 {
+        fn visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.visible_slot_number
         }
 
