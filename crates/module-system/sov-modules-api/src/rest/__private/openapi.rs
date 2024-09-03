@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde_json::json;
-use utoipa::openapi::OpenApi;
+pub use utoipa::openapi::OpenApi;
 
 use super::{StateItemInfo, StateItemKind};
 

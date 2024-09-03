@@ -3,9 +3,9 @@
 use axum::routing::get;
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
-use sov_modules_api::prelude::{axum, UnwrapInfallible};
+use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
-use sov_modules_api::rest::{ApiState, HasCustomRestApi};
+use sov_modules_api::rest::{ApiState, HasCustomRestApi, OpenApi};
 use sov_modules_api::ApiStateAccessor;
 
 use crate::{get_token_id, Amount, Bank, Coins, TokenId};
@@ -139,6 +139,12 @@ impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
             )
             .route("/tokens", get(Self::route_find_token_id))
             .with_state(state)
+    }
+
+    fn custom_openapi_spec(&self) -> Option<OpenApi> {
+        let open_api =
+            serde_yaml::from_str(include_str!("../openapi-v3.yaml")).expect("Invalid OpenAPI spec");
+        Some(open_api)
     }
 }
 
