@@ -1,3 +1,4 @@
+- #1399 `AttesterIncentive`: Add balance checks to the challenger.rs tests.
 - #1395 Add balance check to the `attestation_processing` test.
 - #1392 Simplify the test in prover/attester incentives.
 - #1388 Make the naming in the sov-test-utils more consistent.
