@@ -4,12 +4,13 @@ use sov_attester_incentives::{AttesterIncentives, CallMessage, SlashingReason};
 use sov_bank::Amount;
 use sov_mock_da::{MockDaSpec, MockHash};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, AtomicNumber, BondedTestChallenger, ProofInput, ProofTestCase, TestAttester,
-    TransactionTestCase, TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
+    assert_matches, AsUser, AtomicNumber, BondedTestChallenger, ProofInput, ProofTestCase,
+    TestAttester, TransactionTestCase, TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 use crate::helpers::{
@@ -73,6 +74,12 @@ fn setup_with_wrong_attestation() -> (
     let bonded_challenger =
         BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond);
 
+    let initial_attester_balance = runner
+        .query_state(|state| {
+            TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state)
+        })
+        .unwrap();
+
     {
         let mut attestation_proof = runner
             .query_state(|state| build_proof(state, 1, &genesis_attester_address))
@@ -84,12 +91,11 @@ fn setup_with_wrong_attestation() -> (
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
             input: ProofInput(make_attestation_blob(attestation_proof)),
             override_sequencer: None,
-            assert: Box::new(move |_result, state| {
-                // TODO #1292:
-                // assert_matches!(
-                //    result.outcome.unwrap().outcome,
-                //    ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(_))
-                // );
+            assert: Box::new(move |result, state| {
+                assert_matches!(
+                    result.proof_receipt.unwrap().outcome,
+                    ProofOutcome::Invalid(_)
+                );
 
                 // Check that the attester was slashed
                 assert!(TestAttesterIncentives::default()
@@ -109,12 +115,11 @@ fn setup_with_wrong_attestation() -> (
                     "The transition should exist in the pool"
                 );
 
-                // TODO #1292:
-                // assert_eq!(
-                //    TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state),
-                //    Some(expected_attester_balance - result.gas_used),
-                //    "The attester should have the correct bond amount from genesis"
-                // );
+                assert_eq!(
+                    TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state),
+                    Some(initial_attester_balance - result.gas_value_used),
+                    "The attester should have the correct bond amount from genesis"
+                );
             }),
         });
     }
@@ -132,18 +137,23 @@ fn setup_with_wrong_attestation() -> (
 
 #[test]
 fn test_valid_challenge() -> Result<(), Infallible> {
-    let (mut runner, _, bonded_challenger, _expected_reward) = setup_with_wrong_attestation();
+    let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
     let bonded_challenger_address = bonded_challenger.user_info.address();
-    let _bonded_challenger_balance = bonded_challenger.user_info.balance();
 
     let challenge_proof = runner
         .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
         .unwrap();
 
+    let initial_challenger_balance = runner
+        .query_state(|state| {
+            TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state)
+        })
+        .unwrap();
+
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_challenge_blob(challenge_proof, true, 1)),
         override_sequencer: None,
-        assert: Box::new(move |_result, state| {
+        assert: Box::new(move |result, state| {
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bad_transition_pool
@@ -153,18 +163,14 @@ fn test_valid_challenge() -> Result<(), Infallible> {
                 "The transition should have disappeared from the pool"
             );
 
-            // TODO #1292: check reward
+            let reward = TestAttesterIncentives::default()
+                .burn_rate()
+                .apply(expected_reward);
 
-            // TODO #1292:
-            // bonded_challenger_balance -= result.gas_used;
-            // let reward = TestAttesterIncentives::default()
-            //    .burn_rate()
-            //    .apply(expected_reward);
-            //assert_eq!(
-            //    TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state),
-            //    Some(bonded_challenger_balance + reward),
-            //    "The challenger has not been rewarded the correct amount"
-            // );
+            assert_eq!(
+                TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state).unwrap(),
+                initial_challenger_balance - result.gas_value_used + reward,
+            );
         }),
     });
 
@@ -176,26 +182,26 @@ fn test_invalid_challenge_helper(
     expected_reward: u64,
     bonded_challenger: &BondedTestChallenger<S>,
     challenge_blob: Vec<u8>,
-    _slashing_reason: SlashingReason,
+    slashing_reason: SlashingReason,
 ) {
     let bonded_challenger_address = bonded_challenger.user_info.address();
-    let _bonded_challenger_balance = bonded_challenger.user_info.balance();
+
+    let initial_challenger_balance = runner
+        .query_state(|state| {
+            TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state)
+        })
+        .unwrap();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(challenge_blob),
         override_sequencer: None,
-        assert: Box::new(move |_result, state| {
-            // TODO: #1262
-            //  assert!(
-            //    result.events.iter().any(|event| matches!(
-            //        event,
-            //        TestRuntimeEvent::AttesterIncentives(Event::UserSlashed {
-            //            address,
-            //            reason
-            //        }) if *address == bonded_challenger_address && *reason == slashing_reason
-            //    )),
-            //    "No slashing event were emitted"
-            //);
+        assert: Box::new(move |result, state| {
+            match &result.proof_receipt.unwrap().outcome {
+                ProofOutcome::Invalid(InvalidProofError::ProverSlashed(msg)) => {
+                    assert_eq!(msg, &slashing_reason.to_string());
+                }
+                _ => panic!("Expected invalid outcome"),
+            }
 
             // Check that the challenger was slashed
             assert_eq!(
@@ -218,12 +224,11 @@ fn test_invalid_challenge_helper(
             );
 
             // Check that the challenger was not rewarded
-            // TODO: #1262
-            // assert_eq!(
-            //    TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state),
-            //    Some(bonded_challenger_balance - result.gas_used),
-            //    "The challenger balance is not correct"
-            //);
+
+            assert_eq!(
+                TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state).unwrap(),
+                initial_challenger_balance - result.gas_value_used
+            );
         }),
     });
 }
@@ -264,13 +269,12 @@ fn test_invalid_challenge_transition() {
         &mut runner,
         expected_reward,
         &bonded_challenger,
-        make_challenge_blob(challenge_proof, false, 1),
+        make_challenge_blob(challenge_proof, true, 1),
         SlashingReason::TransitionInvalid,
     );
 }
 
 #[test]
-
 fn test_invalid_challenge_proof() {
     let (mut runner, _, bonded_challenger, expected_reward) = setup_with_wrong_attestation();
     let bonded_challenger_address = bonded_challenger.user_info.address();
