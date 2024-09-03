@@ -22,11 +22,11 @@ fn produce_malformed_tx(
             .create_plain_message::<sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(10),
             )
-            .to_raw_tx::<RT>(&mut nonces, state);
+            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
 
-        tx.data.pop();
+        tx.pop();
 
-        TransactionType::PreSigned(tx)
+        TransactionType::PreAuthenticated(tx)
     })
 }
 

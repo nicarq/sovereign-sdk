@@ -49,6 +49,8 @@ where
 
     type AuthorizationData = AuthorizationData<S>;
 
+    type Input = sov_modules_api::RawTx;
+
     fn authenticate(
         &self,
         tx: &sov_modules_api::RawTx,
@@ -79,6 +81,10 @@ where
         sov_modules_api::capabilities::UnregisteredAuthenticationError,
     > {
         unimplemented!()
+    }
+
+    fn encode_standard_tx(tx: Vec<u8>) -> Self::Input {
+        sov_modules_api::RawTx { data: tx }
     }
 }
 

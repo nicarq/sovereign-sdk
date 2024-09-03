@@ -29,7 +29,8 @@ fn make_unregistered_blobs<
                 },
             );
 
-            let raw_tx = runner.query_state(|state| tx.to_raw_tx::<RT>(nonces, state));
+            let raw_tx =
+                runner.query_state(|state| tx.to_serialized_authenticated_tx::<RT>(nonces, state));
 
             MockBlob::new_with_hash(borsh::to_vec(&raw_tx).unwrap(), sender.da_address)
         })

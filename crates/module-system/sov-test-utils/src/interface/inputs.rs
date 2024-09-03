@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockAddress, MockBlob};
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -9,6 +10,8 @@ use crate::FromState;
 
 /// Defines the type of a message that can be sent to the runtime.
 pub enum TransactionType<M: Module, S: Spec> {
+    /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as RuntimeAuthenticator>::Input` type.
+    PreAuthenticated(Vec<u8>),
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
     PreSigned(RawTx),
     /// A pre-encoded transaction. That is a transaction that has not been signed yet, but has been encoded for the module system
@@ -43,7 +46,9 @@ pub enum TransactionType<M: Module, S: Spec> {
 impl<M: Module, S: Spec> TransactionType<M, S> {
     fn details_mut(&mut self) -> Option<&mut TxDetails<S>> {
         Some(match self {
-            TransactionType::PreSigned { .. } => return None,
+            TransactionType::PreAuthenticated(_) | TransactionType::PreSigned { .. } => {
+                return None
+            }
             TransactionType::Plain { details, .. }
             | TransactionType::PreEncoded { details, .. }
             | TransactionType::Configuration { details, .. } => details,
@@ -74,6 +79,9 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
             },
             TransactionType::PreSigned(_) => {
                 panic!("PreSigned transactions cannot specify custom details")
+            }
+            TransactionType::PreAuthenticated(_) => {
+                panic!("PreAuthenticated transactions cannot specify custom details")
             }
         }
     }
@@ -114,26 +122,45 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         self
     }
 
-    /// Converts a [`TransactionType`] into a [`RawTx`].
-    pub fn to_raw_tx<RT: EncodeCall<M>>(
+    /// Converts a [`TransactionType`] into a serialized authenticated transaction ready to be passed
+    /// to the runtime.
+    pub fn to_serialized_authenticated_tx<RT: EncodeCall<M> + RuntimeAuthenticator<S>>(
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
         state: &mut ApiStateAccessor<S>,
-    ) -> RawTx {
+    ) -> Vec<u8> {
+        if let TransactionType::PreAuthenticated(data) = self {
+            return data;
+        }
+        borsh::to_vec(&self.to_authenticated_tx::<RT>(nonces, state))
+            .expect("Serialization to a Vec is infallible")
+    }
+
+    /// Converts a [`TransactionType`] into a `<RT as RuntimeAuthenticator>::Input`.
+    pub fn to_authenticated_tx<RT: EncodeCall<M> + RuntimeAuthenticator<S>>(
+        self,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> <RT as RuntimeAuthenticator<S>>::Input {
         match self {
-            TransactionType::PreSigned(raw_tx) => raw_tx,
+            TransactionType::PreAuthenticated(data) => {
+                let input: <RT as RuntimeAuthenticator<S>>::Input = borsh::from_slice(&data)
+                    .expect("Failed to deserialize pre-authenticated transaction");
+                input
+            }
+            TransactionType::PreSigned(raw_tx) => RT::encode_standard_tx(raw_tx.data),
             TransactionType::PreEncoded {
                 encoded_message,
                 key,
                 details,
-            } => Self::sign(encoded_message, key, details, nonces),
+            } => RT::encode_standard_tx(Self::sign(encoded_message, key, details, nonces).data),
             TransactionType::Plain {
                 message,
                 key,
                 details,
             } => {
                 let msg = <RT as EncodeCall<M>>::encode_call(message);
-                Self::sign(msg, key, details, nonces)
+                RT::encode_standard_tx(Self::sign(msg, key, details, nonces).data)
             }
             TransactionType::Configuration {
                 message,
@@ -142,7 +169,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
             } => {
                 let msg = message.from_state(state);
                 let msg = <RT as EncodeCall<M>>::encode_call(msg);
-                Self::sign(msg, key, details, nonces)
+                RT::encode_standard_tx(Self::sign(msg, key, details, nonces).data)
             }
         }
     }

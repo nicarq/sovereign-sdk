@@ -181,6 +181,7 @@ macro_rules! impl_standard_runtime_authenticator {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
             type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
+            type Input = ::sov_modules_api::RawTx;
 
             fn authenticate(
                 &self,
@@ -218,6 +219,10 @@ macro_rules! impl_standard_runtime_authenticator {
                     Self,
                     ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
                 >(&raw_tx.data, pre_exec_ws)?)
+            }
+
+            fn encode_standard_tx(tx: Vec<u8>) -> ::sov_modules_api::RawTx {
+                ::sov_modules_api::RawTx { data: tx }
             }
         }
     };

@@ -6,9 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{
     Authenticator, AuthorizationData, UnregisteredAuthenticationError,
 };
-use sov_modules_api::runtime::capabilities::{
-    AuthenticationError, AuthenticationResult, FatalError, RuntimeAuthenticator,
-};
+use sov_modules_api::runtime::capabilities::{AuthenticationResult, RuntimeAuthenticator};
 use sov_modules_api::{
     DaSpec, DispatchCall, GasMeter, PreExecWorkingSet, RawTx, Spec, UnlimitedGasMeter,
 };
@@ -26,18 +24,16 @@ where
 
     type AuthorizationData = AuthorizationData<S>;
 
+    type Input = Auth;
+
     fn authenticate(
         &self,
-        raw_tx: &RawTx,
+        input: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData> {
-        let auth = Auth::try_from_slice(raw_tx.data.as_slice()).map_err(|e| {
-            AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-        })?;
-
-        match auth {
-            Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
-            Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(&tx, pre_exec_ws),
+        match input {
+            Auth::Mod(tx) => ModAuth::<S, Da>::authenticate(tx, pre_exec_ws),
+            Auth::Evm(tx) => EvmAuth::<S, Da>::authenticate(tx, pre_exec_ws),
         }
     }
 
@@ -65,11 +61,21 @@ where
             _ => Err(UnregisteredAuthenticationError::RuntimeCall)?,
         }
     }
+
+    fn encode_standard_tx(tx: Vec<u8>) -> Self::Input {
+        Auth::Mod(tx)
+    }
 }
 
+/// Describes which authenticator to use to deserialize and check the signature on
+/// the transaction.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-enum Auth {
+pub enum Auth {
+    /// Authenticate using the `EVM` authenticator, which expects a standard EVM transaction
+    /// (i.e. an rlp-encoded payload signed using secp256k1 and hashed using keccak256).
     Evm(Vec<u8>),
+    /// Authenticate using the standard `sov-module` authenticator, which uses the default
+    /// signature scheme and hashing algorithm defined in the rollup's [`Spec`].
     Mod(Vec<u8>),
 }
 
