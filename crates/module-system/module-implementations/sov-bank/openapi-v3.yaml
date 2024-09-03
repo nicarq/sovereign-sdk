@@ -1,0 +1,105 @@
+# Specification for custom bank REST API endpoints
+openapi: "3.0.2"
+info:
+  title: Sov-bank custom endpoints
+  version: 0.1.0
+paths:
+  /tokens/{token_id}/total-supply:
+    get:
+      summary: Get the total supply of a specific token
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/TokenId'
+      responses:
+        '200':
+          $ref: '#/components/responses/CoinsResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/respones/NotFound'
+  /tokens/{token_id}/balances/{address}:
+    get:
+      summary: Fetch the current balance of the token for a given user
+      parameters:
+        - name: token_id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/TokenId'
+        - name: address
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/Address'
+      responses:
+        '200':
+          $ref: '#/components/responses/CoinsResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/respones/NotFound'
+  /tokens:
+    get:
+      summary: Compute a token ID from the given parameters
+      parameters:
+        - name: token_name
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The name of the token to filter by
+        - name: salt
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: uint64
+          description: A salt value used in the token generation
+        - name: sender
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Address'
+          description: The address of the deployer of the token
+      responses:
+        '200':
+          $ref: '#/components/responses/CoinsResponse'
+        '404':
+          # Referring type from `runtime-base.yaml`
+          $ref: '#/components/respones/NotFound'
+
+components:
+  schemas:
+    Meta:
+      type: object
+    TokenId:
+      type: string
+      # bech32 encoded token id, prefix with "token_".
+      pattern: "^token_1[a-km-zA-HJ-NP-Z1-9]+$"
+      description: The ID of a token.
+    Address:
+      type: string
+      description: The address of a rollup user.
+    Coins:
+      type: object
+      description: Token Id and amount
+      properties:
+        token_id:
+          $ref: "#/components/schemas/TokenId"
+        amount:
+          type: integer
+          format: uint64
+          description: Amount
+  responses:
+    CoinsResponse:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              meta:
+                $ref: '#/components/schemas/Meta'
+              data:
+                $ref: '#/components/schemas/Coins'

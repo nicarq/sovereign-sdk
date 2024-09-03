@@ -36,12 +36,12 @@ sov-test-utils = { workspace = true }
 [features]
 default = []
 native = [
-	"jsonrpsee",
-	"schemars",
-	"sov-bank/native",
-	"sov-modules-api/native",
-	"sov-state/native",
-	"sov-chain-state/native",
+    "jsonrpsee",
+    "schemars",
+    "sov-bank/native",
+    "sov-modules-api/native",
+    "sov-state/native",
+    "sov-chain-state/native",
 ]
 cli = ["native"]
 test-utils = []

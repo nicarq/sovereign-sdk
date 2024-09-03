@@ -4,12 +4,9 @@ info:
   version: 0.1.0
   description: |
     This is the JSON API for the Sovereign SDK runtimes and modules.
-  license:
-    name: Apache 2.0
-    url: https://www.apache.org/licenses/LICENSE-2.0.html
   contact:
     name: Sovereign Labs
-    url: https://github.com/Sovereign-Labs/sov-sdk
+    url: https://github.com/Sovereign-Labs/sovereign-sdk-wip
     email: info@sovereign.xyz
 servers:
   - url: http://localhost:12346

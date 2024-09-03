@@ -180,6 +180,8 @@ pub mod prelude {
     #[cfg(feature = "native")]
     pub extern crate serde_json;
     #[cfg(feature = "native")]
+    pub extern crate serde_yaml;
+    #[cfg(feature = "native")]
     pub extern crate sov_rest_utils;
     pub extern crate sov_wallet_format;
     #[cfg(feature = "native")]

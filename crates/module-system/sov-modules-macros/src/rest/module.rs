@@ -127,8 +127,11 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
             fn openapi_spec(&self) -> Option<serde_json::Value> {
                 let state_items = #map_of_state_item_exprs;
-
-                Some(serde_json::to_value(&module_spec(state_items)).unwrap())
+                let mut module_openapi_spec = module_spec(state_items);
+                if let Some(custom_spec) = (self).custom_openapi_spec() {
+                     module_openapi_spec.merge(custom_spec)
+                }
+                Some(serde_json::to_value(&module_openapi_spec).unwrap())
             }
         }
     });
