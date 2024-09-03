@@ -1,12 +1,9 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{ApiStateAccessor, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_test_utils::{
-    assert_matches, AsUser, ProofInput, ProofTestCase, TestSpec, TransactionTestCase,
+    assert_matches, AtomicNumber, ProofInput, ProofTestCase, TestSpec, TransactionTestCase,
 };
 
 use crate::helpers::{
@@ -22,28 +19,6 @@ fn get_user_balance(address: &<S as Spec>::Address, state: &mut ApiStateAccessor
         .unwrap()
 }
 
-#[derive(Clone)]
-struct Reward {
-    reward: Arc<AtomicU64>,
-}
-
-impl Reward {
-    fn new(reward: u64) -> Self {
-        Self {
-            reward: Arc::new(AtomicU64::new(reward)),
-        }
-    }
-
-    fn get(&self) -> u64 {
-        self.reward.load(std::sync::atomic::Ordering::SeqCst)
-    }
-
-    fn add(&self, amount: u64) {
-        self.reward
-            .fetch_add(amount, std::sync::atomic::Ordering::SeqCst);
-    }
-}
-
 #[test]
 fn test_valid_proof() {
     let (mut runner, prover, other_user) = setup();
@@ -51,20 +26,12 @@ fn test_valid_proof() {
     let prover_address = prover.user_info.address();
     let initial_balance = runner.query_state(|state| get_user_balance(&prover_address, state));
 
-    let reward = Reward::new(0);
+    let reward = AtomicNumber::new(0);
 
     for _ in 0..2 {
         let reward_clone = reward.clone();
         runner.execute_transaction(TransactionTestCase {
-            input: other_user.create_plain_message::<Bank<TestSpec>>(
-                sov_bank::CallMessage::CreateToken {
-                    salt: 0,
-                    token_name: "sov-test-token".to_string(),
-                    initial_balance: 1000,
-                    mint_to_address: other_user.address(),
-                    authorized_minters: vec![],
-                },
-            ),
+            input: consume_gas_tx_for_signer(&other_user),
             assert: Box::new(move |result, _state| {
                 reward_clone.add(result.gas_value_used);
             }),

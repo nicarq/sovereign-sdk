@@ -4,6 +4,9 @@
 
 #![deny(missing_docs)]
 
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
 pub use api_client::ApiClient;
 pub use generators::MessageGenerator;
 use serde::{Deserialize, Serialize};
@@ -141,4 +144,36 @@ impl TxReceiptContents for TestTxReceiptContents {
     type Skipped = u32;
     type Reverted = u32;
     type Successful = u32;
+}
+
+/// Simplified AtomicU64 for using in tests.
+#[derive(Clone)]
+pub struct AtomicNumber {
+    num: Arc<AtomicU64>,
+}
+
+impl AtomicNumber {
+    /// Create a new AtomicNumber
+    pub fn new(num: u64) -> Self {
+        Self {
+            num: Arc::new(AtomicU64::new(num)),
+        }
+    }
+
+    /// Get the current value of the AtomicNumber
+    pub fn get(&self) -> u64 {
+        self.num.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Add a value to the AtomicNumber
+    pub fn add(&self, value: u64) {
+        self.num
+            .fetch_add(value, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Subtract a value from the AtomicNumber
+    pub fn sub(&self, value: u64) {
+        self.num
+            .fetch_sub(value, std::sync::atomic::Ordering::SeqCst);
+    }
 }

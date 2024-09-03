@@ -1,6 +1,3 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
@@ -9,7 +6,7 @@ use sov_modules_api::TxEffect;
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
-    AsUser, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicNumber, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE,
 };
 
@@ -226,8 +223,7 @@ fn test_exit_happy_path() {
     let other_sequencer_address = additional_sequencer.address();
     let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
 
-    let other_sequencer_balance_ref =
-        Arc::new(AtomicU64::new(additional_sequencer.available_gas_balance));
+    let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
     let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
 
     let register = TransactionTestCase {
@@ -246,15 +242,11 @@ fn test_exit_happy_path() {
                 "The sequencer is not registered"
             );
             // Update the other sequencer's balance
-            other_sequencer_balance_ref
-                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            other_sequencer_balance_ref.sub(result.gas_value_used);
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(
-                    other_sequencer_balance_ref.load(std::sync::atomic::Ordering::SeqCst)
-                        - TEST_DEFAULT_USER_STAKE
-                )
+                Some(other_sequencer_balance_ref.get() - TEST_DEFAULT_USER_STAKE)
             );
         }),
     };
@@ -280,12 +272,11 @@ fn test_exit_happy_path() {
                 ) if *sequencer == other_sequencer_address && *amount_withdrawn == 100000000
             )));
             // Update the other sequencer's balance
-            other_sequencer_balance_ref_1
-                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            other_sequencer_balance_ref_1.sub(result.gas_value_used);
             // Assert that the other sequencer balance has been updated and that he recovered his bond
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(other_sequencer_balance_ref_1.load(std::sync::atomic::Ordering::SeqCst))
+                Some(other_sequencer_balance_ref_1.get())
             );
         }),
     };

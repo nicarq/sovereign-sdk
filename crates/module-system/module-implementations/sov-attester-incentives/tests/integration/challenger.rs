@@ -1,6 +1,4 @@
 use std::convert::Infallible;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 use sov_attester_incentives::{AttesterIncentives, CallMessage, SlashingReason};
 use sov_bank::Amount;
@@ -10,8 +8,8 @@ use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, BondedTestChallenger, ProofInput, ProofTestCase, TestAttester, TransactionTestCase,
-    TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
+    AsUser, AtomicNumber, BondedTestChallenger, ProofInput, ProofTestCase, TestAttester,
+    TransactionTestCase, TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 use crate::helpers::{
@@ -36,8 +34,7 @@ fn setup_with_wrong_attestation() -> (
     let genesis_challenger_address = genesis_challenger.user_info.address();
     let genesis_challenger_bond = TEST_DEFAULT_USER_STAKE;
 
-    let expected_challenger_balance =
-        Arc::new(AtomicU64::new(genesis_challenger.user_info.balance()));
+    let expected_challenger_balance = AtomicNumber::new(genesis_challenger.user_info.balance());
     let expected_challenger_balance_2 = expected_challenger_balance.clone();
     let expected_challenger_balance_3 = expected_challenger_balance.clone();
 
@@ -56,15 +53,11 @@ fn setup_with_wrong_attestation() -> (
             );
 
             // Update the challenger balance (because they consumed some gas and bonded)
-            expected_challenger_balance
-                .fetch_sub(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            expected_challenger_balance.sub(result.gas_value_used);
 
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&genesis_challenger_address, state),
-                Some(
-                    expected_challenger_balance_2.load(std::sync::atomic::Ordering::SeqCst)
-                        - genesis_challenger_bond
-                ),
+                Some(expected_challenger_balance_2.get() - genesis_challenger_bond),
                 "The attester should have the correct bond amount from genesis"
             );
         }),
@@ -75,8 +68,7 @@ fn setup_with_wrong_attestation() -> (
         // Then execute empty transactions to reach finality
         .advance_slots(TEST_ROLLUP_FINALITY_PERIOD as usize);
 
-    genesis_challenger.user_info.available_gas_balance =
-        expected_challenger_balance_3.load(std::sync::atomic::Ordering::SeqCst);
+    genesis_challenger.user_info.available_gas_balance = expected_challenger_balance_3.get();
 
     let bonded_challenger =
         BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond);
