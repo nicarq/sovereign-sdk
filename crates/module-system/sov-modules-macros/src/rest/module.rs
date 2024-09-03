@@ -112,7 +112,6 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                 let base_impl = ModuleRestApiBaseImpl::<Self> {
                     module: Arc::new(Self::default()),
                     description: #description,
-                    storage: storage.clone(),
                     state_items: #map_of_state_item_exprs,
                 };
 

@@ -109,7 +109,6 @@ where
 pub struct ModuleRestApiBaseImpl<M: Module> {
     pub module: Arc<M>,
     pub description: Option<String>,
-    pub storage: StorageReceiver<M::Spec>,
     pub state_items: HashMap<String, StateItemInfo>,
 }
 
