@@ -5,12 +5,16 @@ use crate::address::CollectionId;
 use crate::utils::get_collection_id;
 use crate::CreatorAddress;
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
+#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
 /// Defines an nft collection
 pub struct Collection<S: Spec> {
     /// Name of the collection

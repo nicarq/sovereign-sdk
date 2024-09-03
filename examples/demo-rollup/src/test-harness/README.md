@@ -10,7 +10,6 @@ Then, from the repo root, to run:
 ```bash
 cargo run --bin sov-demo-celestia-harness -- \
     --private-keys-dir examples/test-data/keys \
-    --genesis-dir examples/test-data/genesis/demo/celestia \
     --rollup-config-path examples/demo-rollup/demo_rollup_config.toml \
     --max-batch-size-tx=5 \
     --max-batch-size-bytes=10000 \

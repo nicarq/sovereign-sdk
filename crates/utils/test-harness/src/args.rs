@@ -8,11 +8,8 @@ const NS_ID_V0_SIZE: usize = 10;
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub(crate) struct Args {
-    #[arg(long, default_value = "http://127.0.0.1:12345")]
-    pub(crate) rpc_url: String,
-
     #[arg(long, default_value = "http://127.0.0.1:12346")]
-    pub(crate) rest_url: String,
+    pub(crate) node_url: String,
 
     /// How many transactions maximum should fit in the batch
     #[arg(long)]
@@ -26,11 +23,6 @@ pub(crate) struct Args {
     /// To bootstrap account pool.
     #[arg(long)]
     pub(crate) private_keys_dir: String,
-
-    /// Path to genesis folder.
-    /// So modules can spin up logic.
-    #[arg(long)]
-    pub(crate) genesis_dir: String,
 
     /// Path to rollup_config.toml.
     /// Used to get RPC URL and Celestia endpoint.

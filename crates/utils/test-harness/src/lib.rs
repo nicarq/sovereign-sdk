@@ -51,14 +51,10 @@ where
 {
     let config = Args::parse();
 
-    let bank_config = get_bank_config::<S>(&config.genesis_dir)?;
-    let authorized_gas_token_minters = bank_config.gas_token_config.authorized_minters;
-
     let account_pool_config = AccountPoolConfig::new(
         config.private_keys_dir.to_string(),
-        config.rpc_url.clone(),
+        config.node_url.clone(),
         config.new_users_count,
-        authorized_gas_token_minters,
     );
 
     let account_pool = AccountPool::new_from_config(account_pool_config).await?;
@@ -88,8 +84,7 @@ where
     .await;
 
     let gas_funding_message_sender = get_gas_funding_message_sender::<S, Da::Spec, R>(
-        config.genesis_dir.clone(),
-        config.rpc_url.clone(),
+        &config.node_url,
         account_pool.clone(),
         serialized_messages_tx.clone(),
         should_stop.clone(),

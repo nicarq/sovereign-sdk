@@ -12,14 +12,14 @@ pub(crate) fn start_slot_watcher_task(
     config: &Args,
     should_stop: Arc<AtomicBool>, // FIXME use this instead of updating slot numbers
 ) -> JoinHandle<(u64, u64)> {
-    let rest_url = format!("{}/ledger", config.rest_url.clone());
-    tracing::info!(url = rest_url, "Using REST URL");
+    let ledger_url = format!("{}/ledger", config.node_url.clone());
+    tracing::info!(url = ledger_url, "Using Ledger API");
 
     tokio::spawn(async move {
         let mut successful_count = 0;
         let mut error_count = 0;
 
-        let ledger_client = sov_ledger_json_client::Client::new(&rest_url);
+        let ledger_client = sov_ledger_json_client::Client::new(&ledger_url);
 
         tracing::info!("Starting slot watcher");
 

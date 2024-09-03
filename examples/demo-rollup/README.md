@@ -111,7 +111,6 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci
-$ sleep 10
 $ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0/events | jq
 {
   "data": [
@@ -235,7 +234,7 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
 In the above snippet, we can see that `CallMessage` in `Bank` supports five different types of calls. The `sov-cli` has
 the ability to parse a JSON file that aligns with any of these calls and subsequently serialize them. The structure of
 the JSON file, which represents the call, closely mirrors that of the Enum member. You can view the relevant JSON Schema
-for `Bank` [here](../../module-system/module-schemas/schemas/sov-bank.json) Consider the `Transfer` message as an
+for `Bank` [here](../../crates/module-system/module-schemas/schemas/sov-bank.json) Consider the `Transfer` message as an
 example:
 
 ```rust
@@ -341,20 +340,25 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ sleep 20  # Wait a bit for the `make test-create-token` transaction to be processed.
 $ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
 ```
 
 #### 5. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
 {"data":{"amount":1000000,"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"meta":{}}
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.publicData.initialSlotNumber >= 1 then true else false end'
 true
+```
+
+You can also run `sov-nft-script` to generate some random NFT collections in the sov-nft module.
+
+```bash
+$ ../../target/debug/sov-nft-script --private-keys-dir ../test-data/keys
 ```
 
 ## Disclaimer

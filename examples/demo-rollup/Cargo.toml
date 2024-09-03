@@ -24,6 +24,7 @@ sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
+sov-bank = { workspace = true }
 sov-nft = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
 sov-ledger-apis = { workspace = true }

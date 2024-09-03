@@ -2,10 +2,8 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use derive_getters::Getters;
-use derive_more::Constructor;
-use jsonrpsee::http_client::HttpClientBuilder;
-use sov_bank::{Amount, Bank, BankRpcClient, CallMessage, GAS_TOKEN_ID};
+use sov_bank::{Amount, Bank, CallMessage, GAS_TOKEN_ID};
+use sov_cli::NodeClient;
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime;
@@ -15,62 +13,41 @@ use tokio::sync::mpsc::Sender;
 use super::{MessageSender, MessageSenderT};
 use crate::account_pool::AccountPool;
 use crate::constants::DEFAULT_MAX_FEE;
-use crate::{get_bank_config, PreparedCallMessage, SerializedPreparedCallMessage};
+use crate::{PreparedCallMessage, SerializedPreparedCallMessage};
 
 // How much funds account should have to be considered a "whale".
 const MINIMAL_WHALE_BALANCE: u64 = 5_000_000;
 
-/// [`GasFundingConfig`] holds the values required to create gas funding transactions,
-/// which mint and transfer the rollup's gas token to accounts in the [`AccountPool`].
-#[derive(Clone, Debug, Constructor, Getters)]
-pub struct GasFundingConfig {
-    /// This is use to create an client in order to query the rollup for account balances,
-    /// nonces etc.
-    rpc_url: String,
-
-    /// The genesis directory contains information pertaining to the genesis state of the
-    /// rollup, including initial allocations of the rollup's native gas token.
-    genesis_dir: String,
-}
-
 /// This function creates the call messages required to mint and distribute the rollup's gas-token -
 /// as defined in the genesis config - to the set of accounts in the account pool.
 pub async fn get_gas_funding_txs<S: Spec>(
-    gas_funding_config: GasFundingConfig,
+    node_url: &str,
     account_pool: &AccountPool<S>,
 ) -> anyhow::Result<Vec<PreparedCallMessage<S, Bank<S>>>> {
-    let client = HttpClientBuilder::default().build(gas_funding_config.rpc_url())?;
-
-    let bank_config = get_bank_config::<S>(gas_funding_config.genesis_dir())?;
-    tracing::info!(?bank_config, "Bank config");
+    let node_client = NodeClient::new(node_url)?;
 
     let gas_whale_account_pool_indices = {
-        let mut map = HashMap::<S::Address, u64>::new();
-        bank_config
-            .gas_token_config
-            .address_and_balances
-            .into_iter()
-            .for_each(|(address, balance)| {
-                if balance >= MINIMAL_WHALE_BALANCE {
-                    if let Some(index) = account_pool.get_index(&address) {
-                        map.insert(address, *index);
-                    } else {
-                        tracing::warn!(account = %address, "Account from bank config is not in account pool");
-                    }
-                }
-            });
+        let mut map = HashMap::<&S::Address, u64>::new();
+        // Skip generated accounts as we know they don't existing on the rollup.
+        for address in account_pool.imported_addresses() {
+            let balance = node_client.get_balance::<S>(address, &GAS_TOKEN_ID).await?;
+            if balance >= MINIMAL_WHALE_BALANCE {
+                let index = account_pool.get_index(address).expect("Impossible happened: imported account cannot be mapped to index back by address");
+                map.insert(address, *index);
+            }
+        }
         map
     };
 
-    let num_gas_whales = gas_whale_account_pool_indices.keys().len();
+    let num_gas_whales = gas_whale_account_pool_indices.len();
 
     if num_gas_whales == 0 {
         anyhow::bail!("No whales found!");
     }
 
-    let total_supply = BankRpcClient::<S>::supply_of(&client, None, GAS_TOKEN_ID)
-        .await?
-        .amount
+    let total_supply = node_client
+        .get_total_supply(&GAS_TOKEN_ID)
+        .await
         .expect("Gas token should exist");
 
     let mut txs = Vec::new();
@@ -89,7 +66,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
         );
         let to_mint = Amount::MAX - 100 - total_supply;
         let to_mint_per_whale = to_mint / num_gas_whales as u64;
-        for whale_address in gas_whale_account_pool_indices.keys() {
+        for &whale_address in gas_whale_account_pool_indices.keys() {
             tracing::info!(amount = to_mint_per_whale, to = %whale_address, from = %gas_token_minter, account_pool_index = gas_token_minter_account_pool_index, "Mint call message");
             let call_message = CallMessage::<S>::Mint {
                 coins: sov_bank::Coins {
@@ -112,9 +89,9 @@ pub async fn get_gas_funding_txs<S: Spec>(
         .filter(|addr| !gas_whale_account_pool_indices.contains_key(addr));
 
     for (idx, account) in accounts_to_fill.enumerate() {
-        let whales: Vec<S::Address> = gas_whale_account_pool_indices.keys().cloned().collect();
+        let whales: Vec<&S::Address> = gas_whale_account_pool_indices.keys().cloned().collect();
         let whale_idx = idx % num_gas_whales;
-        let whale = &whales[whale_idx];
+        let whale = whales[whale_idx];
         let whale_account_pool_index = *gas_whale_account_pool_indices
             .get(whale)
             .expect("gas whale should exist in account pool");
@@ -146,8 +123,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
 /// mint and allocate the rollup's gas funding token to all the accounts in the account pool, so that those
 /// accounts may take part in broadcasting call messages.
 pub async fn get_gas_funding_message_sender<S, Da, R>(
-    genesis_dir: String,
-    rpc_url: String,
+    node_url: &str,
     account_pool: AccountPool<S>,
     serialized_messages_tx: Sender<SerializedPreparedCallMessage>,
     should_stop: Arc<AtomicBool>,
@@ -157,8 +133,7 @@ where
     Da: DaSpec,
     R: Runtime<S, Da> + sov_modules_api::EncodeCall<Bank<S>> + 'static,
 {
-    let gas_funding_txs =
-        get_gas_funding_txs(GasFundingConfig::new(rpc_url, genesis_dir), &account_pool).await?;
+    let gas_funding_txs = get_gas_funding_txs(node_url, &account_pool).await?;
     tracing::debug!(
         txs = gas_funding_txs.len(),
         "Gas funding messages have been generated"

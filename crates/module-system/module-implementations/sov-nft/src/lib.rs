@@ -36,7 +36,7 @@ pub struct NonFungibleToken<S: Spec> {
     id: ModuleId,
 
     #[state]
-    /// Mapping of tokens to their owners
+    /// Mapping of collection id to its metadata.
     collections: StateMap<CollectionId, Collection<S>>,
 
     #[state]
