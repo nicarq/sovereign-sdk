@@ -21,7 +21,6 @@ clap = { workspace = true }
 derive-getters = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
-jsonrpsee = { workspace = true, features = ["client"] }
 rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -39,7 +38,6 @@ sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-modules-macros = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
-sov-nonces = { workspace = true, features = ["native"] }
-sov-prover-incentives = { workspace =  true }
+sov-prover-incentives = { workspace = true }
 sov-risc0-adapter = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }

@@ -141,7 +141,7 @@ setup_private_validator() {
   # Adjusting for faster block times
   # Numbers are derived by trial and error.
   # timeout_commit = "11s"
-  sed -i'.bak' 's/^timeout_commit\s*=.*/timeout_commit = "100ms"/g' "$CONFIG_DIR/config/config.toml"
+  sed -i'.bak' 's/^timeout_commit\s*=.*/timeout_commit = "500ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_propose = "10s"
   sed -i'.bak' 's/^timeout_propose\s*=.*/timeout_propose = "50ms"/g' "$CONFIG_DIR/config/config.toml"
   # timeout_propose_delta = "500ms"

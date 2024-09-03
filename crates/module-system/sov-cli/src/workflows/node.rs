@@ -9,6 +9,7 @@ use serde::Serialize;
 use sov_bank::TokenId;
 use sov_modules_api::clap;
 
+use crate::node_client::NodeClient;
 use crate::wallet_state::{KeyIdentifier, WalletState};
 use crate::workflows::keys::load_key;
 
@@ -86,7 +87,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             ))?
             .clone();
 
-        let api_client = client::SimpleApiClient::new(&url)?;
+        let api_client = NodeClient::new(&url)?;
 
         match self {
             NodeWorkflows::SetUrl { .. } => {
@@ -94,7 +95,9 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             }
             NodeWorkflows::GetNonce { account } => {
                 let account = wallet_state.resolve_account(account.as_ref())?;
-                let nonce = api_client.get_nonce_for_account(account).await?;
+                let nonce = api_client
+                    .get_nonce_for_public_key::<S>(&account.pub_key)
+                    .await?;
                 println!("Nonce for account {} is {}", account.address, nonce);
             }
             NodeWorkflows::FindTokenId {
@@ -131,7 +134,11 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
 
                 let nonce = match nonce_override {
                     Some(nonce) => *nonce,
-                    None => api_client.get_nonce_for_account(account).await?,
+                    None => {
+                        api_client
+                            .get_nonce_for_public_key::<S>(&account.pub_key)
+                            .await?
+                    }
                 };
 
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
@@ -141,190 +148,5 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
         }
 
         Ok(())
-    }
-}
-
-mod client {
-    use std::time::{Duration, Instant};
-
-    use anyhow::Context;
-    use base64::prelude::BASE64_STANDARD;
-    use base64::Engine;
-    use futures::StreamExt;
-    use reqwest::ClientBuilder;
-    use sov_bank::{Amount, Coins, TokenId};
-    use sov_ledger_json_client::Client as LedgerClient;
-    use sov_modules_api::rest::utils::ResponseObject;
-    use sov_rollup_interface::crypto::{CredentialId, PublicKey};
-    use sov_rollup_interface::zk::CryptoSpec;
-    use sov_sequencer_json_client::types;
-
-    use crate::wallet_state::AddressEntry;
-
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    struct NonceResponse {
-        key: CredentialId,
-        value: Option<u64>,
-    }
-
-    #[derive(Debug, serde::Serialize, serde::Deserialize)]
-    struct TokenIdResponse {
-        token_id: TokenId,
-    }
-
-    pub struct SimpleApiClient {
-        base_url: String,
-        http_client: reqwest::Client,
-        ledger_client: LedgerClient,
-        sequencer_client: sov_sequencer_json_client::Client,
-    }
-
-    impl SimpleApiClient {
-        pub fn new(api_url: &str) -> anyhow::Result<Self> {
-            let base_url = api_url.to_string();
-            let http_client = ClientBuilder::default()
-                .build()
-                .map_err(|e| anyhow::anyhow!(e))?;
-            let ledger_url = format!("{}/ledger", api_url);
-            let ledger_client = LedgerClient::new(&ledger_url);
-
-            let sequencer_url = format!("{}/sequencer", api_url);
-            let sequencer_client = sov_sequencer_json_client::Client::new(&sequencer_url);
-
-            Ok(SimpleApiClient {
-                base_url,
-                http_client,
-                ledger_client,
-                sequencer_client,
-            })
-        }
-
-        pub async fn get_nonce_for_account<S: sov_modules_api::Spec>(
-            &self,
-            account: &AddressEntry<S>,
-        ) -> anyhow::Result<u64> {
-            let credential_id = account
-                .pub_key
-                .credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
-            let nonce_url = format!(
-                "{}/modules/nonces/state/nonces/items/{}",
-                self.base_url, credential_id
-            );
-            println!("Querying nonce from {}", nonce_url);
-
-            let response = self.http_client.get(nonce_url).send().await?;
-            let response = response.json::<ResponseObject<NonceResponse>>().await?;
-
-            let data = response
-                .data
-                .ok_or_else(|| anyhow::anyhow!("No data in nonce response"))?;
-
-            Ok(data.value.unwrap_or_default())
-        }
-
-        pub async fn get_token_id<S: sov_modules_api::Spec>(
-            &self,
-            token_name: &str,
-            salt: u64,
-            deployer: &S::Address,
-        ) -> anyhow::Result<TokenId> {
-            let token_url = format!(
-                "{}/modules/bank/tokens?token_name={}&salt={}&sender={}",
-                self.base_url, token_name, salt, deployer
-            );
-            println!("Querying token_id from {}", token_url);
-
-            let response = self.http_client.get(token_url).send().await?;
-            let response = response.json::<ResponseObject<TokenIdResponse>>().await?;
-
-            let data = response
-                .data
-                .ok_or_else(|| anyhow::anyhow!("No data in token response"))?;
-
-            Ok(data.token_id)
-        }
-
-        pub async fn get_balance<S: sov_modules_api::Spec>(
-            &self,
-            account_address: &S::Address,
-            token_id: &TokenId,
-        ) -> anyhow::Result<Amount> {
-            let balance_url = format!(
-                "{}/modules/bank/tokens/{}/balances/{}",
-                self.base_url, token_id, account_address
-            );
-            println!(
-                "Querying balance for account {} at {}",
-                account_address, balance_url
-            );
-
-            let response = self.http_client.get(balance_url).send().await?;
-            let response = response.json::<ResponseObject<Coins>>().await?;
-
-            let data = response
-                .data
-                .ok_or_else(|| anyhow::anyhow!("No data in balance response"))?;
-            Ok(data.amount)
-        }
-
-        pub async fn publish_batch(
-            &self,
-            raw_txs: Vec<Vec<u8>>,
-            wait_for_processing: bool,
-        ) -> anyhow::Result<()> {
-            let response = self
-                .sequencer_client
-                .publish_batch(&types::PublishBatchBody {
-                    transactions: raw_txs
-                        .into_iter()
-                        .map(|tx| BASE64_STANDARD.encode(tx))
-                        .collect(),
-                })
-                .await
-                .context("Unable to publish batch")?;
-
-            let response_data = response
-                .data
-                .as_ref()
-                .ok_or(anyhow::anyhow!("No data in response"))?;
-
-            println!(
-                "Your batch was submitted to the sequencer for publication. Response: {:?}",
-                response_data
-            );
-
-            if wait_for_processing {
-                let target_da_height: u64 = response_data
-                    .da_height
-                    .try_into()
-                    .expect("da_height is out of range");
-                let max_waiting_time = Duration::from_secs(300);
-                println!(
-                    "Going to wait for target slot number {} to be processed, up to {:?}",
-                    target_da_height, max_waiting_time
-                );
-                let start_wait = Instant::now();
-
-                // Subscribe to slots only to check our batch if the slot has been published.
-                let mut slot_subscription = self.ledger_client.subscribe_slots().await?;
-
-                while start_wait.elapsed() < max_waiting_time {
-                    if let Some(latest_slot) = slot_subscription.next().await.transpose()? {
-                        if latest_slot.number >= target_da_height {
-                            println!(
-                                "Rollup has processed target DA height={}!",
-                                target_da_height
-                            );
-                            return Ok(());
-                        }
-                    }
-                }
-                anyhow::bail!(
-                    "Giving up waiting for target batch to be published after {:?}",
-                    start_wait.elapsed()
-                );
-            }
-            Ok(())
-        }
     }
 }

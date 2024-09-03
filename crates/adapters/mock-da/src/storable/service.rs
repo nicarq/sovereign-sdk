@@ -269,7 +269,7 @@ impl DaService for StorableMockDaService {
         _fee: Self::Fee,
     ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
         tracing::debug!(
-            batch = hex::encode(aggregated_proof_data),
+            blob = hex::encode(aggregated_proof_data),
             "Submitting an aggregated proof"
         );
         let hash = {

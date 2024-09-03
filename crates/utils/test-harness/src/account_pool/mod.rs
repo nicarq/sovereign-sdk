@@ -3,16 +3,24 @@ mod config;
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use anyhow::Context;
 use derive_more::{Deref, DerefMut};
-use jsonrpsee::http_client::HttpClientBuilder;
+use sov_bank::utils::TokenHolder;
+use sov_bank::GAS_TOKEN_ID;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_modules_api::Spec;
+use sov_cli::NodeClient;
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::{EncodeCall, Module, Spec};
+use sov_modules_stf_blueprint::Runtime;
+use sov_rollup_interface::da::DaSpec;
 
 pub use self::account::Account;
 pub use self::config::AccountPoolConfig;
+use crate::account_pool::account::AccountOrigin;
+use crate::PreparedCallMessage;
 
 /// The [`AccountPool`] is a structure holding a pool of accounts_from_disc that consist of:
 ///
@@ -86,6 +94,16 @@ impl<S: Spec> AccountPool<S> {
             .map(|account| account.address())
     }
 
+    /// Iterate over addresses which were imported and not generated.
+    pub fn imported_addresses(&self) -> impl Iterator<Item = &S::Address> + Clone {
+        self.ordered_accounts
+            .values()
+            .filter_map(|account| match account.origin() {
+                AccountOrigin::Imported => Some(account.address()),
+                AccountOrigin::Generated => None,
+            })
+    }
+
     fn from_keys_in_folder(dir: impl AsRef<Path>) -> anyhow::Result<Vec<Account<S>>> {
         let path = dir.as_ref();
         if !path.exists() {
@@ -111,7 +129,7 @@ impl<S: Spec> AccountPool<S> {
                     }) => {
                         tracing::info!(address = %address, path = %path.display(), "Parsed key file");
 
-                        let account = Account::new(private_key);
+                        let account = Account::new(private_key, AccountOrigin::Imported);
 
                         existing_keys.push(account);
                     }
@@ -128,7 +146,7 @@ impl<S: Spec> AccountPool<S> {
     /// Create an account pool from the [`AccountPoolConfig`], which defines where a set of genesis test
     /// private keys may be found. These keys are assumed to have been given X of the rollups gas token
     /// at genesis, so as to be able to make transactions.
-    pub async fn new_from_config(config: AccountPoolConfig<S>) -> anyhow::Result<Self> {
+    pub async fn new_from_config(config: AccountPoolConfig) -> anyhow::Result<Self> {
         let mut accounts = Self::from_keys_in_folder(config.private_keys_dir())?;
         let addresses_read_from_disc = accounts
             .iter()
@@ -144,13 +162,13 @@ impl<S: Spec> AccountPool<S> {
             tracing::debug!(address = %account.address(), "Address has been read from disk");
         }
 
-        let client = HttpClientBuilder::default().build(config.rpc_url())?;
+        let node_client = NodeClient::new(config.node_url())?;
 
         // TODO @gskapka pass in a flag to opt out of this if you know the accounts from file have a nonce of 0?
-        // Refreshing nonces before generating new users to avoid non needed RPC calls.
+        // Refreshing nonces before generating new users to avoid non needed HTTP calls.
         for account in &mut accounts {
             account
-                .refresh_nonce(&client)
+                .refresh_nonce(&node_client)
                 .await
                 .context("Failed to refresh nonces. Is rollup node running?")?;
         }
@@ -159,20 +177,29 @@ impl<S: Spec> AccountPool<S> {
             *config.num_accounts_to_generate(),
         ));
 
-        let mut maybe_minter_index = None;
-        for (account_pool_index, address) in addresses_read_from_disc.into_iter().enumerate() {
-            if maybe_minter_index.is_none()
-                && config.gas_token_authorized_minters().contains(&address)
-            {
-                maybe_minter_index = Some(account_pool_index);
-            }
-        }
+        let gas_token_authorized_minters: Vec<S::Address> = node_client
+            .get_authorized_minters::<S>(&GAS_TOKEN_ID)
+            .await?
+            .into_iter()
+            .filter_map(|token_holder| match token_holder {
+                TokenHolder::User(addr) => Some(addr),
+                TokenHolder::Module(_) => None,
+            })
+            .collect();
 
-        let gas_token_minter_index = if let Some(index) = maybe_minter_index {
-            index as u64
-        } else {
-            anyhow::bail!("cannot proceed without an account that can mint the rollup gas token!");
-        };
+        let gas_token_minter_index = addresses_read_from_disc
+            .into_iter()
+            .enumerate()
+            .find_map(|(idx, address)| {
+                if gas_token_authorized_minters.contains(&address) {
+                    Some(idx as u64)
+                } else {
+                    None
+                }
+            })
+            .ok_or(anyhow::anyhow!(
+                "cannot proceed without an account that can mint the rollup gas token!"
+            ))?;
 
         let account_pool = AccountPool::new_from_accounts(accounts, gas_token_minter_index);
 
@@ -219,5 +246,93 @@ impl<S: Spec> AccountPool<S> {
     /// Gets an [`Account`]'s index from this [`AccountPool`] via the account's address.
     pub fn get_index(&self, address: &S::Address) -> Option<&u64> {
         self.ordered_accounts_indices.get(address)
+    }
+
+    /// Returns index of the first untouched account.
+    pub fn get_first_index_with_zero_nonce(&self) -> Option<u64> {
+        self.ordered_accounts.iter().find_map(|(idx, account)| {
+            if account.nonce().load(Ordering::SeqCst) == 0 {
+                Some(*idx)
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Helper method to build [`Transaction`] from [`PreparedCallMessage`].
+    /// Example:
+    ///
+    /// ```rust
+    /// use sov_modules_api::macros::config_value;
+    /// use sov_test_harness::{AccountPool, AccountPoolConfig, PreparedCallMessage};
+    ///
+    /// async fn prepared_call_messages_to_transactions<S, Da, R>(
+    ///     call_messages: Vec<PreparedCallMessage<S, sov_bank::Bank<S>>>
+    /// ) -> anyhow::Result<Vec<sov_modules_api::transaction::Transaction<S>>>
+    ///    where
+    ///     S: sov_modules_api::Spec,
+    ///     Da: sov_modules_api::DaSpec,
+    ///     R: sov_modules_stf_blueprint::Runtime<S, Da> + sov_modules_api::EncodeCall<sov_bank::Bank<S>>,
+    /// {
+    ///     // First you need an account pool.
+    ///     let num_accounts_to_generate = 10;
+    ///     let node_url = "http://127.0.0.1:12346".to_string();
+    ///     let private_keys_dir = "/path/to/private/file".to_string();
+    ///     let account_pool_config = AccountPoolConfig::new(
+    ///         private_keys_dir,
+    ///         node_url,
+    ///         num_accounts_to_generate,
+    ///     );
+    ///     let account_pool = AccountPool::<S>::new_from_config(account_pool_config).await?;
+    ///
+    ///     let chain_id = config_value!("CHAIN_ID");
+    ///     let max_priority_fee_bips = sov_modules_api::transaction::PriorityFeeBips::from_percentage(1);
+    ///     Ok(call_messages
+    ///         .into_iter()
+    ///         .map(|call_message| {
+    ///             account_pool.build_transaction::<sov_bank::Bank<S>, R, Da>(
+    ///                call_message,
+    ///                chain_id,
+    ///                max_priority_fee_bips)
+    ///         })
+    ///         .collect())
+    /// }
+    /// ```
+    pub fn build_transaction<M, R, Da>(
+        &self,
+        prepared_call_message: PreparedCallMessage<S, M>,
+        chain_id: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+    ) -> Transaction<S>
+    where
+        M: Module<Spec = S>,
+        Da: DaSpec,
+        R: Runtime<S, Da> + EncodeCall<M>,
+    {
+        let max_fee = *prepared_call_message.max_fee();
+        let account_pool_index = *prepared_call_message.account_pool_index();
+
+        let serialized_runtime_call_message =
+            <R as EncodeCall<M>>::encode_call(prepared_call_message.call_message);
+
+        let account = self
+            .get_by_index(&account_pool_index)
+            .expect("no account @ index {account_pool_index}");
+        let nonce = account.nonce().load(std::sync::atomic::Ordering::Relaxed);
+
+        let unsigned_tx = UnsignedTransaction::<S>::new(
+            serialized_runtime_call_message,
+            chain_id,
+            max_priority_fee_bips,
+            max_fee,
+            nonce,
+            None,
+        );
+
+        let signed_tx = Transaction::<S>::new_signed_tx(account.private_key(), unsigned_tx);
+
+        self.inc_nonce(&account_pool_index);
+
+        signed_tx
     }
 }

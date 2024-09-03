@@ -7,22 +7,37 @@ use crate::{CollectionId, OwnerAddress, UserAddress};
 /// tokenId for the NFT that's unique within the scope of the collection
 pub type TokenId = u64;
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[derive(
+    Clone,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Clone, Debug, PartialEq, Eq, Hash)]
 /// A simple wrapper struct to mark an NFT identifier as a combination of
 /// a token id (u64) and a collection id
 pub struct NftIdentifier(pub TokenId, pub CollectionId);
 
-#[cfg_attr(
-    feature = "native",
-    derive(serde::Serialize),
-    derive(serde::Deserialize)
+#[cfg(feature = "native")]
+impl core::fmt::Display for NftIdentifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.0, self.1)
+    }
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
 )]
-#[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
 /// Defines an nft
 pub struct Nft<S: Spec> {
     /// A token id that uniquely identifies an NFT within the scope of a (collection name, creator)

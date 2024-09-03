@@ -11,9 +11,12 @@ pub use sov_modules_api::clap;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
 use sov_modules_api::Spec;
 
+mod node_client;
 /// Types and functionality storing and loading the persistent state of the wallet
 pub mod wallet_state;
 pub mod workflows;
+
+pub use node_client::NodeClient;
 
 const SOV_WALLET_DIR_ENV_VAR: &str = "SOV_WALLET_DIR";
 
