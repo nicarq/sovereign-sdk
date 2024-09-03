@@ -1,7 +1,7 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthenticationResult, AuthorizeSequencerError, GasEnforcer,
+    AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
     HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
     SequencerRemuneration, TryReserveGasError, UnregisteredAuthenticationError,
 };
@@ -407,7 +407,10 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     <R as RuntimeAuthenticator<S>>::Decodable,
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
 > {
-    runtime.authenticate(raw_tx, pre_exec_working_set)
+    let auth_input = borsh::from_slice(&raw_tx.data).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
+    runtime.authenticate(&auth_input, pre_exec_working_set)
 }
 
 #[allow(clippy::result_large_err)]

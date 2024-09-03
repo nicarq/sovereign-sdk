@@ -179,14 +179,13 @@ where
     /// - mempool is full
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
     async fn accept_tx(&mut self, raw: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
-        let raw = Auth::encode(raw)
-            .map_err(|e| AcceptTxError {
-                http_status: StatusCode::BAD_REQUEST.as_u16(),
-                title: "Failed to encode transaction".to_string(),
-                details: format!("{:?}", e),
-            })?
-            .data;
         tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
+        let authenticated = R::encode_standard_tx(raw);
+        let raw = borsh::to_vec(&authenticated).map_err(|e| AcceptTxError {
+            http_status: StatusCode::BAD_REQUEST.as_u16(),
+            title: "Failed to encode transaction".to_string(),
+            details: format!("{:?}", e),
+        })?;
 
         if raw.len() > self.max_batch_size_bytes {
             return Err(AcceptTxError {
@@ -195,7 +194,7 @@ where
                 details: format!(
                     "Max allowed size: {}, submitted size: {}",
                     self.max_batch_size_bytes,
-                    raw.len()
+                    raw.len(),
                 ),
             });
         }
@@ -224,8 +223,8 @@ where
             }
         };
 
-        let auth_result = R::default()
-            .authenticate(&RawTx { data: raw.clone() }, &mut pre_exec_ws)
+        let auth_result = runtime
+            .authenticate(&authenticated, &mut pre_exec_ws)
             .map_err(|e| AcceptTxError {
                 http_status: StatusCode::BAD_REQUEST.as_u16(),
                 title: "The transaction is invalid".to_string(),
@@ -566,8 +565,17 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let (mut batch_builder, _storage) =
-                create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
+            let authenticated_tx = borsh::to_vec(
+                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(tx.clone()),
+            )
+            .unwrap();
+
+            let (mut batch_builder, _storage) = create_batch_builder(
+                authenticated_tx.len(),
+                &tmpdir,
+                Some(storage),
+                sequencer_da_address,
+            );
 
             batch_builder.accept_tx(tx).await.unwrap();
         }
@@ -650,9 +658,17 @@ mod tests {
             } = setup_runtime(&mut storage_manager, 0);
 
             let sequencer_da_address = sequencer.da_address;
+            let authenticated_tx = borsh::to_vec(
+                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(tx.clone()),
+            )
+            .unwrap();
 
-            let (mut batch_builder, _storage) =
-                create_batch_builder(tx.len(), &tmpdir, Some(storage), sequencer_da_address);
+            let (mut batch_builder, _storage) = create_batch_builder(
+                authenticated_tx.len(),
+                &tmpdir,
+                Some(storage),
+                sequencer_da_address,
+            );
 
             let accept_result = batch_builder.accept_tx(tx).await;
             assert!(accept_result.is_err());
@@ -766,7 +782,16 @@ mod tests {
                 generate_valid_tx(&admin.private_key, 2, 4),
             ];
 
-            let batch_size = txs[0].len() + txs[2].len() + 1;
+            let authenticated_tx_0 = borsh::to_vec(
+                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(txs[0].clone()),
+            )
+            .unwrap();
+            let authenticated_tx_2 = borsh::to_vec(
+                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(txs[2].clone()),
+            )
+            .unwrap();
+
+            let batch_size = authenticated_tx_0.len() + authenticated_tx_2.len() + 1;
             let (mut batch_builder, _storage) =
                 create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer.da_address);
 

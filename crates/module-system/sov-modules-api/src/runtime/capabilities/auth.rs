@@ -28,6 +28,7 @@
 //!    succeeds. The implication of this is that misbehaving transaction submissions can't be penalized, thus
 //!    there is a need to limit the amount of unregistered transactions we process.
 
+use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::common::HexHash;
@@ -57,17 +58,23 @@ pub trait RuntimeAuthenticator<S: Spec> {
     /// The type that is passed to the authorizer.
     type AuthorizationData;
 
+    /// The input to the authenticator
+    type Input: BorshDeserialize + BorshSerialize + std::fmt::Debug;
+
     /// Authenticates raw transaction.
     fn authenticate(
         &self,
-        tx: &RawTx,
+        tx: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
     ///
     /// This function differs to it's registered counterpart in that it typically accepts an
-    /// unlimited gas meter to account for the fact there isn't a staked sequencer.
+    /// unlimited gas meter to account for the fact there isn't a staked sequencer. It also differs in accepting
+    /// a "raw" transaction which hasn't been wrapped in the [`Self::Input`] type. This is because the
+    /// only "standard" transactions are allowed to be submitted by unregistered sequencers, so no
+    /// additional authentication information is required.
     fn authenticate_unregistered(
         &self,
         tx: &RawTx,
@@ -78,6 +85,9 @@ pub trait RuntimeAuthenticator<S: Spec> {
         Self::AuthorizationData,
         UnregisteredAuthenticationError,
     >;
+
+    /// Encode a standard transaction for the rollup with information describing how to authenticate it.
+    fn encode_standard_tx(tx: Vec<u8>) -> Self::Input;
 }
 
 /// Authorizes transactions to be executed.

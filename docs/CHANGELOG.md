@@ -1,3 +1,5 @@
+- #1381 Adds an associated `Input` type the `RuntimeAuthenticator` trait and expects that type as the argument to `authenticate`. It also adds a new method to the trait `fn encode_default_tx()` which implemetns the runtime-specific notion of a "standard" authentication path. 
+- 1392 Simplify the test in prover/attester incentives.
 - #1399 `AttesterIncentive`: Add balance checks to the challenger.rs tests.
 - #1395 Add balance check to the `attestation_processing` test.
 - #1392 Simplify the test in prover/attester incentives.
