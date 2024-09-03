@@ -1,6 +1,3 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_attester_incentives::{CustomError, UnbondingInfo};
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -9,7 +6,7 @@ use sov_modules_api::Error::ModuleError;
 use sov_modules_api::{Spec, StateAccessorError};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
+    AsUser, AtomicNumber, TestAttester, TransactionTestCase, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
     TEST_ROLLUP_FINALITY_PERIOD,
 };
 
@@ -26,7 +23,8 @@ fn check_attester_bonded_and_start_unbond(
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
     let attester_balance = attester.user_info.balance();
-    let gas_consumed_attester_ref_1 = Arc::new(AtomicU64::new(0));
+
+    let gas_consumed_attester_ref_1 = AtomicNumber::new(0);
     let gas_consumed_attester_ref_2 = gas_consumed_attester_ref_1.clone();
 
     runner.query_state(|state| {
@@ -62,12 +60,11 @@ fn check_attester_bonded_and_start_unbond(
                     amount: attester_bond
                 }),
             );
-            gas_consumed_attester_ref_1
-                .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            gas_consumed_attester_ref_1.add(result.gas_value_used);
         }),
     });
 
-    gas_consumed_attester_ref_2.load(std::sync::atomic::Ordering::SeqCst)
+    gas_consumed_attester_ref_2.get()
 }
 
 #[test]

@@ -1,13 +1,10 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, BatchTestCase, SkippedReason, TestUser, TransactionTestCase, TransactionType,
-    TEST_DEFAULT_USER_STAKE,
+    AsUser, AtomicNumber, BatchTestCase, SkippedReason, TestUser, TransactionTestCase,
+    TransactionType, TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
@@ -190,7 +187,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let additional_sequencer_address = additional_sequencer.address();
     let additional_sequencer_balance = additional_sequencer.available_gas_balance;
 
-    let gas_consumed_registration_ref = Arc::new(AtomicU64::new(0));
+    let gas_consumed_registration_ref = AtomicNumber::new(0);
     let gas_consumed_registration_ref_1 = gas_consumed_registration_ref.clone();
 
     let register_sequencer = TransactionTestCase {
@@ -211,8 +208,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 },
                 "The additional sequencer should be registered"
             );
-            gas_consumed_registration_ref
-                .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+            gas_consumed_registration_ref.add(result.gas_value_used);
         }),
     };
     let slash_sequencer = BatchTestCase {
@@ -231,7 +227,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                     .unwrap_infallible(),
                 Some(
                     additional_sequencer_balance
-                        - gas_consumed_registration_ref_1.load(std::sync::atomic::Ordering::SeqCst)
+                        - gas_consumed_registration_ref_1.get()
                         - TEST_DEFAULT_USER_STAKE
                 ),
                 "The sequencer's balance should be equal to the initial balance minus the gas used to register + the stake amount"

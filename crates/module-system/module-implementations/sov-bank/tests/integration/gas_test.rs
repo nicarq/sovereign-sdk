@@ -1,12 +1,10 @@
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-
 use sov_bank::{Bank, BankGasConfig, CallMessage, GAS_TOKEN_ID};
 use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, Gas, GasArray, Spec, TxEffect};
 use sov_test_utils::{
-    AsUser, MockDaSpec, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicNumber, MockDaSpec, TransactionTestAssert, TransactionTestCase,
+    TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
@@ -69,7 +67,7 @@ fn gas_test_setup(
 /// Then we try with a different runtime config and check that the gas consumed only increases by the amount specified in the second config.
 #[test]
 fn gas_price_constants_are_charged_correctly() {
-    let gas_consumed_without_price_ref = Arc::new(AtomicU64::new(0));
+    let gas_consumed_without_price_ref = AtomicNumber::new(0);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     gas_test_setup(
@@ -92,8 +90,7 @@ fn gas_price_constants_are_charged_correctly() {
                     "the balance should decrease only by the gas used"
                 );
 
-                gas_consumed_without_price_ref
-                    .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+                gas_consumed_without_price_ref.add(result.gas_value_used);
             })
         },
     );
@@ -122,7 +119,7 @@ fn gas_price_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
+                gas_consumed_without_price_ref_1.get()
                     + gas_to_charge_for_create_token.value(&bank_initial_gas_price),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"
@@ -134,7 +131,7 @@ fn gas_price_constants_are_charged_correctly() {
 
 #[test]
 fn config_constants_are_charged_correctly() {
-    let gas_consumed_without_price_ref = Arc::new(AtomicU64::new(0));
+    let gas_consumed_without_price_ref = AtomicNumber::new(0);
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     // compute the expected gas cost, based on the json constants
@@ -161,8 +158,7 @@ fn config_constants_are_charged_correctly() {
                     "the balance should be unchanged with zeroed price"
                 );
 
-                gas_consumed_without_price_ref
-                    .fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+                gas_consumed_without_price_ref.add(result.gas_value_used);
             })
         },
     );
@@ -188,7 +184,7 @@ fn config_constants_are_charged_correctly() {
                 );
 
                 assert_eq!(
-                gas_consumed_without_price_ref_1.load(std::sync::atomic::Ordering::SeqCst)
+                gas_consumed_without_price_ref_1.get()
                     + create_token_config_cost.value(&bank_initial_gas_price),
                 result.gas_value_used,
                 "The gas used should be the sum of the gas cost of the call and the inner gas cost"

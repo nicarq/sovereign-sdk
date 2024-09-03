@@ -1,3 +1,4 @@
+- 1392 Simplify the test in prover/attester incentives.
 - #1388 Make the naming in the sov-test-utils more consistent.
 - #1383 Extend `prover-incentoves::test_valid_proof` test to check gas usage. 
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
