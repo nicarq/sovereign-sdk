@@ -1,216 +1,312 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InvalidProofError, ProofOutcome};
+use sov_modules_api::{InvalidProofError, ProofOutcome, SovAttestation};
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
 use sov_test_utils::{
-    AsUser, ProofInput, ProofTestCase, TransactionTestCase, TEST_DEFAULT_USER_STAKE,
+    assert_matches, AsUser, AtomicNumber, ProofInput, ProofTestCase, TestAttester,
+    TransactionTestCase, TEST_DEFAULT_USER_STAKE,
 };
 
 use super::helpers::{setup, TestRuntimeEvent, S};
 use crate::helpers::{
-    build_proof, consume_gas_tx_for_signer, create_test_case, make_attestation_blob,
-    TestAttesterIncentives,
+    build_proof, consume_gas_tx_for_signer, create_test_case, get_user_balance,
+    make_attestation_blob, TestAttesterIncentives,
 };
 
 #[test]
 fn test_process_valid_attestation() {
+    let nb_tests = 3;
     let (mut runner, genesis_attester, _, other_user) = setup();
 
-    for _ in 0..5 {
-        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    let attester_address = genesis_attester.user_info.address();
+    let mut rewards = Vec::with_capacity(nb_tests);
+
+    for _ in 0..nb_tests {
+        let reward = AtomicNumber::new(0);
+        let reward_clone = reward.clone();
+        runner.execute_transaction(TransactionTestCase {
+            input: consume_gas_tx_for_signer(&other_user),
+            assert: Box::new(move |result, _state| {
+                reward_clone.add(result.gas_value_used);
+            }),
+        });
+        rewards.push(reward);
     }
 
-    let attester_addr = genesis_attester.user_info.address();
+    runner.execute(consume_gas_tx_for_signer(&other_user), None);
 
-    let attestation_proof_1 = runner
-        .query_state(|state| build_proof(state, 1, &attester_addr))
-        .unwrap();
+    let mut runner = runner.advance_slots(nb_tests);
 
-    let attest_slot_1 = create_test_case(
-        genesis_attester.clone(),
-        make_attestation_blob(attestation_proof_1),
-    );
+    // Submit the attestations
+    for (i, reward) in rewards.into_iter().enumerate() {
+        let initial_balance =
+            runner.query_state(|state| get_user_balance(&attester_address, state));
 
-    let attestation_proof_2 = runner
-        .query_state(|state| build_proof(state, 2, &attester_addr))
-        .unwrap();
+        let attestation_proof = runner
+            .query_state(|state| build_proof(state, (i + 1) as u64, &attester_address))
+            .unwrap();
 
-    let attest_slot_2 = create_test_case(
-        genesis_attester.clone(),
-        make_attestation_blob(attestation_proof_2),
-    );
+        let attest_slot = create_test_case(
+            genesis_attester.clone(),
+            make_attestation_blob(attestation_proof),
+            initial_balance,
+            reward,
+        );
 
-    let attestation_proof_3 = runner
-        .query_state(|state| build_proof(state, 3, &attester_addr))
-        .unwrap();
-
-    let attest_slot_3 =
-        create_test_case(genesis_attester, make_attestation_blob(attestation_proof_3));
-
-    runner
-        .advance_slots(5)
-        .execute_proof::<TestAttesterIncentives>(attest_slot_1)
-        .execute_proof::<TestAttesterIncentives>(attest_slot_2)
-        .execute_proof::<TestAttesterIncentives>(attest_slot_3);
+        runner = runner.execute_proof::<TestAttesterIncentives>(attest_slot);
+    }
 }
 
 #[test]
 fn test_burn_on_invalid_attestation() {
     let (mut runner, genesis_attester, _, other_user) = setup();
 
-    for _ in 0..5 {
-        // Crate a couple of batches.
-        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    let reward_1 = AtomicNumber::new(0);
+    {
+        let reward_clone = reward_1.clone();
+        runner.execute_transaction(TransactionTestCase {
+            input: consume_gas_tx_for_signer(&other_user),
+            assert: Box::new(move |result, _state| {
+                reward_clone.add(result.gas_value_used);
+            }),
+        });
     }
 
-    let attester_addr = genesis_attester.user_info.address();
+    let reward_2 = AtomicNumber::new(0);
+    {
+        let reward_clone = reward_2.clone();
+        runner.execute_transaction(TransactionTestCase {
+            input: consume_gas_tx_for_signer(&other_user),
+            assert: Box::new(move |result, _state| {
+                reward_clone.add(result.gas_value_used);
+            }),
+        });
+    }
+
+    runner.execute(consume_gas_tx_for_signer(&other_user), None);
+
+    let attester_address = genesis_attester.user_info.address();
     let attester_bond = genesis_attester.bond;
 
-    let invalid_bond_proof_no_slash = {
+    // Test that the attester is not slashed when the bond is invalid.
+    {
+        let initial_balance =
+            runner.query_state(|state| get_user_balance(&attester_address, state));
+
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 1, &attester_addr))
+            .query_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
         attestation_proof.proof_of_bond.claimed_transition_num = 2;
 
-        ProofTestCase {
-            input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
-            assert: Box::new(move |result, state| {
-                assert_eq!(
-                    result.proof_receipt.unwrap().outcome,
-                    ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(
-                        "Invalid bonding proof".to_string()
-                    ))
-                );
+        let invalid_bond_proof_no_slash =
+            invalid_bond_proof_no_slash(&genesis_attester, initial_balance, attestation_proof);
 
-                assert_eq!(
-                    TestAttesterIncentives::default()
-                        .bonded_attesters
-                        .get(&attester_addr, state)
-                        .unwrap(),
-                    Some(attester_bond),
-                    "Bonded amount should not have changed"
-                );
-            }),
-        }
-    };
+        runner.execute_proof::<TestAttesterIncentives>(invalid_bond_proof_no_slash);
+    }
 
-    let valid_attestation = {
-        let attestation_proof_2 = runner
-            .query_state(|state| build_proof(state, 1, &attester_addr))
-            .unwrap();
+    // Test valid attestation.
+    {
+        let initial_balance =
+            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let valid_attestation = {
+            let attestation_proof_2 = runner
+                .query_state(|state| build_proof(state, 1, &attester_address))
+                .unwrap();
 
-        create_test_case(
-            genesis_attester.clone(),
-            make_attestation_blob(attestation_proof_2),
-        )
-    };
+            create_test_case(
+                genesis_attester.clone(),
+                make_attestation_blob(attestation_proof_2),
+                initial_balance,
+                reward_1,
+            )
+        };
+        runner.execute_proof::<TestAttesterIncentives>(valid_attestation);
+    }
 
-    let invalid_initial_state_slashed = {
+    // Test that the attester is slashed when the initial state is invalid.
+    {
+        let initial_balance =
+            runner.query_state(|state| get_user_balance(&attester_address, state));
+
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 1, &attester_addr))
+            .query_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
         attestation_proof.initial_state_root =
             StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
 
-        ProofTestCase {
-            input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
-            assert: Box::new(move |_result, state| {
-                // TODO: #1292
-                // assert_matches!(
-                //    result.outcome.unwrap().outcome,
-                //    ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(_))
-                //);
+        let invalid_initial_state_slashed =
+            invalid_initial_state_slashed(&genesis_attester, initial_balance, attestation_proof);
 
-                assert!(TestAttesterIncentives::default()
-                    .bonded_attesters
-                    .get(&attester_addr, state)
-                    .unwrap()
-                    .is_none());
+        runner.execute_proof::<TestAttesterIncentives>(invalid_initial_state_slashed);
+    }
 
-                // Check that the invalid attestation is not part of the challengeable set.
-                // (Since it has the wrong pre-state, no one will be fooled by it so we don't reward challengers)
-                assert!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .bad_transition_pool
-                        .get(&2, state)
-                        .unwrap_infallible()
-                        .is_none(),
-                    "The transition should not exist in the pool"
-                );
-            }),
-        }
-    };
+    // Rebond the attester.
+    {
+        let rebond_attester = {
+            TransactionTestCase {
+                input: genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
+                    CallMessage::RegisterAttester(attester_bond),
+                ),
+                assert: Box::new(move |result, state| {
+                    assert!(result.events.iter().any(|event| matches!(
+                        event,
+                        TestRuntimeEvent::AttesterIncentives(Event::RegisteredAttester { .. })
+                    )));
+                    assert_eq!(
+                        AttesterIncentives::<S, MockDaSpec>::default()
+                            .get_attester_bond_amount(&attester_address, state)
+                            .unwrap_infallible()
+                            .value,
+                        TEST_DEFAULT_USER_STAKE,
+                    );
+                }),
+            }
+        };
 
-    let rebond_attester = {
-        TransactionTestCase {
-            input: genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
-                CallMessage::RegisterAttester(attester_bond),
-            ),
-            assert: Box::new(move |result, state| {
-                assert!(result.events.iter().any(|event| matches!(
-                    event,
-                    TestRuntimeEvent::AttesterIncentives(Event::RegisteredAttester { .. })
-                )));
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .get_attester_bond_amount(&attester_addr, state)
-                        .unwrap_infallible()
-                        .value,
-                    TEST_DEFAULT_USER_STAKE,
-                );
-            }),
-        }
-    };
+        runner.execute_transaction::<TestAttesterIncentives>(rebond_attester);
+    }
 
-    let invalid_post_state_root_is_challengeable = {
+    // Test that the attester is slashed when the post state is invalid.
+    {
+        let initial_balance =
+            runner.query_state(|state| get_user_balance(&attester_address, state));
+
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 2, &attester_addr))
+            .query_state(|state| build_proof(state, 2, &attester_address))
             .unwrap();
 
         attestation_proof.post_state_root =
             StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
 
-        ProofTestCase {
-            input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
-            assert: Box::new(move |_result, state| {
-                // TODO #1292:
-                // assert_matches!(
-                //    result.outcome.unwrap().outcome,
-                //    ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(_))
-                // );
+        let invalid_post_state_root_is_challengeable = invalid_post_state_root_is_challengeable(
+            &genesis_attester,
+            initial_balance,
+            attestation_proof,
+        );
 
-                // TODO #1292: check rewards.
+        runner.execute_proof::<TestAttesterIncentives>(invalid_post_state_root_is_challengeable);
+    }
+}
 
-                assert!(TestAttesterIncentives::default()
+fn invalid_bond_proof_no_slash(
+    attester: &TestAttester<S>,
+    initial_balance: u64,
+    attestation_proof: SovAttestation<S, MockDaSpec>,
+) -> ProofTestCase<S, MockDaSpec> {
+    let attester_address = attester.user_info.address();
+    let attester_bond = attester.bond;
+
+    ProofTestCase {
+        input: ProofInput(make_attestation_blob(attestation_proof)),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_eq!(
+                result.proof_receipt.unwrap().outcome,
+                ProofOutcome::Invalid(InvalidProofError::PreconditionNotMet(
+                    "Invalid bonding proof".to_string()
+                ))
+            );
+
+            assert_eq!(
+                TestAttesterIncentives::default()
                     .bonded_attesters
-                    .get(&attester_addr, state)
-                    .unwrap()
-                    .is_none(),);
+                    .get(&attester_address, state)
+                    .unwrap(),
+                Some(attester_bond),
+                "Bonded amount should not have changed"
+            );
 
-                // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
-                assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
-                        .bad_transition_pool
-                        .get(&2, state)
-                        .unwrap_infallible(),
-                    Some(attester_bond),
-                    "The transition should exist in the bad_transition_pool"
-                );
-            }),
-        }
-    };
+            // Attester is not rewarded
+            assert_eq!(
+                get_user_balance(&attester_address, state),
+                initial_balance - result.gas_value_used
+            );
+        }),
+    }
+}
 
-    runner
-        .execute_proof::<TestAttesterIncentives>(invalid_bond_proof_no_slash)
-        .execute_proof::<TestAttesterIncentives>(valid_attestation)
-        .execute_proof::<TestAttesterIncentives>(invalid_initial_state_slashed)
-        .execute_transaction(rebond_attester)
-        .execute_proof::<TestAttesterIncentives>(invalid_post_state_root_is_challengeable);
+fn invalid_initial_state_slashed(
+    attester: &TestAttester<S>,
+    initial_balance: u64,
+    attestation_proof: SovAttestation<S, MockDaSpec>,
+) -> ProofTestCase<S, MockDaSpec> {
+    let attester_address = attester.user_info.address();
+    ProofTestCase {
+        input: ProofInput(make_attestation_blob(attestation_proof)),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(
+                result.proof_receipt.unwrap().outcome,
+                ProofOutcome::Invalid(InvalidProofError::ProverSlashed(_))
+            );
+
+            assert!(TestAttesterIncentives::default()
+                .bonded_attesters
+                .get(&attester_address, state)
+                .unwrap()
+                .is_none());
+
+            // Check that the invalid attestation is not part of the challengeable set.
+            // (Since it has the wrong pre-state, no one will be fooled by it so we don't reward challengers)
+            assert!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .bad_transition_pool
+                    .get(&2, state)
+                    .unwrap_infallible()
+                    .is_none(),
+                "The transition should not exist in the pool"
+            );
+
+            // Attester is not rewarded
+            assert_eq!(
+                get_user_balance(&attester_address, state),
+                initial_balance - result.gas_value_used
+            );
+        }),
+    }
+}
+
+fn invalid_post_state_root_is_challengeable(
+    attester: &TestAttester<S>,
+    initial_balance: u64,
+    attestation_proof: SovAttestation<S, MockDaSpec>,
+) -> ProofTestCase<S, MockDaSpec> {
+    let attester_address = attester.user_info.address();
+    let attester_bond = attester.bond;
+    ProofTestCase {
+        input: ProofInput(make_attestation_blob(attestation_proof)),
+        override_sequencer: None,
+        assert: Box::new(move |result, state| {
+            assert_matches!(
+                result.proof_receipt.unwrap().outcome,
+                ProofOutcome::Invalid(InvalidProofError::ProverSlashed(_))
+            );
+
+            assert!(TestAttesterIncentives::default()
+                .bonded_attesters
+                .get(&attester_address, state)
+                .unwrap()
+                .is_none(),);
+
+            // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
+            assert_eq!(
+                AttesterIncentives::<S, MockDaSpec>::default()
+                    .bad_transition_pool
+                    .get(&2, state)
+                    .unwrap_infallible(),
+                Some(attester_bond),
+                "The transition should exist in the bad_transition_pool"
+            );
+
+            // Attester is not rewarded
+            assert_eq!(
+                get_user_balance(&attester_address, state),
+                initial_balance - result.gas_value_used
+            );
+        }),
+    }
 }

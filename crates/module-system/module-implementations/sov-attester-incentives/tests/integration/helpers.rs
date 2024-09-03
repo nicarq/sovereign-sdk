@@ -13,8 +13,8 @@ use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
 use sov_test_utils::{
-    assert_matches, generate_optimistic_runtime, AsUser, ProofInput, ProofTestCase, TestAttester,
-    TestChallenger, TestUser, TransactionType,
+    assert_matches, generate_optimistic_runtime, AsUser, AtomicNumber, ProofInput, ProofTestCase,
+    TestAttester, TestChallenger, TestUser, TransactionType,
 };
 
 pub(crate) type S = sov_test_utils::TestSpec;
@@ -157,7 +157,11 @@ pub(crate) fn make_attestation_blob(
 pub(crate) fn create_test_case(
     genesis_attester: TestAttester<S>,
     serialized_attestation: Vec<u8>,
+    initial_balance: u64,
+    reward: AtomicNumber,
 ) -> ProofTestCase<S, MockDaSpec> {
+    let attester_address = genesis_attester.user_info.address();
+
     ProofTestCase {
         input: ProofInput(serialized_attestation),
         override_sequencer: None,
@@ -170,13 +174,19 @@ pub(crate) fn create_test_case(
             assert_eq!(
                 TestAttesterIncentives::default()
                     .bonded_attesters
-                    .get(&genesis_attester.user_info.address(), state)
+                    .get(&attester_address, state)
                     .unwrap(),
                 Some(genesis_attester.bond),
                 "Bonded amount should not have changed"
             );
 
-            // TODO #1292: check rewards.
+            assert_eq!(
+                get_user_balance(&attester_address, state),
+                initial_balance - result.gas_value_used
+                    + TestAttesterIncentives::default()
+                        .burn_rate()
+                        .apply(reward.get())
+            );
         }),
     }
 }
@@ -241,5 +251,15 @@ pub(crate) fn make_challenge_blob(
 
     SovApiProofSerializer::<S>::new()
         .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
+        .unwrap()
+}
+
+pub(crate) fn get_user_balance(
+    address: &<S as Spec>::Address,
+    state: &mut ApiStateAccessor<S>,
+) -> u64 {
+    Bank::<S>::default()
+        .get_balance_of(address, GAS_TOKEN_ID, state)
+        .unwrap()
         .unwrap()
 }

@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::ProofOutcome;
+use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, ProofInput, ProofTestCase, TestAttester, TEST_ROLLUP_FINALITY_PERIOD,
@@ -80,21 +80,15 @@ fn test_cannot_attest_below_max_attested_height() {
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
         override_sequencer: None,
-        assert: Box::new(move |_result, state| {
-        // TODO: #1262
-        // assert_matches!(result.outcome.unwrap().outcome, ProofOutcome::Valid { .. });
+        assert: Box::new(move |result, state| {
 
-        //
-        //    match &result.outcome {
-        //      sov_modules_api::TxEffect::Reverted(reason) => {
-        //          assert_eq!(
-        //              reason,
-        //            &ModuleError(ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into()),
-        //              "Transaction reverted, but with unexpected reason"
-        //          );
-        //      },
-        //      unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
-        //  };
+            match &result.proof_receipt.unwrap().outcome {
+                ProofOutcome::Invalid(e@InvalidProofError::PreconditionNotMet(msg)) => {
+                    assert!(!e.is_not_revertable());
+                    assert_eq!(msg, "Transition invariant isn't respected");
+                }
+                _ => panic!("Expected invalid outcome"),
+            }
 
             let max_attested_height = TestAttesterIncentives::default()
                 .maximum_attested_height
@@ -131,26 +125,23 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
         override_sequencer: None,
-        assert: Box::new(move |_result, state| {
-        // TODO: #1262
-        //  match &result.outcome {
-        //        sov_modules_api::TxEffect::Reverted(reason) => {
-        //            assert_eq!(
-        //                reason,
-        //                &ModuleError(ProcessAttestationErrors::<StateAccessorError<<S as Spec>::Gas>>::InvalidTransitionInvariant.into()),
-        //                "Transaction reverted, but with unexpected reason"
-        //            );
-        //        },
-        //       unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
-        //  };
+        assert: Box::new(move |result, state| {
 
-            // Ensure that the `MAX_ATTESTED_HEIGHT` increases by 1.
-            let max_attested_height = TestAttesterIncentives::default()
-                .maximum_attested_height
-                .get(state)
-                .unwrap_infallible()
-                .unwrap();
-            assert_eq!(max_attested_height, expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
+        match &result.proof_receipt.unwrap().outcome {
+            ProofOutcome::Invalid(e@InvalidProofError::PreconditionNotMet(msg)) => {
+                assert!(!e.is_not_revertable());
+                assert_eq!(msg, "Transition invariant isn't respected");
+            }
+            _ => panic!("Expected invalid outcome"),
+        }
+
+        // Ensure that the `MAX_ATTESTED_HEIGHT` increases by 1.
+        let max_attested_height = TestAttesterIncentives::default()
+            .maximum_attested_height
+            .get(state)
+            .unwrap_infallible()
+            .unwrap();
+        assert_eq!(max_attested_height, expected_max_attested_height, "Sanity check failed: the max attested height should be {expected_max_attested_height}, but it is {max_attested_height}");
         }),
     });
 }
