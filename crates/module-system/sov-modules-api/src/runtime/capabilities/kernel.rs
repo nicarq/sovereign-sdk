@@ -37,11 +37,11 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut StateCheckpoint<Self::Spec>,
+        state: &mut KernelWorkingSet<'_, Self::Spec>,
     );
     /// Called at the end of a slot
-    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut StateCheckpoint<Self::Spec>);
+    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelWorkingSet<'_, Self::Spec>);
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
-    fn base_fee_per_gas(&self, state: &mut StateCheckpoint<Self::Spec>) -> <S::Gas as Gas>::Price;
+    fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S>) -> <S::Gas as Gas>::Price;
 }

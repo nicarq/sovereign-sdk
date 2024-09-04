@@ -16,8 +16,10 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         kernel_working_set: &mut KernelWorkingSet<S>,
     ) -> RpcResult<TransitionHeight> {
         Ok(self
-            .next_visible_slot_number(kernel_working_set)
-            .unwrap_infallible())
+            .next_visible_slot_number
+            .get(kernel_working_set)
+            .unwrap_infallible()
+            .expect("The visible slot number should always be set"))
     }
 
     /// Get the true height of the current slot.

@@ -11,7 +11,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    ExecutionContext, Gas, GasArray, KernelWorkingSet, RawTx, Spec, StateCheckpoint,
+    ExecutionContext, Gas, GasArray, RawTx, Spec, StateCheckpoint, VersionReader,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, Runtime, TransactionReceipt, TxEffect, TxProcessingError,
@@ -267,8 +267,7 @@ where
 
         let gas_price = self.kernel.base_fee_per_gas(&mut state_checkpoint);
 
-        let kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut state_checkpoint);
-        let visible_height = kernel_working_set.virtual_slot();
+        let visible_height = state_checkpoint.current_version();
 
         let mut ctx = BatchConstructionContext {
             visible_height,

@@ -38,7 +38,7 @@ pub fn virtual_slot<
 >(
     runner: &TestRunner<K>,
 ) -> u64 {
-    runner.query_kernel_state(|kernel| kernel.virtual_slot())
+    runner.query_kernel_state(|kernel| kernel.virtual_slot_number())
 }
 
 /// Returns the last `k` slot receipts

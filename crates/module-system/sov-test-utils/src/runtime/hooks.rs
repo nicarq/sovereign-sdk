@@ -12,9 +12,7 @@ macro_rules! impl_runtime_hook {
             fn begin_slot_hook(
                 &self,
                 _pre_state_root: S::VisibleHash,
-                _state: &mut sov_modules_api::VersionedStateReadWriter<
-                    ::sov_modules_api::StateCheckpoint<S>,
-                >,
+                _state: &mut ::sov_modules_api::StateCheckpoint<S>,
             ) {
             }
 

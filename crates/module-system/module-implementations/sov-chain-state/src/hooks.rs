@@ -14,16 +14,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelWorkingSet<S>,
     ) {
-        let gas_info = if self
-            .genesis_root
-            .get(state.inner)
-            .unwrap_infallible()
-            .is_none()
-        {
+        let gas_info = if self.genesis_root.get(state).unwrap_infallible().is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
             self.genesis_root
-                .set(pre_state_root, state.inner)
+                .set(pre_state_root, state)
                 .unwrap_infallible();
 
             BlockGasInfo::new(Self::initial_gas_limit(), Self::initial_base_fee_per_gas())
@@ -34,9 +29,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
                     validity_condition,
                     gas_info,
                 } = self
-                    .in_progress_transition
-                    .get_current(state)
-                    .unwrap_infallible()
+                    .get_in_progress_transition_prev_slot(state)
                     .expect("There should always be a transition in progress");
 
                 StateTransition {
@@ -49,7 +42,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
 
             let slot_number = self.true_slot_number(state).unwrap_infallible();
             self.historical_transitions
-                .set(&slot_number, &transition, state.inner)
+                .set(&(slot_number - 1), &transition, state)
                 .unwrap_infallible();
 
             // The base fee per gas is updated according to the EIP-1559 specification
@@ -62,9 +55,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             )
         };
 
-        // Since we increment the true slot number, we have to update the working set.
-        self.increment_true_slot_number(state);
-
         self.time.set_true_current(&slot_header.time(), state);
 
         self.in_progress_transition.set_true_current(
@@ -75,6 +65,9 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             },
             state,
         );
+
+        // We increment the next true slot number.
+        self.increment_true_slot_number(state);
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot

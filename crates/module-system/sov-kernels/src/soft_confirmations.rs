@@ -39,9 +39,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
     fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
-        self.chain_state
-            .next_visible_slot_number(state)
-            .unwrap_infallible()
+        self.chain_state.next_visible_slot_number(state)
     }
 
     fn genesis(
@@ -78,32 +76,25 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         slot_header: &<Da as DaSpec>::BlockHeader,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
-        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+        state: &mut sov_modules_api::KernelWorkingSet<Self::Spec>,
     ) {
-        let mut state = KernelWorkingSet::from_kernel(self, state_checkpoint);
-        self.chain_state.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut state,
-        );
+        self.chain_state
+            .begin_slot_hook(slot_header, validity_condition, pre_state_root, state);
     }
 
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
-        state_checkpoint: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+        state: &mut sov_modules_api::KernelWorkingSet<Self::Spec>,
     ) {
-        let mut state = sov_modules_api::KernelWorkingSet::from_kernel(self, state_checkpoint);
-        self.chain_state.end_slot_hook(gas_used, &mut state);
+        self.chain_state.end_slot_hook(gas_used, state);
     }
 
     fn base_fee_per_gas(
         &self,
         state: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
     ) -> <<S as Spec>::Gas as Gas>::Price {
-        let mut state = sov_modules_api::KernelWorkingSet::from_kernel(self, state);
-        self.chain_state.base_fee_per_gas(&mut state)
+        self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }
 }
 

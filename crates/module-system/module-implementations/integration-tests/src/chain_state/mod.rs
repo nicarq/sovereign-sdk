@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GasArray, Spec};
+use sov_modules_api::{GasArray, Spec, VersionReader};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, AsUser, TestUser};
@@ -36,20 +36,20 @@ fn setup() -> (
 }
 
 #[test]
-fn chain_state_kernel_updates() {
+fn chain_state_kernel_updates_basic_kernel() {
     let (admin, mut runner) = setup();
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            kernel.current_slot(),
-            0,
-            "The kernel should be initialized to zero"
+            kernel.current_version(),
+            1,
+            "The kernel should be initialized to one"
         );
 
         assert_eq!(
-            kernel.virtual_slot(),
-            0,
-            "The kernel virtual slot should be initialized to zero"
+            kernel.virtual_slot_number(),
+            1,
+            "The kernel virtual slot should be initialized to one"
         );
     });
 
@@ -60,15 +60,15 @@ fn chain_state_kernel_updates() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            kernel.current_slot(),
-            1,
-            "The kernel should be updated to one"
+            kernel.current_version(),
+            2,
+            "The kernel should be updated to two"
         );
 
         assert_eq!(
-            kernel.virtual_slot(),
-            1,
-            "The kernel virtual slot should be updated to one"
+            kernel.virtual_slot_number(),
+            2,
+            "The kernel virtual slot should be updated to two"
         );
     });
 }
@@ -98,8 +98,7 @@ fn test_chain_state_gas_updates() {
         );
 
         let in_progress_transition = ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition(kernel)
-            .unwrap_infallible()
+            .get_in_progress_transition_prev_slot(kernel)
             .unwrap();
 
         assert_eq!(
@@ -163,8 +162,7 @@ fn test_chain_state_historical_transition_update() {
 
     let in_progress_transition = runner.query_kernel_state(|kernel| {
         ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition(kernel)
-            .unwrap_infallible()
+            .get_in_progress_transition_prev_slot(kernel)
             .unwrap()
     });
 

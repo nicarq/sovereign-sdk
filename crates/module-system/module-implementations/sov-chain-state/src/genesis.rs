@@ -42,8 +42,9 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             outer_code_commitment = ?config.outer_code_commitment,
             "Starting chain state genesis...",
         );
-        self.true_slot_number.set(&0, state)?;
-        self.next_visible_slot_number.set(&1, state)?;
+
+        self.next_true_slot_number.set(&1, state)?;
+        self.next_visible_slot_number.set(&0, state)?;
 
         self.time.set_true_current(&config.current_time, state);
         self.operating_mode.set(&config.operating_mode, state)?;

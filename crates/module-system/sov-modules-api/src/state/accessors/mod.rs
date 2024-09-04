@@ -5,7 +5,6 @@ mod access_controls;
 mod checkpoints;
 mod genesis;
 mod internals;
-mod kernel;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 mod unmetered_state_wrapper;
 
@@ -20,12 +19,14 @@ pub use http_api::ApiStateAccessor;
 
 mod scratchpad;
 
+mod kernel;
+
 #[cfg(feature = "native")]
 pub use checkpoints::native::AccessoryStateCheckpoint;
 pub use checkpoints::StateCheckpoint;
 pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
-pub use kernel::{BootstrapWorkingSet, KernelWorkingSet, VersionedStateReadWriter};
+pub use kernel::{BootstrapWorkingSet, KernelWorkingSet};
 pub use scratchpad::{AuthorizeTransactionError, PreExecWorkingSet, TxScratchpad, WorkingSet};
 
 use self::seal::CachedAccessor;

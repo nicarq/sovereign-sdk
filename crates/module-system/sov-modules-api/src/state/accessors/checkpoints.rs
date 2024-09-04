@@ -4,8 +4,7 @@ use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Sto
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
 use crate::capabilities::Kernel;
-use crate::state::traits::KernelWriter;
-use crate::{Context, Spec, VersionReader, VersionedStateReadWriter};
+use crate::{KernelWriter, Spec, VersionReader};
 
 /// This structure is responsible for storing the `read-write` set.
 ///
@@ -25,17 +24,6 @@ impl<S: Spec> StateCheckpoint<S> {
     /// by the given [`Storage`].
     pub fn new<K: Kernel<S, Da>, Da: DaSpec>(inner: S::Storage, kernel: &K) -> Self {
         Self::with_witness(inner, Default::default(), kernel)
-    }
-
-    /// Returns a handler for the kernel state (priveleged jmt state)
-    ///
-    /// You can use this method when calling getters and setters on accessory
-    /// state containers, like KernelStateMap.
-    pub fn versioned_state(&mut self, context: &Context<S>) -> VersionedStateReadWriter<Self> {
-        VersionedStateReadWriter {
-            state: self,
-            slot_num: context.visible_slot_number(),
-        }
     }
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
@@ -71,6 +59,14 @@ impl<S: Spec> StateCheckpoint<S> {
         <S::Storage as Storage>::Witness,
     ) {
         self.delta.freeze()
+    }
+
+    /// Updates the true slot number and the virtual slot number.
+    /// This method is used in tests.
+    #[cfg(test)]
+    pub fn update_versions(&mut self, true_slot_num: u64, virtual_slot_num: u64) {
+        self.virtual_slot_num = virtual_slot_num;
+        self.true_slot_num = true_slot_num;
     }
 }
 

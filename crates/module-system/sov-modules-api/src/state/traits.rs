@@ -527,14 +527,13 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
 }
 
 /// A trait indicating that this state accessor is version aware
-pub trait VersionReader: StateReaderAndWriter<namespaces::Kernel> {
+pub trait VersionReader: StateReader<namespaces::Kernel> {
     /// Returns the current version of the state accessor
     fn current_version(&self) -> u64;
 }
 
-/// A trait indicating that this state accessor can write to the kernel
-pub trait KernelWriter: StateWriter<namespaces::Kernel> {
+/// A trait indicating that this state accessor can write to the kernel at the true slot height
+pub trait KernelWriter: StateWriter<namespaces::Kernel, Error = Infallible> {
     /// Returns the current true slot number contained in the accessor
-    #[allow(unused)]
     fn true_slot_number(&self) -> u64;
 }

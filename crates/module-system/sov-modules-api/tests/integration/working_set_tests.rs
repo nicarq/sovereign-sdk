@@ -39,7 +39,7 @@ fn test_kernel_workingset_get() {
     let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);
 
     let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
-    let mut working_set = KernelWorkingSet::from_kernel(&kernel, &mut working_set);
+    let mut working_set = KernelWorkingSet::from(&mut working_set);
 
     StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone())
         .expect("This should be unfaillible");

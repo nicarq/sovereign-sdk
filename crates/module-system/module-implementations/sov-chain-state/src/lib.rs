@@ -1,13 +1,15 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+use sov_modules_api::prelude::UnwrapInfallible;
 /// Contains the call methods used by the module
 mod call;
 mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    ModuleId, Spec, StateAccessor, StateReader, StateReaderAndWriter, StateWriter, Zkvm,
+    BootstrapWorkingSet, KernelWriter, ModuleId, Spec, StateAccessor, StateReader,
+    StateReaderAndWriter, Zkvm,
 };
 
 mod genesis;
@@ -234,7 +236,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The real slot number of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelWorkingSet`]. See note on `visible_height` above.
     #[state]
-    true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
+    next_true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -298,37 +300,29 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
+        Ok(self.next_true_slot_number.get(state)?.unwrap_or_default())
     }
 
     /// Returns transition height for the next slot to start execution
-    pub fn next_visible_slot_number<T>(
+    pub fn next_visible_slot_number(
         &self,
-        state: &mut T,
-    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
-    where
-        T: StateReaderAndWriter<Kernel>,
-    {
-        Ok(self
-            .next_visible_slot_number
-            .get(state)?
-            .unwrap_or_default())
+        state: &mut BootstrapWorkingSet<'_, S::Storage>,
+    ) -> TransitionHeight {
+        self.next_visible_slot_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default()
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_number<T>(
-        &self,
-        value: &u64,
-        state: &mut T,
-    ) -> Result<(), T::Error>
-    where
-        T: StateWriter<Kernel>,
-    {
+    pub fn set_next_visible_slot_number(&self, value: &u64, state: &mut impl KernelWriter) {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
-        self.next_visible_slot_number.set(value, state)
+        self.next_visible_slot_number
+            .set(value, state)
+            .unwrap_infallible();
     }
 
-    /// Returns the current time, as reported by the DA layer
+    /// Returns the current time, as reported by the DA layer. This can be called within the execution context of a transaction.
     pub fn get_time<Reader: VersionReader>(
         &self,
         state: &mut Reader,
@@ -337,6 +331,18 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             .time
             .get_current(state)?
             .expect("Time must be set at initialization"))
+    }
+
+    /// Returns the time from the previous slot, as reported by the DA layer.
+    ///
+    /// ## TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385>`)
+    /// This method is meant to be temporary used in tests until the issue linked above is resolved.
+    #[cfg(feature = "test-utils")]
+    pub fn get_time_prev_slot(&self, state: &mut KernelWorkingSet<S>) -> Time {
+        self.time
+            .get(&(state.current_version() - 1), state)
+            .unwrap_infallible()
+            .expect("Time must be set at initialization")
     }
 
     /// Return the genesis hash of the module.
@@ -385,6 +391,16 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         state: &mut Reader,
     ) -> Result<Option<TransitionInProgress<S, Da>>, <Reader as StateReader<Kernel>>::Error> {
         self.in_progress_transition.get_current(state)
+    }
+
+    /// Returns the transition in progress of the module of the previous slot.
+    pub fn get_in_progress_transition_prev_slot(
+        &self,
+        state: &mut KernelWorkingSet<S>,
+    ) -> Option<TransitionInProgress<S, Da>> {
+        self.in_progress_transition
+            .get(&(state.current_version() - 1), state)
+            .unwrap_infallible()
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.

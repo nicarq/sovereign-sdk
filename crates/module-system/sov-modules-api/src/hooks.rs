@@ -1,10 +1,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::AuthenticatedTransactionData;
-use crate::{
-    AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState,
-    VersionedStateReadWriter,
-};
+use crate::{AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState};
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -88,7 +85,7 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         _pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        _state: &mut VersionedStateReadWriter<StateCheckpoint<Self::Spec>>,
+        _state: &mut StateCheckpoint<Self::Spec>,
     ) {
     }
 

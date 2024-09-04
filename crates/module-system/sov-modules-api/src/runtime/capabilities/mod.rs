@@ -125,7 +125,7 @@ pub mod mocks {
     use sov_rollup_interface::da::DaSpec;
 
     use super::{BlobOrigin, BlobSelector, Kernel, Spec};
-    use crate::{BootstrapWorkingSet, KernelWorkingSet, StateCheckpoint};
+    use crate::{BootstrapWorkingSet, KernelWorkingSet};
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -145,12 +145,6 @@ pub mod mocks {
                 visible_slot_number: visible_height,
                 phantom: core::marker::PhantomData,
             }
-        }
-
-        /// The genesis working set
-        pub fn genesis_ws(state_checkpoint: &mut StateCheckpoint<S>) -> KernelWorkingSet<'_, S> {
-            let kernel = Self::new(0, 0);
-            KernelWorkingSet::from_kernel(&kernel, state_checkpoint)
         }
 
         /// Simply increases all the heights by one

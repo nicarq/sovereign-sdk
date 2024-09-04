@@ -29,8 +29,8 @@ use sov_bank::{Amount, Coins, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
-    ModuleId, ModuleInfo, Spec, StateAccessor, StateCheckpoint, StateMap, StateReader, StateValue,
-    TxScratchpad, TxState,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, TxScratchpad,
+    TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -277,7 +277,11 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     }
 
     /// Slash the sequencer with the given address.
-    pub fn slash_sequencer(&self, da_address: &Da::Address, state: &mut StateCheckpoint<S>) {
+    pub fn slash_sequencer(
+        &self,
+        da_address: &Da::Address,
+        state: &mut impl InfallibleStateAccessor,
+    ) {
         self.delete_allowed_staker(da_address, state)
             .unwrap_infallible();
     }

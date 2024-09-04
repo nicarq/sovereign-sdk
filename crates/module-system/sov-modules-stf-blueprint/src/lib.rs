@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Batch, BatchSequencerReceipt, TxScratchpad};
+use sov_modules_api::{Batch, BatchSequencerReceipt, TxScratchpad, VersionReader};
 mod batch_processing;
 mod proof_processing;
 #[cfg(feature = "test-utils")]
@@ -19,8 +19,7 @@ use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
-    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, VersionedStateReadWriter,
-    WorkingSet,
+    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -196,32 +195,14 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
         &self,
-        state_checkpoint: &mut StateCheckpoint<S>,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
+        state: &mut StateCheckpoint<S>,
+        _slot_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-    ) -> <S::Gas as Gas>::Price {
-        // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
-        // That way the state of the runtime modules is always in sync with the transaction `being executed`.
-        self.kernel.begin_slot_hook(
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            state_checkpoint,
-        );
-
-        // We build and pass down the VersionedStateReadWriter to the [`begin_slot_hook`] method to have access to context
-        // aware information.
-        let kernel_working_set = &mut KernelWorkingSet::from_kernel(&self.kernel, state_checkpoint);
-        let mut versioned_working_set =
-            VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
-
+    ) {
         let visible_hash = <S as Spec>::VisibleHash::from(pre_state_root.clone());
 
-        self.runtime
-            .begin_slot_hook(visible_hash, &mut versioned_working_set);
-
-        self.kernel.base_fee_per_gas(state_checkpoint)
+        self.runtime.begin_slot_hook(visible_hash, state);
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -237,7 +218,8 @@ where
     ) {
         // Run end_slot_hook
         self.runtime.end_slot_hook(&mut checkpoint);
-        self.kernel.end_slot_hook(gas_used, &mut checkpoint);
+        self.kernel
+            .end_slot_hook(gas_used, &mut (&mut checkpoint).into());
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
@@ -292,12 +274,14 @@ where
         // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
         let mut state_checkpoint =
             StateCheckpoint::new::<K, _>(pre_state.clone(), &Default::default());
-        let mut startup_ws = KernelWorkingSet::uninitialized(&mut state_checkpoint);
 
         // Important! The kernel *must* be initialized before the runtime, since runtime
         // module authors are allowed to depend on the kernel.
         self.kernel
-            .genesis(&params.kernel, &mut startup_ws)
+            .genesis(
+                &params.kernel,
+                &mut KernelWorkingSet::from(&mut state_checkpoint),
+            )
             .expect("Kernel initialization must succeed");
 
         // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
@@ -338,17 +322,17 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let mut checkpoint =
-            StateCheckpoint::with_witness(pre_state.clone(), witness, &self.kernel);
-        let gas_price = self.begin_slot(
-            &mut checkpoint,
+        let mut state = StateCheckpoint::with_witness(pre_state.clone(), witness, &self.kernel);
+
+        // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
+        // That way the state of the runtime modules is always in sync with the transaction `being executed`.
+        // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
+        self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
+            &mut KernelWorkingSet::from(&mut state),
         );
-
-        let mut kernel_working_set = KernelWorkingSet::from_kernel(&self.kernel, &mut checkpoint);
-        let visible_height = kernel_working_set.virtual_slot();
 
         let all_blobs = relevant_blobs
             .batch_blobs
@@ -363,13 +347,20 @@ where
 
         let selected_blobs = self
             .kernel
-            .get_blobs_for_this_slot(all_blobs, &mut kernel_working_set)
+            .get_blobs_for_this_slot(all_blobs, &mut KernelWorkingSet::from(&mut state))
             .expect("blob selection must succeed, probably serialization failed");
+
+        self.begin_slot(&mut state, slot_header, validity_condition, pre_state_root);
+
+        // Note: The gas price should be computed after all the capabilities involving the [`KernelWorkingSet`] to have the
+        // most recent version of the virtual slot number.
+        let gas_price = self.kernel.base_fee_per_gas(&mut state);
+
+        let visible_height = state.current_version();
 
         info!(
             blob_count = selected_blobs.len(),
             virtual_slot = visible_height,
-            true_slot = kernel_working_set.current_slot(),
             "Selected batch(es) for execution in current slot"
         );
 
@@ -378,12 +369,12 @@ where
 
         let mut total_gas = S::Gas::zero();
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
-            let mut apply_batch = |batch, sender, is_registered, checkpoint| {
+            let mut apply_batch = |batch, sender, is_registered, state| {
                 let batch_with_id = BatchWithId { batch, id: blob.id };
 
                 let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
                     batch_with_id,
-                    checkpoint,
+                    state,
                     blob_idx,
                     sender,
                     &gas_price,
@@ -398,26 +389,26 @@ where
             };
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let next_checkpoint = apply_batch(batch, sender, true, checkpoint);
-                    checkpoint = next_checkpoint;
+                    let next_checkpoint = apply_batch(batch, sender, true, state);
+                    state = next_checkpoint;
                 }
                 BlobData::EmergencyRegistration(tx) => {
                     let next_checkpoint =
-                        apply_batch(Batch { txs: vec![tx] }, sender, false, checkpoint);
-                    checkpoint = next_checkpoint;
+                        apply_batch(Batch { txs: vec![tx] }, sender, false, state);
+                    state = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {
                     let (receipt, next_checkpoint, gas_used) =
-                        self.process_proof(blob.id, sender, &gas_price, proof, checkpoint);
+                        self.process_proof(blob.id, sender, &gas_price, proof, state);
 
-                    checkpoint = next_checkpoint;
+                    state = next_checkpoint;
                     proof_receipts.push(receipt);
                     total_gas.combine(&gas_used);
                 }
             }
         }
 
-        let (state_root, witness, change_set) = self.end_slot(pre_state, &total_gas, checkpoint);
+        let (state_root, witness, change_set) = self.end_slot(pre_state, &total_gas, state);
         ApplySlotOutput {
             state_root,
             change_set,

@@ -3,8 +3,8 @@ use std::convert::Infallible;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
-    KernelStateValue, KernelWorkingSet, StateCheckpoint, StateMap, StateValue,
-    VersionedStateReadWriter, VersionedStateValue, WorkingSet,
+    KernelStateValue, KernelWorkingSet, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
+    WorkingSet,
 };
 use sov_state::{Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -66,7 +66,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     // Native execution
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
 
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state);
+    let mut kernel_working_set = KernelWorkingSet::from(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
     let _ = state_value.get(&mut kernel_working_set);
     state_value.set(&22, &mut kernel_working_set)?;
@@ -151,7 +151,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone(), &kernel);
 
     let mut state = working_set.checkpoint().0;
-    let mut kernel_working_set = KernelWorkingSet::uninitialized(&mut state);
+    let mut kernel_working_set = KernelWorkingSet::from(&mut state);
     state_value.set_true_current(&11, &mut kernel_working_set);
     let _ = state_value.get_current(&mut kernel_working_set);
     state_value.set_true_current(&22, &mut kernel_working_set);
@@ -178,13 +178,9 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 
     // Check that we can get the current value with a standard working set
-    let working_set: WorkingSet<S> =
-        WorkingSet::new_deprecated(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
-    let mut state_checkpoint = working_set.checkpoint().0;
-    let kernel_working_set = &mut KernelWorkingSet::uninitialized(&mut state_checkpoint);
-    let mut versioned_reader = VersionedStateReadWriter::from_kernel_ws_virtual(kernel_working_set);
+    let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
     let val = state_value
-        .get_current(&mut versioned_reader)?
+        .get_current(&mut state)?
         .expect("We should be able to retrieve the state value");
 
     assert_eq!(val, 22);
