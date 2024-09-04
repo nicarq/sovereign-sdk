@@ -1,3 +1,4 @@
+- #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.
 - #1381 Adds an associated `Input` type the `RuntimeAuthenticator` trait and expects that type as the argument to `authenticate`. It also adds a new method to the trait `fn encode_default_tx()` which implemetns the runtime-specific notion of a "standard" authentication path. 
 - 1392 Simplify the test in prover/attester incentives.
 - #1399 `AttesterIncentive`: Add balance checks to the challenger.rs tests.
@@ -8,6 +9,7 @@
 - #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
 - #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`virtual_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
+- #1370 Makes some light changes to the `GenesisStateAccessor` to become a wrapper around `StateCheckpoint`. 
 - #1356 Adds OpenAPI spec for sov-bank custom REST API endpoints.
 - #1374 Add gas handling in the stf-blueprint::process_proof.
 - #1377 Enables REST API endpoints for `AttesterIncentives` module.

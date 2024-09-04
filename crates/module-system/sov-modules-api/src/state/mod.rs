@@ -9,8 +9,7 @@ mod tests;
 pub use accessors::UnmeteredStateWrapper;
 pub use accessors::{
     AccessoryDelta, AuthorizeTransactionError, BootstrapWorkingSet, GenesisStateAccessor,
-    KernelWorkingSet, PreExecWorkingSet, StateCheckpoint, TxScratchpad, VersionedStateReadWriter,
-    WorkingSet,
+    KernelWorkingSet, PreExecWorkingSet, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor};
@@ -19,6 +18,6 @@ pub use events::TypedEvent;
 pub use traits::ProvenStateAccessor;
 pub use traits::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
-    InfallibleStateAccessor, InfallibleStateReaderAndWriter, StateAccessor, StateAccessorError,
-    StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
+    InfallibleStateAccessor, InfallibleStateReaderAndWriter, KernelWriter, StateAccessor,
+    StateAccessorError, StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
 };

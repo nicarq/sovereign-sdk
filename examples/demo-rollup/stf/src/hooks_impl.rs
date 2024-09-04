@@ -32,7 +32,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
     fn begin_slot_hook(
         &self,
         pre_state_root: <S as Spec>::VisibleHash,
-        versioned_working_set: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
+        versioned_working_set: &mut sov_modules_api::StateCheckpoint<S>,
     ) {
         self.evm
             .begin_slot_hook(pre_state_root, versioned_working_set);

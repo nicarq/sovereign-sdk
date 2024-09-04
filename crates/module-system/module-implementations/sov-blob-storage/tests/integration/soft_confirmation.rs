@@ -150,10 +150,10 @@ fn non_preferred_sequencer_deferred() {
 
     let slots = vec![vec![(regular_sequencer.clone(), SequencerInfo::Regular)]];
 
-    let mut receive_order = vec![vec![]; DEFERRED_SLOTS_COUNT as usize];
+    let mut receive_order = vec![vec![]; (DEFERRED_SLOTS_COUNT - 1) as usize];
     receive_order.push(vec![0]);
 
-    let mut virtual_slot_heights = vec![0; (DEFERRED_SLOTS_COUNT) as usize];
+    let mut virtual_slot_heights = vec![0; (DEFERRED_SLOTS_COUNT - 1) as usize];
 
     virtual_slot_heights.push(1);
 
@@ -242,8 +242,7 @@ fn interspace_slots_preferred_non_preferred_sequencer_increase_slots() {
 /// - Slot 4: Send [] | Recv []
 /// - Slot 5: Send [] | Recv []
 /// - Slot 6: Send [] | Recv []
-/// - Slot 7: Send [] | Recv []
-/// - Slot 8: Send [] | Recv [Blob 6]
+/// - Slot 7: Send [] | Recv [Blob 6]
 #[test]
 fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
     let (
@@ -282,11 +281,11 @@ fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
     ];
 
     let mut receive_order = vec![vec![0, 1], vec![2, 3, 4, 5]];
-    receive_order.append(&mut vec![vec![]; DEFERRED_SLOTS_COUNT as usize]);
+    receive_order.append(&mut vec![vec![]; (DEFERRED_SLOTS_COUNT - 1) as usize]);
     receive_order.push(vec![6]);
 
     let mut virtual_slot_heights_increases = vec![1, 1];
-    virtual_slot_heights_increases.append(&mut vec![0; DEFERRED_SLOTS_COUNT as usize]);
+    virtual_slot_heights_increases.append(&mut vec![0; (DEFERRED_SLOTS_COUNT - 1) as usize]);
     virtual_slot_heights_increases.push(1);
 
     assert_blobs_are_correctly_received_soft_confirmation(
@@ -300,9 +299,9 @@ fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
 /// Test that the preferred sequencer is able to force execute blobs
 /// We test the following scenario:
 /// - Slot 1: Send [(Batch 0, Regular)]. Receive []
-/// - Slot 1: Send [(Batch 1, Regular)]. Receive []
-/// - Slot 2: Send [(Batch 2, Regular)]. Receive []
-/// - Slot 3: Send [(Batch 3, Preferred, Height increase 2). Receive [Batch 0, Batch 1, Batch 3]]
+/// - Slot 2: Send [(Batch 1, Regular)]. Receive []
+/// - Slot 3: Send [(Batch 2, Regular)]. Receive []
+/// - Slot 4: Send [(Batch 3, Preferred, Height increase 2). Receive [Batch 3, Batch 0, Batch 1]]
 ///
 /// This test assumes that [`DEFERRED_SLOTS_COUNT`] is greater than 2.
 #[test]

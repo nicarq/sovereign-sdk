@@ -15,11 +15,11 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_user_root: S::VisibleHash,
-        state: &mut sov_modules_api::VersionedStateReadWriter<StateCheckpoint<S>>,
+        state: &mut StateCheckpoint<S>,
     ) {
         let mut parent_block = self
             .head
-            .get(state.get_ws_mut())
+            .get(state)
             .unwrap_infallible()
             .expect("Head block should always be set");
 
@@ -28,15 +28,9 @@ where
         parent_block.header.state_root =
             // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
             B256::from_slice(&pre_state_user_root);
-        self.head
-            .set(&parent_block, state.get_ws_mut())
-            .unwrap_infallible();
+        self.head.set(&parent_block, state).unwrap_infallible();
 
-        let cfg = self
-            .cfg
-            .get(state.get_ws_mut())
-            .unwrap_infallible()
-            .unwrap_or_default();
+        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number.wrapping_add(1)),
@@ -62,7 +56,7 @@ where
             blob_excess_gas_and_price: None,
         };
         self.block_env
-            .set(&new_pending_env, state.get_ws_mut())
+            .set(&new_pending_env, state)
             .unwrap_infallible();
     }
 

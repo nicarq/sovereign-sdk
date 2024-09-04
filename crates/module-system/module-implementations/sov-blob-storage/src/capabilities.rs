@@ -5,8 +5,8 @@ use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
-    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, KernelWorkingSet, RawTx, Spec,
-    StateCheckpoint,
+    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, InfallibleStateAccessor,
+    KernelWorkingSet, RawTx, Spec, VersionReader,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -39,6 +39,10 @@ enum ValidateBlobOutcome {
 }
 
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
+    fn set_next_visible_slot_number(&self, value: u64, state: &mut KernelWorkingSet<S>) {
+        self.chain_state.set_next_visible_slot_number(&value, state);
+    }
+
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
     pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
@@ -50,9 +54,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
     {
         tracing::trace!("On based sequencer path");
-        self.chain_state
-            .set_next_visible_slot_number(&(state.current_slot().saturating_add(1)), state)
-            .unwrap_infallible();
+
+        self.set_next_visible_slot_number(state.current_version().saturating_add(1), state);
+
         self.select_blobs_da_ordering(current_blobs, state)
     }
 
@@ -77,7 +81,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         .is_ok()
                     {
                         if let Some(proof) =
-                            self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state.inner)
+                            self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)
                         {
                             let data = BlobDataWithId {
                                 data: BlobData::Proof(proof),
@@ -104,7 +108,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                                 self.deserialize_or_try_slash_sender::<Batch>(
                                     blob,
                                     from_registered_sequencer,
-                                    state.inner,
+                                    state,
                                 )
                                 .map(BlobData::Batch)
                             } else {
@@ -112,7 +116,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                                 self.deserialize_or_try_slash_sender::<RawTx>(
                                     blob,
                                     from_registered_sequencer,
-                                    state.inner,
+                                    state,
                                 )
                                 .map(BlobData::EmergencyRegistration)
                             };
@@ -183,7 +187,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         preferred_blob: T,
         next_sequence_number: SequenceNumber,
         blob: &Da::BlobTransaction,
-        state: &mut StateCheckpoint<S>,
+        state: &mut impl InfallibleStateAccessor,
         needs_blob: bool,
     ) -> Option<T> {
         match (
@@ -233,35 +237,39 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         let mut batches_to_process = Vec::new();
 
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
-        let batches_needed_from_this_slot =
-            match state.current_slot().saturating_sub(state.virtual_slot()) {
-                // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
-                // In this case, we act like a normal "based" rollup
-                0 => return self.select_blobs_as_based_sequencer(current_blobs, state),
-                // If the virtual slot is only trailing by one, we process one stored slot (to catch up) and
-                // then process the new blobs from this slot
-                1 => {
-                    self.select_blobs_as_based_sequencer(current_blobs, state);
-                    1
-                }
-                // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
-                _ => {
-                    let new_batches = self.select_blobs_da_ordering(current_blobs, state);
-                    self.store_batches(state.current_slot(), &new_batches, state.inner);
-                    2
-                }
-            };
+        let batches_needed_from_this_slot = match state
+            .current_version()
+            .saturating_sub(state.virtual_slot_number())
+        {
+            // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
+            // In this case, we act like a normal "based" rollup
+            0 => return self.select_blobs_as_based_sequencer(current_blobs, state),
+            // If the virtual slot is only trailing by one, we process one stored slot (to catch up) and
+            // then process the new blobs from this slot
+            1 => {
+                self.select_blobs_as_based_sequencer(current_blobs, state);
+                1
+            }
+            // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
+            _ => {
+                let new_batches = self.select_blobs_da_ordering(current_blobs, state);
+                self.store_batches(state.current_version(), &new_batches, state);
+                2
+            }
+        };
 
-        for slot in 0..batches_needed_from_this_slot {
-            let slot_to_check = state.virtual_slot().saturating_add(slot);
-            let batches_from_next_slot =
-                self.take_blobs_for_slot_number(slot_to_check, state.inner);
+        for slot in 0..=batches_needed_from_this_slot {
+            let slot_to_check = state.virtual_slot_number().saturating_add(slot);
+            let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
-        self.chain_state
-            .set_next_visible_slot_number(&(state.virtual_slot().saturating_add(2)), state)
-            .unwrap_infallible();
+        self.set_next_visible_slot_number(
+            state
+                .virtual_slot_number()
+                .saturating_add(batches_needed_from_this_slot),
+            state,
+        );
 
         batches_to_process
     }
@@ -314,16 +322,14 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                     if &blob.sender() == preferred_sender {
                         if let Some(proof) = self
                             .deserialize_or_try_slash_sender::<PreferredProofData>(
-                                blob,
-                                true,
-                                state.inner,
+                                blob, true, state,
                             )
                             .and_then(|batch| {
                                 self.enforce_preferred_blob_ordering(
                                     batch,
                                     next_sequence_number,
                                     blob,
-                                    state.inner,
+                                    state,
                                     true,
                                 )
                             })
@@ -341,7 +347,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                         .is_ok()
                     {
                         if let Some(proof) =
-                            self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state.inner)
+                            self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)
                         {
                             let data = BlobDataWithId {
                                 data: BlobData::Proof(proof),
@@ -372,7 +378,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                                     .deserialize_or_try_slash_sender::<PreferredBatchData>(
                                         blob,
                                         from_registered_sequencer,
-                                        state.inner,
+                                        state,
                                     ) {
                                     batch
                                 } else {
@@ -383,7 +389,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                                     batch,
                                     next_sequence_number,
                                     blob,
-                                    state.inner,
+                                    state,
                                     next_preferred_batch.is_none(),
                                 );
                                 if let Some(next_batch) = maybe_next_batch {
@@ -397,14 +403,14 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                                     self.deserialize_or_try_slash_sender::<Batch>(
                                         blob,
                                         from_registered_sequencer,
-                                        state.inner,
+                                        state,
                                     )
                                     .map(BlobData::Batch)
                                 } else {
                                     self.deserialize_or_try_slash_sender::<RawTx>(
                                         blob,
                                         from_registered_sequencer,
-                                        state.inner,
+                                        state,
                                     )
                                     .map(BlobData::EmergencyRegistration)
                                 };
@@ -454,8 +460,8 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         // - If the preferred sequencer requested a number, advance up to that many (stopping early if the next virtual slot would be in the future)
         // - Otherwise, advance only if we would otherwise exceed the maximum deferred slots count
         let max_slots_to_advance = state
-            .current_slot()
-            .saturating_sub(state.virtual_slot())
+            .current_version()
+            .saturating_sub(state.virtual_slot_number())
             .saturating_add(1);
         self.next_sequence_number
             .set(&next_sequence_number, state)
@@ -484,7 +490,11 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             }
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
-            if state.virtual_slot().saturating_add(DEFERRED_SLOTS_COUNT) <= state.current_slot() {
+            if state
+                .virtual_slot_number()
+                .saturating_add(DEFERRED_SLOTS_COUNT)
+                <= state.current_version()
+            {
                 1
             } else {
                 0
@@ -492,15 +502,14 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         };
         tracing::debug!(
             num_slots_to_advance,
-            current_real_slot = state.current_slot(),
+            current_real_slot = state.current_version(),
             "Advancing virtual slot number"
         );
 
         // Load all the necessary batches from storage
-        for slot in 0..num_slots_to_advance {
-            let slot_to_check = state.virtual_slot().saturating_add(slot);
-            let batches_from_next_slot =
-                self.take_blobs_for_slot_number(slot_to_check, state.inner);
+        for slot in 0..=num_slots_to_advance {
+            let slot_to_check = state.virtual_slot_number().saturating_add(slot);
+            let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
             tracing::trace!(
                 "Found {} additional blobs in slot {} ",
                 batches_from_next_slot.len(),
@@ -510,15 +519,17 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         }
 
         // Check if we also need the blobs from the current slot. Add them to the set to be processed or store them as appropriate.
-        let next_virtual_height = state.virtual_slot().saturating_add(num_slots_to_advance);
-        if next_virtual_height > state.current_slot() {
+        let next_virtual_height = state
+            .virtual_slot_number()
+            .saturating_add(num_slots_to_advance);
+        if next_virtual_height >= state.current_version() {
             blobs_to_process.extend(new_forced_blobs);
         } else {
-            self.store_batches(state.current_slot(), &new_forced_blobs, state.inner);
+            self.store_batches(state.current_version(), &new_forced_blobs, state);
         }
-        self.chain_state
-            .set_next_visible_slot_number(&next_virtual_height, state)
-            .unwrap_infallible();
+
+        self.set_next_visible_slot_number(next_virtual_height, state);
+
         blobs_to_process
     }
 
@@ -529,7 +540,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         blob: &mut Da::BlobTransaction,
         registered_sender: bool,
-        state: &mut StateCheckpoint<S>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Option<B> {
         match B::try_from_slice(data_for_deserialization(blob)) {
             Ok(batch) => Some(batch),
@@ -587,7 +598,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
         }
 
         // If there's a preferred sequencer, sequence accordingly.
-        if let Some(preferred_sender) = self.get_preferred_sequencer(state.inner) {
+        if let Some(preferred_sender) = self.get_preferred_sequencer(state) {
             return Ok(self.select_blobs_for_preferred_sequencer(
                 current_blobs,
                 state,

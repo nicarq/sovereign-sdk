@@ -10,13 +10,17 @@ fn chain_state_kernel_genesis() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            kernel.current_slot(),
-            0,
+            ChainState::<S, MockDaSpec>::default()
+                .true_slot_number(kernel)
+                .unwrap(),
+            1,
             "The kernel should be initialized to zero"
         );
 
         assert_eq!(
-            kernel.virtual_slot(),
+            ChainState::<S, MockDaSpec>::default()
+                .get_next_visible_slot_number(kernel)
+                .unwrap(),
             0,
             "The kernel virtual slot should be initialized to zero"
         );

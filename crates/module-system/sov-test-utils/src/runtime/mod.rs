@@ -142,7 +142,7 @@ where
 
     /// Returns the current virtual slot number.
     pub fn virtual_slot(&self) -> u64 {
-        self.query_kernel_state(|kernel| kernel.virtual_slot())
+        self.query_kernel_state(|kernel| kernel.virtual_slot_number())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -214,8 +214,7 @@ where
 
         let state = &mut StateCheckpoint::new(stf_state, self.stf.kernel());
 
-        let mut kernel_ws = KernelWorkingSet::from_kernel(self.stf.kernel(), state);
-        query(&mut kernel_ws)
+        query(&mut state.into())
     }
 
     /// Builds a new test runner and runs genesis.

@@ -101,6 +101,12 @@ impl<'a, S: Spec> StateReader<User> for GenesisStateAccessor<'a, S> {
 impl<'a, S: Spec> StateWriter<User> for GenesisStateAccessor<'a, S> {
     inner_impl_unmetered_state_writer!(User);
 }
+impl<'a, S: Spec> StateReader<Kernel> for GenesisStateAccessor<'a, S> {
+    inner_impl_unmetered_state_reader!(Kernel);
+}
+impl<'a, S: Spec> StateWriter<Kernel> for GenesisStateAccessor<'a, S> {
+    inner_impl_unmetered_state_writer!(Kernel);
+}
 impl<'a, S: Spec> AccessoryStateWriter for GenesisStateAccessor<'a, S> {}
 
 impl<S: Spec> StateReader<User> for StateCheckpoint<S> {
@@ -190,26 +196,8 @@ pub mod kernel_state {
     };
 
     use crate::state::accessors::seal::CachedAccessor;
-    use crate::{
-        BootstrapWorkingSet, KernelWorkingSet, Spec, StateCheckpoint, StateReader, StateWriter,
-        VersionedStateReadWriter, WorkingSet,
-    };
-
-    impl<'a, S: Spec> StateReader<Kernel> for VersionedStateReadWriter<'a, StateCheckpoint<S>> {
-        inner_impl_unmetered_state_reader!(Kernel);
-    }
-
-    impl<'a, S: Spec> StateWriter<Kernel> for VersionedStateReadWriter<'a, StateCheckpoint<S>> {
-        inner_impl_unmetered_state_writer!(Kernel);
-    }
-
-    impl<'a, S: Spec> StateReader<Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
-        inner_impl_unmetered_state_reader!(Kernel);
-    }
-
-    impl<'a, S: Spec> StateWriter<Kernel> for VersionedStateReadWriter<'a, WorkingSet<S>> {
-        inner_impl_unmetered_state_writer!(Kernel);
-    }
+    use crate::state::accessors::BootstrapWorkingSet;
+    use crate::{KernelWorkingSet, Spec, StateReader, StateWriter};
 
     impl<'a, S: Storage> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);

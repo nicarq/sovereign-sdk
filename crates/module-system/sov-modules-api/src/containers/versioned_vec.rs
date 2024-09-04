@@ -10,7 +10,8 @@ use unwrap_infallible::UnwrapInfallible;
 use super::map::NamespacedStateMap;
 use super::VersionedStateValue;
 use crate::{
-    InfallibleStateReaderAndWriter, KernelWorkingSet, Spec, StateReader, StateWriter, VersionReader,
+    InfallibleStateReaderAndWriter, KernelWorkingSet, KernelWriter, Spec, StateReader,
+    VersionReader,
 };
 
 /// A growable array of values stored as JMT-backed state. This is the versioned version of [`crate::StateVec`].
@@ -89,7 +90,7 @@ where
     ///
     /// ## Warning
     /// This step *needs* to be done before any other operation on the state vector to ensure that the state vector is in a valid state.
-    pub fn initialize<S: Spec>(&self, state: &mut KernelWorkingSet<'_, S>) {
+    pub fn initialize(&self, state: &mut impl KernelWriter) {
         self.len_value.set_true_current(&0, state);
     }
 
@@ -98,7 +99,7 @@ where
         &self.prefix
     }
 
-    fn set_true_len<S: Spec>(&self, length: usize, state: &mut KernelWorkingSet<S>) {
+    fn set_true_len(&self, length: usize, state: &mut impl KernelWriter) {
         self.len_value.set_true_current(&length, state);
     }
 
@@ -159,18 +160,19 @@ where
     }
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
+    /// This only works with accessors following the `true_slot_number`.
     pub fn prev_len<S: Spec>(&self, state: &mut KernelWorkingSet<'_, S>) -> usize
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        self.len_value().get(&(state.current_version() - 1), state).expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
+        self.len_value().get(&(state.current_version() - 1), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
     }
 
     /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelWorkingSet`] inside the [`crate::runtime::capabilities::KernelSlotHooks`].
     ///
     /// ## Warning
     /// If used within the module system, this method may break soft-confirmations
-    pub fn push<Vq, S: Spec>(&self, value: &Vq, state: &mut KernelWorkingSet<S>)
+    pub fn push<Vq, S: Spec>(&self, value: &Vq, state: &mut KernelWorkingSet<'_, S>)
     where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
@@ -186,7 +188,7 @@ where
     pub fn last<VersionedState: VersionReader>(
         &self,
         state: &mut VersionedState,
-    ) -> Result<Option<V>, <VersionedState as StateWriter<Kernel>>::Error> {
+    ) -> Result<Option<V>, VersionedState::Error> {
         let len = self.len(state)?;
         let i = match len.checked_sub(1) {
             Some(i) => i,
@@ -203,10 +205,7 @@ where
     pub fn iter<'a, 'ws, W>(
         &'a self,
         state: &'ws mut W,
-    ) -> Result<
-        VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>,
-        <W as StateWriter<Kernel>>::Error,
-    >
+    ) -> Result<VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>, W::Error>
     where
         W: VersionReader,
     {
@@ -259,7 +258,7 @@ where
     Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
     W: VersionReader,
 {
-    type Item = Result<V, <W as StateWriter<Kernel>>::Error>;
+    type Item = Result<V, W::Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.state_vec.get(self.next_i, self.state) {
@@ -326,7 +325,7 @@ mod test {
 
     use super::*;
     use crate::capabilities::mocks::MockKernel;
-    use crate::{StateCheckpoint, VersionedStateReadWriter};
+    use crate::StateCheckpoint;
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -334,18 +333,20 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut kernel = MockKernel::default();
+        let kernel = MockKernel::<TestSpec, MockDaSpec>::default();
         let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = VersionedStateVec::<u32>::new(prefix);
 
         // We need to initialize the state vector before we can run any test case.
-        let init_state = &mut KernelWorkingSet::uninitialized(&mut state);
-        state_vec.initialize(init_state);
+        state_vec.initialize(&mut KernelWorkingSet::from(&mut state));
+
+        let mut kernel = KernelWorkingSet::from(&mut state);
+        kernel.update_true_slot_number(1);
 
         test_cases().into_iter().for_each(|test_case_action| {
-            check_test_case_action(&state_vec, test_case_action, &mut state, &mut kernel);
+            check_test_case_action(&state_vec, test_case_action, &mut state);
         });
     }
 
@@ -374,13 +375,13 @@ mod test {
             TestCaseAction::CheckContents(vec![]),
             TestCaseAction::Push(1),
             TestCaseAction::CheckHeights {
-                true_slot_num: 1,
+                true_slot_num: 2,
                 virtual_slot_num: 0,
             },
             TestCaseAction::CheckLen(0),
             TestCaseAction::Push(2),
             TestCaseAction::CheckHeights {
-                true_slot_num: 2,
+                true_slot_num: 3,
                 virtual_slot_num: 0,
             },
             TestCaseAction::CheckLen(0),
@@ -389,7 +390,7 @@ mod test {
             TestCaseAction::CheckGet(1, None),
             TestCaseAction::IncreaseVirtualHeight,
             TestCaseAction::CheckHeights {
-                true_slot_num: 2,
+                true_slot_num: 3,
                 virtual_slot_num: 1,
             },
             TestCaseAction::CheckContents(vec![1]),
@@ -399,7 +400,7 @@ mod test {
             TestCaseAction::CheckLen(2),
             TestCaseAction::Push(8),
             TestCaseAction::CheckHeights {
-                true_slot_num: 3,
+                true_slot_num: 4,
                 virtual_slot_num: 2,
             },
             TestCaseAction::CheckContents(vec![1, 2]),
@@ -416,7 +417,7 @@ mod test {
             TestCaseAction::Last(8),
             TestCaseAction::CheckGet(4, None),
             TestCaseAction::CheckHeights {
-                true_slot_num: 5,
+                true_slot_num: 6,
                 virtual_slot_num: 3,
             },
             TestCaseAction::CheckLen(3),
@@ -433,7 +434,6 @@ mod test {
         state_vec: &VersionedStateVec<T>,
         action: TestCaseAction<T>,
         state: &mut StateCheckpoint<S>,
-        kernel: &mut MockKernel<S, MockDaSpec>,
     ) where
         BorshCodec: StateItemCodec<T>,
         T: Eq + Debug,
@@ -442,51 +442,42 @@ mod test {
         // be able to simulate what happens in soft-confirmations context.
         match action {
             TestCaseAction::CheckContents(expected) => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                let state = &mut VersionedStateReadWriter::from_kernel_ws_virtual(state);
                 let contents: Vec<T> = state_vec.collect_infallible(state);
                 assert_eq!(contents, expected);
             }
             TestCaseAction::CheckLen(expected) => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                let state = &mut VersionedStateReadWriter::from_kernel_ws_virtual(state);
                 let actual = state_vec.len(state).unwrap_infallible();
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Push(value) => {
-                kernel.true_slot_number += 1;
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
+                let state = &mut KernelWorkingSet::from(state);
                 state_vec.push(&value, state);
+                state.update_true_slot_number(state.current_version() + 1);
             }
             TestCaseAction::CheckGet(index, expected) => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                let state = &mut VersionedStateReadWriter::from_kernel_ws_virtual(state);
                 let actual = state_vec.get(index, state).unwrap_infallible();
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Last(expected) => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                let state = &mut VersionedStateReadWriter::from_kernel_ws_virtual(state);
                 let actual = state_vec.last(state).unwrap_infallible();
                 assert_eq!(actual, Some(expected));
             }
             TestCaseAction::CheckContentsReverse(expected) => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                let state = &mut VersionedStateReadWriter::from_kernel_ws_virtual(state);
                 let mut contents = state_vec.collect_infallible::<Vec<T>, _>(state);
                 contents.reverse();
                 assert_eq!(contents, expected);
             }
             TestCaseAction::IncreaseVirtualHeight => {
-                kernel.visible_slot_number += 1;
+                let mut kernel = KernelWorkingSet::from(state);
+                kernel.update_virtual_slot_number(kernel.virtual_slot_number() + 1);
             }
             TestCaseAction::CheckHeights {
                 true_slot_num,
                 virtual_slot_num,
             } => {
-                let state = &mut KernelWorkingSet::from_kernel(kernel, state);
-                assert_eq!(state.current_slot(), true_slot_num);
-                assert_eq!(state.virtual_slot(), virtual_slot_num);
+                let state = &mut KernelWorkingSet::from(state);
+                assert_eq!(state.current_version(), true_slot_num);
+                assert_eq!(state.virtual_slot_number(), virtual_slot_num);
             }
         }
     }
