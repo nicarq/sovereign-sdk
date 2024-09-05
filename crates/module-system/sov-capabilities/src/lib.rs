@@ -40,7 +40,7 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
     fn allocate_consumed_gas(
         &self,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
         let reward_attester_incentives = self.attester_incentives.should_reward_fees(tx_scratchpad);
@@ -65,7 +65,7 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         &self,
         sender: &S::Address,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.bank
             .refund_remaining_gas(sender, tx_consumption, tx_scratchpad);
@@ -81,7 +81,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
         &self,
         sequencer: &<Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S>,
+        tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, Self::SequencerStakeMeter> {
         self.sequencer_registry
             .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
@@ -92,7 +92,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
         sequencer: &Da::Address,
         reason: impl std::fmt::Display,
         pre_exec_working_set: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> TxScratchpad<S> {
+    ) -> TxScratchpad<S::Storage> {
         self.sequencer_registry
             .penalize_sequencer(sequencer, reason, pre_exec_working_set)
     }
@@ -124,7 +124,7 @@ impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
         &self,
         auth_data: &Self::AuthorizationData,
         _sequencer: &Da::Address,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.nonces
             .mark_tx_attempted(&auth_data.credential_id, tx_scratchpad);
@@ -235,13 +235,17 @@ impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
         &self,
         sender: &S::Address,
         reward: SequencerReward,
-        state: &mut TxScratchpad<S>,
+        state: &mut TxScratchpad<S::Storage>,
     ) {
         self.sequencer_registry
             .reward_sequencer(sender, reward.into(), state);
     }
 
-    fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>) {
+    fn slash_sequencer(
+        &self,
+        sender: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S::Storage>,
+    ) {
         self.sequencer_registry
             .slash_sequencer(sender, state_checkpoint);
     }

@@ -1,6 +1,6 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel as _;
-use sov_modules_api::{StateCheckpoint, StateReader, StateWriter, WorkingSet};
+use sov_modules_api::{Spec, StateCheckpoint, StateReader, StateWriter, WorkingSet};
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::User;
 use sov_state::{Kernel, SlotKey, SlotValue};
@@ -36,7 +36,8 @@ fn test_kernel_workingset_get() {
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
     let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
 
-    let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
+    let mut working_set =
+        StateCheckpoint::<<TestSpec as Spec>::Storage>::new(storage.clone(), &kernel);
     let mut working_set = kernel.accessor(&mut working_set);
 
     StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone())

@@ -58,7 +58,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     fn begin_batch_hook(
         &self,
         _sender: &Da::Address,
-        _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
+        _state_checkpoint: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -68,7 +68,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     fn end_batch_hook(
         &self,
         _result: &Self::BatchResult,
-        _state_checkpoint: &mut StateCheckpoint<Self::Spec>,
+        _state_checkpoint: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
     }
 }
@@ -85,12 +85,12 @@ pub trait SlotHooks {
     fn begin_slot_hook(
         &self,
         _pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        _state: &mut StateCheckpoint<Self::Spec>,
+        _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
     }
 
     /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
-    fn end_slot_hook(&self, _state: &mut StateCheckpoint<Self::Spec>) {}
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
 }
 
 /// Trait that defines a hook that runs outside of the main slot processing loop.

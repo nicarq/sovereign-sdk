@@ -2,11 +2,11 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_state::{
-    BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec,
+    BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, Storage,
 };
 use unwrap_infallible::UnwrapInfallible;
 
-use crate::{KernelStateAccessor, KernelWriter, Spec, StateReader, StateWriter, VersionReader};
+use crate::{KernelStateAccessor, KernelWriter, StateReader, StateWriter, VersionReader};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
@@ -100,7 +100,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set<S: Spec>(&self, key: &u64, value: &V, state: &mut KernelStateAccessor<'_, S>)
+    pub fn set<S: Storage>(&self, key: &u64, value: &V, state: &mut KernelStateAccessor<'_, S>)
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,

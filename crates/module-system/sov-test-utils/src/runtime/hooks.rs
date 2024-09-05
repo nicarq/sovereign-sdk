@@ -12,11 +12,11 @@ macro_rules! impl_runtime_hook {
             fn begin_slot_hook(
                 &self,
                 _pre_state_root: S::VisibleHash,
-                _state: &mut ::sov_modules_api::StateCheckpoint<S>,
+                _state: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
             ) {
             }
 
-            fn end_slot_hook(&self, _state: &mut ::sov_modules_api::StateCheckpoint<S>) {}
+            fn end_slot_hook(&self, _state: &mut ::sov_modules_api::StateCheckpoint<S::Storage>) {}
         }
     };
     ($runtime:ty, FinalizeHook) => {
@@ -49,7 +49,7 @@ macro_rules! impl_runtime_hook {
             fn begin_batch_hook(
                 &self,
                 _sender: &Da::Address,
-                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S>,
+                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
             ) -> anyhow::Result<()> {
                 Ok(())
             }
@@ -57,7 +57,7 @@ macro_rules! impl_runtime_hook {
             fn end_batch_hook(
                 &self,
                 _result: &Self::BatchResult,
-                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S>,
+                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
             ) {
             }
         }

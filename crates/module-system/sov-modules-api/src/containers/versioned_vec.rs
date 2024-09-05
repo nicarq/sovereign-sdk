@@ -3,15 +3,14 @@ use std::marker::PhantomData;
 
 use sov_state::codec::BorshCodec;
 use sov_state::namespaces::{CompileTimeNamespace, Kernel};
-use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec};
+use sov_state::{EncodeLike, Prefix, StateCodec, StateItemCodec, Storage};
 use thiserror::Error;
 use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
 use super::VersionedStateValue;
 use crate::{
-    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, Spec, StateReader,
-    VersionReader,
+    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, StateReader, VersionReader,
 };
 
 /// A growable array of values stored as JMT-backed state. This is the versioned version of [`crate::StateVec`].
@@ -161,7 +160,7 @@ where
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
     /// This only works with accessors following the `true_slot_number`.
-    pub fn prev_len<S: Spec>(&self, state: &mut KernelStateAccessor<'_, S>) -> usize
+    pub fn prev_len<S: Storage>(&self, state: &mut KernelStateAccessor<'_, S>) -> usize
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
@@ -172,7 +171,7 @@ where
     ///
     /// ## Warning
     /// If used within the module system, this method may break soft-confirmations
-    pub fn push<Vq, S: Spec>(&self, value: &Vq, state: &mut KernelStateAccessor<'_, S>)
+    pub fn push<Vq, S: Storage>(&self, value: &Vq, state: &mut KernelStateAccessor<'_, S>)
     where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
@@ -325,7 +324,7 @@ mod test {
     use super::*;
     use crate::capabilities::mocks::MockKernel;
     use crate::capabilities::Kernel as _;
-    use crate::StateCheckpoint;
+    use crate::{Spec, StateCheckpoint};
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -334,7 +333,8 @@ mod test {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
         let kernel = MockKernel::<TestSpec>::default();
-        let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage, &kernel);
+        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
+            StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
         let state_vec = VersionedStateVec::<u32>::new(prefix);
@@ -434,7 +434,7 @@ mod test {
         state_vec: &VersionedStateVec<T>,
         action: TestCaseAction<T>,
         kernel: &mut MockKernel<S>,
-        state: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S::Storage>,
     ) where
         BorshCodec: StateItemCodec<T>,
         T: Eq + Debug,

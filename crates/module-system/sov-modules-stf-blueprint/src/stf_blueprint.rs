@@ -65,14 +65,14 @@ where
     pub(crate) fn process_batch(
         &self,
         batch: BatchWithId,
-        checkpoint: StateCheckpoint<S>,
+        checkpoint: StateCheckpoint<S::Storage>,
         blob_idx: usize,
         sequencer_da_address: Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         visible_height: u64,
         is_registered_sequencer: bool,
         execution_context: ExecutionContext,
-    ) -> (StateCheckpoint<S>, BatchReceipt<Da>, S::Gas) {
+    ) -> (StateCheckpoint<S::Storage>, BatchReceipt<Da>, S::Gas) {
         let (batch_receipt, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
             &self.runtime,
             checkpoint,
@@ -129,7 +129,7 @@ where
         sender: Da::Address,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
-        checkpoint: StateCheckpoint<S>,
+        checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         ProofReceipt<
             S::Address,
@@ -137,7 +137,7 @@ where
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
-        StateCheckpoint<S>,
+        StateCheckpoint<S::Storage>,
         S::Gas,
     ) {
         let (res, state) = process_proof(

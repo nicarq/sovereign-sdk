@@ -168,7 +168,7 @@ where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da> + RuntimeAuthenticator<S> + 'static,
-    K: Kernel<S> + KernelSlotHooks<S, Da> + 'static,
+    K: Kernel<S::Storage> + KernelSlotHooks<S, Da> + 'static,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     type Config = FairBatchBuilderConfig<Da>;
@@ -363,7 +363,7 @@ where
 }
 
 struct BatchConstructionContext<S: Spec> {
-    state_checkpoint: StateCheckpoint<S>,
+    state_checkpoint: StateCheckpoint<S::Storage>,
     visible_height: u64,
     reward: SequencerReward,
     gas_price: <S::Gas as Gas>::Price,

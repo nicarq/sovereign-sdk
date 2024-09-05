@@ -20,7 +20,7 @@ pub type TestHasher = <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 pub type StorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 
 pub fn commit_to_storage<S: Spec<Storage = ProverStorage<StorageSpec>>>(
-    state: StateCheckpoint<S>,
+    state: StateCheckpoint<S::Storage>,
     storage: ProverStorage<StorageSpec>,
     kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,

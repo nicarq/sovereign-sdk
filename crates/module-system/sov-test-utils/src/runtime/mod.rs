@@ -189,10 +189,10 @@ where
 
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
     /// Updates the state of the rollup by committing the changes of the given closure.
-    pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S>)) {
+    pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S::Storage>)) {
         let stf_state = self.storage_manager.create_storage();
 
-        let mut state = StateCheckpoint::<S>::new(stf_state.clone(), self.stf.kernel());
+        let mut state = StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
 
         query(&mut state);
 
@@ -208,7 +208,7 @@ where
     /// Allows to query the current kernel state.
     pub fn query_kernel_state<Output>(
         &self,
-        query: impl FnOnce(&mut KernelStateAccessor<S>) -> Output,
+        query: impl FnOnce(&mut KernelStateAccessor<S::Storage>) -> Output,
     ) -> Output {
         let stf_state = self.storage_manager.create_storage();
 

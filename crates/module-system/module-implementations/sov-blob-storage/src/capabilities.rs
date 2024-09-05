@@ -39,7 +39,11 @@ enum ValidateBlobOutcome {
 }
 
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
-    fn set_next_visible_slot_number(&self, value: u64, state: &mut KernelStateAccessor<S>) {
+    fn set_next_visible_slot_number(
+        &self,
+        value: u64,
+        state: &mut KernelStateAccessor<S::Storage>,
+    ) {
         self.chain_state.set_next_visible_slot_number(&value, state);
     }
 
@@ -48,7 +52,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, S>,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -63,7 +67,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_da_ordering<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, S>,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -149,7 +153,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         blob: &Da::BlobTransaction,
         unregistered_blobs_processed: u64,
-        state: &mut KernelStateAccessor<S>,
+        state: &mut KernelStateAccessor<S::Storage>,
     ) -> ValidateBlobOutcome {
         match self
             .sequencer_registry
@@ -228,7 +232,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_in_recovery_mode<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, S>,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -293,7 +297,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, S>,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
         preferred_sender: &Da::Address,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
@@ -586,7 +590,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, S>,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
     ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,

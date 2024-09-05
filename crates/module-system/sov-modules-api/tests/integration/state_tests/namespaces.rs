@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
-    KernelStateValue, StateCheckpoint, StateMap, StateValue, VersionedStateValue, WorkingSet,
+    KernelStateValue, Spec, StateCheckpoint, StateMap, StateValue, VersionedStateValue, WorkingSet,
 };
 use sov_state::{Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -19,10 +19,11 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
 
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
-    let mut kernel = MockKernel::default();
+    let mut kernel = MockKernel::<S>::default();
 
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &mut state)?;
     let _ = state_value.get(&mut state);
     state_value.set(&22, &mut state)?;
@@ -58,12 +59,13 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
 
-    let mut kernel = MockKernel::default();
+    let mut kernel = MockKernel::<S>::default();
 
     let state_value = KernelStateValue::new(Prefix::new(vec![0]));
 
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
 
     let mut kernel_working_set = kernel.accessor(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
@@ -103,10 +105,11 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
 
     let state_value = StateMap::new(Prefix::new(vec![0]));
 
-    let mut kernel = MockKernel::default();
+    let mut kernel = MockKernel::<S>::default();
 
     // Native execution
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &0, &mut state)?;
     let _ = state_value.get(&0, &mut state);
     state_value.set(&22, &0, &mut state)?;
@@ -144,7 +147,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
 
-    let mut kernel = MockKernel::default();
+    let mut kernel = MockKernel::<S>::default();
 
     // Native execution
     let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone(), &kernel);

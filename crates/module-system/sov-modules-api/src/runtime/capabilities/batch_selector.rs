@@ -23,7 +23,7 @@ pub trait BlobSelector<Da: DaSpec> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelStateAccessor<'k, Self::Spec>,
+        state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
     ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>;

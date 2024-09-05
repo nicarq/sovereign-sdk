@@ -151,7 +151,7 @@ impl<S: Spec> Bank<S> {
         base_fee_recipient: &impl Payable<S>,
 
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.transfer_from(
             self.id.to_payable(),
@@ -170,7 +170,7 @@ impl<S: Spec> Bank<S> {
         &self,
         payer: &S::Address,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
         // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).

@@ -2,7 +2,7 @@
 
 use sov_state::namespaces::User;
 use sov_state::{
-    CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
+    CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue, Storage,
 };
 
 use super::checkpoints::StateCheckpoint;
@@ -28,11 +28,11 @@ use crate::{Gas, GasMeter, GasMeteringError};
 /// ## Usage note
 /// This method tracks the gas consumed outside of the transaction lifecycle without explicitely consuming a finite resource.
 /// This should only be used in infailible methods.
-pub struct TxScratchpad<S: Spec> {
+pub struct TxScratchpad<S: Storage> {
     inner: RevertableWriter<StateCheckpoint<S>>,
 }
 
-impl<S: Spec> StateCheckpoint<S> {
+impl<S: Storage> StateCheckpoint<S> {
     /// Transforms this [`StateCheckpoint`] into a [`TxScratchpad`].
     pub fn to_tx_scratchpad(self) -> TxScratchpad<S> {
         TxScratchpad::<S> {
@@ -41,13 +41,15 @@ impl<S: Spec> StateCheckpoint<S> {
     }
 }
 
-impl<S: Spec, Meter: GasMeter<S::Gas>> From<PreExecWorkingSet<S, Meter>> for TxScratchpad<S> {
+impl<S: Spec, Meter: GasMeter<S::Gas>> From<PreExecWorkingSet<S, Meter>>
+    for TxScratchpad<S::Storage>
+{
     fn from(value: PreExecWorkingSet<S, Meter>) -> Self {
         value.inner
     }
 }
 
-impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
+impl<S: Storage> UniversalStateAccessor for TxScratchpad<S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         <RevertableWriter<StateCheckpoint<S>> as UniversalStateAccessor>::get(
             &mut self.inner,
@@ -74,7 +76,7 @@ impl<S: Spec> UniversalStateAccessor for TxScratchpad<S> {
     }
 }
 
-impl<S: Spec> TxScratchpad<S> {
+impl<S: Storage> TxScratchpad<S> {
     /// Commits the changes of this [`TxScratchpad`] and returns a [`StateCheckpoint`].
     pub fn commit(self) -> StateCheckpoint<S> {
         self.inner.commit()
@@ -86,10 +88,10 @@ impl<S: Spec> TxScratchpad<S> {
     }
 
     /// Converts this [`TxScratchpad`] into a [`PreExecWorkingSet`].
-    pub fn to_pre_exec_working_set<Meter: GasMeter<S::Gas>>(
+    pub fn to_pre_exec_working_set<Sp: Spec<Storage = S>, Meter: GasMeter<Sp::Gas>>(
         self,
         gas_meter: Meter,
-    ) -> PreExecWorkingSet<S, Meter> {
+    ) -> PreExecWorkingSet<Sp, Meter> {
         PreExecWorkingSet {
             inner: self,
             gas_meter,
@@ -98,10 +100,12 @@ impl<S: Spec> TxScratchpad<S> {
 }
 
 #[cfg(feature = "test-utils")]
-impl<S: Spec> TxScratchpad<S> {
+impl<Store: Storage> TxScratchpad<Store> {
     /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that don't need to track gas consumption.
-    pub fn pre_exec_ws_unmetered(self) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
+    pub fn pre_exec_ws_unmetered<S: Spec<Storage = Store>>(
+        self,
+    ) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
         PreExecWorkingSet {
             inner: self,
             gas_meter: UnlimitedGasMeter::new(),
@@ -110,7 +114,7 @@ impl<S: Spec> TxScratchpad<S> {
 
     /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`] for a given price.
     /// This is useful for tests that don't need to test failure over gas exhaustion.
-    pub fn pre_exec_ws_unmetered_with_price(
+    pub fn pre_exec_ws_unmetered_with_price<S: Spec<Storage = Store>>(
         self,
         gas_price: &<S::Gas as Gas>::Price,
     ) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
@@ -123,7 +127,7 @@ impl<S: Spec> TxScratchpad<S> {
 
 /// A working set that can be used to charge gas for pre transaction execution checks.
 pub struct PreExecWorkingSet<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
-    inner: TxScratchpad<S>,
+    inner: TxScratchpad<S::Storage>,
     gas_meter: PreExecChecksMeter,
 }
 
@@ -187,23 +191,23 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S,
 
 impl<S: Spec, Meter: GasMeter<S::Gas>> CachedAccessor<User> for PreExecWorkingSet<S, Meter> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <TxScratchpad<S> as CachedAccessor<User>>::get_cached(&mut self.inner, key)
+        <TxScratchpad<S::Storage> as CachedAccessor<User>>::get_cached(&mut self.inner, key)
     }
 
     fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <TxScratchpad<S> as CachedAccessor<User>>::set_cached(&mut self.inner, key, value)
+        <TxScratchpad<S::Storage> as CachedAccessor<User>>::set_cached(&mut self.inner, key, value)
     }
 
     fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <TxScratchpad<S> as CachedAccessor<User>>::delete_cached(&mut self.inner, key)
+        <TxScratchpad<S::Storage> as CachedAccessor<User>>::delete_cached(&mut self.inner, key)
     }
 }
 
 #[cfg(feature = "test-utils")]
-impl<S: Spec> StateCheckpoint<S> {
+impl<Store: Storage> StateCheckpoint<Store> {
     /// Produces an unmetered [`WorkingSet`] from this [`StateCheckpoint`].
     /// This is useful for tests that don't need to track gas consumption.
-    pub fn to_working_set_unmetered(self) -> WorkingSet<S> {
+    pub fn to_working_set_unmetered<S: Spec<Storage = Store>>(self) -> WorkingSet<S> {
         let stashed_working_set = TxScratchpad {
             inner: RevertableWriter::new(self),
         };
@@ -224,7 +228,7 @@ impl<S: Spec> StateCheckpoint<S> {
 /// [`TxScratchpad`].
 /// 2. By using the [`WorkingSet::revert`] method, where the most recent changes are reverted and the previous [`TxScratchpad`] is returned.
 pub struct WorkingSet<S: Spec> {
-    pub(super) delta: RevertableWriter<TxScratchpad<S>>,
+    pub(super) delta: RevertableWriter<TxScratchpad<S::Storage>>,
     events: Vec<TypedEvent>,
     gas_meter: TxGasMeter<S::Gas>,
 
@@ -253,7 +257,7 @@ impl<S: Spec> WorkingSet<S> {
     pub fn finalize(
         self,
     ) -> (
-        TxScratchpad<S>,
+        TxScratchpad<S::Storage>,
         TransactionConsumption<S::Gas>,
         Vec<TypedEvent>,
     ) {
@@ -263,7 +267,7 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Reverts the most recent changes to this [`WorkingSet`], returning a pristine
     /// [`TxScratchpad`] instance.
-    pub fn revert(self) -> (TxScratchpad<S>, TransactionConsumption<S::Gas>) {
+    pub fn revert(self) -> (TxScratchpad<S::Storage>, TransactionConsumption<S::Gas>) {
         let tx_consumption = self.transaction_consumption();
         (self.delta.revert(), tx_consumption)
     }
@@ -308,7 +312,7 @@ impl<S: Spec> WorkingSet<S> {
     ) -> Self {
         use crate::capabilities::mocks::MockKernel;
 
-        let state_checkpoint: StateCheckpoint<S> =
+        let state_checkpoint: StateCheckpoint<S::Storage> =
             StateCheckpoint::new(inner, &MockKernel::<S>::default());
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
@@ -335,8 +339,8 @@ impl<S: Spec> WorkingSet<S> {
     /// - the testing framework,
     /// - or [`crate::ApiStateAccessor::new`]
     /// - or [`StateCheckpoint::new`]
-    pub fn new_deprecated<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
-        let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner, kernel);
+    pub fn new_deprecated<K: Kernel<S::Storage>>(inner: S::Storage, kernel: &K) -> Self {
+        let state_checkpoint: StateCheckpoint<S::Storage> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
         };
@@ -360,7 +364,7 @@ impl<S: Spec> WorkingSet<S> {
     pub fn checkpoint(
         self,
     ) -> (
-        StateCheckpoint<S>,
+        StateCheckpoint<S::Storage>,
         TransactionConsumption<S::Gas>,
         Vec<TypedEvent>,
     ) {

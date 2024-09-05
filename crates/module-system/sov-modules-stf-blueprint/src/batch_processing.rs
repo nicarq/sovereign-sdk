@@ -37,14 +37,14 @@ const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, Da, RT, K>(
     runtime: &RT,
-    mut checkpoint: StateCheckpoint<S>,
+    mut checkpoint: StateCheckpoint<S::Storage>,
     batch_with_id: BatchWithId,
     sequencer_da_address: Da::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     is_registered_sequencer: bool,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<Da>, StateCheckpoint<S>, S::Gas)
+) -> (BatchReceipt<Da>, StateCheckpoint<S::Storage>, S::Gas)
 where
     S: Spec,
     Da: DaSpec,
@@ -248,7 +248,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     sequencer_da_address: &D::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
-    scratchpad: TxScratchpad<S>,
+    scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     // Checks the sequencer balance before the transaction is executed.
@@ -420,7 +420,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     sequencer_da_address: &D::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
-    tx_scratchpad: TxScratchpad<S>,
+    tx_scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
 ) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
     let mut pre_exec_working_set =
