@@ -181,7 +181,7 @@ pub(crate) fn create_test_case(
             );
 
             assert_eq!(
-                get_user_balance(&attester_address, state),
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
                 initial_balance - result.gas_value_used
                     + TestAttesterIncentives::default()
                         .burn_rate()
@@ -251,15 +251,5 @@ pub(crate) fn make_challenge_blob(
 
     SovApiProofSerializer::<S>::new()
         .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
-        .unwrap()
-}
-
-pub(crate) fn get_user_balance(
-    address: &<S as Spec>::Address,
-    state: &mut ApiStateAccessor<S>,
-) -> u64 {
-    Bank::<S>::default()
-        .get_balance_of(address, GAS_TOKEN_ID, state)
-        .unwrap()
         .unwrap()
 }

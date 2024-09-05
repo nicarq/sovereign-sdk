@@ -4,6 +4,7 @@ use sov_modules_api::{InvalidProofError, ProofOutcome, SovAttestation};
 use sov_state::jmt::RootHash;
 use sov_state::StorageRoot;
 use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallMessage, Event};
+use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, AsUser, AtomicNumber, ProofInput, ProofTestCase, TestAttester,
     TransactionTestCase, TEST_DEFAULT_USER_STAKE,
@@ -11,8 +12,8 @@ use sov_test_utils::{
 
 use super::helpers::{setup, TestRuntimeEvent, S};
 use crate::helpers::{
-    build_proof, consume_gas_tx_for_signer, create_test_case, get_user_balance,
-    make_attestation_blob, TestAttesterIncentives,
+    build_proof, consume_gas_tx_for_signer, create_test_case, make_attestation_blob,
+    TestAttesterIncentives, RT,
 };
 
 #[test]
@@ -41,8 +42,9 @@ fn test_process_valid_attestation() {
 
     // Submit the attestations
     for (i, reward) in rewards.into_iter().enumerate() {
-        let initial_balance =
-            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let initial_balance = runner
+            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .unwrap();
 
         let attestation_proof = runner
             .query_state(|state| build_proof(state, (i + 1) as u64, &attester_address))
@@ -92,8 +94,9 @@ fn test_burn_on_invalid_attestation() {
 
     // Test that the attester is not slashed when the bond is invalid.
     {
-        let initial_balance =
-            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let initial_balance = runner
+            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .unwrap();
 
         let mut attestation_proof = runner
             .query_state(|state| build_proof(state, 1, &attester_address))
@@ -109,8 +112,9 @@ fn test_burn_on_invalid_attestation() {
 
     // Test valid attestation.
     {
-        let initial_balance =
-            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let initial_balance = runner
+            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .unwrap();
         let valid_attestation = {
             let attestation_proof_2 = runner
                 .query_state(|state| build_proof(state, 1, &attester_address))
@@ -128,8 +132,9 @@ fn test_burn_on_invalid_attestation() {
 
     // Test that the attester is slashed when the initial state is invalid.
     {
-        let initial_balance =
-            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let initial_balance = runner
+            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .unwrap();
 
         let mut attestation_proof = runner
             .query_state(|state| build_proof(state, 1, &attester_address))
@@ -172,8 +177,9 @@ fn test_burn_on_invalid_attestation() {
 
     // Test that the attester is slashed when the post state is invalid.
     {
-        let initial_balance =
-            runner.query_state(|state| get_user_balance(&attester_address, state));
+        let initial_balance = runner
+            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .unwrap();
 
         let mut attestation_proof = runner
             .query_state(|state| build_proof(state, 2, &attester_address))
@@ -222,7 +228,7 @@ fn invalid_bond_proof_no_slash(
 
             // Attester is not rewarded
             assert_eq!(
-                get_user_balance(&attester_address, state),
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
                 initial_balance - result.gas_value_used
             );
         }),
@@ -263,7 +269,7 @@ fn invalid_initial_state_slashed(
 
             // Attester is not rewarded
             assert_eq!(
-                get_user_balance(&attester_address, state),
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
                 initial_balance - result.gas_value_used
             );
         }),
@@ -304,7 +310,7 @@ fn invalid_post_state_root_is_challengeable(
 
             // Attester is not rewarded
             assert_eq!(
-                get_user_balance(&attester_address, state),
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state).unwrap(),
                 initial_balance - result.gas_value_used
             );
         }),
