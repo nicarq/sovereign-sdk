@@ -267,7 +267,7 @@ where
 
         let gas_price = self.kernel.base_fee_per_gas(&mut state_checkpoint);
 
-        let visible_height = state_checkpoint.current_version();
+        let visible_height = state_checkpoint.rollup_height_to_access();
 
         let mut ctx = BatchConstructionContext {
             visible_height,

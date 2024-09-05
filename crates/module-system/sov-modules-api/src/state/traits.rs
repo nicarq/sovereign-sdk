@@ -529,7 +529,7 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
 /// A trait indicating that this state accessor is version aware
 pub trait VersionReader: StateReader<namespaces::Kernel> {
     /// Returns the current version of the state accessor
-    fn current_version(&self) -> u64;
+    fn rollup_height_to_access(&self) -> u64;
 }
 
 /// A trait indicating that this state accessor can write to the kernel at the true slot height

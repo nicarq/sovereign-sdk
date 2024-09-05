@@ -17,7 +17,7 @@ use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Gas,
-    GasArray, Genesis, InfallibleStateAccessor, KernelWorkingSet, Module, RawTx,
+    GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, RawTx,
     RuntimeEventProcessor, Spec, StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
@@ -208,7 +208,7 @@ where
     /// Allows to query the current kernel state.
     pub fn query_kernel_state<Output>(
         &self,
-        query: impl FnOnce(&mut KernelWorkingSet<S>) -> Output,
+        query: impl FnOnce(&mut KernelStateAccessor<S>) -> Output,
     ) -> Output {
         let stf_state = self.storage_manager.create_storage();
 

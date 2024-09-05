@@ -2,7 +2,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
 use super::BlobSelector;
-use crate::{BootstrapWorkingSet, Gas, KernelWorkingSet, Spec, StateCheckpoint};
+use crate::{BootstrapWorkingSet, Gas, KernelStateAccessor, Spec, StateCheckpoint};
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
@@ -20,7 +20,7 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sy
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        state: &mut KernelWorkingSet<'_, S>,
+        state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()>;
 
     /// Return the current slot number
@@ -37,10 +37,10 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut KernelWorkingSet<'_, Self::Spec>,
+        state: &mut KernelStateAccessor<'_, Self::Spec>,
     );
     /// Called at the end of a slot
-    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelWorkingSet<'_, Self::Spec>);
+    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<'_, Self::Spec>);
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
     fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S>) -> <S::Gas as Gas>::Price;

@@ -125,7 +125,7 @@ pub mod mocks {
     use sov_rollup_interface::da::DaSpec;
 
     use super::{BlobOrigin, BlobSelector, Kernel, Spec};
-    use crate::{BootstrapWorkingSet, KernelWorkingSet};
+    use crate::{BootstrapWorkingSet, KernelStateAccessor};
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -170,7 +170,7 @@ pub mod mocks {
         fn genesis(
             &self,
             _config: &Self::GenesisConfig,
-            _state: &mut KernelWorkingSet<'_, S>,
+            _state: &mut KernelStateAccessor<'_, S>,
         ) -> anyhow::Result<()> {
             Ok(())
         }
@@ -184,7 +184,7 @@ pub mod mocks {
         fn get_blobs_for_this_slot<'a, 'k, I>(
             &self,
             _current_blobs: I,
-            _state: &mut crate::KernelWorkingSet<'k, Self::Spec>,
+            _state: &mut crate::KernelStateAccessor<'k, Self::Spec>,
         ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
         where
             I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,

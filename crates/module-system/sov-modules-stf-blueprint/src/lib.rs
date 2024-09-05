@@ -19,7 +19,7 @@ use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
-    KernelWorkingSet, RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
+    KernelStateAccessor, RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -280,7 +280,7 @@ where
         self.kernel
             .genesis(
                 &params.kernel,
-                &mut KernelWorkingSet::from(&mut state_checkpoint),
+                &mut KernelStateAccessor::from(&mut state_checkpoint),
             )
             .expect("Kernel initialization must succeed");
 
@@ -331,7 +331,7 @@ where
             slot_header,
             validity_condition,
             pre_state_root,
-            &mut KernelWorkingSet::from(&mut state),
+            &mut KernelStateAccessor::from(&mut state),
         );
 
         let all_blobs = relevant_blobs
@@ -347,16 +347,16 @@ where
 
         let selected_blobs = self
             .kernel
-            .get_blobs_for_this_slot(all_blobs, &mut KernelWorkingSet::from(&mut state))
+            .get_blobs_for_this_slot(all_blobs, &mut KernelStateAccessor::from(&mut state))
             .expect("blob selection must succeed, probably serialization failed");
 
         self.begin_slot(&mut state, slot_header, validity_condition, pre_state_root);
 
-        // Note: The gas price should be computed after all the capabilities involving the [`KernelWorkingSet`] to have the
+        // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the virtual slot number.
         let gas_price = self.kernel.base_fee_per_gas(&mut state);
 
-        let visible_height = state.current_version();
+        let visible_height = state.rollup_height_to_access();
 
         info!(
             blob_count = selected_blobs.len(),

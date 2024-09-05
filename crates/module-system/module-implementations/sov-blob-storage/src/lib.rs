@@ -8,7 +8,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     Batch, BlobDataWithId, InfallibleStateAccessor, KernelModule, KernelModuleInfo,
-    KernelStateValue, KernelWorkingSet, ModuleId, StateMap,
+    KernelStateAccessor, KernelStateValue, ModuleId, StateMap,
 };
 use sov_state::codec::BcsCodec;
 
@@ -97,7 +97,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> KernelModule for Blo
     fn genesis_unchecked(
         &self,
         _config: &Self::Config,
-        _state: &mut KernelWorkingSet<'_, Self::Spec>,
+        _state: &mut KernelStateAccessor<'_, Self::Spec>,
     ) -> Result<(), sov_modules_api::Error> {
         Ok(())
     }

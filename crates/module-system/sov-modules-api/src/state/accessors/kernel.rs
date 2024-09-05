@@ -30,31 +30,31 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 /// A special wrapper over [`StateCheckpoint`] that allows access to kernel values inside the [`crate::runtime::capabilities::KernelSlotHooks`]
 ///
 /// ## Note
-/// This struct implements [`VersionReader`], and the value returned by [`VersionReader::current_version`] is the true slot number.
-pub struct KernelWorkingSet<'a, S: Spec>(
+/// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true slot number.
+pub struct KernelStateAccessor<'a, S: Spec>(
     /// The inner working set
     pub &'a mut StateCheckpoint<S>,
 );
 
-impl<'a, S: Spec> VersionReader for KernelWorkingSet<'a, S> {
-    fn current_version(&self) -> u64 {
+impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
+    fn rollup_height_to_access(&self) -> u64 {
         self.0.true_slot_num
     }
 }
 
-impl<'a, S: Spec> KernelWriter for KernelWorkingSet<'a, S> {
+impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
     fn true_slot_number(&self) -> u64 {
         self.0.true_slot_num
     }
 }
 
-impl<'a, S: Spec> From<&'a mut StateCheckpoint<S>> for KernelWorkingSet<'a, S> {
+impl<'a, S: Spec> From<&'a mut StateCheckpoint<S>> for KernelStateAccessor<'a, S> {
     fn from(value: &'a mut StateCheckpoint<S>) -> Self {
         Self(value)
     }
 }
 
-impl<'a, S: Spec> KernelWorkingSet<'a, S> {
+impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Returns the virtual slot number contained in the accessor
     pub fn virtual_slot_number(&self) -> u64 {
         self.0.virtual_slot_num
@@ -71,7 +71,7 @@ impl<'a, S: Spec> KernelWorkingSet<'a, S> {
     }
 }
 
-impl<S: Spec> UniversalStateAccessor for KernelWorkingSet<'_, S> {
+impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         UniversalStateAccessor::get(self.0, namespace, key)
     }

@@ -1,6 +1,6 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{KernelWorkingSet, Spec};
+use sov_modules_api::{KernelStateAccessor, KernelWriter, Spec};
 use sov_state::Storage;
 
 use crate::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
@@ -12,7 +12,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-        state: &mut KernelWorkingSet<S>,
+        state: &mut KernelStateAccessor<S>,
     ) {
         let gas_info = if self.genesis_root.get(state).unwrap_infallible().is_none() {
             // The genesis hash is not set, hence this is the
@@ -71,10 +71,10 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelWorkingSet<S>) {
+    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
         let mut in_progress_transition = self
             .in_progress_transition
-            .get_current(state)
+            .get(&(state.true_slot_number()), state)
             .unwrap_infallible()
             .expect("There should always be a transition in progress");
 

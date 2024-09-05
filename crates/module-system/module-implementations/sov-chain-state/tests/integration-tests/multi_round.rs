@@ -2,7 +2,7 @@ use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Gas, GasArray, KernelWorkingSet, Spec, VersionReader};
+use sov_modules_api::{Gas, GasArray, KernelStateAccessor, Spec, VersionReader};
 use sov_test_utils::runtime::TestApplySlotOutput;
 use sov_test_utils::{AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
@@ -35,7 +35,7 @@ fn check_chain_state_update(
         // Round number
         u64,
         // Kernel working set
-        &mut KernelWorkingSet<S>,
+        &mut KernelStateAccessor<S>,
         // The immediate result of the apply slot function
         TestApplySlotOutput<TestChainStateRuntime<S, MockDaSpec>, S>,
     ),
@@ -145,7 +145,7 @@ fn test_chain_state_kernel_updates() {
         NUM_TXS_PER_ROUND,
         &mut |round, kernel, _result| {
             assert_eq!(
-                kernel.current_version(),
+                kernel.rollup_height_to_access(),
                 round + 2,
                 "The kernel should be updated to the current round"
             );

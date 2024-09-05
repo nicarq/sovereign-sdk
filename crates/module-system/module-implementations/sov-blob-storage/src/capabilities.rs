@@ -6,7 +6,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
     Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, InfallibleStateAccessor,
-    KernelWorkingSet, RawTx, Spec, VersionReader,
+    KernelStateAccessor, RawTx, Spec, VersionReader,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -39,7 +39,7 @@ enum ValidateBlobOutcome {
 }
 
 impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
-    fn set_next_visible_slot_number(&self, value: u64, state: &mut KernelWorkingSet<S>) {
+    fn set_next_visible_slot_number(&self, value: u64, state: &mut KernelStateAccessor<S>) {
         self.chain_state.set_next_visible_slot_number(&value, state);
     }
 
@@ -48,14 +48,14 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
+        state: &mut KernelStateAccessor<'k, S>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
     {
         tracing::trace!("On based sequencer path");
 
-        self.set_next_visible_slot_number(state.current_version().saturating_add(1), state);
+        self.set_next_visible_slot_number(state.rollup_height_to_access().saturating_add(1), state);
 
         self.select_blobs_da_ordering(current_blobs, state)
     }
@@ -63,7 +63,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_da_ordering<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
+        state: &mut KernelStateAccessor<'k, S>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -149,7 +149,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         blob: &Da::BlobTransaction,
         unregistered_blobs_processed: u64,
-        state: &mut KernelWorkingSet<S>,
+        state: &mut KernelStateAccessor<S>,
     ) -> ValidateBlobOutcome {
         match self
             .sequencer_registry
@@ -228,7 +228,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_in_recovery_mode<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
+        state: &mut KernelStateAccessor<'k, S>,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -238,7 +238,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
 
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
         let batches_needed_from_this_slot = match state
-            .current_version()
+            .rollup_height_to_access()
             .saturating_sub(state.virtual_slot_number())
         {
             // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
@@ -253,7 +253,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
             _ => {
                 let new_batches = self.select_blobs_da_ordering(current_blobs, state);
-                self.store_batches(state.current_version(), &new_batches, state);
+                self.store_batches(state.rollup_height_to_access(), &new_batches, state);
                 2
             }
         };
@@ -293,7 +293,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
+        state: &mut KernelStateAccessor<'k, S>,
         preferred_sender: &Da::Address,
     ) -> Vec<(BlobDataWithId, Da::Address)>
     where
@@ -460,7 +460,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         // - If the preferred sequencer requested a number, advance up to that many (stopping early if the next virtual slot would be in the future)
         // - Otherwise, advance only if we would otherwise exceed the maximum deferred slots count
         let max_slots_to_advance = state
-            .current_version()
+            .rollup_height_to_access()
             .saturating_sub(state.virtual_slot_number())
             .saturating_add(1);
         self.next_sequence_number
@@ -493,7 +493,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             if state
                 .virtual_slot_number()
                 .saturating_add(DEFERRED_SLOTS_COUNT)
-                <= state.current_version()
+                <= state.rollup_height_to_access()
             {
                 1
             } else {
@@ -502,7 +502,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         };
         tracing::debug!(
             num_slots_to_advance,
-            current_real_slot = state.current_version(),
+            current_real_slot = state.rollup_height_to_access(),
             "Advancing virtual slot number"
         );
 
@@ -522,10 +522,10 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         let next_virtual_height = state
             .virtual_slot_number()
             .saturating_add(num_slots_to_advance);
-        if next_virtual_height >= state.current_version() {
+        if next_virtual_height >= state.rollup_height_to_access() {
             blobs_to_process.extend(new_forced_blobs);
         } else {
-            self.store_batches(state.current_version(), &new_forced_blobs, state);
+            self.store_batches(state.rollup_height_to_access(), &new_forced_blobs, state);
         }
 
         self.set_next_visible_slot_number(next_virtual_height, state);
@@ -586,7 +586,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, S>,
+        state: &mut KernelStateAccessor<'k, S>,
     ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,

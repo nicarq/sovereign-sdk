@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, KernelWorkingSet, Spec, VersionReader};
+use sov_modules_api::{DaSpec, KernelStateAccessor, Spec, VersionReader};
 
 use crate::ChainState;
 
@@ -10,7 +10,7 @@ where
 {
     /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_slot_number(&self, state: &mut KernelWorkingSet<S>) {
+    pub(crate) fn increment_true_slot_number(&self, state: &mut KernelStateAccessor<S>) {
         let current_height = self
             .next_true_slot_number
             .get(state)
@@ -33,7 +33,7 @@ where
     ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, Reader::Error> {
         if let Some(in_progress_transition) = self
             .in_progress_transition
-            .get(&(state.current_version()), state)?
+            .get(&(state.rollup_height_to_access()), state)?
         {
             Ok(in_progress_transition.gas_info.base_fee_per_gas)
         } else {
