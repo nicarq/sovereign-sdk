@@ -304,7 +304,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         &self,
         sequencer: &S::Address,
         amount: u64,
-        state: &mut TxScratchpad<S>,
+        state: &mut TxScratchpad<S::Storage>,
     ) {
         self.bank
             .transfer_from(

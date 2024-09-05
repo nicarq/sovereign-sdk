@@ -13,7 +13,7 @@ pub struct AuthorizeSequencerError<S: Spec> {
     /// The reason why the sequencer was not authorized.
     pub reason: anyhow::Error,
     /// A [`TxScratchpad`] that contains all the changes made during the transaction processing
-    pub tx_scratchpad: TxScratchpad<S>,
+    pub tx_scratchpad: TxScratchpad<S::Storage>,
 }
 
 impl<S: Spec> Debug for AuthorizeSequencerError<S> {
@@ -57,7 +57,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
         &self,
         sequencer: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S>,
+        tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, Self::SequencerStakeMeter>;
 
     /// Penalizes the sequencer without slashing his account.
@@ -72,7 +72,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
         sequencer: &Da::Address,
         reason: impl std::fmt::Display,
         pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> TxScratchpad<S>;
+    ) -> TxScratchpad<S::Storage>;
 }
 
 /// Functionality related to the rewarding and slashing of the sequencer.
@@ -82,9 +82,13 @@ pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
         &self,
         sender: &S::Address,
         reward: SequencerReward,
-        state: &mut TxScratchpad<S>,
+        state: &mut TxScratchpad<S::Storage>,
     );
 
     /// Slash the sequencer for malicious behavior.
-    fn slash_sequencer(&self, sender: &Da::Address, state_checkpoint: &mut StateCheckpoint<S>);
+    fn slash_sequencer(
+        &self,
+        sender: &Da::Address,
+        state_checkpoint: &mut StateCheckpoint<S::Storage>,
+    );
 }

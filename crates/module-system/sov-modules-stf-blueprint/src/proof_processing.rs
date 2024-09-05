@@ -30,8 +30,8 @@ pub(crate) fn process_proof<S, Da, RT>(
     sequencer_da_address: Da::Address,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
-    state: StateCheckpoint<S>,
-) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S>)
+    state: StateCheckpoint<S::Storage>,
+) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>)
 where
     S: Spec,
     Da: DaSpec,
@@ -172,7 +172,7 @@ enum WorkflowResult<Arg, S: Spec, Da: DaSpec> {
     // Proceed with the proof processing.
     Proceed(Arg),
     // Early return from the proof processing.
-    EarlyReturn(ProcessProofOutput<S, Da>, StateCheckpoint<S>),
+    EarlyReturn(ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>),
 }
 
 struct ProofProcessingWorkflow<'a, S: Spec, Da: DaSpec, RT: Runtime<S, Da>> {
@@ -200,7 +200,7 @@ where
     fn authorize_sequencer(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S>,
+        tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> PreExecWorkingSetResult<S, Da, RT> {
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
@@ -270,8 +270,8 @@ where
     fn slash_for_bad_serialization(
         &self,
         blob_hash: [u8; 32],
-        mut state: StateCheckpoint<S>,
-    ) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S>) {
+        mut state: StateCheckpoint<S::Storage>,
+    ) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>) {
         self.runtime
             .sequencer_remuneration()
             .slash_sequencer(self.sequencer_da_address, &mut state);
@@ -297,7 +297,7 @@ where
             S,
             <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
         >,
-    ) -> TxScratchpad<S> {
+    ) -> TxScratchpad<S::Storage> {
         self.runtime.sequencer_authorization().penalize_sequencer(
             self.sequencer_da_address,
             reason,

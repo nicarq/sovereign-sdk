@@ -337,7 +337,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// ## TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385>`)
     /// This method is meant to be temporary used in tests until the issue linked above is resolved.
     #[cfg(feature = "test-utils")]
-    pub fn get_time_prev_slot(&self, state: &mut KernelStateAccessor<S>) -> Time {
+    pub fn get_time_prev_slot(&self, state: &mut KernelStateAccessor<S::Storage>) -> Time {
         self.time
             .get(&(state.rollup_height_to_access() - 1), state)
             .unwrap_infallible()
@@ -395,7 +395,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns the transition in progress of the module of the previous slot.
     pub fn get_in_progress_transition_prev_slot(
         &self,
-        state: &mut KernelStateAccessor<S>,
+        state: &mut KernelStateAccessor<S::Storage>,
     ) -> Option<TransitionInProgress<S, Da>> {
         self.in_progress_transition
             .get(&(state.rollup_height_to_access() - 1), state)
@@ -431,7 +431,7 @@ impl<S: Spec, Da: DaSpec> KernelModule for ChainState<S, Da> {
     fn genesis_unchecked(
         &self,
         config: &Self::Config,
-        state: &mut KernelStateAccessor<S>,
+        state: &mut KernelStateAccessor<S::Storage>,
     ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, state)?)

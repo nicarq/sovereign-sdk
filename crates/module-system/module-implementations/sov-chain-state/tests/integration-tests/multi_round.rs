@@ -35,7 +35,7 @@ fn check_chain_state_update(
         // Round number
         u64,
         // Kernel working set
-        &mut KernelStateAccessor<S>,
+        &mut KernelStateAccessor<<S as Spec>::Storage>,
         // The immediate result of the apply slot function
         TestApplySlotOutput<TestChainStateRuntime<S, MockDaSpec>, S>,
     ),

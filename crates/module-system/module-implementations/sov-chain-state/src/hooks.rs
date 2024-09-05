@@ -12,7 +12,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
-        state: &mut KernelStateAccessor<S>,
+        state: &mut KernelStateAccessor<S::Storage>,
     ) {
         let gas_info = if self.genesis_root.get(state).unwrap_infallible().is_none() {
             // The genesis hash is not set, hence this is the
@@ -68,7 +68,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S>) {
+    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S::Storage>) {
         let mut in_progress_transition = self
             .in_progress_transition
             .get(&(state.true_slot_number()), state)

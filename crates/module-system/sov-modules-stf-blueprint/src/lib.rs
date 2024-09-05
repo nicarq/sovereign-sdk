@@ -96,7 +96,7 @@ impl sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents {
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
 pub struct ApplyTxResult<S: Spec> {
     /// The transaction scratchpad following the application of the transaction.
-    pub tx_scratchpad: TxScratchpad<S>,
+    pub tx_scratchpad: TxScratchpad<S::Storage>,
     /// The transaction receipt.
     pub receipt: TransactionReceipt,
     /// The amount of gas tokens that the sequencer should be rewarded.
@@ -172,7 +172,7 @@ impl TryInto<(SkippedReason, TxHash)> for TxProcessingErrorReason {
 /// Error type raised when processing a transaction
 pub struct TxProcessingError<S: Spec> {
     /// The transaction scratchpad when the error was raised
-    pub tx_scratchpad: TxScratchpad<S>,
+    pub tx_scratchpad: TxScratchpad<S::Storage>,
     /// The reason of the error
     pub reason: TxProcessingErrorReason,
 }
@@ -195,7 +195,7 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
         &self,
-        state: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S::Storage>,
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
@@ -210,7 +210,7 @@ where
         &self,
         storage: S::Storage,
         gas_used: &S::Gas,
-        mut checkpoint: StateCheckpoint<S>,
+        mut checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
@@ -254,7 +254,8 @@ where
 
     type Address = S::Address;
 
-    type GenesisParams = GenesisParams<<RT as Genesis>::Config, <K as Kernel<S>>::GenesisConfig>;
+    type GenesisParams =
+        GenesisParams<<RT as Genesis>::Config, <K as Kernel<S::Storage>>::GenesisConfig>;
     type PreState = S::Storage;
     type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
@@ -286,7 +287,7 @@ where
             .expect("Kernel initialization must succeed");
 
         let mut genesis_accessor =
-            state_checkpoint.to_genesis_state_accessor::<RT>(&params.runtime);
+            state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
 
         // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
         if let Err(e) = self.runtime.genesis(&params.runtime, &mut genesis_accessor) {

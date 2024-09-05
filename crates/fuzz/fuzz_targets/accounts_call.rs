@@ -11,6 +11,7 @@ use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
     Context, CredentialId, ExecutionContext, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
+    WorkingSet,
 };
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
@@ -43,7 +44,8 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
+        let mut state =
+            StateCheckpoint::<<S as Spec>::Storage>::new(storage, &MockKernel::<S>::default());
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let accounts: Vec<_> = keys
@@ -57,10 +59,10 @@ fuzz_target!(
         let config = AccountConfig { accounts };
 
         let accounts: Accounts<S> = Accounts::default();
-        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>>(&config);
+        let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>, S>(&config);
         accounts.genesis(&config, &mut genesis_state).unwrap();
 
-        let mut working_set = state.to_working_set_unmetered();
+        let mut working_set: WorkingSet<S> = state.to_working_set_unmetered();
 
         // address list is constant for this test
         let mut used = keys.iter().map(|k| k.as_hex()).collect::<HashSet<_>>();

@@ -15,7 +15,7 @@ where
     pub fn begin_slot_hook(
         &self,
         pre_state_user_root: S::VisibleHash,
-        state: &mut StateCheckpoint<S>,
+        state: &mut StateCheckpoint<S::Storage>,
     ) {
         let mut parent_block = self
             .head
@@ -62,7 +62,7 @@ where
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, state: &mut StateCheckpoint<S>) {
+    pub fn end_slot_hook(&self, state: &mut StateCheckpoint<S::Storage>) {
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let block_env = self

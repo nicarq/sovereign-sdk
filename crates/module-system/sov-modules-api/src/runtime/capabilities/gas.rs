@@ -43,7 +43,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     fn allocate_consumed_gas(
         &self,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 
     /// Refunds any remaining gas to the payer after the transaction is processed.
@@ -56,6 +56,6 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         &self,
         sender: &S::Address,
         tx_consumption: &TransactionConsumption<S::Gas>,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 }

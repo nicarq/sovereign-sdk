@@ -4,7 +4,7 @@ use libfuzzer_sys::arbitrary::Unstructured;
 use libfuzzer_sys::fuzz_target;
 use sov_accounts::{Accounts, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::{Context, Module, StateCheckpoint};
+use sov_modules_api::{Context, Module, StateCheckpoint, WorkingSet};
 use sov_test_utils::storage::new_finalized_storage;
 
 type S = sov_test_utils::TestSpec;
@@ -20,7 +20,7 @@ fuzz_target!(|input: (&[u8], Vec<(Context<S>, CallMessage)>)| {
     let maybe_accounts = Accounts::arbitrary_workset(u, &mut state).unwrap();
 
     let accounts: Accounts<S> = maybe_accounts;
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set: WorkingSet<S> = state.to_working_set_unmetered();
 
     for (ctx, msg) in msgs {
         // assert malformed calls won't panic

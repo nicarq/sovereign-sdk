@@ -73,7 +73,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         frozen: false,
     };
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     // Mint NFT to created collection
     nft.call(mint_nft_message, &creator_context, &mut working_set)
         .expect("Minting NFT failed");
@@ -96,7 +96,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         owner,
         frozen: false,
     };
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let mint_response = nft.call(mint_nft_message, &creator_context, &mut working_set);
     let state = working_set.checkpoint().0;
 
@@ -130,7 +130,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         sov_modules_api::ExecutionContext::Node,
     );
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     nft.call(
         create_collection_message,
         &creator_context,
@@ -159,7 +159,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         sov_modules_api::ExecutionContext::Node,
     );
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let freeze_response = nft.call(
         freeze_collection_message,
         &creator_context,
@@ -195,7 +195,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         sov_modules_api::ExecutionContext::Node,
     );
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     nft.call(
         freeze_collection_message,
         &creator_context,
@@ -224,7 +224,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         sov_modules_api::ExecutionContext::Node,
     );
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let update_response = nft.call(
         create_collection_message,
         &creator_context,
@@ -267,7 +267,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         frozen: false,
     };
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let mint_response = nft.call(mint_nft_message, &creator_context, &mut working_set);
     let mut state = working_set.checkpoint().0;
 
@@ -300,7 +300,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     // calling with the old context first (which is the creator)
     // but the creator is not the owner, so it should fail
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let transfer_response = nft.call(transfer_nft_message, &creator_context, &mut working_set);
 
     if let Err(err) = transfer_response {
@@ -389,7 +389,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         frozen: None,
     };
 
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let update_response = nft.call(update_nft_message, &creator_context, &mut working_set);
     let mut state = working_set.checkpoint().0;
 
@@ -415,7 +415,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         token_uri: None,
         frozen: Some(true),
     };
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let update_response = nft.call(update_nft_message, &creator_context, &mut working_set);
     let mut state = working_set.checkpoint().0;
 
@@ -441,7 +441,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         token_uri: Some(new_token_uri_fail.to_string()),
         frozen: None,
     };
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let update_response = nft.call(update_nft_message, &creator_context, &mut working_set);
     let mut state = working_set.checkpoint().0;
 
@@ -481,7 +481,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         token_id,
         to: UserAddress::new(&target_address),
     };
-    let mut working_set = state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered::<TestSpec>();
     let transfer_response = nft.call(transfer_nft_message, &owner_context, &mut working_set);
     let mut state = working_set.checkpoint().0;
 

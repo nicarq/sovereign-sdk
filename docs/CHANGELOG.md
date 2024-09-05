@@ -1,3 +1,4 @@
+- #1398 Makes `StateCheckpoint`, `TxScratchpad` and `KernelStateAccessor` generic over `Storage` instead of `Spec`. These structs having no dependency on the `Spec`, this restricts the scope of the generics.
 - #1397 Removes the DA generic from the `Kernel` trait.
 - #1393 makes the new version of the kernel state accessors type-safe by preventing them to be built using the `From` trait of the `KernelStateAccessor`, but rather using a new `accessor` method in the `Kernel` trait. It also moves the `true_slot_height` out of the `StateCheckpoint` to the `KernelStateAccessor`
 - #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.

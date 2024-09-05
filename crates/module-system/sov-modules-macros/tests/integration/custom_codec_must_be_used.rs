@@ -60,7 +60,7 @@ fn main() {
     let module: TestModule<ZkTestSpec> = TestModule::default();
 
     catch_unwind(|| {
-        let mut state: StateCheckpoint<ZkTestSpec> =
+        let mut state: StateCheckpoint<<ZkTestSpec as Spec>::Storage> =
             StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
         module.state_value.set(&0u32, &mut state).unwrap();
     })

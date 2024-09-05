@@ -14,7 +14,8 @@ fn increase_value_and_commit(
     kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
 ) -> ProverStorage<StorageSpec> {
-    let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), kernel);
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), kernel);
 
     let value = state_value.get(&mut state).unwrap_infallible().unwrap_or(0);
 

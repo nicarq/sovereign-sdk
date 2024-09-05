@@ -106,7 +106,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
     fn begin_slot_hook(
         &self,
         pre_state_root: <Self::Spec as Spec>::VisibleHash,
-        state: &mut sov_modules_api::StateCheckpoint<Self::Spec>,
+        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
         self.evm.begin_slot_hook(pre_state_root, state);
         assert!(
@@ -119,7 +119,10 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
         );
     }
 
-    fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<Self::Spec>) {
+    fn end_slot_hook(
+        &self,
+        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
+    ) {
         self.evm.end_slot_hook(state);
     }
 }

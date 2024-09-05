@@ -131,7 +131,7 @@ pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 }
 

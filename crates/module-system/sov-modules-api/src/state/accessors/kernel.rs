@@ -6,7 +6,6 @@ use self::checkpoints::StateCheckpoint;
 use super::*;
 use crate::capabilities::Kernel;
 use crate::state::traits::{KernelWriter, VersionReader};
-use crate::Spec;
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
 pub struct BootstrapWorkingSet<'a, S: Storage> {
@@ -32,25 +31,25 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 ///
 /// ## Note
 /// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true slot number.
-pub struct KernelStateAccessor<'a, S: Spec> {
+pub struct KernelStateAccessor<'a, S: Storage> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
     pub(crate) true_slot_num: u64,
 }
 
-impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
+impl<'a, S: Storage> VersionReader for KernelStateAccessor<'a, S> {
     fn rollup_height_to_access(&self) -> u64 {
         self.true_slot_num
     }
 }
 
-impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
+impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
     fn true_slot_number(&self) -> u64 {
         self.true_slot_num
     }
 }
 
-impl<'a, S: Spec> KernelStateAccessor<'a, S> {
+impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     pub(crate) fn from_checkpoint<K: Kernel<S>>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
@@ -68,7 +67,7 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     }
 }
 
-impl<'a, S: Spec> KernelStateAccessor<'a, S> {
+impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     /// Returns the virtual slot number contained in the accessor
     pub fn virtual_slot_number(&self) -> u64 {
         self.checkpoint.virtual_slot_num
@@ -85,7 +84,7 @@ impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     }
 }
 
-impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
+impl<S: Storage> UniversalStateAccessor for KernelStateAccessor<'_, S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         UniversalStateAccessor::get(self.checkpoint, namespace, key)
     }

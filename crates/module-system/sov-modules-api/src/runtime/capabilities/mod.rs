@@ -152,7 +152,7 @@ pub mod mocks {
         }
     }
 
-    impl<S: Spec> Kernel<S> for MockKernel<S> {
+    impl<S: Spec> Kernel<S::Storage> for MockKernel<S> {
         fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_slot_number
         }
@@ -168,7 +168,7 @@ pub mod mocks {
         fn genesis(
             &self,
             _config: &Self::GenesisConfig,
-            _state: &mut KernelStateAccessor<'_, S>,
+            _state: &mut KernelStateAccessor<S::Storage>,
         ) -> anyhow::Result<()> {
             Ok(())
         }

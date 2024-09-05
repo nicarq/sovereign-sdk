@@ -32,7 +32,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::KernelModule>::Config,
-        state: &mut KernelStateAccessor<S>,
+        state: &mut KernelStateAccessor<S::Storage>,
     ) -> Result<()> {
         tracing::info!(
             current_time = ?config.current_time,

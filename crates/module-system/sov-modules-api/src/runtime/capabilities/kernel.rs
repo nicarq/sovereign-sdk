@@ -8,7 +8,7 @@ use crate::{BootstrapWorkingSet, Gas, KernelStateAccessor, Spec, StateCheckpoint
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Spec>: Default + Sync + Send {
+pub trait Kernel<S: Storage>: Default + Sync + Send {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 
@@ -20,7 +20,7 @@ pub trait Kernel<S: Spec>: Default + Sync + Send {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        state: &mut KernelStateAccessor<'_, S>,
+        state: &mut KernelStateAccessor<S>,
     ) -> anyhow::Result<()>;
 
     /// Returns a [`KernelStateAccessor`] for the given [`StateCheckpoint`].
@@ -29,24 +29,30 @@ pub trait Kernel<S: Spec>: Default + Sync + Send {
     }
 
     /// Return the current slot number
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
     /// Return the slot number at which transactions currently *appear* to be executing.
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
+    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
-pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Kernel<S> {
+pub trait KernelSlotHooks<S: Spec, Da: DaSpec>:
+    BlobSelector<Da, Spec = S> + Kernel<S::Storage>
+{
     /// Called at the beginning of a slot. Computes the gas price for the slot
     fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut KernelStateAccessor<'_, Self::Spec>,
+        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
     );
     /// Called at the end of a slot
-    fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<'_, Self::Spec>);
+    fn end_slot_hook(
+        &self,
+        gas_used: &S::Gas,
+        state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    );
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
-    fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S>) -> <S::Gas as Gas>::Price;
+    fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S::Storage>) -> <S::Gas as Gas>::Price;
 }

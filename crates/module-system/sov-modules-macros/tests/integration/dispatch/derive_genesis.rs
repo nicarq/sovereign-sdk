@@ -25,7 +25,8 @@ fn main() {
         sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
     let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
     let config = GenesisConfig::new((), (), ());
-    let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
+    let mut genesis_state =
+        state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
     let mut working_set = state.to_working_set_unmetered();
 

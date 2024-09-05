@@ -220,7 +220,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
     // Native execution
     let witness: ArrayWitness = {
         let storage = new_finalized_storage::<StorageSpec>(tempdir.path());
-        let mut state: StateCheckpoint<S> =
+        let mut state: StateCheckpoint<<S as Spec>::Storage> =
             StateCheckpoint::new(storage.clone(), &MockKernel::<S>::default());
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);
@@ -235,7 +235,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
 
     {
         let storage = ZkStorage::<StorageSpec>::new();
-        let mut state_checkpoint: StateCheckpoint<Zk> =
+        let mut state_checkpoint: StateCheckpoint<<Zk as Spec>::Storage> =
             StateCheckpoint::with_witness(storage.clone(), witness, &MockKernel::<Zk>::default());
         state_value.set(&11, &mut state_checkpoint)?;
         let _ = state_value.get(&mut state_checkpoint);

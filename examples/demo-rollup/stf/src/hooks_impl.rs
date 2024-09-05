@@ -18,12 +18,17 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
     fn begin_batch_hook(
         &self,
         _sender: &Da::Address,
-        _state: &mut StateCheckpoint<S>,
+        _state: &mut StateCheckpoint<S::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn end_batch_hook(&self, _result: &Self::BatchResult, _state: &mut StateCheckpoint<S>) {}
+    fn end_batch_hook(
+        &self,
+        _result: &Self::BatchResult,
+        _state: &mut StateCheckpoint<S::Storage>,
+    ) {
+    }
 }
 
 impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
@@ -32,13 +37,13 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
     fn begin_slot_hook(
         &self,
         pre_state_root: <S as Spec>::VisibleHash,
-        versioned_working_set: &mut sov_modules_api::StateCheckpoint<S>,
+        versioned_working_set: &mut sov_modules_api::StateCheckpoint<S::Storage>,
     ) {
         self.evm
             .begin_slot_hook(pre_state_root, versioned_working_set);
     }
 
-    fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<S>) {
+    fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<S::Storage>) {
         self.evm.end_slot_hook(state);
     }
 }

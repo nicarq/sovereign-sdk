@@ -125,7 +125,7 @@ fn main() {
     let mut state = StateCheckpoint::new(storage, &MockKernel::<S>::default());
     let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
-    let mut genesis_state = state.to_genesis_state_accessor::<RT>(&config);
+    let mut genesis_state = state.to_genesis_state_accessor::<RT, S>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
     let mut working_set = state.to_working_set_unmetered();
 

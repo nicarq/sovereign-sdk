@@ -77,7 +77,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         &self,
         sender: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        mut scratchpad: TxScratchpad<S>,
+        mut scratchpad: TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, SequencerStakeMeter<S::Gas>> {
         let allowed_sequencer = match self.is_sender_allowed(sender, &mut scratchpad) {
             Ok(seq) => seq,
@@ -123,7 +123,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
         sender: &Da::Address,
         reason: impl std::fmt::Display,
         pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
-    ) -> TxScratchpad<S> {
+    ) -> TxScratchpad<S::Storage> {
         let penalty_amount = pre_exec_working_set.gas_used_value();
         let remaining_stake = pre_exec_working_set.remaining_funds();
 

@@ -27,7 +27,7 @@ impl<S: Spec> Nonces<S> {
     pub fn mark_tx_attempted(
         &self,
         credential_id: &CredentialId,
-        tx_scratchpad: &mut TxScratchpad<S>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         let nonce = self
             .nonces

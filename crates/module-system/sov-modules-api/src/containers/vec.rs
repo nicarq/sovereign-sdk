@@ -417,7 +417,7 @@ mod test {
 
     use super::*;
     use crate::capabilities::mocks::MockKernel;
-    use crate::StateCheckpoint;
+    use crate::{Spec, StateCheckpoint};
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -425,7 +425,7 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut state: StateCheckpoint<TestSpec> =
+        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
