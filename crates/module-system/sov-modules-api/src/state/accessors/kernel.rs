@@ -1,9 +1,11 @@
 use internals::Delta;
+use sov_rollup_interface::da::DaSpec;
 /// Provides specialized working set wrappers for dealing with protected state.
 use sov_state::{IsValueCached, SlotKey, SlotValue, Storage};
 
 use self::checkpoints::StateCheckpoint;
 use super::*;
+use crate::capabilities::Kernel;
 use crate::state::traits::{KernelWriter, VersionReader};
 use crate::Spec;
 
@@ -31,56 +33,69 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 ///
 /// ## Note
 /// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true slot number.
-pub struct KernelStateAccessor<'a, S: Spec>(
+pub struct KernelStateAccessor<'a, S: Spec> {
     /// The inner working set
-    pub &'a mut StateCheckpoint<S>,
-);
+    pub checkpoint: &'a mut StateCheckpoint<S>,
+    pub(crate) true_slot_num: u64,
+}
 
 impl<'a, S: Spec> VersionReader for KernelStateAccessor<'a, S> {
     fn rollup_height_to_access(&self) -> u64 {
-        self.0.true_slot_num
+        self.true_slot_num
     }
 }
 
 impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
     fn true_slot_number(&self) -> u64 {
-        self.0.true_slot_num
+        self.true_slot_num
     }
 }
 
-impl<'a, S: Spec> From<&'a mut StateCheckpoint<S>> for KernelStateAccessor<'a, S> {
-    fn from(value: &'a mut StateCheckpoint<S>) -> Self {
-        Self(value)
+impl<'a, S: Spec> KernelStateAccessor<'a, S> {
+    pub(crate) fn from_checkpoint<K: Kernel<S, Da>, Da: DaSpec>(
+        kernel: &K,
+        checkpoint: &'a mut StateCheckpoint<S>,
+    ) -> Self {
+        let mut bootstrap = BootstrapWorkingSet {
+            inner: &mut checkpoint.delta,
+        };
+
+        let true_slot_num = kernel.true_slot_number(&mut bootstrap);
+
+        Self {
+            checkpoint,
+            true_slot_num,
+        }
     }
 }
 
 impl<'a, S: Spec> KernelStateAccessor<'a, S> {
     /// Returns the virtual slot number contained in the accessor
     pub fn virtual_slot_number(&self) -> u64 {
-        self.0.virtual_slot_num
+        self.checkpoint.virtual_slot_num
     }
 
     /// Updates the true slot number contained in the accessor
     pub fn update_true_slot_number(&mut self, true_slot_num: u64) {
-        self.0.true_slot_num = true_slot_num;
+        self.true_slot_num = true_slot_num;
     }
 
     /// Updates the virtual slot number contained in the accessor
     pub fn update_virtual_slot_number(&mut self, virtual_slot_num: u64) {
-        self.0.virtual_slot_num = virtual_slot_num;
+        self.checkpoint.virtual_slot_num = virtual_slot_num;
     }
 }
 
 impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        UniversalStateAccessor::get(self.0, namespace, key)
+        UniversalStateAccessor::get(self.checkpoint, namespace, key)
     }
 
     fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        UniversalStateAccessor::set(self.0, namespace, key, value)
+        UniversalStateAccessor::set(self.checkpoint, namespace, key, value)
     }
 
     fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
-        UniversalStateAccessor::delete(self.0, namespace, key)
+        UniversalStateAccessor::delete(self.checkpoint, namespace, key)
     }
 }

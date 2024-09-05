@@ -65,9 +65,6 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
             },
             state,
         );
-
-        // We increment the next true slot number.
-        self.increment_true_slot_number(state);
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
@@ -84,5 +81,8 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
 
         self.in_progress_transition
             .set_true_current(&in_progress_transition, state);
+
+        // We increment the slot number at the very end of the slot execution
+        self.increment_true_slot_number(state);
     }
 }

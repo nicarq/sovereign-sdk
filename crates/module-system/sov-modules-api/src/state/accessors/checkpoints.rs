@@ -4,7 +4,7 @@ use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Sto
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
 use crate::capabilities::Kernel;
-use crate::{KernelWriter, Spec, VersionReader};
+use crate::{Spec, VersionReader};
 
 /// This structure is responsible for storing the `read-write` set.
 ///
@@ -13,8 +13,6 @@ use crate::{KernelWriter, Spec, VersionReader};
 ///  2. With [`crate::WorkingSet::revert`].
 pub struct StateCheckpoint<S: Spec> {
     pub(super) delta: Delta<S::Storage>,
-    /// The actual current slot number
-    pub(super) true_slot_num: u64,
     /// The slot number visible to user-space modules
     pub(super) virtual_slot_num: u64,
 }
@@ -36,12 +34,10 @@ impl<S: Spec> StateCheckpoint<S> {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
-        let true_slot_num = kernel.true_slot_number(&mut bootstrap_state);
         let virtual_slot_num = kernel.visible_slot_number(&mut bootstrap_state);
 
         Self {
             delta,
-            true_slot_num,
             virtual_slot_num,
         }
     }
@@ -64,21 +60,14 @@ impl<S: Spec> StateCheckpoint<S> {
     /// Updates the true slot number and the virtual slot number.
     /// This method is used in tests.
     #[cfg(test)]
-    pub fn update_versions(&mut self, true_slot_num: u64, virtual_slot_num: u64) {
+    pub fn update_version(&mut self, virtual_slot_num: u64) {
         self.virtual_slot_num = virtual_slot_num;
-        self.true_slot_num = true_slot_num;
     }
 }
 
 impl<S: Spec> VersionReader for StateCheckpoint<S> {
     fn rollup_height_to_access(&self) -> u64 {
         self.virtual_slot_num
-    }
-}
-
-impl<S: Spec> KernelWriter for StateCheckpoint<S> {
-    fn true_slot_number(&self) -> u64 {
-        self.true_slot_num
     }
 }
 

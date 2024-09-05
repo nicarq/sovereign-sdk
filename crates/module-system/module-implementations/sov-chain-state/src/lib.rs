@@ -8,8 +8,8 @@ mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    BootstrapWorkingSet, KernelWriter, ModuleId, Spec, StateAccessor, StateReader,
-    StateReaderAndWriter, Zkvm,
+    BootstrapWorkingSet, KernelStateAccessor, KernelWriter, ModuleId, Spec, StateAccessor,
+    StateReader, StateReaderAndWriter, Zkvm,
 };
 
 mod genesis;
@@ -28,8 +28,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateAccessor,
-    ValidityConditionChecker, VersionReader,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, ValidityConditionChecker, VersionReader,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;

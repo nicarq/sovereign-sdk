@@ -325,6 +325,7 @@ mod test {
 
     use super::*;
     use crate::capabilities::mocks::MockKernel;
+    use crate::capabilities::Kernel as _;
     use crate::StateCheckpoint;
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
@@ -340,13 +341,13 @@ mod test {
         let state_vec = VersionedStateVec::<u32>::new(prefix);
 
         // We need to initialize the state vector before we can run any test case.
-        state_vec.initialize(&mut KernelStateAccessor::from(&mut state));
+        state_vec.initialize(&mut kernel.accessor(&mut state));
 
-        let mut kernel = KernelStateAccessor::from(&mut state);
-        kernel.update_true_slot_number(1);
+        let mut kernel = MockKernel::<TestSpec, MockDaSpec>::default();
+        kernel.true_slot_number = 1;
 
         test_cases().into_iter().for_each(|test_case_action| {
-            check_test_case_action(&state_vec, test_case_action, &mut state);
+            check_test_case_action(&state_vec, test_case_action, &mut kernel, &mut state);
         });
     }
 
@@ -433,6 +434,7 @@ mod test {
     fn check_test_case_action<T, S: Spec>(
         state_vec: &VersionedStateVec<T>,
         action: TestCaseAction<T>,
+        kernel: &mut MockKernel<S, MockDaSpec>,
         state: &mut StateCheckpoint<S>,
     ) where
         BorshCodec: StateItemCodec<T>,
@@ -450,9 +452,9 @@ mod test {
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Push(value) => {
-                let state = &mut KernelStateAccessor::from(state);
+                let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 state_vec.push(&value, state);
-                state.update_true_slot_number(state.rollup_height_to_access() + 1);
+                kernel.true_slot_number += 1;
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec.get(index, state).unwrap_infallible();
@@ -468,14 +470,13 @@ mod test {
                 assert_eq!(contents, expected);
             }
             TestCaseAction::IncreaseVirtualHeight => {
-                let mut kernel = KernelStateAccessor::from(state);
-                kernel.update_virtual_slot_number(kernel.virtual_slot_number() + 1);
+                state.update_version(state.rollup_height_to_access() + 1);
             }
             TestCaseAction::CheckHeights {
                 true_slot_num,
                 virtual_slot_num,
             } => {
-                let state = &mut KernelStateAccessor::from(state);
+                let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 assert_eq!(state.rollup_height_to_access(), true_slot_num);
                 assert_eq!(state.virtual_slot_number(), virtual_slot_num);
             }

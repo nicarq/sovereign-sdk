@@ -1,9 +1,10 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::{KernelStateAccessor, StateCheckpoint, StateReader, StateWriter, WorkingSet};
+use sov_modules_api::capabilities::Kernel as _;
+use sov_modules_api::{StateCheckpoint, StateReader, StateWriter, WorkingSet};
 use sov_state::codec::BcsCodec;
-use sov_state::namespaces::{Kernel, User};
-use sov_state::{SlotKey, SlotValue};
+use sov_state::namespaces::User;
+use sov_state::{Kernel, SlotKey, SlotValue};
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::TestSpec;
 
@@ -39,7 +40,7 @@ fn test_kernel_workingset_get() {
     let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);
 
     let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
-    let mut working_set = KernelStateAccessor::from(&mut working_set);
+    let mut working_set = kernel.accessor(&mut working_set);
 
     StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone())
         .expect("This should be unfaillible");

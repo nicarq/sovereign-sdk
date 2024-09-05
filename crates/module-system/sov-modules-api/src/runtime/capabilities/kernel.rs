@@ -23,6 +23,11 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sy
         state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()>;
 
+    /// Returns a [`KernelStateAccessor`] for the given [`StateCheckpoint`].
+    fn accessor<'a>(&self, state: &'a mut StateCheckpoint<S>) -> KernelStateAccessor<'a, S> {
+        KernelStateAccessor::from_checkpoint(self, state)
+    }
+
     /// Return the current slot number
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
     /// Return the slot number at which transactions currently *appear* to be executing.
