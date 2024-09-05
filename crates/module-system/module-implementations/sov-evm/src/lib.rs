@@ -24,7 +24,7 @@ mod event;
 #[cfg(feature = "native")]
 mod helpers;
 
-pub use authenticate::authenticate;
+pub use authenticate::{authenticate, EthereumAuthenticator};
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::Address as EvmAddress;

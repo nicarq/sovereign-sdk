@@ -1,17 +1,16 @@
 //! Concrete implementation(s) of [`BatchBuilder`].
-use core::marker::PhantomData;
 
 use anyhow::bail;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{
-    Authenticator, KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
+    KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
 };
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    ExecutionContext, Gas, GasArray, RawTx, Spec, StateCheckpoint, VersionReader,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, RawTx, Spec, StateCheckpoint, VersionReader,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, Runtime, TransactionReceipt, TxEffect, TxProcessingError,
@@ -46,28 +45,20 @@ pub struct FairBatchBuilderConfig<Da: DaSpec> {
 /// Transactions are included in batches by following a largest-first,
 /// least-recent-first priority. Only transactions that were successfully
 /// dispatched are included.
-pub struct FairBatchBuilder<
-    S: Spec,
-    Da: DaSpec,
-    R: Runtime<S, Da>,
-    K,
-    Auth: Authenticator<Spec = S>,
-> {
+pub struct FairBatchBuilder<S: Spec, Da: DaSpec, R: Runtime<S, Da>, K> {
     runtime: R,
     kernel: K,
     mempool: FairMempool<Da>,
     max_batch_size_bytes: usize,
     current_storage: watch::Receiver<S::Storage>,
     sequencer: Da::Address,
-    _phantom: PhantomData<Auth>,
 }
 
-impl<S, Da, R, K, Auth> FairBatchBuilder<S, Da, R, K, Auth>
+impl<S, Da, R, K> FairBatchBuilder<S, Da, R, K>
 where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da>,
-    Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     const DEFAULT_MEMPOOL_MAX_TXS_COUNT: usize = 100;
     const DEFAULT_MAX_BATCH_SIZE_BYTES: usize = 1024 * 1024;
@@ -96,7 +87,6 @@ where
             kernel,
             current_storage,
             sequencer: config.sequencer_address,
-            _phantom: PhantomData,
         })
     }
 
@@ -119,7 +109,7 @@ where
         let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
         let res = process_tx(
             &self.runtime,
-            &RawTx {
+            &FullyBakedTx {
                 data: mempool_tx.tx_bytes.clone(),
             },
             &self.sequencer,
@@ -163,13 +153,12 @@ where
 }
 
 #[async_trait]
-impl<S, Da, R, K, Auth> BatchBuilder for FairBatchBuilder<S, Da, R, K, Auth>
+impl<S, Da, R, K> BatchBuilder for FairBatchBuilder<S, Da, R, K>
 where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da> + RuntimeAuthenticator<S> + 'static,
     K: Kernel<S::Storage> + KernelSlotHooks<S, Da> + 'static,
-    Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     type Config = FairBatchBuilderConfig<Da>;
 
@@ -180,7 +169,7 @@ where
     /// - transaction is invalid (deserialization, verification or decoding of the runtime message failed)
     async fn accept_tx(&mut self, raw: Vec<u8>) -> Result<TxWithHash, AcceptTxError> {
         tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
-        let authenticated = R::encode_standard_tx(raw);
+        let authenticated = R::add_standard_auth(RawTx { data: raw });
         let raw = borsh::to_vec(&authenticated).map_err(|e| AcceptTxError {
             http_status: StatusCode::BAD_REQUEST.as_u16(),
             title: "Failed to encode transaction".to_string(),
@@ -379,7 +368,6 @@ mod tests {
     use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
     use sov_modules_api::{EncodeCall, PrivateKey, StateTransitionFunction};
     use sov_state::ProverStorage;
-    use sov_test_utils::auth::TestAuth;
     use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
     use sov_test_utils::runtime::{GenesisConfig, TestOptimisticRuntime, ValueSetterConfig};
     use sov_test_utils::storage::{new_finalized_storage, SimpleStorageManager};
@@ -402,17 +390,16 @@ mod tests {
         MockDaSpec,
         TestOptimisticRuntime<S, MockDaSpec>,
         BasicKernel<S, MockDaSpec>,
-        TestAuth<S, MockDaSpec>,
     >;
 
-    fn generate_random_valid_tx(nonce: u64) -> Vec<u8> {
+    fn generate_random_valid_tx(nonce: u64) -> RawTx {
         let private_key = TestPrivateKey::generate();
         let mut rng = rand::thread_rng();
         let value: u32 = rng.gen();
         generate_valid_tx(&private_key, nonce, value)
     }
 
-    fn generate_valid_tx(private_key: &TestPrivateKey, nonce: u64, value: u32) -> Vec<u8> {
+    fn generate_valid_tx(private_key: &TestPrivateKey, nonce: u64, value: u32) -> RawTx {
         let msg = CallMessage::SetValue(value);
         let msg =
             <TestOptimisticRuntime<_, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(msg);
@@ -421,7 +408,7 @@ mod tests {
         let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
 
-        borsh::to_vec(&Transaction::<S>::new_signed_tx(
+        let tx = borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
             UnsignedTransaction::new(
                 msg,
@@ -432,7 +419,9 @@ mod tests {
                 gas_limit,
             ),
         ))
-        .unwrap()
+        .unwrap();
+
+        RawTx::new(tx)
     }
 
     fn generate_random_bytes() -> Vec<u8> {
@@ -443,17 +432,14 @@ mod tests {
         (0..length).map(|_| rng.gen()).collect()
     }
 
-    fn generate_signed_tx_with_invalid_payload(
-        private_key: &TestPrivateKey,
-        nonce: u64,
-    ) -> Vec<u8> {
+    fn generate_signed_tx_with_invalid_payload(private_key: &TestPrivateKey, nonce: u64) -> RawTx {
         let msg = generate_random_bytes();
         let chain_id = config_value!("CHAIN_ID");
         let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
         let max_fee = TEST_DEFAULT_MAX_FEE;
         let gas_limit = None;
 
-        borsh::to_vec(&Transaction::<S>::new_signed_tx(
+        let tx = borsh::to_vec(&Transaction::<S>::new_signed_tx(
             private_key,
             UnsignedTransaction::new(
                 msg,
@@ -464,7 +450,9 @@ mod tests {
                 gas_limit,
             ),
         ))
-        .unwrap()
+        .unwrap();
+
+        RawTx::new(tx)
     }
 
     fn create_batch_builder(
@@ -564,25 +552,23 @@ mod tests {
 
             let sequencer_da_address = sequencer.da_address;
 
-            let authenticated_tx = borsh::to_vec(
-                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(tx.clone()),
-            )
-            .unwrap();
+            let authenticated_tx =
+                TestOptimisticRuntime::<S, MockDaSpec>::encode_with_standard_auth(tx.clone());
 
             let (mut batch_builder, _storage) = create_batch_builder(
-                authenticated_tx.len(),
+                authenticated_tx.data.len(),
                 &tmpdir,
                 Some(storage),
                 sequencer_da_address,
             );
 
-            batch_builder.accept_tx(tx).await.unwrap();
+            batch_builder.accept_tx(tx.data).await.unwrap();
         }
 
         #[tokio::test]
         async fn reject_tx_too_big() {
             let tx = generate_random_valid_tx(0);
-            let batch_size = tx.len().saturating_sub(1);
+            let batch_size = tx.data.len().saturating_sub(1);
 
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -595,7 +581,7 @@ mod tests {
             let (mut batch_builder, _storage) =
                 create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer_da_address);
 
-            let accept_result = batch_builder.accept_tx(tx).await;
+            let accept_result = batch_builder.accept_tx(tx.data).await;
             assert!(accept_result.is_err());
             assert_eq!(accept_result.unwrap_err().title, "Transaction is too big");
         }
@@ -615,13 +601,13 @@ mod tests {
 
             for i in 0..MAX_TX_POOL_SIZE {
                 let tx = generate_random_valid_tx(i as u64);
-                batch_builder.accept_tx(tx).await.unwrap();
+                batch_builder.accept_tx(tx.data).await.unwrap();
             }
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
 
             let tx = generate_random_valid_tx(MAX_TX_POOL_SIZE as u64);
-            batch_builder.accept_tx(tx).await.unwrap();
+            batch_builder.accept_tx(tx.data).await.unwrap();
 
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
         }
@@ -657,19 +643,17 @@ mod tests {
             } = setup_runtime(&mut storage_manager, 0);
 
             let sequencer_da_address = sequencer.da_address;
-            let authenticated_tx = borsh::to_vec(
-                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(tx.clone()),
-            )
-            .unwrap();
+            let authenticated_tx =
+                &TestOptimisticRuntime::<S, MockDaSpec>::encode_with_standard_auth(tx.clone());
 
             let (mut batch_builder, _storage) = create_batch_builder(
-                authenticated_tx.len(),
+                authenticated_tx.data.len(),
                 &tmpdir,
                 Some(storage),
                 sequencer_da_address,
             );
 
-            let accept_result = batch_builder.accept_tx(tx).await;
+            let accept_result = batch_builder.accept_tx(tx.data).await;
             assert!(accept_result.is_err());
             assert!(accept_result
                 .unwrap_err()
@@ -726,7 +710,7 @@ mod tests {
                 create_batch_builder(usize::MAX, &tmpdir, Some(storage), sequencer.da_address);
 
             for tx in &txs {
-                batch_builder.accept_tx(tx.clone()).await.unwrap();
+                batch_builder.accept_tx(tx.clone().data).await.unwrap();
             }
 
             // The resulting batch should contain only one transaction (not two,
@@ -743,7 +727,7 @@ mod tests {
                 generate_valid_tx(&value_setter_admin, 1, 2),
             ];
 
-            let batch_size = txs[0].len() * 3 + 1;
+            let batch_size = txs[0].data.len() * 3 + 1;
 
             let tmpdir = tempfile::tempdir().unwrap();
             let (mut batch_builder, _storage) =
@@ -753,7 +737,7 @@ mod tests {
                 // We skipped genesis, so there is no registered sequencer. All
                 // txs should be rejected immediately during authentication
                 // checks.
-                assert!(batch_builder.accept_tx(tx.clone()).await.is_err());
+                assert!(batch_builder.accept_tx(tx.data.clone()).await.is_err());
             }
         }
 
@@ -782,11 +766,11 @@ mod tests {
             ];
 
             let authenticated_tx_0 = borsh::to_vec(
-                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(txs[0].clone()),
+                &TestOptimisticRuntime::<S, MockDaSpec>::add_standard_auth(txs[0].clone()),
             )
             .unwrap();
             let authenticated_tx_2 = borsh::to_vec(
-                &TestOptimisticRuntime::<S, MockDaSpec>::encode_standard_tx(txs[2].clone()),
+                &TestOptimisticRuntime::<S, MockDaSpec>::add_standard_auth(txs[2].clone()),
             )
             .unwrap();
 
@@ -795,13 +779,17 @@ mod tests {
                 create_batch_builder(batch_size, &tmpdir, Some(storage), sequencer.da_address);
 
             assert!(
-                txs.iter().all(|tx| tx.len() == txs[0].len()),
+                txs.iter().all(|tx| tx.data.len() == txs[0].data.len()),
                 "the test assumes all txs have equal length"
             );
 
             let mut raw_txs = Vec::new();
             for tx in &txs {
-                let raw_tx = batch_builder.accept_tx(tx.clone()).await.unwrap().raw_tx;
+                let raw_tx = batch_builder
+                    .accept_tx(tx.data.clone())
+                    .await
+                    .unwrap()
+                    .raw_tx;
                 raw_txs.push(raw_tx);
             }
 

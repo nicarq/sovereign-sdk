@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use demo_stf::authentication::ModAuth;
 use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
@@ -87,11 +86,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             FairBatchBuilderConfig<Self::DaSpec>,
         >,
     ) -> anyhow::Result<RuntimeEndpoints> {
-        let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<
-            Self,
-            Native,
-            ModAuth<Self::Spec, Self::DaSpec>,
-        >(
+        let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
             storage.clone(),
             ledger_db,
             sequencer_db,
@@ -101,7 +96,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService>(
+        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
             da_service.clone(),
             storage,
             &mut endpoints.jsonrpsee_module,

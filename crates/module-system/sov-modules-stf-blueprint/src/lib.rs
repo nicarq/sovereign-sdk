@@ -399,8 +399,17 @@ where
                     state = next_checkpoint;
                 }
                 BlobData::EmergencyRegistration(tx) => {
-                    let next_checkpoint =
-                        apply_batch(Batch { txs: vec![tx] }, sender, false, state);
+                    let next_checkpoint = apply_batch(
+                        Batch {
+                            // We wrap the inbound transaction in the `Authenticator` here so that we can reuse the
+                            // batch structure even though we don't force the EmergencyRegistration transaction to
+                            // use the authenticator information
+                            txs: vec![RT::encode_with_standard_auth(tx)],
+                        },
+                        sender,
+                        false,
+                        state,
+                    );
                     state = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {

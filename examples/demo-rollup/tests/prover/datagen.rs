@@ -1,6 +1,5 @@
 use std::env;
 
-use demo_stf::authentication::ModAuth;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
@@ -9,7 +8,6 @@ use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::MessageGenerator;
 
-use crate::prover::MockDaSpec;
 use crate::test_helpers::read_private_keys;
 type S = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
@@ -48,14 +46,14 @@ pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
             txns_per_block,
             private_key_and_address.private_key,
         );
-    let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime, ModAuth<S, MockDaSpec>>();
+    let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();
     blocks.push(block1);
 
     for i in 0..block_cnt {
-        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime, ModAuth<S, MockDaSpec>>();
+        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
         let fee = da_service.estimate_fee(blob.len()).await.unwrap();
         da_service.send_transaction(&blob, fee).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();

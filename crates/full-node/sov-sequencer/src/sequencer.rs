@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::{Batch, RawTx};
+use sov_modules_api::{Batch, FullyBakedTx};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
 use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use sov_rollup_interface::node::da::DaService;
@@ -101,7 +101,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let mut tx_hashes = Vec::with_capacity(num_txs);
 
         for tx in blob_txs {
-            txs.push(RawTx { data: tx.raw_tx });
+            txs.push(FullyBakedTx { data: tx.raw_tx });
             tx_hashes.push(tx.hash);
         }
 

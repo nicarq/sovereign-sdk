@@ -1,7 +1,6 @@
 use std::marker::PhantomData;
 
 use serde::de::DeserializeOwned;
-use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::TxReceiptContents;
 use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::node::da::DaService;
@@ -26,16 +25,15 @@ pub trait SequencerSpec: Clone + Send + Sync + 'static {
 /// A [`SequencerSpec`] with explicit generic types.
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>(
-    PhantomData<(B, Da, Auth, BatchReceipt, TxReceipt)>,
+pub struct GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt>(
+    PhantomData<(B, Da, BatchReceipt, TxReceipt)>,
 );
 
-impl<B, Da, Auth, BatchReceipt, TxReceipt> SequencerSpec
-    for GenericSequencerSpec<B, Da, Auth, BatchReceipt, TxReceipt>
+impl<B, Da, BatchReceipt, TxReceipt> SequencerSpec
+    for GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt>
 where
     B: BatchBuilder,
     Da: DaService,
-    Auth: Authenticator,
     BatchReceipt: DeserializeOwned + Send + Sync + 'static,
     TxReceipt: TxReceiptContents,
 {

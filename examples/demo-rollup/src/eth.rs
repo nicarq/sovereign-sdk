@@ -1,15 +1,18 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use demo_stf::authentication::EvmAuth;
 use demo_stf::runtime::EthereumToRollupAddressConverter;
-use sov_ethereum::{EthRpcConfig, GasPriceOracleConfig};
+use sov_ethereum::{EthRpcConfig, EthereumAuthenticator, GasPriceOracleConfig};
 use sov_modules_api::Spec;
 use sov_rollup_interface::node::da::DaService;
 use tokio::sync::watch;
 
 // register ethereum methods.
-pub(crate) fn register_ethereum<S: Spec, Da: DaService>(
+pub(crate) fn register_ethereum<
+    S: Spec,
+    Da: DaService,
+    RT: EthereumAuthenticator<S> + Send + Sync + 'static,
+>(
     da_service: Da,
     storage: watch::Receiver<<S as Spec>::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
@@ -26,11 +29,8 @@ where
         }
     };
 
-    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<S, Da, EvmAuth<S, Da::Spec>>(
-        da_service,
-        eth_rpc_config,
-        storage,
-    );
+    let ethereum_rpc =
+        sov_ethereum::get_ethereum_rpc::<S, Da, RT>(da_service, eth_rpc_config, storage);
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

@@ -11,7 +11,7 @@ use sov_mock_da::{
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
-use sov_modules_api::{Address, Batch, ProofSerializer, RawTx};
+use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -52,7 +52,7 @@ pub struct TestNode {
 impl TestNode {
     /// Creates a DA block containing a transaction blob, optionally including an aggregated proof.
     pub async fn send_transaction(&self) -> anyhow::Result<MockHash> {
-        let batch = Batch::new(vec![RawTx {
+        let batch = Batch::new(vec![FullyBakedTx {
             data: vec![1, 2, 3],
         }]);
 
@@ -64,7 +64,7 @@ impl TestNode {
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> anyhow::Result<MockHash> {
-        let batch = Batch::new(vec![RawTx { data: vec![] }]);
+        let batch = Batch::new(vec![FullyBakedTx { data: vec![] }]);
         let serialized_batch = borsh::to_vec(&batch).unwrap();
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())

@@ -173,6 +173,10 @@ macro_rules! generate_runtime {
 #[macro_export]
 macro_rules! impl_standard_runtime_authenticator {
     ($runtime:ty) => {
+        /// The input for the runtime's authenticator functionality.
+        #[derive(std::fmt::Debug, Clone, ::borsh::BorshDeserialize, ::borsh::BorshSerialize)]
+        pub struct AuthenticatorInput(::sov_modules_api::RawTx);
+
         impl<S, Da> ::sov_modules_api::capabilities::RuntimeAuthenticator<S> for $runtime
         where
             S: ::sov_modules_api::Spec,
@@ -181,11 +185,11 @@ macro_rules! impl_standard_runtime_authenticator {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
             type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
-            type Input = ::sov_modules_api::RawTx;
+            type Input = AuthenticatorInput;
 
             fn authenticate(
                 &self,
-                raw_tx: &::sov_modules_api::RawTx,
+                tx: &AuthenticatorInput,
                 pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
                     S,
                     Self::SequencerStakeMeter,
@@ -196,14 +200,14 @@ macro_rules! impl_standard_runtime_authenticator {
                 Self::AuthorizationData,
             > {
                 ::sov_modules_api::capabilities::authenticate::<S, Self, Self::SequencerStakeMeter>(
-                    &raw_tx.data,
+                    &tx.0.data,
                     pre_exec_ws,
                 )
             }
 
             fn authenticate_unregistered(
                 &self,
-                raw_tx: &::sov_modules_api::RawTx,
+                tx: &AuthenticatorInput,
                 pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
                     S,
                     ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
@@ -218,11 +222,11 @@ macro_rules! impl_standard_runtime_authenticator {
                     S,
                     Self,
                     ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
-                >(&raw_tx.data, pre_exec_ws)?)
+                >(&tx.0.data, pre_exec_ws)?)
             }
 
-            fn encode_standard_tx(tx: Vec<u8>) -> ::sov_modules_api::RawTx {
-                ::sov_modules_api::RawTx { data: tx }
+            fn add_standard_auth(tx: ::sov_modules_api::RawTx) -> Self::Input {
+                AuthenticatorInput(tx)
             }
         }
     };

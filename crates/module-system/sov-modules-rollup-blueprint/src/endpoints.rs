@@ -1,6 +1,5 @@
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
-use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::{RuntimeEventProcessor, Spec};
@@ -13,7 +12,7 @@ use tokio::sync::watch;
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
 /// Register rollup's default RPC methods and Axum router.
-pub fn register_endpoints<B, M, Auth>(
+pub fn register_endpoints<B, M>(
     storage: watch::Receiver<<B::Spec as Spec>::Storage>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
@@ -24,7 +23,6 @@ where
     B: FullNodeBlueprint<M> + 'static,
     M: ExecutionMode + 'static,
     B::Runtime: RuntimeEventProcessor,
-    Auth: Authenticator<Spec = B::Spec, DispatchCall = B::Runtime>,
     <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
@@ -50,17 +48,16 @@ where
     // Sequencer endpoints.
     {
         let tx_status_manager = TxStatusManager::default();
-        let batch_builder =
-            FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>::new(
-                B::Runtime::default(),
-                B::Kernel::default(),
-                tx_status_manager.clone(),
-                storage,
-                sequencer_db.clone(),
-                sequencer_config.batch_builder.clone(),
-            )?;
+        let batch_builder = FairBatchBuilder::<B::Spec, B::DaSpec, B::Runtime, B::Kernel>::new(
+            B::Runtime::default(),
+            B::Kernel::default(),
+            tx_status_manager.clone(),
+            storage,
+            sequencer_db.clone(),
+            sequencer_config.batch_builder.clone(),
+        )?;
 
-        let sequencer = SequencerBlueprint::<B, M, Auth>::new(
+        let sequencer = SequencerBlueprint::<B, M>::new(
             batch_builder,
             da_service.clone(),
             tx_status_manager,

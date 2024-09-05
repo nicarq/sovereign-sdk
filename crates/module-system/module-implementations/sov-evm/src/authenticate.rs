@@ -1,12 +1,14 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
-use sov_modules_api::capabilities::{AuthenticationResult, AuthorizationData};
+use sov_modules_api::capabilities::{
+    AuthenticationResult, AuthorizationData, RuntimeAuthenticator,
+};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{GasMeter, PreExecWorkingSet, Spec};
+use sov_modules_api::{FullyBakedTx, GasMeter, PreExecWorkingSet, RawTx, Spec};
 use sov_rollup_interface::TxHash;
 
 use crate::conversions::RlpConversionError;
@@ -79,4 +81,16 @@ pub fn authenticate<
     };
     let call = CallMessage { rlp: tx_clone };
     Ok((tx_and_raw_hash, auth_data, call))
+}
+
+/// Indicates that a runtime supports the `Ethereum` transaction authenticator
+/// and provides suitable methods for encoding and decoding Ethereum transactions.
+pub trait EthereumAuthenticator<S: Spec>: RuntimeAuthenticator<S> {
+    /// Add the Ethereum discriminant to a transaction the runtime.
+    fn add_ethereum_auth(tx: RawTx) -> <Self as RuntimeAuthenticator<S>>::Input;
+
+    /// Encode a transaction with the Ethereum discriminant for the runtime.
+    fn encode_with_ethereum_auth(tx: RawTx) -> FullyBakedTx {
+        <Self as RuntimeAuthenticator<S>>::encode_athenticator_input(&Self::add_ethereum_auth(tx))
+    }
 }

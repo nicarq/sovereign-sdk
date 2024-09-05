@@ -11,6 +11,7 @@ use crate::helpers::{setup, S};
 
 #[test]
 fn test_invalid_contract_execution() {
+    sov_test_utils::logging::initialize_logging();
     let (mut runner, _, account, _) = setup();
     let contract = SimpleStorageContract::default();
     let contract_addr = account.address().create(0);

@@ -1,7 +1,6 @@
 use std::env;
 
 use async_trait::async_trait;
-use demo_stf::authentication::ModAuth;
 use demo_stf::runtime::Runtime;
 use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
@@ -9,10 +8,12 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier,
     MockFee, MockHash, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
 };
-use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, CryptoSpec, EncodeCall, GasUnit, PrivateKey, PublicKey, RawTx, Spec};
+use sov_modules_api::{
+    Batch, CryptoSpec, EncodeCall, FullyBakedTx, GasUnit, PrivateKey, PublicKey, RawTx, Spec,
+};
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
@@ -194,7 +195,7 @@ impl DaVerifier for RngDaVerifier {
     }
 }
 
-pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
+pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<FullyBakedTx> {
     let token_name = "sov-test-token";
     let (sa, pk) = sender_address_with_pkey::<TestSpec>();
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, &sa, 11);
@@ -222,13 +223,16 @@ pub fn generate_transfers(n: usize, start_nonce: u64) -> Vec<RawTx> {
                 DEFAULT_ESTIMATED_GAS_USAGE,
             ),
         );
-        let ser_tx = ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&tx).unwrap()).unwrap();
+        let ser_tx =
+            <Runtime<TestSpec, MockDaSpec> as RuntimeAuthenticator<TestSpec>>::encode_with_standard_auth(
+                RawTx::new(borsh::to_vec(&tx).unwrap()),
+            );
         message_vec.push(ser_tx);
     }
     message_vec
 }
 
-pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
+pub fn generate_create_token_payload(start_nonce: u64) -> Vec<FullyBakedTx> {
     let mut message_vec = vec![];
 
     let (minter, pk) = sender_address_with_pkey::<TestSpec>();
@@ -251,7 +255,10 @@ pub fn generate_create_token_payload(start_nonce: u64) -> Vec<RawTx> {
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),
     );
-    let ser_tx = ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&tx).unwrap()).unwrap();
+    let ser_tx =
+        <Runtime<TestSpec, MockDaSpec> as RuntimeAuthenticator<TestSpec>>::encode_with_standard_auth(
+            RawTx::new(borsh::to_vec(&tx).unwrap()),
+        );
     message_vec.push(ser_tx);
 
     message_vec

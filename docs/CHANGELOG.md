@@ -1,3 +1,5 @@
+- #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `RuntimeAuthenticator`. All
+references to the `Authenticator` trait or `ModAuth` struct are replaced with references to `RuntimeAuthenticator` or the concrete runtime type of the rollup as appropriate.
 - #1398 Makes `StateCheckpoint`, `TxScratchpad` and `KernelStateAccessor` generic over `Storage` instead of `Spec`. These structs having no dependency on the `Spec`, this restricts the scope of the generics.
 - #1397 Removes the DA generic from the `Kernel` trait.
 - #1393 makes the new version of the kernel state accessors type-safe by preventing them to be built using the `From` trait of the `KernelStateAccessor`, but rather using a new `accessor` method in the `Kernel` trait. It also moves the `true_slot_height` out of the `StateCheckpoint` to the `KernelStateAccessor`

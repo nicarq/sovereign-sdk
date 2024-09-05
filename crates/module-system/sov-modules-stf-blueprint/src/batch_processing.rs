@@ -11,7 +11,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall,
-    Error, ExecutionContext, Gas, GasArray, GasMeter, PreExecWorkingSet, RawTx, Spec,
+    Error, ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Spec,
     StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
@@ -243,7 +243,7 @@ where
 #[allow(clippy::result_large_err)]
 pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     runtime: &R,
-    raw_tx: &RawTx,
+    raw_tx: &FullyBakedTx,
     // TODO <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/728`>: group constant variables in the stf-blueprint
     sequencer_da_address: &D::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -397,7 +397,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
-    raw_tx: &RawTx,
+    tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<
         S,
         <R as HasCapabilities<S, Da>>::SequencerStakeMeter,
@@ -407,7 +407,7 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     <R as RuntimeAuthenticator<S>>::Decodable,
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
 > {
-    let auth_input = borsh::from_slice(&raw_tx.data).map_err(|e| {
+    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
     })?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
@@ -416,7 +416,7 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     runtime: &R,
-    raw_tx: &RawTx,
+    raw_tx: &FullyBakedTx,
     sequencer_da_address: &D::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
@@ -524,7 +524,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
-    raw_tx: &RawTx,
+    tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
 ) -> AuthenticationResult<
     S,
@@ -532,7 +532,12 @@ fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S,
     <R as RuntimeAuthenticator<S>>::AuthorizationData,
     UnregisteredAuthenticationError,
 > {
-    runtime.authenticate_unregistered(raw_tx, pre_exec_working_set)
+    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
+        UnregisteredAuthenticationError::FatalError(FatalError::DeserializationFailed(
+            e.to_string(),
+        ))
+    })?;
+    runtime.authenticate_unregistered(&auth_input, pre_exec_working_set)
 }
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:

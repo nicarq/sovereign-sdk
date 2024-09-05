@@ -51,7 +51,6 @@ mod blueprint {
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
     use sov_db::schema::{DeltaReader, SchemaBatch};
-    use sov_modules_api::capabilities::Authenticator;
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::runtime::capabilities::Kernel;
@@ -374,18 +373,17 @@ mod blueprint {
     }
 
     /// A [`Sequencer`] that for a rollup built with [`RollupBlueprint`].
-    pub type SequencerBlueprint<B, M, Auth> = Sequencer<RollupBlueprintSequencerSpec<B, M, Auth>>;
+    pub type SequencerBlueprint<B, M> = Sequencer<RollupBlueprintSequencerSpec<B, M>>;
 
     /// The [`SequencerSpec`] of a [`SequencerBlueprint`].
     #[derive(derivative::Derivative)]
     #[derivative(Clone(bound = ""))]
-    pub struct RollupBlueprintSequencerSpec<B, M, Auth>(PhantomData<(B, M, Auth)>);
+    pub struct RollupBlueprintSequencerSpec<B, M>(PhantomData<(B, M)>);
 
-    impl<B, M, Auth> SequencerSpec for RollupBlueprintSequencerSpec<B, M, Auth>
+    impl<B, M> SequencerSpec for RollupBlueprintSequencerSpec<B, M>
     where
         B: FullNodeBlueprint<M> + Send + Sync + 'static,
         M: ExecutionMode + Send + Sync + 'static,
-        Auth: Authenticator<Spec = B::Spec, DispatchCall = B::Runtime> + Send + Sync + 'static,
         // Bounds required by `FullNodeBlueprint`:
         // --------------------------
         <B::InnerZkvmHost as ZkvmHost>::Guest:
@@ -393,7 +391,7 @@ mod blueprint {
         <B::OuterZkvmHost as ZkvmHost>::Guest:
             ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
     {
-        type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel, Auth>;
+        type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel>;
         type Da = B::DaService;
         type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
         type TxReceipt = TxReceiptContents;
