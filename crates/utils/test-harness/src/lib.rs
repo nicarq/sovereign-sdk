@@ -30,7 +30,6 @@ use sov_bank::Bank;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::RollupParams;
 use sov_celestia_adapter::CelestiaService;
-use sov_modules_api::capabilities::Authenticator;
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime;
@@ -39,11 +38,10 @@ use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 pub use utils::*;
 
 /// Starting the actual harness.
-pub async fn start<S, Da, Auth, R>() -> anyhow::Result<()>
+pub async fn start<S, Da, R>() -> anyhow::Result<()>
 where
     S: Spec,
     Da: DaService,
-    Auth: Authenticator,
     R: Runtime<S, Da::Spec>
         + sov_modules_api::EncodeCall<Bank<S>>
         + sov_modules_api::EncodeCall<ProverIncentives<S, Da::Spec>>
@@ -111,7 +109,7 @@ where
             .await;
     }
 
-    let da_blob_sender: DaBlobSender<S, Auth> = DaBlobSender::new(
+    let da_blob_sender: DaBlobSender<S, R> = DaBlobSender::new(
         config.clone(),
         account_pool.clone(),
         DaServiceWithRetries::new_fast(da_service),

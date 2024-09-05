@@ -1,8 +1,9 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, RuntimeAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DaSpec, DispatchCall, Spec};
+use sov_modules_api::{DaSpec, DispatchCall, RawTx, Spec};
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
 generate_bare_runtime! {
@@ -39,6 +40,9 @@ impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverte
     }
 }
 
+#[derive(std::fmt::Debug, Clone, BorshDeserialize, BorshSerialize)]
+pub struct AuthenticatorInput(sov_modules_api::RawTx);
+
 impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
@@ -49,19 +53,22 @@ where
 
     type AuthorizationData = AuthorizationData<S>;
 
-    type Input = sov_modules_api::RawTx;
+    type Input = AuthenticatorInput;
 
     fn authenticate(
         &self,
-        tx: &sov_modules_api::RawTx,
+        tx: &AuthenticatorInput,
         pre_exec_ws: &mut sov_modules_api::PreExecWorkingSet<S, Self::SequencerStakeMeter>,
     ) -> sov_modules_api::capabilities::AuthenticationResult<
         S,
         Self::Decodable,
         Self::AuthorizationData,
     > {
-        let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_evm::authenticate::<_, _, EthereumToRollupAddressConverter>(&tx.data, pre_exec_ws)?;
+        let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
+            _,
+            _,
+            EthereumToRollupAddressConverter,
+        >(&tx.0.data, pre_exec_ws)?;
         let call = TestRuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))
@@ -69,7 +76,7 @@ where
 
     fn authenticate_unregistered(
         &self,
-        _tx: &sov_modules_api::RawTx,
+        _tx: &AuthenticatorInput,
         _state: &mut sov_modules_api::PreExecWorkingSet<
             S,
             sov_modules_api::UnlimitedGasMeter<<S as Spec>::Gas>,
@@ -83,8 +90,8 @@ where
         unimplemented!()
     }
 
-    fn encode_standard_tx(tx: Vec<u8>) -> Self::Input {
-        sov_modules_api::RawTx { data: tx }
+    fn add_standard_auth(tx: RawTx) -> Self::Input {
+        AuthenticatorInput(tx)
     }
 }
 

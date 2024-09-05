@@ -17,8 +17,8 @@ use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Gas,
-    GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, RawTx,
-    RuntimeEventProcessor, Spec, StateCheckpoint,
+    GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, RuntimeEventProcessor,
+    Spec, StateCheckpoint,
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
 use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
@@ -282,17 +282,12 @@ where
         let blobs = batches
             .into_iter()
             .map(|(batch, sequencer)| {
-                let raw_txns = batch
+                let txns = batch
                     .0
                     .into_iter()
-                    .map(|tx| RawTx {
-                        // TODO: Change the semantics of batch that this is no longer a RawTx. Batches
-                        // Should be composed of `AuthenticatedTx`.
-                        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1043>
-                        data: tx.to_serialized_authenticated_tx::<RT>(nonces, state),
-                    })
+                    .map(|tx| tx.to_serialized_authenticated_tx::<RT>(nonces, state))
                     .collect::<Vec<_>>();
-                let batch = Batch::new(raw_txns);
+                let batch = Batch::new(txns);
                 MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer)
             })
             .collect::<Vec<_>>();
@@ -325,12 +320,7 @@ where
                     let raw_txns = batch
                         .0
                         .into_iter()
-                        .map(|tx| RawTx {
-                            // TODO: Change the semantics of batch that this is no longer a RawTx. Batches
-                            // Should be composed of `AuthenticatedTx`.
-                            // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1043>
-                            data: tx.to_serialized_authenticated_tx::<RT>(nonces, state),
-                        })
+                        .map(|tx| tx.to_serialized_authenticated_tx::<RT>(nonces, state))
                         .collect::<Vec<_>>();
 
                     let serialized_batch = match sequencer_info {

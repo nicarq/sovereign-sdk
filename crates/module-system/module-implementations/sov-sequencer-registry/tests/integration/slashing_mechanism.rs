@@ -24,7 +24,7 @@ fn produce_malformed_tx(
             )
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
 
-        tx.pop();
+        tx.data.pop();
 
         TransactionType::PreAuthenticated(tx)
     })

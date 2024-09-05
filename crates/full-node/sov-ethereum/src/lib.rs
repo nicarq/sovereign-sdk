@@ -13,9 +13,9 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
 use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
+pub use sov_evm::EthereumAuthenticator;
 use sov_evm::{Evm, RlpEvmTransaction};
-use sov_modules_api::capabilities::Authenticator;
-use sov_modules_api::{ApiStateAccessor, Batch};
+use sov_modules_api::{ApiStateAccessor, Batch, RawTx};
 use sov_rollup_interface::node::da::DaService;
 use tokio::sync::watch;
 
@@ -32,11 +32,15 @@ pub struct EthRpcConfig {
     pub eth_signer: DevSigner,
 }
 
-pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator>(
+pub fn get_ethereum_rpc<
+    S: sov_modules_api::Spec,
+    Da: DaService,
+    RT: EthereumAuthenticator<S> + Send + Sync + 'static,
+>(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
     storage: watch::Receiver<S::Storage>,
-) -> RpcModule<Ethereum<S, Da, Auth>> {
+) -> RpcModule<Ethereum<S, Da, RT>> {
     // Unpack config
     let EthRpcConfig {
         min_blob_size,
@@ -59,17 +63,17 @@ pub fn get_ethereum_rpc<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
     rpc
 }
 
-pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> {
+pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> {
     da_service: Da,
     batch_builder: Arc<Mutex<EthBatchBuilder>>,
     gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
     storage: watch::Receiver<S::Storage>,
-    _phantom: PhantomData<Auth>,
+    _phantom: PhantomData<RT>,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, Da, Auth> {
+impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethereum<S, Da, RT> {
     fn new(
         da_service: Da,
         batch_builder: Arc<Mutex<EthBatchBuilder>>,
@@ -91,7 +95,7 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
     }
 }
 
-impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, Da, Auth> {
+impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethereum<S, Da, RT> {
     fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
         let signed_transaction: RethTransactionSignedNoHash =
             raw_tx.clone().try_into().map_err(EthApiError::from)?;
@@ -133,8 +137,8 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
 
         let txs = tx_batch
             .into_iter()
-            .map(|tx| Auth::encode(tx).map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR)))
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|tx| RT::encode_with_ethereum_auth(RawTx::new(tx)))
+            .collect::<Vec<_>>();
         let batch = Batch::new(txs);
 
         let serialized_batch =
@@ -171,8 +175,12 @@ impl<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator> Ethereum<S, D
     }
 }
 
-fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authenticator>(
-    rpc: &mut RpcModule<Ethereum<S, Da, Auth>>,
+fn register_rpc_methods<
+    S: sov_modules_api::Spec,
+    Da: DaService,
+    RT: EthereumAuthenticator<S> + Send + Sync + 'static,
+>(
+    rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
 ) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
@@ -227,7 +235,7 @@ fn register_rpc_methods<S: sov_modules_api::Spec, Da: DaService, Auth: Authentic
     )?;
 
     #[cfg(feature = "local")]
-    signer::register_signer_rpc_methods::<_, _, Auth>(rpc)?;
+    signer::register_signer_rpc_methods::<_, _, RT>(rpc)?;
 
     Ok(())
 }

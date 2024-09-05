@@ -4,9 +4,9 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use sov_celestia_adapter::CelestiaService;
-use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, RawTx, Spec};
+use sov_modules_api::{Batch, FullyBakedTx, RawTx, Spec};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::sleep;
@@ -15,16 +15,16 @@ use crate::args::Args;
 use crate::constants::TIME_OUT_DURATION;
 use crate::{Account, AccountPool, SerializedPreparedCallMessage};
 
-pub(crate) struct DaBlobSender<S: Spec, Auth: Authenticator> {
+pub(crate) struct DaBlobSender<S: Spec, RT: RuntimeAuthenticator<S>> {
     config: Args,
     account_pool: AccountPool<S>,
     da_service: DaServiceWithRetries<CelestiaService>,
     receiver: Receiver<SerializedPreparedCallMessage>,
     should_stop: Arc<AtomicBool>,
-    _phantom: PhantomData<Auth>,
+    _phantom: PhantomData<RT>,
 }
 
-impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
+impl<S: Spec, RT: RuntimeAuthenticator<S>> DaBlobSender<S, RT> {
     pub(crate) fn new(
         config: Args,
         account_pool: AccountPool<S>,
@@ -70,7 +70,7 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
                             "there should be an account at account pool index: {account_pool_index}",
                         );
 
-                        match authorize_serialized_call_message::<S, Auth>(
+                        match authorize_serialized_call_message::<S, RT>(
                             &self.config,
                             account,
                             serialized_message,
@@ -118,7 +118,7 @@ impl<S: Spec, Auth: Authenticator> DaBlobSender<S, Auth> {
 // TODO Move to own mod?
 pub(crate) async fn submit_transactions<Da: DaService>(
     da_service: &Da,
-    txs: Vec<RawTx>,
+    txs: Vec<FullyBakedTx>,
 ) -> anyhow::Result<()> {
     let batch = Batch::new(txs);
     let batch_bytes = borsh::to_vec(&batch).expect("Failed to serialize batch");
@@ -134,11 +134,11 @@ pub(crate) async fn submit_transactions<Da: DaService>(
     Ok(())
 }
 
-pub(crate) fn authorize_serialized_call_message<S: Spec, Auth: Authenticator>(
+pub(crate) fn authorize_serialized_call_message<S: Spec, RT: RuntimeAuthenticator<S>>(
     config: &Args,
     account: &Account<S>,
     serialized_message: SerializedPreparedCallMessage,
-) -> anyhow::Result<RawTx> {
+) -> anyhow::Result<FullyBakedTx> {
     let (serialized_message, _, max_fee) = serialized_message.dissolve();
     let unsigned_tx = UnsignedTransaction::new(
         serialized_message,
@@ -150,6 +150,7 @@ pub(crate) fn authorize_serialized_call_message<S: Spec, Auth: Authenticator>(
     );
 
     let signed_tx = Transaction::<S>::new_signed_tx(account.private_key(), unsigned_tx);
-    let signed_and_encoded_tx = Auth::encode(borsh::to_vec(&signed_tx)?)?;
+    let signed_and_encoded_tx =
+        RT::encode_with_standard_auth(RawTx::new(borsh::to_vec(&signed_tx)?));
     Ok(signed_and_encoded_tx)
 }

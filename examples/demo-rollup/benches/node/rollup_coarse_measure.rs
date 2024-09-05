@@ -8,7 +8,6 @@ use std::env;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::Runtime;
 use humantime::format_duration;
@@ -18,9 +17,9 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, RawTx, Spec};
+use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, RawTx, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 use sov_rollup_interface::da::{BlockHeaderTrait, RelevantBlobs};
@@ -148,7 +147,7 @@ fn signed_bank_tx(
     msg: sov_bank::CallMessage<TestSpec>,
     private_key: &TestPrivateKey,
     nonce: u64,
-) -> RawTx {
+) -> FullyBakedTx {
     let enc_msg = <Runtime<TestSpec, MockDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
     let tx = Transaction::<TestSpec>::new_signed_tx(
         private_key,
@@ -161,7 +160,9 @@ fn signed_bank_tx(
             None,
         ),
     );
-    ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&tx).unwrap()).unwrap()
+    Runtime::<TestSpec, MockDaSpec>::encode_with_standard_auth(RawTx::new(
+        borsh::to_vec(&tx).unwrap(),
+    ))
 }
 
 // Sets up storage and returns blocks that should be benchmarked.
@@ -242,7 +243,7 @@ fn setup(
         .save_change_set(&genesis_block_header, stf_state, ledger_change_set)
         .expect("Saving genesis storage failed");
 
-    let mut setup_txs: Vec<RawTx> = Vec::new();
+    let mut setup_txs: Vec<FullyBakedTx> = Vec::new();
 
     let token_name = "sov-bench-token";
     let salt = 31337;

@@ -41,8 +41,9 @@ use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
 use crate::{
-    Context, CryptoSpec, DispatchCall, ExecutionContext, GasMeter, MeteredBorshDeserialize,
-    MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad, UnlimitedGasMeter,
+    Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter,
+    MeteredBorshDeserialize, MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad,
+    UnlimitedGasMeter,
 };
 
 /// The chain id of the rollup.
@@ -77,7 +78,7 @@ pub trait RuntimeAuthenticator<S: Spec> {
     /// additional authentication information is required.
     fn authenticate_unregistered(
         &self,
-        tx: &RawTx,
+        tx: &Self::Input,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
     ) -> AuthenticationResult<
         S,
@@ -87,7 +88,17 @@ pub trait RuntimeAuthenticator<S: Spec> {
     >;
 
     /// Encode a standard transaction for the rollup with information describing how to authenticate it.
-    fn encode_standard_tx(tx: Vec<u8>) -> Self::Input;
+    fn add_standard_auth(tx: RawTx) -> Self::Input;
+
+    /// Encode the input for the authenticator into a byte array.
+    fn encode_athenticator_input(input: &Self::Input) -> FullyBakedTx {
+        FullyBakedTx::new(borsh::to_vec(&input).unwrap())
+    }
+
+    /// Encode a standard transaction for the rollup with information describing how to authenticate it.
+    fn encode_with_standard_auth(tx: RawTx) -> FullyBakedTx {
+        Self::encode_athenticator_input(&Self::add_standard_auth(tx))
+    }
 }
 
 /// Authorizes transactions to be executed.
@@ -189,6 +200,11 @@ pub enum UnregisteredAuthenticationError {
     /// message.
     #[error("The runtime call included in the transaction was invalid.")]
     RuntimeCall,
+    #[error(
+        "The emergency registration transaction did not use the standard authentication mechanism"
+    )]
+    /// The transaction didn't use the standard authenticator.
+    InvalidAuthenticator,
 }
 
 impl From<AuthenticationError> for UnregisteredAuthenticationError {
@@ -199,41 +215,6 @@ impl From<AuthenticationError> for UnregisteredAuthenticationError {
         }
     }
 }
-
-/// Authenticates the transaction.
-/// Let's assume we have a rollup that contains `sov-bank` and `sov-evm` modules. This means that the rollup has to accept two kinds of transactions:
-/// 1. The `sov-bank` transactions encoded as the `Sov-Transaction` type.
-/// 2. The RLP encoded evm transactions.
-/// We immediately face a question: Once the transaction lands on the DA, how should we distinguish between the two types and choose the correct authentication mechanism?
-/// This is where the [`Authenticator`] trait comes in.
-/// In the case above we would have two implementations of the [`Authenticator`] trait: `EvmAuth & SovAuth`.
-/// Typically, the different transaction types are accepted by the sequencer on different HTTP endpoints.
-/// At this point, the sequencer knows how the transaction should be handled. Before putting the transaction on the DA, it calls `EvmAuth::encode` or `SovAuth::encode`, which internally marks the transaction as evm or sov-standard.
-/// After the transaction is read from the DA, the full node simply checks which authenticator to use and calls [Authenticator::authenticate] from the `EvmAuth/SovAuth` to authenticate the transaction.
-/// This is done inside the [RuntimeAuthenticator::authenticate] method.
-pub trait Authenticator: Send + Sync + 'static {
-    /// The rollup Spec.
-    type Spec: Spec;
-    /// CallMessage dispatcher.
-    type DispatchCall: DispatchCall;
-    /// The type that is passed to the authorizer.
-    type AuthorizationData;
-
-    /// Accepts raw tx and interprets it as a transaction, performing validation relevant to a particular authentication scheme.
-    /// The `stake_meter` is used to track and accumulate potential penalties for the sequencer.
-    fn authenticate<Meter: GasMeter<<Self::Spec as Spec>::Gas>>(
-        raw_tx: &[u8],
-        stake_meter: &mut PreExecWorkingSet<Self::Spec, Meter>,
-    ) -> AuthenticationResult<
-        Self::Spec,
-        <Self::DispatchCall as DispatchCall>::Decodable,
-        Self::AuthorizationData,
-    >;
-
-    /// Encodes transaction bytes using a particular authenticator.
-    fn encode(tx: Vec<u8>) -> anyhow::Result<RawTx>;
-}
-
 /// Data required to authorize a sov-transaction.
 pub struct AuthorizationData<S: Spec> {
     /// The nonce of the transaction.

@@ -3,11 +3,10 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::Path;
 
-use demo_stf::authentication::ModAuth;
 use demo_stf::genesis_config::{AccountConfig, AccountData};
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
-use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{CredentialId, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::node::da::DaService;
@@ -99,7 +98,7 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     let blob = create_token_message_gen
         .create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<
         Native,
-    >>::Runtime, ModAuth<S, MockDaSpec>>();
+    >>::Runtime>();
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
@@ -107,7 +106,7 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     blocks.push(block1);
 
     for i in 0..block_cnt {
-        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime, ModAuth<S, MockDaSpec>>();
+        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
         let fee = da_service.estimate_fee(blob.len()).await.unwrap();
         da_service.send_transaction(&blob, fee).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();

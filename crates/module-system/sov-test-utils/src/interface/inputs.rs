@@ -3,7 +3,9 @@ use std::collections::HashMap;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{ApiStateAccessor, CryptoSpec, EncodeCall, Module, PrivateKey, RawTx, Spec};
+use sov_modules_api::{
+    ApiStateAccessor, CryptoSpec, EncodeCall, FullyBakedTx, Module, PrivateKey, RawTx, Spec,
+};
 use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::FromState;
@@ -11,7 +13,7 @@ use crate::FromState;
 /// Defines the type of a message that can be sent to the runtime.
 pub enum TransactionType<M: Module, S: Spec> {
     /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as RuntimeAuthenticator>::Input` type.
-    PreAuthenticated(Vec<u8>),
+    PreAuthenticated(FullyBakedTx),
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
     PreSigned(RawTx),
     /// A pre-encoded transaction. That is a transaction that has not been signed yet, but has been encoded for the module system
@@ -128,39 +130,22 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
         state: &mut ApiStateAccessor<S>,
-    ) -> Vec<u8> {
-        if let TransactionType::PreAuthenticated(data) = self {
-            return data;
-        }
-        borsh::to_vec(&self.to_authenticated_tx::<RT>(nonces, state))
-            .expect("Serialization to a Vec is infallible")
-    }
-
-    /// Converts a [`TransactionType`] into a `<RT as RuntimeAuthenticator>::Input`.
-    pub fn to_authenticated_tx<RT: EncodeCall<M> + RuntimeAuthenticator<S>>(
-        self,
-        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-        state: &mut ApiStateAccessor<S>,
-    ) -> <RT as RuntimeAuthenticator<S>>::Input {
+    ) -> FullyBakedTx {
         match self {
-            TransactionType::PreAuthenticated(data) => {
-                let input: <RT as RuntimeAuthenticator<S>>::Input = borsh::from_slice(&data)
-                    .expect("Failed to deserialize pre-authenticated transaction");
-                input
-            }
-            TransactionType::PreSigned(raw_tx) => RT::encode_standard_tx(raw_tx.data),
+            TransactionType::PreAuthenticated(data) => data,
+            TransactionType::PreSigned(raw_tx) => RT::encode_with_standard_auth(raw_tx),
             TransactionType::PreEncoded {
                 encoded_message,
                 key,
                 details,
-            } => RT::encode_standard_tx(Self::sign(encoded_message, key, details, nonces).data),
+            } => RT::encode_with_standard_auth(Self::sign(encoded_message, key, details, nonces)),
             TransactionType::Plain {
                 message,
                 key,
                 details,
             } => {
                 let msg = <RT as EncodeCall<M>>::encode_call(message);
-                RT::encode_standard_tx(Self::sign(msg, key, details, nonces).data)
+                RT::encode_with_standard_auth(Self::sign(msg, key, details, nonces))
             }
             TransactionType::Configuration {
                 message,
@@ -169,7 +154,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
             } => {
                 let msg = message.from_state(state);
                 let msg = <RT as EncodeCall<M>>::encode_call(msg);
-                RT::encode_standard_tx(Self::sign(msg, key, details, nonces).data)
+                RT::encode_with_standard_auth(Self::sign(msg, key, details, nonces))
             }
         }
     }

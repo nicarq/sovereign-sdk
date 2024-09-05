@@ -20,32 +20,25 @@ use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 use tokio::sync::watch;
 
-use crate::auth::TestAuth;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{ChainStateConfig, GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageManager};
 
-type TestSequencerSpec<B> = GenericSequencerSpec<
-    B,
-    MockDaService,
-    TestAuth<TestSpec, MockDaSpec>,
-    BatchReceipt<MockDaSpec>,
-    TxReceiptContents,
->;
+type TestSequencerSpec<B> =
+    GenericSequencerSpec<B, MockDaService, BatchReceipt<MockDaSpec>, TxReceiptContents>;
 
-/// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions and a [`TestAuth`] for authentication.
+/// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions.
 pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 
 /// The default test fair batch builder type.
 /// An alias for a [`FairBatchBuilder`] with a [`TestSpec`],
 /// a [`MockDaService`] for DA interactions,
-/// a [`TestOptimisticRuntime`], a [`BasicKernel`] and a [`TestAuth`] for authentication.
+/// a [`TestOptimisticRuntime`] and a [`BasicKernel`]
 pub type TestFairBatchBuilder = FairBatchBuilder<
     TestSpec,
     MockDaSpec,
     TestOptimisticRuntime<TestSpec, MockDaSpec>,
     BasicKernel<TestSpec, MockDaSpec>,
-    TestAuth<TestSpec, MockDaSpec>,
 >;
 
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum

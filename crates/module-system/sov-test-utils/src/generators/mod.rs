@@ -4,10 +4,10 @@
 
 use std::rc::Rc;
 
-use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{Batch, CryptoSpec, EncodeCall, GasArray, Module, RawTx, Spec};
+use sov_modules_api::{Batch, CryptoSpec, EncodeCall, FullyBakedTx, GasArray, Module, RawTx, Spec};
 
 use crate::{TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
@@ -114,10 +114,12 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_default_raw_txs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(
+    fn create_default_encoded_txs<
+        RT: RuntimeAuthenticator<Self::Spec> + EncodeCall<Self::Module>,
+    >(
         &self,
-    ) -> Vec<RawTx> {
-        self.create_raw_txs::<Encoder, Auth>(
+    ) -> Vec<FullyBakedTx> {
+        self.create_encoded_txs::<RT>(
             Self::DEFAULT_CHAIN_ID,
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
@@ -128,13 +130,12 @@ pub trait MessageGenerator {
     }
 
     /// Generates a list of raw transactions originating from the module using default transaction details and no gas usage.
-    fn create_default_raw_txs_without_gas_usage<
-        Encoder: EncodeCall<Self::Module>,
-        Auth: Authenticator,
+    fn create_default_encoded_txs_without_gas_usage<
+        RT: RuntimeAuthenticator<Self::Spec> + EncodeCall<Self::Module>,
     >(
         &self,
-    ) -> Vec<RawTx> {
-        self.create_raw_txs::<Encoder, Auth>(
+    ) -> Vec<FullyBakedTx> {
+        self.create_encoded_txs::<RT>(
             Self::DEFAULT_CHAIN_ID,
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
@@ -143,13 +144,13 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_raw_txs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(
+    fn create_encoded_txs<RT: RuntimeAuthenticator<Self::Spec> + EncodeCall<Self::Module>>(
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
-    ) -> Vec<RawTx> {
+    ) -> Vec<FullyBakedTx> {
         let messages_iter = self
             .create_messages(
                 chain_id,
@@ -160,17 +161,21 @@ pub trait MessageGenerator {
             .into_iter();
         let mut serialized_messages = Vec::default();
         for message in messages_iter {
-            let tx = message.to_tx::<Encoder>();
-            serialized_messages.push(Auth::encode(borsh::to_vec(&tx).unwrap()).unwrap());
+            let tx = message.to_tx::<RT>();
+            serialized_messages.push(RT::encode_with_standard_auth(RawTx::new(
+                borsh::to_vec(&tx).unwrap(),
+            )));
         }
         serialized_messages
     }
 
     /// Generates a list of blobs originating from the module using default transaction details.
-    /// This function calls [`MessageGenerator::create_default_raw_txs`] and then wraps the resulting vec of [`RawTx`]s into a [`Batch`].
-    fn create_blobs<Encoder: EncodeCall<Self::Module>, Auth: Authenticator>(&self) -> Vec<u8> {
-        let txs: Vec<RawTx> = self
-            .create_default_raw_txs::<Encoder, Auth>()
+    /// This function calls [`MessageGenerator::create_default_encoded_txs`] and then wraps the resulting vec of [`RawTx`]s into a [`Batch`].
+    fn create_blobs<RT: RuntimeAuthenticator<Self::Spec> + EncodeCall<Self::Module>>(
+        &self,
+    ) -> Vec<u8> {
+        let txs: Vec<FullyBakedTx> = self
+            .create_default_encoded_txs::<RT>()
             .into_iter()
             .collect();
 

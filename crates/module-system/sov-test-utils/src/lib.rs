@@ -24,9 +24,6 @@ use crate::runtime::BasicKernel;
 
 mod api_client;
 
-/// Utilities for testing the authentication logic.
-pub mod auth;
-
 mod evm;
 
 /// Utilities for generating test data.

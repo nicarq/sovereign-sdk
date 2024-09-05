@@ -4,11 +4,11 @@ mod helpers;
 use std::sync::Arc;
 
 use anyhow::Context;
-use demo_stf::authentication::ModAuth;
+use demo_stf::runtime::Runtime;
 use futures::StreamExt;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::Authenticator;
+use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
@@ -43,8 +43,12 @@ impl TxSender for DaLayerTxSender {
     ) -> anyhow::Result<u64> {
         let authenticated_txs = transactions
             .iter()
-            .map(|signed_tx| ModAuth::<TestSpec, MockDaSpec>::encode(borsh::to_vec(&signed_tx)?))
-            .collect::<anyhow::Result<Vec<RawTx>>>()?;
+            .map(|signed_tx| {
+                Runtime::<TestSpec, MockDaSpec>::encode_with_standard_auth(RawTx::new(
+                    borsh::to_vec(&signed_tx).unwrap(),
+                ))
+            })
+            .collect::<Vec<_>>();
 
         let batch = Batch::new(authenticated_txs);
         let batch_bytes = borsh::to_vec(&batch)?;

@@ -5,23 +5,46 @@ use sov_rollup_interface::da::DaSpec;
 use crate::capabilities::FatalError;
 use crate::transaction::SequencerReward;
 
-/// RawTx represents a serialized rollup transaction received from the DA.
+/// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
+/// authentication information and is ready to be placed on the DA layer.
+#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+pub struct FullyBakedTx {
+    /// Serialized transaction.
+    pub data: Vec<u8>,
+}
+
+impl FullyBakedTx {
+    /// Construct a FullyBakedTx containing the given data
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+}
+
+/// RawTx represents a serialized signed rollup transaction. A RawTx needs to be encoded
+/// with authentication information before being placed on the DA layer.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct RawTx {
     /// Serialized transaction.
     pub data: Vec<u8>,
 }
 
+impl RawTx {
+    /// Construct a RawTx containing the given data
+    pub fn new(data: Vec<u8>) -> Self {
+        Self { data }
+    }
+}
+
 /// Contains raw transactions obtained from the DA blob.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct Batch {
     /// Raw transactions.
-    pub txs: Vec<RawTx>,
+    pub txs: Vec<FullyBakedTx>,
 }
 
 impl Batch {
     /// Construct a new batch containing the given txs.
-    pub fn new(txs: Vec<RawTx>) -> Self {
+    pub fn new(txs: Vec<FullyBakedTx>) -> Self {
         Self { txs }
     }
 }
@@ -48,7 +71,7 @@ pub enum BlobData {
 
 impl BlobData {
     /// Batch variant constructor.
-    pub fn new_batch(txs: Vec<RawTx>) -> BlobData {
+    pub fn new_batch(txs: Vec<FullyBakedTx>) -> BlobData {
         BlobData::Batch(Batch { txs })
     }
 
