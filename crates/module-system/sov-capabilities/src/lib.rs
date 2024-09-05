@@ -213,14 +213,14 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     fn process_challenge(
         &self,
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
-        transition_num: u64,
+        rollup_height: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
     ) -> Result<SovStateTransitionPublicData<S, Da>, InvalidProofError> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
             &proof,
-            transition_num,
+            rollup_height,
             state,
         )?;
 
