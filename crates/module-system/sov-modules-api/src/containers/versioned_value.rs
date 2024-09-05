@@ -136,7 +136,8 @@ mod tests {
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
-    use crate::{KernelStateAccessor, StateCheckpoint, VersionedStateValue};
+    use crate::runtime::capabilities::Kernel as _;
+    use crate::{StateCheckpoint, VersionedStateValue};
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -152,7 +153,7 @@ mod tests {
         let value = VersionedStateValue::<u64>::new(prefix.clone());
 
         // Initialize a value in the kernel state during slot 4
-        let mut kernel_state = KernelStateAccessor::from(&mut state);
+        let mut kernel_state = kernel.accessor(&mut state);
         value.set_true_current(&100, &mut kernel_state);
         assert_eq!(
             value.get_current(&mut kernel_state).unwrap_infallible(),
@@ -163,7 +164,7 @@ mod tests {
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);
 
         // Try to read the value from kernel space with the slot number set to 4. Should succeed.
-        state.update_versions(4, 4);
+        state.update_version(4);
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
     }
 
@@ -180,7 +181,7 @@ mod tests {
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 
-        let mut kernel_state = KernelStateAccessor::from(&mut state);
+        let mut kernel_state = kernel.accessor(&mut state);
         value.set(&2, &100, &mut kernel_state);
         assert_eq!(
             value.get(&2, &mut kernel_state).unwrap_infallible(),
@@ -192,12 +193,12 @@ mod tests {
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);
 
         // Try to read the value from user space with the slot number set to 2. Should succeed.
-        state.update_versions(4, 2);
+        state.update_version(2);
 
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
 
         // Try to read the value from user space with the slot number set to 4. Should succeed.
-        state.update_versions(4, 4);
+        state.update_version(4);
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(17));
     }
 }

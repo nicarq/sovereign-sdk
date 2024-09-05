@@ -1,3 +1,4 @@
+- #1393 makes the new version of the kernel state accessors type-safe by preventing them to be built using the `From` trait of the `KernelStateAccessor`, but rather using a new `accessor` method in the `Kernel` trait. It also moves the `true_slot_height` out of the `StateCheckpoint` to the `KernelStateAccessor`
 - #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.
 - #1381 Adds an associated `Input` type the `RuntimeAuthenticator` trait and expects that type as the argument to `authenticate`. It also adds a new method to the trait `fn encode_default_tx()` which implemetns the runtime-specific notion of a "standard" authentication path. 
 - 1392 Simplify the test in prover/attester incentives.

@@ -3,7 +3,7 @@ use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, Sl
 use super::checkpoints::StateCheckpoint;
 use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
-use crate::{Gas, GasMeter, GasMeteringError, Genesis, Spec, UnlimitedGasMeter};
+use crate::{Gas, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec, UnlimitedGasMeter};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
@@ -25,6 +25,12 @@ impl<S: Spec> StateCheckpoint<S> {
             gas_meter: UnlimitedGasMeter::new(),
             events: Default::default(),
         }
+    }
+}
+
+impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
+    fn true_slot_number(&self) -> u64 {
+        0
     }
 }
 

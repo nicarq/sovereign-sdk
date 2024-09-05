@@ -214,7 +214,9 @@ where
 
         let state = &mut StateCheckpoint::new(stf_state, self.stf.kernel());
 
-        query(&mut state.into())
+        let mut kernel_accessor = self.stf.kernel().accessor(state);
+
+        query(&mut kernel_accessor)
     }
 
     /// Builds a new test runner and runs genesis.

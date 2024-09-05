@@ -19,7 +19,7 @@ use sov_modules_api::transaction::SequencerReward;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
-    KernelStateAccessor, RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -218,8 +218,11 @@ where
     ) {
         // Run end_slot_hook
         self.runtime.end_slot_hook(&mut checkpoint);
+
+        let mut kernel_state_accessor = self.kernel.accessor(&mut checkpoint);
+
         self.kernel
-            .end_slot_hook(gas_used, &mut (&mut checkpoint).into());
+            .end_slot_hook(gas_used, &mut kernel_state_accessor);
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
@@ -275,18 +278,19 @@ where
         let mut state_checkpoint =
             StateCheckpoint::new::<K, _>(pre_state.clone(), &Default::default());
 
+        let mut kernel_accessor = K::default().accessor(&mut state_checkpoint);
+
         // Important! The kernel *must* be initialized before the runtime, since runtime
         // module authors are allowed to depend on the kernel.
         self.kernel
-            .genesis(
-                &params.kernel,
-                &mut KernelStateAccessor::from(&mut state_checkpoint),
-            )
+            .genesis(&params.kernel, &mut kernel_accessor)
             .expect("Kernel initialization must succeed");
 
+        let mut genesis_accessor =
+            state_checkpoint.to_genesis_state_accessor::<RT>(&params.runtime);
+
         // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
-        let mut working_set = state_checkpoint.to_genesis_state_accessor::<RT>(&params.runtime);
-        if let Err(e) = self.runtime.genesis(&params.runtime, &mut working_set) {
+        if let Err(e) = self.runtime.genesis(&params.runtime, &mut genesis_accessor) {
             tracing::error!(error = %e, "Runtime initialization must succeed");
             panic!("Runtime initialization must succeed {}", e);
         }
@@ -324,6 +328,8 @@ where
     {
         let mut state = StateCheckpoint::with_witness(pre_state.clone(), witness, &self.kernel);
 
+        let mut kernel_accessor = self.kernel.accessor(&mut state);
+
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
@@ -331,7 +337,7 @@ where
             slot_header,
             validity_condition,
             pre_state_root,
-            &mut KernelStateAccessor::from(&mut state),
+            &mut kernel_accessor,
         );
 
         let all_blobs = relevant_blobs
@@ -347,7 +353,7 @@ where
 
         let selected_blobs = self
             .kernel
-            .get_blobs_for_this_slot(all_blobs, &mut KernelStateAccessor::from(&mut state))
+            .get_blobs_for_this_slot(all_blobs, &mut kernel_accessor)
             .expect("blob selection must succeed, probably serialization failed");
 
         self.begin_slot(&mut state, slot_header, validity_condition, pre_state_root);
