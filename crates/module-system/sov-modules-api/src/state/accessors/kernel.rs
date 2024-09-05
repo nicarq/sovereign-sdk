@@ -1,5 +1,4 @@
 use internals::Delta;
-use sov_rollup_interface::da::DaSpec;
 /// Provides specialized working set wrappers for dealing with protected state.
 use sov_state::{IsValueCached, SlotKey, SlotValue, Storage};
 
@@ -52,7 +51,7 @@ impl<'a, S: Spec> KernelWriter for KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Spec> KernelStateAccessor<'a, S> {
-    pub(crate) fn from_checkpoint<K: Kernel<S, Da>, Da: DaSpec>(
+    pub(crate) fn from_checkpoint<K: Kernel<S>>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {

@@ -29,7 +29,7 @@ pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
     pub chain_state: <ChainState<S, Da> as KernelModule>::Config,
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec, Da: DaSpec> Kernel<S> for SoftConfirmationsKernel<S, Da> {
     type GenesisConfig = SoftConfirmationsKernelGenesisConfig<S, Da>;
 
     #[cfg(feature = "native")]

@@ -315,7 +315,6 @@ where
 mod test {
     use std::fmt::Debug;
 
-    use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkVerifier;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
@@ -334,7 +333,7 @@ mod test {
     fn test_state_vec() {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let kernel = MockKernel::<TestSpec, MockDaSpec>::default();
+        let kernel = MockKernel::<TestSpec>::default();
         let mut state: StateCheckpoint<TestSpec> = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
@@ -343,7 +342,7 @@ mod test {
         // We need to initialize the state vector before we can run any test case.
         state_vec.initialize(&mut kernel.accessor(&mut state));
 
-        let mut kernel = MockKernel::<TestSpec, MockDaSpec>::default();
+        let mut kernel = MockKernel::<TestSpec>::default();
         kernel.true_slot_number = 1;
 
         test_cases().into_iter().for_each(|test_case_action| {
@@ -434,7 +433,7 @@ mod test {
     fn check_test_case_action<T, S: Spec>(
         state_vec: &VersionedStateVec<T>,
         action: TestCaseAction<T>,
-        kernel: &mut MockKernel<S, MockDaSpec>,
+        kernel: &mut MockKernel<S>,
         state: &mut StateCheckpoint<S>,
     ) where
         BorshCodec: StateItemCodec<T>,

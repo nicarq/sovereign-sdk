@@ -7,7 +7,7 @@ use sov_modules_api::{
     ModuleInfo, Spec,
 };
 use sov_state::ZkStorage;
-use sov_test_utils::{MockDaSpec, ZkTestSpec};
+use sov_test_utils::ZkTestSpec;
 
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
 struct Runtime<S, T>
@@ -26,10 +26,8 @@ fn main() {
 
     let storage = ZkStorage::new();
 
-    let mut state = sov_modules_api::StateCheckpoint::new(
-        storage,
-        &MockKernel::<ZkTestSpec, MockDaSpec>::default(),
-    );
+    let mut state =
+        sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
     let config = GenesisConfig::new((), (), ());
     let mut genesis_state = state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();

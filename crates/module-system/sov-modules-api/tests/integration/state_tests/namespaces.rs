@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
@@ -178,7 +177,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 
     // Check that we can get the current value with a standard working set
-    let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
+    let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<S>::default());
     let val = state_value
         .get_current(&mut state)?
         .expect("We should be able to retrieve the state value");

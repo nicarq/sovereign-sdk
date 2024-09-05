@@ -140,7 +140,7 @@ mod blueprint {
                 Self::Spec,
                 Self::DaSpec,
             >>::GenesisPaths,
-            kernel_genesis: <Self::Kernel as Kernel<Self::Spec, Self::DaSpec>>::GenesisConfig,
+            kernel_genesis: <Self::Kernel as Kernel<Self::Spec>>::GenesisConfig,
             _rollup_config: &RollupConfig<
                 <Self::Spec as Spec>::Address,
                 <Self::DaService as DaService>::Config,
@@ -149,7 +149,7 @@ mod blueprint {
         ) -> anyhow::Result<
             GenesisParams<
                 <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
-                <Self::Kernel as Kernel<Self::Spec, Self::DaSpec>>::GenesisConfig,
+                <Self::Kernel as Kernel<Self::Spec>>::GenesisConfig,
             >,
         > {
             let rt_genesis =
@@ -211,10 +211,7 @@ mod blueprint {
                 Self::Spec ,
                 Self::DaSpec,
             >>::GenesisPaths,
-            kernel_genesis_config: <Self::Kernel as Kernel<
-                Self::Spec ,
-                Self::DaSpec,
-            >>::GenesisConfig,
+            kernel_genesis_config: <Self::Kernel as Kernel<Self::Spec>>::GenesisConfig,
             rollup_config: RollupConfig<
                 <Self::Spec as Spec>::Address,
                 <Self::DaService as DaService>::Config,

@@ -13,7 +13,7 @@ pub use versioned_vec::VersionedStateVec;
 
 #[cfg(test)]
 mod test {
-    use sov_mock_da::MockDaSpec;
+
     use sov_mock_zkvm::MockZkVerifier;
     use sov_state::namespaces::User;
     use sov_state::{DefaultStorageSpec, SlotKey, SlotValue, Storage};
@@ -65,7 +65,7 @@ mod test {
         let tests = create_tests();
         {
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-            let mut kernel = MockKernel::<TestSpec, MockDaSpec>::default();
+            let mut kernel = MockKernel::<TestSpec>::default();
             for test in &tests {
                 {
                     let storage = storage_manager.create_storage();
@@ -118,10 +118,8 @@ mod test {
         {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
-            let mut working_set: WorkingSet<TestSpec> = WorkingSet::new_deprecated(
-                storage.clone(),
-                &MockKernel::<TestSpec, MockDaSpec>::default(),
-            );
+            let mut working_set: WorkingSet<TestSpec> =
+                WorkingSet::new_deprecated(storage.clone(), &MockKernel::<TestSpec>::default());
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
             let (cache, _, witness) = working_set.checkpoint().0.freeze();
             let (_, change_set) = storage

@@ -1,4 +1,5 @@
 use jsonrpsee::core::RpcResult;
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -24,7 +25,7 @@ pub trait Data:
     + serde::de::DeserializeOwned
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
-    + 'static
+    + Default
 {
 }
 
@@ -94,7 +95,7 @@ pub mod my_module {
             pub fn query_value(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<QueryResponse> {
                 let value = self
                     .data
-                    .get(api_state_accessor)
+                    .get(state)
                     .unwrap_infallible()
                     .map(|d| format!("{:?}", d));
                 Ok(QueryResponse { value })
@@ -120,12 +121,12 @@ fn main() {
     type S = ZkTestSpec;
     type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();
-    let mut state = StateCheckpoint::new(storage);
+    let mut state = StateCheckpoint::new(storage, &MockKernel::<S>::default());
     let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
     let mut genesis_state = state.to_genesis_state_accessor::<RT>(&config);
     runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = genesis_state.to_working_set_unmetered();
+    let mut working_set = state.to_working_set_unmetered();
 
     let message: u32 = 33;
     let serialized_message =

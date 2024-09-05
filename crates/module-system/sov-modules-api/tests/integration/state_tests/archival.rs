@@ -11,7 +11,7 @@ use crate::state_tests::*;
 fn increase_value_and_commit(
     state_value: &StateValue<u32>,
     storage: ProverStorage<StorageSpec>,
-    kernel: &mut MockKernel<S, MockDaSpec>,
+    kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
 ) -> ProverStorage<StorageSpec> {
     let mut state: StateCheckpoint<S> = StateCheckpoint::new(storage.clone(), kernel);

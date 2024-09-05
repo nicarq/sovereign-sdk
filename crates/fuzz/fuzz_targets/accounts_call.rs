@@ -13,7 +13,7 @@ use sov_modules_api::{
     Context, CredentialId, ExecutionContext, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
 };
 use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::{MockDaSpec, TestHasher, TestPrivateKey};
+use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls
@@ -43,7 +43,7 @@ fuzz_target!(
         let mut seed = [0u8; 32];
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
-        let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S, MockDaSpec>::default());
+        let mut state = StateCheckpoint::<S>::new(storage, &MockKernel::<S>::default());
 
         let sequencer = <S as Spec>::Address::from(sequencer);
         let accounts: Vec<_> = keys

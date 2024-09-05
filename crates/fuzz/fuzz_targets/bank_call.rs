@@ -5,7 +5,6 @@ use sov_bank::{Bank, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{Context, ExecutionContext, Module, WorkingSet};
 use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::MockDaSpec;
 
 type S = sov_test_utils::TestSpec;
 
@@ -15,7 +14,7 @@ fuzz_target!(|input: (&[u8], [u8; 32], [u8; 32])| {
         let tmpdir = tempfile::tempdir().unwrap();
         let mut state = WorkingSet::<S>::new_deprecated(
             new_finalized_storage(tmpdir.path()),
-            &MockKernel::<S, MockDaSpec>::default(),
+            &MockKernel::<S>::default(),
         );
         let ctx = Context::<S>::new(
             sender.into(),

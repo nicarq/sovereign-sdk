@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel as _;
 use sov_modules_api::{StateCheckpoint, StateReader, StateWriter, WorkingSet};
@@ -18,10 +17,8 @@ fn test_workingset_get() {
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
 
-    let mut working_set = WorkingSet::<TestSpec>::new_deprecated(
-        storage.clone(),
-        &MockKernel::<TestSpec, MockDaSpec>::default(),
-    );
+    let mut working_set =
+        WorkingSet::<TestSpec>::new_deprecated(storage.clone(), &MockKernel::<TestSpec>::default());
     StateWriter::<User>::set(&mut working_set, &storage_key, storage_value.clone()).expect("The set operation should succeed because there should be enough funds in the metered working set");
     let value = StateReader::<User>::get(&mut working_set, &storage_key).expect("The get operation should succeed because there should be enough funds in the metered working set");
 
@@ -37,7 +34,7 @@ fn test_kernel_workingset_get() {
     let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
     let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
     let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
-    let kernel: MockKernel<TestSpec, MockDaSpec> = MockKernel::new(4, 1);
+    let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
 
     let mut working_set = StateCheckpoint::<TestSpec>::new(storage.clone(), &kernel);
     let mut working_set = kernel.accessor(&mut working_set);
