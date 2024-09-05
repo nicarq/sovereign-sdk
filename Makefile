@@ -2,6 +2,11 @@
 
 EXTRA_DIRS := crates/fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia examples/demo-rollup/provers/sp1/guest-mock examples/demo-rollup/provers/sp1/guest-celestia
 
+# We run `cargo hack` with the `--partition 1/1` by default, but overrides allow
+# CI to parallelize checks.
+CARGO_HACK_PARTITION_N ?= 1
+CARGO_HACK_PARTITION_M ?= 1
+
 # Default is 256[^1], but `proptest` can be slow[^2] and local testing is not
 # the place to run expensive, long-running tests with property checking. That's
 # better left to CI.
@@ -101,10 +106,10 @@ lint-fix:  ## cargo fmt, fix and clippy. Skip clippy on guest code since it's no
 	SKIP_GUEST_BUILD=1 cargo clippy --fix --allow-dirty
 
 check-features: ## Checks that project compiles with all combinations of features.
-	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets
+	cargo hack check --workspace --feature-powerset --exclude-features default --all-targets --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
 
 check-features-default-targets:
-	cargo hack check --workspace --feature-powerset --exclude-features default
+	cargo hack check --workspace --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
 
 check-fuzz: ## Checks that fuzz member compiles
 	$(MAKE) -C crates/fuzz check
