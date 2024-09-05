@@ -214,10 +214,15 @@ jobs:
       - nscloud-ubuntu-20.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
+    strategy:
+      matrix:
+        partition: [1, 2, 3]
     timeout-minutes: 120
     env:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
+      CARGO_HACK_PARTITION_N: ${{ matrix.partition }}
+      CARGO_HACK_PARTITION_M: 3
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -244,10 +249,15 @@ jobs:
       - nscloud-ubuntu-20.04-amd64-8x32-with-cache
       - nscloud-cache-tag-cache-dev
       - nscloud-cache-size-100gb
+    strategy:
+      matrix:
+        partition: [1, 2, 3]
     timeout-minutes: 120
     env:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
+      CARGO_HACK_PARTITION_N: ${{ matrix.partition }}
+      CARGO_HACK_PARTITION_M: 3
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
