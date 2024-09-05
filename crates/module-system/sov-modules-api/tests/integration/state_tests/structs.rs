@@ -184,8 +184,7 @@ pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: State
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage: ProverStorage<StorageSpec> = new_finalized_storage(tmpdir.path());
-    let mut working_set =
-        WorkingSet::<S>::new_deprecated(storage, &MockKernel::<S, MockDaSpec>::default());
+    let mut working_set = WorkingSet::<S>::new_deprecated(storage, &MockKernel::<S>::default());
     let thing = St::create(&mut working_set.to_unmetered());
 
     for condition in conditions {
@@ -222,7 +221,7 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
     let witness: ArrayWitness = {
         let storage = new_finalized_storage::<StorageSpec>(tempdir.path());
         let mut state: StateCheckpoint<S> =
-            StateCheckpoint::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
+            StateCheckpoint::new(storage.clone(), &MockKernel::<S>::default());
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);
         state_value.set(&22, &mut state)?;
@@ -236,11 +235,8 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
 
     {
         let storage = ZkStorage::<StorageSpec>::new();
-        let mut state_checkpoint: StateCheckpoint<Zk> = StateCheckpoint::with_witness(
-            storage.clone(),
-            witness,
-            &MockKernel::<Zk, MockDaSpec>::default(),
-        );
+        let mut state_checkpoint: StateCheckpoint<Zk> =
+            StateCheckpoint::with_witness(storage.clone(), witness, &MockKernel::<Zk>::default());
         state_value.set(&11, &mut state_checkpoint)?;
         let _ = state_value.get(&mut state_checkpoint);
         state_value.set(&22, &mut state_checkpoint)?;

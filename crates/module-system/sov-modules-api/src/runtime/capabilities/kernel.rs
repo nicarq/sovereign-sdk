@@ -8,7 +8,7 @@ use crate::{BootstrapWorkingSet, Gas, KernelStateAccessor, Spec, StateCheckpoint
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sync + Send {
+pub trait Kernel<S: Spec>: Default + Sync + Send {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 
@@ -35,7 +35,7 @@ pub trait Kernel<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Default + Sy
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
-pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: Kernel<S, Da> {
+pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Kernel<S> {
     /// Called at the beginning of a slot. Computes the gas price for the slot
     fn begin_slot_hook(
         &self,

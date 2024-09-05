@@ -8,7 +8,7 @@ use sov_modules_api::{
     StateValue, TxState,
 };
 use sov_state::ZkStorage;
-use sov_test_utils::{MockDaSpec, ZkTestSpec};
+use sov_test_utils::ZkTestSpec;
 
 pub trait TestSpec: Default + std::fmt::Debug + 'static {
     type Data: Data;
@@ -122,7 +122,7 @@ fn main() {
     type S = ZkTestSpec;
     type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();
-    let mut state = StateCheckpoint::new(storage, &MockKernel::<S, MockDaSpec>::default());
+    let mut state = StateCheckpoint::new(storage, &MockKernel::<S>::default());
     let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
     let mut genesis_state = state.to_genesis_state_accessor::<RT>(&config);

@@ -6,7 +6,6 @@ mod archival;
 mod namespaces;
 mod structs;
 
-use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{execution_mode, CryptoSpec, Spec, StateCheckpoint, Storage};
@@ -23,7 +22,7 @@ pub type StorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 pub fn commit_to_storage<S: Spec<Storage = ProverStorage<StorageSpec>>>(
     state: StateCheckpoint<S>,
     storage: ProverStorage<StorageSpec>,
-    kernel: &mut MockKernel<S, MockDaSpec>,
+    kernel: &mut MockKernel<S>,
     storage_manager: &mut SimpleStorageManager<StorageSpec>,
 ) -> ProverStorage<StorageSpec> {
     let (cache_log, _, witness) = state.freeze();

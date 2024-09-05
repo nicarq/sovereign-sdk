@@ -3,7 +3,7 @@ use std::panic::catch_unwind;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue};
 use sov_state::{DefaultStorageSpec, StateCodec, StateItemDecoder, StateItemEncoder, ZkStorage};
-use sov_test_utils::{MockDaSpec, ZkTestSpec};
+use sov_test_utils::ZkTestSpec;
 
 type Hasher = <<ZkTestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
 
@@ -61,7 +61,7 @@ fn main() {
 
     catch_unwind(|| {
         let mut state: StateCheckpoint<ZkTestSpec> =
-            StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec, MockDaSpec>::default());
+            StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
         module.state_value.set(&0u32, &mut state).unwrap();
     })
     .unwrap_err();

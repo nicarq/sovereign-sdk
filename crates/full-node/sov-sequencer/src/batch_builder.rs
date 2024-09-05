@@ -168,7 +168,7 @@ where
     S: Spec,
     Da: DaSpec,
     R: Runtime<S, Da> + RuntimeAuthenticator<S> + 'static,
-    K: Kernel<S, Da> + KernelSlotHooks<S, Da> + 'static,
+    K: Kernel<S> + KernelSlotHooks<S, Da> + 'static,
     Auth: Authenticator<Spec = S, DispatchCall = R>,
 {
     type Config = FairBatchBuilderConfig<Da>;

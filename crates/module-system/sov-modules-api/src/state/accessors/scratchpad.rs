@@ -1,7 +1,5 @@
 //! Runtime state machine definitions.
 
-#[cfg(feature = "test-utils")]
-use sov_rollup_interface::da::DaSpec;
 use sov_state::namespaces::User;
 use sov_state::{
     CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue,
@@ -308,12 +306,10 @@ impl<S: Spec> WorkingSet<S> {
         remaining_funds: u64,
         price: &<S::Gas as Gas>::Price,
     ) -> Self {
-        use sov_mock_da::MockDaSpec;
-
         use crate::capabilities::mocks::MockKernel;
 
         let state_checkpoint: StateCheckpoint<S> =
-            StateCheckpoint::new(inner, &MockKernel::<S, MockDaSpec>::default());
+            StateCheckpoint::new(inner, &MockKernel::<S>::default());
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
         };
@@ -339,7 +335,7 @@ impl<S: Spec> WorkingSet<S> {
     /// - the testing framework,
     /// - or [`crate::ApiStateAccessor::new`]
     /// - or [`StateCheckpoint::new`]
-    pub fn new_deprecated<Da: DaSpec, K: Kernel<S, Da>>(inner: S::Storage, kernel: &K) -> Self {
+    pub fn new_deprecated<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
         let state_checkpoint: StateCheckpoint<S> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),

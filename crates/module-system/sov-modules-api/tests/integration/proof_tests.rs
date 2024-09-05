@@ -1,5 +1,4 @@
 use capabilities::mocks::MockKernel;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::*;
 use sov_state::{Prefix, Storage, StorageProof};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -19,8 +18,7 @@ fn make_user_map_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut state =
-        StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
+    let mut state = StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S>::default());
     let map = StateMap::new(Prefix::new(vec![0]));
     map.set(&key, &value, &mut state).unwrap_infallible();
 
@@ -49,8 +47,7 @@ fn make_user_value_proof(
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut state =
-        StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S, MockDaSpec>::default());
+    let mut state = StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S>::default());
     let state_val = StateValue::new(Prefix::new(vec![0]));
     state_val.set(&value, &mut state).unwrap_infallible();
 
@@ -161,10 +158,8 @@ fn test_archival_proof_gen() {
     let mut roots = vec![];
     for iter in 0..10 {
         let storage = storage_manager.create_storage();
-        let mut state = StateCheckpoint::<S>::new(
-            storage.clone(),
-            &MockKernel::<S, MockDaSpec>::new(iter, iter),
-        );
+        let mut state =
+            StateCheckpoint::<S>::new(storage.clone(), &MockKernel::<S>::new(iter, iter));
         if iter % 2 == 0 {
             state_val.set(&iter, &mut state).unwrap_infallible();
         } else {

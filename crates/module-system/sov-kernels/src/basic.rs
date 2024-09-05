@@ -41,7 +41,7 @@ impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S, Da> for BasicKernel<S, Da> {
+impl<S: Spec, Da: DaSpec> Kernel<S> for BasicKernel<S, Da> {
     type GenesisConfig = BasicKernelGenesisConfig<S, Da>;
 
     #[cfg(feature = "native")]

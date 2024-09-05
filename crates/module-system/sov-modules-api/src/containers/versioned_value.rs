@@ -128,7 +128,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 
 #[cfg(test)]
 mod tests {
-    use sov_mock_da::MockDaSpec;
+
     use sov_mock_zkvm::MockZkVerifier;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::Prefix;
@@ -146,7 +146,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
 
-        let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
+        let kernel = MockKernel::<TestSpec>::new(4, 1);
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
@@ -173,7 +173,7 @@ mod tests {
         let tmpdir = tempfile::tempdir().unwrap();
         let storage = new_finalized_storage(tmpdir.path());
 
-        let kernel = MockKernel::<TestSpec, MockDaSpec>::new(4, 1);
+        let kernel = MockKernel::<TestSpec>::new(4, 1);
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());

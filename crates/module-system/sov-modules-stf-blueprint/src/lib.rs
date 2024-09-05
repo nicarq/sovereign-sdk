@@ -254,8 +254,7 @@ where
 
     type Address = S::Address;
 
-    type GenesisParams =
-        GenesisParams<<RT as Genesis>::Config, <K as Kernel<S, Da>>::GenesisConfig>;
+    type GenesisParams = GenesisParams<<RT as Genesis>::Config, <K as Kernel<S>>::GenesisConfig>;
     type PreState = S::Storage;
     type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
@@ -276,7 +275,7 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
         let mut state_checkpoint =
-            StateCheckpoint::new::<K, _>(pre_state.clone(), &Default::default());
+            StateCheckpoint::new::<K>(pre_state.clone(), &Default::default());
 
         let mut kernel_accessor = K::default().accessor(&mut state_checkpoint);
 

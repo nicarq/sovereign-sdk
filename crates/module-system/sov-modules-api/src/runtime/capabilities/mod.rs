@@ -122,22 +122,20 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
 pub mod mocks {
     //! Mocks for the rollup capabilities module
 
-    use sov_rollup_interface::da::DaSpec;
-
-    use super::{BlobOrigin, BlobSelector, Kernel, Spec};
+    use super::{Kernel, Spec};
     use crate::{BootstrapWorkingSet, KernelStateAccessor};
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
-    pub struct MockKernel<S, Da> {
+    pub struct MockKernel<S> {
         /// The current slot number
         pub true_slot_number: u64,
         /// The slot number at which transactions appear to be executing
         pub visible_slot_number: u64,
-        phantom: core::marker::PhantomData<(S, Da)>,
+        phantom: core::marker::PhantomData<S>,
     }
 
-    impl<S: Spec, Da: DaSpec> MockKernel<S, Da> {
+    impl<S: Spec> MockKernel<S> {
         /// Create a new mock kernel with the given slot number
         pub fn new(true_slot_number: u64, visible_height: u64) -> Self {
             Self {
@@ -154,7 +152,7 @@ pub mod mocks {
         }
     }
 
-    impl<S: Spec, Da: DaSpec> Kernel<S, Da> for MockKernel<S, Da> {
+    impl<S: Spec> Kernel<S> for MockKernel<S> {
         fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_slot_number
         }
@@ -173,30 +171,6 @@ pub mod mocks {
             _state: &mut KernelStateAccessor<'_, S>,
         ) -> anyhow::Result<()> {
             Ok(())
-        }
-    }
-
-    impl<S: Spec, Da: DaSpec> BlobSelector<Da> for MockKernel<S, Da> {
-        type Spec = S;
-
-        type BlobType = Da::BlobTransaction;
-
-        fn get_blobs_for_this_slot<'a, 'k, I>(
-            &self,
-            _current_blobs: I,
-            _state: &mut crate::KernelStateAccessor<'k, Self::Spec>,
-        ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
-        where
-            I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
-        {
-            // Ok(current_blobs
-            //     .into_iter()
-            //     .map(|blob| {
-            //         blob.full_data();
-            //         blob.clone()
-            //     })
-            //     .collect())
-            todo!()
         }
     }
 }

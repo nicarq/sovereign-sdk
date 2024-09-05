@@ -1,4 +1,3 @@
-use sov_rollup_interface::da::DaSpec;
 use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Storage};
 
 use super::internals::{AccessoryDelta, Delta};
@@ -20,13 +19,13 @@ pub struct StateCheckpoint<S: Spec> {
 impl<S: Spec> StateCheckpoint<S> {
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
-    pub fn new<K: Kernel<S, Da>, Da: DaSpec>(inner: S::Storage, kernel: &K) -> Self {
+    pub fn new<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
         Self::with_witness(inner, Default::default(), kernel)
     }
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness<K: Kernel<S, Da>, Da: DaSpec>(
+    pub fn with_witness<K: Kernel<S>>(
         inner: S::Storage,
         witness: <S::Storage as Storage>::Witness,
         kernel: &K,

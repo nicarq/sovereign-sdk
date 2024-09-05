@@ -5,7 +5,7 @@ use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
 use sov_nft::utils::get_collection_id;
 use sov_nft::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_test_utils::storage::new_finalized_storage;
-use sov_test_utils::{MockDaSpec, TestPrivateKey, TestSpec, TestStorageSpec as StorageSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageSpec as StorageSpec};
 
 #[test]
 fn mints_and_transfers() -> Result<(), Infallible> {
@@ -22,10 +22,10 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_finalized_storage::<StorageSpec>(tmpdir.path());
-    let mut working_set = WorkingSet::<TestSpec>::new_deprecated::<
-        _,
-        MockKernel<TestSpec, MockDaSpec>,
-    >(storage.clone(), &Default::default());
+    let mut working_set = WorkingSet::<TestSpec>::new_deprecated::<MockKernel<TestSpec>>(
+        storage.clone(),
+        &Default::default(),
+    );
     let nft = NonFungibleToken::default();
 
     let create_collection_message = CallMessage::CreateCollection {
