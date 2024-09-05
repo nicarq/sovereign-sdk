@@ -1,30 +1,25 @@
-use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{ApiStateAccessor, InvalidProofError, ProofOutcome, Spec};
+use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_prover_incentives::ProverIncentives;
+use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    assert_matches, AtomicNumber, ProofInput, ProofTestCase, TestSpec, TransactionTestCase,
+    assert_matches, AtomicNumber, ProofInput, ProofTestCase, TransactionTestCase,
 };
 
 use crate::helpers::{
-    build_proof, consume_gas_tx_for_signer, serialize_proof, setup, TestProverIncentives,
+    build_proof, consume_gas_tx_for_signer, serialize_proof, setup, TestProverIncentives, RT,
 };
 
 type S = sov_test_utils::TestSpec;
-
-fn get_user_balance(address: &<S as Spec>::Address, state: &mut ApiStateAccessor<S>) -> u64 {
-    Bank::<TestSpec>::default()
-        .get_balance_of(address, GAS_TOKEN_ID, state)
-        .unwrap()
-        .unwrap()
-}
 
 #[test]
 fn test_valid_proof() {
     let (mut runner, prover, other_user) = setup();
 
     let prover_address = prover.user_info.address();
-    let initial_balance = runner.query_state(|state| get_user_balance(&prover_address, state));
+    let initial_balance = runner
+        .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&prover_address, state))
+        .unwrap();
 
     let reward = AtomicNumber::new(0);
 
@@ -55,7 +50,7 @@ fn test_valid_proof() {
             );
 
             assert_eq!(
-                get_user_balance(&prover_address, state),
+                TestRunner::<RT, S>::bank_gas_balance(&prover_address, state).unwrap(),
                 initial_balance - result.gas_value_used
                     + ProverIncentives::<S, MockDaSpec>::default()
                         .burn_rate()
