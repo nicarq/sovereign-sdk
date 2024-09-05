@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::da::DaSpec;
 use crate::zk::StateTransitionPublicData;
 
-/// A proof that the attester was bonded at the transition num `transition_num`.
+/// A proof that the attester was bonded at the `rollup_height`.
 /// For rollups using the `jmt`, this will be a `jmt::SparseMerkleProof`
 #[derive(
     Debug,
@@ -20,8 +20,8 @@ use crate::zk::StateTransitionPublicData;
     sov_wallet_format::UniversalWallet,
 )]
 pub struct ProofOfBond<StateProof> {
-    /// The transition number for which the proof of bond applies
-    pub claimed_transition_num: u64,
+    /// The rollup height for which the proof of bond applies
+    pub claimed_rollup_height: u64,
     /// The actual state proof that the attester was bonded
     #[sov_wallet(hidden)]
     pub proof: StateProof,
@@ -139,7 +139,7 @@ mod tests {
             slot_hash: [10; 32],
             post_state_root: [22; 32],
             proof_of_bond: ProofOfBond {
-                claimed_transition_num: 1,
+                claimed_rollup_height: 1,
                 proof: (),
             },
         };

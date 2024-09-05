@@ -2,7 +2,6 @@
 use core::result::Result::Ok;
 use std::fmt::Display;
 
-use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
     Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
     SovStateTransitionPublicData, StateAccessorError, StateTransitionPublicData, TxState, Zkvm,
@@ -182,13 +181,13 @@ where
         let min_height = new_height_to_attest.saturating_sub(finality);
 
         // We have to check the following order invariant is respected:
-        // (height to attest - finality) <= bonding_proof.transition_num <= height to attest
+        // (height to attest - finality) <= bonding_proof.transition_height <= height to attest
         //
         // Which with our variable gives:
-        // min_height <= bonding_proof.transition_num <= new_height_to_attest
+        // min_height <= bonding_proof.rollup_height <= new_height_to_attest
         // If this invariant is respected, we can be sure that the attester was bonded at new_height_to_attest.
-        if !(min_height <= attestation.proof_of_bond.claimed_transition_num
-            && attestation.proof_of_bond.claimed_transition_num <= new_height_to_attest)
+        if !(min_height <= attestation.proof_of_bond.claimed_rollup_height
+            && attestation.proof_of_bond.claimed_rollup_height <= new_height_to_attest)
         {
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
@@ -200,7 +199,7 @@ where
         // First compare the initial hashes
 
         let check_initial_hash_status = self.check_initial_hash(
-            attestation.proof_of_bond.claimed_transition_num,
+            attestation.proof_of_bond.claimed_rollup_height,
             &attestation,
             state,
         )?;
@@ -214,7 +213,7 @@ where
         }
 
         let check_transition = self.check_transition(
-            attestation.proof_of_bond.claimed_transition_num,
+            attestation.proof_of_bond.claimed_rollup_height,
             &attestation,
             state,
         )?;
@@ -234,7 +233,7 @@ where
 
                 self.slash_and_invalidate_attestation(
                     sender,
-                    attestation.proof_of_bond.claimed_transition_num,
+                    attestation.proof_of_bond.claimed_rollup_height,
                     state,
                 )?;
 
@@ -244,9 +243,9 @@ where
             CheckTransitionStatus::Valid => {}
         }
 
-        // Now we have to check whether the claimed_transition_num is the max_attested_height.
+        // Now we have to check whether the claimed_rollup_height is the max_attested_height.
         // If so, update the maximum attested height and reward the sender
-        if attestation.proof_of_bond.claimed_transition_num == new_height_to_attest {
+        if attestation.proof_of_bond.claimed_rollup_height == new_height_to_attest {
             // We reward the attester with the amount of gas used for the transition.
             let transition = self
                 .chain_state
@@ -279,7 +278,7 @@ where
         &self,
         sender: &S::Address,
         serialized_challenge: &SerializedChallenge,
-        transition_num: TransitionHeight,
+        rollup_height: u64,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<
         SovStateTransitionPublicData<S, Da>,
@@ -313,20 +312,18 @@ where
             .expect("Should be set at genesis");
 
         // Find the faulty attestation pool and get the associated reward
-        let attestation_reward: u64 = match self
-            .bad_transition_pool
-            .get_or_err(&transition_num, state)?
-        {
-            Ok(reward) => reward,
-            Err(_err) => {
-                let reason = SlashingReason::NoInvalidTransition;
-                error!(reason = ?reason, "Challenger slashed");
-                self.slash_challenger(sender, state)?;
+        let attestation_reward: u64 =
+            match self.bad_transition_pool.get_or_err(&rollup_height, state)? {
+                Ok(reward) => reward,
+                Err(_err) => {
+                    let reason = SlashingReason::NoInvalidTransition;
+                    error!(reason = ?reason, "Challenger slashed");
+                    self.slash_challenger(sender, state)?;
 
-                // The state won't be reverted.
-                return Err(ProcessChallengeErrors::ChallengerSlashedNoRevert(reason));
-            }
-        };
+                    // The state won't be reverted.
+                    return Err(ProcessChallengeErrors::ChallengerSlashedNoRevert(reason));
+                }
+            };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
             StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
@@ -340,7 +337,7 @@ where
 
                 let check = self.check_challenge_outputs_against_transition(
                     &public_output,
-                    transition_num,
+                    rollup_height,
                     state,
                 )?;
 
@@ -366,7 +363,7 @@ where
                 })?;
 
                 // Now remove the bad transition from the pool
-                self.bad_transition_pool.remove(&transition_num, state)?;
+                self.bad_transition_pool.remove(&rollup_height, state)?;
                 Ok(public_output)
             }
             Err(err) => {

@@ -78,11 +78,11 @@ where
                     .process_attestation(proof, &sequencer_rollup_address, &mut working_set)
                     .map(|attestation| ProofReceiptContents::Attestation(attestation)),
 
-                ProofType::OptimisticProofChallenge(proof, transition_num) => runtime
+                ProofType::OptimisticProofChallenge(proof, rollup_height) => runtime
                     .proof_processor()
                     .process_challenge(
                         proof,
-                        transition_num,
+                        rollup_height,
                         &sequencer_rollup_address,
                         &mut working_set,
                     )

@@ -48,7 +48,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_initial_hash<ST: StateReader<User>>(
         &self,
-        claimed_transition_height: TransitionHeight,
+        claimed_rollup_height: TransitionHeight,
         attestation: &Attestation<
             Da::SlotHash,
             <S::Storage as Storage>::Root,
@@ -59,7 +59,7 @@ where
         // Normal state
         if let Some(transition) = self
             .chain_state
-            .get_historical_transitions(claimed_transition_height.saturating_sub(1), state)?
+            .get_historical_transitions(claimed_rollup_height.saturating_sub(1), state)?
         {
             if transition.post_state_root() != &attestation.initial_state_root {
                 // The initial root hashes don't match, just slash the attester
@@ -73,7 +73,7 @@ where
 
             // We add a check here that the claimed transition height is the same as the genesis height.
             let genesis_height = 0;
-            let previous = claimed_transition_height
+            let previous = claimed_rollup_height
                 .checked_sub(1)
                 .expect("Transition height must be > 0");
             if genesis_height != previous {
@@ -169,17 +169,15 @@ where
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
-            let transition_height = TransitionHeight::from(
-                attestation
-                    .proof_of_bond
-                    .claimed_transition_num
-                    .checked_sub(1)
-                    .expect("The transition height should be greater than 1"),
-            );
+            let rollup_height = attestation
+                .proof_of_bond
+                .claimed_rollup_height
+                .checked_sub(1)
+                .expect("The transition height should be greater than 1");
 
             if let Some(transition) = self
                 .chain_state
-                .get_historical_transitions(transition_height, state)?
+                .get_historical_transitions(rollup_height, state)?
             {
                 transition.post_state_root().clone()
             } else {
@@ -218,7 +216,7 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn check_transition<ST: StateReader<User>>(
         &self,
-        claimed_transition_height: TransitionHeight,
+        claimed_rollup_height: u64,
         attestation: &Attestation<
             Da::SlotHash,
             <S::Storage as Storage>::Root,
@@ -228,12 +226,12 @@ where
     ) -> Result<CheckTransitionStatus, ST::Error> {
         if let Some(curr_tx) = self
             .chain_state
-            .get_historical_transitions(claimed_transition_height, state)?
+            .get_historical_transitions(claimed_rollup_height, state)?
         {
             // We first need to compare the initial block hash to the previous post state root
             if !curr_tx.compare_hashes(&attestation.slot_hash, &attestation.post_state_root) {
                 debug!(
-                    claimed_transition_height,
+                    claimed_rollup_height,
                     attestation_slot_hash = ?attestation.slot_hash,
                     attestation_post_state = ?attestation.post_state_root,
                     curr_tx_slot_hash = ?curr_tx.slot_hash(),

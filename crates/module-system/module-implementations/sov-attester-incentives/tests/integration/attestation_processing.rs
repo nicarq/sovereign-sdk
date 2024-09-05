@@ -102,7 +102,7 @@ fn test_burn_on_invalid_attestation() {
             .query_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
-        attestation_proof.proof_of_bond.claimed_transition_num = 2;
+        attestation_proof.proof_of_bond.claimed_rollup_height = 2;
 
         let invalid_bond_proof_no_slash =
             invalid_bond_proof_no_slash(&genesis_attester, initial_balance, attestation_proof);

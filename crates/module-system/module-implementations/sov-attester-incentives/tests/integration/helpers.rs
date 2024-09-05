@@ -96,7 +96,7 @@ pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType
 #[allow(clippy::type_complexity)]
 pub(crate) fn build_proof(
     state: &mut ApiStateAccessor<S>,
-    slot_to_attest: u64,
+    rollup_height_to_attest: u64,
     user_address: &<S as Spec>::Address,
 ) -> Result<
     Attestation<
@@ -110,19 +110,19 @@ pub(crate) fn build_proof(
 
     // Get the values for the transition being attested
     let current_transition = chain_state
-        .get_historical_transitions(slot_to_attest, state)?
+        .get_historical_transitions(rollup_height_to_attest, state)?
         .unwrap();
 
-    let prev_root = if slot_to_attest == 1 {
+    let prev_root = if rollup_height_to_attest == 1 {
         chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(slot_to_attest - 1, state)?
+            .get_historical_transitions(rollup_height_to_attest - 1, state)?
             .map(|t| *t.post_state_root())
     }
     .unwrap();
 
-    let mut archival_state = state.get_archival_at(slot_to_attest);
+    let mut archival_state = state.get_archival_at(rollup_height_to_attest);
 
     let proof_of_bond = TestAttesterIncentives::default()
         .bonded_attesters
@@ -133,7 +133,7 @@ pub(crate) fn build_proof(
         slot_hash: *current_transition.slot_hash(),
         post_state_root: *current_transition.post_state_root(),
         proof_of_bond: sov_modules_api::optimistic::ProofOfBond {
-            claimed_transition_num: slot_to_attest,
+            claimed_rollup_height: rollup_height_to_attest,
             proof: proof_of_bond,
         },
     })

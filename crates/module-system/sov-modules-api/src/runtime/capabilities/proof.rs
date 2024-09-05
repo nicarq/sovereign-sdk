@@ -30,7 +30,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
     fn process_challenge(
         &self,
         proof: SerializedChallenge,
-        transition_num: u64,
+        rollup_height: u64,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
     ) -> anyhow::Result<SovStateTransitionPublicData<S, Da>, InvalidProofError>;
