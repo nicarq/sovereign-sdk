@@ -49,6 +49,7 @@ test-default-features:  ## Runs test suite using default features
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 install-dev-tools: install-risc0-toolchain install-sp1-toolchain
+	rustup update nightly
 	## Backup VS Code settings to `.vscode/settings.json.bak`.
 	cp .vscode/settings.json .vscode/settings.json.bak || true
 	## Install the default suggested VS Code settings.
@@ -59,11 +60,11 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	cargo install cargo-deny
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
-	cargo install cargo-risczero
 	cargo install zepter
 	rustup target add wasm32-unknown-unknown
 
 install-risc0-toolchain:
+	cargo install cargo-risczero
 	cargo risczero install --version r0.1.79.0
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
