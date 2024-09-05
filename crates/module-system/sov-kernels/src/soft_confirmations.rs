@@ -7,7 +7,7 @@ use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelWorkingSet, Spec,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelStateAccessor, Spec,
 };
 use sov_state::Storage;
 
@@ -45,7 +45,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S, Da> for SoftConfirmationsKernel<S, Da> {
     fn genesis(
         &self,
         config: &Self::GenesisConfig,
-        state: &mut KernelWorkingSet<'_, S>,
+        state: &mut KernelStateAccessor<'_, S>,
     ) -> anyhow::Result<()> {
         Ok(self
             .chain_state
@@ -60,7 +60,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<S, Da> {
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
-        state: &mut KernelWorkingSet<'k, Self::Spec>,
+        state: &mut KernelStateAccessor<'k, Self::Spec>,
     ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
@@ -76,7 +76,7 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         slot_header: &<Da as DaSpec>::BlockHeader,
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
-        state: &mut sov_modules_api::KernelWorkingSet<Self::Spec>,
+        state: &mut sov_modules_api::KernelStateAccessor<Self::Spec>,
     ) {
         self.chain_state
             .begin_slot_hook(slot_header, validity_condition, pre_state_root, state);
@@ -85,7 +85,7 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
-        state: &mut sov_modules_api::KernelWorkingSet<Self::Spec>,
+        state: &mut sov_modules_api::KernelStateAccessor<Self::Spec>,
     ) {
         self.chain_state.end_slot_hook(gas_used, state);
     }

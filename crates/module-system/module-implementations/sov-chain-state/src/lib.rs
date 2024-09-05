@@ -28,8 +28,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelWorkingSet, ValidityConditionChecker,
-    VersionReader,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateAccessor,
+    ValidityConditionChecker, VersionReader,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
@@ -234,7 +234,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     next_visible_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
     /// The real slot number of the rollup.
-    /// This value is also required to create a [`sov_state::storage::KernelWorkingSet`]. See note on `visible_height` above.
+    /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
     next_true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
 
@@ -338,9 +338,9 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// ## TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385>`)
     /// This method is meant to be temporary used in tests until the issue linked above is resolved.
     #[cfg(feature = "test-utils")]
-    pub fn get_time_prev_slot(&self, state: &mut KernelWorkingSet<S>) -> Time {
+    pub fn get_time_prev_slot(&self, state: &mut KernelStateAccessor<S>) -> Time {
         self.time
-            .get(&(state.current_version() - 1), state)
+            .get(&(state.rollup_height_to_access() - 1), state)
             .unwrap_infallible()
             .expect("Time must be set at initialization")
     }
@@ -396,10 +396,10 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Returns the transition in progress of the module of the previous slot.
     pub fn get_in_progress_transition_prev_slot(
         &self,
-        state: &mut KernelWorkingSet<S>,
+        state: &mut KernelStateAccessor<S>,
     ) -> Option<TransitionInProgress<S, Da>> {
         self.in_progress_transition
-            .get(&(state.current_version() - 1), state)
+            .get(&(state.rollup_height_to_access() - 1), state)
             .unwrap_infallible()
     }
 
@@ -432,7 +432,7 @@ impl<S: Spec, Da: DaSpec> KernelModule for ChainState<S, Da> {
     fn genesis_unchecked(
         &self,
         config: &Self::Config,
-        state: &mut KernelWorkingSet<S>,
+        state: &mut KernelStateAccessor<S>,
     ) -> Result<(), Error> {
         // The initialization logic
         Ok(self.init_module(config, state)?)

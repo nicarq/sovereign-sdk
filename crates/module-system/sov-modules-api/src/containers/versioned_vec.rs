@@ -10,7 +10,7 @@ use unwrap_infallible::UnwrapInfallible;
 use super::map::NamespacedStateMap;
 use super::VersionedStateValue;
 use crate::{
-    InfallibleStateReaderAndWriter, KernelWorkingSet, KernelWriter, Spec, StateReader,
+    InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, Spec, StateReader,
     VersionReader,
 };
 
@@ -161,18 +161,18 @@ where
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
     /// This only works with accessors following the `true_slot_number`.
-    pub fn prev_len<S: Spec>(&self, state: &mut KernelWorkingSet<'_, S>) -> usize
+    pub fn prev_len<S: Spec>(&self, state: &mut KernelStateAccessor<'_, S>) -> usize
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        self.len_value().get(&(state.current_version() - 1), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
+        self.len_value().get(&(state.rollup_height_to_access() - 1), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
     }
 
-    /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelWorkingSet`] inside the [`crate::runtime::capabilities::KernelSlotHooks`].
+    /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelStateAccessor`] inside the [`crate::runtime::capabilities::KernelSlotHooks`].
     ///
     /// ## Warning
     /// If used within the module system, this method may break soft-confirmations
-    pub fn push<Vq, S: Spec>(&self, value: &Vq, state: &mut KernelWorkingSet<'_, S>)
+    pub fn push<Vq, S: Spec>(&self, value: &Vq, state: &mut KernelStateAccessor<'_, S>)
     where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
@@ -340,9 +340,9 @@ mod test {
         let state_vec = VersionedStateVec::<u32>::new(prefix);
 
         // We need to initialize the state vector before we can run any test case.
-        state_vec.initialize(&mut KernelWorkingSet::from(&mut state));
+        state_vec.initialize(&mut KernelStateAccessor::from(&mut state));
 
-        let mut kernel = KernelWorkingSet::from(&mut state);
+        let mut kernel = KernelStateAccessor::from(&mut state);
         kernel.update_true_slot_number(1);
 
         test_cases().into_iter().for_each(|test_case_action| {
@@ -450,9 +450,9 @@ mod test {
                 assert_eq!(actual, expected);
             }
             TestCaseAction::Push(value) => {
-                let state = &mut KernelWorkingSet::from(state);
+                let state = &mut KernelStateAccessor::from(state);
                 state_vec.push(&value, state);
-                state.update_true_slot_number(state.current_version() + 1);
+                state.update_true_slot_number(state.rollup_height_to_access() + 1);
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec.get(index, state).unwrap_infallible();
@@ -468,15 +468,15 @@ mod test {
                 assert_eq!(contents, expected);
             }
             TestCaseAction::IncreaseVirtualHeight => {
-                let mut kernel = KernelWorkingSet::from(state);
+                let mut kernel = KernelStateAccessor::from(state);
                 kernel.update_virtual_slot_number(kernel.virtual_slot_number() + 1);
             }
             TestCaseAction::CheckHeights {
                 true_slot_num,
                 virtual_slot_num,
             } => {
-                let state = &mut KernelWorkingSet::from(state);
-                assert_eq!(state.current_version(), true_slot_num);
+                let state = &mut KernelStateAccessor::from(state);
+                assert_eq!(state.rollup_height_to_access(), true_slot_num);
                 assert_eq!(state.virtual_slot_number(), virtual_slot_num);
             }
         }

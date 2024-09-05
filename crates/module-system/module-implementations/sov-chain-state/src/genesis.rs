@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{KernelWorkingSet, Zkvm};
+use sov_modules_api::{KernelStateAccessor, Zkvm};
 
 use crate::{ChainState, OperatingMode};
 
@@ -32,7 +32,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::KernelModule>::Config,
-        state: &mut KernelWorkingSet<S>,
+        state: &mut KernelStateAccessor<S>,
     ) -> Result<()> {
         tracing::info!(
             current_time = ?config.current_time,

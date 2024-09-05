@@ -71,7 +71,7 @@ impl<S: Spec> StateCheckpoint<S> {
 }
 
 impl<S: Spec> VersionReader for StateCheckpoint<S> {
-    fn current_version(&self) -> u64 {
+    fn rollup_height_to_access(&self) -> u64 {
         self.virtual_slot_num
     }
 }

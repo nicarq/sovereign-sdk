@@ -197,7 +197,7 @@ pub mod kernel_state {
 
     use crate::state::accessors::seal::CachedAccessor;
     use crate::state::accessors::BootstrapWorkingSet;
-    use crate::{KernelWorkingSet, Spec, StateReader, StateWriter};
+    use crate::{KernelStateAccessor, Spec, StateReader, StateWriter};
 
     impl<'a, S: Storage> StateReader<Kernel> for BootstrapWorkingSet<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);
@@ -213,17 +213,17 @@ pub mod kernel_state {
         inner_impl_unmetered_state_writer!(User);
     }
 
-    impl<'a, S: Spec> StateReader<Kernel> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<Kernel> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_reader!(Kernel);
     }
-    impl<'a, S: Spec> StateReader<User> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateReader<User> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_reader!(User);
     }
 
-    impl<'a, S: Spec> StateWriter<Kernel> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateWriter<Kernel> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_writer!(Kernel);
     }
-    impl<'a, S: Spec> StateWriter<User> for KernelWorkingSet<'a, S> {
+    impl<'a, S: Spec> StateWriter<User> for KernelStateAccessor<'a, S> {
         inner_impl_unmetered_state_writer!(User);
     }
 }

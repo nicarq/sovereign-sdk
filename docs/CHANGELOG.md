@@ -15,6 +15,9 @@
 - #1377 Enables REST API endpoints for `AttesterIncentives` module.
 - #1369 add an extra generic type to the `sov_evm::authenticate` function. This generic enables conversion between `reth::address` and `Spec::Address`. This change is only breaking for users of the EVM module.
 - #1365 Simplify sequencer reward workflow.
+- #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.
+- #1362 Adds a versioned state accessor to be used in the soft confirmation context. This versioned state accessor is append-only and should be initialized at genesis to be properly used.
+- #1366 Replaces the `Delta` by a `StateCheckpoint` inside the `TxScratchpad`. This is because we are going to add fields to the `StateCheckpoint` (`virtual_height`, `true_height`) - this will allow to propagate the values up to the `WorkingSet`.
 - #1360 attester-incentive & prover-incentives: Ensure that the helper methods only read the state.
 - #1358 Adds a mechanism for individually overriding capabilities on the `HasCapabilities` trait.
     - All usages of `runtime.capabilities()` should updated to the capability name in `snake_case`.
@@ -132,7 +135,7 @@ Meaningful changes:
 - #783 enables gas metering for storage accesses inside the module system. In particular, it makes all the state accessors fallible, and the module code now have to handle the case where the state accessor runs out of gas.
 Meaningful changes
   - Making all the state accessors fallible: for instance `state_value.get(&mut state_reader)` now returns `Result<Option<StateValue>, StateReader::Error>`. Depending on the type of the state reader, the error type may be `Infallible` (for unmetered state accessors) or `StateAccessorError` (for metered state accessors)
-  - The metered state accessors are: `WorkingSet` and `PreExecWorkingSet` when accessing the provable state; the unmetered state accessors are `TxScratchpad`, `StateCheckpoint`, `KernelWorkingSet`, ... 
+  - The metered state accessors are: `WorkingSet` and `PreExecWorkingSet` when accessing the provable state; the unmetered state accessors are `TxScratchpad`, `StateCheckpoint`, `KernelStateAccessor`, ... 
   - A summary of all the access control patterns can be found in `sov-modules-api/src/state/accessors/access_controls.rs`
   - A new cargo dependency has been added: `unwrap_infallible`. This allows us to safely unwrap the type `Error<T, Infallible>` which has become ubiquitous because the `Infallible` error type is raised whenever an unmetered state accessor tries to access the state (416 occurrences in our codebase after this PR is merged).
   - The `WorkingSet` use, specially its instantiation with the `WorkingSet::new` pattern has been *significantly* reduced in favor of using the `StateCheckpoint` in the tests. Since the `StateCheckpoint` is an unmetered state accessor, this makes the tests more manageable and maintainable - we can use `unwrap_infallible`. Besides, one now needs to use a special `GenesisStateAccessor` to instantiate the modules at genesis, which needs to be built from the `StateCheckpoint`.
@@ -435,7 +438,7 @@ while the first VM continues Ato be used for block production. The signature of 
   simply remove
   any imports of these traits and the `sov_modules_api::prelude*`. Also simplifies the API of VersionedStateValue. Now
   it only has a method `get_current` (for any type implementing the `VersionReader` trait)
-  and get/set implemented directly on `KernelWorkingSet`
+  and get/set implemented directly on `KernelStateAccessor`
 
 - #266 implements reward/slashing mechanisms for provers in the `ProverIncentives` module. In particular, given that an
   aggregated proof can be correctly serialized and the proof outputs are corrects, the provers can be rewarded for the

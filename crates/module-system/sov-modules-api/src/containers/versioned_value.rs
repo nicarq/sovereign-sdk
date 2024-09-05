@@ -6,12 +6,12 @@ use sov_state::{
 };
 use unwrap_infallible::UnwrapInfallible;
 
-use crate::{KernelWorkingSet, KernelWriter, Spec, StateReader, StateWriter, VersionReader};
+use crate::{KernelStateAccessor, KernelWriter, Spec, StateReader, StateWriter, VersionReader};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
 /// via a `VersionedStateReadWriter`, only one version of this value is accessible. Inside the kernel,
-/// (where access is mediated by a [`KernelWorkingSet`]), all versions of this value are accessible.
+/// (where access is mediated by a [`KernelStateAccessor`]), all versions of this value are accessible.
 ///
 /// Under the hood, a versioned value is implemented as a map from a slot number to a value. From the kernel, any
 /// value can be accessed
@@ -78,7 +78,10 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        state.get_decoded(&self.encode_key(&state.current_version()), &self.codec)
+        state.get_decoded(
+            &self.encode_key(&state.rollup_height_to_access()),
+            &self.codec,
+        )
     }
 
     /// Only the kernel working set can write to versioned values
@@ -97,7 +100,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set<S: Spec>(&self, key: &u64, value: &V, state: &mut KernelWorkingSet<'_, S>)
+    pub fn set<S: Spec>(&self, key: &u64, value: &V, state: &mut KernelStateAccessor<'_, S>)
     where
         Codec: StateCodec,
         Codec::ValueCodec: StateItemCodec<V>,
@@ -133,7 +136,7 @@ mod tests {
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
-    use crate::{KernelWorkingSet, StateCheckpoint, VersionedStateValue};
+    use crate::{KernelStateAccessor, StateCheckpoint, VersionedStateValue};
 
     type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -149,7 +152,7 @@ mod tests {
         let value = VersionedStateValue::<u64>::new(prefix.clone());
 
         // Initialize a value in the kernel state during slot 4
-        let mut kernel_state = KernelWorkingSet::from(&mut state);
+        let mut kernel_state = KernelStateAccessor::from(&mut state);
         value.set_true_current(&100, &mut kernel_state);
         assert_eq!(
             value.get_current(&mut kernel_state).unwrap_infallible(),
@@ -177,7 +180,7 @@ mod tests {
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 
-        let mut kernel_state = KernelWorkingSet::from(&mut state);
+        let mut kernel_state = KernelStateAccessor::from(&mut state);
         value.set(&2, &100, &mut kernel_state);
         assert_eq!(
             value.get(&2, &mut kernel_state).unwrap_infallible(),

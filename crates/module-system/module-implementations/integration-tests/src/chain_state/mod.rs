@@ -41,7 +41,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            kernel.current_version(),
+            kernel.rollup_height_to_access(),
             1,
             "The kernel should be initialized to one"
         );
@@ -60,7 +60,7 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            kernel.current_version(),
+            kernel.rollup_height_to_access(),
             2,
             "The kernel should be updated to two"
         );
