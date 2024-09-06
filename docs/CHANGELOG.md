@@ -1,3 +1,4 @@
+- #1415 Add StfInfoManager, which manages data related to state transitions. 
 - #1413 Remove borsh bounds from StateTransitionWitness.
 - #1407 Renames `transition_num` to `rollup_height` in the `AttesterIncentives` module.
 - #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `RuntimeAuthenticator`. All

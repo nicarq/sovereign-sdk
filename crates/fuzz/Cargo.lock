@@ -5468,6 +5468,7 @@ dependencies = [
  "async-trait",
  "axum",
  "backon",
+ "bincode",
  "borsh",
  "derivative",
  "futures",
