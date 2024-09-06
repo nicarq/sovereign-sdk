@@ -1,3 +1,4 @@
+- #1413 Remove borsh bounds from StateTransitionWitness.
 - #1407 Renames `transition_num` to `rollup_height` in the `AttesterIncentives` module.
 - #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `RuntimeAuthenticator`. All
 references to the `Authenticator` trait or `ModAuth` struct are replaced with references to `RuntimeAuthenticator` or the concrete runtime type of the rollup as appropriate.
