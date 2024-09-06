@@ -193,9 +193,7 @@ pub trait ValidityConditionChecker<Condition: ValidityCondition>:
     fn check(&mut self, condition: &Condition) -> Result<(), Self::Error>;
 }
 
-#[derive(
-    Serialize, BorshDeserialize, BorshSerialize, Deserialize, sov_wallet_format::UniversalWallet,
-)]
+#[derive(Serialize, Deserialize, sov_wallet_format::UniversalWallet)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
@@ -207,35 +205,21 @@ pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     pub final_state_root: StateRoot,
     /// The header of the da block that is being processed
     pub da_block_header: Da::BlockHeader,
-    #[borsh(bound(
-        serialize = "RelevantProofs<Da::InclusionMultiProof, Da::CompletenessProof>: borsh::ser::BorshSerialize",
-        deserialize = "RelevantProofs<Da::InclusionMultiProof, Da::CompletenessProof>: borsh::de::BorshDeserialize",
-    ))]
     /// Proofs that the relevant blobs belong to the DA block.
     pub relevant_proofs: RelevantProofs<Da::InclusionMultiProof, Da::CompletenessProof>,
-    #[borsh(bound(
-        serialize = "<Da as DaSpec>::BlobTransaction: borsh::ser::BorshSerialize",
-        deserialize = "<Da as DaSpec>::BlobTransaction: borsh::de::BorshDeserialize"
-    ))]
     /// The blobs that are being processed
     pub relevant_blobs: RelevantBlobs<<Da as DaSpec>::BlobTransaction>,
     /// The witness for the state transition
     pub witness: Witness,
 }
 
-#[derive(
-    Serialize, BorshDeserialize, BorshSerialize, Deserialize, sov_wallet_format::UniversalWallet,
-)]
+#[derive(Serialize, Deserialize, sov_wallet_format::UniversalWallet)]
 #[serde(
     bound = "Address: Serialize + DeserializeOwned, StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned"
 )]
 /// Data required to prove a state transition.
 pub struct StateTransitionWitnessWithAddress<Address, StateRoot, Witness, Da: DaSpec> {
     /// Witness.
-    #[borsh(bound(
-        serialize = "StateTransitionWitness<StateRoot, Witness, Da>: borsh::ser::BorshSerialize",
-        deserialize = "StateTransitionWitness<StateRoot, Witness, Da>: borsh::de::BorshDeserialize",
-    ))]
     pub stf_witness: StateTransitionWitness<StateRoot, Witness, Da>,
     /// Prover address.
     pub prover_address: Address,
