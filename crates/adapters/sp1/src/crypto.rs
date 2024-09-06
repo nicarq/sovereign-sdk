@@ -124,6 +124,11 @@ impl SP1PublicKey {
     pub fn to_address<'a, A: From<&'a Self>>(&'a self) -> A {
         self.into()
     }
+
+    /// Returns the bytes of the underlying public key.
+    pub fn bytes(&self) -> &[u8; 32] {
+        self.pub_key.as_bytes()
+    }
 }
 
 impl sov_rollup_interface::crypto::PublicKey for SP1PublicKey {
