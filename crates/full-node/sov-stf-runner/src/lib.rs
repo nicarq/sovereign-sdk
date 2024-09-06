@@ -6,6 +6,7 @@ mod config;
 pub mod mock;
 mod prover_service;
 mod runner;
+mod stf_info_manager;
 
 pub use crate::config::{
     from_toml_path, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig,

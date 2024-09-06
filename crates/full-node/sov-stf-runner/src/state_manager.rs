@@ -137,7 +137,7 @@ where
         );
         self.seen_state_transitions.push_back(StateTransitionInfo {
             data: transition_witness,
-            slot_number,
+            rollup_height: slot_number,
         });
 
         let (finalization_ledger_changes, finalized_transitions) = self
@@ -233,7 +233,7 @@ where
 
             if height <= last_finalized_height {
                 ledger_change_set = self.ledger_db.materialize_latest_finalize_slot(
-                    earliest_seen_state_transition_info.slot_number,
+                    earliest_seen_state_transition_info.rollup_height,
                 )?;
 
                 let transition_data = self.seen_state_transitions.pop_front().expect(
@@ -436,7 +436,7 @@ mod tests {
             .await?;
             assert_eq!(1, finalized.len());
             let finalized = finalized.pop().unwrap();
-            assert_eq!(height - 1, finalized.slot_number);
+            assert_eq!(height - 1, finalized.rollup_height);
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);
             state_root = finalized.data.final_state_root;

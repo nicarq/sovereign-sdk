@@ -10,11 +10,11 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
-    SlotByHash, SlotByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
+    SlotByHash, SlotByNumber, StfInfoByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, LatestFinalizedSlotSingleton, ProofUniqueId,
-    SlotNumber, StoredBatch, StoredSlot, StoredTransaction, TxNumber,
+    SlotNumber, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
 };
 use crate::DbOptions;
 
@@ -407,5 +407,25 @@ impl LedgerDb {
         self.notification_service
             .register_aggregated_proof_notification(AggregatedProofResponse { proof: agg_proof });
         Ok(schema_batch)
+    }
+
+    /// Materializes [`StoredStfInfo`] into [`SchemaBatch`].
+    pub fn materialize_stf_info(
+        &self,
+        stf_info: &StoredStfInfo,
+        slot_number: &SlotNumber,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<StfInfoByNumber>(slot_number, stf_info)?;
+        Ok(schema_batch)
+    }
+
+    /// Get [`StoredStfInfo`] for the given rollup height.
+    pub fn get_stf_info(
+        &self,
+        rollup_height: &SlotNumber,
+    ) -> anyhow::Result<Option<StoredStfInfo>> {
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        db.get::<StfInfoByNumber>(rollup_height)
     }
 }

@@ -73,6 +73,13 @@ pub struct StoredSlot {
     pub batches: std::ops::Range<BatchNumber>,
 }
 
+/// The on-disc format for information about state transition.
+#[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]
+pub struct StoredStfInfo {
+    /// The serialized StateTransitionInfo structure.
+    pub data: Vec<u8>,
+}
+
 /// The on-disk format for a batch. Stores the hash and identifies the range of transactions
 /// included in the batch.
 #[derive(Debug, PartialEq, BorshDeserialize, BorshSerialize)]

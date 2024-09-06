@@ -158,7 +158,7 @@ where
                             validity_condition,
                             prover_address,
                         },
-                        slot_number: state_transition_info.slot_number,
+                        slot_number: state_transition_info.rollup_height,
                     });
 
                     prover_state.set_to_proved(block_header_hash, block_proof);

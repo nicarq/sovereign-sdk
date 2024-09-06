@@ -1,5 +1,6 @@
 use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
+use sov_db::schema::types::{SlotNumber, StoredStfInfo};
 use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
@@ -111,4 +112,26 @@ async fn test_save_aggregated_proof() {
             .unwrap();
         assert_eq!(&public_data, proof_from_db.proof.public_data());
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_stf_info() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
+    let ledger_storage = storage_manager.create_ledger_storage();
+
+    let ledger_db = LedgerDb::with_reader(ledger_storage).unwrap();
+
+    let original_stored_inf_info = StoredStfInfo {
+        data: vec![1, 2, 3],
+    };
+
+    let schema_batch = ledger_db
+        .materialize_stf_info(&original_stored_inf_info, &SlotNumber(0))
+        .unwrap();
+
+    storage_manager.commit(schema_batch);
+
+    let stored_stf_info = ledger_db.get_stf_info(&SlotNumber(0)).unwrap().unwrap();
+    assert_eq!(original_stored_inf_info, stored_stf_info);
 }
