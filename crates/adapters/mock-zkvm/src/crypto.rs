@@ -131,6 +131,11 @@ impl Ed25519PublicKey {
     {
         self.into()
     }
+
+    /// Returns a reference to the underlying bytes of the public key.
+    pub fn bytes(&self) -> &[u8; 32] {
+        self.pub_key.as_bytes()
+    }
 }
 
 impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
