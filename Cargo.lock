@@ -9989,6 +9989,7 @@ dependencies = [
  "jsonrpsee",
  "num_cpus",
  "rayon",
+ "rockbound",
  "schemars",
  "serde",
  "serde_json",

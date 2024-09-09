@@ -36,8 +36,8 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber,
-    LatestFinalizedSlotSingleton, ProofUniqueId, SlotNumber, StoredBatch, StoredSlot,
-    StoredStfInfo, StoredTransaction, TxNumber,
+    LatestFinalizedSlotSingleton, ProofUniqueId, SlotNumber, StfInfoUniqueId, StoredBatch,
+    StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
 };
 
 /* Other tables used by the Rollup */
@@ -56,6 +56,7 @@ pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
     ProofByUniqueId::table_name(),
     FinalizedSlots::table_name(),
     StfInfoByNumber::table_name(),
+    StfInfoMetadata::table_name(),
 ];
 
 /// A list of all tables used by the AccessoryDB. These tables store
@@ -262,6 +263,11 @@ define_table_with_seek_key_codec!(
 define_table_with_seek_key_codec!(
     /// The primary source for proof data
     (ProofByUniqueId) ProofUniqueId => AggregatedProof
+);
+
+define_table_with_seek_key_codec!(
+    /// The STF Info metadata.
+    (StfInfoMetadata) StfInfoUniqueId => u64
 );
 
 define_table_without_codec!(

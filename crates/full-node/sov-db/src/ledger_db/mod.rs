@@ -10,11 +10,13 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
-    SlotByHash, SlotByNumber, StfInfoByNumber, TxByHash, TxByNumber, LEDGER_TABLES,
+    SlotByHash, SlotByNumber, StfInfoByNumber, StfInfoMetadata, TxByHash, TxByNumber,
+    LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, LatestFinalizedSlotSingleton, ProofUniqueId,
-    SlotNumber, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
+    SlotNumber, StfInfoUniqueId, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction,
+    TxNumber,
 };
 use crate::DbOptions;
 
@@ -183,6 +185,11 @@ pub struct LedgerDb {
     db: Arc<RwLock<DeltaReader>>,
     notification_service: LedgerNotificationService,
 }
+
+// Db key for the latest height of the written STF info.
+const WRITE_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(0);
+// DB key for the latest height of the retrieved STF info.
+const READ_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(1);
 
 impl LedgerDb {
     const DB_PATH_SUFFIX: &'static str = "ledger";
@@ -427,5 +434,37 @@ impl LedgerDb {
     ) -> anyhow::Result<Option<StoredStfInfo>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         db.get::<StfInfoByNumber>(rollup_height)
+    }
+
+    /// Materializes the latest height of the written STF info.
+    pub fn materialize_stf_info_write_rollup_height(
+        &self,
+        stf_write_rollup_height: u64,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID, &stf_write_rollup_height)?;
+        Ok(schema_batch)
+    }
+
+    /// Gets the latest height of the written STF info.
+    pub fn get_stf_info_write_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        db.get::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)
+    }
+
+    /// Materializes the latest height of the retrieved STF info.
+    pub fn materialize_stf_info_read_rollup_height(
+        &self,
+        read_rollup_height: u64,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID, &read_rollup_height)?;
+        Ok(schema_batch)
+    }
+
+    /// Gets the latest height of the retrieved STF info.
+    pub fn get_stf_info_read_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        db.get::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)
     }
 }
