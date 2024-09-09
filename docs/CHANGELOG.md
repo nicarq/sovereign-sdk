@@ -1,3 +1,4 @@
+- #1418 Add back pressure mechanism to the StfInfoManager 
 - #1409 Removes the `override_sequencer` field from test case structures and `TestRunner::execute` & `TestRunner::simulate` in favor of a single central location.
     - Instead of passing this param you should set `runner.config.sequencer_da_address` right before executing your test case. Also note that the semantics have changed, previously
       following test cases would revert back to the old sequencer da address - this is no longer the case. If you need this behavor you should save and restore the sequencer address.
