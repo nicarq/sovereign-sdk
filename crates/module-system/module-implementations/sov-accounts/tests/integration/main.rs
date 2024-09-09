@@ -273,13 +273,11 @@ fn test_resolve_address_if_more_than_one_credential() {
     runner.execute(
         non_registered_account
             .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_1)),
-        None,
     );
 
     runner.execute(
         non_registered_account
             .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_2)),
-        None,
     );
 
     runner.query_state(|state| {

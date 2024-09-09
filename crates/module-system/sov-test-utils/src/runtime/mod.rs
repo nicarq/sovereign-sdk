@@ -83,6 +83,12 @@ impl<Da: DaSpec> SlotReceipt<Da> {
     }
 }
 
+/// TestRunner specific configuration values.
+pub struct RunnerConfig<Da: DaSpec> {
+    /// The sequencers DA address used as the address of the sender of a blob.
+    pub sequencer_da_address: Da::Address,
+}
+
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
 pub struct TestRunnerWithKernel<
     RT: Runtime<S, MockDaSpec>,
@@ -94,7 +100,8 @@ pub struct TestRunnerWithKernel<
     slot_receipts: Vec<SlotReceipt<MockDaSpec>>,
     state_root: <S::Storage as Storage>::Root,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
-    default_sequencer_da_address: <MockDaSpec as DaSpec>::Address,
+    /// Test runner configuration.
+    pub config: RunnerConfig<MockDaSpec>,
 }
 
 /// The output of the runner
@@ -231,7 +238,7 @@ where
         let temp_dir = tempfile::tempdir().unwrap();
         let mut storage_manager = SimpleStorageManager::new(temp_dir.path());
 
-        let default_sequencer_da_address =
+        let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
                 .seq_da_address;
 
@@ -242,13 +249,17 @@ where
 
         // ----- End genesis ---------
 
+        let config = RunnerConfig {
+            sequencer_da_address,
+        };
+
         Self {
             nonces: HashMap::new(),
             slot_receipts: Vec::new(),
             state_root,
             storage_manager,
             stf,
-            default_sequencer_da_address,
+            config,
         }
     }
 
@@ -353,7 +364,6 @@ where
     pub fn simulate<T: Into<SlotInput<S, M>>, M>(
         &self,
         input: T,
-        override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
     ) -> (TestApplySlotOutputWithKernel<RT, K, S>, NoncesMap<S>)
     where
         M: Module,
@@ -362,8 +372,7 @@ where
         let block_header = self.next_header();
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<S, M> = input.into();
-        let sequencer = override_sequencer.unwrap_or(self.default_sequencer_da_address);
-
+        let sequencer = self.config.sequencer_da_address;
         let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
         let mut nonces = self.nonces.clone();
 
@@ -403,13 +412,12 @@ where
     pub fn execute<T: Into<SlotInput<S, M>>, M>(
         &mut self,
         input: T,
-        override_sequencer: Option<<MockDaSpec as DaSpec>::Address>,
     ) -> TestApplySlotOutputWithKernel<RT, K, S>
     where
         M: Module,
         RT: EncodeCall<M>,
     {
-        let (result, nonces) = self.simulate(input, override_sequencer);
+        let (result, nonces) = self.simulate(input);
         self.commit_apply_slot_output(&result, nonces);
 
         result
@@ -463,7 +471,7 @@ where
     where
         RT: EncodeCall<M> + RuntimeEventProcessor,
     {
-        let result = self.execute(transaction_test.input, None);
+        let result = self.execute(transaction_test.input);
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
         let gas_used = <S as Spec>::Gas::from_slice(&tx_receipt.gas_used);
@@ -487,12 +495,9 @@ where
     where
         RT: EncodeCall<M>,
     {
-        let sender_da_address = batch_test
-            .override_sequencer
-            .unwrap_or(self.default_sequencer_da_address);
-        let result = self.execute(batch_test.input, Some(sender_da_address));
+        let result = self.execute(batch_test.input);
         let ctx = BatchAssertContext {
-            sender_da_address,
+            sender_da_address: self.config.sequencer_da_address,
             batch_receipt: result.batch_receipts.first().cloned(),
         };
         (batch_test.assert)(ctx, &mut self.current_state());
@@ -509,11 +514,7 @@ where
     where
         RT: EncodeCall<M>,
     {
-        let sender_da_address = proof_test
-            .override_sequencer
-            .unwrap_or(self.default_sequencer_da_address);
-
-        let result = self.execute(proof_test.input, Some(sender_da_address));
+        let result = self.execute(proof_test.input);
         let proof_receipt = result.proof_receipts.first().cloned();
 
         let gas_value_used = if let Some(proof_receipt) = &proof_receipt {

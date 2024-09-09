@@ -35,7 +35,7 @@ fn prepare_for_slashing() -> (TestRunner<RT, S>, TestProver<S>, AggregatedProofP
 
     for _ in 0..3 {
         // execute some transactions that will generate gas to reward the prover
-        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+        runner.execute(consume_gas_tx_for_signer(&other_user));
     }
 
     let aggregated_proof = runner
@@ -51,7 +51,6 @@ fn test_invalid_proof_slashed() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(())),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(result, state, &prover.user_info, "Verification failed");
         }),
@@ -67,7 +66,6 @@ fn test_invalid_genesis_hash_slashed() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -88,7 +86,6 @@ fn test_invalid_initial_state_root() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -109,7 +106,6 @@ fn test_invalid_final_slot_hash() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -130,7 +126,6 @@ fn test_invalid_final_state_root() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -151,7 +146,6 @@ fn test_invalid_initial_slot_hash() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -170,7 +164,6 @@ fn test_invalid_initial_slot_number() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -189,7 +182,6 @@ fn test_invalid_final_slot_number() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,
@@ -210,7 +202,6 @@ fn test_invalid_validity_condition() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_slashed(
                 result,

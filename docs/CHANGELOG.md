@@ -1,3 +1,7 @@
+- #1409 Removes the `override_sequencer` field from test case structures and `TestRunner::execute` & `TestRunner::simulate` in favor of a single central location.
+    - Instead of passing this param you should set `runner.config.sequencer_da_address` right before executing your test case. Also note that the semantics have changed, previously
+      following test cases would revert back to the old sequencer da address - this is no longer the case. If you need this behavor you should save and restore the sequencer address.
+      Example: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1409/files#diff-2ce1f1e8ed6a6e93b23ddeee55eb317ff55dcf8a6fa1fb544916f3f67ee7b9abR257`
 - #1415 Add StfInfoManager, which manages data related to state transitions. 
 - #1413 Remove borsh bounds from StateTransitionWitness.
 - #1407 Renames `transition_num` to `rollup_height` in the `AttesterIncentives` module.

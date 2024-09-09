@@ -64,10 +64,8 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
     };
 
     // Send them
-    let result = runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(
-        unregistered_blobs,
-        None,
-    );
+    let result = runner
+        .execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(unregistered_blobs);
 
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
@@ -113,8 +111,8 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount_soft_confirmat
     slot_to_send.batch_blobs.append(&mut unregistered_blobs);
 
     // Send them
-    let result = runner
-        .execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(slot_to_send, None);
+    let result =
+        runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(slot_to_send);
 
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
@@ -154,8 +152,8 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
     slot_to_send.batch_blobs.append(&mut unregistered_blobs);
 
     // Send them
-    let result = runner
-        .execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(slot_to_send, None);
+    let result =
+        runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(slot_to_send);
 
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(

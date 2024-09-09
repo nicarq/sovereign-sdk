@@ -53,7 +53,6 @@ fn test_executing_eth_transaction() {
             TransactionType::<Evm<S>, S>::PreSigned(set_value_tx),
         ]
         .into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let receipts = evm.receipts(state);
@@ -91,7 +90,6 @@ fn test_executing_eth_transaction() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![TransactionType::<Evm<S>, S>::PreSigned(set_value_tx)].into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let db_account = evm.get_account(&contract_addr, state).unwrap().unwrap();
@@ -122,7 +120,6 @@ fn test_failed_tx_doesnt_update_evm_module_state() {
     };
     runner.execute_batch(BatchTestCase {
         input: vec![TransactionType::<Evm<S>, S>::PreSigned(create_contract_tx)].into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             // no pending block added if eth tx execution fails.

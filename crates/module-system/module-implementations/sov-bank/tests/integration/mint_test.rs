@@ -130,7 +130,6 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
             mint_to_address: user.address(),
             authorized_minters: vec![],
         }),
-        None,
     );
 
     runner.execute_transaction(TransactionTestCase {

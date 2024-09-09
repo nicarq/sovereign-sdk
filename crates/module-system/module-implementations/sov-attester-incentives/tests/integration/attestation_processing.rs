@@ -36,7 +36,7 @@ fn test_process_valid_attestation() {
         rewards.push(reward);
     }
 
-    runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let mut runner = runner.advance_slots(nb_tests);
 
@@ -87,7 +87,7 @@ fn test_burn_on_invalid_attestation() {
         });
     }
 
-    runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let attester_address = genesis_attester.user_info.address();
     let attester_bond = genesis_attester.bond;
@@ -208,7 +208,6 @@ fn invalid_bond_proof_no_slash(
 
     ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_eq!(
                 result.proof_receipt.unwrap().outcome,
@@ -243,7 +242,6 @@ fn invalid_initial_state_slashed(
     let attester_address = attester.user_info.address();
     ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(
                 result.proof_receipt.unwrap().outcome,
@@ -285,7 +283,6 @@ fn invalid_post_state_root_is_challengeable(
     let attester_bond = attester.bond;
     ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(
                 result.proof_receipt.unwrap().outcome,

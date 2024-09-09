@@ -55,7 +55,6 @@ fn chain_state_kernel_updates_basic_kernel() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     runner.query_kernel_state(|kernel| {
@@ -81,7 +80,6 @@ fn test_chain_state_gas_updates() {
 
     let output = runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     runner.query_kernel_state(|kernel| {
@@ -117,7 +115,6 @@ fn test_chain_state_root_updates() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     let post_state_root = *runner.state_root();
@@ -134,7 +131,6 @@ fn test_chain_state_root_updates() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     runner.query_kernel_state(|kernel| {
@@ -157,7 +153,6 @@ fn test_chain_state_historical_transition_update() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     let in_progress_transition = runner.query_kernel_state(|kernel| {
@@ -168,7 +163,6 @@ fn test_chain_state_historical_transition_update() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     runner.query_kernel_state(|kernel| {

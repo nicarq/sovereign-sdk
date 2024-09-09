@@ -23,18 +23,15 @@ fn transfer_token_and_query_old_balances() {
     const AMOUNT_PER_TRANSFER: u64 = 10;
 
     for i in 1..10 {
-        runner.execute(
-            sender.create_plain_message::<sov_bank::Bank<TestSpec>>(
-                sov_bank::CallMessage::Transfer {
-                    to: receiver.address(),
-                    coins: Coins {
-                        amount: AMOUNT_PER_TRANSFER,
-                        token_id,
-                    },
+        runner.execute(sender.create_plain_message::<sov_bank::Bank<TestSpec>>(
+            sov_bank::CallMessage::Transfer {
+                to: receiver.address(),
+                coins: Coins {
+                    amount: AMOUNT_PER_TRANSFER,
+                    token_id,
                 },
-            ),
-            None,
-        );
+            },
+        ));
 
         for j in 1..i {
             runner.query_state(|state| {

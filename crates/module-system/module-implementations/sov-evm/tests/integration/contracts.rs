@@ -31,7 +31,7 @@ fn test_invalid_contract_execution() {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
 
-    runner.execute(TransactionType::<Evm<S>, S>::PreSigned(raw_tx), None);
+    runner.execute(TransactionType::<Evm<S>, S>::PreSigned(raw_tx));
 
     runner.query_state(|state| {
         let evm = Evm::<S>::default();

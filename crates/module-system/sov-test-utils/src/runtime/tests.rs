@@ -95,12 +95,8 @@ fn test_default_sequencer() {
         input: vec![admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))]
         .into(),
-        override_sequencer: None,
         assert: Box::new(move |result, _state| {
-            assert_eq!(
-                result.sender_da_address,
-                runner.default_sequencer_da_address
-            );
+            assert_eq!(result.sender_da_address, runner.config.sequencer_da_address);
         }),
     });
 }
@@ -110,11 +106,12 @@ fn test_default_sequencer() {
 fn test_specify_non_default_sequencer_errors_if_not_registered() {
     let (admin, mut runner) = setup();
 
+    runner.config.sequencer_da_address = <MockDaSpec as DaSpec>::Address::from([42; 32]);
+
     runner.execute_batch(BatchTestCase {
         input: vec![admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))]
         .into(),
-        override_sequencer: Some(<MockDaSpec as DaSpec>::Address::from([42; 32])),
         assert: Box::new(move |result, _state| {
             assert!(
                 result.batch_receipt.is_none(),
@@ -145,8 +142,9 @@ fn test_register_sequencer() {
                 amount: new_sequencer.bond,
             },
         ),
-        None,
     );
+
+    runner.config.sequencer_da_address = new_sequencer.da_address;
 
     runner
         // Then we use the non-default sequencer to set a value
@@ -155,7 +153,6 @@ fn test_register_sequencer() {
                 sov_value_setter::CallMessage::SetValue(10),
             )]
             .into(),
-            override_sequencer: Some(new_sequencer.da_address),
             assert: Box::new(move |result, state| {
                 assert_eq!(result.sender_da_address, new_sequencer_address);
                 // ensure the tx was applied / batch was accepted
@@ -183,7 +180,6 @@ fn test_custom_transaction_details_chain_id() {
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
             .with_chain_id(fake_chain_id)]
         .into(),
-        override_sequencer: None,
         assert: Box::new(move |result, _state| {
             match result.batch_receipt.unwrap().inner.outcome {
                 sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {

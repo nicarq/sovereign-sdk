@@ -99,7 +99,6 @@ fn test_transactions_receipts() {
             TransactionType::<Evm<S>, S>::PreSigned(tx_2),
         ]
         .into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let txns = evm.transactions(state);

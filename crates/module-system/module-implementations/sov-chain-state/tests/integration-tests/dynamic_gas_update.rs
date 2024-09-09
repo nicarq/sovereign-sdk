@@ -115,7 +115,6 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
 
     let result = runner.execute(
         user.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     assert_eq!(result.batch_receipts.len(), 1);
@@ -165,7 +164,6 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
 
     let result = runner.execute(
         user.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     assert_eq!(result.batch_receipts.len(), 1);

@@ -96,7 +96,6 @@ fn test_accessory_value_setter() {
 
     let (result_with_update, _) = runner.simulate(
         user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
-        None,
     );
 
     let root_hash_with_update = result_with_update.state_root.user_hash();
@@ -104,10 +103,8 @@ fn test_accessory_value_setter() {
         .gas_used
         .clone();
 
-    let (result_without_update, _) = runner.simulate(
-        user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)),
-        None,
-    );
+    let (result_without_update, _) =
+        runner.simulate(user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)));
 
     let root_hash_without_update = result_without_update.state_root.user_hash();
     let gas_consumed_without_update = result_without_update.batch_receipts[0].tx_receipts[0]
