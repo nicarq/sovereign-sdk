@@ -31,7 +31,6 @@ fn test_recovery_mode() {
     // the sequencer to be slashed.
     runner.execute_batch::<sov_bank::Bank<S>>(BatchTestCase {
         input: BatchType(vec![]),
-        override_sequencer: Some(preferred_sequencer.da_address),
         assert: Box::new(move |_ctx, state| {
             // We check that the sequencer is not allowed to ensure he has been slashed
             assert_eq!(

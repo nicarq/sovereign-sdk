@@ -89,7 +89,6 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
             })
             .with_max_fee(sender_balance)
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
-        None,
     );
 
     // From the simulation result we can compute the gas used value.
@@ -218,16 +217,15 @@ fn test_reserve_gas_no_account() {
     const TRANSFER_AMOUNT: u64 = 10;
 
     // We transfer to the user without an account.
-    runner.execute(
-        user_high_token_balance.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+    runner.execute(user_high_token_balance.create_plain_message::<Bank<S>>(
+        sov_bank::CallMessage::Transfer {
             to: user_no_account.address(),
             coins: Coins {
                 token_id,
                 amount: TRANSFER_AMOUNT,
             },
-        }),
-        None,
-    );
+        },
+    ));
 
     runner.execute_transaction(TransactionTestCase {
         input: user_no_account.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {

@@ -105,7 +105,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
         )
     });
 
-    runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(blob, None);
+    runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(blob);
 
     (test_data, runner)
 }

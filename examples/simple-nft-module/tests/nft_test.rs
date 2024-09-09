@@ -104,7 +104,6 @@ fn cannot_mint_twice() {
 
     runner.execute(
         external_user.create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
-        None,
     );
 
     runner.execute_transaction(TransactionTestCase {

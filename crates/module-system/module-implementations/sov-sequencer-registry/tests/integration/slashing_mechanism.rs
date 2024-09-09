@@ -60,7 +60,6 @@ fn test_slash_sequencer() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![malformed_transaction].into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             assert!(
                 !TestSequencerRegistry::default()
@@ -79,7 +78,6 @@ fn test_slash_preferred_sequencer() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![malformed_transaction].into(),
-        override_sequencer: None,
         assert: Box::new(move |_result, state| {
             assert_eq!(
                 TestSequencerRegistry::default()
@@ -123,7 +121,7 @@ fn test_sequencer_without_enough_stake() {
         },
     );
 
-    runner.execute(register_tx, None);
+    runner.execute(register_tx);
 
     let malformed_transaction = produce_malformed_tx(&mut runner, &admin);
 
@@ -157,7 +155,6 @@ fn test_sequencer_without_enough_stake() {
         }),
     }).execute_batch(BatchTestCase {
         input: vec![malformed_transaction].into(),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert!(result.batch_receipt.is_none(), "Batch should have been dropped");
             assert!(
@@ -211,9 +208,9 @@ fn slashed_sequencer_should_not_preserve_balance() {
             gas_consumed_registration_ref.add(result.gas_value_used);
         }),
     };
+
     let slash_sequencer = BatchTestCase {
         input: vec![malformed_transaction].into(),
-        override_sequencer: Some(additional_sequencer_da_address.into()),
         assert: Box::new(move |_result, state| {
             assert!(
                 !TestSequencerRegistry::default()
@@ -257,11 +254,16 @@ fn slashed_sequencer_should_not_preserve_balance() {
         }),
     };
 
-    runner
-        // Register the additional sequencer
-        .execute_transaction(register_sequencer)
-        // Send the malformed transaction
-        .execute_batch(slash_sequencer)
-        // Try to register the sequencer again
-        .execute_transaction(reregister_sequencer);
+    // Register the additional sequencer
+    runner.execute_transaction(register_sequencer);
+
+    let original_sequencer = runner.config.sequencer_da_address;
+    runner.config.sequencer_da_address = additional_sequencer_da_address.into();
+
+    // Send the malformed transaction
+    runner.execute_batch(slash_sequencer);
+
+    runner.config.sequencer_da_address = original_sequencer;
+    // Try to register the sequencer again
+    runner.execute_transaction(reregister_sequencer);
 }

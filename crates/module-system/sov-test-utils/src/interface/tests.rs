@@ -91,10 +91,6 @@ pub type BatchTestAssert<S, Da> = TestAssertion<BatchAssertContext<Da>, S>;
 pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
     /// Input to execute as part of the batch.
     pub input: BatchType<M, S>,
-    /// Optionally specify the DA address of the sequencer of the batch.
-    ///
-    /// If this is not provided the default sequencer address in the `TestRunner` will be used.
-    pub override_sequencer: Option<Da::Address>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
     pub assert: BatchTestAssert<S, Da>,
 }
@@ -127,10 +123,6 @@ pub type ProofTestAssert<S, Da> = TestAssertion<ProofAssertContext<S, Da>, S>;
 pub struct ProofTestCase<S: Spec, Da: DaSpec> {
     /// Input for the test case.
     pub input: ProofInput,
-    /// Optionally specify the DA address of the sequencer of the batch.
-    ///
-    /// If this is not provided the default sequencer address in the `TestRunner` will be used.
-    pub override_sequencer: Option<Da::Address>,
     /// Assertion for the test case.
     pub assert: ProofTestAssert<S, Da>,
 }

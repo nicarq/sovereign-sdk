@@ -43,10 +43,11 @@ fn check_chain_state_update(
     let (admin, mut runner) = setup();
 
     for round in 0..num_rounds {
-        let result = runner.execute(
-            generate_admin_messages(&admin, round as usize, txs_to_send_per_round),
-            None,
-        );
+        let result = runner.execute(generate_admin_messages(
+            &admin,
+            round as usize,
+            txs_to_send_per_round,
+        ));
 
         // Sanity check: there should be only one batch executed
         assert_eq!(result.batch_receipts.len(), 1);

@@ -164,7 +164,6 @@ pub(crate) fn create_test_case(
 
     ProofTestCase {
         input: ProofInput(serialized_attestation),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(
                 result.proof_receipt.unwrap().outcome,

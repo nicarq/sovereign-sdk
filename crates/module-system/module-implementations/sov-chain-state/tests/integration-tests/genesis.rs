@@ -35,7 +35,6 @@ fn test_chain_state_genesis_root() {
 
     runner.execute(
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-        None,
     );
 
     runner.query_kernel_state(|kernel| {

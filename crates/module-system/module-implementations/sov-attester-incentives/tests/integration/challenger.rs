@@ -90,7 +90,6 @@ fn setup_with_wrong_attestation() -> (
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
             input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_matches!(
                     result.proof_receipt.unwrap().outcome,
@@ -152,7 +151,6 @@ fn test_valid_challenge() -> Result<(), Infallible> {
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_challenge_blob(challenge_proof, true, 1)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_eq!(
                 TestAttesterIncentives::default()
@@ -194,7 +192,6 @@ fn test_invalid_challenge_helper(
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(challenge_blob),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             match &result.proof_receipt.unwrap().outcome {
                 ProofOutcome::Invalid(InvalidProofError::ProverSlashed(msg)) => {

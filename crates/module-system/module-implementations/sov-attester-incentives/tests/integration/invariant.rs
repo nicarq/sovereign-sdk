@@ -30,7 +30,6 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
             input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_matches!(
                     result.proof_receipt.unwrap().outcome,
@@ -79,9 +78,7 @@ fn test_cannot_attest_below_max_attested_height() {
     // The transaction should revert.
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
-
             match &result.proof_receipt.unwrap().outcome {
                 ProofOutcome::Invalid(e@InvalidProofError::PreconditionNotMet(msg)) => {
                     assert!(!e.is_not_revertable());
@@ -124,7 +121,6 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
 
         match &result.proof_receipt.unwrap().outcome {
@@ -166,7 +162,6 @@ fn test_can_attest_within_allowed_range() {
 
         runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
             input: ProofInput(make_attestation_blob(attestation_proof)),
-            override_sequencer: None,
             assert: Box::new(move |result, state| {
                 assert_matches!(
                     result.proof_receipt.unwrap().outcome,

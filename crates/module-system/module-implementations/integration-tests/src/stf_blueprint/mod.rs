@@ -69,7 +69,6 @@ fn test_enforces_chain_id() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![tx].into(),
-        override_sequencer: None,
         assert: Box::new(move |result, _state| {
             match &result.batch_receipt.unwrap().inner.outcome {
                 sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {

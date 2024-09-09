@@ -34,7 +34,7 @@ fn test_valid_proof() {
     }
 
     // We need one extra transaction so the prover see the rewards from the previous transaction.
-    runner.execute(consume_gas_tx_for_signer(&other_user), None);
+    runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let aggregated_proof = runner
         .query_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
@@ -42,7 +42,6 @@ fn test_valid_proof() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(
                 result.proof_receipt.unwrap().outcome,
@@ -75,7 +74,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
 
     for _ in 0..3 {
         // execute some transactions that will consume gas to reward the prover
-        runner.execute(consume_gas_tx_for_signer(&other_user), None);
+        runner.execute(consume_gas_tx_for_signer(&other_user));
     }
 
     let aggregated_proof = runner
@@ -84,7 +83,6 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             assert_matches!(
                 result.proof_receipt.unwrap().outcome,
@@ -114,7 +112,6 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
-        override_sequencer: None,
         assert: Box::new(move |result, state| {
             match result.proof_receipt.unwrap().outcome {
                 ProofOutcome::Invalid(InvalidProofError::ProverPenalized(_)) => {}
