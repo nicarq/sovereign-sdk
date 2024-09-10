@@ -3,6 +3,7 @@ use sov_modules_api::{
     AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, StateCheckpoint, WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
+use sov_state::Storage;
 
 use crate::runtime::Runtime;
 
@@ -36,7 +37,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
 
     fn begin_slot_hook(
         &self,
-        pre_state_root: <S as Spec>::VisibleHash,
+        pre_state_root: &<<S as Spec>::Storage as Storage>::Root,
         versioned_working_set: &mut sov_modules_api::StateCheckpoint<S::Storage>,
     ) {
         self.evm
@@ -53,7 +54,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
 
     fn finalize_hook(
         &self,
-        #[allow(unused_variables)] root_hash: S::VisibleHash,
+        #[allow(unused_variables)] root_hash: &<<S as Spec>::Storage as Storage>::Root,
         #[allow(unused_variables)] state: &mut impl AccessoryStateReaderAndWriter,
     ) {
         #[cfg(feature = "native")]

@@ -18,7 +18,7 @@ use crate::namespaces::{
 };
 use crate::storage::{NativeStorage, SlotKey, SlotValue, StateUpdate, Storage, StorageProof};
 use crate::storage_internals::{SparseMerkleProof, StorageRoot};
-use crate::{MerkleProofSpec, Witness};
+use crate::{MerkleProofSpec, StateRoot, Witness};
 
 /// A [`Storage`] implementation to be used by the prover in a native execution
 /// environment (outside of the zkVM).
@@ -375,18 +375,11 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
 
         // We need to verify the proof against the correct root hash.
         // Hence we match the key against its namespace
-        match namespace {
-            ProvableNamespace::User => proof.inner().verify(
-                state_root.user_hash(),
-                key_hash,
-                value.as_ref().map(|v| v.value()),
-            )?,
-            ProvableNamespace::Kernel => proof.inner().verify(
-                state_root.kernel_hash(),
-                key_hash,
-                value.as_ref().map(|v| v.value()),
-            )?,
-        }
+        proof.inner().verify(
+            jmt::RootHash(state_root.namespace_root(namespace)),
+            key_hash,
+            value.as_ref().map(|v| v.value()),
+        )?;
 
         Ok((key, value))
     }

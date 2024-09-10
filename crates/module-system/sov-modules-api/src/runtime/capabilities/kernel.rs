@@ -39,19 +39,23 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>:
     BlobSelector<Da, Spec = S> + Kernel<S::Storage>
 {
     /// Called at the beginning of a slot. Computes the gas price for the slot
+    /// Returns the visible root hash accessible at the current *virtual* rollup height
     fn begin_slot_hook(
         &self,
         slot_header: &Da::BlockHeader,
         validity_condition: &Da::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
-    );
+    ) -> <S::Storage as Storage>::Root;
+
     /// Called at the end of a slot
+    /// Returns the kernel root hash accessible at the next *virtual* rollup height if any.
+    /// Otherwise returns [`None`].
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
-    );
+    ) -> Option<[u8; 32]>;
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
     fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S::Storage>) -> <S::Gas as Gas>::Price;

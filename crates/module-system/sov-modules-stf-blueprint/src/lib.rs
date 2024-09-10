@@ -3,6 +3,7 @@
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Batch, BatchSequencerReceipt, TxScratchpad, VersionReader};
+use sov_state::StateRoot;
 mod batch_processing;
 mod proof_processing;
 #[cfg(feature = "test-utils")]
@@ -25,7 +26,7 @@ use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::TxHash;
 use sov_state::storage::StateUpdate;
-use sov_state::{Storage, StorageProof};
+use sov_state::{ProvableNamespace, Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
@@ -198,11 +199,27 @@ where
         state: &mut StateCheckpoint<S::Storage>,
         _slot_header: &Da::BlockHeader,
         _validity_condition: &Da::ValidityCondition,
-        pre_state_root: &<S::Storage as Storage>::Root,
+        visible_hash: &<<S as Spec>::Storage as Storage>::Root,
     ) {
-        let visible_hash = <S as Spec>::VisibleHash::from(pre_state_root.clone());
-
         self.runtime.begin_slot_hook(visible_hash, state);
+    }
+
+    /// Helper method for soft-confirmations:
+    /// - if the next kernel hash is not provided by the `end_slot_hook`, we use the current one.
+    /// - we build the visible hash manually from its kernel and user components.
+    fn next_visible_hash(
+        maybe_next_kernel_hash: Option<[u8; 32]>,
+        root_hash: &<S::Storage as Storage>::Root,
+    ) -> <S::Storage as Storage>::Root {
+        let kernel_hash = if let Some(next_kernel_hash) = maybe_next_kernel_hash {
+            next_kernel_hash
+        } else {
+            root_hash.namespace_root(ProvableNamespace::Kernel)
+        };
+
+        let user_hash = root_hash.namespace_root(ProvableNamespace::User);
+
+        <S::Storage as Storage>::Root::from_namespace_roots(user_hash, kernel_hash)
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -221,24 +238,26 @@ where
 
         let mut kernel_state_accessor = self.kernel.accessor(&mut checkpoint);
 
-        self.kernel
+        let maybe_next_kernel_hash = self
+            .kernel
             .end_slot_hook(gas_used, &mut kernel_state_accessor);
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
-        let (root_hash, mut state_update) = storage
+        let (next_root_hash, mut state_update) = storage
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
-        let visible_root_hash = <S as Spec>::VisibleHash::from(root_hash.clone());
+        let next_visible_root_hash =
+            Self::next_visible_hash(maybe_next_kernel_hash, &next_root_hash);
 
         self.runtime
-            .finalize_hook(visible_root_hash, &mut accessory_delta);
+            .finalize_hook(&next_visible_root_hash, &mut accessory_delta);
 
         state_update.add_accessory_items(accessory_delta.freeze());
         let change_set = storage.materialize_changes(&state_update);
 
-        (root_hash, witness, change_set)
+        (next_root_hash, witness, change_set)
     }
 }
 
@@ -301,10 +320,8 @@ where
             .compute_state_update(log, &witness)
             .expect("Storage update must succeed");
 
-        let visible_genesis_hash = <S as Spec>::VisibleHash::from(genesis_hash.clone());
-
         self.runtime
-            .finalize_hook(visible_genesis_hash, &mut accessory_delta);
+            .finalize_hook(&genesis_hash, &mut accessory_delta);
 
         state_update.add_accessory_items(accessory_delta.freeze());
 
@@ -333,7 +350,7 @@ where
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
-        self.kernel.begin_slot_hook(
+        let visible_state_root = self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
@@ -356,7 +373,12 @@ where
             .get_blobs_for_this_slot(all_blobs, &mut kernel_accessor)
             .expect("blob selection must succeed, probably serialization failed");
 
-        self.begin_slot(&mut state, slot_header, validity_condition, pre_state_root);
+        self.begin_slot(
+            &mut state,
+            slot_header,
+            validity_condition,
+            &visible_state_root,
+        );
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the virtual slot number.

@@ -23,7 +23,7 @@ pub mod jmt {
 pub use prover_storage::ProverStorage;
 use sha2::digest::typenum::U32;
 use sov_rollup_interface::reexports::digest::Digest;
-pub use storage_internals::{SparseMerkleProof, StorageRoot, VisibleHash};
+pub use storage_internals::{SparseMerkleProof, StorageRoot};
 pub use zk_storage::ZkStorage;
 
 pub use crate::bytes::*;

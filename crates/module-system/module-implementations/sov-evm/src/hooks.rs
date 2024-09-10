@@ -2,19 +2,16 @@ use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{AccessoryStateReaderAndWriter, StateCheckpoint};
-use sov_state::Storage;
+use sov_state::{StateRoot, Storage};
 
 use crate::evm::primitive_types::Block;
 use crate::{BlockEnv, Evm, PendingTransaction};
 
-impl<S: sov_modules_api::Spec> Evm<S>
-where
-    <S::Storage as Storage>::Root: Into<[u8; 32]>,
-{
+impl<S: sov_modules_api::Spec> Evm<S> {
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     pub fn begin_slot_hook(
         &self,
-        pre_state_user_root: S::VisibleHash,
+        pre_state_user_root: &<S::Storage as Storage>::Root,
         state: &mut StateCheckpoint<S::Storage>,
     ) {
         let mut parent_block = self
@@ -23,7 +20,7 @@ where
             .unwrap_infallible()
             .expect("Head block should always be set");
 
-        let pre_state_user_root: [u8; 32] = pre_state_user_root.into();
+        let pre_state_user_root: [u8; 32] = pre_state_user_root.global_root();
 
         parent_block.header.state_root =
             // We have to force the conversion to [u8;32] to prevent the `from_slice` method from panicking
@@ -191,7 +188,7 @@ where
     /// enabling block-related RPC queries.
     pub fn finalize_hook(
         &self,
-        root_hash: S::VisibleHash,
+        root_hash: &<S::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,
     ) {
         let expected_block_number = self.blocks.len(state).unwrap_infallible() as u64;
@@ -213,7 +210,7 @@ where
             expected_block_number, block.header.number
         );
 
-        let root_hash_bytes: [u8; 32] = root_hash.into();
+        let root_hash_bytes: [u8; 32] = root_hash.global_root();
         block.header.state_root = root_hash_bytes.into();
 
         let sealed_block = block.seal();

@@ -1,4 +1,5 @@
 use sov_rollup_interface::da::DaSpec;
+use sov_state::Storage;
 
 use crate::transaction::AuthenticatedTransactionData;
 use crate::{AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState};
@@ -84,7 +85,7 @@ pub trait SlotHooks {
     /// Hook that runs at the beginning of the `apply_slot` function inside the `StateTransitionFunction`.
     fn begin_slot_hook(
         &self,
-        _pre_state_root: <Self::Spec as Spec>::VisibleHash,
+        _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
     }
@@ -105,7 +106,7 @@ pub trait FinalizeHook {
     /// state are not proved and hence don't affect the state root hash).
     fn finalize_hook(
         &self,
-        _root_hash: <Self::Spec as Spec>::VisibleHash,
+        _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         _state: &mut impl AccessoryStateReaderAndWriter,
     ) {
     }

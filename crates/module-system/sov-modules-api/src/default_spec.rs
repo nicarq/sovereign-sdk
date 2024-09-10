@@ -70,8 +70,6 @@ where
     type Storage =
         sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
 
-    type VisibleHash = sov_state::VisibleHash;
-
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
 
@@ -92,8 +90,6 @@ where
     type Storage =
         sov_state::ProverStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
 
-    type VisibleHash = sov_state::VisibleHash;
-
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
 
@@ -113,8 +109,6 @@ where
 
     type Storage =
         sov_state::ZkStorage<DefaultStorageSpec<<Self::CryptoSpec as CryptoSpec>::Hasher>>;
-
-    type VisibleHash = sov_state::VisibleHash;
 
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;

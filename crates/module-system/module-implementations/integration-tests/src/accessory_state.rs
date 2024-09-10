@@ -3,6 +3,7 @@ use sov_modules_api::{
     AccessoryStateValue, CallResponse, Context, GenesisState, Module, ModuleError, ModuleId,
     ModuleInfo, Spec, StateAccessor, TxState,
 };
+use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, AsUser};
@@ -98,7 +99,9 @@ fn test_accessory_value_setter() {
         user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
     );
 
-    let root_hash_with_update = result_with_update.state_root.user_hash();
+    let root_hash_with_update = result_with_update
+        .state_root
+        .namespace_root(ProvableNamespace::User);
     let gas_consumed_with_update = result_with_update.batch_receipts[0].tx_receipts[0]
         .gas_used
         .clone();
@@ -106,7 +109,9 @@ fn test_accessory_value_setter() {
     let (result_without_update, _) =
         runner.simulate(user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)));
 
-    let root_hash_without_update = result_without_update.state_root.user_hash();
+    let root_hash_without_update = result_without_update
+        .state_root
+        .namespace_root(ProvableNamespace::User);
     let gas_consumed_without_update = result_without_update.batch_receipts[0].tx_receipts[0]
         .gas_used
         .clone();

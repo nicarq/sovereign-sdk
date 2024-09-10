@@ -11,7 +11,7 @@ macro_rules! impl_runtime_hook {
 
             fn begin_slot_hook(
                 &self,
-                _pre_state_root: S::VisibleHash,
+                _pre_state_root: &<S::Storage as sov_state::Storage>::Root,
                 _state: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
             ) {
             }
@@ -29,7 +29,7 @@ macro_rules! impl_runtime_hook {
 
             fn finalize_hook(
                 &self,
-                _root_hash: S::VisibleHash,
+                _root_hash: &<S::Storage as sov_state::Storage>::Root,
                 _state: &mut impl ::sov_modules_api::prelude::StateReaderAndWriter<
                     sov_state::namespaces::Accessory,
                 >,

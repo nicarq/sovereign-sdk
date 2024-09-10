@@ -13,7 +13,7 @@ pub use sov_chain_state::{ChainStateConfig, OperatingMode};
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
+use sov_modules_api::capabilities::KernelSlotHooks;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Gas,
@@ -129,7 +129,7 @@ impl<RT, K, S> TestRunnerWithKernel<RT, K, S>
 where
     RT: Runtime<S, MockDaSpec> + MinimalGenesis<S, Da = MockDaSpec>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    K: KernelSlotHooks<S, MockDaSpec> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {

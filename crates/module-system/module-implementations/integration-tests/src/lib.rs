@@ -6,3 +6,6 @@ mod accessory_state;
 
 #[cfg(test)]
 mod stf_blueprint;
+
+#[cfg(test)]
+mod visible_hash;
