@@ -34,8 +34,22 @@ pub struct Metrics {
     pub da_blocks_processed: IntCounter,
     /// Number of rollup batches processed.
     pub rollup_batches_processed: IntCounter,
+    /// The total size (in bytes) of all batches processed to date.
+    ///
+    /// Note that this metric only tracks the size of the batches which have been ingested
+    /// by the STF. If the rollup does some internal reordering of the batches, this metric will not
+    /// reflect which blobs have and have not been executed.
+    pub batch_bytes_processed: IntCounter,
     /// Number of rollup transactions processed.
     pub rollup_txns_processed: IntCounter,
+    /// Number of proof blobs processed.
+    pub proof_blobs_processed: IntCounter,
+    /// The total size (in bytes) of all proofs processed to date.
+    ///
+    /// Note that this metric only tracks the size of the proofs which have been ingested
+    /// by the STF. If the rollup does some internal reordering of the proofs, this metric will not
+    /// reflect which proofs have and have not been verified.
+    pub proof_bytes_processed: IntCounter,
     /// Number of rollup transactions per DA block.
     pub rollup_txns_per_da_block: IntGauge,
     /// Current DA height for the rollup.
@@ -61,6 +75,24 @@ impl Metrics {
         let rollup_batches_processed = register_int_counter_with_registry!(
             "rollup_batches_processed_count",
             "Number of rollup batches processed",
+            registry,
+        )?;
+
+        let batch_bytes_processed = register_int_counter_with_registry!(
+            "batch_bytes_processed",
+            "Total size (in bytes) of all batches processed to date",
+            registry,
+        )?;
+
+        let proof_blobs_processed = register_int_counter_with_registry!(
+            "proof_blobs_processed_count",
+            "Number of proof blobs processed",
+            registry,
+        )?;
+
+        let proof_bytes_processed = register_int_counter_with_registry!(
+            "proof_bytes_processed",
+            "Total size (in bytes) of all proofs processed to date",
             registry,
         )?;
 
@@ -109,7 +141,10 @@ impl Metrics {
         Ok(Self {
             da_blocks_processed,
             rollup_batches_processed,
+            batch_bytes_processed,
             rollup_txns_processed,
+            proof_blobs_processed,
+            proof_bytes_processed,
             rollup_txns_per_da_block,
             current_da_height,
             sync_distance,

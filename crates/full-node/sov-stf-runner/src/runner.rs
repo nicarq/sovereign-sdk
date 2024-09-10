@@ -448,7 +448,21 @@ where
                 ExecutionContext::Node,
             );
 
-            // Getting relevant proofs
+            // --- Before destructuring the receipt, extract some data for metrics ---
+            let batch_bytes_processed: u64 = relevant_blobs
+                .batch_blobs
+                .iter()
+                .map(|b| b.verified_data().len() as u64)
+                .sum();
+            let proof_bytes_processed: u64 = relevant_blobs
+                .batch_blobs
+                .iter()
+                .map(|b| b.verified_data().len() as u64)
+                .sum();
+            let proof_blobs_processed = slot_result.proof_receipts.len();
+            // --- End metric extraction ---
+
+            // Get merkle proofs for the relevant blobs
             let relevant_proofs = self
                 .da_service
                 .get_extraction_proof(&filtered_block, &relevant_blobs)
@@ -512,6 +526,11 @@ where
             sov_metrics::update_metrics(|metrics| {
                 metrics.da_blocks_processed.inc();
                 metrics.rollup_batches_processed.inc_by(batch_count);
+                metrics.batch_bytes_processed.inc_by(batch_bytes_processed);
+                metrics.proof_bytes_processed.inc_by(proof_bytes_processed);
+                metrics
+                    .proof_blobs_processed
+                    .inc_by(proof_blobs_processed as _);
                 metrics.rollup_txns_processed.inc_by(transaction_count as _);
                 let synced_da_height = self
                     .sync_state
