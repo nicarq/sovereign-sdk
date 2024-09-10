@@ -9197,7 +9197,6 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "borsh",
- "demo-stf",
  "derive_more",
  "directories",
  "futures",

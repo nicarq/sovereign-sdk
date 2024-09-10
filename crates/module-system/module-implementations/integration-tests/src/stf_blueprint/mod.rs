@@ -13,10 +13,10 @@ use sov_value_setter::{CallMessage, ValueSetter};
 
 type S = sov_test_utils::TestSpec;
 
+generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
+
 #[test]
 fn test_enforces_chain_id() {
-    generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
-
     let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
     genesis_config
         .additional_accounts
