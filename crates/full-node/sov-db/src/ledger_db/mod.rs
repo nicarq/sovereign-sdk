@@ -190,6 +190,8 @@ pub struct LedgerDb {
 const WRITE_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(0);
 // DB key for the latest height of the retrieved STF info.
 const READ_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(1);
+// Db key for the oldest saved STF info.
+const LAST_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(2);
 
 impl LedgerDb {
     const DB_PATH_SUFFIX: &'static str = "ledger";
@@ -420,10 +422,10 @@ impl LedgerDb {
     pub fn materialize_stf_info(
         &self,
         stf_info: &StoredStfInfo,
-        slot_number: &SlotNumber,
+        rollup_height: &SlotNumber,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<StfInfoByNumber>(slot_number, stf_info)?;
+        schema_batch.put::<StfInfoByNumber>(rollup_height, stf_info)?;
         Ok(schema_batch)
     }
 
@@ -466,5 +468,28 @@ impl LedgerDb {
     pub fn get_stf_info_read_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         db.get::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)
+    }
+
+    /// Materializes the oldest height of the retrieved STF info.
+    pub fn materialize_stf_info_oldest_rollup_height(
+        &self,
+        read_rollup_height: u64,
+    ) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.put::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID, &read_rollup_height)?;
+        Ok(schema_batch)
+    }
+
+    /// Delete STF info for the given rollup height.
+    pub fn delete_stf_info(&self, rollup_height: u64) -> anyhow::Result<SchemaBatch> {
+        let mut schema_batch = SchemaBatch::new();
+        schema_batch.delete::<StfInfoByNumber>(&SlotNumber(rollup_height))?;
+        Ok(schema_batch)
+    }
+
+    /// Gets the oldest height STF info in the Db.
+    pub fn get_stf_info_oldest_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+        let db = self.db.read().expect(DB_LOCK_POISONED).clone();
+        db.get::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)
     }
 }
