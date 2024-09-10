@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use demo_stf::runtime::{Runtime, RuntimeCall, RuntimeSubcommand};
 use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
@@ -10,24 +9,31 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec, UnlimitedGasMeter};
+use sov_test_utils::runtime::{
+    RuntimeSubcommand as TestRuntimeSubcommand, TestOptimisticRuntime, TestOptimisticRuntimeCall,
+};
 use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+
 type Da = MockDaSpec;
+type Runtime = TestOptimisticRuntime<TestSpec, Da>;
+type RuntimeCall = TestOptimisticRuntimeCall<TestSpec, Da>;
+type RuntimeSubcommand<A> = TestRuntimeSubcommand<A, TestSpec, Da>;
 
 #[test]
 fn test_import_transaction_from_string() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<JsonStringArg>::Bank {
         contents: default_json_string_arg_for_test("requests/create_token.json"),
     };
 
     let workflow = TransactionWorkflow::Import(TransactionLoadWorkflow::<
-        RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-        RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+        RuntimeSubcommand<FileNameArg>,
+        RuntimeSubcommand<JsonStringArg>,
     >::FromString(subcommand));
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, std::io::stdout())
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, std::io::stdout())
         .unwrap();
 
     assert_eq!(wallet_state.unsent_transactions.len(), 1);
@@ -36,19 +42,19 @@ fn test_import_transaction_from_string() {
 #[test]
 fn test_import_transaction_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 
     let workflow = TransactionWorkflow::Import(TransactionLoadWorkflow::<
-        RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-        RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+        RuntimeSubcommand<FileNameArg>,
+        RuntimeSubcommand<JsonStringArg>,
     >::FromFile(subcommand));
 
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, std::io::stdout())
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, std::io::stdout())
         .unwrap();
 
     assert_eq!(wallet_state.unsent_transactions.len(), 1);
@@ -56,7 +62,7 @@ fn test_import_transaction_from_file() {
 
 #[test]
 fn transaction_is_serialized_correctly() {
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
 
     let runtime_call = RuntimeCall::Bank(call_message_from_file("requests/create_token.json"));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
@@ -107,26 +113,23 @@ fn transaction_is_serialized_correctly() {
 #[test]
 fn transaction_not_signed_without_accounts() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
-            RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-            RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+            RuntimeSubcommand<FileNameArg>,
+            RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
         nonce: 11,
         key_nickname: None,
         json_output: false,
     };
 
-    let result = workflow.run::<Runtime<TestSpec, Da>, _, _, _, _, _>(
-        &mut wallet_state,
-        app_dir,
-        std::io::stdout(),
-    );
+    let result =
+        workflow.run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, std::io::stdout());
 
     assert!(result.is_err());
     let err_message = result.unwrap_err().to_string();
@@ -139,22 +142,21 @@ fn transaction_not_signed_without_accounts() {
 #[test]
 fn transaction_signed_properly_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
     let bank_create_token_path = "requests/create_token.json";
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test(bank_create_token_path),
     };
-    let runtime_call =
-        RuntimeCall::<TestSpec, MockDaSpec>::Bank(call_message_from_file(bank_create_token_path));
+    let runtime_call = RuntimeCall::Bank(call_message_from_file(bank_create_token_path));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let nonce = 11;
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
-            RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-            RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+            RuntimeSubcommand<FileNameArg>,
+            RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
         nonce,
         key_nickname: None,
@@ -163,7 +165,7 @@ fn transaction_signed_properly_from_file() {
 
     let mut output = Vec::new();
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
         .unwrap();
     let output = String::from_utf8(output).expect("Not UTF-8");
 
@@ -197,21 +199,20 @@ fn transaction_signed_properly_from_file() {
 #[test]
 fn transaction_signed_properly_from_json_string() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
     let create_token_path = "requests/create_token.json";
-    let subcommand = RuntimeSubcommand::<JsonStringArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<JsonStringArg>::Bank {
         contents: default_json_string_arg_for_test(create_token_path),
     };
-    let runtime_call =
-        RuntimeCall::<TestSpec, MockDaSpec>::Bank(call_message_from_file(create_token_path));
+    let runtime_call = RuntimeCall::Bank(call_message_from_file(create_token_path));
     let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
-            RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-            RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+            RuntimeSubcommand<FileNameArg>,
+            RuntimeSubcommand<JsonStringArg>,
         >::FromString(subcommand),
         nonce: 13,
         key_nickname: None,
@@ -220,7 +221,7 @@ fn transaction_signed_properly_from_json_string() {
 
     let mut output = Vec::new();
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
         .unwrap();
     let output = String::from_utf8(output).expect("Not UTF-8");
 
@@ -235,7 +236,7 @@ fn transaction_signed_properly_from_json_string() {
 #[test]
 fn transaction_signed_by_account_nickname() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
 
     let key1 = "key1";
     let key2 = "key2";
@@ -258,15 +259,15 @@ fn transaction_signed_by_account_nickname() {
     // Just a check which key is "default", in case if logic changes.
     assert_eq!(key1, default_key);
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 
     let nonce = 11;
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
-            RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-            RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+            RuntimeSubcommand<FileNameArg>,
+            RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
         nonce,
         key_nickname: Some(key2.to_string()),
@@ -275,7 +276,7 @@ fn transaction_signed_by_account_nickname() {
 
     let mut output = Vec::new();
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
         .unwrap();
     let output = String::from_utf8(output).expect("Not UTF-8");
 
@@ -299,17 +300,17 @@ fn transaction_signed_by_account_nickname() {
 #[test]
 fn transaction_outputs_json() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall<TestSpec, Da>, TestSpec>::default();
+    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
-    let subcommand = RuntimeSubcommand::<FileNameArg, TestSpec, Da>::Bank {
+    let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
     };
 
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
-            RuntimeSubcommand<FileNameArg, TestSpec, Da>,
-            RuntimeSubcommand<JsonStringArg, TestSpec, Da>,
+            RuntimeSubcommand<FileNameArg>,
+            RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
         nonce: 12,
         key_nickname: None,
@@ -318,7 +319,7 @@ fn transaction_outputs_json() {
 
     let mut output = Vec::new();
     workflow
-        .run::<Runtime<TestSpec, Da>, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
+        .run::<Runtime, _, _, _, _, _>(&mut wallet_state, app_dir, &mut output)
         .unwrap();
     let output = String::from_utf8(output).expect("Not UTF-8");
     let output: serde_json::Value = serde_json::from_str(&output).unwrap();

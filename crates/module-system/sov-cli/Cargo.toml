@@ -38,6 +38,5 @@ futures = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-demo-stf = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }

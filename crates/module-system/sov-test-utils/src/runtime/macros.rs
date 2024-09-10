@@ -18,7 +18,8 @@ macro_rules! generate_bare_runtime {
             ::sov_modules_api::Genesis,
             ::sov_modules_api::DispatchCall,
             ::sov_modules_api::Event,
-            ::sov_modules_api::MessageCodec
+            ::sov_modules_api::MessageCodec,
+            ::sov_modules_api::macros::CliWallet
         )]
         pub struct $id<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
             /// The sequencer registry module.
@@ -152,7 +153,7 @@ macro_rules! generate_bare_runtime {
 
 /// Base macro used for generating runtimes.
 /// Generally this should be wrapped by another macro to generate a specific concrete
-/// runtime implementation, optimistic vs proving for example with a simpiler interface
+/// runtime implementation, optimistic vs proving for example with a simpler interface
 /// for usage in general tests.
 #[macro_export]
 macro_rules! generate_runtime {
@@ -265,7 +266,7 @@ macro_rules! generate_zk_runtime {
 }
 
 /// Assert that a pattern matches the expected value.
-/// This should be replaced by `std` version when it is stablized: `<https://github.com/rust-lang/rust/issues/82775>`
+/// This should be replaced by `std` version when it is stabilized: `<https://github.com/rust-lang/rust/issues/82775>`
 #[macro_export]
 macro_rules! assert_matches {
     ($value:expr, $pattern:pat) => {

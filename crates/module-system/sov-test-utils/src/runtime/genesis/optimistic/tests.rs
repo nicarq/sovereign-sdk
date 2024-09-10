@@ -180,10 +180,10 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
     }
 }
 
+generate_optimistic_runtime!(TestRuntime <=);
+
 #[test]
 fn test_slot_number() {
-    generate_optimistic_runtime!(TestRuntime <=);
-
     let genesis_config = HighLevelOptimisticGenesisConfig::generate();
     let genesis_config = GenesisConfig::from_minimal_config(genesis_config.clone().into());
 
