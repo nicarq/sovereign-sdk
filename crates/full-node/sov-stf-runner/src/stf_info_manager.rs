@@ -25,6 +25,9 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
 /// Receives notifications from the associated `Sender` and reads STF info data from the db.
 
 pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
+    // Nb of entries we will keep in the Db after `read_rollup_height`.
+    // Older data will be pruned.
+    nb_of_infos_kept_after_read_height: u64,
     ledger_db: LedgerDb,
     receiver: mpsc::Receiver<u64>,
     db: Arc<rockbound::DB>,
@@ -33,9 +36,11 @@ pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
 
 /// Creates a new [`Sender`] and [`Receiver`]
 /// The data in the channel is preserved between Db restarts.
+/// Maximum number of STF infos kept in the Db is: `max_channel_size + nb_of_infos_kept_after_read_height`
 pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     db: Arc<rockbound::DB>,
     max_channel_size: usize,
+    nb_of_infos_kept_after_read_height: u64,
 ) -> anyhow::Result<(
     Sender<StateRoot, Witness, Da>,
     Receiver<StateRoot, Witness, Da>,
@@ -81,6 +86,7 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
         ledger_db,
         receiver,
         db,
+        nb_of_infos_kept_after_read_height,
         _phantom: PhantomData,
     };
 
@@ -123,7 +129,6 @@ where
             .materialize_stf_info_write_rollup_height(stf_info.rollup_height)?;
 
         stf_info_schema_batch.merge(schema_batch);
-
         self.db.write_schemas(&stf_info_schema_batch)?;
 
         Ok(())
@@ -152,6 +157,17 @@ where
 
             assert_eq!(stf_info.da_block_header().height(), read_rollup_height);
             self.inc_read_rollup_height()?;
+
+            // We check whether the oldest data stored in the database can be removed.
+            let mut oldest_height = self.get_oldest_rollup_height()?;
+
+            while Some(oldest_height)
+                < read_rollup_height.checked_sub(self.nb_of_infos_kept_after_read_height)
+            {
+                self.remove_oldest_height(oldest_height)?;
+                oldest_height = self.get_oldest_rollup_height()?;
+            }
+
             Ok(Some(stf_info))
         } else {
             Ok(None)
@@ -185,6 +201,24 @@ where
         let read_height = self.ledger_db.get_stf_info_read_rollup_height()?;
         Ok(read_height.unwrap_or(1))
     }
+
+    fn get_oldest_rollup_height(&self) -> anyhow::Result<u64> {
+        let oldest_height = self.ledger_db.get_stf_info_oldest_rollup_height()?;
+        Ok(oldest_height.unwrap_or(1))
+    }
+
+    fn remove_oldest_height(&mut self, oldest_height: u64) -> anyhow::Result<()> {
+        let mut schema_batch = self.ledger_db.delete_stf_info(oldest_height)?;
+
+        let inc_oldest_height_schema_batch = self
+            .ledger_db
+            .materialize_stf_info_oldest_rollup_height(oldest_height + 1)?;
+
+        schema_batch.merge(inc_oldest_height_schema_batch);
+        self.db.write_schemas(&schema_batch)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -204,14 +238,16 @@ mod tests {
     async fn test_stf_info_start_stop_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
         let channel_size = 10;
+        let nb_of_infos_kept_after_read_height = 100;
 
         // Write some data to the Db.
         {
             let db = Arc::new(new_db(temp_dir.path()));
-            let (notifier, _receiver) = new_stf_info_channel(db, channel_size).await?;
+            let (notifier, _receiver) =
+                new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
 
             for height in 1..channel_size + 1 {
-                let stf_info = make_stf_info(MockHash([height as u8; 32]), height as u64);
+                let stf_info = make_stf_info(height as u64);
                 notifier.save(&stf_info).await?;
             }
         }
@@ -219,8 +255,12 @@ mod tests {
         // After Db restart the notification mechanism works as expected.
         {
             let db = Arc::new(new_db(temp_dir.path()));
-            let (_notifier, mut receiver) =
-                new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(db, channel_size).await?;
+            let (_notifier, mut receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
+                db,
+                channel_size,
+                nb_of_infos_kept_after_read_height,
+            )
+            .await?;
 
             for height in 1..channel_size + 1 {
                 let stf_info = receiver.read_next().await?.unwrap();
@@ -237,11 +277,14 @@ mod tests {
         let db = Arc::new(new_db(temp_dir.path()));
 
         let channel_size = 10;
-        let (sender, mut receiver) = new_stf_info_channel(db, channel_size).await?;
+        let nb_of_infos_kept_after_read_height = 100;
+
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
 
         // Fill the db.
         for height in 1..channel_size {
-            let stf_info = make_stf_info(MockHash([height as u8; 32]), height as u64);
+            let stf_info = make_stf_info(height as u64);
             sender.save(&stf_info).await?;
         }
 
@@ -260,10 +303,13 @@ mod tests {
         let db = Arc::new(new_db(temp_dir.path()));
 
         let channel_size = 10;
-        let (sender, mut receiver) = new_stf_info_channel(db, channel_size).await?;
+        let nb_of_infos_kept_after_read_height = 100;
+
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
 
         for height in 1..3 {
-            let stf_info = make_stf_info(MockHash([height as u8; 32]), height as u64);
+            let stf_info = make_stf_info(height as u64);
             sender.save(&stf_info).await?;
         }
 
@@ -286,12 +332,15 @@ mod tests {
         let db = Arc::new(new_db(temp_dir.path()));
 
         let channel_size = 10;
-        let (sender, mut receiver) = new_stf_info_channel(db, channel_size).await?;
+        let nb_of_infos_kept_after_read_height = 100;
+
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
 
         tokio::spawn(async move {
             // Fill the db.
             for height in 1..channel_size {
-                let stf_info = make_stf_info(MockHash([height as u8; 32]), height as u64);
+                let stf_info = make_stf_info(height as u64);
                 sender.save(&stf_info).await.unwrap();
             }
         });
@@ -311,18 +360,18 @@ mod tests {
         let db = Arc::new(new_db(temp_dir.path()));
 
         let channel_size = 10;
-        let (sender, mut receiver) = new_stf_info_channel(db, channel_size).await?;
+        let nb_of_infos_kept_after_read_height = 100;
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
 
         // At the begining the db should be empty.
         let fetched_stf_info = receiver.get(1)?;
         assert!(fetched_stf_info.is_none());
 
         // Insert astf info two times.
-        let header_hash_1 = MockHash([11; 32]);
-        assert_stf_in_db(header_hash_1, 1, &sender, &mut receiver);
+        assert_stf_in_db(1, &sender, &mut receiver);
 
-        let header_hash_2 = MockHash([22; 32]);
-        assert_stf_in_db(header_hash_2, 2, &sender, &mut receiver);
+        assert_stf_in_db(2, &sender, &mut receiver);
 
         // Check if the first stf is still in the db.
         let fetched_stf_info = receiver.get(1)?;
@@ -331,13 +380,92 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_stf_info_db_pruning() -> anyhow::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let db = Arc::new(new_db(temp_dir.path()));
+
+        let channel_size = 3;
+        let nb_of_infos_kept_after_read_height = 7;
+        let nb_of_stf_infos = 20;
+
+        let expected_oldest_height = nb_of_stf_infos - nb_of_infos_kept_after_read_height - 1;
+
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
+
+        // Fill the db.
+        for height in 1..nb_of_stf_infos {
+            let stf_info = make_stf_info(height);
+            sender.save(&stf_info).await?;
+            receiver.read_next().await?.unwrap();
+        }
+
+        let oldest_height = receiver.get_oldest_rollup_height()?;
+        assert_eq!(oldest_height, expected_oldest_height);
+
+        // Check if the old STF infos are pruned.
+        for height in 1..nb_of_stf_infos {
+            let stf_info: Option<StateTransitionInfo<Vec<u8>, Vec<u8>, MockDaSpec>> =
+                receiver.get(height)?;
+
+            if height < expected_oldest_height {
+                // The old data was deleted from the Db.
+                assert!(stf_info.is_none());
+            } else {
+                assert!(stf_info.is_some());
+            }
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stf_info_db_pruning_big_channel_size() -> anyhow::Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let db = Arc::new(new_db(temp_dir.path()));
+
+        let channel_size = 30;
+        let nb_of_infos_kept_after_read_height: u64 = 7;
+
+        let (sender, mut receiver) =
+            new_stf_info_channel(db, channel_size, nb_of_infos_kept_after_read_height).await?;
+
+        // Fill the db.
+        for height in 1..channel_size + 1 {
+            let stf_info = make_stf_info(height as u64);
+            sender.save(&stf_info).await?;
+        }
+
+        // After the above loop we have `channel_size` number of STF infos in the Db.
+        let oldest_height = receiver.get_oldest_rollup_height()?;
+        assert_eq!(oldest_height, 1);
+
+        // Now we read only `nb_of_infos_kept_after_read_height` so data shouldn't be pruned.
+        for height in 1..nb_of_infos_kept_after_read_height + 1 {
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.da_block_header().height, height);
+        }
+
+        let oldest_height = receiver.get_oldest_rollup_height()?;
+        assert_eq!(oldest_height, 1);
+
+        // In the previous loop we read  `nb_of_infos_kept_after_read_height` times so now we start pruning.
+        for _ in 0..3 {
+            receiver.read_next().await?.unwrap();
+        }
+
+        let oldest_height = receiver.get_oldest_rollup_height()?;
+        assert_eq!(oldest_height, 3);
+
+        Ok(())
+    }
+
     fn assert_stf_in_db(
-        header_hash: MockHash,
         rollup_height: u64,
         sender: &Sender<StateRoot, Witness, MockDaSpec>,
         receiver: &mut Receiver<StateRoot, Witness, MockDaSpec>,
     ) {
-        let original_state_transition_info = make_stf_info(header_hash, rollup_height);
+        let original_state_transition_info = make_stf_info(rollup_height);
 
         sender
             .save_stf_info(&original_state_transition_info)
@@ -351,17 +479,14 @@ mod tests {
         );
     }
 
-    fn make_stf_info(
-        header_hash: MockHash,
-        height: u64,
-    ) -> StateTransitionInfo<Vec<u8>, Vec<u8>, MockDaSpec> {
+    fn make_stf_info(height: u64) -> StateTransitionInfo<Vec<u8>, Vec<u8>, MockDaSpec> {
         StateTransitionInfo::new(
             StateTransitionWitness {
                 initial_state_root: vec![1, 2, 3],
                 final_state_root: vec![3, 4, 5],
                 da_block_header: MockBlockHeader {
                     prev_hash: [0; 32].into(),
-                    hash: header_hash,
+                    hash: MockHash([height as u8; 32]),
                     height,
                     time: Time::now(),
                 },
