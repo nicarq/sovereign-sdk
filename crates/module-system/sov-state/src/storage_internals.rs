@@ -4,14 +4,13 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
-use jmt::{RootHash, SimpleHasher};
+use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
 use sov_wallet_format::UniversalWallet;
 
-use crate::namespaces::Namespaced;
-use crate::MerkleProofSpec;
+use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 /// Combined root hash of the user and kernel namespaces. The user root hash is the first 32 bytes, whereas the
 /// kernel root hash is the last 32 bytes.
 /// We need to store both the user and the kernel root hashes to be able to check zk-proofs against the
@@ -49,15 +48,29 @@ impl<S: MerkleProofSpec> Clone for StorageRoot<S> {
         *self
     }
 }
-impl<S: MerkleProofSpec> From<StorageRoot<S>> for Namespaced<[u8; 32]> {
-    fn from(val: StorageRoot<S>) -> Self {
-        Namespaced::new(val.user_hash().0, val.kernel_hash().0, [0u8; 32])
-    }
-}
 
-impl<S: MerkleProofSpec> From<StorageRoot<S>> for [u8; 32] {
-    fn from(value: StorageRoot<S>) -> Self {
-        value.root_hash().0
+impl<S: MerkleProofSpec> StateRoot for StorageRoot<S> {
+    fn global_root(&self) -> [u8; 32] {
+        self.root_hash().0
+    }
+
+    fn from_namespace_roots(user_root: [u8; 32], kernel_root: [u8; 32]) -> Self {
+        Self::new(jmt::RootHash(user_root), jmt::RootHash(kernel_root))
+    }
+
+    fn namespace_root(&self, namespace: ProvableNamespace) -> [u8; 32] {
+        let mut output = [0u8; 32];
+
+        match namespace {
+            ProvableNamespace::Kernel => {
+                output.copy_from_slice(&self.root_hashes[32..]);
+            }
+            ProvableNamespace::User => {
+                output.copy_from_slice(&self.root_hashes[..32]);
+            }
+        }
+
+        output
     }
 }
 
@@ -79,55 +92,13 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
         }
     }
 
-    /// Returns the user root hash of the prover storage.
-    pub fn user_hash(&self) -> jmt::RootHash {
-        let mut output = [0u8; 32];
-        output.copy_from_slice(&self.root_hashes[..32]);
-        jmt::RootHash(output)
-    }
-
-    /// Returns the kernel root hash of the prover storage.
-    pub fn kernel_hash(&self) -> jmt::RootHash {
-        let mut output = [0u8; 32];
-        output.copy_from_slice(&self.root_hashes[32..]);
-        jmt::RootHash(output)
-    }
-
     /// Returns the global root hash of the prover storage.
     pub fn root_hash(&self) -> jmt::RootHash {
         let mut hasher = <S::Hasher as sha2::Digest>::new();
-        Digest::update(&mut hasher, self.user_hash().0);
-        Digest::update(&mut hasher, self.kernel_hash().0);
+        Digest::update(&mut hasher, self.namespace_root(ProvableNamespace::User));
+        Digest::update(&mut hasher, self.namespace_root(ProvableNamespace::Kernel));
         let output: [u8; 32] = Digest::finalize(hasher).into();
         jmt::RootHash(output)
-    }
-}
-
-/// The visible hash associated with the storage. This is the hash of the user namespace.
-pub struct VisibleHash(RootHash);
-
-impl VisibleHash {
-    /// Creates a new visible hash from a slice
-    pub fn new(root_hash: [u8; 32]) -> Self {
-        VisibleHash(RootHash(root_hash))
-    }
-}
-
-impl<S: MerkleProofSpec> From<StorageRoot<S>> for VisibleHash {
-    fn from(root: StorageRoot<S>) -> Self {
-        VisibleHash(root.user_hash())
-    }
-}
-
-impl<'a, S: MerkleProofSpec> From<&'a StorageRoot<S>> for VisibleHash {
-    fn from(root: &'a StorageRoot<S>) -> Self {
-        VisibleHash(root.user_hash())
-    }
-}
-
-impl From<VisibleHash> for [u8; 32] {
-    fn from(val: VisibleHash) -> Self {
-        val.0 .0
     }
 }
 

@@ -92,17 +92,17 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
         validity_condition: &<Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
-    ) {
+    ) -> <S::Storage as Storage>::Root {
         self.chain_state
-            .begin_slot_hook(slot_header, validity_condition, pre_state_root, state);
+            .begin_slot_hook(slot_header, validity_condition, pre_state_root, state)
     }
 
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
         state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
-    ) {
-        self.chain_state.end_slot_hook(gas_used, state);
+    ) -> Option<[u8; 32]> {
+        self.chain_state.end_slot_hook(gas_used, state)
     }
 
     fn base_fee_per_gas(

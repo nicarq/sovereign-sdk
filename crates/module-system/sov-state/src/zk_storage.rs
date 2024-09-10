@@ -5,12 +5,12 @@ use sov_cycle_utils::macros::cycle_tracker;
 
 use crate::cache::{OrderedReadsAndWrites, StateAccesses};
 use crate::jmt::KeyHash;
+use crate::namespaces::CompileTimeNamespace;
 #[cfg(feature = "native")]
 use crate::namespaces::ProvableCompileTimeNamespace;
-use crate::namespaces::{CompileTimeNamespace, ProvableNamespace};
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
-use crate::{MerkleProofSpec, StorageRoot, Witness};
+use crate::{MerkleProofSpec, StateRoot, StorageRoot, Witness};
 
 /// A [`Storage`] implementation designed to be used inside the zkVM.
 #[derive(Default, derivative::Derivative)]
@@ -144,18 +144,11 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
 
         // We need to verify the proof against the correct root hash,
         // Hence we match the key against its namespace
-        match namespace {
-            ProvableNamespace::User => proof.inner().verify(
-                state_root.user_hash(),
-                key_hash,
-                value.as_ref().map(|v| v.value()),
-            )?,
-            ProvableNamespace::Kernel => proof.inner().verify(
-                state_root.kernel_hash(),
-                key_hash,
-                value.as_ref().map(|v| v.value()),
-            )?,
-        }
+        proof.inner().verify(
+            jmt::RootHash(state_root.namespace_root(namespace)),
+            key_hash,
+            value.as_ref().map(|v| v.value()),
+        )?;
 
         Ok((key, value))
     }

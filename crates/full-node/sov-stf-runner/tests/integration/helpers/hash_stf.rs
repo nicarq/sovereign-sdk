@@ -12,7 +12,7 @@ use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, StateAccesses,
-    Storage,
+    StateRoot, Storage,
 };
 
 pub type S = DefaultStorageSpec<sha2::Sha256>;
@@ -59,7 +59,7 @@ impl<Cond> HashStf<Cond> {
 
         let change_set = storage.materialize_changes(&state_update);
 
-        (jmt_root_hash.into(), change_set)
+        (jmt_root_hash.global_root(), change_set)
     }
 }
 

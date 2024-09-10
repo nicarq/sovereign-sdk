@@ -4,6 +4,7 @@ use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, RuntimeAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::{DaSpec, DispatchCall, RawTx, Spec};
+use sov_state::Storage;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
 generate_bare_runtime! {
@@ -100,7 +101,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
 
     fn finalize_hook(
         &self,
-        root_hash: <Self::Spec as Spec>::VisibleHash,
+        root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut impl sov_modules_api::AccessoryStateReaderAndWriter,
     ) {
         self.evm.finalize_hook(root_hash, state);
@@ -112,7 +113,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
 
     fn begin_slot_hook(
         &self,
-        pre_state_root: <Self::Spec as Spec>::VisibleHash,
+        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
         self.evm.begin_slot_hook(pre_state_root, state);

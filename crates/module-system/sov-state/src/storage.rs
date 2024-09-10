@@ -202,6 +202,31 @@ impl StateUpdate for () {
     }
 }
 
+/// A trait that represents the root hash of a state tree.
+pub trait StateRoot:
+    Serialize
+    + DeserializeOwned
+    + fmt::Debug
+    + Clone
+    + BorshSerialize
+    + BorshDeserialize
+    + Eq
+    + Send
+    + Sync
+    + AsRef<[u8]>
+{
+    /// Gets the global root hash of the storage. Ie, the root hash of the entire tree for all namespaces.
+    /// We always require a one-way conversion from the state root to a 32-byte array. This can be
+    /// implemented by hashing the state root even if the root itself is not 32 bytes.
+    fn global_root(&self) -> [u8; 32];
+
+    /// Gets the root hash of a specific namespace
+    fn namespace_root(&self, namespace: ProvableNamespace) -> [u8; 32];
+
+    /// Builds a storage root from underlying namespace roots.
+    fn from_namespace_roots(user_root: [u8; 32], kernel_root: [u8; 32]) -> Self;
+}
+
 /// An interface for retrieving values from the storage and producing change set of new write operations.
 pub trait Storage: Clone {
     /// The witness type for this storage instance.
@@ -223,18 +248,7 @@ pub trait Storage: Clone {
         + Eq;
 
     /// A cryptographic commitment to the contents of this storage.
-    type Root: Serialize
-        + DeserializeOwned
-        + fmt::Debug
-        + Clone
-        + BorshSerialize
-        + BorshDeserialize
-        + Eq
-        + Send
-        + Sync
-        + AsRef<[u8]>
-        + Into<[u8; 32]>; // Require a one-way conversion from the state root to a 32-byte array. This can always be
-                          // implemented by hashing the state root even if the root itself is not 32 bytes.
+    type Root: StateRoot;
 
     /// State update that will be committed to the database.
     type StateUpdate: StateUpdate;
