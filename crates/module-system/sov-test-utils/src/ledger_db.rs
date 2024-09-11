@@ -20,7 +20,7 @@ use tempfile::{tempdir, TempDir};
 use crate::storage::SimpleLedgerStorageManager;
 use crate::{TestSpec, TestTxReceiptContents};
 
-type TestEvent = demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec>;
+type TestEvent = crate::runtime::TestOptimisticRuntimeEvent<TestSpec, MockDaSpec>;
 
 pub extern crate sov_ledger_json_client;
 
@@ -277,7 +277,7 @@ mod tests {
     fn events_deserialize_correctly() {
         let events = events();
         for event in events {
-            <demo_stf::runtime::RuntimeEvent<TestSpec, MockDaSpec> as borsh::BorshDeserialize>::deserialize(
+            <crate::runtime::TestOptimisticRuntimeEvent<TestSpec, MockDaSpec> as borsh::BorshDeserialize>::deserialize(
                 &mut &event.value().inner()[..]).unwrap();
         }
     }

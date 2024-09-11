@@ -30,7 +30,6 @@ mod evm;
 pub mod generators;
 
 /// Utilities for writing integration tests against ledger APIs (both Rust API and REST APIs).
-#[cfg(feature = "demo-stf")]
 pub mod ledger_db;
 
 /// Utilities for logging tests.

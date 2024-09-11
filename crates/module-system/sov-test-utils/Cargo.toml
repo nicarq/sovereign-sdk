@@ -29,7 +29,6 @@ ethereum-types = { workspace = true }
 ethers-core = { workspace = true }
 ethers-contract = { workspace = true }
 
-demo-stf = { workspace = true, features = ["native"], optional = true }
 sha2 = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
@@ -67,9 +66,6 @@ proptest = { workspace = true }
 
 [features]
 default = []
-# Not every downstream user of this crate may want to / can use `demo-stf` as a
-# dependency, so it's optional.
-demo-stf = ["dep:demo-stf"]
 arbitrary = [
 	"ethereum-types/arbitrary",
 	"sov-db/arbitrary",

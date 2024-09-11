@@ -41,7 +41,6 @@ reqwest = { workspace = true, features = ["rustls-tls", "json"] }
 sov-db = { workspace = true }
 sov-ledger-json-client = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
-sov-test-utils = { workspace = true, features = ["demo-stf"] }
+sov-test-utils = { workspace = true }
 tempfile = "3"
 tokio = { workspace = true, features = ["test-util"] }
-demo-stf = { workspace = true, features = ["native"] }
