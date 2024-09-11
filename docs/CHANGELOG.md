@@ -1,3 +1,4 @@
+- #1428 Make stf_info_manager compatible with the StorageManager workflow.
 - #1423 Adds Db pruning in the stf_info_manager.
 - #1416 Adds the correct version of the kernel state root to the `VisibleRoot`. We have to be careful to add the correct `kernel` state root to the `VisibleRoot` because the `historical_state_transitions` map that contains the roots is indexed by `true_rollup_height`. Hence, we have to make sure we get the `kernel_state_root` corresponding to the current `virtual_height` accessible from the user space.
 - #1418 Add back pressure mechanism to the StfInfoManager 
