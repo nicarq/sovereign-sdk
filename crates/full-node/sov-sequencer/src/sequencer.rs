@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::{Batch, FullyBakedTx};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaBlobHash};
+use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
@@ -115,7 +115,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 e
             ),
         };
-        let da_tx_id = match self
+        let submit_blob_receipt = match self
             .da_service
             .send_transaction(&serialized_batch, fee)
             .await
@@ -128,7 +128,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             self.tx_status_manager.notify(
                 tx_hash,
                 TxStatus::Published {
-                    da_tx_hash: da_tx_id.clone(),
+                    da_tx_id: submit_blob_receipt.transaction_id.clone(),
                 },
             );
         }
@@ -153,7 +153,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     pub async fn tx_status(
         &self,
         tx_hash: &TxHash,
-    ) -> anyhow::Result<Option<TxStatus<DaBlobHash<<Ss::Da as DaService>::Spec>>>> {
+    ) -> anyhow::Result<Option<TxStatus<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>>>
+    {
         let is_in_mempool = self.batch_builder.lock().await.contains(tx_hash).await?;
 
         if is_in_mempool {
@@ -197,8 +198,9 @@ async fn notify_processed_slot<Ss: SequencerSpec>(
 ) -> anyhow::Result<()> {
     let slot = ledger_db
         .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt>(slot_number, QueryMode::Full)
-        .await?;
-    for batch in slot.unwrap().batches.unwrap_or_default().iter() {
+        .await?
+        .unwrap();
+    for batch in slot.batches.unwrap_or_default().iter() {
         let ItemOrHash::Full(batch) = batch else {
             continue;
         };
@@ -207,12 +209,9 @@ async fn notify_processed_slot<Ss: SequencerSpec>(
                 continue;
             };
 
-            let da_tx_hash = <DaBlobHash<<Ss::Da as DaService>::Spec>>::try_from(batch.hash)?;
             let tx_hash = TxHash::new(tx.hash);
 
-            inner
-                .tx_status_manager
-                .notify(tx_hash, TxStatus::Published { da_tx_hash });
+            inner.tx_status_manager.notify(tx_hash, TxStatus::Processed);
         }
     }
 

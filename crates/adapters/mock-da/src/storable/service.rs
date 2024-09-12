@@ -6,10 +6,11 @@ use std::time::Instant;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs,
 };
-use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData};
+use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
 use tokio::sync::{broadcast, RwLock};
 use tokio::time::{interval, sleep};
 
@@ -248,9 +249,9 @@ impl DaService for StorableMockDaService {
         &self,
         blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         tracing::debug!(batch = hex::encode(blob), "Submitting a batch");
-        let hash = {
+        let blob_hash = {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_batch(blob, &self.sequencer_da_address)
@@ -260,19 +261,22 @@ impl DaService for StorableMockDaService {
             let mut da_layer = self.da_layer.write().await;
             da_layer.produce_block().await?;
         }
-        Ok(hash)
+        Ok(SubmitBlobReceipt {
+            blob_hash: HexHash::new(blob_hash.0),
+            transaction_id: blob_hash,
+        })
     }
 
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
         _fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         tracing::debug!(
             blob = hex::encode(aggregated_proof_data),
             "Submitting an aggregated proof"
         );
-        let hash = {
+        let blob_hash = {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
@@ -283,8 +287,10 @@ impl DaService for StorableMockDaService {
             .send(())
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
 
-        // For compatibility with MockDa, produce blocks only on submitting a batch, not proof.
-        Ok(hash)
+        Ok(SubmitBlobReceipt {
+            blob_hash: HexHash::new(blob_hash.0),
+            transaction_id: blob_hash,
+        })
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

@@ -10,7 +10,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::error;
 
-use crate::da::{BlockHeaderTrait, DaBlobHash, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs};
+use crate::common::HexHash;
+use crate::da::{BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs};
 use crate::zk::ValidityCondition;
 
 /// Perform a checked arithmetic, returning None if the result is invalid.
@@ -107,6 +108,15 @@ impl<E> From<E> for MaybeRetryable<E> {
     }
 }
 
+/// Output of submit blob operation.
+#[derive(Debug, Clone)]
+pub struct SubmitBlobReceipt<T: Debug + Clone> {
+    /// Computed blob hash, so it can be identified by fetcher of the blobs.
+    pub blob_hash: HexHash,
+    /// Identifier of the transaction on the DA layer.
+    pub transaction_id: T,
+}
+
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer
 /// It is *not* part of the logic that is zk-proven.
 ///
@@ -130,7 +140,7 @@ pub trait DaService: Send + Sync + 'static {
         Cond = <Self::Spec as DaSpec>::ValidityCondition,
     >;
 
-    /// Type that allow to consume [`futures::Stream`] of BlockHeaders.
+    /// Allows consuming the [`futures::Stream`] of BlockHeaders.
     type HeaderStream: futures::Stream<Item = Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>
         + Send;
 
@@ -222,14 +232,14 @@ pub trait DaService: Send + Sync + 'static {
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error>;
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
 
     /// Sends an aggregated ZK proofs to the DA layer.
     async fn send_aggregated_zk_proof(
         &self,
         aggregated_proof_data: &[u8],
         fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error>;
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
 
     /// Fetches all aggregated ZK proofs at a specified block height.
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
@@ -311,15 +321,13 @@ where
     D::Fee: Sync,
     E: Debug + Send + Sync + Display,
 {
-    type Error = E;
     type Spec = D::Spec;
     type Config = D::Config;
     type Verifier = D::Verifier;
     type FilteredBlock = D::FilteredBlock;
-
     type HeaderStream =
         BoxStream<'static, Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error>>;
-
+    type Error = E;
     type Fee = D::Fee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
@@ -331,52 +339,8 @@ where
         .await
     }
 
-    async fn send_transaction(
-        &self,
-        blob: &[u8],
-        fee: D::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
-            || D::send_transaction(&self.da_service, blob, fee),
-            "send_transaction",
-        )
-        .await
-    }
-
     fn safe_lead_time(&self) -> Duration {
         self.da_service.safe_lead_time()
-    }
-
-    async fn send_aggregated_zk_proof(
-        &self,
-        aggregated_proof_data: &[u8],
-        fee: D::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
-            || D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee),
-            "send_aggregated_zk_proof",
-        )
-        .await
-    }
-
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
-            || D::get_aggregated_proofs_at(&self.da_service, height),
-            "get_aggregated_proofs_at",
-        )
-        .await
-    }
-
-    async fn estimate_fee(&self, blob_size: usize) -> Result<D::Fee, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
-            &self.backoff_policy,
-            || D::estimate_fee(&self.da_service, blob_size),
-            "estimate_fee",
-        )
-        .await
     }
 
     async fn get_last_finalized_block_header(
@@ -423,6 +387,50 @@ where
         <Self::Spec as DaSpec>::CompletenessProof,
     > {
         D::get_extraction_proof(&self.da_service, block, blobs).await
+    }
+
+    async fn send_transaction(
+        &self,
+        blob: &[u8],
+        fee: D::Fee,
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::send_transaction(&self.da_service, blob, fee),
+            "send_transaction",
+        )
+        .await
+    }
+
+    async fn send_aggregated_zk_proof(
+        &self,
+        aggregated_proof_data: &[u8],
+        fee: D::Fee,
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee),
+            "send_aggregated_zk_proof",
+        )
+        .await
+    }
+
+    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::get_aggregated_proofs_at(&self.da_service, height),
+            "get_aggregated_proofs_at",
+        )
+        .await
+    }
+
+    async fn estimate_fee(&self, blob_size: usize) -> Result<D::Fee, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || D::estimate_fee(&self.da_service, blob_size),
+            "estimate_fee",
+        )
+        .await
     }
 }
 

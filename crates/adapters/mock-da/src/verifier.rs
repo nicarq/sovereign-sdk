@@ -52,6 +52,7 @@ impl DaSpec for MockDaSpec {
     type SlotHash = MockHash;
     type BlockHeader = MockBlockHeader;
     type BlobTransaction = MockBlob;
+    type TransactionId = MockHash;
     type Address = MockAddress;
     type ValidityCondition = MockValidityCond;
 

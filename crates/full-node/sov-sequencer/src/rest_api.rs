@@ -13,7 +13,7 @@ use sov_rest_utils::{
     errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult,
     ErrorObject, Path,
 };
-use sov_rollup_interface::da::DaBlobHash;
+use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::batch_builder::AcceptTxError;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
@@ -72,7 +72,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         tx_hash: TxHash,
         socket: &mut WebSocket,
     ) -> anyhow::Result<()> {
-        // Send a messge with the initial status of the transaction,
+        // Send a message with the initial status of the transaction,
         // without waiting for it to change for the first time.
         let initial_status = self.tx_status(&tx_hash).await?.unwrap_or(TxStatus::Unknown);
         let ws_msg = ws::Message::Text(serde_json::to_string(&TxInfo {
@@ -142,7 +142,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn axum_get_tx(
         sequencer: State<Self>,
         tx_hash: Path<TxHash>,
-    ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
+    ) -> ApiResult<TxInfo<<<Ss::Da as DaService>::Spec as DaSpec>::TransactionId>> {
         let tx_status = sequencer.tx_status_manager().get_cached(&tx_hash.0);
 
         if let Some(tx_status) = tx_status {
@@ -237,10 +237,10 @@ pub struct SubmitBatch {
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
-struct TxInfo<BlobHash> {
+struct TxInfo<DaTransactionId> {
     id: TxHash,
     #[serde(flatten)]
-    status: TxStatus<BlobHash>,
+    status: TxStatus<DaTransactionId>,
 }
 
 #[cfg(test)]

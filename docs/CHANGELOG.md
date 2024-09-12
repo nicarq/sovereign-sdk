@@ -1,5 +1,31 @@
 - #1428 Make stf_info_manager compatible with the StorageManager workflow.
 - #1423 Adds Db pruning in the stf_info_manager.
+- #1424 Breaking change in `DaService`. An associated type "`TransactionId`" is added to `DaSpec` and the return type of of `send_transaction` and `send_aggregated_zk_proof` has changed as follows:
+  ```rust
+  // New type:
+  pub struct SubmitBlobReceipt<T: Debug + Clone> {
+    // Canonically calculated blob hash
+    pub blob_hash: HexHash,
+    // DA native transaction id.
+    pub transaction_id: T,
+  }
+  
+  pub trait DaService {
+     // rest is omitted...
+     
+     async fn send_transaction(
+        &self,
+        blob: &[u8],
+        fee: Self::Fee,
+     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
+  
+     async fn send_aggregated_zk_proof(
+        &self,
+        aggregated_proof_data: &[u8],
+        fee: Self::Fee,
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;=  
+  }
+  ```
 - #1416 Adds the correct version of the kernel state root to the `VisibleRoot`. We have to be careful to add the correct `kernel` state root to the `VisibleRoot` because the `historical_state_transitions` map that contains the roots is indexed by `true_rollup_height`. Hence, we have to make sure we get the `kernel_state_root` corresponding to the current `virtual_height` accessible from the user space.
 - #1418 Add back pressure mechanism to the StfInfoManager 
 - #1409 Removes the `override_sequencer` field from test case structures and `TestRunner::execute` & `TestRunner::simulate` in favor of a single central location.

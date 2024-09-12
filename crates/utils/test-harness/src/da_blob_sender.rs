@@ -126,11 +126,11 @@ pub(crate) async fn submit_transactions<Da: DaService>(
         .estimate_fee(batch_bytes.len())
         .await
         .map_err(|err| anyhow!(err))?;
-    let tx_hash = da_service
+    let submit_blob_receipt = da_service
         .send_transaction(&batch_bytes, fee)
         .await
         .map_err(|err| anyhow!(err))?;
-    tracing::info!("Submitted tx, hash: {tx_hash}");
+    tracing::info!(receipt = ?submit_blob_receipt, "Submitted tx");
     Ok(())
 }
 

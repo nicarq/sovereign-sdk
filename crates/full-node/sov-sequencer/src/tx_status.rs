@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 
 use mini_moka::sync::Cache as MokaCache;
 use sov_modules_api::DaSpec;
-use sov_rollup_interface::da::DaBlobHash;
 use sov_rollup_interface::TxHash;
 use tokio::sync::broadcast;
 use tracing::{debug, error, trace};
@@ -12,7 +11,7 @@ use tracing::{debug, error, trace};
 /// A rollup transaction status.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase", tag = "status")]
-pub enum TxStatus<BlobHash> {
+pub enum TxStatus<DaTransactionId> {
     /// The sequencer has no knowledge of this transaction's status.
     Unknown,
     /// The sequencer dropped the transaction from the mempool and it has to be
@@ -37,14 +36,11 @@ pub enum TxStatus<BlobHash> {
     /// not be finalized or processed by the rollup node yet.
     Published {
         #[allow(missing_docs)]
-        da_tx_hash: BlobHash,
+        da_tx_id: DaTransactionId,
     },
     /// The transaction was published to the DA and the rollup node has
     /// processed it.
-    Processed {
-        #[allow(missing_docs)]
-        da_tx_hash: BlobHash,
-    },
+    Processed,
 }
 
 impl<B> TxStatus<B> {
@@ -57,7 +53,8 @@ impl<B> TxStatus<B> {
 
 /// A [`broadcast::Sender`] should be removed from this map when all receivers
 /// have been dropped.
-type TxStatusSenders<Da> = HashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash<Da>>>>;
+type TxStatusSenders<DaTransactionId> =
+    HashMap<TxHash, broadcast::Sender<TxStatus<DaTransactionId>>>;
 
 /// Manages subscriptions to sequencer events and dispatches new events to
 /// subscribers.
@@ -66,8 +63,8 @@ type TxStatusSenders<Da> = HashMap<TxHash, broadcast::Sender<TxStatus<DaBlobHash
 #[derive(Debug, Clone)]
 pub struct TxStatusManager<Da: DaSpec> {
     // `MokaCache` is cheaply-cloneable, no need to wrap it in `Arc`.
-    cache: MokaCache<TxHash, TxStatus<DaBlobHash<Da>>>,
-    senders: Arc<RwLock<TxStatusSenders<Da>>>,
+    cache: MokaCache<TxHash, TxStatus<Da::TransactionId>>,
+    senders: Arc<RwLock<TxStatusSenders<Da::TransactionId>>>,
 }
 
 impl<Da: DaSpec> Default for TxStatusManager<Da> {
@@ -92,12 +89,12 @@ impl<Da: DaSpec> TxStatusManager<Da> {
         "Failed to acquire lock for tx status manager; this is a bug, please report it";
 
     /// Returns the latest known status of the transaction associated with a [`TxHash`].
-    pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<DaBlobHash<Da>>> {
+    pub fn get_cached(&self, tx_hash: &TxHash) -> Option<TxStatus<Da::TransactionId>> {
         self.cache.get(tx_hash)
     }
 
     /// Notifies all subscribers about the new status of a transaction.
-    pub fn notify(&self, tx_hash: TxHash, status: TxStatus<DaBlobHash<Da>>) {
+    pub fn notify(&self, tx_hash: TxHash, status: TxStatus<Da::TransactionId>) {
         let mut senders = self.senders.write().expect(Self::LOCK_ERR);
 
         debug!(%tx_hash, ?status, senders_count = senders.len(), "Notifying subscribers about tx status update");
@@ -148,7 +145,7 @@ impl<Da: DaSpec> TxStatusManager<Da> {
         tx_hash: TxHash,
     ) -> (
         SubscriptionDropper<Da>,
-        broadcast::Receiver<TxStatus<DaBlobHash<Da>>>,
+        broadcast::Receiver<TxStatus<Da::TransactionId>>,
     ) {
         let dropper = SubscriptionDropper {
             tx_hash,
@@ -225,7 +222,7 @@ mod tests {
         txsm.notify(
             TxHash::new([2; 32]),
             TxStatus::Published {
-                da_tx_hash: MockHash([100; 32]),
+                da_tx_id: MockHash([100; 32]),
             },
         );
 
@@ -240,7 +237,7 @@ mod tests {
         assert_eq!(
             txsm.get_cached(&TxHash::new([2; 32])),
             Some(TxStatus::Published {
-                da_tx_hash: MockHash([100; 32])
+                da_tx_id: MockHash([100; 32])
             })
         );
     }
@@ -291,7 +288,7 @@ mod tests {
             txsm.notify(
                 TxHash::new([1; 32]),
                 TxStatus::Published {
-                    da_tx_hash: MockHash([101; 32]),
+                    da_tx_id: MockHash([101; 32]),
                 },
             );
             wait().await;
@@ -315,7 +312,7 @@ mod tests {
             assert_eq!(
                 txsm.get_cached(&TxHash::new([1; 32])),
                 Some(TxStatus::Published {
-                    da_tx_hash: MockHash([101; 32])
+                    da_tx_id: MockHash([101; 32])
                 })
             );
             assert_eq!(txsm.get_cached(&TxHash::new([2; 32])), None);
