@@ -60,6 +60,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
+            .map(|receipt| receipt.transaction_id)
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
@@ -69,6 +70,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
+            .map(|receipt| receipt.transaction_id)
     }
 
     /// Unlocks the prover service worker thread and completes the block proof.

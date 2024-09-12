@@ -5,10 +5,11 @@ use std::time::Instant;
 use async_trait::async_trait;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{
-    BlobReaderTrait, BlockHeaderTrait, DaBlobHash, DaSpec, RelevantBlobs, RelevantProofs, Time,
+    BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData};
+use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
 use tokio::sync::{broadcast, Mutex, RwLock};
 use tokio::time;
 
@@ -357,7 +358,7 @@ impl DaService for MockDaService {
         &self,
         blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         let mut proof_blobs = Vec::new();
         while let Some(blob) = proof_buffer.pop_front() {
@@ -368,7 +369,12 @@ impl DaService for MockDaService {
         let mut blocks = self.blocks.write().await;
         let batch_blob = self.make_blob(blob.to_vec());
 
-        Ok(self.add_block(batch_blob, proof_blobs, &mut blocks).1)
+        let blob_hash = self.add_block(batch_blob, proof_blobs, &mut blocks).1;
+
+        Ok(SubmitBlobReceipt {
+            blob_hash: HexHash::new(blob_hash.0),
+            transaction_id: blob_hash,
+        })
     }
 
     /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
@@ -377,11 +383,11 @@ impl DaService for MockDaService {
         &self,
         proof: &[u8],
         _fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         tracing::debug!("Proof received. Buffering for later inclusion.");
 
         let proof_blob = self.make_blob(proof.to_vec());
-        let hash = proof_blob.hash();
+        let blob_hash = proof_blob.hash();
 
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(proof_blob);
@@ -389,7 +395,10 @@ impl DaService for MockDaService {
             .send(())
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
 
-        Ok(hash)
+        Ok(SubmitBlobReceipt {
+            blob_hash: HexHash::new(blob_hash.0),
+            transaction_id: blob_hash,
+        })
     }
 
     async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {

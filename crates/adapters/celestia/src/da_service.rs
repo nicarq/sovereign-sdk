@@ -18,8 +18,9 @@ use futures::StreamExt;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::da::{DaBlobHash, DaProof, RelevantBlobs, RelevantProofs};
-use sov_rollup_interface::node::da::{DaService, Fee, MaybeRetryable};
+use sov_rollup_interface::common::HexHash;
+use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
+use sov_rollup_interface::node::da::{DaService, Fee, MaybeRetryable, SubmitBlobReceipt};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tower::ServiceBuilder;
@@ -98,7 +99,7 @@ impl CelestiaService {
         blob: &[u8],
         fee: CelestiaFee,
         namespace: Namespace,
-    ) -> anyhow::Result<TmHash> {
+    ) -> anyhow::Result<SubmitBlobReceipt<TmHash>> {
         let bytes = blob.len();
         debug!(bytes, ?fee, ?namespace, "Sending raw data to Celestia");
 
@@ -109,6 +110,7 @@ impl CelestiaService {
             bytes,
             "Submitting a blob"
         );
+        let blob_hash = HexHash::new(blob.commitment.0);
 
         let tx_response = self
             .submit_client
@@ -128,9 +130,14 @@ impl CelestiaService {
             gas_used = %tx_response.gas_used,
             gas_wanted = %tx_response.gas_wanted,
             code = %tx_response.code,
+            blob_hash = %blob_hash,
             "Blob has been submitted to Celestia"
         );
-        Ok(tx_hash)
+
+        Ok(SubmitBlobReceipt {
+            blob_hash,
+            transaction_id: tx_hash,
+        })
     }
 }
 
@@ -309,6 +316,10 @@ impl DaService for CelestiaService {
         .map_err(MaybeRetryable::Permanent)
     }
 
+    fn safe_lead_time(&self) -> Duration {
+        self.safe_lead_time
+    }
+
     #[instrument(skip(self))]
     async fn get_last_finalized_block_header(
         &self,
@@ -317,10 +328,6 @@ impl DaService for CelestiaService {
         // and network is always guaranteed to be secure,
         // it can work even if the node is still catching up
         self.get_head_block_header().await
-    }
-
-    fn safe_lead_time(&self) -> Duration {
-        self.safe_lead_time
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
@@ -405,7 +412,7 @@ impl DaService for CelestiaService {
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         debug!("Submitting batch of transactions to Celestia");
         self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
             .await
@@ -417,7 +424,7 @@ impl DaService for CelestiaService {
         &self,
         aggregated_proof: &[u8],
         fee: Self::Fee,
-    ) -> Result<DaBlobHash<Self::Spec>, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         debug!("Submitting aggregated proof to Celestia");
         self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
             .await

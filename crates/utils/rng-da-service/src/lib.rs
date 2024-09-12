@@ -6,7 +6,7 @@ use futures::stream::BoxStream;
 use sov_bank::{Bank, Coins};
 use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaConfig, MockDaSpec, MockDaVerifier,
-    MockFee, MockHash, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
+    MockFee, MockValidityCond, MOCK_SEQUENCER_DA_ADDRESS,
 };
 use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::macros::config_value;
@@ -17,7 +17,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{
     BlockHeaderTrait, DaSpec, DaVerifier, RelevantBlobs, RelevantProofs, Time,
 };
-use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData};
+use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
 use sov_test_utils::{
     TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
@@ -150,7 +150,7 @@ impl DaService for RngDaService {
         &self,
         _blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<MockHash, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         unimplemented!()
     }
 
@@ -158,7 +158,7 @@ impl DaService for RngDaService {
         &self,
         _proof: &[u8],
         _fee: Self::Fee,
-    ) -> Result<MockHash, Self::Error> {
+    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         unimplemented!()
     }
 

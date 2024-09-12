@@ -1,6 +1,7 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use core::fmt::Debug;
+use std::fmt::Display;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
@@ -26,6 +27,9 @@ pub trait DaSpec:
 
     /// The transaction type used by the DA layer.
     type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync;
+
+    /// How transactions can be identified on the DA layer.
+    type TransactionId: serde::Serialize + Clone + Debug + Display + Send + Sync;
 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;

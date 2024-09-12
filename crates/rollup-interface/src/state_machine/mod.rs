@@ -17,7 +17,7 @@ pub mod storage;
 /// A rollup transaction hash.
 pub type TxHash = HexHash;
 
-/// Defines types and traits distingushing between "native" (full node) and "zk" execution.
+/// Defines types and traits distinguishing between "native" (full node) and "zk" execution.
 ///
 /// This module uses a combination of a sealed marker trait, unit structs, and an enum to
 /// emulate the behavior of a const-generic enum.
