@@ -30,3 +30,4 @@ examples/demo-rollup/demo_rollup_config_1.toml
 examples/demo-rollup/demo_rollup_config_2.toml
 
 riscv32im-succinct-zkvm-elf
+build
