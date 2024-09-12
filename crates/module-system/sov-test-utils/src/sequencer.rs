@@ -3,9 +3,8 @@ use std::net::SocketAddr;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
-use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -20,8 +19,9 @@ use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 use tokio::sync::watch;
 
+use crate::runtime::genesis::default_basic_kernel_genesis;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::{ChainStateConfig, GenesisConfig, TestOptimisticRuntime};
+use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageManager};
 
 type TestSequencerSpec<B> =
@@ -103,15 +103,8 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                operating_mode: sov_chain_state::OperatingMode::Optimistic,
-                inner_code_commitment: MockCodeCommitment::default(),
-                outer_code_commitment: MockCodeCommitment::default(),
-                genesis_da_height: 0,
-            },
-        };
+        let kernel_genesis =
+            default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
         let params = GenesisParams {
             runtime: genesis_config,
             kernel: kernel_genesis,
@@ -194,15 +187,8 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis = BasicKernelGenesisConfig::<TestSpec, MockDaSpec> {
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                operating_mode: sov_chain_state::OperatingMode::Optimistic,
-                inner_code_commitment: MockCodeCommitment::default(),
-                outer_code_commitment: MockCodeCommitment::default(),
-                genesis_da_height: 0,
-            },
-        };
+        let kernel_genesis =
+            default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
         let params = GenesisParams {
             runtime: genesis_config,
             kernel: kernel_genesis,

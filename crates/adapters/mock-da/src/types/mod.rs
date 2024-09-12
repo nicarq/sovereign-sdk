@@ -307,10 +307,15 @@ impl SlotData for MockBlock {
 impl MockBlock {
     /// Creates empty block, which is following of the current
     pub fn next_mock(&self) -> MockBlock {
-        let mut next_block = MockBlock::default();
-        let h = self.header.height + 1;
-        next_block.header = MockBlockHeader::from_height(h);
-        next_block
+        Self::default_at_height(self.header.height + 1)
+    }
+
+    /// Creates an empty block at the given height.
+    pub fn default_at_height(height: u64) -> Self {
+        MockBlock {
+            header: MockBlockHeader::from_height(height),
+            ..Default::default()
+        }
     }
 
     /// Creates [`RelevantBlobs`] data from this block.

@@ -212,8 +212,9 @@ mod tests {
         let sequencer = genesis_config.initial_sequencer.clone();
         let prover = genesis_config.initial_prover.clone();
 
-        assert!(
-            sequencer.user_info.address() == prover.user_info.address(),
+        assert_eq!(
+            sequencer.user_info.address(),
+            prover.user_info.address(),
             "Sequencer and prover should be the same user"
         );
 

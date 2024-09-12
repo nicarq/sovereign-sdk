@@ -49,7 +49,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
         storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -150,7 +150,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
 
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -237,7 +237,7 @@ fn test_tx_bad_nonce() {
 
         let txs = simulate_da_with_bad_nonce(admin_key);
 
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -334,7 +334,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let txs = simulate_da_with_bad_serialization(admin_key.clone());
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),

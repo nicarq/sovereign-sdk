@@ -59,11 +59,10 @@ pub(crate) fn read_private_keys<S: Spec>() -> TestPrivateKeys<S> {
 pub fn new_test_blob_from_batch(
     batch: Batch,
     address: &[u8],
-    hash: [u8; 32],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
     let data = borsh::to_vec(&batch).unwrap();
-    MockBlob::new(data, address, hash)
+    MockBlob::new_with_hash(data, address)
 }
 
 /// Builds a new test blob for direct sequencer registration.

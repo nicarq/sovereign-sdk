@@ -12,8 +12,8 @@
 Native benchmarks refer to the performance of the rollup SDK in native mode - this does not involve proving
 ## Methodology
 * We use the Bank module's Transfer call as the main transaction for running this benchmark. So what we're measuring is the number of value transfers that can be done per second. 
-* We do not connect to the DA layer since that will be the bottleneck if we do. We pre-populate 10 blocks (configurable via env var BLOCKS) with 1 blob each containing 10,000 transactions each (configurable via env var TXNS_PER_BLOCK). 
-* The first block only contains a "CreateToken" transaction. Subsequent blocks contain "Transfer" transactions.
+* We do not connect to the DA layer since that will be the bottleneck if we do. We pre-populate 100 blocks (configurable via env var BLOCKS) with 1 blob each containing 1000 transactions each (configurable via env var TXNS_PER_BLOCK). 
+* The first block contains a "CreateToken" and "Mint" transactions.
 * All token transfers are initiated from the created token's mint address
 
 We use two scripts for benchmarking:
@@ -21,17 +21,18 @@ We use two scripts for benchmarking:
   * One issue with this is that most benching frameworks are focused on micro-benchmarks for pure functions. 
   * To get a true estimate of TPS we need to write to disk and this has a side effect for the bench framework and when it tries executing the same writes.
   * Bench frameworks (criterion, glassbench) take an iterator as an argument, and we cannot control the number of iterations directly. The framework chooses the sampling and the number of iterations.
-  * Giving the entire rollup loop (for all the blocks) to criterion would require a cleanup of the data or using a new data destination for each iteration.
-  * To get around the above problems, we pre-generate a "large" number of blocks and set the measurement time bounds for criterion to 20 seconds. Instead of having a loop from block_0 to block_n, we let criterion choose how many blocks to process.
+  * This benchmark prepares rollup state by processing the number of blocks and writing data to the disk. The last block is benchmarked by criterion, but output of it is thrown away, so it is possible to have micro-benchmark vibe in it.
   * The output of the framework is the mean time for processing a single block (containing the configured number of transactions)
 ```
-Benchmarking rollup main loop
-Benchmarking rollup main loop: Warming up for 3.0000 s
-Benchmarking rollup main loop: Collecting 10 samples in estimated 24.220 s (20 iterations)
-Benchmarking rollup main loop: Analyzing
-rollup main loop        time:   [2.5035 s 2.7001 s 2.9122 s]
-Found 1 outliers among 10 measurements (10.00%)
-  1 (10.00%) high mild
+Going to bench after 100 blocks, with 1000 unique senders.
+Each block will have sov_bank::Bank::Transfer call message from each sender to random address.
+Meaning that when bench start there will be 100000 transfers in a tree plus minting for each sender in the beginning.
+rollup main stf loop    time:   [628.96 ms 633.65 ms 638.84 ms]
+                        change: [-1.6769% -0.7757% +0.1188%] (p = 0.11 > 0.05)
+                        No change in performance detected.
+Found 8 outliers among 100 measurements (8.00%)
+  7 (7.00%) high mild
+  1 (1.00%) high severe
 ```
 * **rollup_coarse_measure.rs**
   * This script uses coarse grained timers (with std::time) to measure the time taken to process all the pre-generated blocks.

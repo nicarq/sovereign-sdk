@@ -71,7 +71,6 @@ sov-test-harness = { workspace = true }
 sov-sequencer-json-client = { workspace = true }
 
 [dev-dependencies]
-sov-rng-da-service = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
 sov-mock-da = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
@@ -81,6 +80,7 @@ sov-nft = { workspace = true, features = ["native"] }
 sov-ledger-json-client = { workspace = true }
 sov-modules-macros = { workspace = true }
 sov-test-utils = { workspace = true }
+sov-chain-state = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
 humantime = "2.1"
 reth-primitives = { workspace = true }
