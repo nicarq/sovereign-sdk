@@ -8,19 +8,19 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::types::{SlotNumber, StoredStfInfo};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_rollup_interface::da::DaSpec;
 use tokio::sync::mpsc;
 
 use crate::StateTransitionInfo;
 
 /// Stores STF infos in the Db and sends notifications to the associated `Receiver`.
 pub struct Sender<StateRoot, Witness, Da: DaSpec> {
+    // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
     read_rollup_height: Arc<AtomicU64>,
-    // Nb of entries we will keep in the Db after `read_rollup_height`.
-    // Older data will be pruned.
-    nb_of_infos_kept_after_read_height: u64,
+    // Max number of entries we will keep in the Db, older data will be pruned.
+    max_nb_of_infos_in_db: u64,
     ledger_db: LedgerDb,
-    // The notification channel does not contain the actual STF info data
+    // The notification channel, does not contain the actual STF info data
     // only the indexes in the Db where the data is stored.
     notifier: mpsc::Sender<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
@@ -29,26 +29,35 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
 /// Receives notifications from the associated `Sender` and reads STF info data from the db.
 
 pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
+    // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
     read_rollup_height: Arc<AtomicU64>,
     ledger_db: LedgerDb,
     receiver: mpsc::Receiver<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
 }
 
-/// Creates a new [`Sender`] and [`Receiver`]
-/// The data in the channel is preserved between Db restarts.
-/// Maximum number of STF infos kept in the Db is: `max_channel_size + nb_of_infos_kept_after_read_height`
+/// Creates a new [Sender] and [Receiver] channel.
+///
+/// The channel's data is retained across Db restarts.
+/// - The sender will block if the channel reaches `max_channel_size` of STF infos.
+/// - If the number of entries in the Db exceeds `max_nb_of_infos_in_db`, the oldest data will be pruned.
+/// The channel can only be created if `max_channel_size` is less than or equal to `max_nb_of_infos_in_db``.
 pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     ledger_db: LedgerDb,
     max_channel_size: usize,
-    nb_of_infos_kept_after_read_height: u64,
+    max_nb_of_infos_in_db: u64,
 ) -> anyhow::Result<(
     Sender<StateRoot, Witness, Da>,
     Receiver<StateRoot, Witness, Da>,
 )> {
+    assert!(
+        max_channel_size <= max_nb_of_infos_in_db as usize,
+        "Channel size should be smaller than the max number of STFInfos in the db"
+    );
+
     // Internally the Db keeps the following entries:
     // 1. The STF info data.
-    // 2. The latest height of the written STF info (increased on every save operation)
+    // 2. The latest height of the written STF info (increased on every `materialize_stf_info`` operation)
     // 3. The latest height of the retrieved STF info (increased on every `read_next`` operation).
 
     // On startup, we need to fill the notification channel with the pending STF info from the db.
@@ -58,8 +67,15 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     match maybe_write_rollup_height {
         Some(write_rollup_height) => {
             let read_rollup_height = ledger_db.get_stf_info_read_rollup_height()?.unwrap_or(1);
-            assert!(write_rollup_height >= read_rollup_height);
-            assert!(write_rollup_height - read_rollup_height < max_channel_size as u64);
+            // Sanity check for `write_rollup_height & read_rollup_height`
+            assert!(
+                write_rollup_height >= read_rollup_height,
+                "The `write_rollup_height` should always be greater than the `read_rollup_height`"
+            );
+            assert!(
+                write_rollup_height - read_rollup_height <= max_nb_of_infos_in_db,
+                "Too many STF infos in the db"
+            );
 
             for height in read_rollup_height..=write_rollup_height {
                 // It is ok to unwrap here, as we are sure that the sender is alive.
@@ -70,7 +86,10 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
             }
         }
         // Db is empty
-        None => assert!(ledger_db.get_stf_info_read_rollup_height()?.is_none()),
+        None => {
+            assert!(ledger_db.get_stf_info_read_rollup_height()?.is_none());
+            assert!(ledger_db.get_stf_info_oldest_rollup_height()?.is_none());
+        }
     }
 
     let read_rollup_height = Arc::new(AtomicU64::new(
@@ -78,7 +97,7 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     ));
 
     let sender = Sender {
-        nb_of_infos_kept_after_read_height,
+        max_nb_of_infos_in_db,
         read_rollup_height: read_rollup_height.clone(),
         ledger_db: ledger_db.clone(),
         notifier,
@@ -112,24 +131,40 @@ where
             data: encoded_stf_info,
         };
 
+        let write_rollup_height = stf_info.rollup_height;
+
+        // Sanity check for `write_rollup_height`
+        let maybe_write_rollup_height = self.ledger_db.get_stf_info_write_rollup_height()?;
+        match maybe_write_rollup_height {
+            // The hight should always increase by 1
+            Some(h) => assert_eq!(write_rollup_height, h + 1),
+            // If the Db is empty, the write rollup height should be 1.
+            None => assert_eq!(write_rollup_height, 1),
+        }
+
         // Save the stf info in the db.
         let mut schema = self
             .ledger_db
-            .materialize_stf_info(&stored_stf_info, &SlotNumber(stf_info.rollup_height))?;
+            .materialize_stf_info(&stored_stf_info, &SlotNumber(write_rollup_height))?;
 
         // Update the write rollup height.
-        let schema_batch_write_height = self
-            .ledger_db
-            .materialize_stf_info_write_rollup_height(stf_info.rollup_height)?;
+        schema.merge(
+            self.ledger_db
+                .materialize_stf_info_write_rollup_height(write_rollup_height)?,
+        );
 
-        schema.merge(schema_batch_write_height);
-
+        // Update the read rollup height.
         let read_rollup_height = self.read_rollup_height.load(Ordering::SeqCst);
+
+        schema.merge(
+            self.ledger_db
+                .materialize_stf_info_read_rollup_height(read_rollup_height)?,
+        );
+
+        // Prune the oldest entries if needed
         let mut oldest_height = self.get_oldest_rollup_height()?;
 
-        while Some(oldest_height)
-            < read_rollup_height.checked_sub(self.nb_of_infos_kept_after_read_height)
-        {
+        while Some(oldest_height) < write_rollup_height.checked_sub(self.max_nb_of_infos_in_db) {
             schema.merge(self.remove_oldest_height(oldest_height)?);
             oldest_height += 1;
         }
@@ -176,7 +211,7 @@ where
                     panic!("The STF for the {} height is missing", read_rollup_height)
                 });
 
-            assert_eq!(stf_info.da_block_header().height(), read_rollup_height);
+            assert_eq!(stf_info.rollup_height, read_rollup_height);
             self.read_rollup_height.fetch_add(1, Ordering::SeqCst);
 
             Ok(Some(stf_info))
@@ -202,6 +237,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash};
     use sov_modules_api::da::Time;
     use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
@@ -214,45 +251,94 @@ mod tests {
     type StateRoot = Vec<u8>;
     type Witness = Vec<u8>;
 
+    async fn setup(
+        path: &Path,
+        max_channel_size: usize,
+        max_nb_of_infos_in_db: u64,
+    ) -> anyhow::Result<(
+        SimpleLedgerStorageManager,
+        Sender<StateRoot, Witness, MockDaSpec>,
+        Receiver<StateRoot, Witness, MockDaSpec>,
+    )> {
+        let mut storage_manager = SimpleLedgerStorageManager::new(path);
+        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+
+        let (sender, receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
+            ledger_db,
+            max_channel_size,
+            max_nb_of_infos_in_db,
+        )
+        .await?;
+
+        Ok((storage_manager, sender, receiver))
+    }
+
     #[tokio::test]
     async fn test_stf_info_start_stop_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
-        let channel_size = 10;
-        let nb_of_infos_kept_after_read_height = 100;
+        let channel_size: usize = 10;
+        let max_nb_of_infos_in_db = 10;
 
         // Write some data to the Db.
         {
-            let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-            let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
-            let (notifier, _receiver) =
-                new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                    .await?;
+            let (mut storage_manager, sender, _receiver) =
+                setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             for height in 1..channel_size + 1 {
                 let stf_info = make_stf_info(height as u64);
-                let schema_batch = notifier.materialize_stf_info(&stf_info).await?;
+                let schema_batch = sender.materialize_stf_info(&stf_info).await?;
                 storage_manager.commit(schema_batch);
             }
         }
 
-        // After Db restart the notification mechanism works as expected.
+        // Restart the Db and check that we can read the previously written data.
         {
-            let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-            let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+            let (_, sender, mut receiver) =
+                setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let (_notifier, mut receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
-                ledger_db,
-                channel_size,
-                nb_of_infos_kept_after_read_height,
-            )
-            .await?;
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.rollup_height, 1);
+            assert_eq!(sender.get_oldest_rollup_height()?, 1);
 
-            for height in 1..channel_size + 1 {
-                let stf_info = receiver.read_next().await?.unwrap();
-                assert_eq!(stf_info.da_block_header().height, height as u64);
-            }
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.rollup_height, 2);
+            assert_eq!(sender.get_oldest_rollup_height()?, 1);
+        }
+
+        // We haven't committed the reads above so after restart we will read the same data.
+        {
+            let (mut storage_manager, sender, mut receiver) =
+                setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
+
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.rollup_height, 1);
+            assert_eq!(sender.get_oldest_rollup_height()?, 1);
+
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.rollup_height, 2);
+            assert_eq!(sender.get_oldest_rollup_height()?, 1);
+
+            // Commit new data.
+            let stf_info = make_stf_info((channel_size + 1) as u64);
+            let schema_batch = sender.materialize_stf_info(&stf_info).await?;
+            storage_manager.commit(schema_batch);
+
+            let stf_info = make_stf_info((channel_size + 2) as u64);
+            let schema_batch = sender.materialize_stf_info(&stf_info).await?;
+            storage_manager.commit(schema_batch);
+
+            assert_eq!(sender.get_oldest_rollup_height()?, 2);
+        }
+
+        // Now the reads are visible.
+        {
+            let (_, sender, mut receiver) =
+                setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
+
+            let stf_info = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_info.rollup_height, 3);
+            assert_eq!(sender.get_oldest_rollup_height()?, 2);
         }
 
         Ok(())
@@ -261,16 +347,11 @@ mod tests {
     #[tokio::test]
     async fn test_stf_info_channel() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
-
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
         let channel_size = 10;
-        let nb_of_infos_kept_after_read_height = 100;
+        let max_nb_of_infos_in_db = 100;
 
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
+        let (mut storage_manager, sender, mut receiver) =
+            setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         // Fill the db.
         for height in 1..channel_size {
@@ -282,7 +363,7 @@ mod tests {
         // Read the data from the db.
         for height in 1..channel_size {
             let stf_info = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_info.da_block_header().height, height as u64);
+            assert_eq!(stf_info.rollup_height, height as u64);
         }
 
         Ok(())
@@ -291,16 +372,11 @@ mod tests {
     #[tokio::test]
     async fn test_stf_info_drop_sender() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
-
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
         let channel_size = 10;
-        let nb_of_infos_kept_after_read_height = 100;
+        let max_nb_of_infos_in_db = 100;
 
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
+        let (mut storage_manager, sender, mut receiver) =
+            setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         for height in 1..3 {
             let stf_info = make_stf_info(height as u64);
@@ -312,7 +388,7 @@ mod tests {
 
         for height in 1..3 {
             let stf_info = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_info.da_block_header().height, height as u64);
+            assert_eq!(stf_info.rollup_height, height as u64);
         }
 
         let stf_info = receiver.read_next().await?;
@@ -325,15 +401,11 @@ mod tests {
     async fn test_stf_info_channel_concurrent() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
         let channel_size = 10;
-        let nb_of_infos_kept_after_read_height = 100;
+        let max_nb_of_infos_in_db = 100;
 
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
+        let (mut storage_manager, sender, mut receiver) =
+            setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         tokio::spawn(async move {
             // Fill the db.
@@ -347,7 +419,7 @@ mod tests {
         // Read the data from the db.
         for height in 1..channel_size {
             let stf_info = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_info.da_block_header().height, height as u64);
+            assert_eq!(stf_info.rollup_height, height as u64);
         }
 
         Ok(())
@@ -357,14 +429,11 @@ mod tests {
     async fn test_stf_info_in_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
         let channel_size = 10;
-        let nb_of_infos_kept_after_read_height = 100;
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
+        let max_nb_of_infos_in_db = 100;
+
+        let (mut storage_manager, sender, mut receiver) =
+            setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         // At the begining the db should be empty.
         let fetched_stf_info = receiver.get(1)?;
@@ -384,99 +453,69 @@ mod tests {
 
     #[tokio::test]
     async fn test_stf_info_db_pruning() -> anyhow::Result<()> {
-        let temp_dir = tempfile::tempdir()?;
-
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
-        let channel_size = 3;
-        let nb_of_infos_kept_after_read_height = 2;
-        let nb_of_stf_infos = 20;
-
-        let expected_oldest_height = nb_of_stf_infos - nb_of_infos_kept_after_read_height - 1;
-
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
-
-        // Fill the db.
-        for height in 1..nb_of_stf_infos {
-            let stf_info = make_stf_info(height);
-
-            let schema_batch = sender.materialize_stf_info(&stf_info).await?;
-            storage_manager.commit(schema_batch);
-
-            receiver.read_next().await?.unwrap();
+        struct TestCase {
+            channel_size: usize,
+            max_nb_of_infos_in_db: u64,
+            nb_of_stf_infos: u64,
         }
 
-        let oldest_height = sender.get_oldest_rollup_height()?;
-        assert_eq!(oldest_height, expected_oldest_height);
+        let test_cases = vec![
+            TestCase {
+                channel_size: 15,
+                max_nb_of_infos_in_db: 20,
+                nb_of_stf_infos: 30,
+            },
+            TestCase {
+                channel_size: 15,
+                max_nb_of_infos_in_db: 15,
+                nb_of_stf_infos: 30,
+            },
+            TestCase {
+                channel_size: 1,
+                max_nb_of_infos_in_db: 1,
+                nb_of_stf_infos: 2,
+            },
+        ];
 
-        // Check if the old STF infos are pruned.
-        for height in 1..nb_of_stf_infos {
-            let stf_info: Option<StateTransitionInfo<Vec<u8>, Vec<u8>, MockDaSpec>> =
-                receiver.get(height)?;
+        for test_case in test_cases {
+            let temp_dir = tempfile::tempdir()?;
 
-            if height < oldest_height {
-                // The old data was deleted from the Db.
-                assert!(stf_info.is_none());
-            } else {
-                assert!(stf_info.is_some());
+            let expected_oldest_height = std::cmp::max(
+                test_case.nb_of_stf_infos - test_case.max_nb_of_infos_in_db - 1,
+                1,
+            );
+
+            let (mut storage_manager, sender, mut receiver) = setup(
+                temp_dir.path(),
+                test_case.channel_size,
+                test_case.max_nb_of_infos_in_db,
+            )
+            .await?;
+
+            // Fill the db.
+            for height in 1..test_case.nb_of_stf_infos {
+                let stf_info = make_stf_info(height);
+                let schema_batch = sender.materialize_stf_info(&stf_info).await?;
+                storage_manager.commit(schema_batch);
+                receiver.read_next().await?.unwrap();
+            }
+
+            let oldest_height = sender.get_oldest_rollup_height()?;
+            assert_eq!(oldest_height, expected_oldest_height);
+
+            // Check if the old STF infos are pruned.
+            for height in 1..test_case.nb_of_stf_infos {
+                let stf_info: Option<StateTransitionInfo<Vec<u8>, Vec<u8>, MockDaSpec>> =
+                    receiver.get(height)?;
+
+                if height < oldest_height {
+                    // The old data was deleted from the Db.
+                    assert!(stf_info.is_none());
+                } else {
+                    assert!(stf_info.is_some());
+                }
             }
         }
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_stf_info_db_pruning_big_channel_size() -> anyhow::Result<()> {
-        let temp_dir = tempfile::tempdir()?;
-
-        let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
-
-        let channel_size = 30;
-        let nb_of_infos_kept_after_read_height: u64 = 7;
-
-        let (sender, mut receiver) =
-            new_stf_info_channel(ledger_db, channel_size, nb_of_infos_kept_after_read_height)
-                .await?;
-
-        // Fill the db.
-        for height in 1..channel_size + 1 {
-            let stf_info = make_stf_info(height as u64);
-            let schema_batch = sender.materialize_stf_info(&stf_info).await?;
-            storage_manager.commit(schema_batch);
-        }
-
-        // After the above loop we have `channel_size` number of STF infos in the Db.
-        let oldest_height = sender.get_oldest_rollup_height()?;
-        assert_eq!(oldest_height, 1);
-
-        // Now we read only `nb_of_infos_kept_after_read_height` so data shouldn't be pruned.
-        for height in 1..nb_of_infos_kept_after_read_height + 1 {
-            let stf_info = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_info.da_block_header().height, height);
-        }
-
-        let oldest_height = sender.get_oldest_rollup_height()?;
-        assert_eq!(oldest_height, 1);
-
-        // In the previous loop we read  `nb_of_infos_kept_after_read_height` times so now we start pruning.
-        for _ in 0..3 {
-            receiver.read_next().await?.unwrap();
-        }
-
-        // We materialize changes only on save
-        let oldest_height = sender.get_oldest_rollup_height()?;
-        assert_eq!(oldest_height, 1);
-
-        let stf_info = make_stf_info((channel_size + 1) as u64);
-        let schema_batch = sender.materialize_stf_info(&stf_info).await?;
-        storage_manager.commit(schema_batch);
-
-        let oldest_height = sender.get_oldest_rollup_height()?;
-        assert_eq!(oldest_height, 4);
-
         Ok(())
     }
 

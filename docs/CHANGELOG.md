@@ -1,3 +1,4 @@
+- #1432 stf_info_manager: Simplify the Db pruning logic
 - #1428 Make stf_info_manager compatible with the StorageManager workflow.
 - #1423 Adds Db pruning in the stf_info_manager.
 - #1424 Breaking change in `DaService`. An associated type "`TransactionId`" is added to `DaSpec` and the return type of of `send_transaction` and `send_aggregated_zk_proof` has changed as follows:
