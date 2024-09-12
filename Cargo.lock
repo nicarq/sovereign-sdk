@@ -9310,6 +9310,7 @@ dependencies = [
  "sov-accounts",
  "sov-bank",
  "sov-celestia-adapter",
+ "sov-chain-state",
  "sov-cli",
  "sov-cycle-utils",
  "sov-db",
@@ -9325,7 +9326,6 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-nft",
  "sov-risc0-adapter",
- "sov-rng-da-service",
  "sov-rollup-interface",
  "sov-sequencer",
  "sov-sequencer-json-client",
@@ -9778,23 +9778,6 @@ dependencies = [
  "sov-cycle-utils",
  "sov-rollup-interface",
  "thiserror",
-]
-
-[[package]]
-name = "sov-rng-da-service"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "borsh",
- "demo-stf",
- "futures",
- "serde",
- "sov-bank",
- "sov-mock-da",
- "sov-modules-api",
- "sov-rollup-interface",
- "sov-test-utils",
 ]
 
 [[package]]

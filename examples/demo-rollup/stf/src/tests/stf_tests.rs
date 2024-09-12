@@ -45,7 +45,7 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
         storage_manager.commit(stf_change_set);
 
         let txs = simulate_da(admin_private_key);
-        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+        let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
         let mut relevant_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -121,7 +121,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let txs = simulate_da(admin_private_key);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS, [0; 32]);
+    let blob = new_test_blob_from_batch(Batch { txs }, &MOCK_SEQUENCER_DA_ADDRESS);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -289,12 +289,12 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     assert!(txs.len() > 1);
 
     // For this test, we need to convert directly from the RawTx to FullyBakedTx so that we can create a batch.
-    // We don't have an API for this because the `Batch` struct isn't allowed to contain direct registrationg transactions.
+    // We don't have an API for this because the `Batch` struct isn't allowed to contain direct registration transactions.
     let txs = txs
         .into_iter()
         .map(|tx| FullyBakedTx::new(tx.data))
         .collect();
-    let blob = new_test_blob_from_batch(Batch { txs }, &direct_sequencer, [0; 32]);
+    let blob = new_test_blob_from_batch(Batch { txs }, &direct_sequencer);
 
     let mut relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),

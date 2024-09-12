@@ -25,7 +25,6 @@ members = [
     "crates/full-node/sov-metrics",
     "crates/full-node/sov-eth-dev-signer",
     # Utils
-    "crates/utils/rng-da-service",
     "crates/utils/sov-rest-utils",
     "crates/utils/test-harness",
     # Module System

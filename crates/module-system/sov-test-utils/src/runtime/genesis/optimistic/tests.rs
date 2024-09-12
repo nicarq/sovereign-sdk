@@ -1,9 +1,7 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
-use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, TxEffect};
@@ -13,8 +11,8 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::genesis::TestTokenName;
-use crate::runtime::{ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner, GAS_TOKEN_ID};
+use crate::runtime::genesis::{default_basic_kernel_genesis, TestTokenName};
+use crate::runtime::{Coins, TestOptimisticRuntime, TestRunner, GAS_TOKEN_ID};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
     TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo,
@@ -87,15 +85,7 @@ fn run_value_setter_txs_with_assertions(
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
     );
-    let kernel_genesis = BasicKernelGenesisConfig {
-        chain_state: ChainStateConfig {
-            current_time: Default::default(),
-            operating_mode: sov_chain_state::OperatingMode::Optimistic,
-            inner_code_commitment: MockCodeCommitment::default(),
-            outer_code_commitment: MockCodeCommitment::default(),
-            genesis_da_height: 0,
-        },
-    };
+    let kernel_genesis = default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
     let params = GenesisParams {
         runtime: genesis_config,
         kernel: kernel_genesis,
