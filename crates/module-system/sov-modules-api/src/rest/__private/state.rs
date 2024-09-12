@@ -175,7 +175,7 @@ where
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
             .route("/", get(Self::get_state_vec_route))
-            .route("/items/:index/", get(Self::get_state_vec_item_route))
+            .route("/items/:index", get(Self::get_state_vec_item_route))
             .with_state(self.clone())
     }
 }

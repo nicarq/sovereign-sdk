@@ -3,9 +3,10 @@
 use axum::routing::get;
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
-use sov_modules_api::rest::{ApiState, HasCustomRestApi, OpenApi};
+use sov_modules_api::rest::{ApiState, HasCustomRestApi};
 use sov_modules_api::ApiStateAccessor;
 
 use crate::{get_token_id, Amount, Bank, Coins, TokenId};

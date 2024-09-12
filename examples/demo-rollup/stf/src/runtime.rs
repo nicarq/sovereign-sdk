@@ -89,7 +89,10 @@ where
 
         let axum_router = Self::default().rest_api(storage.clone()).merge(
             SwaggerUi::new("/swagger-ui")
-                .external_url_unchecked("/openapi-v3.yaml", Self::default().openapi_spec().unwrap())
+                .external_url_unchecked(
+                    "/openapi-v3.yaml",
+                    serde_json::to_value(Self::default().openapi_spec()).unwrap(),
+                )
                 .config(Config::from("/openapi-v3.yaml")),
         );
 

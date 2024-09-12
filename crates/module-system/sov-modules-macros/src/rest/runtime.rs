@@ -89,14 +89,14 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                 router
             }
 
-            fn openapi_spec(&self) -> Option<serde_json::Value> {
+            fn openapi_spec(&self) -> Option<::sov_modules_api::prelude::utoipa::openapi::OpenApi> {
                 let spec = runtime_spec(
                     vec![#(#module_openapi_specs),*]
                         .into_iter()
                         .filter_map(|s| s)
                         .collect()
                 );
-                Some(serde_json::to_value(&spec).unwrap())
+                Some(spec)
             }
         }
     });
