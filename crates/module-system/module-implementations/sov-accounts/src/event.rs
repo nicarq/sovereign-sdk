@@ -8,6 +8,7 @@
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum Event {
     /// Sample event variant 1
     Event1,

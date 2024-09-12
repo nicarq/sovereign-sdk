@@ -1,12 +1,13 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
+assertion_line: 119
 expression: "&tx"
 ---
 {
   "data": {
-    "batchNumber": 0,
+    "batch_number": 0,
     "body": "dHgxIGJvZHk=",
-    "eventRange": {
+    "event_range": {
       "end": 0,
       "start": 0
     },

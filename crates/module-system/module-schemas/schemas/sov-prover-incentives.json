@@ -7,10 +7,10 @@
       "description": "Add a new prover as a bonded prover.",
       "type": "object",
       "required": [
-        "Register"
+        "register"
       ],
       "properties": {
-        "Register": {
+        "register": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
@@ -22,10 +22,10 @@
       "description": "Increases the balance of the prover, transferring the funds from the prover account to the rollup.",
       "type": "object",
       "required": [
-        "Deposit"
+        "deposit"
       ],
       "properties": {
-        "Deposit": {
+        "deposit": {
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
@@ -37,7 +37,7 @@
       "description": "Unbonds the prover.",
       "type": "string",
       "enum": [
-        "Exit"
+        "exit"
       ]
     }
   ]

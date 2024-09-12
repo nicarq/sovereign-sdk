@@ -22,7 +22,6 @@ pub use crate::tx_status::TxStatus;
 
 /// The response type to REST API calls that successfully publish a batch.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct SubmittedBatchInfo {
     /// The DA height for which the batch was submitted.
     pub da_height: u64,

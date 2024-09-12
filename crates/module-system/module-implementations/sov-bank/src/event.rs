@@ -11,7 +11,10 @@ use crate::{Coins, TokenId};
     PartialEq,
     Clone,
 )]
-#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+#[serde(
+    bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
+    rename_all = "snake_case"
+)]
 pub enum Event<S: sov_modules_api::Spec> {
     /// Event for Token Creation
     TokenCreated {

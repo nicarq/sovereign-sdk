@@ -8,6 +8,7 @@
     Clone,
     derive_more::Display,
 )]
+#[serde(rename_all = "snake_case")]
 /// Reasons for slashing a prover
 pub enum SlashingReason {
     /// The proof is not a valid zk-proof - ie the verifier did not accept the proof.
@@ -49,6 +50,7 @@ pub enum SlashingReason {
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 /// The reasons for penalizing a prover
 pub enum PenalizationReason {
     /// We penalize the prover for submitting a proof for transitions that have already been processed
@@ -64,6 +66,7 @@ pub enum PenalizationReason {
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 /// Events for prover incentives
 pub enum Event<S: sov_modules_api::Spec> {
     /// The prover has been bonded. The deposit is the amount of the bond and the total balance is the total amount staked.

@@ -22,6 +22,7 @@ use crate::event::Event;
     Clone,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Single value to set.
     SetValue(

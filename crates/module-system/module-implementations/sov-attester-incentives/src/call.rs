@@ -21,6 +21,7 @@ use crate::Amount;
     PartialEq,
     Eq,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Register an attester, the parameter is the bond amount
     RegisterAttester(Amount),
@@ -64,6 +65,7 @@ impl Debug for CallMessage {
     Serialize,
     Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 /// Error type that explains why a user is slashed
 pub enum SlashingReason {
     #[error("Transition isn't found")]

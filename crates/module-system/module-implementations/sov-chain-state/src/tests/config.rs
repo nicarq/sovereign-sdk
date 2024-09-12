@@ -21,7 +21,7 @@ fn test_config_serialization() {
             "secs":2,
             "nanos":3
         },
-        "operating_mode": "Zk",
+        "operating_mode": "zk",
         "inner_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "outer_code_commitment": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
         "genesis_da_height": 0

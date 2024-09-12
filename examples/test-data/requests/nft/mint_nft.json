@@ -1,5 +1,5 @@
 {
-  "MintNft": {
+  "mint_nft": {
     "collection_name": "Test Collection",
     "token_uri": "https://foo.bar/test_collection/nft/42",
     "token_id": 42,

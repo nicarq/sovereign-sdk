@@ -8,7 +8,10 @@ use crate::{Account, Accounts};
 
 /// This is the response returned from the accounts_getAccount endpoint.
 #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
-#[serde(bound = "Addr: serde::Serialize + serde::de::DeserializeOwned")]
+#[serde(
+    bound = "Addr: serde::Serialize + serde::de::DeserializeOwned",
+    rename_all = "snake_case"
+)]
 pub enum Response<Addr> {
     /// The account corresponding to the given credential id exists.
     AccountExists {

@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(
     BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Copy, Clone,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum OperatingMode {
     /// The rollup is currently executing in optimistic mode.
     Optimistic,

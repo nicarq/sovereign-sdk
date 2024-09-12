@@ -18,6 +18,7 @@ use sov_wallet_format::UniversalWallet;
     Serialize,
     Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 /// The namespaces used in the rollup. Related to the db's namespaces.
 pub enum Namespace {
     /// The user namespace. Used by the User modules and is synchronised with the visible height.
@@ -44,6 +45,7 @@ pub enum Namespace {
     Deserialize,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 /// Namespaces which can be merkle proven.
 pub enum ProvableNamespace {
     /// The user namespace.

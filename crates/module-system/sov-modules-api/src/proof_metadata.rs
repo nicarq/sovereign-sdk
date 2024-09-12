@@ -18,6 +18,7 @@ use crate::Spec;
     serde::Serialize,
     serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum ProofType {
     /// ZK workflow: aggregated zk proof.
     ZkAggregatedProof(SerializedAggregatedProof),

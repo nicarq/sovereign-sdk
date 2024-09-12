@@ -178,14 +178,14 @@ components:
     SubmittedBatchInfo:
       type: object
       properties:
-        daHeight:
+        da_height:
           type: integer
-        numTxs:
+        num_txs:
           type: integer
           format: int32
       required:
-        - daHeight
-        - numTxs
+        - da_height
+        - num_txs
     Error:
       type: object
       properties:

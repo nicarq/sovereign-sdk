@@ -19,13 +19,13 @@ fn test_response_serialization() {
     let json = serde_json::to_string(&response).unwrap();
     assert_eq!(
         json,
-        r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#
+        r#"{"account_exists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#
     );
 }
 
 #[test]
 fn test_response_deserialization() {
-    let json = r#"{"AccountExists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#;
+    let json = r#"{"account_exists":{"addr":"sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"}}"#;
     let response: Response<<S as Spec>::Address> = serde_json::from_str(json).unwrap();
 
     let expected_addr: Vec<u8> = (1..=32).collect();
@@ -40,13 +40,13 @@ fn test_response_deserialization() {
 
 #[test]
 fn test_response_deserialization_on_wrong_hrp() {
-    let json = r#"{"AccountExists":{"addr":"hax1qypqx68ju0l"}}"#;
+    let json = r#"{"account_exists":{"addr":"hax1qypqx68ju0l"}}"#;
     let response: Result<Response<<S as Spec>::Address>, serde_json::Error> =
         serde_json::from_str(json);
     match response {
         Ok(response) => panic!("Expected error, got {:?}", response),
         Err(err) => {
-            assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 43");
+            assert_eq!(err.to_string(), "Wrong HRP: hax at line 1 column 44");
         }
     }
 }

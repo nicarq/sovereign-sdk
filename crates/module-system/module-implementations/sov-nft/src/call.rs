@@ -22,6 +22,7 @@ use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, Toke
     Clone,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Create a new collection
     CreateCollection {

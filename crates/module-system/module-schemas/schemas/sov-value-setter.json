@@ -7,10 +7,10 @@
       "description": "Single value to set.",
       "type": "object",
       "required": [
-        "SetValue"
+        "set_value"
       ],
       "properties": {
-        "SetValue": {
+        "set_value": {
           "type": "integer",
           "format": "uint32",
           "minimum": 0.0
@@ -22,10 +22,10 @@
       "description": "Many values to set.",
       "type": "object",
       "required": [
-        "SetManyValues"
+        "set_many_values"
       ],
       "properties": {
-        "SetManyValues": {
+        "set_many_values": {
           "type": "array",
           "items": {
             "type": "integer",

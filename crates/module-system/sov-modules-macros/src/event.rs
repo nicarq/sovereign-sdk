@@ -55,7 +55,7 @@ impl EventMacro {
                 ]
             },
             quote::quote! {
-                #[serde(untagged, bound = "")]
+                #[serde(untagged, bound = "", rename_all = "snake_case")]
             },
         ];
         let enum_attributes = get_derived_enum_attrs("event", &input, default_event_attrs)?;

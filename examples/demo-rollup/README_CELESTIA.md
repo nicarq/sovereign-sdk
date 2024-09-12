@@ -237,7 +237,7 @@ Here's an example of a JSON representing the above call:
 
 ```json
 {
-  "Transfer": {
+  "transfer": {
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
       "amount": 200,
@@ -286,8 +286,8 @@ $ ./../../target/debug/sov-cli transactions import from-file bank --chain-id 432
 Adding the following transaction to batch:
 {
   "tx": {
-    "Bank": {
-      "Transfer": {
+    "bank": {
+      "transfer": {
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         "coins": {
           "amount": 200,

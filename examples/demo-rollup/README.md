@@ -119,7 +119,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f543
       "number": 0,
       "key": "token_created",
       "value": {
-        "TokenCreated": {
+        "token-created": {
           "token_name": "sov-test-token",
           "coins": {
             "amount": 1000000,
@@ -130,10 +130,10 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f543
           },
           "authorized_minters": [
             {
-              "User": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+              "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             },
             {
-              "User": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+              "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
             }
           ]
         }
@@ -252,7 +252,7 @@ Here's an example of a JSON representing the above call:
 
 ```json
 {
-  "Transfer": {
+  "transfer": {
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
       "amount": 200,
@@ -305,8 +305,8 @@ $ ./../../target/debug/sov-cli transactions import from-file bank --max-fee 1000
 Adding the following transaction to batch:
 {
   "tx": {
-    "Bank": {
-      "Transfer": {
+    "bank": {
+      "transfer": {
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         "coins": {
           "amount": 200,
@@ -351,7 +351,7 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrle
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.publicData.initialSlotNumber >= 1 then true else false end'
+$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.public_data.initial_slot_number >= 1 then true else false end'
 true
 ```
 

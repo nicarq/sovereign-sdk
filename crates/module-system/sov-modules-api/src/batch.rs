@@ -60,6 +60,7 @@ pub struct BatchWithId {
 /// Contains blob data obtained from the DA.
 //
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BlobData {
     /// Batch of transactions.
     Batch(Batch),
@@ -97,6 +98,7 @@ pub struct BlobDataWithId {
 
 /// Represents the different outcomes that can occur for a sequencer after batch processing.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
     Rewarded(SequencerReward),

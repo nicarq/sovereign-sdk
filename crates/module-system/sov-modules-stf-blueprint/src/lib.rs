@@ -68,6 +68,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 
 /// The reasons for which a transaction can be skipped
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Error)]
+#[serde(rename_all = "snake_case")]
 pub enum SkippedReason {
     /// The transaction had an invalid nonce.
     #[error("The transaction had an invalid nonce, reason: {0}.")]

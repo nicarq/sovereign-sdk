@@ -422,44 +422,44 @@ components:
     AggregatedProofPublicData:
       type: object
       properties:
-        rewardedAddresses:
+        rewarded_addresses:
           $ref: "#/components/schemas/RewardedAddresses"
-        validityConditions:
+        validity_conditions:
           $ref: "#/components/schemas/ValidityConditions"
-        initialSlotNumber:
+        initial_slot_number:
           type: integer
           format: uint64
-        finalSlotNumber:
+        final_slot_number:
           type: integer
           format: uint64
-        genesisStateRoot:
+        genesis_state_root:
           type: string
           format: byte
-        initialStateRoot:
+        initial_state_root:
           type: string
           format: byte
-        finalStateRoot:
+        final_state_root:
           type: string
           format: byte
-        initialSlotHash:
+        initial_slot_hash:
           type: string
           format: byte
-        finalSlotHash:
+        final_slot_hash:
           type: string
           format: byte
-        codeCommitment:
+        code_commitment:
           $ref: "#/components/schemas/CodeCommitment"
       required:
-        - rewardedAddresses
-        - validityConditions
-        - initialSlotNumber
-        - finalSlotNumber
-        - genesisStateRoot
-        - initialStateRoot
-        - finalStateRoot
-        - initialSlotHash
-        - finalSlotHash
-        - codeCommitment
+        - rewarded_addresses
+        - validity_conditions
+        - initial_slot_number
+        - final_slot_number
+        - genesis_state_root
+        - initial_state_root
+        - final_state_root
+        - initial_slot_hash
+        - final_slot_hash
+        - code_commitment
     AggregatedProof:
       type: object
       properties:
@@ -467,7 +467,7 @@ components:
           type: string
           enum:
             - aggregatedProof
-        publicData:
+        public_data:
           $ref: "#/components/schemas/AggregatedProofPublicData"
         proof:
           type: string
@@ -475,7 +475,7 @@ components:
           description: Serialized aggregated proof, in Base64.
       required:
         - type
-        - publicData
+        - public_data
         - proof
     Uint64Range:
       type: object
@@ -501,15 +501,15 @@ components:
           format: uint64
         hash:
           $ref: "#/components/schemas/Hash"
-        stateRoot:
+        state_root:
           $ref: "#/components/schemas/HexBytes"
-        batchRange:
+        batch_range:
           $ref: "#/components/schemas/Uint64Range"
         batches:
           type: array
           items:
             $ref: "#/components/schemas/Batch"
-        finalityStatus:
+        finality_status:
           type: string
           enum:
             - pending
@@ -518,9 +518,9 @@ components:
         - type
         - number
         - hash
-        - stateRoot
-        - batchRange
-        - finalityStatus
+        - state_root
+        - batch_range
+        - finality_status
     Batch:
       type: object
       properties:
@@ -533,7 +533,7 @@ components:
           format: uint64
         hash:
           $ref: "#/components/schemas/Hash"
-        txRange:
+        tx_range:
           $ref: "#/components/schemas/Uint64Range"
         receipt:
           $ref: "#/components/schemas/AnyJsonValue"
@@ -541,16 +541,16 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Tx"
-        slotNumber:
+        slot_number:
           type: integer
           format: uint64
       required:
         - type
         - number
         - hash
-        - txRange
+        - tx_range
         - receipt
-        - slotNumber
+        - slot_number
     TxReceipt:
       type: object
       properties:
@@ -574,7 +574,7 @@ components:
         number:
           type: integer
           format: uint64
-        eventRange:
+        event_range:
           $ref: "#/components/schemas/Uint64Range"
         body:
           type: string
@@ -585,17 +585,17 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Event"
-        batchNumber:
+        batch_number:
           type: integer
           format: uint64
       required:
         - type
         - hash
         - number
-        - eventRange
+        - event_range
         - body
         - receipt
-        - batchNumber
+        - batch_number
     Event:
       type: object
       properties:
