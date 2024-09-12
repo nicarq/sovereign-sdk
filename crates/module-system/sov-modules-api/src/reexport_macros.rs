@@ -14,6 +14,7 @@
 /// // Applying #[derive(DispatchCall)] to MyRuntime generates the following code:
 /// #[allow(non_camel_case_types)]
 /// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// #[serde(rename_all = "snake_case")]
 /// pub enum RuntimeCall<S: Spec, Da: DaSpec> {
 ///   bank(<Bank::<S> as Module>::CallMessage),
 ///   sequencer_registry(<SequencerRegistry::<S, Da> as Module>::CallMessage),
@@ -63,6 +64,7 @@
 /// The current set of default attributes is:
 ///
 /// `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+/// `#[serde(rename_all = "snake_case")]`
 ///
 ///
 /// ## Attribute: `#[dispatch_call({attr})]`
@@ -113,7 +115,7 @@ pub use sov_modules_macros::DispatchCall;
 /// The current default attributes are:
 ///
 /// - `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
-/// - `#[serde(untagged, bound = "")]`
+/// - `#[serde(untagged, bound = "", rename_all="snake_case")]`
 ///
 ///
 /// ## Attribute: `#[event({attr})]`

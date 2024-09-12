@@ -30,7 +30,7 @@ use crate::value::NamespacedStateValue;
 use crate::{ApiStateAccessor, Module, StateReader};
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum StateItemKind {
     StateValue,
     StateVec,

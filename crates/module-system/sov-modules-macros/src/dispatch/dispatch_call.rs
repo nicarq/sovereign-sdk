@@ -116,19 +116,24 @@ impl DispatchCallMacro {
         &self,
         input: DeriveInput,
     ) -> syn::Result<proc_macro::TokenStream> {
-        let default_attrs = vec![quote::quote! {
-            #[
-                derive(
-                    borsh::BorshDeserialize,
-                    borsh::BorshSerialize,
-                    serde::Serialize,
-                    serde::Deserialize,
-                    Clone,
-                    Debug,
-                    PartialEq,
-                )
-            ]
-        }];
+        let default_attrs = vec![
+            quote::quote! {
+                #[
+                    derive(
+                        borsh::BorshDeserialize,
+                        borsh::BorshSerialize,
+                        serde::Serialize,
+                        serde::Deserialize,
+                        Clone,
+                        Debug,
+                        PartialEq,
+                    )
+                ]
+            },
+            quote::quote! {
+                #[serde(rename_all = "snake_case")]
+            },
+        ];
 
         let enum_attributes = get_derived_enum_attrs("dispatch_call", &input, default_attrs)?;
         let DeriveInput {

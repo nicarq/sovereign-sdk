@@ -171,6 +171,7 @@ pub struct PreferredBlobDataWithId {
     Deserialize,
     derive_more::From,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum PreferredBlobData {
     /// A preferred blob from the batch namespace.
     Batch(PreferredBatchData),

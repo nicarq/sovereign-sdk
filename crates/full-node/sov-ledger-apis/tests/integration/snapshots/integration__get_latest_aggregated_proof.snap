@@ -1,23 +1,24 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
+assertion_line: 203
 expression: response
 ---
 {
   "data": {
     "proof": "YWdncmVnYXRlZC1wcm9vZg==",
-    "publicData": {
-      "codeCommitment": "Y29kZS1jb21taXRtZW50",
-      "finalSlotHash": "ZmluYWwtc2xvdC1oYXNo",
-      "finalSlotNumber": 18446744073709551615,
-      "finalStateRoot": "ZmluYWwtc3RhdGUtcm9vdA==",
-      "genesisStateRoot": "Z2VuZXNpcy1zdGF0ZS1yb290",
-      "initialSlotHash": "aW5pdGlhbC1zbG90LWhhc2g=",
-      "initialSlotNumber": 18446744073709551615,
-      "initialStateRoot": "aW5pdGlhbC1zdGF0ZS1yb290",
-      "rewardedAddresses": [
+    "public_data": {
+      "code_commitment": "Y29kZS1jb21taXRtZW50",
+      "final_slot_hash": "ZmluYWwtc2xvdC1oYXNo",
+      "final_slot_number": 18446744073709551615,
+      "final_state_root": "ZmluYWwtc3RhdGUtcm9vdA==",
+      "genesis_state_root": "Z2VuZXNpcy1zdGF0ZS1yb290",
+      "initial_slot_hash": "aW5pdGlhbC1zbG90LWhhc2g=",
+      "initial_slot_number": 18446744073709551615,
+      "initial_state_root": "aW5pdGlhbC1zdGF0ZS1yb290",
+      "rewarded_addresses": [
         "cHJvdmVyLWFkZHJlc3M="
       ],
-      "validityConditions": []
+      "validity_conditions": []
     },
     "type": "aggregatedProof"
   },

@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct ExampleModuleConfig {}
 
 /// A new module:

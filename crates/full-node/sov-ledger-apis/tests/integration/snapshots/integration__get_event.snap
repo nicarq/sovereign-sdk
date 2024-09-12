@@ -1,5 +1,6 @@
 ---
 source: crates/full-node/sov-ledger-apis/tests/integration/main.rs
+assertion_line: 187
 expression: response.data
 ---
 {
@@ -10,14 +11,14 @@ expression: response.data
   "number": 0,
   "type": "event",
   "value": {
-    "TokenCreated": {
+    "token_created": {
       "authorized_minters": [],
       "coins": {
         "amount": 0,
         "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
       },
       "minter": {
-        "Module": "module_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn7stmj"
+        "module": "module_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqn7stmj"
       },
       "token_name": "token"
     }

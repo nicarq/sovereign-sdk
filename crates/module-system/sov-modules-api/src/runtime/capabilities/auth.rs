@@ -152,6 +152,7 @@ pub type AuthenticationResult<S, Decodable, Auth, Err = AuthenticationError> =
 
 /// Error variants that can be raised as a [`AuthenticationError::FatalError`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
+#[serde(rename_all = "snake_case")]
 pub enum FatalError {
     /// Transaction deserialization failed.
     #[error("Transaction deserialization error: {0}")]
@@ -177,6 +178,7 @@ pub enum FatalError {
 
 /// Authentication error type.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Error)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthenticationError {
     /// The transaction authentication failed in a way that should have been detected by the sequencer before they accepted the transaction. The sequencer is slashed.
     #[error("Transaction authentication raised a fatal error, error: {0}")]
@@ -192,6 +194,7 @@ pub enum AuthenticationError {
 /// Authentication error relating to transactions submitted by an unregistered sequencer for the
 /// purpose of direct sequencer registration.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Error)]
+#[serde(rename_all = "snake_case")]
 pub enum UnregisteredAuthenticationError {
     /// The transaction authentication failed in a way that is unrecoverable.
     #[error("Transaction authentication raised a fatal error, error: {0}")]

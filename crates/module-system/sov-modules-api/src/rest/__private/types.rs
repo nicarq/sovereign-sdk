@@ -6,7 +6,7 @@ use super::{Prefix, StateItemInfo};
 use crate::{ModuleId, ModuleInfo};
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", untagged)]
+#[serde(rename_all = "snake_case", untagged)]
 pub enum StateItemContents<K, V> {
     Value { value: Option<V> },
     Vec { length: usize },
@@ -17,7 +17,7 @@ pub enum StateItemContents<K, V> {
 /// Identical to [`sov_state::namespaces::Namespace`], but with a custom
 /// [`serde`] implementation.
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")] // <-- This is the important difference.
+#[serde(rename_all = "snake_case")] // <-- This is the important difference.
 pub enum Namespace {
     User,
     Kernel,
@@ -35,7 +35,7 @@ impl From<sov_state::namespaces::Namespace> for Namespace {
 }
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase", tag = "type", rename = "module")]
+#[serde(rename_all = "snake_case", tag = "type", rename = "module")]
 pub struct ModuleObject {
     pub id: ModuleId,
     pub name: String,

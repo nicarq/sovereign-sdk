@@ -14,7 +14,6 @@ pub trait ModuleSendSync: Module + Send + Sync + 'static {}
 impl<M> ModuleSendSync for M where M: Module + Send + Sync + 'static {}
 
 #[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct StateItemInfo {
     pub r#type: StateItemKind,
     #[serde(skip)]
@@ -37,13 +36,13 @@ pub fn maybe_archival_accessor<S: Spec>(
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 struct RuntimeObject {
     modules: HashMap<String, ModuleOverview>,
 }
 
 #[derive(Clone, Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct ModuleOverview {
     pub id: ModuleId,
 }

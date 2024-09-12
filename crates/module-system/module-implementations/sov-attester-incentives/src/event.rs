@@ -10,6 +10,7 @@ use crate::SlashingReason;
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum Event<S: sov_modules_api::Spec> {
     /// Event for User Slashed
     UserSlashed {

@@ -73,6 +73,7 @@ impl<'a, S: Spec> Payable<S> for TokenHolderRef<'a, S> {
 #[derive(
     Debug, Clone, Eq, PartialEq, serde::Deserialize, BorshDeserialize, derive_more::Display,
 )]
+#[serde(rename_all = "snake_case")]
 /// The identifier of a a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolder<S: Spec> {
     /// A external address the rollup.
@@ -98,8 +99,9 @@ impl<S: Spec> borsh::BorshSerialize for TokenHolder<S> {
     }
 }
 
-/// A reference to a payable entity on the rollup. This can be either a user or a module.
 #[derive(Debug, serde::Serialize, borsh::BorshSerialize, derive_more::Display)]
+#[serde(rename_all = "snake_case")]
+/// A reference to a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolderRef<'a, S: Spec> {
     /// A reference to a user's address
     User(&'a S::Address),

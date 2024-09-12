@@ -40,6 +40,7 @@ use thiserror::Error;
 #[derive(
     Debug, Clone, Error, PartialEq, Eq, Serialize, Deserialize, BorshSerialize, BorshDeserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum AllowedSequencerError {
     /// The amount of gas tokens that the sender is has staken is too low.
     #[error("The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {bond_amount}, minimum bond amount: {minimum_bond_amount}")]
@@ -54,8 +55,9 @@ pub enum AllowedSequencerError {
     NotRegistered,
 }
 
-/// Reason why sequencer was slashed.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+/// Reason why sequencer was slashed.
 pub enum SlashingReason {
     /// This status indicates problem with batch deserialization.
     InvalidBatchEncoding,

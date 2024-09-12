@@ -18,7 +18,7 @@ use crate::zk::aggregated_proof::AggregatedProof;
     feature = "arbitrary",
     derive(proptest_derive::Arbitrary, arbitrary::Arbitrary)
 )]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum FinalityStatus {
     /// The slot has been produced but not finalized by consensus.
     Pending,
@@ -58,7 +58,7 @@ pub struct TxIdAndOffset {
 
 /// An identifier that specifies a single batch
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum BatchIdentifier {
     /// The hex-encoded hash of the batch, as computed by the DA layer.
     Hash(#[serde(with = "hex_string_serde")] [u8; 32]),
@@ -72,7 +72,7 @@ pub enum BatchIdentifier {
 
 /// An identifier that specifies a single transaction.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum TxIdentifier {
     /// The hex encoded hash of the transaction.
     Hash(#[serde(with = "hex_string_serde")] [u8; 32]),
@@ -95,7 +95,7 @@ pub struct TxIdAndKey {
 
 /// An identifier that specifies a single event.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum EventIdentifier {
     /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
     TxIdAndOffset(TxIdAndOffset),
@@ -107,7 +107,7 @@ pub enum EventIdentifier {
 
 /// An identifier for a group of related events
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum EventGroupIdentifier {
     /// Fetch all events from a particular transaction.
     TxId(TxIdentifier),
@@ -119,7 +119,7 @@ pub enum EventGroupIdentifier {
 
 /// An identifier that specifies a single slot.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum SlotIdentifier {
     /// The hex encoded hash of the slot (i.e. the da layer's block hash).
     Hash(#[serde(with = "hex_string_serde")] [u8; 32]),
@@ -130,6 +130,7 @@ pub enum SlotIdentifier {
 
 /// A QueryMode specifies how much information to return in response to an RPC query
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum QueryMode {
     /// Returns the parent struct but no details about its children.
     /// For example, a `Compact` "get_slots" response would simply state the range of batch
@@ -211,7 +212,7 @@ pub struct TxResponse<Tx: TxReceiptContents> {
 
 /// An RPC response which might contain a full item or just its hash.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
+#[serde(untagged, rename_all = "snake_case")]
 pub enum ItemOrHash<T> {
     /// The hex encoded hash of the requested item.
     Hash(#[serde(with = "hex_string_serde")] [u8; 32]),

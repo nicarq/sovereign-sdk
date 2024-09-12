@@ -21,6 +21,7 @@ use crate::{Account, Accounts};
     Clone,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Inserts a new credential id for the corresponding Account.
     InsertCredentialId(

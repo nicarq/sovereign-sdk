@@ -20,6 +20,7 @@ type S = sov_test_utils::TestSpec;
     serde::Serialize,
     serde::Deserialize,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     SetAccessoryValue(u32),
     Nop(u32),

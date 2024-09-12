@@ -7,10 +7,10 @@
       "description": "Add a new sequencer to the sequencer registry.",
       "type": "object",
       "required": [
-        "Register"
+        "register"
       ],
       "properties": {
-        "Register": {
+        "register": {
           "type": "object",
           "required": [
             "amount",
@@ -41,10 +41,10 @@
       "description": "Increases the balance of the sequencer, transferring the funds from the sequencer account to the rollup.",
       "type": "object",
       "required": [
-        "Deposit"
+        "deposit"
       ],
       "properties": {
-        "Deposit": {
+        "deposit": {
           "type": "object",
           "required": [
             "amount",
@@ -75,10 +75,10 @@
       "description": "Remove a sequencer from the sequencer registry.",
       "type": "object",
       "required": [
-        "Exit"
+        "exit"
       ],
       "properties": {
-        "Exit": {
+        "exit": {
           "type": "object",
           "required": [
             "da_address"

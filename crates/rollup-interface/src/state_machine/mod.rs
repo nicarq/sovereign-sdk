@@ -38,6 +38,7 @@ pub mod execution_mode {
         BorshDeserialize,
         BorshSerialize,
     )]
+    #[serde(rename_all = "snake_case")]
     pub enum RuntimeExecutionMode {
         /// Execution inside of a [`Zkvm`](super::zk::Zkvm).
         Zk,

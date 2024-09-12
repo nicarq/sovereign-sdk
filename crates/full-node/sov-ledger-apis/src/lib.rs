@@ -742,7 +742,6 @@ impl NumberOrHash {
 #[serde(
     tag = "type",
     rename = "slot",
-    rename_all = "camelCase",
     bound = "B: Serialize + DeserializeOwned, TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
 )]
 struct Slot<B, TxReceipt: TxReceiptContents, E> {
@@ -779,7 +778,6 @@ impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
 #[serde(
     tag = "type",
     rename = "batch",
-    rename_all = "camelCase",
     bound = "B: Serialize + DeserializeOwned, TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
 )]
 struct Batch<B, TxReceipt: TxReceiptContents, E> {
@@ -817,7 +815,6 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
 #[serde(
     tag = "type",
     rename = "tx",
-    rename_all = "camelCase",
     bound = "TxReceipt: TxReceiptContents, E: Serialize + DeserializeOwned"
 )]
 struct Transaction<TxReceipt: TxReceiptContents, E> {
@@ -846,7 +843,7 @@ impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "event", rename_all = "camelCase")]
+#[serde(tag = "type", rename = "event")]
 struct Event<E> {
     pub number: u64,
     pub key: String,
@@ -855,7 +852,7 @@ struct Event<E> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[serde(tag = "result", rename_all = "camelCase")]
+#[serde(tag = "result", rename_all = "snake_case")]
 pub enum TxEffect<T: TxReceiptContents> {
     Skipped { data: T::Skipped },
     Reverted { data: T::Reverted },
@@ -873,7 +870,7 @@ impl<T: TxReceiptContents> From<sov_rollup_interface::stf::TxEffect<T>> for TxEf
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "moduleRef", rename_all = "camelCase")]
+#[serde(tag = "type", rename = "moduleRef")]
 struct ModuleRef {
     pub name: String,
 }
@@ -881,7 +878,7 @@ struct ModuleRef {
 // This type supplies the JSON API representation of [`AggregatedProofResponse`].
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename = "aggregatedProof", rename_all = "camelCase")]
+#[serde(tag = "type", rename = "aggregatedProof")]
 struct AggregatedProof {
     #[serde_as(as = "serde_with::base64::Base64")]
     pub proof: Vec<u8>,
@@ -924,17 +921,14 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
 
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct ValidityCondition(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct RewardedAddresses(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
 #[serde_as]
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct AggregatedProofPublicData {
     pub validity_conditions: Vec<ValidityCondition>,
     pub initial_slot_number: u64,

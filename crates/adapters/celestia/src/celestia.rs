@@ -40,6 +40,7 @@ pub const GENESIS_PLACEHOLDER_HASH: &[u8; 32] = &[255; 32];
 /// performs a complete protobuf serialization every time `.hash()` is called.
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
 #[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CompactHeader {
     /// Header version
     pub version: Vec<u8>,
@@ -160,6 +161,7 @@ impl CompactHeader {
 
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub struct CelestiaHeader {
     pub dah: DataAvailabilityHeader,
     pub header: CompactHeader,

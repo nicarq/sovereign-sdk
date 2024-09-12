@@ -24,6 +24,7 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {

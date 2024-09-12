@@ -24,6 +24,7 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
     serde::Deserialize,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Add a new sequencer to the sequencer registry.
     Register {

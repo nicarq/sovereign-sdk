@@ -10,6 +10,7 @@ use sov_modules_api::Spec;
     PartialEq,
     Clone,
 )]
+#[serde(rename_all = "snake_case")]
 pub enum Event<S: Spec> {
     /// A sequencer was registered.
     Registered {

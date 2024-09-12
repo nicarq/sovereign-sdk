@@ -8,7 +8,6 @@ const KATE_START_TIME: i64 = 1686066440;
 const KATE_SECONDS_PER_BLOCK: i64 = 20;
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
 pub struct Header {
     pub parent_hash: H256,
     pub number: u32,

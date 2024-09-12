@@ -26,6 +26,7 @@ use crate::{Event, ProverIncentives};
     PartialEq,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
 // TODO: allow call messages to borrow data
 //     https://github.com/Sovereign-Labs/sovereign-sdk/issues/274
 pub enum CallMessage {

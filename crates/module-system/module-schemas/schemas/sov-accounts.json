@@ -7,10 +7,10 @@
       "description": "Inserts a new credential id for the corresponding Account.",
       "type": "object",
       "required": [
-        "InsertCredentialId"
+        "insert_credential_id"
       ],
       "properties": {
-        "InsertCredentialId": {
+        "insert_credential_id": {
           "$ref": "#/definitions/CredentialId"
         }
       },

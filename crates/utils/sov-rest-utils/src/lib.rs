@@ -61,7 +61,6 @@ pub type ApiResult<T, E = Response> = Result<ResponseObject<T>, E>;
 /// These two cases are usually but not always exclusive, notably in the case of
 /// partial success.
 #[derive(Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "camelCase")]
 pub struct ResponseObject<T> {
     /// Core response data when successful.
     #[serde(skip_serializing_if = "Option::is_none")]

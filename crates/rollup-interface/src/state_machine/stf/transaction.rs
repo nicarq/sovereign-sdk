@@ -30,6 +30,7 @@ pub struct TransactionReceipt<T: TxReceiptContents> {
 /// The outcome of a transaction.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[cfg_attr(any(test, feature = "arbitrary"), derive(proptest_derive::Arbitrary))]
+#[serde(rename_all = "snake_case")]
 pub enum TxEffect<T: TxReceiptContents> {
     /// The transaction was skipped.
     Skipped(T::Skipped),

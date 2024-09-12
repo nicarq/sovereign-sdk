@@ -7,10 +7,10 @@
       "description": "Creates a new token with the specified name and initial balance.",
       "type": "object",
       "required": [
-        "CreateToken"
+        "create_token"
       ],
       "properties": {
-        "CreateToken": {
+        "create_token": {
           "type": "object",
           "required": [
             "authorized_minters",
@@ -60,10 +60,10 @@
       "description": "Transfers a specified amount of tokens to the specified address.",
       "type": "object",
       "required": [
-        "Transfer"
+        "transfer"
       ],
       "properties": {
-        "Transfer": {
+        "transfer": {
           "type": "object",
           "required": [
             "coins",
@@ -95,10 +95,10 @@
       "description": "Burns a specified amount of tokens.",
       "type": "object",
       "required": [
-        "Burn"
+        "burn"
       ],
       "properties": {
-        "Burn": {
+        "burn": {
           "type": "object",
           "required": [
             "coins"
@@ -121,10 +121,10 @@
       "description": "Mints a specified amount of tokens.",
       "type": "object",
       "required": [
-        "Mint"
+        "mint"
       ],
       "properties": {
-        "Mint": {
+        "mint": {
           "type": "object",
           "required": [
             "coins",
@@ -156,10 +156,10 @@
       "description": "Freezes a token so that the supply is frozen",
       "type": "object",
       "required": [
-        "Freeze"
+        "freeze"
       ],
       "properties": {
-        "Freeze": {
+        "freeze": {
           "type": "object",
           "required": [
             "token_id"
