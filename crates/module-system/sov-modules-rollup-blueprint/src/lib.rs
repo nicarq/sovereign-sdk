@@ -54,7 +54,7 @@ mod blueprint {
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::runtime::capabilities::Kernel;
-    use sov_modules_api::{ProofSerializer, Spec, Zkvm};
+    use sov_modules_api::{OperatingMode, ProofSerializer, Spec, Zkvm};
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
@@ -111,6 +111,11 @@ mod blueprint {
 
         /// Serialize proof blob and adds metadata needed for verification.
         type ProofSerializer: ProofSerializer + 'static;
+
+        /// Gets the operating mode of the rollup (Zk or Optimistic).
+        fn get_operating_mode(
+            genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
+        ) -> OperatingMode;
 
         /// Creates code commitments for the outer zkVM program.
         fn create_outer_code_commitment(

@@ -9,7 +9,8 @@ use sov_kernels::basic::BasicKernel;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
-use sov_modules_api::{CryptoSpec, SovApiProofSerializer, Spec};
+use sov_modules_api::runtime::capabilities::Kernel;
+use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlueprint};
 use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
@@ -71,6 +72,12 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
+
+    fn get_operating_mode(
+        genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
+    ) -> OperatingMode {
+        genesis.chain_state.operating_mode
+    }
 
     fn create_outer_code_commitment(
         &self,

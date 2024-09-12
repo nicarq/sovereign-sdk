@@ -13,8 +13,8 @@ use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::capabilities::RuntimeAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasUnit, RawTx,
-    Spec,
+    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasUnit,
+    OperatingMode, RawTx, Spec,
 };
 use sov_modules_macros::config_value;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
@@ -142,7 +142,7 @@ fn initialize_rollup(
         NonFungibleTokenConfig {},
         EvmConfig::default(),
     );
-    let kernel_genesis = default_basic_kernel_genesis(sov_chain_state::OperatingMode::Zk);
+    let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Zk);
     let genesis_config = GenesisParams {
         runtime: rt_genesis,
         kernel: kernel_genesis,

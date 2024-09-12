@@ -1,9 +1,9 @@
-use sov_chain_state::{ChainStateConfig, OperatingMode};
+use sov_chain_state::ChainStateConfig;
 use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, OperatingMode, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;

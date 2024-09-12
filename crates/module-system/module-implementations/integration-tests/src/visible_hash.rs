@@ -85,7 +85,7 @@ impl<S: Spec> TestVisibleHashModule<S> {
 generate_bare_runtime! {
     name: TestVisibleHashRuntime,
     modules: [visible_hash_module: TestVisibleHashModule<S>],
-    operating_mode: sov_test_utils::runtime::OperatingMode::Optimistic,
+    operating_mode: sov_modules_api::OperatingMode::Optimistic,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: []
@@ -206,7 +206,7 @@ fn visible_hash_basic_kernel() {
         chain_state: ChainStateConfig {
             genesis_da_height: 0,
             current_time: Default::default(),
-            operating_mode: sov_chain_state::OperatingMode::Optimistic,
+            operating_mode: sov_modules_api::OperatingMode::Optimistic,
             inner_code_commitment: Default::default(),
             outer_code_commitment: Default::default(),
         },
@@ -249,7 +249,7 @@ fn visible_hash_soft_confirmations_kernel() {
             chain_state: ChainStateConfig {
                 genesis_da_height: 0,
                 current_time: Default::default(),
-                operating_mode: sov_chain_state::OperatingMode::Optimistic,
+                operating_mode: sov_modules_api::OperatingMode::Optimistic,
                 inner_code_commitment: Default::default(),
                 outer_code_commitment: Default::default(),
             },

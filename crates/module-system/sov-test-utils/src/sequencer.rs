@@ -5,6 +5,7 @@ use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
+use sov_modules_api::OperatingMode;
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -103,8 +104,7 @@ impl<B: BatchBuilder> TestSequencerSetup<B> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis =
-            default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
+        let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Optimistic);
         let params = GenesisParams {
             runtime: genesis_config,
             kernel: kernel_genesis,
@@ -187,8 +187,7 @@ impl TestSequencerSetup<TestFairBatchBuilder> {
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis =
-            default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
+        let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Optimistic);
         let params = GenesisParams {
             runtime: genesis_config,
             kernel: kernel_genesis,
