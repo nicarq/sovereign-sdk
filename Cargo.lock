@@ -9571,6 +9571,7 @@ dependencies = [
  "jsonrpsee",
  "proptest",
  "proptest-derive",
+ "reqwest 0.12.5",
  "risc0-zkvm",
  "risc0-zkvm-platform",
  "schemars",

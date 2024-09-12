@@ -32,11 +32,11 @@ use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::Query;
+use utoipa::openapi::OpenApi;
 
 use crate::hooks::TxHooks;
 use crate::map::NamespacedStateMap;
 use crate::rest::__private::maybe_archival_accessor;
-pub use crate::rest::__private::openapi::OpenApi;
 use crate::vec::NamespacedStateVec;
 use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec};
 
@@ -70,7 +70,7 @@ pub trait HasRestApi<S: Spec> {
 
     /// Returns the OpenAPI specification for [`HasRestApi::rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
-    fn openapi_spec(&self) -> Option<serde_json::Value> {
+    fn openapi_spec(&self) -> Option<OpenApi> {
         None
     }
 }
@@ -81,7 +81,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
         axum::Router::new()
     }
 
-    fn openapi_spec(&self) -> Option<serde_json::Value> {
+    fn openapi_spec(&self) -> Option<OpenApi> {
         None
     }
 }

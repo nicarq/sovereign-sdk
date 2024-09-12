@@ -82,20 +82,73 @@ components:
                 required:
                   - key
                   - value
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
             required:
               - data
-    StateItemResponse:
-      description: The state item.
+    StateVecResponse:
+      description: Response containing meta informration about vector
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/StateItem"
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  length:
+                    type: integer
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+    StateVecElementResponse:
+      description: Response containing the value of a `StateVec` element.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  index:
+                    type: integer
+                  value:
+                    $ref: "#/components/schemas/AnyJsonValue"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - index
+              - value
+    StateValueResponse:
+      description: Response containing the `StateValue`.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/StateValue"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
     NotFound:
       description: The requested resource was not found
       content:
         application/json:
           schema:
             $ref: "#/components/schemas/Error"
+    BadRequestResponse:
+      description: The request has invalid parameters
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errors:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Error'
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
   schemas:
     AnyJsonValue:
       oneOf:
@@ -124,24 +177,24 @@ components:
         state:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/StateItem"
-    StateItem:
+            $ref: "#/components/schemas/StateValue"
+    StateValue:
       type: object
       properties:
         r#type:
           type: string
-          description: The type of the state item.
+          description: The type of the state value.
         name:
           type: string
-          description: The name of the state item.
+          description: The name of the state value.
         description:
           type: string
-          description: A short description of the state item.
+          description: A short description of the state value.
         namespace:
           $ref: "#/components/schemas/Namespace"
     Namespace:
       type: string
-      description: The namespace of the state item.
+      description: The namespace of the state value.
       enum:
         - user
         - kernel
@@ -168,5 +221,10 @@ components:
           type: integer
           format: int32
           description: HTTP status code related to this error
-        message:
+        title:
           type: string
+        details:
+          type: object
+          properties:
+            message:
+              type: string

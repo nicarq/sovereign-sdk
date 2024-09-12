@@ -36,6 +36,7 @@
 - #1415 Add StfInfoManager, which manages data related to state transitions. 
 - #1413 Remove borsh bounds from StateTransitionWitness.
 - #1407 Renames `transition_num` to `rollup_height` in the `AttesterIncentives` module.
+- #1405 Fixes rendering of OpenAPI spec to match derived REST API endpoints for modules. 
 - #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `RuntimeAuthenticator`. All
 references to the `Authenticator` trait or `ModAuth` struct are replaced with references to `RuntimeAuthenticator` or the concrete runtime type of the rollup as appropriate.
 - #1398 Makes `StateCheckpoint`, `TxScratchpad` and `KernelStateAccessor` generic over `Storage` instead of `Spec`. These structs having no dependency on the `Spec`, this restricts the scope of the generics.

@@ -75,6 +75,35 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         })
         .collect::<Vec<_>>();
 
+    let state_field_specs = state_fields
+        .iter()
+        .zip(state_item_exprs.iter())
+        .map(|(f, state_item_expr)| {
+            let ty = &f.ty;
+            let item_name_path = format!("/state/{}", str_to_url_segment(&f.ident));
+
+            quote! {
+                {
+                    let state_impl = StateItemOpenApiSpecImpl::<#ty> {
+                        state_item_info: #state_item_expr,
+                        phantom: PhantomData::<#ty>::default(),
+                    };
+
+                    let mut item_spec = (&state_impl).state_item_open_api();
+
+                    let old_paths = std::mem::take(&mut item_spec.paths);
+
+                    for (rel_path, path_item) in old_paths.paths {
+                        let item_path = format!("{}{}", #item_name_path, rel_path);
+                        item_spec.paths.paths.insert(item_path, path_item);
+                    }
+
+                    module_spec.merge(item_spec);
+                };
+            }
+        })
+        .collect::<Vec<_>>();
+
     let module_ty = &rest_api_input.ident;
     let description = description_code(&rest_api_input.doc, &rest_api_input.attrs)?;
 
@@ -125,14 +154,18 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                 router
             }
 
-            fn openapi_spec(&self) -> Option<serde_json::Value> {
-                let state_items = #map_of_state_item_exprs;
-                let mut module_openapi_spec = module_spec(state_items);
+            fn openapi_spec(&self) -> Option<::sov_modules_api::prelude::utoipa::openapi::OpenApi> {
+                let mut module_spec = ::sov_modules_api::prelude::utoipa::openapi::OpenApi::default();
+
+                #(#state_field_specs)*
+
                 if let Some(custom_spec) = (self).custom_openapi_spec() {
-                     module_openapi_spec.merge(custom_spec)
+                     module_spec.merge(custom_spec)
                 }
-                Some(serde_json::to_value(&module_openapi_spec).unwrap())
+
+                Some(module_spec)
             }
+
         }
     });
 

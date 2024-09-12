@@ -50,6 +50,14 @@ fn rpc_tests() {
 }
 
 #[test]
+fn rest_api_tests() {
+    set_constants_manifest();
+    let t = trybuild::TestCases::new();
+
+    t.pass("tests/integration/rest/derive_rest_api.rs");
+}
+
+#[test]
 fn cli_wallet_arg_tests() {
     set_constants_manifest();
     let t: trybuild::TestCases = trybuild::TestCases::new();
