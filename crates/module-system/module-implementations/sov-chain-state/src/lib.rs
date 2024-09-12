@@ -15,6 +15,7 @@ use sov_modules_api::{
 mod genesis;
 pub use genesis::*;
 use serde::de::DeserializeOwned;
+use sov_modules_api::OperatingMode;
 
 /// Hook implementation for the module
 pub mod hooks;
@@ -210,15 +211,6 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
     pub const fn block_hash(&self) -> &Da::SlotHash {
         &self.slot_hash
     }
-}
-
-/// Flag indicating what mode the rollup is operating in.
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
-pub enum OperatingMode {
-    /// The rollup is currently executing in optimistic mode.
-    Optimistic,
-    /// The rollup is currently executing in zk mode.
-    Zk,
 }
 
 /// The chain state module definition. Contains the current state of the da layer.

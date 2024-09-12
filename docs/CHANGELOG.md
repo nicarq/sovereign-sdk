@@ -1,3 +1,4 @@
+- #1436 Adds `get_operating_mode` to the `FullNodeBlueprint`. This tells the rollup whether it is running in zk or optimistic mode.
 - #1432 stf_info_manager: Simplify the Db pruning logic
 - #1428 Make stf_info_manager compatible with the StorageManager workflow.
 - #1423 Adds Db pruning in the stf_info_manager.

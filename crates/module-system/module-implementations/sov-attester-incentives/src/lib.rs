@@ -21,9 +21,9 @@ pub use capabilities::{ProcessAttestationErrors, ProcessChallengeErrors};
 pub use query::*;
 pub use registration::CustomError;
 use sov_bank::{Amount, BurnRate};
-use sov_chain_state::OperatingMode;
 use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
+use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
     Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
 };

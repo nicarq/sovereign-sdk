@@ -1,10 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{KernelStateAccessor, Zkvm};
+use sov_modules_api::{KernelStateAccessor, OperatingMode, Zkvm};
 
-use crate::{ChainState, OperatingMode};
+use crate::{ChainState, TransitionHeight};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]

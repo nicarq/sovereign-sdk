@@ -1,8 +1,8 @@
 use sha2::Digest;
-use sov_chain_state::{ChainStateConfig, OperatingMode};
+use sov_chain_state::ChainStateConfig;
 use sov_kernels::basic::BasicKernelGenesisConfig;
 use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, OperatingMode, Spec};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::runtime::TokenId;

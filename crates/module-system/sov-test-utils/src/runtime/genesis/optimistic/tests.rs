@@ -3,7 +3,7 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, PrivateKey, Spec};
+use sov_modules_api::{Address, DaSpec, OperatingMode, PrivateKey, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, TxEffect};
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
@@ -85,7 +85,7 @@ fn run_value_setter_txs_with_assertions(
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
     );
-    let kernel_genesis = default_basic_kernel_genesis(sov_chain_state::OperatingMode::Optimistic);
+    let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Optimistic);
     let params = GenesisParams {
         runtime: genesis_config,
         kernel: kernel_genesis,

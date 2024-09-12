@@ -3,14 +3,14 @@ use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, RuntimeAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DaSpec, DispatchCall, RawTx, Spec};
+use sov_modules_api::{DaSpec, DispatchCall, OperatingMode, RawTx, Spec};
 use sov_state::Storage;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
 generate_bare_runtime! {
     name: TestRuntime,
     modules: [evm: Evm<S>],
-    operating_mode: sov_test_utils::runtime::OperatingMode::Zk,
+    operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>]

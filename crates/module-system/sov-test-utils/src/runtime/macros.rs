@@ -241,7 +241,7 @@ macro_rules! generate_optimistic_runtime {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
-            operating_mode: $crate::runtime::OperatingMode::Optimistic,
+            operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
@@ -257,7 +257,7 @@ macro_rules! generate_zk_runtime {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
-            operating_mode: $crate::runtime::OperatingMode::Zk,
+            operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
