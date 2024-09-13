@@ -148,8 +148,8 @@ fn try_unbond_too_early() {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
-                        reason,
-                        &ModuleError(
+                        reason.reason,
+                        ModuleError(
                             RegistrationError::<
                                 MockAddress,
                                 MockAddress,
@@ -220,8 +220,8 @@ fn try_skip_two_phase_unbonding() {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
-                        reason,
-                        &ModuleError(
+                        reason.reason,
+                        ModuleError(
                             RegistrationError::<
                                 MockAddress,
                                 MockAddress,
@@ -284,8 +284,8 @@ fn try_bond_while_unbonding() {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
-                        reason,
-                        &ModuleError(
+                        reason.reason,
+                        ModuleError(
                             RegistrationError::<
                                 MockAddress,
                                 MockAddress,

@@ -16,9 +16,8 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, Spec};
-pub use sov_modules_stf_blueprint::SkippedReason;
+pub use sov_modules_stf_blueprint::{get_gas_used, SkippedReason};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
-use sov_rollup_interface::stf::TxReceiptContents;
 
 use crate::runtime::BasicKernel;
 
@@ -131,12 +130,12 @@ pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
     }
 }
 
-/// An implementation of [`TxReceiptContents`] for testing. TestTxReceiptContents uses
+/// An implementation of [`sov_rollup_interface::stf::TxReceiptContents`] for testing. TestTxReceiptContents uses
 /// a `u32` as the receipt contents.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct TestTxReceiptContents;
 
-impl TxReceiptContents for TestTxReceiptContents {
+impl sov_rollup_interface::stf::TxReceiptContents for TestTxReceiptContents {
     type Skipped = u32;
     type Reverted = u32;
     type Successful = u32;

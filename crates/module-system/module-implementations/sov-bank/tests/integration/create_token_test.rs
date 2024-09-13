@@ -1,5 +1,4 @@
 use sov_bank::{get_token_id, Bank};
-use sov_modules_api::TxEffect;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::TestRunner;
@@ -40,7 +39,7 @@ fn create_token() {
             authorized_minters: vec![minter_address],
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
@@ -124,7 +123,7 @@ fn create_token_and_mint() {
             authorized_minters: vec![minter_address],
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],
@@ -158,7 +157,7 @@ fn create_token_and_mint() {
             mint_to_address: user_no_token_balance_address,
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1, "There should be one event emitted");
             assert_eq!(
                 result.events[0],

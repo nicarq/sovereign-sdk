@@ -4,7 +4,7 @@ use sov_bank::{Bank, BankConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, OperatingMode, PrivateKey, Spec};
-use sov_modules_stf_blueprint::{GenesisParams, TxEffect};
+use sov_modules_stf_blueprint::GenesisParams;
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -383,7 +383,7 @@ fn test_define_token_with_mint() {
             },
         ),
         assert: Box::new(move |receipt, state| {
-            assert_eq!(receipt.tx_receipt, TxEffect::Successful(()));
+            assert!(receipt.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<TestSpec>::default()

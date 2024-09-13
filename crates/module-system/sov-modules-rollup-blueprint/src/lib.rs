@@ -405,6 +405,6 @@ mod blueprint {
         type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel>;
         type Da = B::DaService;
         type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
-        type TxReceipt = TxReceiptContents;
+        type TxReceipt = TxReceiptContents<B::Spec>;
     }
 }

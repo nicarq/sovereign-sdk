@@ -288,7 +288,6 @@ mod tests {
         MockValidityCond, PlannedFork,
     };
     use sov_mock_zkvm::MockZkvm;
-    use sov_modules_stf_blueprint::TxReceiptContents;
     use sov_rollup_interface::node::da::DaServiceWithRetries;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
@@ -307,12 +306,17 @@ mod tests {
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         MockDaSpec,
     >>::StateRoot;
+    type TestTxReceiptContents = <Stf as StateTransitionFunction<
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
+        MockDaSpec,
+    >>::TxReceiptContents;
     type Witness = <Stf as StateTransitionFunction<
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         MockDaSpec,
     >>::Witness;
-    type MockSlotCommit = SlotCommit<MockBlock, Witness, TxReceiptContents>;
+    type MockSlotCommit = SlotCommit<MockBlock, Witness, TestTxReceiptContents>;
     type TestStateManager =
         StateManager<StateRoot, Witness, NativeStorageManager<MockDaSpec, ProverStorage<S>>, Da>;
 

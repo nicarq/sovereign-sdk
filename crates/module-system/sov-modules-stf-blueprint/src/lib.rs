@@ -8,7 +8,7 @@ mod batch_processing;
 mod proof_processing;
 #[cfg(feature = "test-utils")]
 mod utils;
-pub use batch_processing::{process_tx, BatchReceipt, TransactionReceipt};
+pub use batch_processing::{get_gas_used, process_tx, BatchReceipt, TransactionReceipt};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
@@ -81,16 +81,46 @@ pub enum SkippedReason {
     CannotResolveContext(String),
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error)]
+/// The contents of the receipt for a reverted transaction
+pub struct RevertedTxContents<S: Spec> {
+    /// The gas consumed by the transaction
+    pub gas_used: S::Gas,
+    /// The reason the tx reverted.
+    pub reason: Error,
+}
+
+impl<S: Spec> PartialEq for RevertedTxContents<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.gas_used == other.gas_used && self.reason == other.reason
+    }
+}
+impl<S: Spec> Eq for RevertedTxContents<S> {}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error)]
+/// The contents of the receipt for a successful transaction
+pub struct SuccessfulTxContents<S: Spec> {
+    /// The gas consumed by the transaction
+    pub gas_used: S::Gas,
+}
+
+impl<S: Spec> PartialEq for SuccessfulTxContents<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.gas_used == other.gas_used
+    }
+}
+impl<S: Spec> Eq for SuccessfulTxContents<S> {}
+
 /// The effect of a transaction using the STF blueprint.
-pub type TxEffect = sov_rollup_interface::stf::TxEffect<TxReceiptContents>;
+pub type TxEffect<S> = sov_rollup_interface::stf::TxEffect<TxReceiptContents<S>>;
 /// The effect of a batch using the STF blueprint.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct TxReceiptContents;
+pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
 
-impl sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents {
-    type Reverted = Error;
+impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents<S> {
+    type Reverted = RevertedTxContents<S>;
     type Skipped = SkippedReason;
-    type Successful = ();
+    type Successful = SuccessfulTxContents<S>;
 }
 
 /// The result of applying a transaction to the state.
@@ -100,7 +130,7 @@ pub struct ApplyTxResult<S: Spec> {
     /// The transaction scratchpad following the application of the transaction.
     pub tx_scratchpad: TxScratchpad<S::Storage>,
     /// The transaction receipt.
-    pub receipt: TransactionReceipt,
+    pub receipt: TransactionReceipt<S>,
     /// The amount of gas tokens that the sequencer should be rewarded.
     pub sequencer_reward: SequencerReward,
 }
@@ -279,7 +309,7 @@ where
     type PreState = S::Storage;
     type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
-    type TxReceiptContents = TxReceiptContents;
+    type TxReceiptContents = TxReceiptContents<S>;
 
     type BatchReceiptContents = BatchSequencerReceipt<Da>;
 

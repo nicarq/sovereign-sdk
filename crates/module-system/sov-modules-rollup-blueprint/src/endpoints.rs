@@ -37,7 +37,7 @@ where
             // or use some associated type.
             // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
             <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult,
-            TxReceiptContents,
+            TxReceiptContents<B::Spec>,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), "/ledger");
         endpoints.axum_router = endpoints

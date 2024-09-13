@@ -4,7 +4,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, GasArray, KernelStateAccessor, Spec, VersionReader};
 use sov_test_utils::runtime::TestApplySlotOutput;
-use sov_test_utils::{AsUser, BatchType, TestUser};
+use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
 
 use crate::{setup, TestChainStateRuntime, S};
@@ -65,9 +65,7 @@ fn test_chain_state_update_gas_used() {
             let expected_gas_consumed_batch = result.batch_receipts[0].tx_receipts.iter().fold(
                 <<S as Spec>::Gas as Gas>::zero(),
                 |mut acc, tx_receipt| {
-                    acc.combine(&<<S as Spec>::Gas as GasArray>::from_slice(
-                        &tx_receipt.gas_used,
-                    ));
+                    acc.combine(&get_gas_used(tx_receipt));
                     acc
                 },
             );

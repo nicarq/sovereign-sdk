@@ -5,7 +5,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, Spec, TxEffect};
 use sov_state::ProverStorage;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::runtime::{assert_tx_reverted_with_reason, TestRunner};
 use sov_test_utils::{
     generate_optimistic_runtime, AsUser, MockDaSpec, TestStorageSpec, TestUser, TransactionTestCase,
 };
@@ -75,7 +75,7 @@ fn mint_succeeds() {
         input: external_user
             .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -110,12 +110,9 @@ fn cannot_mint_twice() {
         input: external_user
             .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(
+            assert_tx_reverted_with_reason(
                 result.tx_receipt,
-                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
-                    "Token with id {} already exists",
-                    NFT_ID
-                )))
+                anyhow::anyhow!("Token with id {} already exists", NFT_ID),
             );
         }),
     });
@@ -141,7 +138,7 @@ fn transfer_succeeds() {
             to: external_user.address(),
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -172,7 +169,8 @@ fn admin_cannot_transfer_token() {
             to: admin.address(),
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 assert_eq!(
                     err.to_string(),
                     "Only token owner can transfer token",
@@ -199,13 +197,9 @@ fn other_token_user_cannot_transfer_token() {
             to: owner_1.address(),
         }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(
+            assert_tx_reverted_with_reason(
                 result.tx_receipt,
-                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
-                    "Only token owner can transfer token"
-                ))),
-                "The transaction should have reverted, instead the outcome was {:?}",
-                result.tx_receipt
+                anyhow::anyhow!("Only token owner can transfer token"),
             );
         }),
     });
@@ -223,14 +217,9 @@ fn cannot_transfer_non_existent_token() {
             to: owner_0.address(),
         }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(
+            assert_tx_reverted_with_reason(
                 result.tx_receipt,
-                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
-                    "Token with id {} does not exist",
-                    NFT_ID
-                ))),
-                "The transaction should have reverted, instead the outcome was {:?}",
-                result.tx_receipt
+                anyhow::anyhow!("Token with id {} does not exist", NFT_ID),
             );
         }),
     });
@@ -246,7 +235,7 @@ fn burn_succeeds() {
         input: owner_0
             .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -272,13 +261,9 @@ fn only_owner_can_burn() {
         input: owner_1
             .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(
+            assert_tx_reverted_with_reason(
                 result.tx_receipt,
-                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
-                    "Only token owner can burn token"
-                ))),
-                "The transaction should have reverted, instead the outcome was {:?}",
-                result.tx_receipt
+                anyhow::anyhow!("Only token owner can burn token"),
             );
         }),
     });
@@ -293,14 +278,9 @@ fn cannot_burn_non_existent_token() {
         input: owner_0
             .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(
+            assert_tx_reverted_with_reason(
                 result.tx_receipt,
-                TxEffect::Reverted(Error::ModuleError(anyhow::anyhow!(
-                    "Token with id {} does not exist",
-                    NFT_ID
-                ))),
-                "The transaction should have reverted, instead the outcome was {:?}",
-                result.tx_receipt
+                anyhow::anyhow!("Token with id {} does not exist", NFT_ID),
             );
         }),
     });

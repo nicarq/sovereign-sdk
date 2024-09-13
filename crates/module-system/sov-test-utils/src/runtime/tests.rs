@@ -5,7 +5,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{DaSpec, GasArray, GasUnit};
-use sov_modules_stf_blueprint::{SkippedReason, TxEffect};
+use sov_modules_stf_blueprint::SkippedReason;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -239,7 +239,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(priority_fee_bips),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<S>::default()
@@ -291,7 +291,7 @@ fn test_default_transaction_details_works() {
         input: admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<S>::default()

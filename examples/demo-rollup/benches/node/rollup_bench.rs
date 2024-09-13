@@ -95,8 +95,8 @@ fn build_send_tx(sender: &TestUser<BenchSpec>, nonce: u64, token_id: TokenId) ->
     )
 }
 
-fn assert_batch_receipts(
-    batch_receipts: &[BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>],
+fn assert_batch_receipts<S: Spec>(
+    batch_receipts: &[BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents<S>>],
 ) {
     for batch in batch_receipts {
         if let BatchSequencerOutcome::Rewarded(r) = batch.inner.outcome {

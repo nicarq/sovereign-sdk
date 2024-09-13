@@ -23,8 +23,6 @@ pub struct TransactionReceipt<T: TxReceiptContents> {
     /// Any additional structured data to be saved in the database and served over RPC
     /// For example, this might contain a status code.
     pub receipt: TxEffect<T>,
-    /// Total gas incurred for this transaction. This does not include the priority fee.
-    pub gas_used: Vec<u64>,
 }
 
 /// The outcome of a transaction.

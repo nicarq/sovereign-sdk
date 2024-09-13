@@ -97,7 +97,7 @@ where
         mut ctx: BatchConstructionContext<S>,
     ) -> (
         BatchConstructionContext<S>,
-        Result<Option<TransactionReceipt>, TxProcessingErrorReason>,
+        Result<Option<TransactionReceipt<S>>, TxProcessingErrorReason>,
     ) {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
