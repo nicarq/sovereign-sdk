@@ -3,6 +3,8 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::extract::Request;
+use axum::ServiceExt;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
@@ -16,6 +18,8 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
 use tokio::sync::{mpsc, watch};
+use tower_http::normalize_path::NormalizePathLayer;
+use tower_layer::Layer;
 use tracing::{debug, error, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
@@ -328,7 +332,11 @@ where
 
         tokio::spawn(async move {
             info!(%rest_address, "Starting REST API server");
-            axum::serve(listener, router).await.unwrap();
+            let router = NormalizePathLayer::trim_trailing_slash().layer(router);
+
+            axum::serve(listener, ServiceExt::<Request>::into_make_service(router))
+                .await
+                .unwrap();
         });
 
         Ok(rest_address)

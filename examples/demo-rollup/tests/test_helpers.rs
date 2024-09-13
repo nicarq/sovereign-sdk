@@ -8,16 +8,18 @@ use sha2::Sha256;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::MockDemoRollup;
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
-use sov_mock_da::MockDaConfig;
+use sov_mock_da::storable::service::StorableMockDaService;
+use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
+use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::FairBatchBuilderConfig;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
     SequencerConfig, StorageConfig,
 };
-use tokio::sync::oneshot;
+use sov_test_utils::ApiClient;
 use tokio::task::JoinHandle;
 
 const PROVER_ADDRESS: &str = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx";
@@ -104,8 +106,8 @@ pub async fn construct_rollup(
 }
 
 pub async fn start_rollup_in_background(
-    rpc_reporting_channel: oneshot::Sender<SocketAddr>,
-    rest_reporting_channel: oneshot::Sender<SocketAddr>,
+    rpc_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
+    rest_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
@@ -140,5 +142,58 @@ pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {
         RollupProverConfig::Skip
     } else {
         RollupProverConfig::Execute
+    }
+}
+
+pub struct TestRollup {
+    pub rollup_task: JoinHandle<()>,
+    pub client: ApiClient,
+    pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+}
+
+impl TestRollup {
+    pub async fn create_test_rollup(
+        rollup_prover_config: RollupProverConfig,
+        block_producing: BlockProducingConfig,
+        finalization_blocks: u32,
+    ) -> anyhow::Result<TestRollup> {
+        let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
+        let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
+
+        // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
+        // Otherwise batches are going to be rejected
+        let sequencer_address = MockAddress::new([0; 32]);
+        let block_time_ms = 10_000;
+        let storable_mock_da_connection_string = "sqlite::memory:".to_string();
+
+        let mock_da_config = MockDaConfig {
+            connection_string: storable_mock_da_connection_string,
+            sender_address: sequencer_address,
+            finalization_blocks,
+            block_producing,
+            block_time_ms,
+        };
+
+        let (rollup_task, da_service) = start_rollup_in_background(
+            rpc_port_tx,
+            rest_port_tx,
+            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+            BasicKernelGenesisPaths {
+                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            },
+            rollup_prover_config,
+            mock_da_config,
+        )
+        .await;
+
+        let rpc_port = rpc_port_rx.await?.port();
+        let rest_port = rest_port_rx.await?.port();
+        let client = ApiClient::new(rpc_port, rest_port).await?;
+
+        Ok(TestRollup {
+            rollup_task,
+            client,
+            da_service,
+        })
     }
 }

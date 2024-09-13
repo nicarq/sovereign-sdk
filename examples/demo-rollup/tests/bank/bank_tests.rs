@@ -12,7 +12,7 @@ use sov_test_utils::{ApiClient, TestSpec};
 use super::helpers::*;
 use super::TxSender;
 use crate::bank::{DaLayerTxSender, SequencerTxSender, TOKEN_NAME, TOKEN_SALT};
-use crate::test_helpers::get_appropriate_rollup_prover_config;
+use crate::test_helpers::{get_appropriate_rollup_prover_config, TestRollup};
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
 
@@ -24,9 +24,9 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
     };
 
     let test_rollup = TestRollup::create_test_rollup(
-        &test_case,
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
     )
     .await?;
 
@@ -48,9 +48,9 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
         finalization_blocks: 2,
     };
     let test_rollup = TestRollup::create_test_rollup(
-        &test_case,
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
     )
     .await?;
 
@@ -73,9 +73,9 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow
     };
 
     let test_rollup = TestRollup::create_test_rollup(
-        &test_case,
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
     )
     .await?;
 
@@ -104,7 +104,7 @@ async fn send_test_bank_txs(
     )
     .await?;
 
-    let mut aggrgeated_proofs_posted_to_da_subscription =
+    let mut aggregated_proofs_posted_to_da_subscription =
         da_service.da_service().subscribe_proof_posted();
 
     let mut aggregated_proof_subscription = client
@@ -130,10 +130,7 @@ async fn send_test_bank_txs(
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
 
     if test_case.wait_for_aggregated_proof {
-        aggrgeated_proofs_posted_to_da_subscription
-            .recv()
-            .await
-            .unwrap();
+        aggregated_proofs_posted_to_da_subscription.recv().await?;
     }
 
     assert_balance(client, 900, token_id, user_address, None).await?;

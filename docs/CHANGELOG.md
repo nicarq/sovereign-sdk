@@ -1,3 +1,4 @@
+- #1442 Makes stf-runner handle trailing slashes without throwing HTTP 404. 
 - #1438 enforces a consistent `snake_case` convention for JSON. **This requires updating the value `operating_mode` in `chain_state.json`** from `"Zk"` to `"zk"`. 
 - #1436 Adds `get_operating_mode` to the `FullNodeBlueprint`. This tells the rollup whether it is running in zk or optimistic mode.
 - #1432 stf_info_manager: Simplify the Db pruning logic

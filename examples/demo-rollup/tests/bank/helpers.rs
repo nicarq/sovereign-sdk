@@ -1,28 +1,20 @@
-use std::sync::Arc;
-
-use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
-use sov_kernels::basic::BasicKernelGenesisPaths;
-use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
+use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::rest::utils::{ErrorObject, ResponseObject};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{PrivateKey, Spec};
 use sov_modules_macros::config_value;
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
-use sov_stf_runner::RollupProverConfig;
 use sov_test_utils::{
     ApiClient, TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
-use tokio::task::JoinHandle;
 
 use super::{TOKEN_NAME, TOKEN_SALT};
-use crate::test_helpers::{read_private_keys, start_rollup_in_background};
+use crate::test_helpers::read_private_keys;
 
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
@@ -39,59 +31,6 @@ impl TestCase {
 
     pub(crate) fn get_latest_finalized_slot_after(&self, slot_number: u64) -> Option<u64> {
         slot_number.checked_sub(self.finalization_blocks as u64)
-    }
-}
-
-pub(crate) struct TestRollup {
-    pub(crate) rollup_task: JoinHandle<()>,
-    pub(crate) client: ApiClient,
-    pub(crate) da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
-}
-
-impl TestRollup {
-    pub(crate) async fn create_test_rollup(
-        test_case: &TestCase,
-        rollup_prover_config: RollupProverConfig,
-        block_producing: BlockProducingConfig,
-    ) -> anyhow::Result<TestRollup> {
-        let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
-        let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-
-        // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
-        // Otherwise batches are going to be rejected
-        let sequencer_address = MockAddress::new([0; 32]);
-        let block_time_ms = 10_000;
-        let storable_mock_da_connection_string = "sqlite::memory:".to_string();
-
-        let mock_da_config = MockDaConfig {
-            connection_string: storable_mock_da_connection_string,
-            sender_address: sequencer_address,
-            finalization_blocks: test_case.finalization_blocks,
-            block_producing,
-            block_time_ms,
-        };
-
-        let (rollup_task, da_service) = start_rollup_in_background(
-            rpc_port_tx,
-            rest_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
-            rollup_prover_config,
-            mock_da_config,
-        )
-        .await;
-
-        let rpc_port = rpc_port_rx.await.unwrap().port();
-        let rest_port = rest_port_rx.await.unwrap().port();
-        let client = ApiClient::new(rpc_port, rest_port).await?;
-
-        Ok(TestRollup {
-            rollup_task,
-            client,
-            da_service,
-        })
     }
 }
 
