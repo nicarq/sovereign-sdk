@@ -146,7 +146,7 @@ components:
               errors:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Error'
+                  $ref: "#/components/schemas/Error"
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
   schemas:
@@ -157,10 +157,9 @@ components:
         - type: boolean
         - type: array
           items:
-            $ref: "#/components/schemas/AnyJsonValue"
+            x-stainless-any: true
         - type: object
-          additionalProperties:
-            $ref: "#/components/schemas/AnyJsonValue"
+          additionalProperties: true
     Module:
       type: object
       properties:
@@ -228,3 +227,4 @@ components:
           properties:
             message:
               type: string
+

@@ -390,10 +390,9 @@ components:
         - type: boolean
         - type: array
           items:
-            $ref: "#/components/schemas/AnyJsonValue"
+            x-stainless-any: true
         - type: object
-          additionalProperties:
-            $ref: "#/components/schemas/AnyJsonValue"
+          additionalProperties: true
     Meta:
       type: object
       additionalProperties: true
