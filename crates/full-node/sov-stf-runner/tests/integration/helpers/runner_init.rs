@@ -26,7 +26,7 @@ use sov_stf_runner::{
     StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -194,42 +194,50 @@ pub async fn initialize_runner(
     let outer_vm = MockZkvm::new_non_blocking();
     let verifier = MockDaVerifier::default();
 
-    let prover_config = RollupProverConfig::Prove;
-
-    let prover_service = nb_of_prover_threads.map(|threads| {
-        ParallelProverService::new(
-            inner_vm.clone(),
-            outer_vm.clone(),
-            stf.clone(),
-            verifier,
-            prover_config,
-            // Should be ZkStorage, but we don't need it for this test
-            genesis_storage,
-            threads,
-            Default::default(),
-            Vec::<u8>::default(),
-        )
-    });
-
-    let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
-    let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
-
     let (prev_state_root, genesis_state_root) = init_variant
         .calculate_initial_state_roots(&mut ledger_db, &stf, &mut storage_manager)
         .await
         .unwrap();
 
-    let (proof_manager, st_info_sender) = ProofManager::new(
-        da_service.clone(),
-        prover_service,
-        rollup_config.proof_manager.aggregated_proof_block_jump,
-        Box::new(DummyProofSerializer::new()),
-        genesis_state_root,
-    );
+    let prover_config = RollupProverConfig::Prove;
 
-    proof_manager
-        .post_aggregated_proof_to_da_in_background()
-        .await;
+    let st_info_sender = match nb_of_prover_threads {
+        Some(threads) => {
+            let prover_service = ParallelProverService::new(
+                inner_vm.clone(),
+                outer_vm.clone(),
+                stf.clone(),
+                verifier,
+                prover_config,
+                // Should be ZkStorage, but we don't need it for this test
+                genesis_storage,
+                threads,
+                Default::default(),
+                Vec::<u8>::default(),
+            );
+
+            let (st_info_sender, st_info_receiver) = mpsc::channel(1);
+
+            let proof_manager = ProofManager::new(
+                da_service.clone(),
+                prover_service,
+                rollup_config.proof_manager.aggregated_proof_block_jump,
+                Box::new(DummyProofSerializer::new()),
+                genesis_state_root,
+                st_info_receiver,
+            );
+
+            proof_manager
+                .post_aggregated_proof_to_da_in_background()
+                .await;
+
+            Some(st_info_sender)
+        }
+        None => None,
+    };
+
+    let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
+    let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
 
     (
         StateTransitionRunner::new(
