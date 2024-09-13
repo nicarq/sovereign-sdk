@@ -6,7 +6,7 @@ use sov_test_utils::{ApiClient, TestSpec};
 use super::helpers::*;
 use super::TxSender;
 use crate::bank::{SequencerTxSender, TOKEN_NAME, TOKEN_SALT};
-use crate::test_helpers::get_appropriate_rollup_prover_config;
+use crate::test_helpers::{get_appropriate_rollup_prover_config, TestRollup};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
@@ -16,9 +16,9 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     };
 
     let test_rollup = TestRollup::create_test_rollup(
-        &test_case,
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::Periodic,
+        test_case.finalization_blocks,
     )
     .await?;
 
