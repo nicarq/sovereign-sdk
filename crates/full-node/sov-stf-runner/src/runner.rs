@@ -32,6 +32,7 @@ type GenesisParams<ST, InnerVm, OuterVm, Da> =
 type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
+#[allow(clippy::type_complexity)]
 pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
     Da: DaService,
@@ -54,7 +55,8 @@ where
     listen_address_axum: SocketAddr,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
-    st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
+    st_info_sender:
+        Option<mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>>,
 }
 
 /// The state necessary to track the sync status of the node
@@ -246,7 +248,8 @@ where
     >,
 {
     /// Creates a new [`StateTransitionRunner`].
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+
     pub async fn new(
         runner_config: RunnerConfig,
         da_service: Arc<Da>,
@@ -255,7 +258,9 @@ where
         storage_manager: Sm,
         api_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
-        st_info_sender: mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
+        st_info_sender: Option<
+            mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
+        >,
     ) -> anyhow::Result<Self> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
@@ -570,8 +575,10 @@ where
         &mut self,
         finalized_transitions: Vec<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     ) -> anyhow::Result<()> {
-        for transition_data in finalized_transitions {
-            self.st_info_sender.send(transition_data).await?;
+        if let Some(st_info_sender) = self.st_info_sender.as_ref() {
+            for transition_data in finalized_transitions {
+                st_info_sender.send(transition_data).await?;
+            }
         }
         Ok(())
     }

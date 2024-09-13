@@ -70,7 +70,7 @@ mod blueprint {
         InitVariant, ProofManager, ProverService, RollupConfig, RollupProverConfig,
         StateTransitionRunner,
     };
-    use tokio::sync::oneshot;
+    use tokio::sync::{mpsc, oneshot};
 
     use crate::RollupBlueprint;
 
@@ -241,14 +241,6 @@ mod blueprint {
                 .get_block_at(rollup_config.runner.genesis_height)
                 .await?;
 
-            let prover_service = match prover_config {
-                Some(c) => Some(
-                    self.create_prover_service(c, &rollup_config, &da_service)
-                        .await,
-                ),
-                None => None,
-            };
-
             let sequencer_db = SequencerDb::new(&rollup_config.storage.path)?;
 
             let prev_root = ledger_db
@@ -282,17 +274,31 @@ mod blueprint {
                 .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
                 .await?;
 
-            let (proof_manager, st_info_sender) = ProofManager::new(
-                da_service.clone(),
-                prover_service,
-                rollup_config.proof_manager.aggregated_proof_block_jump,
-                Box::new(Self::ProofSerializer::new()),
-                genesis_state_root,
-            );
+            let st_info_sender = match prover_config {
+                Some(config) => {
+                    let prover_service = self
+                        .create_prover_service(config, &rollup_config, &da_service)
+                        .await;
 
-            proof_manager
-                .post_aggregated_proof_to_da_in_background()
-                .await;
+                    let (st_info_sender, st_info_receiver) = mpsc::channel(1);
+
+                    let proof_manager = ProofManager::new(
+                        da_service.clone(),
+                        prover_service,
+                        rollup_config.proof_manager.aggregated_proof_block_jump,
+                        Box::new(Self::ProofSerializer::new()),
+                        genesis_state_root,
+                        st_info_receiver,
+                    );
+
+                    proof_manager
+                        .post_aggregated_proof_to_da_in_background()
+                        .await;
+
+                    Some(st_info_sender)
+                }
+                None => None,
+            };
 
             let runner = StateTransitionRunner::new(
                 rollup_config.runner,
