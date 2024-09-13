@@ -142,6 +142,7 @@ components:
       # Variable length hex string, prefix with "0x"
       pattern: "^0x[a-fA-F0-9]+$"
       description: The hash of a transaction
+      example: "0x71c7656ec7ab88b098defb751b7401b5f6d8976f"
     TxBody:
       type: string
       format: byte
