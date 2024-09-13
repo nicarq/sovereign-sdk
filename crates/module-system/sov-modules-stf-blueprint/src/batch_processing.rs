@@ -19,16 +19,17 @@ use tracing::{debug, error, info, warn};
 
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
-    ApplyTxResult, Runtime, SkippedReason, TxEffect, TxProcessingError, TxProcessingErrorReason,
-    TxReceiptContents,
+    ApplyTxResult, RevertedTxContents, Runtime, SkippedReason, SuccessfulTxContents, TxEffect,
+    TxProcessingError, TxProcessingErrorReason, TxReceiptContents,
 };
 
 /// The receipt type for a transacition using the STF blueprint.
-pub type TransactionReceipt = sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents>;
+pub type TransactionReceipt<S> =
+    sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
 
 /// The receipt for a batch using the STF blueprint.
-pub type BatchReceipt<Da> =
-    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<Da>, TxReceiptContents>;
+pub type BatchReceipt<S, Da> =
+    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<Da>, TxReceiptContents<S>>;
 
 const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
@@ -44,7 +45,7 @@ pub(crate) fn apply_batch<S, Da, RT, K>(
     height: u64,
     is_registered_sequencer: bool,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<Da>, StateCheckpoint<S::Storage>, S::Gas)
+) -> (BatchReceipt<S, Da>, StateCheckpoint<S::Storage>, S::Gas)
 where
     S: Spec,
     Da: DaSpec,
@@ -196,7 +197,6 @@ where
                                     body_to_save: None,
                                     events: Vec::new(),
                                     receipt: TxEffect::Skipped(reason),
-                                    gas_used: S::Gas::zero().to_vec(),
                                 };
 
                                 tx_receipts.push(tx_receipt);
@@ -216,7 +216,7 @@ where
             }) => {
                 checkpoint = tx_scratchpad.commit();
 
-                gas_used.combine(&S::Gas::from_slice(&receipt.gas_used));
+                gas_used.combine(&get_gas_used(&receipt));
                 tx_receipts.push(receipt);
 
                 accumulated_reward.accumulate(sequencer_reward);
@@ -564,6 +564,7 @@ where
     let (mut tx_scratchpad, receipt, transaction_consumption) = match tx_result {
         Ok(_) => {
             let (tx_scratchpad, transaction_consumption, events) = working_set.finalize();
+            let gas_used = transaction_consumption.base_fee();
 
             (
                 tx_scratchpad,
@@ -571,8 +572,9 @@ where
                     tx_hash: raw_tx_hash,
                     body_to_save: None,
                     events: convert_to_runtime_events::<S, RT, Da>(events),
-                    receipt: TxEffect::Successful(()),
-                    gas_used: transaction_consumption.base_fee().to_vec(),
+                    receipt: TxEffect::Successful(SuccessfulTxContents {
+                        gas_used: gas_used.clone(),
+                    }),
                 },
                 transaction_consumption,
             )
@@ -593,8 +595,10 @@ where
                 tx_hash: raw_tx_hash,
                 body_to_save: None,
                 events: vec![], // As in Ethereum, reverted transactions don't emit events
-                receipt: TxEffect::Reverted(error),
-                gas_used: transaction_consumption.base_fee().to_vec(),
+                receipt: TxEffect::Reverted(RevertedTxContents {
+                    gas_used: transaction_consumption.base_fee().clone(),
+                    reason: error,
+                }),
             };
 
             (tx_scratchpad, receipt, transaction_consumption)
@@ -652,4 +656,13 @@ fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
     runtime.post_dispatch_tx_hook(tx, ctx, state)?;
 
     Ok(())
+}
+
+/// Returns the gas used by a transaction from its receipt.
+pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
+    match receipt.receipt {
+        TxEffect::Successful(ref successful) => successful.gas_used.clone(),
+        TxEffect::Reverted(ref reverted) => reverted.gas_used.clone(),
+        TxEffect::Skipped(_) => S::Gas::zero(),
+    }
 }

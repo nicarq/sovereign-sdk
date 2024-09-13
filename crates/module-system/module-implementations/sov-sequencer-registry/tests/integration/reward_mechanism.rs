@@ -3,9 +3,9 @@ use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, Spec};
+use sov_modules_api::Gas;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{AsUser, SkippedReason, TransactionTestCase};
+use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TransactionTestCase};
 
 use super::helpers::S;
 use crate::helpers::{setup, TestRoles, RT};
@@ -33,15 +33,14 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
     );
 
-    let gas_consumed_last_tx = <<S as Spec>::Gas as GasArray>::from_slice(
-        &output
+    let gas_consumed_last_tx = get_gas_used(
+        output
             .batch_receipts
             .last()
             .unwrap()
             .tx_receipts
             .last()
-            .unwrap()
-            .gas_used,
+            .unwrap(),
     );
     let initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
 

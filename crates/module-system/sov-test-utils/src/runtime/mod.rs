@@ -16,12 +16,14 @@ use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::KernelSlotHooks;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Gas,
-    GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, RuntimeEventProcessor,
-    Spec, StateCheckpoint,
+    ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
+    Error, Gas, GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
+    RuntimeEventProcessor, Spec, StateCheckpoint, TxEffect,
+};
+use sov_modules_stf_blueprint::{
+    get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
-use sov_modules_stf_blueprint::{StfBlueprint, TransactionReceipt};
 pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -62,23 +64,23 @@ type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as C
 type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
-pub struct SlotReceipt<Da: DaSpec> {
-    batch_receipts: Vec<BatchReceipt<Da>>,
+pub struct SlotReceipt<S: Spec, Da: DaSpec> {
+    batch_receipts: Vec<BatchReceipt<S, Da>>,
 }
 
-impl<Da: DaSpec> SlotReceipt<Da> {
+impl<S: Spec, Da: DaSpec> SlotReceipt<S, Da> {
     /// Returns the last batch receipt in the slot receipt.
-    pub fn last_batch_receipt(&self) -> &BatchReceipt<Da> {
+    pub fn last_batch_receipt(&self) -> &BatchReceipt<S, Da> {
         self.batch_receipts.last().unwrap()
     }
 
     /// Returns the last transaction receipt in the last batch receipt of the slot receipt.
-    pub fn last_tx_receipt(&self) -> &TransactionReceipt {
+    pub fn last_tx_receipt(&self) -> &TransactionReceipt<S> {
         self.last_batch_receipt().tx_receipts.last().unwrap()
     }
 
     /// Returns the batch receipts contained in the slot receipt.
-    pub fn batch_receipts(&self) -> &[BatchReceipt<Da>] {
+    pub fn batch_receipts(&self) -> &[BatchReceipt<S, Da>] {
         &self.batch_receipts
     }
 }
@@ -97,7 +99,7 @@ pub struct TestRunnerWithKernel<
 > {
     stf: StfBlueprint<S, MockDaSpec, RT, K>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    slot_receipts: Vec<SlotReceipt<MockDaSpec>>,
+    slot_receipts: Vec<SlotReceipt<S, MockDaSpec>>,
     state_root: <S::Storage as Storage>::Root,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     /// Test runner configuration.
@@ -118,7 +120,7 @@ type TestApplySlotOutputWithKernel<RT, K, S> = ApplySlotOutput<
 /// The output of the runner
 pub struct RunnerOutput<S: Spec> {
     /// The slot receipt emitted at the end of the slot execution
-    pub receipt: SlotReceipt<MockDaSpec>,
+    pub receipt: SlotReceipt<S, MockDaSpec>,
     /// The change set containing the delta of the state after the slot execution
     pub change_set: NativeChangeSet,
     /// The root of the state after the slot execution
@@ -164,7 +166,7 @@ where
     }
 
     /// Returns the slot receipts accumulated by the state runner
-    pub fn receipts(&self) -> &Vec<SlotReceipt<MockDaSpec>> {
+    pub fn receipts(&self) -> &Vec<SlotReceipt<S, MockDaSpec>> {
         &self.slot_receipts
     }
 
@@ -474,10 +476,10 @@ where
         let result = self.execute(transaction_test.input);
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
-        let gas_used = <S as Spec>::Gas::from_slice(&tx_receipt.gas_used);
+        let gas_used = get_gas_used(&tx_receipt);
         let gas_price =
             <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(&batch_receipt.gas_price);
-        let ctx = TransactionAssertContext::from_receipt::<S, MockDaSpec>(
+        let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,
             gas_used.value(&gas_price),
         );
@@ -535,5 +537,25 @@ where
         (proof_test.assert)(ctx, &mut self.current_state());
 
         self
+    }
+}
+
+/// Assert that a transaction reverted for the expected reason.
+pub fn assert_tx_reverted_with_reason<S: Spec>(
+    result: TxEffect<TxReceiptContents<S>>,
+    reason: anyhow::Error,
+) {
+    if let TxEffect::Reverted(contents) = result {
+        assert_eq!(
+            &contents.reason,
+            &Error::ModuleError(reason),
+            "The transaction should have reverted because instead the outcome was {:?}",
+            contents
+        );
+    } else {
+        panic!(
+            "The transaction should have reverted because {}, instead the outcome was {:?}",
+            reason, result
+        );
     }
 }

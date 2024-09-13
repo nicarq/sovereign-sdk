@@ -1,10 +1,10 @@
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GasArray, Spec, VersionReader};
+use sov_modules_api::VersionReader;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_optimistic_runtime, AsUser, TestUser};
+use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser, TestUser};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 type S = sov_test_utils::TestSpec;
@@ -91,9 +91,7 @@ fn test_chain_state_gas_updates() {
             "The genesis hash should be set"
         );
 
-        let gas_consumed = <<S as Spec>::Gas as GasArray>::from_slice(
-            &output.batch_receipts[0].tx_receipts[0].gas_used,
-        );
+        let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S, MockDaSpec>::default()
             .get_in_progress_transition_prev_slot(kernel)

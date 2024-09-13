@@ -47,7 +47,7 @@ pub fn last_slot_receipts<
 >(
     runner: &TestRunner<K>,
     k: usize,
-) -> &[SlotReceipt<MockDaSpec>] {
+) -> &[SlotReceipt<S, MockDaSpec>] {
     assert!(
         k <= runner.receipts().len(),
         "k must be less than or equal to the number of slots. k={}, number of slots={}",
@@ -59,7 +59,7 @@ pub fn last_slot_receipts<
 
 /// Formats a batch receipt into a tuple of (batch_hash, sender) used for testing the blob storage.
 fn format_batch_receipts(
-    batch_receipts: &[BatchReceipt<MockDaSpec>],
+    batch_receipts: &[BatchReceipt<S, MockDaSpec>],
 ) -> Vec<([u8; 32], <MockDaSpec as DaSpec>::Address)> {
     batch_receipts
         .iter()

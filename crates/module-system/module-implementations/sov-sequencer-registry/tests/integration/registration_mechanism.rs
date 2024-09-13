@@ -147,8 +147,8 @@ fn test_registration_not_enough_funds() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::InsufficientFundsToRegister {
                             address: additional_sequencer_address,
                             amount: amount_to_register,
@@ -194,8 +194,8 @@ fn test_registration_second_time() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::AlreadyRegistered(other_sequencer_address)
                             .into(),
                     ),
@@ -297,8 +297,8 @@ fn cannot_exit_with_own_batch() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::Custom(
                             CustomError::CannotUnregisterDuringOwnBatch(
                                 default_sequencer.da_address,
@@ -351,8 +351,8 @@ fn test_exit_different_sender_fails() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::Custom(
                             CustomError::SuppliedAddressDoesNotMatchTxSender {
                                 parameter: second_sequencer.address(),
@@ -457,8 +457,8 @@ fn test_balance_increase_fails_if_insufficient_funds() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::InsufficientFundsToTopUpAccount {
                             address: default_sequencer_address,
                             amount_to_add: default_sequencer_balance + TEST_DEFAULT_USER_STAKE,
@@ -532,8 +532,8 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
                 assert_eq!(
-                    reason,
-                    &ModuleError(
+                    reason.reason,
+                    ModuleError(
                         TestSequencerRegistryError::IsNotRegistered(MockAddress::from(
                             NON_DEFAULT_SEQUENCER_DA_ADDRESS,
                         ))

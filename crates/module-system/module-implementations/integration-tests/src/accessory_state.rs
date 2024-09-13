@@ -6,7 +6,7 @@ use sov_modules_api::{
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_optimistic_runtime, AsUser};
+use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser};
 
 type S = sov_test_utils::TestSpec;
 
@@ -103,9 +103,8 @@ fn test_accessory_value_setter() {
     let root_hash_with_update = result_with_update
         .state_root
         .namespace_root(ProvableNamespace::User);
-    let gas_consumed_with_update = result_with_update.batch_receipts[0].tx_receipts[0]
-        .gas_used
-        .clone();
+    let gas_consumed_with_update =
+        get_gas_used(&result_with_update.batch_receipts[0].tx_receipts[0]);
 
     let (result_without_update, _) =
         runner.simulate(user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)));
@@ -113,9 +112,8 @@ fn test_accessory_value_setter() {
     let root_hash_without_update = result_without_update
         .state_root
         .namespace_root(ProvableNamespace::User);
-    let gas_consumed_without_update = result_without_update.batch_receipts[0].tx_receipts[0]
-        .gas_used
-        .clone();
+    let gas_consumed_without_update =
+        get_gas_used(&result_without_update.batch_receipts[0].tx_receipts[0]);
 
     assert_eq!(
         gas_consumed_with_update, gas_consumed_without_update,

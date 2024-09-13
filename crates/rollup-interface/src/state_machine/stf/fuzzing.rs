@@ -131,24 +131,19 @@ where
                 tx_body_strategy,
                 proptest::collection::vec(any::<StoredEvent>(), 0..args.max_events),
                 any::<TxEffect<T>>(),
-                proptest::collection::vec(any::<u64>(), 0..args.gas_unit_dimensions),
             )
-                .prop_map(
-                    move |(tx_hash, body_to_save, events, receipt, mut gas_used)| {
-                        let tx_hash = match (args.hasher.as_ref(), body_to_save.as_ref()) {
-                            (Some(hasher), Some(body)) => TxHash::new(hasher.hash(body)),
-                            _ => tx_hash,
-                        };
-                        gas_used.resize(args.gas_unit_dimensions, 0);
-                        Self {
-                            tx_hash,
-                            body_to_save,
-                            events,
-                            receipt,
-                            gas_used,
-                        }
-                    },
-                )
+                .prop_map(move |(tx_hash, body_to_save, events, receipt)| {
+                    let tx_hash = match (args.hasher.as_ref(), body_to_save.as_ref()) {
+                        (Some(hasher), Some(body)) => TxHash::new(hasher.hash(body)),
+                        _ => tx_hash,
+                    };
+                    Self {
+                        tx_hash,
+                        body_to_save,
+                        events,
+                        receipt,
+                    }
+                })
                 .boxed()
         }
     }

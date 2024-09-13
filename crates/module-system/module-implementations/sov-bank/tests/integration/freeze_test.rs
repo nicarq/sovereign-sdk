@@ -22,7 +22,7 @@ fn freeze_token_happy_path() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -45,7 +45,8 @@ fn freeze_token_happy_path() {
             mint_to_address: minter_address,
         }),
         assert: Box::new(move |result, _| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -85,7 +86,7 @@ fn freeze_another_time_fails() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
         }),
     });
 
@@ -93,7 +94,8 @@ fn freeze_another_time_fails() {
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -133,7 +135,8 @@ fn unauthorized_minter_cannot_freeze_token() {
         input: unauthorized_user
             .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();

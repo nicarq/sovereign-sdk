@@ -9,7 +9,7 @@ use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
 use tracing::{debug, info};
 
-use crate::batch_processing::{apply_batch, BatchReceipt};
+use crate::batch_processing::{apply_batch, get_gas_used, BatchReceipt};
 use crate::proof_processing::process_proof;
 use crate::Runtime;
 /// An implementation of the
@@ -72,7 +72,7 @@ where
         visible_height: u64,
         is_registered_sequencer: bool,
         execution_context: ExecutionContext,
-    ) -> (StateCheckpoint<S::Storage>, BatchReceipt<Da>, S::Gas) {
+    ) -> (StateCheckpoint<S::Storage>, BatchReceipt<S, Da>, S::Gas) {
         let (batch_receipt, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
             &self.runtime,
             checkpoint,
@@ -115,7 +115,7 @@ where
                 tx_idx = i,
                 tx_hash = hex::encode(tx_receipt.tx_hash),
                 receipt = ?tx_receipt.receipt,
-                gas_used = ?tx_receipt.gas_used,
+                gas_used = ?get_gas_used(tx_receipt),
                 "Tx receipt"
             );
         }

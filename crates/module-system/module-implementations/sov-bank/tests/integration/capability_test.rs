@@ -2,7 +2,7 @@ use sov_bank::{Bank, Coins, ReserveGasErrorReason, GAS_TOKEN_ID};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasArray, GasUnit, Spec, TxEffect};
-use sov_test_utils::{AsUser, SkippedReason, TestUser, TransactionTestCase};
+use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TestUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestData};
 
@@ -41,7 +41,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<S>::default()
@@ -92,15 +92,14 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
     );
 
     // From the simulation result we can compute the gas used value.
-    let gas_used_simulation = <S as Spec>::Gas::from_slice(
-        &simulation_result
+    let gas_used_simulation = get_gas_used(
+        simulation_result
             .batch_receipts
             .last()
             .unwrap()
             .tx_receipts
             .last()
-            .unwrap()
-            .gas_used,
+            .unwrap(),
     );
 
     let gas_price_simulation = <<S as Spec>::Gas as Gas>::Price::from_slice(
@@ -127,7 +126,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
             .with_max_fee(gas_used_value_simulation)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<S>::default()
@@ -176,7 +175,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
             .with_max_fee(sender_balance)
             .with_max_priority_fee_bips(PRIORITY_FEE),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(
                 Bank::<S>::default()

@@ -5,7 +5,7 @@ use sov_bank::Coins;
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{Gas, GasArray, Spec, TxEffect};
+use sov_modules_api::{Gas, GasArray, Spec};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::{Bank, TestRunner};
@@ -103,7 +103,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
             })
             .with_max_fee(u64::MAX / 2),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert!(
                 result.gas_value_used
@@ -152,7 +152,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
             })
             .with_max_fee(u64::MAX / 2),
         assert: Box::new(move |result, _| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert!(
                 result.gas_value_used

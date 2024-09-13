@@ -25,8 +25,12 @@ use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint, TestStorageManager};
 
-type TestSequencerSpec<B> =
-    GenericSequencerSpec<B, MockDaService, BatchReceipt<MockDaSpec>, TxReceiptContents>;
+type TestSequencerSpec<B> = GenericSequencerSpec<
+    B,
+    MockDaService,
+    BatchReceipt<TestSpec, MockDaSpec>,
+    TxReceiptContents<TestSpec>,
+>;
 
 /// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions.
 pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;

@@ -125,7 +125,7 @@ pub struct StoredTransaction {
     pub events: std::ops::Range<EventNumber>,
     /// The serialized transaction data, if the rollup decides to store it.
     pub body: Option<Vec<u8>>,
-    /// A customer "receipt" for this transaction defined by the rollup.
+    /// A custom "receipt" for this transaction defined by the rollup.
     pub receipt: DbBytes,
     /// This transaction's parent batch number.
     pub batch_number: BatchNumber,

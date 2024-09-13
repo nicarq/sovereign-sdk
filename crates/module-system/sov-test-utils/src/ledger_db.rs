@@ -38,7 +38,6 @@ pub async fn materialize_simple_ledger_db_data(
         body_to_save: Some(b"tx-body".to_vec()),
         events: events(),
         receipt: TxEffect::Successful(0),
-        gas_used: vec![0, 1, u64::MAX],
     }];
 
     slot.add_batch(BatchReceipt {
@@ -126,7 +125,6 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                     body_to_save: Some(b"tx1 body".to_vec()),
                     events: vec![],
                     receipt: TxEffect::Successful(0),
-                    gas_used: vec![0, 0],
                 },
                 TransactionReceipt::<TestTxReceiptContents> {
                     tx_hash: sha2::Sha256::digest(b"tx2").into(),
@@ -136,7 +134,6 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                         StoredEvent::new("event2_key".as_bytes(), "event2_value".as_bytes()),
                     ],
                     receipt: TxEffect::Successful(1),
-                    gas_used: vec![2, 3],
                 },
             ],
             inner: 0,
@@ -193,7 +190,6 @@ fn batch2_tx_receipts() -> Vec<TransactionReceipt<TestTxReceiptContents>> {
             body_to_save: Some(b"tx body".to_vec()),
             events: vec![],
             receipt: TxEffect::Skipped(0),
-            gas_used: vec![0, 0],
         })
         .collect()
 }

@@ -6,7 +6,7 @@ use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, FullyBakedTx, Spec,
 };
-use sov_modules_stf_blueprint::{StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -236,7 +236,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
         let tx_receipt = &batch_receipt.tx_receipts;
 
         assert_eq!(1, tx_receipt.len());
-        assert_eq!(tx_receipt[0].receipt, TxEffect::Successful(()));
+        assert!(tx_receipt[0].receipt.is_successful());
     }
 
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();

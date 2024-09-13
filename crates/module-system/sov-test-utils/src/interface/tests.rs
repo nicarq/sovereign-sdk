@@ -4,7 +4,7 @@ use sov_modules_api::{
     ApiStateAccessor, BatchReceipt, BatchSequencerReceipt, DaSpec, Module, ProofReceipt,
     RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
 };
-use sov_modules_stf_blueprint::TxReceiptContents;
+pub use sov_modules_stf_blueprint::TxReceiptContents;
 use sov_state::{Storage, StorageProof};
 
 use super::{BatchType, ProofInput, TransactionType};
@@ -12,7 +12,7 @@ use super::{BatchType, ProofInput, TransactionType};
 type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S>)>;
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
-pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
+pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {
     /// The gas used to execute the transaction.
     pub gas_value_used: u64,
     /// The events raised by the transaction.
@@ -34,13 +34,13 @@ pub struct TransactionAssertContext<RT: RuntimeEventProcessor> {
     ///
     pub events: Vec<RT::RuntimeEvent>,
     /// The outcome of the transaction.
-    pub tx_receipt: TxEffect<TxReceiptContents>,
+    pub tx_receipt: TxEffect<TxReceiptContents<S>>,
 }
 
-impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
+impl<S: Spec, RT: RuntimeEventProcessor> TransactionAssertContext<S, RT> {
     /// Creates a [`TransactionAssertContext`] from the given [`TransactionReceipt`].
-    pub fn from_receipt<S: Spec, Da: DaSpec>(
-        receipt: TransactionReceipt<TxReceiptContents>,
+    pub fn from_receipt<Da: DaSpec>(
+        receipt: TransactionReceipt<TxReceiptContents<S>>,
         gas_value_used: u64,
     ) -> Self {
         let events = receipt
@@ -62,7 +62,7 @@ impl<RT: RuntimeEventProcessor> TransactionAssertContext<RT> {
 }
 
 /// A closure used to assert the outcome of a [`TransactionTestCase`].
-pub type TransactionTestAssert<S, RT> = TestAssertion<TransactionAssertContext<RT>, S>;
+pub type TransactionTestAssert<S, RT> = TestAssertion<TransactionAssertContext<S, RT>, S>;
 
 /// A test case that applies the provided input and asserts the result.
 pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
@@ -74,18 +74,19 @@ pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
 }
 
 /// Context that is passed to [`BatchTestCase::assert`] to check the outcome of a test.
-pub struct BatchAssertContext<Da: DaSpec> {
+pub struct BatchAssertContext<S: Spec, Da: DaSpec> {
     /// The DA address of the sender of the batch.
     pub sender_da_address: Da::Address,
     /// The outcome of the batch submission
     ///
     /// This can be [`None`] if the batch was dropped before it was executed,
     /// this can happen if the sender was not a registered sequencer.
-    pub batch_receipt: Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents>>,
+    pub batch_receipt:
+        Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents<S>>>,
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].
-pub type BatchTestAssert<S, Da> = TestAssertion<BatchAssertContext<Da>, S>;
+pub type BatchTestAssert<S, Da> = TestAssertion<BatchAssertContext<S, Da>, S>;
 
 /// A test case that applies the provided batch input and asserts the result.
 pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {

@@ -78,7 +78,7 @@ pub fn new_test_blob_for_direct_registration(
 }
 
 /// Checks if the given [`BatchReceipt`] contains any events.
-pub fn has_tx_events<Da: DaSpec>(apply_blob_outcome: &BatchReceipt<Da>) -> bool {
+pub fn has_tx_events<S: Spec, Da: DaSpec>(apply_blob_outcome: &BatchReceipt<S, Da>) -> bool {
     let events = apply_blob_outcome
         .tx_receipts
         .iter()

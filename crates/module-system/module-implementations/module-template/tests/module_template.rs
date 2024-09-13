@@ -1,6 +1,5 @@
 use module_template::{CallMessage, ExampleModule, ExampleModuleConfig, Response};
 use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
-use sov_modules_api::TxEffect;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, AsUser, TransactionTestCase};
@@ -29,7 +28,7 @@ fn test_example_module() {
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<ExampleModule<S>>(CallMessage::SetValue(99)),
         assert: Box::new(|result, _state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             assert_eq!(result.events.len(), 1);
             assert_eq!(

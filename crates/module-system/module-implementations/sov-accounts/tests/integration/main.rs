@@ -84,7 +84,7 @@ fn test_update_account() {
         input: user
             .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             let accounts = Accounts::<S>::default();
 
@@ -124,7 +124,8 @@ fn test_update_account_fails() {
             account_2.credential_id(),
         )),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 assert_eq!(err.to_string(), "New CredentialId already exists");
             }
         }),
@@ -160,7 +161,7 @@ fn test_register_new_account() {
         input: non_registered_account
             .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
 
             let accounts = Accounts::<S>::default();
 

@@ -39,7 +39,7 @@ fn transfer_token_happy_path() {
             },
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -101,7 +101,8 @@ fn transfer_balance_too_low() {
             },
         }),
         assert: Box::new(move |result, state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -170,7 +171,8 @@ fn transfer_non_existent_token() {
             },
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -221,7 +223,8 @@ fn transfer_sender_does_not_have_balance() {
             },
         }),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Reverted(Error::ModuleError(err)) = result.tx_receipt {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
                 let mut chain = err.chain();
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
@@ -277,7 +280,7 @@ fn transfer_receiver_does_not_have_balance() {
             },
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -332,7 +335,7 @@ fn transfer_sender_equals_receiver() {
             },
         }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -375,7 +378,7 @@ fn transfer_send_zero_amount() {
             },
         }),
         assert: Box::new(move |result, _state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],
@@ -420,7 +423,7 @@ fn test_transfer_gas_token() {
             },
         }),
         assert: Box::new(move |result, state| {
-            assert_eq!(result.tx_receipt, TxEffect::Successful(()));
+            assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
             assert_eq!(
                 result.events[0],

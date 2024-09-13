@@ -67,7 +67,7 @@ fn test_setting_value_not_admin() {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {
                     assert_eq!(
-                        reason,
+                        &reason.reason,
                         &ModuleError(SetValueError::WrongSender.into()),
                         "Transaction reverted, but with unexpected reason"
                     );
