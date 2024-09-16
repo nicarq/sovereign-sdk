@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{
     ApiStateAccessor, CryptoSpec, EncodeCall, FullyBakedTx, Module, PrivateKey, RawTx, Spec,
@@ -12,7 +12,7 @@ use crate::FromState;
 
 /// Defines the type of a message that can be sent to the runtime.
 pub enum TransactionType<M: Module, S: Spec> {
-    /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as RuntimeAuthenticator>::Input` type.
+    /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as TransactionAuthenticator>::Input` type.
     PreAuthenticated(FullyBakedTx),
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
     PreSigned(RawTx),
@@ -126,7 +126,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
 
     /// Converts a [`TransactionType`] into a serialized authenticated transaction ready to be passed
     /// to the runtime.
-    pub fn to_serialized_authenticated_tx<RT: EncodeCall<M> + RuntimeAuthenticator<S>>(
+    pub fn to_serialized_authenticated_tx<RT: EncodeCall<M> + TransactionAuthenticator<S>>(
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
         state: &mut ApiStateAccessor<S>,

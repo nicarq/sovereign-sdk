@@ -1,3 +1,4 @@
+- #1450 Renames two related traits: `RuntimeAuthorization` becomes `TransactionAuthorizer`; `RuntimeAuthentiation` beomces `TransactionAuthenticator`. The `runtime_authorization` method on the `HasCapabilities` trait is also renamed to `transaction_authorizer`. 
 - #1443 Move StateTransitionInfo channel creation to `FullNodeBlueprint`.
 - #1442 Makes stf-runner handle trailing slashes without throwing HTTP 404. 
 - #1438 enforces a consistent `snake_case` convention for JSON. **This requires updating the value `operating_mode` in `chain_state.json`** from `"Zk"` to `"zk"`. 
@@ -41,13 +42,13 @@
 - #1413 Remove borsh bounds from StateTransitionWitness.
 - #1407 Renames `transition_num` to `rollup_height` in the `AttesterIncentives` module.
 - #1405 Fixes rendering of OpenAPI spec to match derived REST API endpoints for modules. 
-- #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `RuntimeAuthenticator`. All
-references to the `Authenticator` trait or `ModAuth` struct are replaced with references to `RuntimeAuthenticator` or the concrete runtime type of the rollup as appropriate.
+- #1406 Removes the `Authenticator` trait and shifts responsibility for encoding authentication information into the `TransactionAuthenticator`. All
+references to the `Authenticator` trait or `ModAuth` struct are replaced with references to `TransactionAuthenticator` or the concrete runtime type of the rollup as appropriate.
 - #1398 Makes `StateCheckpoint`, `TxScratchpad` and `KernelStateAccessor` generic over `Storage` instead of `Spec`. These structs having no dependency on the `Spec`, this restricts the scope of the generics.
 - #1397 Removes the DA generic from the `Kernel` trait.
 - #1393 makes the new version of the kernel state accessors type-safe by preventing them to be built using the `From` trait of the `KernelStateAccessor`, but rather using a new `accessor` method in the `Kernel` trait. It also moves the `true_slot_height` out of the `StateCheckpoint` to the `KernelStateAccessor`
 - #1378 Plugs in the new state accessors used in soft-confirmation. From now on, accessors such as the `StateCheckpoint` can access `VersionedStateValues` in the storage using the same mechanism as soft-confirmations.
-- #1381 Adds an associated `Input` type the `RuntimeAuthenticator` trait and expects that type as the argument to `authenticate`. It also adds a new method to the trait `fn encode_default_tx()` which implemetns the runtime-specific notion of a "standard" authentication path. 
+- #1381 Adds an associated `Input` type the `TransactionAuthenticator` trait and expects that type as the argument to `authenticate`. It also adds a new method to the trait `fn encode_default_tx()` which implemetns the runtime-specific notion of a "standard" authentication path. 
 - 1392 Simplify the test in prover/attester incentives.
 - #1399 `AttesterIncentive`: Add balance checks to the challenger.rs tests.
 - #1395 Add balance check to the `attestation_processing` test.
@@ -206,7 +207,7 @@ Meaningful changes
 - #726 adds Swagger UI -an OpenApi playground- as an endpoint defined inside `sov_modules_stf_blueprint::Runtime::endpoint`.
 - #743 adds metered state accessor traits to the `sov-modules-api/state` module.
 - #764 changes notifications logic, so ledger notifications arrive after state has been completely updated.
-- #750 moves `RuntimeAuthenticator, RuntimeAuthorization, and Authenticator` to a separate file in the capabilities module.
+- #750 moves `TransactionAuthenticator, TransactionAuthorizer, and Authenticator` to a separate file in the capabilities module.
 - #751 adds `DaServiceWithRetries` wrapper.
    - To use it, make sure your `DaService::Error` type is `MaybeRetryable<anyhow::Error>`. You can then wrap your `DaService` in `DaServiceWithRetries` whilst providing a policy for exponential retries via: `DaServiceWithRetries::with_exponential_backoff(<da-service>, <exponential-backoff-policy>)`. This wrapped `DaService` can then be used normally as a `DaService` anywhere.
    - Use the `MaybeRetryable` return type in your `DaService` to indicate whether a fallibe function maybe retried or not, by returning either `MaybeRetryable::Transient(e)` if you want your functions to be retried in the case of errors, or `MaybeRetryable::Permanent(e)` if you don't want them to be retried.
@@ -233,7 +234,7 @@ Meaningful changes
 - #563 introduces a REST API for modules and runtimes. The `RollupBlueprint::create_endpoints` method in `demo-rollup` has been updated accordingly, so it exposes both JSON-RPC and the REST API by default. You can find the documentation for generating a REST API in `sov_modules_api::rest`.
 - #696 requires `Runtime` implementers to implement the `HasCapabilities` trait, which allows the `Runtime` to delegate to another struct for much of its required functionality. If a `Runtime` does not wish to delegate, it can simply implement the trait with `Self` as the associated `Capabilities` type. Implementations can be found in the sov-capabailities crate.
 - #701 adds support for multiple credentials in `sov-accounts`. This is a breaking change for the consumers of the SDK.
-- #694 adds `Credentials` to the `Context` structure. This is a breaking change for the consumers of the SDK. See implementation of the `RuntimeAuthorization::resolve_context` method.
+- #694 adds `Credentials` to the `Context` structure. This is a breaking change for the consumers of the SDK. See implementation of the `TransactionAuthorizer::resolve_context` method.
 - #688 follow-up of https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/681 that modifies the gas interface to prevent access to `TxGasMeter` outside of `sov-modules-api`.
 The spirit of this change is to increase the coupling between the `WorkingSet` and `Transaction` types. Meaningful changes:
   - Change the visibility of `TxGasMeter` to `pub(crate)`.
@@ -259,10 +260,10 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #680 Extends sov-cli:
     - Adds new optional boolean parameter to `submit-batch`, that tells sov-cli to wait for batch to be processed by full node
     - set url now expects second parameter for REST API endpoint.
-- #663 Modifies the interface of traits `RuntimeAuthenticator` and `RuntimeAuthorization`. Associated types `Tx` and `Gas` have been removed. `RuntimeAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
+- #663 Modifies the interface of traits `TransactionAuthenticator` and `TransactionAuthorizer`. Associated types `Tx` and `Gas` have been removed. `TransactionAuthenticator` is now generic over `S: Spec`. Methods' type signatures have been slightly modified; please see `examples/demo-rollup/stf/src/authentication.rs` for an example on the new usage.
 - #633 Deprecate `sov-modules-core`, move definitions into `sov-modules-api` & `sov-state`
-- #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `RuntimeAuthenticator::authenticate`.
-- #646 adds authenticator dispatch logic in`RuntimeAuthenticator::authenticate`.
+- #664 removes the `Transaction` wrapping in `sov-ethereum` for EVM transactions. This is a breaking change for consumers of the SDK. See `TransactionAuthenticator::authenticate`.
+- #646 adds authenticator dispatch logic in`TransactionAuthenticator::authenticate`.
 - #613 Makes `sov_state::Storage` trait to be immutable and explicitly produce changes. SimpleStorageManager should be used when data needs to be persisted between batches.
 - #631 removes the need for modules to `#[derive(ModuleCallJsonSchema)]`; the trait is automatically blanket-implemented for all modules as long as `CallMessage` implements `schemars::JsonSchema`.
 - #628 all the account resolution logic was moved to `resolve_context`. This method now returns a `Result<Context, _ >` instead of a `Context`. This is a breaking change for consumers of the SDK.
@@ -270,7 +271,7 @@ The spirit of this change is to increase the coupling between the `WorkingSet` a
 - #620 Adds more fields to the `Event`s emitted by the `sov-bank` module. Start emitting events for token minting.
 - #619 starts charging gas for signature checks in the StfBlueprint and completes the refactoring effort started in #612. There was the following changes in the interface:
   - Introduction of a `GasMeter` trait and the three associated implementations: `TxGasMeter` (what used to be the `GasMeter` struct), `UnlimitedGasMeter` (a gas meter that holds an infinite reserve of gas) and the `SequencerStakeMeter` (a gas meter specially designed to track the sequencer stake and accumulate penalties).
-  - Adding the `sequencer_stake_meter` as an argument of the `authenticate` method of the `RuntimeAuthenticator` (as an associated type) and the `Authenticator` (as a `&mut impl GasMeter` in that case).
+  - Adding the `sequencer_stake_meter` as an argument of the `authenticate` method of the `TransactionAuthenticator` (as an associated type) and the `Authenticator` (as a `&mut impl GasMeter` in that case).
   - Adding the `refund_sequencer` capability which can be used to refund the sequencer some of the penalties he accumulated during the pre-execution checks.
   - Modify the `authorize_sequencer` and `penalize_sequencer` capabilities to take the `SequencerGasMeter` as a parameter instead of a fixed amount. This allows type safety and removes the unsafe `saturating_sub` in the implementation of `penalize_sequencer`.
   - Add a `TxSequencerOutcome` which is an enum with the variants `Rewarded(amount)` and `Penalized`.
@@ -404,7 +405,7 @@ while the first VM continues Ato be used for block production. The signature of 
     - Removed the `gas_price_state` from the `chain-state` module's state. There was multiple reasons behind that:
     - Removed the outdated gas elasticity mechanism
 
-- #481 This PR combines the `ContextResolver` and `TransactionDeduplicator` traits into a single `RuntimeAuthorization`
+- #481 This PR combines the `ContextResolver` and `TransactionDeduplicator` traits into a single `TransactionAuthorizer`
   trait. This is a breaking change, and consumers of the SDK will need to implement the new trait.
 
 - #472 This PR breaks downstream code in the following way:
@@ -418,7 +419,7 @@ while the first VM continues Ato be used for block production. The signature of 
       path to the transaction signer private key.
 
 - #452 abstracts away the transaction authorization logic. The consumers of the `sov-module-api` have to implement the
-  new `RuntimeAuthenticator` trait. Refer to `hooks_impl.rs` for details
+  new `TransactionAuthenticator` trait. Refer to `hooks_impl.rs` for details
 
 - #413 introduces new RESTful JSON APIs for the sequencer and, most importantly, modifies the `RollupBlueprint` trait
   interface to allow implementations to expose Axum servers, instead of only JSON-RPC servers. In

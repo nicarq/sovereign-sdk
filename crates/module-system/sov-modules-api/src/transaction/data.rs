@@ -148,7 +148,7 @@ impl Credentials {
 }
 
 /// Transaction data that has been authenticated.
-/// This is the output of the `RuntimeAuthenticator`.
+/// This is the output of the `TransactionAuthenticator`.
 pub struct AuthenticatedTransactionData<S: Spec> {
     /// The chain ID.
     pub chain_id: u64,

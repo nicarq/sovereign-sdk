@@ -2,8 +2,8 @@
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationResult, AuthorizeSequencerError, FatalError, GasEnforcer,
-    HasCapabilities, RuntimeAuthenticator, RuntimeAuthorization, SequencerAuthorization,
-    SequencerRemuneration, TryReserveGasError, UnregisteredAuthenticationError,
+    HasCapabilities, SequencerAuthorization, SequencerRemuneration, TransactionAuthenticator,
+    TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::{
@@ -301,7 +301,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let maybe_ctx = runtime.runtime_authorization().resolve_context(
+    let maybe_ctx = runtime.transaction_authorizer().resolve_context(
         &auth_data,
         sequencer_da_address,
         height,
@@ -330,7 +330,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(err) = runtime.runtime_authorization().check_uniqueness(
+    if let Err(err) = runtime.transaction_authorizer().check_uniqueness(
         &auth_data,
         &ctx,
         &mut pre_exec_working_set,
@@ -404,8 +404,8 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     >,
 ) -> AuthenticationResult<
     S,
-    <R as RuntimeAuthenticator<S>>::Decodable,
-    <R as RuntimeAuthenticator<S>>::AuthorizationData,
+    <R as TransactionAuthenticator<S>>::Decodable,
+    <R as TransactionAuthenticator<S>>::AuthorizationData,
 > {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
@@ -444,7 +444,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let tx = &tx.authenticated_tx;
 
     let ctx = match runtime
-        .runtime_authorization()
+        .transaction_authorizer()
         .resolve_unregistered_context(
             &auth_data,
             height,
@@ -464,7 +464,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) = runtime.runtime_authorization().check_uniqueness(
+    if let Err(e) = runtime.transaction_authorizer().check_uniqueness(
         &auth_data,
         &ctx,
         &mut pre_exec_working_set,
@@ -528,8 +528,8 @@ fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S,
     pre_exec_working_set: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
 ) -> AuthenticationResult<
     S,
-    <R as RuntimeAuthenticator<S>>::Decodable,
-    <R as RuntimeAuthenticator<S>>::AuthorizationData,
+    <R as TransactionAuthenticator<S>>::Decodable,
+    <R as TransactionAuthenticator<S>>::AuthorizationData,
     UnregisteredAuthenticationError,
 > {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
@@ -549,7 +549,7 @@ fn apply_tx<S, RT, Da>(
     runtime: &RT,
     ctx: Context<S>,
     tx: &AuthenticatedTransactionData<S>,
-    auth_data: &<RT as RuntimeAuthenticator<S>>::AuthorizationData,
+    auth_data: &<RT as TransactionAuthenticator<S>>::AuthorizationData,
     raw_tx_hash: TxHash,
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
@@ -605,7 +605,7 @@ where
         }
     };
 
-    runtime.runtime_authorization().mark_tx_attempted(
+    runtime.transaction_authorizer().mark_tx_attempted(
         auth_data,
         sequencer_da_address,
         &mut tx_scratchpad,

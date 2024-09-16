@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use sov_bank::Bank;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{EncodeCall, FullyBakedTx, PrivateKey, RawTx};
 use sov_test_utils::generators::bank::BankMessageGenerator;

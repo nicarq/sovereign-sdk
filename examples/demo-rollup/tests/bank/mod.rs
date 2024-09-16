@@ -8,7 +8,7 @@ use demo_stf::runtime::Runtime;
 use futures::StreamExt;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};

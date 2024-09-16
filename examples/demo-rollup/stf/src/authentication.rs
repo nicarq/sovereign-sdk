@@ -3,13 +3,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_evm::EthereumAuthenticator;
 use sov_modules_api::capabilities::{AuthorizationData, UnregisteredAuthenticationError};
-use sov_modules_api::runtime::capabilities::{AuthenticationResult, RuntimeAuthenticator};
+use sov_modules_api::runtime::capabilities::{AuthenticationResult, TransactionAuthenticator};
 use sov_modules_api::{DaSpec, DispatchCall, PreExecWorkingSet, RawTx, Spec, UnlimitedGasMeter};
 use sov_sequencer_registry::SequencerStakeMeter;
 
 use crate::runtime::{Runtime, RuntimeCall};
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for Runtime<S, Da>
+impl<S: Spec, Da: DaSpec> TransactionAuthenticator<S> for Runtime<S, Da>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
@@ -96,7 +96,7 @@ impl<S: Spec, Da: DaSpec> EthereumAuthenticator<S> for Runtime<S, Da>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
-    fn add_ethereum_auth(tx: RawTx) -> <Self as RuntimeAuthenticator<S>>::Input {
+    fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx.data)
     }
 }
