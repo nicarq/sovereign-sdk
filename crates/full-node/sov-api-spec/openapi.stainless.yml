@@ -75,7 +75,7 @@ resources:
           txInfo: sequencer_TxInfo
 targets:
   node:
-    production_repo: Sovereign-Labs/sovereign-sdk-js
+    production_repo: Sovereign-Labs/sovereign-sdk-client-js
     package_name: "@sovereign-sdk/client"
     publish:
       npm: false
