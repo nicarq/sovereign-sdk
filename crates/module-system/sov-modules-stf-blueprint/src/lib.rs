@@ -12,7 +12,7 @@ pub use batch_processing::{get_gas_used, process_tx, BatchReceipt, TransactionRe
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, BlobOrigin, HasCapabilities, RuntimeAuthenticator,
+    AuthenticationError, BlobOrigin, HasCapabilities, TransactionAuthenticator,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
@@ -37,7 +37,7 @@ use tracing::info;
 pub trait Runtime<S: Spec, Da: DaSpec>:
     DispatchCall<Spec = S>
     + HasCapabilities<S, Da>
-    + RuntimeAuthenticator<
+    + TransactionAuthenticator<
         S,
         Decodable = <Self as DispatchCall>::Decodable,
         SequencerStakeMeter = <Self as HasCapabilities<S, Da>>::SequencerStakeMeter,

@@ -1,7 +1,7 @@
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
-    AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, RuntimeAuthorization,
-    SequencerAuthorization, SequencerRemuneration, TryReserveGasError,
+    AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, SequencerAuthorization,
+    SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
@@ -98,7 +98,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> RuntimeAuthorization<S, Da>
+impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
     for StandardProvenRollupCapabilities<'a, S, Da>
 {
     type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;

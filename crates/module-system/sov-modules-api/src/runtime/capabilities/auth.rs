@@ -1,26 +1,26 @@
 //! This module defines abstractions related to transaction authentication and authorization.
 //!
-//! 1. The [`RuntimeAuthenticator::authenticate`] method accepts bytes and parses them into a structure relevant to a particular authenticator.
+//! 1. The [`TransactionAuthenticator::authenticate`] method accepts bytes and parses them into a structure relevant to a particular authenticator.
 //! For example, if the raw bytes form an EVM transaction, the data will be parsed into RLP encoded format followed by an `ECDSA` check.
 //! This method returns the following tuple:
 //!    - `AuthenticatedTransactionData`: Metadata about the original transaction, such as `chain_id`, `gas_limit`, etc.
-//!    - [`RuntimeAuthenticator::Decodable`]: The call message that will be forwarded to the relevant module for execution.
-//!    - [`RuntimeAuthenticator::AuthorizationData`]: An associated type used later to authorize the transaction.
+//!    - [`TransactionAuthenticator::Decodable`]: The call message that will be forwarded to the relevant module for execution.
+//!    - [`TransactionAuthenticator::AuthorizationData`]: An associated type used later to authorize the transaction.
 //!
-//!     The important part is that while the `AuthenticatedTransactionData` and [`RuntimeAuthenticator::Decodable`] are external types that are part of the rollup specification,
-//! the [`RuntimeAuthenticator::AuthorizationData`] is created by the [`RuntimeAuthenticator`] implementation, and the stf-blueprint logic is oblivious to it.
+//!     The important part is that while the `AuthenticatedTransactionData` and [`TransactionAuthenticator::Decodable`] are external types that are part of the rollup specification,
+//! the [`TransactionAuthenticator::AuthorizationData`] is created by the [`TransactionAuthenticator`] implementation, and the stf-blueprint logic is oblivious to it.
 //!
-//! 2. The [`RuntimeAuthenticator`] contains methods to authorize a transaction.
+//! 2. The [`TransactionAuthenticator`] contains methods to authorize a transaction.
 //! Example:
 //! Let's say we have a rollup that supports EVM transactions. At a high level, these are the relevant parts of the workflow:
-//!    1. [`RuntimeAuthenticator::authenticate`] authenticates the transaction by checking the ECDSA signature and produces [`RuntimeAuthenticator::AuthorizationData`] that, among other data, contains the transaction nonce.
-//!    2. [`RuntimeAuthorization::check_uniqueness`] checks that the nonce is unique.
-//!    3. [`RuntimeAuthorization::mark_tx_attempted`] updates the nonce.
+//!    1. [`TransactionAuthenticator::authenticate`] authenticates the transaction by checking the ECDSA signature and produces [`TransactionAuthenticator::AuthorizationData`] that, among other data, contains the transaction nonce.
+//!    2. [`TransactionAuthorizer::check_uniqueness`] checks that the nonce is unique.
+//!    3. [`TransactionAuthorizer::mark_tx_attempted`] updates the nonce.
 //!
 //! Notice that in the above example, the concept of the nonce is entirely internal to the implementation of the two traits. We can have other
 //! authentication/authorization mechanisms where authentication means something other than a signature check, and the nonce is not used.
 //!
-//! 3. The [`RuntimeAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
+//! 3. The [`TransactionAuthenticator::authenticate_unregistered`] method accepts bytes and parses them
 //!    into a structure relevant for registering unregistered sequencers without going through a
 //!    registered sequencer. In the normal case the raw bytes will be a Sovereign Rollup
 //!    transaction containing a `Register` call message. This method will also accept an unmetered
@@ -49,10 +49,14 @@ use crate::{
 /// The chain id of the rollup.
 pub const CHAIN_ID: u64 = config_value!("CHAIN_ID");
 
-/// Authenticates raw transactions. Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
+/// Authenticates raw transactions, ensuring that the *claimed* sender really did sign off on the transaction. Note that
+/// simply *authenticating* a transaction does not guarantee that it will actually be executed. That decision is
+/// made by the [`TransactionAuthorizer`]
+///
+/// Implementations of this trait should provide a way to interpret the raw bytes of the transaction and authenticate it.
 /// Typically, the authentication will require checking the signature of the transaction.
-pub trait RuntimeAuthenticator<S: Spec> {
-    /// Decoded message.
+pub trait TransactionAuthenticator<S: Spec> {
+    /// The "message" that is extracted from the transaction and passed to the runtime for execution.
     type Decodable;
     /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
     type SequencerStakeMeter: GasMeter<S::Gas>;
@@ -62,7 +66,8 @@ pub trait RuntimeAuthenticator<S: Spec> {
     /// The input to the authenticator
     type Input: BorshDeserialize + BorshSerialize + std::fmt::Debug;
 
-    /// Authenticates raw transaction.
+    /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
+    /// into an executable message.
     fn authenticate(
         &self,
         tx: &Self::Input,
@@ -70,12 +75,6 @@ pub trait RuntimeAuthenticator<S: Spec> {
     ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
-    ///
-    /// This function differs to it's registered counterpart in that it typically accepts an
-    /// unlimited gas meter to account for the fact there isn't a staked sequencer. It also differs in accepting
-    /// a "raw" transaction which hasn't been wrapped in the [`Self::Input`] type. This is because the
-    /// only "standard" transactions are allowed to be submitted by unregistered sequencers, so no
-    /// additional authentication information is required.
     fn authenticate_unregistered(
         &self,
         tx: &Self::Input,
@@ -102,15 +101,15 @@ pub trait RuntimeAuthenticator<S: Spec> {
 }
 
 /// Authorizes transactions to be executed.
-pub trait RuntimeAuthorization<S: Spec, Da: DaSpec> {
+pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
     /// A type-safe struct that should be used to track the staked amount of the sequencer and the eventual execution penalities.
     type SequencerStakeMeter: GasMeter<S::Gas>;
 
     /// The type used for authorization.
     type AuthorizationData;
 
-    /// Resolves the context for a transaction.
-    /// TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
+    /// Resolves the [`Context`] for a transaction.
+    // TODO(@preston-evans98): This should be a read-only method `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/384>`
     fn resolve_context(
         &self,
         auth_data: &Self::AuthorizationData,

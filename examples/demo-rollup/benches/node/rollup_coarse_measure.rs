@@ -17,7 +17,7 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, RawTx, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};

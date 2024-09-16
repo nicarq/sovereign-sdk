@@ -38,7 +38,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S, Da>
         + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
-        + RuntimeAuthorization<
+        + TransactionAuthorizer<
             S,
             Da,
             SequencerStakeMeter = Self::SequencerStakeMeter,
@@ -89,12 +89,12 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
         self.capabilities().inner
     }
 
-    /// Returns the [`RuntimeAuthorization`] implementation on [`HasCapabilities::Capabilities`].
+    /// Returns the [`TransactionAuthorizer`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn runtime_authorization(
+    fn transaction_authorizer(
         &self,
-    ) -> impl RuntimeAuthorization<
+    ) -> impl TransactionAuthorizer<
         S,
         Da,
         SequencerStakeMeter = Self::SequencerStakeMeter,

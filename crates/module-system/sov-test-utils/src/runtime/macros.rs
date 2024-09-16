@@ -1,5 +1,5 @@
 /// Base for generating runtimes.
-/// Excludes the RuntimeAuthenticator trait to allow custom runtimes like EVM to provide their own
+/// Excludes the TransactionAuthenticator trait to allow custom runtimes like EVM to provide their own
 /// implementation.
 #[macro_export]
 macro_rules! generate_bare_runtime {
@@ -170,7 +170,7 @@ macro_rules! generate_runtime {
     };
 }
 
-/// Implements a default `RuntimeAuthenticator` that uses sov modules authentication.
+/// Implements a default `TransactionAuthenticator` that uses sov modules authentication.
 #[macro_export]
 macro_rules! impl_standard_runtime_authenticator {
     ($runtime:ty) => {
@@ -178,7 +178,7 @@ macro_rules! impl_standard_runtime_authenticator {
         #[derive(std::fmt::Debug, Clone, ::borsh::BorshDeserialize, ::borsh::BorshSerialize)]
         pub struct AuthenticatorInput(::sov_modules_api::RawTx);
 
-        impl<S, Da> ::sov_modules_api::capabilities::RuntimeAuthenticator<S> for $runtime
+        impl<S, Da> ::sov_modules_api::capabilities::TransactionAuthenticator<S> for $runtime
         where
             S: ::sov_modules_api::Spec,
             Da: ::sov_modules_api::DaSpec,

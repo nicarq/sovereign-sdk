@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
 use sov_modules_api::capabilities::{
-    AuthenticationResult, AuthorizationData, RuntimeAuthenticator,
+    AuthenticationResult, AuthorizationData, TransactionAuthenticator,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
@@ -85,12 +85,14 @@ pub fn authenticate<
 
 /// Indicates that a runtime supports the `Ethereum` transaction authenticator
 /// and provides suitable methods for encoding and decoding Ethereum transactions.
-pub trait EthereumAuthenticator<S: Spec>: RuntimeAuthenticator<S> {
+pub trait EthereumAuthenticator<S: Spec>: TransactionAuthenticator<S> {
     /// Add the Ethereum discriminant to a transaction the runtime.
-    fn add_ethereum_auth(tx: RawTx) -> <Self as RuntimeAuthenticator<S>>::Input;
+    fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input;
 
     /// Encode a transaction with the Ethereum discriminant for the runtime.
     fn encode_with_ethereum_auth(tx: RawTx) -> FullyBakedTx {
-        <Self as RuntimeAuthenticator<S>>::encode_athenticator_input(&Self::add_ethereum_auth(tx))
+        <Self as TransactionAuthenticator<S>>::encode_athenticator_input(&Self::add_ethereum_auth(
+            tx,
+        ))
     }
 }

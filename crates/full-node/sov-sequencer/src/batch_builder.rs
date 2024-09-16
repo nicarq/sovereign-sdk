@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{
-    KernelSlotHooks, RuntimeAuthenticator, SequencerAuthorization,
+    KernelSlotHooks, SequencerAuthorization, TransactionAuthenticator,
 };
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
@@ -157,7 +157,7 @@ impl<S, Da, R, K> BatchBuilder for FairBatchBuilder<S, Da, R, K>
 where
     S: Spec,
     Da: DaSpec,
-    R: Runtime<S, Da> + RuntimeAuthenticator<S> + 'static,
+    R: Runtime<S, Da> + TransactionAuthenticator<S> + 'static,
     K: Kernel<S::Storage> + KernelSlotHooks<S, Da> + 'static,
 {
     type Config = FairBatchBuilderConfig<Da>;

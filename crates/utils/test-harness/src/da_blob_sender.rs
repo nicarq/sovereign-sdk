@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use anyhow::anyhow;
 use sov_celestia_adapter::CelestiaService;
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, FullyBakedTx, RawTx, Spec};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
@@ -15,7 +15,7 @@ use crate::args::Args;
 use crate::constants::TIME_OUT_DURATION;
 use crate::{Account, AccountPool, SerializedPreparedCallMessage};
 
-pub(crate) struct DaBlobSender<S: Spec, RT: RuntimeAuthenticator<S>> {
+pub(crate) struct DaBlobSender<S: Spec, RT: TransactionAuthenticator<S>> {
     config: Args,
     account_pool: AccountPool<S>,
     da_service: DaServiceWithRetries<CelestiaService>,
@@ -24,7 +24,7 @@ pub(crate) struct DaBlobSender<S: Spec, RT: RuntimeAuthenticator<S>> {
     _phantom: PhantomData<RT>,
 }
 
-impl<S: Spec, RT: RuntimeAuthenticator<S>> DaBlobSender<S, RT> {
+impl<S: Spec, RT: TransactionAuthenticator<S>> DaBlobSender<S, RT> {
     pub(crate) fn new(
         config: Args,
         account_pool: AccountPool<S>,
@@ -134,7 +134,7 @@ pub(crate) async fn submit_transactions<Da: DaService>(
     Ok(())
 }
 
-pub(crate) fn authorize_serialized_call_message<S: Spec, RT: RuntimeAuthenticator<S>>(
+pub(crate) fn authorize_serialized_call_message<S: Spec, RT: TransactionAuthenticator<S>>(
     config: &Args,
     account: &Account<S>,
     serialized_message: SerializedPreparedCallMessage,

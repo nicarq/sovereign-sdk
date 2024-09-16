@@ -1,7 +1,7 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::{AuthorizationData, RuntimeAuthenticator};
+use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::{DaSpec, DispatchCall, OperatingMode, RawTx, Spec};
 use sov_state::Storage;
@@ -44,7 +44,7 @@ impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverte
 #[derive(std::fmt::Debug, Clone, BorshDeserialize, BorshSerialize)]
 pub struct AuthenticatorInput(sov_modules_api::RawTx);
 
-impl<S: Spec, Da: DaSpec> RuntimeAuthenticator<S> for TestRuntime<S, Da>
+impl<S: Spec, Da: DaSpec> TransactionAuthenticator<S> for TestRuntime<S, Da>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {

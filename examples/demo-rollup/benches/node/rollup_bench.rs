@@ -10,7 +10,7 @@ use sov_db::storage_manager::NativeChangeSet;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
-use sov_modules_api::capabilities::RuntimeAuthenticator;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
     Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasUnit,
@@ -62,7 +62,7 @@ fn bake_bank_tx(
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),
     );
-    <Runtime<BenchSpec, MockDaSpec> as RuntimeAuthenticator<BenchSpec>>::encode_with_standard_auth(
+    <Runtime<BenchSpec, MockDaSpec> as TransactionAuthenticator<BenchSpec>>::encode_with_standard_auth(
         RawTx::new(borsh::to_vec(&tx).unwrap()),
     )
 }
