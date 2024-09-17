@@ -19,8 +19,8 @@ use tracing::{debug, error, info};
 
 use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
-use crate::prover_service::stf_info::BlockProof;
-use crate::{
+use crate::processes::prover_service::block_proof::BlockProof;
+use crate::processes::{
     ProofAggregationStatus, ProofProcessingStatus, RawGenesisStateRoot, RollupProverConfig,
     StateTransitionInfo,
 };

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use sov_rollup_interface::da::DaSpec;
 
-use crate::prover_service::stf_info::BlockProof;
+use crate::processes::prover_service::block_proof::BlockProof;
 
 pub(crate) enum ProverStatus<Address, StateRoot, Da: DaSpec> {
     ProvingInProgress,

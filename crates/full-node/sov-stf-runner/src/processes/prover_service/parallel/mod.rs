@@ -14,10 +14,9 @@ use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use super::{ProverService, ProverServiceError, RawGenesisStateRoot};
-use crate::{
+use crate::processes::{
     ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
 };
-
 pub(crate) struct Verifier<Da, InnerVm, OuterVm, V>
 where
     Da: DaService,

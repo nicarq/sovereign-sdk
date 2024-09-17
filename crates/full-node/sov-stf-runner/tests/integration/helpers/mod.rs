@@ -1,5 +1,4 @@
-use sov_stf_runner::RawGenesisStateRoot;
-
+use sov_stf_runner::processes::RawGenesisStateRoot;
 pub mod hash_stf;
 pub mod runner_init;
 

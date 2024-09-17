@@ -23,9 +23,9 @@ use tower_layer::Layer;
 use tracing::{debug, error, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
+use crate::processes::{RawGenesisStateRoot, Sender};
 use crate::state_manager::StateManager;
-use crate::stf_info_manager::Sender;
-use crate::{RawGenesisStateRoot, RunnerConfig};
+use crate::RunnerConfig;
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;

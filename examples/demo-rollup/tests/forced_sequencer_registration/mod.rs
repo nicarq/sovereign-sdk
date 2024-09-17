@@ -10,7 +10,7 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransac
 use sov_modules_api::RawTx;
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
-use sov_stf_runner::RollupProverConfig;
+use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
 
 use crate::test_helpers::{construct_rollup, read_private_keys};

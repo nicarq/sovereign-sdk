@@ -1,9 +1,8 @@
-mod manager;
 mod parallel;
 
-mod stf_info;
+mod block_proof;
+
 use async_trait::async_trait;
-pub use manager::ProofManager;
 pub use parallel::ParallelProverService;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -11,8 +10,9 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::Zkvm;
-pub use stf_info::StateTransitionInfo;
 use thiserror::Error;
+
+pub use crate::processes::StateTransitionInfo;
 
 /// Bytes of the genesis state root.
 #[derive(Clone, Debug)]

@@ -1,5 +1,5 @@
 use sov_modules_macros::config_value;
-use sov_stf_runner::RollupProverConfig;
+use sov_stf_runner::processes::RollupProverConfig;
 
 use super::evm_test_helper;
 use super::test_client::TestClient;

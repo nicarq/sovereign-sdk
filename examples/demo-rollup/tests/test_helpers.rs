@@ -15,9 +15,10 @@ use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::FairBatchBuilderConfig;
+use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
-    HttpServerConfig, ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig,
-    SequencerConfig, StorageConfig,
+    HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, SequencerConfig,
+    StorageConfig,
 };
 use sov_test_utils::ApiClient;
 use tokio::task::JoinHandle;

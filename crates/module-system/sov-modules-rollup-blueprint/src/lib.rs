@@ -66,10 +66,10 @@ mod blueprint {
     };
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
-    use sov_stf_runner::{
-        new_stf_info_channel, InitVariant, ProofManager, ProverService, RollupConfig,
-        RollupProverConfig, StateTransitionRunner,
+    use sov_stf_runner::processes::{
+        new_stf_info_channel, ProverService, RollupProverConfig, ZkProofManager,
     };
+    use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
     use tokio::sync::oneshot;
 
     use crate::RollupBlueprint;
@@ -283,7 +283,7 @@ mod blueprint {
                         .create_prover_service(config, &rollup_config, &da_service)
                         .await;
 
-                    let proof_manager = ProofManager::new(
+                    let proof_manager = ZkProofManager::new(
                         da_service.clone(),
                         prover_service,
                         rollup_config.proof_manager.aggregated_proof_block_jump,

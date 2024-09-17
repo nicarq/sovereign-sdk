@@ -20,7 +20,8 @@ use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::{FairBatchBuilderConfig, SequencerDb};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage, ZkStorage};
-use sov_stf_runner::{ParallelProverService, ProverService, RollupConfig, RollupProverConfig};
+use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
+use sov_stf_runner::RollupConfig;
 use tokio::sync::watch;
 
 /// Rollup with MockDa
