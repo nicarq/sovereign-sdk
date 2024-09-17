@@ -5,13 +5,13 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
 use super::RawGenesisStateRoot;
-use crate::{ProverService, StateTransitionInfo};
+use crate::stf_info_manager::Receiver;
+use crate::ProverService;
 
 mod types;
 
@@ -29,9 +29,7 @@ pub struct ProofManager<Ps: ProverService> {
     proof_serializer: Box<dyn ProofSerializer>,
     backoff_policy: ExponentialBuilder,
     genesis_state_root: RawGenesisStateRoot,
-    st_info_receiver: mpsc::Receiver<
-        StateTransitionInfo<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
-    >,
+    st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
 }
 
 impl<Ps: ProverService> ProofManager<Ps>
@@ -46,9 +44,7 @@ where
         aggregated_proof_block_jump: usize,
         proof_serializer: Box<dyn ProofSerializer>,
         genesis_state_root: RawGenesisStateRoot,
-        st_info_receiver: mpsc::Receiver<
-            StateTransitionInfo<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
-        >,
+        st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
     ) -> Self {
         Self {
             da_service,
@@ -60,8 +56,8 @@ where
                 .with_min_delay(Duration::from_secs(BACKOFF_POLICY_MIN_DELAY))
                 .with_max_delay(Duration::from_secs(BACKOFF_POLICY_MAX_DELAY))
                 .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
-            st_info_receiver,
             genesis_state_root,
+            st_info_receiver,
         }
     }
 
@@ -122,7 +118,7 @@ where
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.
     /// The proof is created only when there are enough of inner proofs in the `ProverService`` queue.
     async fn post_aggregated_proof_to_da_when_ready(mut self) -> anyhow::Result<()> {
-        while let Some(stf_info) = self.st_info_receiver.recv().await {
+        while let Some(stf_info) = self.st_info_receiver.read_next().await? {
             let prover_service = &self.prover_service;
             let block_hash = stf_info.da_block_header().hash();
             // Save the transition for later proving. This is temporarily redundant

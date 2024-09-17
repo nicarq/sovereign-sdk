@@ -1,6 +1,8 @@
 //! All code related to handling storage manager anb ledger.
 use std::collections::VecDeque;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
@@ -11,7 +13,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use tokio::sync::watch;
 
-use crate::StateTransitionInfo;
+use crate::{Sender, StateTransitionInfo};
 
 /// Point where rollup execution can be resumed after DA fork happened.
 struct ForkPoint<Da: DaService, StateRoot> {
@@ -37,12 +39,14 @@ where
     state_root: StateRoot,
     seen_state_transitions: VecDeque<StateTransitionInfo<StateRoot, Witness, Da::Spec>>,
     api_storage_sender: watch::Sender<Sm::StfState>,
+    st_info_sender: Option<Sender<StateRoot, Witness, Da::Spec>>,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
-    StateRoot: Clone + AsRef<[u8]>,
+    StateRoot: Clone + AsRef<[u8]> + Serialize + DeserializeOwned,
+    Witness: Serialize + DeserializeOwned,
     Sm: HierarchicalStorageManager<
         Da::Spec,
         LedgerChangeSet = SchemaBatch,
@@ -55,6 +59,7 @@ where
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
         api_storage_sender: watch::Sender<Sm::StfState>,
+        st_info_sender: Option<Sender<StateRoot, Witness, Da::Spec>>,
     ) -> Self {
         Self {
             storage_manager,
@@ -62,6 +67,7 @@ where
             state_root: initial_state_root,
             seen_state_transitions: Default::default(),
             api_storage_sender,
+            st_info_sender,
         }
     }
 
@@ -127,7 +133,8 @@ where
     ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
         let slot_number = self.get_slot_number()?;
         let new_state_root = transition_witness.final_state_root.clone();
-        let block_header = transition_witness.da_block_header.clone();
+        let block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
+            transition_witness.da_block_header.clone();
         tracing::debug!(
             slot_number,
             block_header = %block_header.display(),
@@ -135,12 +142,13 @@ where
             next_state_root = hex::encode(new_state_root.as_ref()),
             "Saving changes after applying slot"
         );
+
         self.seen_state_transitions.push_back(StateTransitionInfo {
             data: transition_witness,
             rollup_height: slot_number,
         });
 
-        let (finalization_ledger_changes, finalized_transitions) = self
+        let finalized_transitions = self
             .process_finalized_state_transitions(last_finalized_height)
             .await?;
 
@@ -153,15 +161,39 @@ where
                 .materialize_aggregated_proof(aggregated_proof)?;
             ledger_change_set.merge(this_height_data);
         }
-        ledger_change_set.merge(finalization_ledger_changes);
+
+        // Materialize data for the finalized height
+        for finalized_transition in &finalized_transitions {
+            let last_finalized_slot = self
+                .ledger_db
+                .materialize_latest_finalize_slot(finalized_transition.rollup_height)?;
+
+            ledger_change_set.merge(last_finalized_slot);
+
+            if let Some(st_info_sender) = &self.st_info_sender {
+                // Materialize `StateTransitionInfo`` for the finalized heights,
+                let stf_info_schema = st_info_sender
+                    .materialize_stf_info(finalized_transition, &self.ledger_db)
+                    .await?;
+                ledger_change_set.merge(stf_info_schema);
+            }
+        }
 
         self.storage_manager
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
 
         self.update_api_and_ledger_storage(&block_header)?;
+
         for finalized_transition in &finalized_transitions {
             self.storage_manager
                 .finalize(finalized_transition.da_block_header())?;
+
+            if let Some(st_info_sender) = &self.st_info_sender {
+                // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
+                st_info_sender
+                    .notify(finalized_transition.rollup_height)
+                    .await?;
+            }
         }
         self.state_root = new_state_root;
         // API storage and Ledger have all data from this iteration,
@@ -214,16 +246,13 @@ where
     async fn process_finalized_state_transitions(
         &mut self,
         last_finalized_height: u64,
-    ) -> anyhow::Result<(
-        SchemaBatch,
-        Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>,
-    )> {
+    ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
         tracing::trace!(
             last_finalized_height,
             seen_transitions = self.seen_state_transitions.len(),
             "Start processing finalized state transitions"
         );
-        let mut ledger_change_set = SchemaBatch::new();
+
         let mut finalized_transitions = Vec::new();
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
         while let Some(earliest_seen_state_transition_info) = self.seen_state_transitions.front() {
@@ -232,10 +261,6 @@ where
             let height = earliest_header.height();
 
             if height <= last_finalized_height {
-                ledger_change_set = self.ledger_db.materialize_latest_finalize_slot(
-                    earliest_seen_state_transition_info.rollup_height,
-                )?;
-
                 let transition_data = self.seen_state_transitions.pop_front().expect(
                     "There should be seen transition, as observed by previous call to .front()",
                 );
@@ -250,7 +275,7 @@ where
             finalized_transitions = finalized_transitions.len(),
             "Completed check for finalized transitions"
         );
-        Ok((ledger_change_set, finalized_transitions))
+        Ok(finalized_transitions)
     }
 
     fn update_api_and_ledger_storage(
@@ -339,6 +364,7 @@ mod tests {
             ledger_db,
             state_root,
             api_storage_sender,
+            None,
         ))
     }
 

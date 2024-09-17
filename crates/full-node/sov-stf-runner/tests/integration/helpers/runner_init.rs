@@ -21,12 +21,12 @@ use sov_rollup_interface::zk::aggregated_proof::{
 use sov_sequencer::FairBatchBuilderConfig;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::{
-    HttpServerConfig, InitVariant, ParallelProverService, ProofManager, ProofManagerConfig,
-    RollupConfig, RollupProverConfig, RunnerConfig, SequencerConfig, StateTransitionRunner,
-    StorageConfig,
+    new_stf_info_channel, HttpServerConfig, InitVariant, ParallelProverService, ProofManager,
+    ProofManagerConfig, RollupConfig, RollupProverConfig, RunnerConfig, SequencerConfig,
+    StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -216,7 +216,8 @@ pub async fn initialize_runner(
                 Vec::<u8>::default(),
             );
 
-            let (st_info_sender, st_info_receiver) = mpsc::channel(1);
+            let (st_info_sender, st_info_receiver) =
+                new_stf_info_channel(ledger_db.clone(), 1, 2).await.unwrap();
 
             let proof_manager = ProofManager::new(
                 da_service.clone(),

@@ -2,10 +2,12 @@
 #![doc = include_str!("../README.md")]
 
 mod config;
+mod da_pre_fetcher;
 #[cfg(feature = "mock")]
 pub mod mock;
 mod prover_service;
 mod runner;
+mod state_manager;
 mod stf_info_manager;
 
 pub use crate::config::{
@@ -14,6 +16,4 @@ pub use crate::config::{
 };
 pub use crate::prover_service::*;
 pub use crate::runner::*;
-
-mod da_pre_fetcher;
-mod state_manager;
+pub use crate::stf_info_manager::*;
