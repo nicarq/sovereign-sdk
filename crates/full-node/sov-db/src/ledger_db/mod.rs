@@ -444,14 +444,19 @@ impl LedgerDb {
         stf_write_rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID, &stf_write_rollup_height)?;
+        schema_batch.put::<StfInfoMetadata>(
+            &WRITE_ROLLUP_HEIGHT_ID,
+            &SlotNumber(stf_write_rollup_height),
+        )?;
         Ok(schema_batch)
     }
 
     /// Gets the latest height of the written STF info.
     pub fn get_stf_info_write_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
-        db.get::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)
+        Ok(db
+            .get::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)?
+            .map(|slot_number| slot_number.0))
     }
 
     /// Materializes the latest height of the retrieved STF info.
@@ -460,14 +465,17 @@ impl LedgerDb {
         read_rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID, &read_rollup_height)?;
+        schema_batch
+            .put::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID, &SlotNumber(read_rollup_height))?;
         Ok(schema_batch)
     }
 
     /// Gets the latest height of the retrieved STF info.
     pub fn get_stf_info_read_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
-        db.get::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)
+        Ok(db
+            .get::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)?
+            .map(|slot_number| slot_number.0))
     }
 
     /// Materializes the oldest height of the retrieved STF info.
@@ -476,7 +484,8 @@ impl LedgerDb {
         read_rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.put::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID, &read_rollup_height)?;
+        schema_batch
+            .put::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID, &SlotNumber(read_rollup_height))?;
         Ok(schema_batch)
     }
 
@@ -490,6 +499,8 @@ impl LedgerDb {
     /// Gets the oldest height STF info in the Db.
     pub fn get_stf_info_oldest_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
-        db.get::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)
+        Ok(db
+            .get::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)?
+            .map(|slot_number| slot_number.0))
     }
 }

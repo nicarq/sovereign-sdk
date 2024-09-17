@@ -267,7 +267,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The STF Info metadata.
-    (StfInfoMetadata) StfInfoUniqueId => u64
+    (StfInfoMetadata) StfInfoUniqueId => SlotNumber
 );
 
 define_table_without_codec!(

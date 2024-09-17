@@ -67,10 +67,10 @@ mod blueprint {
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
     use sov_stf_runner::{
-        InitVariant, ProofManager, ProverService, RollupConfig, RollupProverConfig,
-        StateTransitionRunner,
+        new_stf_info_channel, InitVariant, ProofManager, ProverService, RollupConfig,
+        RollupProverConfig, StateTransitionRunner,
     };
-    use tokio::sync::{mpsc, oneshot};
+    use tokio::sync::oneshot;
 
     use crate::RollupBlueprint;
 
@@ -276,11 +276,12 @@ mod blueprint {
 
             let st_info_sender = match prover_config {
                 Some(config) => {
+                    let (st_info_sender, st_info_receiver) =
+                        new_stf_info_channel(ledger_db.clone(), 1, 2).await?;
+
                     let prover_service = self
                         .create_prover_service(config, &rollup_config, &da_service)
                         .await;
-
-                    let (st_info_sender, st_info_receiver) = mpsc::channel(1);
 
                     let proof_manager = ProofManager::new(
                         da_service.clone(),

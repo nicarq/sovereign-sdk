@@ -17,14 +17,15 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
 use tracing::{debug, error, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::state_manager::StateManager;
-use crate::{RawGenesisStateRoot, RunnerConfig, StateTransitionInfo};
+use crate::stf_info_manager::Sender;
+use crate::{RawGenesisStateRoot, RunnerConfig};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -55,8 +56,6 @@ where
     listen_address_axum: SocketAddr,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
-    st_info_sender:
-        Option<mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>>,
 }
 
 /// The state necessary to track the sync status of the node
@@ -258,9 +257,7 @@ where
         storage_manager: Sm,
         api_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
-        st_info_sender: Option<
-            mpsc::Sender<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
-        >,
+        st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     ) -> anyhow::Result<Self> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
@@ -285,6 +282,7 @@ where
             ledger_db,
             prev_state_root,
             api_storage_sender,
+            st_info_sender,
         );
 
         let sync_fetcher = FinalizedBlocksBulkFetcher::new(
@@ -307,7 +305,6 @@ where
                 target_da_height: AtomicU64::new(u64::MAX),
             }),
             sync_fetcher,
-            st_info_sender,
         })
     }
 
@@ -507,8 +504,7 @@ where
             debug!(header = %last_finalized.display(), "Got last finalized header");
             let last_finalized_height = last_finalized.height();
 
-            let finalized_transitions = self
-                .state_manager
+            self.state_manager
                 .process_stf_changes(
                     last_finalized_height,
                     slot_result.change_set,
@@ -516,11 +512,6 @@ where
                     data_to_commit,
                     aggregated_proofs,
                 )
-                .await?;
-
-            // TODO: We are now submitting proofs after they has been saved, not before
-            //   so need to test a restart and submitting non submitted proofs.
-            self.process_finalized_state_transitions(finalized_transitions)
                 .await?;
 
             // Updating counters and metrics
@@ -568,19 +559,6 @@ where
                     .observe(get_block_start.elapsed().as_secs_f64());
             });
         }
-    }
-
-    /// Post proofs for finalized state transitions
-    async fn process_finalized_state_transitions(
-        &mut self,
-        finalized_transitions: Vec<StateTransitionInfo<Stf::StateRoot, Stf::Witness, Da::Spec>>,
-    ) -> anyhow::Result<()> {
-        if let Some(st_info_sender) = self.st_info_sender.as_ref() {
-            for transition_data in finalized_transitions {
-                st_info_sender.send(transition_data).await?;
-            }
-        }
-        Ok(())
     }
 
     /// Allows reading current state root

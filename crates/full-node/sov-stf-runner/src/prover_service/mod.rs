@@ -5,6 +5,7 @@ mod stf_info;
 use async_trait::async_trait;
 pub use manager::ProofManager;
 pub use parallel::ParallelProverService;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
@@ -90,9 +91,9 @@ pub enum ProverServiceError {
 #[async_trait]
 pub trait ProverService: Send + Sync + 'static {
     /// Ths root hash of state merkle tree.
-    type StateRoot: Serialize + Clone + AsRef<[u8]> + Send + Sync + 'static;
+    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static;
     /// Data that is produced during batch execution.
-    type Witness: Serialize + Send + Sync;
+    type Witness: Serialize + DeserializeOwned + Send + Sync;
     /// Data Availability service.
     type DaService: DaService;
 
