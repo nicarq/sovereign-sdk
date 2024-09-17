@@ -452,10 +452,11 @@ impl LedgerDb {
     }
 
     /// Gets the latest height of the written STF info.
-    pub fn get_stf_info_write_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+    pub async fn get_stf_info_write_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(db
-            .get::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)?
+            .get_async::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)
+            .await?
             .map(|slot_number| slot_number.0))
     }
 
@@ -471,10 +472,11 @@ impl LedgerDb {
     }
 
     /// Gets the latest height of the retrieved STF info.
-    pub fn get_stf_info_read_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+    pub async fn get_stf_info_read_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(db
-            .get::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)?
+            .get_async::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)
+            .await?
             .map(|slot_number| slot_number.0))
     }
 
@@ -497,10 +499,11 @@ impl LedgerDb {
     }
 
     /// Gets the oldest height STF info in the Db.
-    pub fn get_stf_info_oldest_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+    pub async fn get_stf_info_oldest_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(db
-            .get::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)?
+            .get_async::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)
+            .await?
             .map(|slot_number| slot_number.0))
     }
 }

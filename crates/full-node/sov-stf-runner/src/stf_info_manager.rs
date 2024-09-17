@@ -63,10 +63,13 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     // On startup, we need to fill the notification channel with the pending STF info from the db.
     let (notifier, receiver) = tokio::sync::mpsc::channel::<u64>(max_channel_size);
 
-    let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height()?;
+    let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height().await?;
     match maybe_write_rollup_height {
         Some(write_rollup_height) => {
-            let read_rollup_height = ledger_db.get_stf_info_read_rollup_height()?.unwrap_or(1);
+            let read_rollup_height = ledger_db
+                .get_stf_info_read_rollup_height()
+                .await?
+                .unwrap_or(1);
             // Sanity check for `write_rollup_height & read_rollup_height`
             assert!(
                 write_rollup_height >= read_rollup_height,
@@ -87,13 +90,19 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
         }
         // Db is empty
         None => {
-            assert!(ledger_db.get_stf_info_read_rollup_height()?.is_none());
-            assert!(ledger_db.get_stf_info_oldest_rollup_height()?.is_none());
+            assert!(ledger_db.get_stf_info_read_rollup_height().await?.is_none());
+            assert!(ledger_db
+                .get_stf_info_oldest_rollup_height()
+                .await?
+                .is_none());
         }
     }
 
     let read_rollup_height = Arc::new(AtomicU64::new(
-        ledger_db.get_stf_info_read_rollup_height()?.unwrap_or(1),
+        ledger_db
+            .get_stf_info_read_rollup_height()
+            .await?
+            .unwrap_or(1),
     ));
 
     let sender = Sender {
@@ -145,7 +154,7 @@ where
         schema.merge(ledger_db.materialize_stf_info_read_rollup_height(read_rollup_height)?);
 
         // Prune the oldest entries if needed
-        let mut oldest_height = self.get_oldest_rollup_height(ledger_db)?;
+        let mut oldest_height = self.get_oldest_rollup_height(ledger_db).await?;
 
         while Some(oldest_height) < write_rollup_height.checked_sub(self.max_nb_of_infos_in_db) {
             schema.merge(self.remove_oldest_height(oldest_height, ledger_db)?);
@@ -161,8 +170,8 @@ where
         Ok(())
     }
 
-    fn get_oldest_rollup_height(&self, ledger_db: &LedgerDb) -> anyhow::Result<u64> {
-        let oldest_height = ledger_db.get_stf_info_oldest_rollup_height()?;
+    async fn get_oldest_rollup_height(&self, ledger_db: &LedgerDb) -> anyhow::Result<u64> {
+        let oldest_height = ledger_db.get_stf_info_oldest_rollup_height().await?;
         Ok(oldest_height.unwrap_or(1))
     }
 
@@ -265,7 +274,7 @@ mod tests {
         Ok((ledger_db, storage_manager, sender, receiver))
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_start_stop_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
@@ -292,11 +301,11 @@ mod tests {
 
             let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 1);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 1);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 2);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 1);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
         }
 
         // We haven't committed the reads above so after restart we will read the same data.
@@ -306,11 +315,11 @@ mod tests {
 
             let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 1);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 1);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 2);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 1);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             // Commit new data.
             let stf_info = make_stf_info((channel_size + 1) as u64);
@@ -323,7 +332,7 @@ mod tests {
             storage_manager.commit(schema_batch);
             sender.notify(stf_info.rollup_height).await?;
 
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 2);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
 
         // Now the reads are visible.
@@ -333,13 +342,13 @@ mod tests {
 
             let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 3);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db)?, 2);
+            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
 
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_channel() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
         let channel_size = 10;
@@ -365,7 +374,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_drop_sender() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
         let channel_size = 10;
@@ -394,7 +403,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_channel_concurrent() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
@@ -426,7 +435,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_in_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
@@ -452,7 +461,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_db_pruning() -> anyhow::Result<()> {
         struct TestCase {
             channel_size: usize,
@@ -502,7 +511,7 @@ mod tests {
                 receiver.read_next().await?.unwrap();
             }
 
-            let oldest_height = sender.get_oldest_rollup_height(&ledger_db)?;
+            let oldest_height = sender.get_oldest_rollup_height(&ledger_db).await?;
             assert_eq!(oldest_height, expected_oldest_height);
 
             // Check if the old STF infos are pruned.
