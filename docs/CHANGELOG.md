@@ -1,3 +1,4 @@
+- #1454 LedgerDb: use async_get to get data from the db.
 - #1446 Integrate stf_info_manager in runner.rs
 - #1450 Renames two related traits: `RuntimeAuthorization` becomes `TransactionAuthorizer`; `RuntimeAuthentiation` beomces `TransactionAuthenticator`. The `runtime_authorization` method on the `HasCapabilities` trait is also renamed to `transaction_authorizer`. 
 - #1443 Move StateTransitionInfo channel creation to `FullNodeBlueprint`.
