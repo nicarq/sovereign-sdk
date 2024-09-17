@@ -10,8 +10,7 @@ use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
 use super::RawGenesisStateRoot;
-use crate::stf_info_manager::Receiver;
-use crate::ProverService;
+use crate::processes::{ProverService, Receiver};
 
 mod types;
 
@@ -21,7 +20,7 @@ const BACKOFF_POLICY_MAX_NUM_RETRIES: usize = 5;
 
 /// Manages the lifecycle of the `AggregatedProof`.
 #[allow(clippy::type_complexity)]
-pub struct ProofManager<Ps: ProverService> {
+pub struct ZkProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Ps,
     proofs_to_create: UnAggregatedProofList<Ps>,
@@ -32,7 +31,7 @@ pub struct ProofManager<Ps: ProverService> {
     st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
 }
 
-impl<Ps: ProverService> ProofManager<Ps>
+impl<Ps: ProverService> ZkProofManager<Ps>
 where
     Ps::DaService: DaService<Error = anyhow::Error>,
 {

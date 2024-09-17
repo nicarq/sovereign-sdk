@@ -13,7 +13,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use tokio::sync::watch;
 
-use crate::{Sender, StateTransitionInfo};
+use crate::processes::{Sender, StateTransitionInfo};
 
 /// Point where rollup execution can be resumed after DA fork happened.
 struct ForkPoint<Da: DaService, StateRoot> {

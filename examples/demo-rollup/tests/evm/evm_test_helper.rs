@@ -9,7 +9,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
-use sov_stf_runner::RollupProverConfig;
+use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::SimpleStorageContract;
 use tokio::task::JoinHandle;
 

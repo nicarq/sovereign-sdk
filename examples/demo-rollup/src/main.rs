@@ -14,7 +14,8 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Address;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_sequencer::FairBatchBuilderConfig;
-use sov_stf_runner::{from_toml_path, RollupConfig, RollupProverConfig};
+use sov_stf_runner::processes::RollupProverConfig;
+use sov_stf_runner::{from_toml_path, RollupConfig};
 use tracing::debug;
 
 /// Main demo runner. Initializes a DA chain, and starts a demo-rollup using the provided.

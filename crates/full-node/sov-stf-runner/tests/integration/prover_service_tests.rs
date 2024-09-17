@@ -7,7 +7,7 @@ use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs, Time};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::mock::MockStf;
-use sov_stf_runner::{
+use sov_stf_runner::processes::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
     ProverServiceError, RawGenesisStateRoot, RollupProverConfig, StateTransitionInfo,
 };

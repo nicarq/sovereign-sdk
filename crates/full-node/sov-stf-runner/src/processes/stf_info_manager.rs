@@ -5,13 +5,40 @@ use std::sync::Arc;
 
 use rockbound::SchemaBatch;
 use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::types::{SlotNumber, StoredStfInfo};
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::zk::StateTransitionWitness;
 use tokio::sync::mpsc;
 
-use crate::StateTransitionInfo;
+/// Holds all the necessary data for the creation of a block zk-proof.
+#[derive(Serialize, Deserialize)]
+#[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
+pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
+    /// Public input to the per block zk proof.
+    pub(crate) data: StateTransitionWitness<StateRoot, Witness, Da>,
+    /// Slot number.
+    pub(crate) rollup_height: u64,
+}
+
+impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da> {
+    /// StateTransitionInfo constructor.
+    pub fn new(data: StateTransitionWitness<StateRoot, Witness, Da>, rollup_height: u64) -> Self {
+        Self {
+            data,
+            rollup_height,
+        }
+    }
+
+    pub(crate) fn da_block_header(&self) -> &Da::BlockHeader {
+        &self.data.da_block_header
+    }
+
+    pub(crate) fn initial_state_root(&self) -> &StateRoot {
+        &self.data.initial_state_root
+    }
+}
 
 /// Materializes STF infos and sends notifications to the associated `Receiver`.
 pub struct Sender<StateRoot, Witness, Da: DaSpec> {
@@ -246,7 +273,7 @@ mod tests {
     use sov_test_utils::storage::SimpleLedgerStorageManager;
 
     use super::*;
-    use crate::StateTransitionInfo;
+    use crate::processes::StateTransitionInfo;
 
     type StateRoot = Vec<u8>;
     type Witness = Vec<u8>;
