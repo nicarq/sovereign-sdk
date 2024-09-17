@@ -81,6 +81,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         .map(|(f, state_item_expr)| {
             let ty = &f.ty;
             let item_name_path = format!("/state/{}", str_to_url_segment(&f.ident));
+            let module_name = rest_api_input.ident.to_string();
 
             quote! {
                 {
@@ -89,7 +90,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                         phantom: PhantomData::<#ty>::default(),
                     };
 
-                    let mut item_spec = (&state_impl).state_item_open_api();
+                    let mut item_spec = (&state_impl).state_item_open_api(#module_name);
 
                     let old_paths = std::mem::take(&mut item_spec.paths);
 
