@@ -230,7 +230,7 @@ where
         Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
         match ledger
-            .get_slot_by_number::<B, TxReceipt>(
+            .get_slot_by_number::<B, TxReceipt, Event<E>>(
                 slot_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -249,25 +249,14 @@ where
     ) -> ApiResult<Vec<Event<E>>> {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
         let events = ledger
-            .get_filtered_slot_events::<B, TxReceipt, RuntimeEventResponse<E>>(
+            .get_filtered_slot_events::<B, TxReceipt, Event<E>>(
                 &SlotIdentifier::Number(slot_number),
                 filter,
             )
             .await
             .map_err(database_error_response_500)?;
 
-        Ok(events
-            .into_iter()
-            .map(|e| Event {
-                number: e.event_number,
-                key: e.event_key,
-                value: e.event_value,
-                module: ModuleRef {
-                    name: e.module_name,
-                },
-            })
-            .collect::<Vec<_>>()
-            .into())
+        Ok(events.into())
     }
 
     async fn get_batch(
@@ -276,7 +265,7 @@ where
         Extension(BatchNumber(batch_number)): Extension<BatchNumber>,
     ) -> ApiResult<Batch<B, TxReceipt, E>> {
         match ledger
-            .get_batch_by_number::<B, TxReceipt>(
+            .get_batch_by_number::<B, TxReceipt, Event<E>>(
                 batch_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -294,7 +283,7 @@ where
         Extension(TxNumber(tx_number)): Extension<TxNumber>,
     ) -> ApiResult<Transaction<TxReceipt, E>> {
         match ledger
-            .get_tx_by_number::<TxReceipt>(
+            .get_tx_by_number::<TxReceipt, Event<E>>(
                 tx_number,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
@@ -627,7 +616,10 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let Ok(Some(slot)) = ledger
-                            .get_slot_by_number::<B, TxReceipt>(slot_num, QueryMode::Compact)
+                            .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                                slot_num,
+                                QueryMode::Compact,
+                            )
                             .await
                         else {
                             anyhow::bail!("Slot with number {} does not exist", slot_num);
@@ -658,7 +650,10 @@ where
                         let mut slots = vec![];
                         for slot_number in last_notified_slot..=slot_num {
                             let slot_result = match ledger
-                                .get_slot_by_number::<B, TxReceipt>(slot_number, QueryMode::Compact)
+                                .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                                    slot_number,
+                                    QueryMode::Compact,
+                                )
                                 .await
                             {
                                 Ok(Some(slot)) => Ok(slot),
@@ -754,7 +749,7 @@ struct Slot<B, TxReceipt: TxReceiptContents, E> {
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Slot<B, TxReceipt, E> {
-    fn new(slot: SlotResponse<B, TxReceipt>) -> Self {
+    fn new(slot: SlotResponse<B, TxReceipt, Event<E>>) -> Self {
         let mut batches = vec![];
 
         for batch_response in slot.batches.unwrap_or_default().into_iter() {
@@ -790,7 +785,7 @@ struct Batch<B, TxReceipt: TxReceiptContents, E> {
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
-    fn new(batch: BatchResponse<B, TxReceipt>, number: u64) -> Self {
+    fn new(batch: BatchResponse<B, TxReceipt, Event<E>>, number: u64) -> Self {
         let mut txs = vec![];
 
         for tx_response in batch.txs.unwrap_or_default().into_iter() {
@@ -829,14 +824,14 @@ struct Transaction<TxReceipt: TxReceiptContents, E> {
 }
 
 impl<TxReceipt: TxReceiptContents, E> Transaction<TxReceipt, E> {
-    fn new(tx: TxResponse<TxReceipt>, number: u64) -> Self {
+    fn new(tx: TxResponse<TxReceipt, Event<E>>, number: u64) -> Self {
         Self {
             number,
             hash: HexHash::new(tx.hash),
             event_range: tx.event_range,
             body: tx.body.unwrap_or_default(),
             receipt: tx.receipt.into(),
-            events: vec![],
+            events: tx.events.unwrap_or_default(),
             batch_number: tx.batch_number,
         }
     }
@@ -849,6 +844,32 @@ struct Event<E> {
     pub key: String,
     pub value: E,
     pub module: ModuleRef,
+}
+
+/// TryFrom trait implementation to create an Event from a StoredEvent
+impl<E> TryFrom<(u64, sov_rollup_interface::stf::StoredEvent)> for Event<E>
+where
+    E: EventModuleName
+        + Clone
+        + borsh::BorshDeserialize
+        + borsh::BorshSerialize
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
+{
+    type Error = anyhow::Error;
+
+    fn try_from(args: (u64, sov_rollup_interface::stf::StoredEvent)) -> Result<Self, Self::Error> {
+        let resp: RuntimeEventResponse<E> = args.try_into()?;
+
+        Ok(Self {
+            number: resp.event_number,
+            key: resp.event_key,
+            value: resp.event_value,
+            module: ModuleRef {
+                name: resp.module_name,
+            },
+        })
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]

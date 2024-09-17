@@ -98,7 +98,7 @@ pub struct StoredBatch {
     pub slot_number: SlotNumber,
 }
 
-impl<B: DeserializeOwned, T: TxReceiptContents> TryFrom<StoredBatch> for BatchResponse<B, T> {
+impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for BatchResponse<B, T, E> {
     type Error = anyhow::Error;
     fn try_from(value: StoredBatch) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -131,13 +131,14 @@ pub struct StoredTransaction {
     pub batch_number: BatchNumber,
 }
 
-impl<R: TxReceiptContents> TryFrom<StoredTransaction> for TxResponse<R> {
+impl<R: TxReceiptContents, E> TryFrom<StoredTransaction> for TxResponse<R, E> {
     type Error = anyhow::Error;
     fn try_from(value: StoredTransaction) -> Result<Self, Self::Error> {
         Ok(Self {
             hash: value.hash,
             event_range: value.events.start.into()..value.events.end.into(),
             body: value.body,
+            events: None,
             receipt: bincode::deserialize(&value.receipt.0)?,
             batch_number: value.batch_number.0,
         })

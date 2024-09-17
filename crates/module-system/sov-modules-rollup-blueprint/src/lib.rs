@@ -54,7 +54,9 @@ mod blueprint {
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::runtime::capabilities::Kernel;
-    use sov_modules_api::{OperatingMode, ProofSerializer, Spec, Zkvm};
+    use sov_modules_api::{
+        OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec, Zkvm,
+    };
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
@@ -407,5 +409,6 @@ mod blueprint {
         type Da = B::DaService;
         type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
         type TxReceipt = TxReceiptContents<B::Spec>;
+        type Event = RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>;
     }
 }
