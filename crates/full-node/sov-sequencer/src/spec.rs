@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use serde::de::DeserializeOwned;
-use sov_modules_api::TxReceiptContents;
+use sov_modules_api::{StoredEvent, TxReceiptContents};
 use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::node::da::DaService;
 
@@ -20,25 +20,34 @@ pub trait SequencerSpec: Clone + Send + Sync + 'static {
     /// The type of the transaction receipt that the rollup stores in the
     /// [`sov_db::ledger_db::LedgerDb`].
     type TxReceipt: TxReceiptContents;
+    /// The type of the events that the rollup stores in the
+    /// [`sov_db::ledger_db::LedgerDb`].
+    type Event: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync + DeserializeOwned;
 }
 
 /// A [`SequencerSpec`] with explicit generic types.
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt>(
-    PhantomData<(B, Da, BatchReceipt, TxReceipt)>,
+pub struct GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt, Event>(
+    PhantomData<(B, Da, BatchReceipt, TxReceipt, Event)>,
 );
 
-impl<B, Da, BatchReceipt, TxReceipt> SequencerSpec
-    for GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt>
+impl<B, Da, BatchReceipt, TxReceipt, Event> SequencerSpec
+    for GenericSequencerSpec<B, Da, BatchReceipt, TxReceipt, Event>
 where
     B: BatchBuilder,
     Da: DaService,
     BatchReceipt: DeserializeOwned + Send + Sync + 'static,
     TxReceipt: TxReceiptContents,
+    Event: TryFrom<(u64, StoredEvent), Error = anyhow::Error>
+        + Send
+        + Sync
+        + DeserializeOwned
+        + 'static,
 {
     type BatchBuilder = B;
     type Da = Da;
     type BatchReceipt = BatchReceipt;
     type TxReceipt = TxReceipt;
+    type Event = Event;
 }

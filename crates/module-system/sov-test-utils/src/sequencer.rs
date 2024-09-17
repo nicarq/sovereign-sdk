@@ -5,7 +5,7 @@ use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec};
-use sov_modules_api::OperatingMode;
+use sov_modules_api::{OperatingMode, RuntimeEventProcessor, RuntimeEventResponse};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::stf::StateTransitionFunction;
@@ -30,6 +30,9 @@ type TestSequencerSpec<B> = GenericSequencerSpec<
     MockDaService,
     BatchReceipt<TestSpec, MockDaSpec>,
     TxReceiptContents<TestSpec>,
+    RuntimeEventResponse<
+        <TestOptimisticRuntime<TestSpec, MockDaSpec> as RuntimeEventProcessor>::RuntimeEvent,
+    >,
 >;
 
 /// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions.

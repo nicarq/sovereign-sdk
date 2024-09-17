@@ -13,6 +13,7 @@ use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
 use sov_rollup_interface::stf::{
     ExecutionContext, ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
+    StoredEvent,
 };
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
@@ -143,6 +144,15 @@ pub enum InitVariant<
     },
 }
 
+struct DiscardEvents;
+impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
+    type Error = anyhow::Error;
+
+    fn try_from(_value: (u64, StoredEvent)) -> Result<Self, Self::Error> {
+        Ok(Self)
+    }
+}
+
 impl<
         Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
         InnerVm: Zkvm,
@@ -169,8 +179,11 @@ impl<
         let (prev_state_root, raw_genesis_state_root) = match self {
             InitVariant::Initialized(prev_state_root) => {
                 debug!("Chain is already initialized; skipping initialization");
+                // Since we're just getting the state root, we don't care about fetching the events.
+                // QueryModeCompact prevents us from actually fetching them, but we still need to provide a value for
+                // the event generic, so we use a dummy type.
                 let raw_genesis_state_root = ledger_db
-                    .get_slot_by_number::<Stf::BatchReceiptContents, Stf::TxReceiptContents>(
+                    .get_slot_by_number::<Stf::BatchReceiptContents, Stf::TxReceiptContents, DiscardEvents>(
                         0,
                         QueryMode::Compact,
                     )

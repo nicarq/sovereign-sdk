@@ -50,14 +50,15 @@ impl LedgerRpcReader {
         Ok(finalized_slot.map(|slot| slot.0).unwrap_or_default())
     }
 
-    async fn get_slots<B, T>(
+    async fn get_slots<B, T, E>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> anyhow::Result<Vec<Option<SlotResponse<B, T>>>>
+    ) -> anyhow::Result<Vec<Option<SlotResponse<B, T, E>>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             slot_ids.len() <= MAX_SLOTS_PER_REQUEST as usize,
@@ -89,14 +90,15 @@ impl LedgerRpcReader {
         Ok(out)
     }
 
-    async fn get_batches<B, T>(
+    async fn get_batches<B, T, E>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> anyhow::Result<Vec<Option<BatchResponse<B, T>>>>
+    ) -> anyhow::Result<Vec<Option<BatchResponse<B, T, E>>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
         //      and use an iterator instead of querying for each slot individually
@@ -124,23 +126,24 @@ impl LedgerRpcReader {
         Ok(out)
     }
 
-    async fn get_transactions<T>(
+    async fn get_transactions<T, E>(
         &self,
         tx_ids: &[TxIdentifier],
-        _query_mode: QueryMode,
-    ) -> anyhow::Result<Vec<Option<TxResponse<T>>>>
+        query_mode: QueryMode,
+    ) -> anyhow::Result<Vec<Option<TxResponse<T, E>>>>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk/issues/191 Sort the input
         //      and use an iterator instead of querying for each slot individually
-        let mut out: Vec<Option<TxResponse<T>>> = Vec::with_capacity(tx_ids.len());
+        let mut out: Vec<Option<TxResponse<T, E>>> = Vec::with_capacity(tx_ids.len());
         for id in tx_ids {
             let num = self.resolve_tx_identifier(id).await?;
             out.push(match num {
                 Some(num) => {
                     if let Some(tx) = self.db.get_async::<TxByNumber>(&TxNumber(num)).await? {
-                        Some(tx.try_into()?)
+                        Some(Self::populate_tx_response(self, tx, query_mode).await?)
                     } else {
                         None
                     }
@@ -302,6 +305,17 @@ impl LedgerRpcReader {
         self.get_data_range::<TxByNumber, _, _>(range).await
     }
 
+    /// Gets all events with numbers `range.start` to `range.end`. If `range.end` is outside
+    /// the range of the database, the result will be smaller than the requested range.
+    /// Note that this method blindly preallocates for the requested range, so it should not be exposed
+    /// directly via rpc.
+    pub(crate) async fn get_event_range(
+        &self,
+        range: &std::ops::Range<EventNumber>,
+    ) -> anyhow::Result<Vec<StoredEvent>> {
+        self.get_data_range::<EventByNumber, _, _>(range).await
+    }
+
     pub(crate) async fn get_data_range<T, K, V>(
         &self,
         range: &std::ops::Range<K>,
@@ -412,11 +426,38 @@ impl LedgerRpcReader {
         }
     }
 
-    async fn populate_batch_response<B: DeserializeOwned, T: TxReceiptContents>(
+    async fn populate_tx_response<T: TxReceiptContents, E>(
+        &self,
+        tx: StoredTransaction,
+        mode: QueryMode,
+    ) -> anyhow::Result<TxResponse<T, E>>
+    where
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+    {
+        Ok(match mode {
+            QueryMode::Compact => tx.try_into()?,
+
+            QueryMode::Standard | QueryMode::Full => {
+                let events = self.get_event_range(&tx.events).await?;
+                let events = (tx.events.start.0..=tx.events.end.0)
+                    .zip(events.into_iter())
+                    .map(|event: (u64, StoredEvent)| event.try_into())
+                    .collect::<Result<Vec<E>, _>>()?;
+                let mut tx_response: TxResponse<T, E> = tx.try_into()?;
+                tx_response.events = Some(events);
+                tx_response
+            }
+        })
+    }
+
+    async fn populate_batch_response<B: DeserializeOwned, T: TxReceiptContents, E>(
         &self,
         batch: StoredBatch,
         mode: QueryMode,
-    ) -> anyhow::Result<BatchResponse<B, T>> {
+    ) -> anyhow::Result<BatchResponse<B, T, E>>
+    where
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+    {
         Ok(match mode {
             QueryMode::Compact => batch.try_into()?,
 
@@ -428,7 +469,7 @@ impl LedgerRpcReader {
                         .collect(),
                 );
 
-                let mut batch_response: BatchResponse<B, T> = batch.try_into()?;
+                let mut batch_response: BatchResponse<B, T, E> = batch.try_into()?;
                 batch_response.txs = tx_hashes;
                 batch_response
             }
@@ -436,22 +477,26 @@ impl LedgerRpcReader {
                 let num_txs = (batch.txs.end.0 - batch.txs.start.0) as usize;
                 let mut txs = Vec::with_capacity(num_txs);
                 for tx in self.get_tx_range(&batch.txs).await? {
-                    txs.push(ItemOrHash::Full(tx.try_into()?));
+                    let tx = self.populate_tx_response(tx, mode).await?;
+                    txs.push(ItemOrHash::Full(tx));
                 }
 
-                let mut batch_response: BatchResponse<B, T> = batch.try_into()?;
+                let mut batch_response: BatchResponse<B, T, E> = batch.try_into()?;
                 batch_response.txs = Some(txs);
                 batch_response
             }
         })
     }
 
-    async fn populate_slot_response<B: DeserializeOwned, T: TxReceiptContents>(
+    async fn populate_slot_response<B: DeserializeOwned, T: TxReceiptContents, E>(
         &self,
         number: u64,
         slot: StoredSlot,
         mode: QueryMode,
-    ) -> anyhow::Result<SlotResponse<B, T>> {
+    ) -> anyhow::Result<SlotResponse<B, T, E>>
+    where
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+    {
         let state_root = slot.state_root.as_ref().to_vec();
         let finality_status = if self.get_latest_finalized_slot_number().await? >= number {
             FinalityStatus::Finalized
@@ -521,26 +566,28 @@ impl LedgerStateProvider for LedgerDb {
             .await
     }
 
-    async fn get_slots<B, T>(
+    async fn get_slots<B, T, E>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<SlotResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_rpc_reader().get_slots(slot_ids, query_mode).await
     }
 
-    async fn get_batches<B, T>(
+    async fn get_batches<B, T, E>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<BatchResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             batch_ids.len() <= MAX_BATCHES_PER_REQUEST as usize,
@@ -553,13 +600,14 @@ impl LedgerStateProvider for LedgerDb {
             .await
     }
 
-    async fn get_transactions<T>(
+    async fn get_transactions<T, E>(
         &self,
         tx_ids: &[TxIdentifier],
-        _query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+        query_mode: QueryMode,
+    ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(
             tx_ids.len() <= MAX_TRANSACTIONS_PER_REQUEST as usize,
@@ -568,7 +616,7 @@ impl LedgerStateProvider for LedgerDb {
             MAX_TRANSACTIONS_PER_REQUEST
         );
         self.get_rpc_reader()
-            .get_transactions(tx_ids, _query_mode)
+            .get_transactions(tx_ids, query_mode)
             .await
     }
 
@@ -596,7 +644,7 @@ impl LedgerStateProvider for LedgerDb {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync + DeserializeOwned,
     {
         let slot_not_found_err = || anyhow::anyhow!("Slot `{:?}` not found", slot_id);
 
@@ -604,7 +652,7 @@ impl LedgerStateProvider for LedgerDb {
             .resolve_slot_identifier(slot_id)
             .await?
             .ok_or_else(slot_not_found_err)?;
-        let slot: SlotResponse<B, T> = self
+        let slot: SlotResponse<B, T, E> = self
             .get_slot_by_number(slot_num, QueryMode::Full)
             .await?
             .ok_or_else(slot_not_found_err)?;
@@ -650,45 +698,48 @@ impl LedgerStateProvider for LedgerDb {
     }
 
     // Get X by hash
-    async fn get_slot_by_hash<B, T>(
+    async fn get_slot_by_hash<B, T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> anyhow::Result<Option<SlotResponse<B, T>>>
+    ) -> anyhow::Result<Option<SlotResponse<B, T, E>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
+            .map(|mut batches: Vec<Option<SlotResponse<B, T, E>>>| batches.pop().unwrap_or(None))
     }
 
-    async fn get_batch_by_hash<B, T>(
+    async fn get_batch_by_hash<B, T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> anyhow::Result<Option<BatchResponse<B, T>>>
+    ) -> anyhow::Result<Option<BatchResponse<B, T, E>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
+            .map(|mut batches: Vec<Option<BatchResponse<B, T, E>>>| batches.pop().unwrap_or(None))
     }
 
-    async fn get_tx_by_hash<T>(
+    async fn get_tx_by_hash<T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> anyhow::Result<Option<TxResponse<T>>>
+    ) -> anyhow::Result<Option<TxResponse<T, E>>>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
+            .map(|mut txs: Vec<Option<TxResponse<T, E>>>| txs.pop().unwrap_or(None))
     }
 
     async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error> {
@@ -696,28 +747,30 @@ impl LedgerStateProvider for LedgerDb {
     }
 
     // Get X by number
-    async fn get_slot_by_number<B, T>(
+    async fn get_slot_by_number<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> anyhow::Result<Option<SlotResponse<B, T>>>
+    ) -> anyhow::Result<Option<SlotResponse<B, T, E>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
-            .map(|mut slots: Vec<Option<SlotResponse<B, T>>>| slots.pop().unwrap_or(None))
+            .map(|mut slots: Vec<Option<SlotResponse<B, T, E>>>| slots.pop().unwrap_or(None))
     }
 
-    async fn get_batch_by_number<B, T>(
+    async fn get_batch_by_number<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> anyhow::Result<Option<BatchResponse<B, T>>>
+    ) -> anyhow::Result<Option<BatchResponse<B, T, E>>>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
@@ -749,15 +802,16 @@ impl LedgerStateProvider for LedgerDb {
             .await
     }
 
-    async fn get_slots_range<B, T>(
+    async fn get_slots_range<B, T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<SlotResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -769,15 +823,16 @@ impl LedgerStateProvider for LedgerDb {
         self.get_slots(&ids, query_mode).await
     }
 
-    async fn get_batches_range<B, T>(
+    async fn get_batches_range<B, T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<BatchResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(
@@ -789,14 +844,15 @@ impl LedgerStateProvider for LedgerDb {
         self.get_batches(&ids, query_mode).await
     }
 
-    async fn get_transactions_range<T>(
+    async fn get_transactions_range<T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         anyhow::ensure!(start <= end, "start must be <= end");
         anyhow::ensure!(

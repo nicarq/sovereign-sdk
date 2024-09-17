@@ -197,7 +197,10 @@ async fn notify_processed_slot<Ss: SequencerSpec>(
     slot_number: u64,
 ) -> anyhow::Result<()> {
     let slot = ledger_db
-        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt>(slot_number, QueryMode::Full)
+        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
+            slot_number,
+            QueryMode::Full,
+        )
         .await?
         .unwrap();
     for batch in slot.batches.unwrap_or_default().iter() {

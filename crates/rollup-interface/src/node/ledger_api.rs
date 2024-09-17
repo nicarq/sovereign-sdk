@@ -153,8 +153,10 @@ impl Default for QueryMode {
 
 /// The body of a response to a JSON-RPC request for a particular slot.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(bound = "B: Serialize + DeserializeOwned, Tx: TxReceiptContents")]
-pub struct SlotResponse<B, Tx: TxReceiptContents> {
+#[serde(
+    bound = "B: Serialize + DeserializeOwned, Tx: TxReceiptContents, E: Serialize + DeserializeOwned"
+)]
+pub struct SlotResponse<B, Tx: TxReceiptContents, E> {
     /// The slot number.
     pub number: u64,
     /// The hex encoded slot hash.
@@ -167,15 +169,17 @@ pub struct SlotResponse<B, Tx: TxReceiptContents> {
     pub batch_range: core::ops::Range<u64>,
     /// The batches in this slot, if the [`QueryMode`] of the request is not `Compact`
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx>>>>,
+    pub batches: Option<Vec<ItemOrHash<BatchResponse<B, Tx, E>>>>,
     /// The status of the slot.
     pub finality_status: FinalityStatus,
 }
 
 /// The response to a JSON-RPC request for a particular batch.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(bound = "B: Serialize + DeserializeOwned, Tx: TxReceiptContents")]
-pub struct BatchResponse<B, Tx: TxReceiptContents> {
+#[serde(
+    bound = "B: Serialize + DeserializeOwned, Tx: TxReceiptContents, E: Serialize + DeserializeOwned"
+)]
+pub struct BatchResponse<B, Tx: TxReceiptContents, E> {
     /// The hex encoded batch hash.
     #[serde(with = "hex_string_serde")]
     pub hash: [u8; 32],
@@ -183,7 +187,7 @@ pub struct BatchResponse<B, Tx: TxReceiptContents> {
     pub tx_range: core::ops::Range<u64>,
     /// The transactions in this batch, if the [`QueryMode`] of the request is not `Compact`.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub txs: Option<Vec<ItemOrHash<TxResponse<Tx>>>>,
+    pub txs: Option<Vec<ItemOrHash<TxResponse<Tx, E>>>>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the batch.
     pub receipt: B,
@@ -193,8 +197,8 @@ pub struct BatchResponse<B, Tx: TxReceiptContents> {
 
 /// The response to a JSON-RPC request for a particular transaction.
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-#[serde(bound = "Tx: TxReceiptContents")]
-pub struct TxResponse<Tx: TxReceiptContents> {
+#[serde(bound = "Tx: TxReceiptContents, E: Serialize + DeserializeOwned")]
+pub struct TxResponse<Tx: TxReceiptContents, E> {
     /// The hex encoded transaction hash.
     #[serde(with = "hex_string_serde")]
     pub hash: [u8; 32],
@@ -203,6 +207,9 @@ pub struct TxResponse<Tx: TxReceiptContents> {
     /// The transaction body, if stored by the rollup.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body: Option<Vec<u8>>,
+    /// The events emitted by this transaction, if the [`QueryMode`] of the request is not `Compact`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub events: Option<Vec<E>>,
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the transaction.
     pub receipt: TxEffect<Tx>,
@@ -259,13 +266,14 @@ pub trait LedgerStateProvider {
     async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error>;
 
     /// Get the latest slot in the ledger.
-    async fn get_head<B, T>(
+    async fn get_head<B, T, E>(
         &self,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    ) -> Result<Option<SlotResponse<B, T, E>>, Self::Error>
     where
         B: DeserializeOwned + Clone + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         if let Some(head_number) = self.get_head_slot_number().await? {
             self.get_slot_by_number(head_number, query_mode).await
@@ -275,33 +283,36 @@ pub trait LedgerStateProvider {
     }
 
     /// Get a list of slots by id. The IDs need not be ordered.
-    async fn get_slots<B, T>(
+    async fn get_slots<B, T, E>(
         &self,
         slot_ids: &[SlotIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<SlotResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a list of batches by id. The IDs need not be ordered.
-    async fn get_batches<B, T>(
+    async fn get_batches<B, T, E>(
         &self,
         batch_ids: &[BatchIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<BatchResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a list of transactions by id. The IDs need not be ordered.
-    async fn get_transactions<T>(
+    async fn get_transactions<T, E>(
         &self,
         tx_ids: &[TxIdentifier],
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get events by id. The IDs need not be ordered.
     async fn get_events<E>(
@@ -321,50 +332,53 @@ pub trait LedgerStateProvider {
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
-        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync + DeserializeOwned;
 
     /// Get a single slot by hash.
-    async fn get_slot_by_hash<B, T>(
+    async fn get_slot_by_hash<B, T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    ) -> Result<Option<SlotResponse<B, T, E>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut batches: Vec<Option<SlotResponse<B, T>>>| batches.pop().unwrap_or(None))
+            .map(|mut batches: Vec<Option<SlotResponse<B, T, E>>>| batches.pop().unwrap_or(None))
     }
 
     /// Get a single batch by hash.
-    async fn get_batch_by_hash<B, T>(
+    async fn get_batch_by_hash<B, T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, Self::Error>
+    ) -> Result<Option<BatchResponse<B, T, E>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut batches: Vec<Option<BatchResponse<B, T>>>| batches.pop().unwrap_or(None))
+            .map(|mut batches: Vec<Option<BatchResponse<B, T, E>>>| batches.pop().unwrap_or(None))
     }
 
     /// Get a single transaction by hash.
-    async fn get_tx_by_hash<T>(
+    async fn get_tx_by_hash<T, E>(
         &self,
         hash: &[u8; 32],
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, Self::Error>
+    ) -> Result<Option<TxResponse<T, E>>, Self::Error>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Hash(*hash)], query_mode)
             .await
-            .map(|mut txs: Vec<Option<TxResponse<T>>>| txs.pop().unwrap_or(None))
+            .map(|mut txs: Vec<Option<TxResponse<T, E>>>| txs.pop().unwrap_or(None))
     }
 
     /// Get a list of transaction numbers by hash. Since a tx hash itself
@@ -373,14 +387,15 @@ pub trait LedgerStateProvider {
     async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error>;
 
     /// Get a single slot by number.
-    async fn get_slot_by_number<B, T>(
+    async fn get_slot_by_number<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<SlotResponse<B, T>>, Self::Error>
+    ) -> Result<Option<SlotResponse<B, T, E>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_slots(&[SlotIdentifier::Number(number)], query_mode)
             .await
@@ -388,14 +403,15 @@ pub trait LedgerStateProvider {
     }
 
     /// Get a single batch by number.
-    async fn get_batch_by_number<B, T>(
+    async fn get_batch_by_number<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<BatchResponse<B, T>>, Self::Error>
+    ) -> Result<Option<BatchResponse<B, T, E>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_batches(&[BatchIdentifier::Number(number)], query_mode)
             .await
@@ -423,13 +439,14 @@ pub trait LedgerStateProvider {
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a single tx by number.
-    async fn get_tx_by_number<T>(
+    async fn get_tx_by_number<T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
-    ) -> Result<Option<TxResponse<T>>, Self::Error>
+    ) -> Result<Option<TxResponse<T, E>>, Self::Error>
     where
         T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         self.get_transactions(&[TxIdentifier::Number(number)], query_mode)
             .await
@@ -439,40 +456,43 @@ pub trait LedgerStateProvider {
     /// Get a range of slots. This query is the most efficient way to
     /// fetch large numbers of slots, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_slots_range<B, T>(
+    async fn get_slots_range<B, T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<SlotResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<SlotResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of batches, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_batches_range<B, T>(
+    async fn get_batches_range<B, T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<BatchResponse<B, T>>>, Self::Error>
+    ) -> Result<Vec<Option<BatchResponse<B, T, E>>>, Self::Error>
     where
         B: DeserializeOwned + Send + Sync,
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Get a range of batches. This query is the most efficient way to
     /// fetch large numbers of transactions, since it allows for easy batching of
     /// db queries for adjacent items.
-    async fn get_transactions_range<T>(
+    async fn get_transactions_range<T, E>(
         &self,
         start: u64,
         end: u64,
         query_mode: QueryMode,
-    ) -> Result<Vec<Option<TxResponse<T>>>, Self::Error>
+    ) -> Result<Vec<Option<TxResponse<T, E>>>, Self::Error>
     where
-        T: TxReceiptContents;
+        T: TxReceiptContents,
+        E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
     /// Resolve a [`SlotIdentifier`] into a slot number.
     async fn resolve_slot_identifier(
