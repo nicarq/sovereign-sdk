@@ -71,8 +71,8 @@ impl<T> InfallibleStateAccessor for T where
 /// The state accessor used during transaction execution. It provides unrestricted
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
 pub trait TxState<S: Spec>:
-    StateReader<User, Error = StateAccessorError<S::Gas>>
-    + StateWriter<User, Error = StateAccessorError<S::Gas>>
+    StateReader<User, Error: Into<anyhow::Error>>
+    + StateWriter<User, Error = <Self as StateReader<User>>::Error>
     // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
     + StateWriter<Accessory>
     + EventContainer
@@ -81,8 +81,8 @@ pub trait TxState<S: Spec>:
 }
 
 impl<S: Spec, T> TxState<S> for T where
-    T: StateReader<User, Error = StateAccessorError<S::Gas>>
-        + StateWriter<User, Error = StateAccessorError<S::Gas>>
+    T: StateReader<User, Error: Into<anyhow::Error>>
+        + StateWriter<User, Error = <Self as StateReader<User>>::Error>
         + StateWriter<Accessory>
         + EventContainer
         + GasMeter<S::Gas>
@@ -169,7 +169,7 @@ pub enum StateAccessorError<GU: Gas> {
 /// ## NOTE
 /// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
 /// optimal
-fn decode_gas_cost<GU: Gas>(input: &SlotValue) -> GU {
+pub(crate) fn decode_gas_cost<GU: Gas>(input: &SlotValue) -> GU {
     const GAS_TO_CHARGE_FOR_DECODING: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_DECODING");
     let mut gas_cost = GU::from_slice(&GAS_TO_CHARGE_FOR_DECODING);
     let input_len = input.value().len();
@@ -184,14 +184,14 @@ fn decode_gas_cost<GU: Gas>(input: &SlotValue) -> GU {
 /// ## NOTE
 /// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
 /// optimal
-fn gas_to_charge_for_read<GU: Gas>() -> GU {
+pub(crate) fn gas_to_charge_for_read<GU: Gas>() -> GU {
     const GAS_TO_CHARGE_FOR_READ: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_ACCESS");
     GU::from_slice(&GAS_TO_CHARGE_FOR_READ)
 }
 
 /// Gas to refund for a read operation. Now this is the value to refund for a read operation that accesses a warm value.
 /// In the future we may want to support more access patterns and improve the granularity of the refund.
-fn gas_to_refund_for_hot_read<GU: Gas>() -> GU {
+pub(crate) fn gas_to_refund_for_hot_read<GU: Gas>() -> GU {
     const GAS_TO_REFUND_FOR_HOT_READ: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS");
     GU::from_slice(&GAS_TO_REFUND_FOR_HOT_READ)
 }
@@ -205,14 +205,14 @@ fn gas_to_refund_for_hot_read<GU: Gas>() -> GU {
 ///  
 /// For now, charges the same amount of gas for delete as for write.
 /// In the future, we may want to charge a different amount and improve the granularity of the refund.
-fn gas_to_charge_for_write<GU: Gas>() -> GU {
+pub(crate) fn gas_to_charge_for_write<GU: Gas>() -> GU {
     const GAS_TO_CHARGE_FOR_WRITE: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_WRITE");
     GU::from_slice(&GAS_TO_CHARGE_FOR_WRITE)
 }
 
 /// Gas to refund for a write operation. Now this is the value to refund for a write operation that accesses a warm value.
 /// In the future we may want to support more access patterns and improve the granularity of the refund.
-fn gas_to_refund_for_hot_write<GU: Gas>() -> GU {
+pub(crate) fn gas_to_refund_for_hot_write<GU: Gas>() -> GU {
     const GAS_TO_REFUND_FOR_HOT_WRITE: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
     GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
 }
@@ -226,14 +226,14 @@ fn gas_to_refund_for_hot_write<GU: Gas>() -> GU {
 ///  
 /// For now, charges the same amount of gas for delete as for delete.
 /// In the future, we may want to charge a different amount and improve the granularity of the refund.
-fn gas_to_charge_for_delete<GU: Gas>() -> GU {
+pub(crate) fn gas_to_charge_for_delete<GU: Gas>() -> GU {
     const GAS_TO_CHARGE_FOR_WRITE: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_WRITE");
     GU::from_slice(&GAS_TO_CHARGE_FOR_WRITE)
 }
 
 /// Gas to refund for a delete operation. Now this is the value to refund for a delete operation that accesses a warm value.
 /// In the future we may want to support more access patterns and improve the granularity of the refund.
-fn gas_to_refund_for_hot_delete<GU: Gas>() -> GU {
+pub(crate) fn gas_to_refund_for_hot_delete<GU: Gas>() -> GU {
     const GAS_TO_REFUND_FOR_HOT_WRITE: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
     GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
 }

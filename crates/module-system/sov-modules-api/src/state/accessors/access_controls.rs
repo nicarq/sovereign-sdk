@@ -67,28 +67,102 @@ mod http_api {
     use std::convert::Infallible;
 
     use sov_state::{
-        Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder, User,
+        IsValueCached, Kernel, SlotKey, SlotValue, StateCodec, StateItemCodec, StateItemDecoder,
+        User,
     };
 
     use super::CachedAccessor;
+    use crate::gas::GasMeter;
     use crate::state::accessors::http_api::ApiStateAccessor;
+    use crate::state::traits::{
+        decode_gas_cost, gas_to_charge_for_delete, gas_to_charge_for_read, gas_to_charge_for_write,
+        gas_to_refund_for_hot_delete, gas_to_refund_for_hot_read, gas_to_refund_for_hot_write,
+    };
     use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
+
+    macro_rules! inner_impl_http_api_state_reader {
+        ($namespace:ty) => {
+        type Error = Infallible;
+
+        fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Infallible> {
+            self.charge_gas(&gas_to_charge_for_read()).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
+
+            let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
+
+            if is_value_cached == IsValueCached::Yes {
+                self.refund_gas(&gas_to_refund_for_hot_read()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+            }
+
+            Ok(val)
+        }
+
+        fn get_decoded<V, Codec>(
+            &mut self,
+            storage_key: &SlotKey,
+            codec: &Codec,
+        ) -> Result<Option<V>, Infallible>
+        where
+            Codec: StateCodec,
+            Codec::ValueCodec: StateItemCodec<V>,
+        {
+            let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
+
+            if let Some(storage_value) = &storage_value {
+                self.charge_gas(&decode_gas_cost(storage_value)).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!")
+            }
+
+            Ok(storage_value
+                .map(|storage_value| codec.value_codec().decode_unwrap(storage_value.value())))
+        }
+        };
+    }
+
+    macro_rules! inner_impl_http_api_state_writer {
+        ($namespace:ty) => {
+                type Error = Infallible;
+
+                fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
+                    self.charge_gas(&gas_to_charge_for_write())
+                        .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+                    let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
+
+                    if is_value_cached == IsValueCached::Yes {
+                        self.refund_gas(&gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    }
+
+                    Ok(())
+                }
+
+                fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
+                    self.charge_gas(&gas_to_charge_for_delete())
+                    .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
+
+                    let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
+
+                    if is_value_cached == IsValueCached::Yes {
+                        self.refund_gas(&gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    }
+
+                    Ok(())
+                }
+            }
+    }
 
     impl<S: Spec> AccessoryStateReader for ApiStateAccessor<S> {}
     impl<S: Spec> AccessoryStateWriter for ApiStateAccessor<S> {}
 
     impl<S: Spec> StateReader<User> for ApiStateAccessor<S> {
-        inner_impl_unmetered_state_reader!(User);
+        inner_impl_http_api_state_reader!(User);
     }
     impl<S: Spec> StateWriter<User> for ApiStateAccessor<S> {
-        inner_impl_unmetered_state_writer!(User);
+        inner_impl_http_api_state_writer!(User);
     }
 
     impl<S: Spec> StateReader<Kernel> for ApiStateAccessor<S> {
-        inner_impl_unmetered_state_reader!(Kernel);
+        inner_impl_http_api_state_reader!(Kernel);
     }
     impl<S: Spec> StateWriter<Kernel> for ApiStateAccessor<S> {
-        inner_impl_unmetered_state_writer!(Kernel);
+        inner_impl_http_api_state_writer!(Kernel);
     }
 }
 

@@ -1,3 +1,4 @@
+- #1459 Modifies the `TxState` trait to make it compatible with the `ApiStateAccessor` so that it becomes possible to test module call methods directly using the `ApiStateAccessor`.
 -  #1457 Adds the `sov-stf-runner/processes` module and moves the `ProofManager`, `ProverService`, and `sov-stf-info-manager` there.
 - #1454 LedgerDb: use async_get to get data from the db.
 - #1446 Integrate stf_info_manager in runner.rs

@@ -3,7 +3,7 @@ use std::cmp::max;
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
-    StateAccessorError, StateReader, TxState, Zkvm,
+    StateReader, TxState, Zkvm,
 };
 use sov_state::User;
 use thiserror::Error;
@@ -13,7 +13,7 @@ use crate::ProverIncentives;
 
 /// Error raised while processing the aggregated proof.
 #[derive(Debug, Error)]
-pub enum ProcessProofError<S: Spec> {
+pub enum ProcessProofError {
     #[error(
         "Error occurred when rewarding the prover. This module's account may not have enough funds. This is a bug. Error: {0}"
     )]
@@ -32,14 +32,14 @@ pub enum ProcessProofError<S: Spec> {
     BondNotHighEnough,
 
     #[error("An error occurred when trying to access the state, error: {0}")]
-    StateAccessorError(#[from] StateAccessorError<S::Gas>),
+    StateAccessorError(#[from] anyhow::Error),
 
     #[error("Prover incentives called with invalid operating mode")]
     InvalidOperatingMode,
 }
 
-impl<S: Spec> From<ProcessProofError<S>> for InvalidProofError {
-    fn from(error: ProcessProofError<S>) -> Self {
+impl From<ProcessProofError> for InvalidProofError {
+    fn from(error: ProcessProofError) -> Self {
         match error {
             ProcessProofError::ProverSlashedNoRevert(e) => {
                 InvalidProofError::ProverSlashed(e.to_string())
@@ -72,20 +72,27 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         proof: &SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<AggregatedProofPublicData, ProcessProofError<S>> {
+    ) -> Result<AggregatedProofPublicData, ProcessProofError> {
         if !self.should_reward_fees(state) {
             return Err(ProcessProofError::InvalidOperatingMode);
         }
 
         // Get the prover's old balance.
         // Revert if they aren't bonded
-        let old_balance = match self.bonded_provers.get(prover_address, state)? {
+        let old_balance = match self
+            .bonded_provers
+            .get(prover_address, state)
+            .map_err(Into::<anyhow::Error>::into)?
+        {
             Some(balance) => balance,
             None => return Err(ProcessProofError::ProverNotBonded),
         };
 
         // Check that the prover has enough balance to process the proof.
-        let minimum_bond = self.minimum_bond.get(state)?;
+        let minimum_bond = self
+            .minimum_bond
+            .get(state)
+            .map_err(Into::<anyhow::Error>::into)?;
         let minimum_bond = minimum_bond.expect("The minimum bond should be set at genesis");
 
         if old_balance < minimum_bond {
@@ -94,7 +101,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         let code_commitment = self
             .chain_state
-            .outer_code_commitment(state)?
+            .outer_code_commitment(state)
+            .map_err(Into::<anyhow::Error>::into)?
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result = <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(
@@ -115,7 +123,10 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             }
         };
 
-        if let Some(slashing_reason) = self.check_proof_outputs(&public_outputs, state)? {
+        if let Some(slashing_reason) = self
+            .check_proof_outputs(&public_outputs, state)
+            .map_err(Into::<anyhow::Error>::into)?
+        {
             tracing::debug!(?slashing_reason, "Slashing prover");
 
             self.slash_prover(prover_address, state)?;
@@ -149,8 +160,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(), StateAccessorError<S::Gas>> {
-        self.bonded_provers.delete(prover_address, state)
+    ) -> Result<(), anyhow::Error> {
+        Ok(self.bonded_provers.delete(prover_address, state)?)
     }
 
     /// Computes the total reward from the aggregated state transition and rewards the prover with the unclaimed
@@ -160,13 +171,14 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         init_slot_num: u64,
         final_slot_num: u64,
         state: &mut impl TxState<S>,
-    ) -> Result<Paycheck, ProcessProofError<S>> {
+    ) -> Result<Paycheck, ProcessProofError> {
         // Let's compute the total reward
         let mut total_reward = 0;
 
         let first_available_reward = self
             .last_claimed_reward
-            .get(state)?
+            .get(state)
+            .map_err(Into::<anyhow::Error>::into)?
             .expect("The last claimed reward should be set at genesis")
             + 1;
 
@@ -182,7 +194,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             // whose integrity was checked beforehand.
             if let Some(transition) = self
                 .chain_state
-                .get_historical_transitions(slot_num, state)?
+                .get_historical_transitions(slot_num, state)
+                .map_err(Into::<anyhow::Error>::into)?
             {
                 let curr_reward = transition.gas_used().value(transition.gas_price());
                 total_reward += curr_reward;
@@ -191,7 +204,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // We need to remove the reward once it is claimed
         self.last_claimed_reward
-            .set(&max(first_available_reward, final_slot_num), state)?;
+            .set(&max(first_available_reward, final_slot_num), state)
+            .map_err(Into::<anyhow::Error>::into)?;
 
         if first_claimed_reward > final_slot_num {
             Ok(Paycheck::Penalized)
@@ -205,11 +219,12 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         old_balance: u64,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessProofError<S>> {
+    ) -> Result<(), ProcessProofError> {
         // Penalize the prover
         let fine = self
             .proving_penalty
-            .get(state)?
+            .get(state)
+            .map_err(Into::<anyhow::Error>::into)?
             .expect("Should be set at genesis");
 
         let new_balance = old_balance
@@ -217,7 +232,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .expect("We already checked that the balance is greater than the fine");
 
         self.bonded_provers
-            .set(prover_address, &new_balance, state)?;
+            .set(prover_address, &new_balance, state)
+            .map_err(Into::<anyhow::Error>::into)?;
 
         Ok(())
     }
@@ -227,7 +243,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         total_reward: u64,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ProcessProofError<S>> {
+    ) -> Result<(), ProcessProofError> {
         // We only reward a portion of the total reward - we burn some of it
         // to avoid the provers to collude to prove empty blocks.
         let reward_amount = self.burn_rate().apply(total_reward);

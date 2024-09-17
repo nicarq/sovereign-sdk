@@ -1,10 +1,13 @@
-use sov_state::{CompileTimeNamespace, IsValueCached, SlotKey, SlotValue};
+use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
 #[cfg(feature = "native")]
 use sov_state::{NativeStorage, ProvableCompileTimeNamespace, Storage, StorageProof};
 
 use super::internals::Delta;
 use super::seal::CachedAccessor;
-use crate::{ProvenStateAccessor, Spec, StateReaderAndWriter};
+use crate::{
+    Gas, GasMeter, GasMeteringError, ProvenStateAccessor, Spec, StateReaderAndWriter, TypedEvent,
+    UnlimitedGasMeter,
+};
 
 /// A storage wrapper that can be used to access the state inside http api requests.
 /// This is the data structure that should be used inside RPC and REST macros to generate storage accessors.
@@ -15,13 +18,47 @@ use crate::{ProvenStateAccessor, Spec, StateReaderAndWriter};
 /// state won't be allowed.
 pub struct ApiStateAccessor<S: Spec> {
     pub(super) delta: Delta<S::Storage>,
+    events: Vec<TypedEvent>,
+    gas_meter: UnlimitedGasMeter<S::Gas>,
+}
+
+impl<S: Spec> GasMeter<S::Gas> for ApiStateAccessor<S> {
+    fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        self.gas_meter.charge_gas(gas)
+    }
+
+    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
+        self.gas_meter.refund_gas(gas)
+    }
+
+    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
+        self.gas_meter.gas_price()
+    }
+
+    fn gas_used(&self) -> &S::Gas {
+        self.gas_meter.gas_used()
+    }
+
+    fn remaining_funds(&self) -> u64 {
+        self.gas_meter.remaining_funds()
+    }
+}
+
+impl<S: Spec> EventContainer for ApiStateAccessor<S> {
+    fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
+        self.events.push(TypedEvent::new(event_key, event));
+    }
 }
 
 impl<S: Spec> ApiStateAccessor<S> {
     /// Creates a new [`ApiStateAccessor`] instance backed by the given [`Spec::Storage`].
+    ///
+    /// TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1458`): add a method to build an [`ApiStateAccessor`] with a gas price.
     pub fn new(inner: S::Storage) -> Self {
         Self {
             delta: Delta::new(inner.clone(), None),
+            events: Vec::new(),
+            gas_meter: UnlimitedGasMeter::new(),
         }
     }
 
@@ -36,6 +73,8 @@ impl<S: Spec> ApiStateAccessor<S> {
 
         Self {
             delta: Delta::new(storage.clone(), Some(version)),
+            events: Vec::new(),
+            gas_meter: UnlimitedGasMeter::new(),
         }
     }
 }
