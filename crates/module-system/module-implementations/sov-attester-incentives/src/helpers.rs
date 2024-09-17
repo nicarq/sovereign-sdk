@@ -4,9 +4,7 @@ use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{
-    StateAccessor, StateAccessorError, StateReader, StateTransitionPublicData, TxState,
-};
+use sov_modules_api::{StateAccessor, StateReader, StateTransitionPublicData, TxState};
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
 use tracing::debug;
@@ -100,7 +98,7 @@ where
         &self,
         user: &S::Address,
         state: &mut TxStateAccessor,
-    ) -> Result<u64, StateAccessorError<S::Gas>> {
+    ) -> Result<u64, anyhow::Error> {
         // We have to remove the attester from the unbonding set
         // to prevent him from skipping the first phase
         // unbonding if he bonds himself again.
@@ -120,7 +118,7 @@ where
         attester: &S::Address,
         height: TransitionHeight,
         state: &mut TxStateAccessor,
-    ) -> Result<(), StateAccessorError<S::Gas>> {
+    ) -> Result<(), anyhow::Error> {
         let reward = self.slash_attester(attester, state)?;
 
         let curr_reward_value = self
@@ -156,7 +154,7 @@ where
     /// The proof must refer to a valid state of the rollup. The initial root hash must represent a state between
     /// the bonding proof one and the current state.
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_bonding_proof<ST: StateReader<User>>(
+    pub(crate) fn check_bonding_proof<ST: StateReader<User, Error: Into<anyhow::Error>>>(
         &self,
         sender: &S::Address,
         attestation: &Attestation<
@@ -165,7 +163,7 @@ where
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
         state: &mut ST,
-    ) -> Result<(), ProcessAttestationErrors<ST::Error>> {
+    ) -> Result<(), ProcessAttestationErrors> {
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
@@ -177,12 +175,14 @@ where
 
             if let Some(transition) = self
                 .chain_state
-                .get_historical_transitions(rollup_height, state)?
+                .get_historical_transitions(rollup_height, state)
+                .map_err(Into::<anyhow::Error>::into)?
             {
                 transition.post_state_root().clone()
             } else {
                 self.chain_state
-                    .get_genesis_hash(state)?
+                    .get_genesis_hash(state)
+                    .map_err(Into::<anyhow::Error>::into)?
                     .expect("The genesis hash should be set at genesis")
             }
         };
@@ -202,7 +202,8 @@ where
 
         let minimum_bond = self
             .minimum_attester_bond
-            .get_or_err(state)?
+            .get_or_err(state)
+            .map_err(Into::<anyhow::Error>::into)?
             .expect("The minimum bond should be set at genesis");
 
         // We then have to check that the bond was greater than the minimum bond
@@ -293,7 +294,7 @@ where
         &self,
         sender: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<(), StateAccessorError<S::Gas>> {
+    ) -> anyhow::Result<(), anyhow::Error> {
         self.bonded_challengers.remove(sender, state)?;
         Ok(())
     }
