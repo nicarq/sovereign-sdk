@@ -36,12 +36,13 @@ fn rollup_height_param() -> utoipa::openapi::path::Parameter {
 
 /// The OpenAPI paths specification for
 /// [`StateValue`](crate::containers::StateValue).
-pub fn state_value_paths(module_name: &str) -> OpenApiPaths {
+pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
     vec![(
         "".to_string(),
         json!({
             "get": {
                 "summary": "Get the value of a `StateValue`.",
+                "operationId": format!("{}_{}_get_state_value", module_name, field_name),
                 "tags": [module_name],
                 "parameters": [rollup_height_param()],
                 "responses": {
@@ -56,12 +57,13 @@ pub fn state_value_paths(module_name: &str) -> OpenApiPaths {
 
 /// The OpenAPI paths specification for
 /// [`StateMap`](crate::containers::StateMap).
-pub fn state_map_paths(module_name: &str) -> OpenApiPaths {
+pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
     vec![(
         "/items/{key}".to_string(),
         json!({
             "get": {
                 "summary": "Get the value of a `StateMap` element.",
+                "operationId": format!("{}_{}_get_state_map_element", module_name, field_name),
                 "tags": [module_name],
                 "parameters": [
                     {
@@ -89,13 +91,14 @@ pub fn state_map_paths(module_name: &str) -> OpenApiPaths {
 
 /// The OpenAPI paths specification for
 /// [`StateVec`](crate::containers::StateVec).
-pub fn state_vec_paths(module_name: &str) -> OpenApiPaths {
+pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
     vec![
         (
             "".to_string(),
             json!({
                 "get": {
                     "summary": "Get general information about a `StateVec`, including its length.",
+                    "operationId": format!("{}_{}_get_state_vec_info", module_name, field_name),
                     "tags": [module_name],
                     "parameters": [rollup_height_param()],
                     "responses": {
@@ -114,6 +117,7 @@ pub fn state_vec_paths(module_name: &str) -> OpenApiPaths {
             json!({
                 "get": {
                     "summary": "Get the value of a `StateVec` element.",
+                    "operationId": format!("{}_{}_get_state_vec_element", module_name, field_name),
                     "tags": [module_name],
                     "parameters": [
                         {
@@ -142,11 +146,17 @@ pub fn state_vec_paths(module_name: &str) -> OpenApiPaths {
 pub fn runtime_spec(module_specs: HashMap<String, OpenApi>) -> OpenApi {
     let mut runtime_spec: OpenApi = serde_yaml::from_str(OPENAPI_TEMPLATE).unwrap();
 
+    // Because: https://github.com/juhaku/utoipa/issues/972
+    for runtime_path in runtime_spec.paths.paths.values_mut() {
+        runtime_path.extensions = None;
+    }
+
     for (module_name, mut module_spec) in module_specs {
         let old_paths = std::mem::take(&mut module_spec.paths);
-        // TODO: Extensions
-        for (path, path_item) in old_paths.paths {
+        for (path, mut path_item) in old_paths.paths {
             let runtime_path = format!("/modules/{}{}", module_name, path);
+            // Because: https://github.com/juhaku/utoipa/issues/972
+            path_item.extensions = None;
             module_spec.paths.paths.insert(runtime_path, path_item);
         }
         runtime_spec.merge(module_spec);
@@ -181,7 +191,7 @@ where
     Codec::ValueCodec: StateItemCodec<T>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
-        let paths = state_value_paths(module_name);
+        let paths = state_value_paths(module_name, &self.state_item_info.name);
         spec_from_json_paths(paths)
     }
 }
@@ -195,7 +205,7 @@ where
     Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
-        let paths = state_vec_paths(module_name);
+        let paths = state_vec_paths(module_name, &self.state_item_info.name);
         spec_from_json_paths(paths)
     }
 }
@@ -211,7 +221,7 @@ where
     Codec::ValueCodec: StateItemCodec<V>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
-        let paths = state_map_paths(module_name);
+        let paths = state_map_paths(module_name, &self.state_item_info.name);
         spec_from_json_paths(paths)
     }
 }

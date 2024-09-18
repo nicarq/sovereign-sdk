@@ -19,7 +19,7 @@ paths:
           $ref: '#/components/responses/CoinsResponse'
         '404':
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/respones/NotFound'
+          $ref: '#/components/responses/NotFound'
   /tokens/{token_id}/balances/{address}:
     get:
       summary: Fetch the current balance of the token for a given user
@@ -40,7 +40,7 @@ paths:
           $ref: '#/components/responses/CoinsResponse'
         '404':
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/respones/NotFound'
+          $ref: '#/components/responses/NotFound'
   /tokens:
     get:
       summary: Compute a token ID from the given parameters
@@ -70,7 +70,7 @@ paths:
           $ref: '#/components/responses/CoinsResponse'
         '404':
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/respones/NotFound'
+          $ref: '#/components/responses/NotFound'
 
 components:
   schemas:

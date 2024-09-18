@@ -1,5 +1,6 @@
 - #1459 Modifies the `TxState` trait to make it compatible with the `ApiStateAccessor` so that it becomes possible to test module call methods directly using the `ApiStateAccessor`.
 -  #1457 Adds the `sov-stf-runner/processes` module and moves the `ProofManager`, `ProverService`, and `sov-stf-info-manager` there.
+- #1456 Fixes infinite redirect in /swagger-ui endpoint.
 - #1454 LedgerDb: use async_get to get data from the db.
 - #1446 Integrate stf_info_manager in runner.rs
 - #1450 Renames two related traits: `RuntimeAuthorization` becomes `TransactionAuthorizer`; `RuntimeAuthentiation` beomces `TransactionAuthenticator`. The `runtime_authorization` method on the `HasCapabilities` trait is also renamed to `transaction_authorizer`. 

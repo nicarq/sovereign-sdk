@@ -70,6 +70,7 @@ sov-test-utils = { workspace = true }
 reqwest = { workspace = true }
 # Debug for more convinient tests output
 utoipa = { workspace = true, features = ["debug"] }
+openapiv3 = "2.0.0"
 
 [features]
 arbitrary = [

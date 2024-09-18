@@ -130,6 +130,12 @@ async fn rest_api_routes() {
 
     let spec = runtime.openapi_spec().unwrap();
 
+    let serialized_spec = spec.to_json().unwrap();
+    let deserialized: openapiv3::OpenAPI =
+        serde_json::from_str(&serialized_spec).expect("Runtime schema is bad");
+
+    assert_eq!(deserialized.paths.paths.len(), spec.paths.paths.len());
+
     // 1. Root
     // 2. Module details
     // 3-4. state values

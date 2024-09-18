@@ -8,9 +8,12 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub use api_client::ApiClient;
+pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use generators::MessageGenerator;
+pub use interface::*;
 use serde::{Deserialize, Serialize};
 pub use sov_db::schema::SchemaBatch;
+pub use sov_mock_da::verifier::MockDaSpec;
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
@@ -18,6 +21,8 @@ pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, Spec};
 pub use sov_modules_stf_blueprint::{get_gas_used, SkippedReason};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
+use sov_rollup_interface::execution_mode::{Native, Zk};
+pub use sov_state::ProverStorage;
 
 use crate::runtime::BasicKernel;
 
@@ -44,12 +49,6 @@ pub mod storage;
 
 /// Utilities that specify an interface for testing.
 pub mod interface;
-
-pub use evm::simple_smart_contract::SimpleStorageContract;
-pub use interface::*;
-pub use sov_mock_da::verifier::MockDaSpec;
-use sov_rollup_interface::execution_mode::{Native, Zk};
-pub use sov_state::ProverStorage;
 
 /// The default test spec. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.

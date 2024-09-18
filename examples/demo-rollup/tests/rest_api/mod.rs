@@ -36,5 +36,10 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 
     assert_eq!(Some(bond), response.data.map(|d| d.value));
 
+    let swagger_ui_url_1 = test_rollup.client.http_get("/swagger-ui").await?;
+    let swagger_ui_url_2 = test_rollup.client.http_get("/swagger-ui/").await?;
+
+    assert_eq!(swagger_ui_url_1, swagger_ui_url_2);
+
     Ok(())
 }
