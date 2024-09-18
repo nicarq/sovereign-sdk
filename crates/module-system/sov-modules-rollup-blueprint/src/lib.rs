@@ -68,9 +68,7 @@ mod blueprint {
     };
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
-    use sov_stf_runner::processes::{
-        new_stf_info_channel, ProverService, RollupProverConfig, ZkProofManager,
-    };
+    use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
     use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
     use tokio::sync::oneshot;
 
@@ -228,6 +226,7 @@ mod blueprint {
         where
             <Self::Spec as Spec>::Storage: NativeStorage,
         {
+            let operating_mode = Self::get_operating_mode(&kernel_genesis_config);
             let genesis_config = self.create_genesis_config(
                 runtime_genesis_paths,
                 kernel_genesis_config,
@@ -278,25 +277,32 @@ mod blueprint {
 
             let st_info_sender = match prover_config {
                 Some(config) => {
-                    let (st_info_sender, st_info_receiver) =
-                        new_stf_info_channel(ledger_db.clone(), 1, 2).await?;
-
                     let prover_service = self
                         .create_prover_service(config, &rollup_config, &da_service)
                         .await;
 
-                    let proof_manager = ZkProofManager::new(
-                        da_service.clone(),
+                    let process_manager = WorkflowProcessManager::new(
                         prover_service,
-                        rollup_config.proof_manager.aggregated_proof_block_jump,
-                        Box::new(Self::ProofSerializer::new()),
+                        da_service.clone(),
+                        ledger_db.clone(),
                         genesis_state_root,
-                        st_info_receiver,
+                        Box::new(Self::ProofSerializer::new()),
                     );
 
-                    proof_manager
-                        .post_aggregated_proof_to_da_in_background()
-                        .await;
+                    let st_info_sender = match operating_mode {
+                        OperatingMode::Optimistic => {
+                            process_manager.start_op_workflow_in_background().await?
+                        }
+                        OperatingMode::Zk => {
+                            process_manager
+                                .start_zk_workflow_in_background(
+                                    rollup_config.proof_manager.aggregated_proof_block_jump,
+                                    1,
+                                    2,
+                                )
+                                .await?
+                        }
+                    };
 
                     Some(st_info_sender)
                 }

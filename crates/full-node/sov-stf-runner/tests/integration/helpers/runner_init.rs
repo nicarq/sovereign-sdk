@@ -2,7 +2,7 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use futures::stream::BoxStream;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
@@ -21,7 +21,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 use sov_sequencer::FairBatchBuilderConfig;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::processes::{
-    new_stf_info_channel, ParallelProverService, RollupProverConfig, ZkProofManager,
+    ParallelProverService, RollupProverConfig, WorkflowProcessManager,
 };
 use sov_stf_runner::{
     HttpServerConfig, InitVariant, ProofManagerConfig, RollupConfig, RunnerConfig, SequencerConfig,
@@ -218,21 +218,22 @@ pub async fn initialize_runner(
                 Vec::<u8>::default(),
             );
 
-            let (st_info_sender, st_info_receiver) =
-                new_stf_info_channel(ledger_db.clone(), 1, 2).await.unwrap();
-
-            let proof_manager = ZkProofManager::new(
-                da_service.clone(),
+            let process_manager = WorkflowProcessManager::new(
                 prover_service,
-                rollup_config.proof_manager.aggregated_proof_block_jump,
-                Box::new(DummyProofSerializer::new()),
+                da_service.clone(),
+                ledger_db.clone(),
                 genesis_state_root,
-                st_info_receiver,
+                Box::new(DummyProofSerializer::new()),
             );
 
-            proof_manager
-                .post_aggregated_proof_to_da_in_background()
-                .await;
+            let st_info_sender = process_manager
+                .start_zk_workflow_in_background(
+                    rollup_config.proof_manager.aggregated_proof_block_jump,
+                    1,
+                    2,
+                )
+                .await
+                .unwrap();
 
             Some(st_info_sender)
         }
@@ -240,7 +241,9 @@ pub async fn initialize_runner(
     };
 
     let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
-    let agg_proof_saved_in_db_sub = ledger_db.subscribe_proof_saved();
+    let agg_proof_saved_in_db_sub: std::pin::Pin<
+        Box<dyn Stream<Item = AggregatedProofResponse> + Send>,
+    > = ledger_db.subscribe_proof_saved();
 
     (
         StateTransitionRunner::new(
