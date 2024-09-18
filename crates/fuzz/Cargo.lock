@@ -5166,6 +5166,7 @@ name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
  "prometheus",
+ "tracing",
 ]
 
 [[package]]
