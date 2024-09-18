@@ -74,7 +74,7 @@ async fn run() -> anyhow::Result<()> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let chain_state_config = args.genesis_config_dir.join("chain_state.json");
+            let chain_state_config = args.genesis_config_dir.join("chain_state_zk.json");
             let rollup = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 &BasicKernelGenesisPaths {
@@ -88,7 +88,7 @@ async fn run() -> anyhow::Result<()> {
             rollup.run().await
         }
         SupportedDaLayer::Celestia => {
-            let chain_state_config = args.genesis_config_dir.join("chain_state.json");
+            let chain_state_config = args.genesis_config_dir.join("chain_state_zk.json");
             let rollup = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 &BasicKernelGenesisPaths {

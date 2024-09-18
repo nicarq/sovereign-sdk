@@ -1,6 +1,5 @@
-mod bank_periodic_da_tests;
-mod bank_tests;
 mod helpers;
+mod zk_rollup;
 use std::sync::Arc;
 
 use anyhow::Context;

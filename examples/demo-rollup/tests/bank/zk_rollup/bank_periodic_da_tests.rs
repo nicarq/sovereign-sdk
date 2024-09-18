@@ -1,12 +1,13 @@
 use anyhow::Context;
+use demo_stf::genesis_config::GenesisPaths;
 use futures::StreamExt;
+use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::BlockProducingConfig;
 use sov_test_utils::{ApiClient, TestSpec};
 
-use super::helpers::*;
-use super::TxSender;
-use crate::bank::{SequencerTxSender, TOKEN_NAME, TOKEN_SALT};
-use crate::test_helpers::{get_appropriate_rollup_prover_config, TestRollup};
+use crate::bank::helpers::*;
+use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME, TOKEN_SALT};
+use crate::test_helpers::*;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
@@ -19,6 +20,10 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
+        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+        BasicKernelGenesisPaths {
+            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
+        },
     )
     .await?;
 

@@ -157,6 +157,8 @@ impl TestRollup {
         rollup_prover_config: RollupProverConfig,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
+        rt_genesis_paths: GenesisPaths,
+        kernel_genesis_paths: BasicKernelGenesisPaths,
     ) -> anyhow::Result<TestRollup> {
         let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
@@ -178,10 +180,8 @@ impl TestRollup {
         let (rollup_task, da_service) = start_rollup_in_background(
             rpc_port_tx,
             rest_port_tx,
-            GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-            BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
-            },
+            rt_genesis_paths,
+            kernel_genesis_paths,
             rollup_prover_config,
             mock_da_config,
         )

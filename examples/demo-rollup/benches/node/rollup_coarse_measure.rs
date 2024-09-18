@@ -212,7 +212,7 @@ fn setup(
         }
 
         let kernel_params =
-            BasicKernelGenesisConfig::from_path(stf_tests_conf_dir.join("chain_state.json"))
+            BasicKernelGenesisConfig::from_path(stf_tests_conf_dir.join("chain_state_zk.json"))
                 .unwrap();
         GenesisParams {
             runtime: rt_params,
