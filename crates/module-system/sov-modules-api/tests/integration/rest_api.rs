@@ -130,6 +130,15 @@ async fn rest_api_routes() {
 
     let spec = runtime.openapi_spec().unwrap();
 
+    let base_path = spec
+        .servers
+        .clone()
+        .unwrap()
+        .first()
+        .unwrap()
+        .url
+        .replace("localhost:12346", rest_address.to_string().as_str());
+
     let serialized_spec = spec.to_json().unwrap();
     let deserialized: openapiv3::OpenAPI =
         serde_json::from_str(&serialized_spec).expect("Runtime schema is bad");
@@ -179,7 +188,7 @@ async fn rest_api_routes() {
             }
         }
 
-        let url = format!("http://{}{}", rest_address, path);
+        let url = format!("{}{}", base_path, path);
         let response = client
             .get(&url)
             .send()

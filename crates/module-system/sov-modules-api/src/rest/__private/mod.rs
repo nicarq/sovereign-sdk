@@ -94,7 +94,7 @@ where
 {
     fn rest_api(&self, _storage: StorageReceiver<R::Spec>) -> axum::Router<()> {
         axum::Router::new()
-            .route("/", get(Self::root_handler))
+            .route("/modules/", get(Self::root_handler))
             .with_state(self.clone())
             .fallback(sov_rest_utils::errors::global_404)
     }

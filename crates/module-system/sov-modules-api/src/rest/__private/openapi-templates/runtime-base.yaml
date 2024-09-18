@@ -9,8 +9,8 @@ info:
     url: https://github.com/Sovereign-Labs/sovereign-sdk-wip
     email: info@sovereign.xyz
 servers:
-  - url: http://localhost:12346
-    description: Localhost
+  - url: http://localhost:12346/modules
+    description: Modules
 paths:
   /:
     get:
@@ -31,7 +31,7 @@ paths:
                         type: array
                         items:
                           $ref: "#/components/schemas/ModuleOverviewFromRuntime"
-  /modules/{moduleName}:
+  /{moduleName}:
     get:
       summary: Get module information by name
       operationId: getModule
