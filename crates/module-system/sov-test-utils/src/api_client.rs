@@ -63,4 +63,10 @@ impl ApiClient {
         let data = response.json::<R>().await?;
         Ok(data)
     }
+
+    /// HTTP GET to the given endpoint, returning plain text.
+    pub async fn http_get(&self, url: &str) -> anyhow::Result<String> {
+        let url = format!("http://127.0.0.1:{}{}", self.rest_port, url);
+        Ok(self.raw_rest.get(url).send().await?.text().await?)
+    }
 }

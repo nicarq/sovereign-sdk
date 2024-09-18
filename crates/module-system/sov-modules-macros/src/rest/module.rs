@@ -161,7 +161,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                 #(#state_field_specs)*
 
                 if let Some(custom_spec) = (self).custom_openapi_spec() {
-                     module_spec.merge(custom_spec)
+                    module_spec.merge(custom_spec);
                 }
 
                 Some(module_spec)

@@ -143,8 +143,12 @@ impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
     }
 
     fn custom_openapi_spec(&self) -> Option<OpenApi> {
-        let open_api =
+        let mut open_api: OpenApi =
             serde_yaml::from_str(include_str!("../openapi-v3.yaml")).expect("Invalid OpenAPI spec");
+        // Because https://github.com/juhaku/utoipa/issues/972
+        for path_item in open_api.paths.paths.values_mut() {
+            path_item.extensions = None;
+        }
         Some(open_api)
     }
 }
