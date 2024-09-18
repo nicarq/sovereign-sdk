@@ -1,9 +1,11 @@
+use sov_bank::utils::TokenHolder;
 use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::Gas;
+use sov_modules_api::{Gas, ModuleInfo};
+use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TransactionTestCase};
 
@@ -56,7 +58,7 @@ fn reward_mechanism_test(
     max_priority_fee: PriorityFeeBips,
     expected_reward: u64,
     roles: TestRoles,
-    mut runner: TestRunner<RT, S>,
+    runner: &mut TestRunner<RT, S>,
 ) {
     let TestRoles {
         default_sequencer,
@@ -90,14 +92,14 @@ fn reward_mechanism_test(
 /// When the `max_fee` is high enough and the batch is successfully executed, the sequencer gets the `consumed_gas * priority_fee`
 #[test]
 fn test_reward_sequencer_max_fee_high_enough() {
-    let (roles, gas_consumed, runner) = reward_mechanism_test_setup();
+    let (roles, gas_consumed, mut runner) = reward_mechanism_test_setup();
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
     let expected_reward = priority_fee.apply(gas_consumed).unwrap();
     let max_fee = gas_consumed + expected_reward;
 
-    reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, runner);
+    reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
 }
 
 /// Tests that the sequencer gets rewarded some gas following the EIP-1559 rules.
@@ -105,14 +107,48 @@ fn test_reward_sequencer_max_fee_high_enough() {
 /// not get rewarded.
 #[test]
 fn test_reward_sequencer_max_fee_not_high_enough() {
-    let (roles, gas_consumed, runner) = reward_mechanism_test_setup();
+    let (roles, gas_consumed, mut runner) = reward_mechanism_test_setup();
 
     let priority_fee = PriorityFeeBips::from_percentage(10);
 
     let expected_reward = 0;
     let max_fee = gas_consumed;
 
-    reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, runner);
+    reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
+}
+
+/// Tests that the sequencer registry balance does not change after rewarding the sequencer.
+/// If the balance changed the sequencer registry would break because it will eventually run out of funds.
+/// This is a regression test for `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1466>`.
+#[test]
+fn test_reward_sequencer_registry_balance_does_not_change() {
+    let (roles, gas_consumed, mut runner) = reward_mechanism_test_setup();
+
+    let sequencer_registry_balance = |runner: &TestRunner<RT, S>| {
+        runner.query_state(|state| {
+            let sequencer_id = *SequencerRegistry::<S, MockDaSpec>::default().id();
+
+            Bank::<S>::default()
+                .get_balance_of(TokenHolder::Module(sequencer_id), GAS_TOKEN_ID, state)
+                .unwrap_infallible()
+        })
+    };
+
+    let priority_fee = PriorityFeeBips::from_percentage(10);
+
+    let expected_reward = priority_fee.apply(gas_consumed).unwrap();
+    let max_fee = gas_consumed + expected_reward;
+
+    let balance_before = sequencer_registry_balance(&runner);
+
+    reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
+
+    let balance_after = sequencer_registry_balance(&runner);
+
+    assert_eq!(
+        balance_before, balance_after,
+        "The sequencer registry balance should not change after rewarding the sequencer"
+    );
 }
 
 /// Tests that the sequencer gets correctly penalized when it incorrectly processes a batch
