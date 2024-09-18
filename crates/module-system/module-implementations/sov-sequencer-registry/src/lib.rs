@@ -310,7 +310,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
     ) {
         self.bank
             .transfer_from(
-                self.id().to_payable(),
+                self.bank.id().to_payable(),
                 sequencer,
                 Coins {
                     amount,
