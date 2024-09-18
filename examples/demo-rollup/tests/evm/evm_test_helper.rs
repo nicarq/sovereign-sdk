@@ -31,7 +31,7 @@ pub(crate) async fn start_node(
             rest_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
             BasicKernelGenesisPaths {
-                chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+                chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
             },
             rollup_prover_config,
             MockDaConfig {

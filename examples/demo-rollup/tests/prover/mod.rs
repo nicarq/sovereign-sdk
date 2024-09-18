@@ -66,7 +66,7 @@ async fn test_proof_generation() {
         .unwrap();
 
         let kernel_params = BasicKernelGenesisConfig::from_path(
-            Path::new(genesis_conf_dir.as_str()).join("chain_state.json"),
+            Path::new(genesis_conf_dir.as_str()).join("chain_state_zk.json"),
         )
         .unwrap();
         GenesisParams {

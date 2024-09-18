@@ -26,7 +26,7 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
     let rollup = construct_rollup(
         GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
         BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state.json".into(),
+            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
         },
         RollupProverConfig::Skip,
         MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),

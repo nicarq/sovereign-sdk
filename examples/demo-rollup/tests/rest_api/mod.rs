@@ -1,4 +1,6 @@
+use demo_stf::genesis_config::GenesisPaths;
 use serde::Deserialize;
+use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::rest::utils::ResponseObject;
 
@@ -15,6 +17,10 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::OnSubmit,
         0,
+        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
+        BasicKernelGenesisPaths {
+            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
+        },
     )
     .await?;
 

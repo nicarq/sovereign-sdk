@@ -30,7 +30,7 @@ pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
         create_genesis_config::<S, Da>(&GenesisPaths::from_dir(integ_test_conf_dir)).unwrap();
 
     let kernel_params = BasicKernelGenesisConfig::from_path(
-        Path::new(integ_test_conf_dir).join("chain_state.json"),
+        Path::new(integ_test_conf_dir).join("chain_state_zk.json"),
     )
     .unwrap();
     GenesisParams {
