@@ -17,7 +17,7 @@
 //!
 //! | Trait | Derivable | Implemented by |
 //! | ----- | --------- | ---- |
-//! | [`crate::rest::HasRestApi`] | With [`crate::macros::ModuleRestApi`] and [`crate::macros::RuntimeRestApi`] | Modules and runtimes |
+//! | [`crate::rest::HasRestApi`] | With [`crate::ModuleRestApi`] and [`crate::macros::RuntimeRestApi`] | Modules and runtimes |
 //! | [`crate::rest::HasCustomRestApi`]   | ❌ | Modules |
 //!
 //! Implementing or deriving *any* of these traits is optional, but types
@@ -55,7 +55,7 @@ pub use sov_modules_macros::{ModuleRestApi, RuntimeRestApi};
 pub extern crate sov_rest_utils as utils;
 
 /// This trait is intended to be derived via
-/// [`crate::macros::ModuleRestApi`] by modules and via
+/// [`crate::ModuleRestApi`] by modules and via
 /// [`crate::macros::RuntimeRestApi`] by runtimes.
 /// runtimes, and it provides a fair amount of paths and general information
 /// about the rollup, including but not limited to:

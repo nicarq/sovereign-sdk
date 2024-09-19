@@ -7,7 +7,7 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Batch, BlobDataWithId, InfallibleStateAccessor, KernelModule, KernelModuleInfo,
+    Batch, BlobDataWithId, DaSpec, InfallibleStateAccessor, KernelModule, KernelModuleInfo,
     KernelStateAccessor, KernelStateValue, ModuleId, Spec, StateMap,
 };
 use sov_state::codec::BcsCodec;
@@ -25,7 +25,7 @@ pub type SequenceNumber = u64;
 
 /// Blob storage contains only address and vector of blobs
 #[derive(Clone, KernelModuleInfo)]
-pub struct BlobStorage<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> {
+pub struct BlobStorage<S: Spec, Da: DaSpec> {
     /// The ID of blob storage module
     #[id]
     pub(crate) id: ModuleId,
@@ -53,7 +53,7 @@ pub struct BlobStorage<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> {
 }
 
 /// Non standard methods for blob storage
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
+impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
@@ -90,7 +90,7 @@ impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> BlobStorage<S, Da> {
 }
 
 /// Empty module implementation
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> KernelModule for BlobStorage<S, Da> {
+impl<S: Spec, Da: DaSpec> KernelModule for BlobStorage<S, Da> {
     type Spec = S;
     type Config = ();
 

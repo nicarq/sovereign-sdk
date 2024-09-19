@@ -12,7 +12,7 @@ use reth_rpc_eth_types::{EthApiError, RevertError, RpcInvalidTransactionError};
 use reth_rpc_types::{ReceiptEnvelope, ReceiptWithBloom};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor};
+use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec};
 use tracing::debug;
 
 use crate::call::get_cfg_env_with_handler;
@@ -27,7 +27,7 @@ use crate::{Evm, MIN_CREATE_GAS, MIN_TRANSACTION_GAS};
 pub(crate) mod error;
 
 #[rpc_gen(client, server)]
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     /// Handler for `net_version`
     #[rpc_method(name = "net_version")]
     pub fn net_version(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<String> {
@@ -618,7 +618,7 @@ impl<S: sov_modules_api::Spec> Evm<S> {
     }
 }
 
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     fn get_sealed_block_by_number(
         &self,
         block_number: Option<String>,

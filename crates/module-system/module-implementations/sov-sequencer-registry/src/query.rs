@@ -2,7 +2,7 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, Spec};
+use sov_modules_api::{ApiStateAccessor, DaSpec, Spec};
 
 use crate::SequencerRegistry;
 
@@ -18,7 +18,7 @@ pub struct SequencerAddressResponse<S: Spec> {
 }
 
 #[rpc_gen(client, server, namespace = "sequencer")]
-impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Returns the rollup address of the sequencer with the given DA address.
     ///
     /// The response only contains data if the sequencer is registered.

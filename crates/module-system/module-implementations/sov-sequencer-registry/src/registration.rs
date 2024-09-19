@@ -1,13 +1,11 @@
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{ModuleInfo, StateAccessor, StateWriter};
+use sov_modules_api::{DaSpec, ModuleInfo, Spec, StateAccessor, StateWriter};
 use sov_state::User;
 
 use crate::{AllowedSequencer, CustomError, SequencerRegistry};
 
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> StakeRegistration
-    for SequencerRegistry<S, Da>
-{
+impl<S: Spec, Da: DaSpec> StakeRegistration for SequencerRegistry<S, Da> {
     type PrimaryAddress = Da::Address;
 
     type RollupAddress = S::Address;

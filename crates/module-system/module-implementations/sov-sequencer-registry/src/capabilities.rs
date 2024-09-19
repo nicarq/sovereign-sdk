@@ -1,7 +1,9 @@
 use sov_bank::Amount;
 use sov_modules_api::capabilities::{AuthorizationResult, AuthorizeSequencerError};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad};
+use sov_modules_api::{
+    DaSpec, Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad,
+};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -70,7 +72,7 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
     }
 }
 
-impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
     /// If so, returns a [`SequencerStakeMeter`] which tracks the sequencer stake. Otherwise, returns a [`AuthorizeSequencerError`].
     pub fn authorize_sequencer(

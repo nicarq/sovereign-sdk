@@ -25,7 +25,8 @@ use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -44,7 +45,7 @@ pub struct UnbondingInfo {
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct AttesterIncentives<S, Da>
 where
     S: Spec,
@@ -58,53 +59,53 @@ where
     /// that an attested state transition won't be challenged. Measured in
     /// number of slots.
     #[state]
-    pub rollup_finality_period: sov_modules_api::StateValue<TransitionHeight>,
+    pub rollup_finality_period: StateValue<TransitionHeight>,
 
     /// The set of bonded attesters and their bonded amount.
     #[rest_api(include)]
     #[state]
-    pub bonded_attesters: sov_modules_api::StateMap<S::Address, Amount>,
+    pub bonded_attesters: StateMap<S::Address, Amount>,
 
     /// The set of unbonding attesters, and the unbonding information (ie the
     /// height of the chain where they started the unbonding and their associated bond).
     #[state]
-    pub unbonding_attesters: sov_modules_api::StateMap<S::Address, UnbondingInfo>,
+    pub unbonding_attesters: StateMap<S::Address, UnbondingInfo>,
 
     /// The current maximum attestation height
     #[state]
-    pub maximum_attested_height: sov_modules_api::StateValue<TransitionHeight>,
+    pub maximum_attested_height: StateValue<TransitionHeight>,
 
     /// Challengers now challenge a transition and not a specific attestation
     /// Mapping from a transition number to the associated reward value.
     /// This mapping is populated when the attestations are processed by the rollup
     #[state]
-    pub bad_transition_pool: sov_modules_api::StateMap<TransitionHeight, Amount>,
+    pub bad_transition_pool: StateMap<TransitionHeight, Amount>,
 
     /// The set of bonded challengers and their bonded amount.
     #[rest_api(include)]
     #[state]
-    pub bonded_challengers: sov_modules_api::StateMap<S::Address, Amount>,
+    pub bonded_challengers: StateMap<S::Address, Amount>,
 
     /// The minimum bond for an attester to be eligble
     /// This should always be above the maximum gas limit to avoid collusion.
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
-    pub minimum_attester_bond: sov_modules_api::StateValue<Amount>,
+    pub minimum_attester_bond: StateValue<Amount>,
 
     /// The minimum bond for an attester to be eligble
     /// This should always be above the maximum gas limit to avoid collusion.
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
-    pub minimum_challenger_bond: sov_modules_api::StateValue<Amount>,
+    pub minimum_challenger_bond: StateValue<Amount>,
 
     /// The height of the most recent block which light clients know to be finalized
     #[state]
-    pub light_client_finalized_height: sov_modules_api::StateValue<TransitionHeight>,
+    pub light_client_finalized_height: StateValue<TransitionHeight>,
 
     /// The reward burn rate for the attester incentives module
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/285>`: This should be a constant.
     #[state]
-    pub reward_burn_rate: sov_modules_api::StateValue<BurnRate>,
+    pub reward_burn_rate: StateValue<BurnRate>,
 
     /// Reference to the Bank module.
     #[module]
@@ -115,9 +116,9 @@ where
     pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
 }
 
-impl<S, Da> sov_modules_api::Module for AttesterIncentives<S, Da>
+impl<S, Da> Module for AttesterIncentives<S, Da>
 where
-    S: sov_modules_api::Spec,
+    S: Spec,
     Da: DaSpec,
 {
     type Spec = S;

@@ -1,6 +1,6 @@
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::{
-    CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, Spec, StateValue, TxState,
+    CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue, TxState,
     WorkingSet,
 };
 
@@ -10,7 +10,7 @@ pub struct Foo {
     j: u64,
 }
 
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct MyModule<S: Spec, D>
 where
     D: std::hash::Hash

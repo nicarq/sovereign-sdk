@@ -8,12 +8,13 @@ use call::NotInstantiable;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{
-    Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
+    CallResponse, Context, CredentialId, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateMap, StateReader, TxState,
 };
 use sov_state::User;
 
 /// A module responsible for managing nonces on the rollup.
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct Nonces<S: Spec> {
     /// The ID of the sov-nonces module.
     #[id]
@@ -21,7 +22,7 @@ pub struct Nonces<S: Spec> {
 
     /// Mapping from a credential id to a nonce.
     #[state]
-    pub(crate) nonces: sov_modules_api::StateMap<CredentialId, u64>,
+    pub(crate) nonces: StateMap<CredentialId, u64>,
 
     #[phantom]
     phantom: std::marker::PhantomData<S>,
@@ -38,7 +39,7 @@ impl<S: Spec> Nonces<S> {
     }
 }
 
-impl<S: Spec> sov_modules_api::Module for Nonces<S> {
+impl<S: Spec> Module for Nonces<S> {
     type Spec = S;
 
     type Config = ();
@@ -60,7 +61,7 @@ impl<S: Spec> sov_modules_api::Module for Nonces<S> {
         _msg: Self::CallMessage,
         _context: &Context<S>,
         _state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         unreachable!()
     }
 }

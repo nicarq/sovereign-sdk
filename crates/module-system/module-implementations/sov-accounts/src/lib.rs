@@ -15,7 +15,8 @@ mod event;
 mod tests;
 pub use call::CallMessage;
 use sov_modules_api::{
-    Context, CredentialId, Error, GenesisState, ModuleId, ModuleInfo, Spec, TxState,
+    CallResponse, Context, CredentialId, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateMap, TxState,
 };
 
 use crate::event::Event;
@@ -37,7 +38,7 @@ pub struct Account<S: Spec> {
 }
 
 /// A module responsible for managing accounts on the rollup.
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 #[cfg_attr(feature = "arbitrary", derive(Debug))]
 pub struct Accounts<S: Spec> {
     /// The ID of the sov-accounts module.
@@ -46,14 +47,14 @@ pub struct Accounts<S: Spec> {
 
     /// Mapping from an account address to a corresponding credential ids.
     #[state]
-    pub(crate) credential_ids: sov_modules_api::StateMap<S::Address, Vec<CredentialId>>,
+    pub(crate) credential_ids: StateMap<S::Address, Vec<CredentialId>>,
 
     /// Mapping from a credential to a corresponding account.
     #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<CredentialId, Account<S>>,
+    pub(crate) accounts: StateMap<CredentialId, Account<S>>,
 }
 
-impl<S: Spec> sov_modules_api::Module for Accounts<S> {
+impl<S: Spec> Module for Accounts<S> {
     type Spec = S;
 
     type Config = AccountConfig<S>;
@@ -75,7 +76,7 @@ impl<S: Spec> sov_modules_api::Module for Accounts<S> {
         msg: Self::CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         match msg {
             call::CallMessage::InsertCredentialId(new_credential_id) => {
                 Ok(self.insert_credential_id(new_credential_id, context, state)?)

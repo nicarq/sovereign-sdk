@@ -1,3 +1,4 @@
+use sov_modules_api::Spec;
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -68,7 +69,7 @@ pub enum PenalizationReason {
 )]
 #[serde(rename_all = "snake_case")]
 /// Events for prover incentives
-pub enum Event<S: sov_modules_api::Spec> {
+pub enum Event<S: Spec> {
     /// The prover has been bonded. The deposit is the amount of the bond and the total balance is the total amount staked.
     Registered {
         /// The address of the prover that was bonded.

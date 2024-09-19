@@ -1,7 +1,7 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, TxState};
+use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, StateAccessor, TxState};
 use sov_state::EventContainer;
 
 use super::{AttesterRegistryError, Staker};
@@ -9,8 +9,8 @@ use crate::{AttesterIncentives, Event};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
     pub(crate) fn register_challenger<ST: StateAccessor + EventContainer>(
         &self,

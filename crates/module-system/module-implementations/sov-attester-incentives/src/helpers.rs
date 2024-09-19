@@ -4,7 +4,9 @@ use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
-use sov_modules_api::{StateAccessor, StateReader, StateTransitionPublicData, TxState};
+use sov_modules_api::{
+    DaSpec, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
+};
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
 use tracing::debug;
@@ -13,8 +15,8 @@ use crate::{AttesterIncentives, ProcessAttestationErrors, SlashingReason};
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
     /// Returns the burn rate for the reward
     pub fn burn_rate(&self) -> BurnRate {

@@ -2,8 +2,8 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::{
-    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
-    SovStateTransitionPublicData, StateTransitionPublicData, TxState, Zkvm,
+    DaSpec, Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
+    SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::Storage;
 use thiserror::Error;
@@ -121,8 +121,8 @@ impl From<ProcessChallengeErrors> for InvalidProofError {
 
 impl<S, Da> AttesterIncentives<S, Da>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
     /// Try to process an attestation if the attester is bonded.
     /// This function returns an error (hence ignores the transaction) when the attester is not bonded

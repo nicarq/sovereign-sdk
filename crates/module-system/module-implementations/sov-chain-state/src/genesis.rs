@@ -1,13 +1,13 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{KernelStateAccessor, OperatingMode, Zkvm};
+use sov_modules_api::{DaSpec, KernelModule, KernelStateAccessor, OperatingMode, Spec, Zkvm};
 
 use crate::{ChainState, TransitionHeight};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-pub struct ChainStateConfig<S: sov_modules_api::Spec> {
+pub struct ChainStateConfig<S: Spec> {
     /// The time at `genesis_da_height` slot according to the DA layer.
     /// So the format depends on DA layer time representation.
     /// Most probably is used for bridging purposes.
@@ -27,10 +27,10 @@ pub struct ChainStateConfig<S: sov_modules_api::Spec> {
     pub genesis_da_height: TransitionHeight,
 }
 
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
+impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
-        config: &<Self as sov_modules_api::KernelModule>::Config,
+        config: &<Self as KernelModule>::Config,
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> Result<()> {
         tracing::info!(

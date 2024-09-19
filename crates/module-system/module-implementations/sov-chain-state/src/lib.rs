@@ -29,7 +29,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, ValidityConditionChecker, VersionReader,
+    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue, StateMap, StateValue,
+    ValidityConditionChecker, VersionReader, VersionedStateValue,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
@@ -222,20 +223,20 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    next_visible_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
+    next_visible_slot_number: KernelStateValue<TransitionHeight>,
 
     /// The real slot number of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
-    next_true_slot_number: sov_modules_api::KernelStateValue<TransitionHeight>,
+    next_true_slot_number: KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
-    time: sov_modules_api::VersionedStateValue<Time>,
+    time: VersionedStateValue<Time>,
 
     /// The mode that the rollup is operating in.
     #[state]
-    operating_mode: sov_modules_api::StateValue<OperatingMode>,
+    operating_mode: StateValue<OperatingMode>,
 
     /// A record of all previous state transitions which are available to the VM.
     /// Currently, this includes *all* historical state transitions, but that may change in the future.
@@ -243,19 +244,17 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// is stored during transition i+1. This is mainly due to the fact that this structure depends on the
     /// rollup's root hash which is only stored once the transition has completed.
     #[state]
-    historical_transitions:
-        sov_modules_api::StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
+    historical_transitions: StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
 
     /// The transition that is currently processed
     #[state]
-    in_progress_transition:
-        sov_modules_api::VersionedStateValue<TransitionInProgress<S, Da>, BcsCodec>,
+    in_progress_transition: VersionedStateValue<TransitionInProgress<S, Da>, BcsCodec>,
 
     /// The genesis root hash.
     /// Set after the first transaction of the rollup is executed, using the [`ChainState::begin_slot_hook`] hook.
     // TODO: This should be made read-only
     #[state]
-    genesis_root: sov_modules_api::StateValue<<S::Storage as Storage>::Root>,
+    genesis_root: StateValue<<S::Storage as Storage>::Root>,
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
@@ -264,22 +263,20 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// `current_da_height = true_slot_number + genesis_da_height`.
     /// Should be the same as the `genesis_height` field in the `RunnerConfig` (`sov-stf-runner` crate)
     #[state]
-    genesis_da_height: sov_modules_api::StateValue<TransitionHeight>,
+    genesis_da_height: StateValue<TransitionHeight>,
 
     /// The rollup's code commitment.
     /// This value is initialized at genesis and can be used to verify the rollup's execution.
     /// This value is used by the `AttesterIncentives` module to verify challenges of attestations.
     #[state]
-    inner_code_commitment:
-        sov_modules_api::StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
+    inner_code_commitment: StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 
     /// Aggregated code commitment.
     /// This value is initialized at genesis and can be used in the aggregated proving circuit to
     /// verify the rollup execution from genesis to the current slot.
     /// This value is used by the `ProverIncentives` module to verify the proofs posted on the DA layer.
     #[state]
-    outer_code_commitment:
-        sov_modules_api::StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
+    outer_code_commitment: StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 }
 
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {

@@ -16,8 +16,8 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, Spec, StateMap,
-    TxState,
+    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, TxState,
 };
 mod event;
 mod offchain;
@@ -29,7 +29,7 @@ use crate::event::Event;
 
 /// Module for non-fungible tokens (NFT).
 /// Each token is represented by a unique ID.
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct NonFungibleToken<S: Spec> {
     #[id]
     /// The ID of the NonFungibleToken module.

@@ -1,7 +1,9 @@
 use anyhow::{bail, Context as _, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-use sov_modules_api::{CallResponse, Context, EventEmitter, StateAccessor, StateReader, TxState};
+use sov_modules_api::{
+    CallResponse, Context, EventEmitter, Spec, StateAccessor, StateReader, TxState,
+};
 use sov_state::User;
 
 use crate::event::Event;
@@ -25,7 +27,7 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     Clone,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum CallMessage<S: sov_modules_api::Spec> {
+pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
         /// Random value use to create a unique token ID.
@@ -69,7 +71,7 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
     },
 }
 
-impl<S: sov_modules_api::Spec> Bank<S> {
+impl<S: Spec> Bank<S> {
     /// Creates a token from a set of configuration parameters.
     /// Checks if a token already exists at that address. If so return an error.
     #[allow(clippy::too_many_arguments)]
@@ -302,7 +304,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     }
 }
 
-impl<S: sov_modules_api::Spec> Bank<S> {
+impl<S: Spec> Bank<S> {
     /// Transfers the set of `coins` from the address `from` to the address `to`.
     ///
     /// Returns an error if the token ID doesn't exist.

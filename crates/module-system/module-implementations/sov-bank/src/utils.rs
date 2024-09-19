@@ -8,11 +8,7 @@ use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 use crate::TokenId;
 
 /// Derives token ID from `token_name`, `originator` and `salt`.
-pub fn get_token_id<S: sov_modules_api::Spec>(
-    token_name: &str,
-    originator: impl Payable<S>,
-    salt: u64,
-) -> TokenId {
+pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>, salt: u64) -> TokenId {
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update(originator.as_token_holder().as_bytes());
     hasher.update(token_name.as_bytes());

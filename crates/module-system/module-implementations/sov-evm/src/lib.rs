@@ -30,9 +30,10 @@ use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::Address as EvmAddress;
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
-    AccessoryStateReader, AccessoryStateReaderAndWriter, Context, Error, GenesisState,
-    InfallibleStateReaderAndWriter, ModuleId, ModuleInfo, StateAccessor, StateReader, TxState,
-    UnmeteredStateWrapper,
+    AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
+    AccessoryStateVec, CallResponse, Context, Error, GenesisState, InfallibleStateReaderAndWriter,
+    Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, StateVec,
+    TxState, UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -57,70 +58,69 @@ pub struct PendingTransaction {
 /// The sov-evm module provides compatibility with the EVM.
 #[allow(dead_code)]
 #[derive(Clone, ModuleInfo)]
-pub struct Evm<S: sov_modules_api::Spec> {
+pub struct Evm<S: Spec> {
     /// The ID of the evm module.
     #[id]
     pub(crate) id: ModuleId,
 
     /// Mapping from account address to account state.
     #[state]
-    pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
+    pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
-    pub(crate) code: sov_modules_api::StateMap<B256, reth_primitives::Bytes, BcsCodec>,
+    pub(crate) code: StateMap<B256, reth_primitives::Bytes, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]
-    pub(crate) cfg: sov_modules_api::StateValue<EvmChainConfig, BcsCodec>,
+    pub(crate) cfg: StateValue<EvmChainConfig, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_slot_hook`.
     #[state]
-    pub(crate) block_env: sov_modules_api::StateValue<BlockEnv, BcsCodec>,
+    pub(crate) block_env: StateValue<BlockEnv, BcsCodec>,
 
     /// Transactions that will be added to the current block.
     /// A valid transaction is added to the vec on every call message.
     #[state]
-    pub(crate) pending_transactions: sov_modules_api::StateVec<PendingTransaction, BcsCodec>,
+    pub(crate) pending_transactions: StateVec<PendingTransaction, BcsCodec>,
 
     /// Head of the chain. The new head is set in `end_slot_hook` but without the inclusion of the `state_root` field.
     /// The `state_root` is added in `begin_slot_hook` of the next block because its calculation occurs after the `end_slot_hook`.
     #[state]
-    pub(crate) head: sov_modules_api::StateValue<Block, BcsCodec>,
+    pub(crate) head: StateValue<Block, BcsCodec>,
 
     /// Used only by the RPC: This represents the head of the chain and is set in two distinct stages:
     /// 1. `end_slot_hook`: the pending head is populated with data from pending_transactions.
     /// 2. `finalize_hook` the `root_hash` is populated.
     /// Since this value is not authenticated, it can be modified in the `finalize_hook` with the correct `state_root`.
     #[state]
-    pub(crate) pending_head: sov_modules_api::AccessoryStateValue<Block, BcsCodec>,
+    pub(crate) pending_head: AccessoryStateValue<Block, BcsCodec>,
 
     /// Used only by the RPC: The vec is extended with `pending_head` in `finalize_hook`.
     #[state]
-    pub(crate) blocks: sov_modules_api::AccessoryStateVec<SealedBlock, BcsCodec>,
+    pub(crate) blocks: AccessoryStateVec<SealedBlock, BcsCodec>,
 
     /// Used only by the RPC: block_hash => block_number mapping.
     #[state]
-    pub(crate) block_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
+    pub(crate) block_hashes: AccessoryStateMap<B256, u64, BcsCodec>,
 
     /// Used only by the RPC: List of processed transactions.
     #[state]
-    pub(crate) transactions:
-        sov_modules_api::AccessoryStateVec<TransactionSignedAndRecovered, BcsCodec>,
+    pub(crate) transactions: AccessoryStateVec<TransactionSignedAndRecovered, BcsCodec>,
 
     /// Used only by the RPC: transaction_hash => transaction_index mapping.
     #[state]
-    pub(crate) transaction_hashes: sov_modules_api::AccessoryStateMap<B256, u64, BcsCodec>,
+    pub(crate) transaction_hashes: AccessoryStateMap<B256, u64, BcsCodec>,
 
     /// Used only by the RPC: Receipts.
     #[state]
-    pub(crate) receipts: sov_modules_api::AccessoryStateVec<Receipt, BcsCodec>,
+    pub(crate) receipts: AccessoryStateVec<Receipt, BcsCodec>,
 
     #[phantom]
     phantom: core::marker::PhantomData<S>,
 }
 
-impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
+impl<S: Spec> Module for Evm<S> {
     type Spec = S;
 
     type Config = EvmConfig;
@@ -142,12 +142,12 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Evm<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         Ok(self.execute_call(msg, context, state)?)
     }
 }
 
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     /// Get a EvmDb instance for the supplied state.
     pub fn get_db<'a, Ws: StateAccessor>(
         &self,

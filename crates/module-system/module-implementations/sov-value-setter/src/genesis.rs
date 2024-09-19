@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_modules_api::GenesisState;
+use sov_modules_api::{GenesisState, Spec};
 
 use super::ValueSetter;
 
@@ -8,14 +8,14 @@ use super::ValueSetter;
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    schemars(bound = "S: ::sov_modules_api::Spec", rename = "ValueSetterConfig")
+    schemars(bound = "S: Spec", rename = "ValueSetterConfig")
 )]
-pub struct ValueSetterConfig<S: sov_modules_api::Spec> {
+pub struct ValueSetterConfig<S: Spec> {
     /// Admin of the module.
     pub admin: S::Address,
 }
 
-impl<S: sov_modules_api::Spec> ValueSetter<S> {
+impl<S: Spec> ValueSetter<S> {
     /// Initializes module with the `admin` role.
     pub(crate) fn init_module(
         &self,

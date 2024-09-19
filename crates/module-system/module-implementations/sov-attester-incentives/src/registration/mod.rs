@@ -5,7 +5,9 @@ use std::marker::PhantomData;
 
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{BasicAddress, DaSpec, ModuleId, Spec, StateAccessor, StateReader};
+use sov_modules_api::{
+    BasicAddress, DaSpec, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue,
+};
 use sov_state::User;
 use thiserror::Error;
 
@@ -36,8 +38,8 @@ type AttesterRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
 >;
 
 struct Staker<'a, S: Spec, Da: DaSpec> {
-    bonded_stakers: &'a sov_modules_api::StateMap<S::Address, Amount>,
-    minimum_bond: &'a sov_modules_api::StateValue<Amount>,
+    bonded_stakers: &'a StateMap<S::Address, Amount>,
+    minimum_bond: &'a StateValue<Amount>,
     bank: &'a sov_bank::Bank<S>,
     id: &'a ModuleId,
     _phantom: PhantomData<Da>,

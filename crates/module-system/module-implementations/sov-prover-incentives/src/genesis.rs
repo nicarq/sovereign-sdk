@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, GenesisState};
+use sov_modules_api::{DaSpec, GenesisState, Module, Spec};
 
 use crate::{Amount, ProverIncentives};
 
@@ -19,7 +19,7 @@ use crate::{Amount, ProverIncentives};
     )
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
-pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
+pub struct ProverIncentivesConfig<S: Spec> {
     /// A penalty for provers who submit a proof for transitions that were already proven
     pub proving_penalty: Amount,
     /// The minimum bond for a prover.
@@ -28,13 +28,13 @@ pub struct ProverIncentivesConfig<S: sov_modules_api::Spec> {
     pub initial_provers: Vec<(S::Address, u64)>,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     /// Init the [`ProverIncentives`] module using the provided `config`.
     /// Sets the minimum amount necessary to bond, the commitment to the verifier circuit
     /// the bonding token ID and builds the set of initial provers.
     pub(crate) fn init_module(
         &self,
-        config: &<Self as sov_modules_api::Module>::Config,
+        config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         anyhow::ensure!(

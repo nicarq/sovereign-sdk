@@ -18,7 +18,8 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, Spec, StateReader, TxState,
+    CallResponse, Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -28,7 +29,7 @@ pub use crate::event::Event;
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     /// Id of the module.
     #[id]
@@ -36,22 +37,22 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
 
     /// The set of registered provers and their bonded amount.
     #[state]
-    pub bonded_provers: sov_modules_api::StateMap<S::Address, Amount>,
+    pub bonded_provers: StateMap<S::Address, Amount>,
 
     /// The minimum bond for a prover to be eligible for onchain verification
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
     #[state]
     #[rest_api(include)]
-    pub minimum_bond: sov_modules_api::StateValue<Amount>,
+    pub minimum_bond: StateValue<Amount>,
 
     /// The highest slot height for which the reward has been claimed. The next proofs should claim the next slot height.
     #[state]
-    pub last_claimed_reward: sov_modules_api::StateValue<TransitionHeight>,
+    pub last_claimed_reward: StateValue<TransitionHeight>,
 
     /// A penalty for provers who submit a proof for transitions that were already proven
     /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This should be express in gas units.
     #[state]
-    pub proving_penalty: sov_modules_api::StateValue<Amount>,
+    pub proving_penalty: StateValue<Amount>,
 
     /// Reference to the Bank module.
     #[module]
@@ -85,7 +86,7 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         if !self.should_reward_fees(state) {
             return Err(anyhow::anyhow!(
                 "Prover incentives call message received when operating in optimistic mode"
