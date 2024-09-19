@@ -4,22 +4,22 @@ use reth_primitives::revm_primitives::{AccountInfo, Address, Bytecode, B256, U25
 use reth_primitives::Bytes;
 use revm::Database;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::InfallibleStateAccessor;
+use sov_modules_api::{InfallibleStateAccessor, StateMap};
 use sov_state::codec::BcsCodec;
 
 use super::DbAccount;
 
 /// A queryable EVM database.
 pub struct EvmDb<Ws> {
-    pub(crate) accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
-    pub(crate) code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
+    pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
+    pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
     pub(crate) state: Ws,
 }
 
 impl<Ws> EvmDb<Ws> {
     pub(crate) fn new(
-        accounts: sov_modules_api::StateMap<Address, DbAccount, BcsCodec>,
-        code: sov_modules_api::StateMap<B256, Bytes, BcsCodec>,
+        accounts: StateMap<Address, DbAccount, BcsCodec>,
+        code: StateMap<B256, Bytes, BcsCodec>,
         state: Ws,
     ) -> Self {
         Self {

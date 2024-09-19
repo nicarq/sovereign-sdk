@@ -1,13 +1,13 @@
 use jsonrpsee::core::RpcResult;
 // use jsonrpsee::core::RpcResult;
-use sov_modules_api::{prelude::UnwrapInfallible, KernelStateAccessor};
+use sov_modules_api::{prelude::UnwrapInfallible, DaSpec, KernelStateAccessor, Spec};
 
 // use sov_modules_api::WorkingSet;
 use crate::{ChainState, TransitionHeight};
 
 // TODO: Implement RPC methods compatible with Kernel State
 // #[rpc_gen(client, server, namespace = "chainState")]
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
+impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Get the visible height of the next slot.
     /// Panics if the slot number is not set
     // #[rpc_method(name = "getTrueSlotNumber")]

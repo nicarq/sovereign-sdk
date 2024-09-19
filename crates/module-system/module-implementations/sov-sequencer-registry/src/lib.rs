@@ -29,8 +29,8 @@ use sov_bank::{Amount, Coins, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
-    ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, TxScratchpad,
-    TxState,
+    Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader,
+    StateValue, TxScratchpad, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -68,8 +68,8 @@ pub enum SlashingReason {
 }
 
 /// The `sov-sequencer-registry` module `struct`.
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
-pub struct SequencerRegistry<S: Spec, Da: sov_modules_api::DaSpec> {
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct SequencerRegistry<S: Spec, Da: DaSpec> {
     /// The ID of the `sov_sequencer_registry` module.
     #[id]
     pub(crate) id: ModuleId,
@@ -122,7 +122,7 @@ pub type SequencerRegistryError<S: Spec, Da: DaSpec, ST: StateAccessor> = Regist
     CustomError<S::Address, Da::Address>,
 >;
 
-impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> Module for SequencerRegistry<S, Da> {
     type Spec = S;
 
     type Config = SequencerConfig<S, Da>;
@@ -165,7 +165,7 @@ impl<S: Spec, Da: sov_modules_api::DaSpec> sov_modules_api::Module for Sequencer
     }
 }
 
-impl<S: Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
     pub fn get_coins_to_lock<Reader: StateReader<User>>(
         &self,

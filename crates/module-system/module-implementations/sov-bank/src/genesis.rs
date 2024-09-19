@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::GenesisState;
+use sov_modules_api::{GenesisState, Module, Spec};
 
 use crate::token::Token;
 use crate::utils::TokenHolderRef;
@@ -12,10 +12,10 @@ use crate::{Bank, TokenId, GAS_TOKEN_ID};
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    schemars(bound = "S: ::sov_modules_api::Spec", rename = "BankConfig")
+    schemars(bound = "S: Spec", rename = "BankConfig")
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
-pub struct BankConfig<S: sov_modules_api::Spec> {
+pub struct BankConfig<S: Spec> {
     /// Configuration for the gas token
     pub gas_token_config: GasTokenConfig<S>,
     /// A list of configurations for any other tokens to create at genesis
@@ -28,11 +28,11 @@ pub struct BankConfig<S: sov_modules_api::Spec> {
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    schemars(bound = "S: ::sov_modules_api::Spec", rename = "TokenConfig")
+    schemars(bound = "S: Spec", rename = "TokenConfig")
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 #[display(fmt = "{:?}", self)]
-pub struct TokenConfig<S: sov_modules_api::Spec> {
+pub struct TokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
     /// Predetermined ID of the token. Allowed only for genesis tokens.
@@ -48,10 +48,10 @@ pub struct TokenConfig<S: sov_modules_api::Spec> {
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    schemars(bound = "S: ::sov_modules_api::Spec", rename = "GasTokenConfig")
+    schemars(bound = "S: Spec", rename = "GasTokenConfig")
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
-pub struct GasTokenConfig<S: sov_modules_api::Spec> {
+pub struct GasTokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
     /// A vector of tuples containing the initial addresses and balances (as u64)
@@ -60,7 +60,7 @@ pub struct GasTokenConfig<S: sov_modules_api::Spec> {
     pub authorized_minters: Vec<S::Address>,
 }
 
-impl<S: sov_modules_api::Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
+impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
     fn from(gas_token_config: GasTokenConfig<S>) -> Self {
         TokenConfig {
             token_name: gas_token_config.token_name,
@@ -71,7 +71,7 @@ impl<S: sov_modules_api::Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
     }
 }
 
-impl<S: sov_modules_api::Spec> core::fmt::Display for GasTokenConfig<S> {
+impl<S: Spec> core::fmt::Display for GasTokenConfig<S> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let address_and_balances = self
             .address_and_balances
@@ -88,13 +88,13 @@ impl<S: sov_modules_api::Spec> core::fmt::Display for GasTokenConfig<S> {
     }
 }
 
-impl<S: sov_modules_api::Spec> Bank<S> {
+impl<S: Spec> Bank<S> {
     /// Init an instance of the bank module from the configuration `config`.
     /// For each token in the `config`, calls the [`Token::create`] function to create
     /// the token. Upon success, updates the token set if the token ID doesn't already exist.
     pub(crate) fn init_module(
         &self,
-        config: &<Self as sov_modules_api::Module>::Config,
+        config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();

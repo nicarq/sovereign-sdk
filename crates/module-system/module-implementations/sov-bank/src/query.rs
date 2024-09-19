@@ -7,7 +7,7 @@ use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
 use sov_modules_api::rest::{ApiState, HasCustomRestApi};
-use sov_modules_api::ApiStateAccessor;
+use sov_modules_api::{ApiStateAccessor, Spec};
 
 use crate::{get_token_id, Amount, Bank, Coins, TokenId};
 
@@ -26,7 +26,7 @@ pub struct TotalSupplyResponse {
 }
 
 #[rpc_gen(client, server, namespace = "bank")]
-impl<S: sov_modules_api::Spec> Bank<S> {
+impl<S: Spec> Bank<S> {
     #[rpc_method(name = "balanceOf")]
     /// Rpc method that returns the balance of the user at the address `user_address` for the token
     /// stored at the address `token_id`.
@@ -76,7 +76,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
 }
 
 /// Axum routes.
-impl<S: sov_modules_api::Spec> Bank<S> {
+impl<S: Spec> Bank<S> {
     async fn route_balance(
         state: ApiState<Self, S>,
         Path((token_id, user_address)): Path<(TokenId, S::Address)>,
@@ -122,7 +122,7 @@ impl<S: sov_modules_api::Spec> Bank<S> {
     }
 }
 
-impl<S: sov_modules_api::Spec> HasCustomRestApi for Bank<S> {
+impl<S: Spec> HasCustomRestApi for Bank<S> {
     type Spec = S;
     fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
         axum::Router::new()

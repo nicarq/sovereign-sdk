@@ -3,7 +3,7 @@ use reth_primitives::revm_primitives::{
 };
 use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, TxState};
+use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
@@ -27,7 +27,7 @@ pub struct CallMessage {
     pub rlp: RlpEvmTransaction,
 }
 
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     pub(crate) fn execute_call(
         &self,
         message: CallMessage,

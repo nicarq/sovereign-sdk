@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
+use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
 
 use crate::event::Event;
 use crate::ExampleModule;
@@ -31,14 +31,14 @@ pub enum CallMessage {
     SetValue(u32),
 }
 
-impl<S: sov_modules_api::Spec> ExampleModule<S> {
+impl<S: Spec> ExampleModule<S> {
     /// Sets `value` field to the `new_value`
     pub(crate) fn set_value(
         &self,
         new_value: u32,
         _context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse> {
+    ) -> Result<CallResponse> {
         self.value.set(&new_value, state)?;
         self.emit_event(state, Event::Set { value: new_value });
 

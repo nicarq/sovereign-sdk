@@ -1,11 +1,11 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{KernelStateAccessor, KernelWriter, Spec};
+use sov_modules_api::{DaSpec, KernelStateAccessor, KernelWriter, Spec};
 use sov_state::{StateRoot, Storage};
 
 use crate::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
 
-impl<S: Spec, Da: sov_modules_api::DaSpec> ChainState<S, Da> {
+impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Computes the current root hash available at the current *virtual* slot number.
     /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
     fn current_visible_hash(

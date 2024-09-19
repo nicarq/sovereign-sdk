@@ -1,6 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{ApiStateAccessor, StateReader};
+use sov_modules_api::{ApiStateAccessor, DaSpec, Spec, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
@@ -16,8 +16,8 @@ pub struct BondAmountResponse {
 // TODO: implement rpc_gen macro
 impl<S, Da> AttesterIncentives<S, Da>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
     /// Queries the state of the module.
     pub fn get_attester_bond_amount<Reader: StateReader<User>>(

@@ -1,3 +1,5 @@
+use sov_modules_api::Spec;
+
 use crate::SlashingReason;
 
 /// Events for attester incentives
@@ -11,7 +13,7 @@ use crate::SlashingReason;
     Clone,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum Event<S: sov_modules_api::Spec> {
+pub enum Event<S: Spec> {
     /// Event for User Slashed
     UserSlashed {
         /// The address of the user who was slashed.

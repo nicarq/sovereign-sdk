@@ -3,7 +3,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
-use sov_modules_api::{DaSpec, GenesisState, Spec};
+use sov_modules_api::{DaSpec, GenesisState, Module, Spec};
 
 use crate::AttesterIncentives;
 
@@ -27,7 +27,7 @@ pub struct AttesterIncentivesConfig<S: Spec> {
 impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
     pub(crate) fn init_module(
         &self,
-        config: &<Self as sov_modules_api::Module>::Config,
+        config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         anyhow::ensure!(

@@ -1,3 +1,5 @@
+use sov_modules_api::Spec;
+
 use crate::utils::TokenHolder;
 use crate::{Coins, TokenId};
 
@@ -15,7 +17,7 @@ use crate::{Coins, TokenId};
     bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
     rename_all = "snake_case"
 )]
-pub enum Event<S: sov_modules_api::Spec> {
+pub enum Event<S: Spec> {
     /// Event for Token Creation
     TokenCreated {
         /// The name of the new token.

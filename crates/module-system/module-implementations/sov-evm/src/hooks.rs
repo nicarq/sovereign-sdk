@@ -1,13 +1,13 @@
 use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{AccessoryStateReaderAndWriter, StateCheckpoint};
+use sov_modules_api::{AccessoryStateReaderAndWriter, Spec, StateCheckpoint};
 use sov_state::{StateRoot, Storage};
 
 use crate::evm::primitive_types::Block;
 use crate::{BlockEnv, Evm, PendingTransaction};
 
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
     pub fn begin_slot_hook(
         &self,

@@ -4,8 +4,8 @@ use reqwest::Client;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, Spec, StateValue, TxState,
-    WorkingSet,
+    CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateValue, TxState, WorkingSet,
 };
 use sov_test_utils::TestSpec;
 use utoipa::openapi::path::ParameterIn;
@@ -17,7 +17,7 @@ pub struct Foo {
     j: u64,
 }
 
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 #[allow(dead_code)]
 pub struct MyModule<S: Spec, D>
 where

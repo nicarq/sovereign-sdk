@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_bank::Amount;
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::GenesisState;
+use sov_modules_api::{DaSpec, GenesisState, Spec};
 
 use crate::SequencerRegistry;
 
@@ -22,7 +22,7 @@ use crate::SequencerRegistry;
     )
 )]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> {
+pub struct SequencerConfig<S: Spec, Da: DaSpec> {
     /// The rollup address of the sequencer.
     pub seq_rollup_address: S::Address,
     /// The Data Availability (DA) address of the sequencer.
@@ -37,7 +37,7 @@ pub struct SequencerConfig<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec
     pub is_preferred_sequencer: bool,
 }
 
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,

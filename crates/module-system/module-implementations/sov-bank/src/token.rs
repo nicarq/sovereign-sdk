@@ -8,8 +8,8 @@ use std::num::ParseIntError;
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::impl_hash32_type;
 use sov_modules_api::prelude::*;
+use sov_modules_api::{impl_hash32_type, Spec, StateMap};
 use sov_state::namespaces::User;
 use sov_state::Prefix;
 use thiserror::Error;
@@ -140,23 +140,23 @@ impl std::fmt::Display for Coins {
 
 /// This struct represents a token in the sov-bank module.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, Debug, PartialEq, Clone)]
-pub struct Token<S: sov_modules_api::Spec> {
+pub struct Token<S: Spec> {
     /// Name of the token.
     pub(crate) name: String,
     /// Total supply of the coins.
     pub(crate) total_supply: u64,
     /// Mapping from user address to user balance.
-    pub(crate) balances: sov_modules_api::StateMap<TokenHolder<S>, Amount>,
+    pub(crate) balances: StateMap<TokenHolder<S>, Amount>,
 
     /// Vector containing the authorized minters
-    /// Empty vector indicates that the token supply is frozen
+    /// Empty vector indicates that the token supply is frozen.
     /// Non-empty vector indicates members of the vector can mint.
     /// Freezing a token requires emptying the vector
-    /// NOTE: This is explicit, so if a creator doesn't add themselves, then they can't mint
+    /// NOTE: This is explicit, so if a creator doesn't add themselves, then they can't mint.
     pub(crate) authorized_minters: Vec<TokenHolder<S>>,
 }
 
-impl<S: sov_modules_api::Spec> Token<S> {
+impl<S: Spec> Token<S> {
     /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
     /// First checks that there is enough token of that type stored in `from`. If so, update
     /// the balances of the `from` and `to` accounts.

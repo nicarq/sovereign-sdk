@@ -181,6 +181,163 @@ pub use sov_modules_macros::MessageCodec;
 /// }
 /// ```
 pub use sov_modules_macros::ModuleInfo;
+/// Derives [`HasRestApi`](crate::rest::HasRestApi) for modules.
+///
+/// REST APIs generated with this proc-macro will serve static metadata
+/// about the module itself, such as:
+/// - its name;
+/// - its description;
+/// - its [`ModuleId`](crate::ModuleId).
+///
+/// In addition to static metadata, the API also provides access to
+/// the module's state items (e.g. [`StateMap`](crate::containers::StateMap))'s
+/// values, both at the latest block and at specific block heights.
+/// The root path contains a listing of all state items that can be queried
+/// through the API.
+///
+/// ## Attributes: `#[rest_api(skip)]`
+///
+/// Tells the proc-macro to **NOT** provide access to a specific state item
+/// within the module.
+///
+/// ```
+/// use sov_modules_api::prelude::*;
+/// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
+///
+/// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+/// struct MyModule<S: Spec> {
+///     #[id]
+///     id: ModuleId,
+///     /// This state item can't be queried through the API.
+///     #[state]
+///     #[rest_api(skip)]
+///     state_item: StateValue<S::Address>,
+/// }
+/// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+/// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+/// #    type Spec = S;
+/// #    type Config = ();
+/// #    type CallMessage = ();
+/// #    type Event = ();
+/// #
+/// #    fn genesis(
+/// #        &self,
+/// #        _config: &Self::Config,
+/// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
+/// #    ) -> Result<(), sov_modules_api::Error> {
+/// #        Ok(())
+/// #    }
+/// #
+/// #    fn call(
+/// #        &self,
+/// #        _msg: Self::CallMessage,
+/// #        _context: &Context<Self::Spec>,
+/// #        _state: &mut impl sov_modules_api::state::TxState<S>,
+/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #        unimplemented!()
+/// #    }
+/// # }
+/// # // END MODULE IMPL
+/// ```
+///
+/// ## Attributes: `#[rest_api(include)]`
+///
+/// Tells the proc-macro that compilation **MUST** fail if the marked state
+/// item can't be exposed through the API, e.g. for unsatisfied trait
+/// bounds, instead of silently ignoring the item.
+///
+/// ```
+/// use sov_modules_api::prelude::*;
+/// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
+///
+/// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+/// struct MyModule<S: Spec> {
+///     #[id]
+///     id: ModuleId,
+///     /// If someone were to replace `S::Address` with a type that doesn't
+///     /// satisfy the necessary trait bounds, the compiler will complain.
+///     #[state]
+///     #[rest_api(include)]
+///     state_item: StateValue<S::Address>,
+/// }
+/// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+/// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+/// #    type Spec = S;
+/// #    type Config = ();
+/// #    type CallMessage = ();
+/// #    type Event = ();
+/// #
+/// #    fn genesis(
+/// #        &self,
+/// #        _config: &Self::Config,
+/// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
+/// #    ) -> Result<(), sov_modules_api::Error> {
+/// #        Ok(())
+/// #    }
+/// #
+/// #    fn call(
+/// #        &self,
+/// #        _msg: Self::CallMessage,
+/// #        _context: &Context<Self::Spec>,
+/// #        _state: &mut impl sov_modules_api::state::TxState<S>,
+/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #        unimplemented!()
+/// #    }
+/// # }
+/// # // END MODULE IMPL
+/// ```
+///
+/// ## Attributes: `#[rest_api(doc = "...")]`
+///
+/// Overrides the description of the marked item used in the generated
+/// metadata. By default, descriptions are fetched from docstrings.
+///
+/// You can use this attribute at the top of the module as well as state items.
+///
+/// ```
+/// use sov_modules_api::prelude::*;
+/// use sov_modules_api::{ModuleId, ModuleInfo, StateMap};
+///
+/// /// This docstring will not be used.
+/// #[derive(Clone, ModuleInfo, ModuleRestApi)]
+/// #[rest_api(doc = "This is a description of the module.")]
+/// #[rest_api(doc = "")]
+/// #[rest_api(doc = "This is a second paragraph in the description.")]
+/// struct MyModule<S: Spec> {
+///     #[id]
+///     id: ModuleId,
+///     /// This description will not be used.
+///     #[state]
+///     #[rest_api(doc = "My favorite state item!")]
+///     state_item: StateMap<S::Address, u64>,
+/// }
+/// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
+/// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
+/// #    type Spec = S;
+/// #    type Config = ();
+/// #    type CallMessage = ();
+/// #    type Event = ();
+/// #
+/// #    fn genesis(
+/// #        &self,
+/// #        _config: &Self::Config,
+/// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
+/// #    ) -> Result<(), sov_modules_api::Error> {
+/// #        Ok(())
+/// #    }
+/// #
+/// #    fn call(
+/// #        &self,
+/// #        _msg: Self::CallMessage,
+/// #        _context: &Context<Self::Spec>,
+/// #        _state: &mut impl sov_modules_api::state::TxState<S>,
+/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #        unimplemented!()
+/// #    }
+/// # }
+/// # // END MODULE IMPL
+/// ```
+pub use sov_modules_macros::ModuleRestApi;
 
 /// Procedural macros to assist with creating new modules.
 pub mod macros {
@@ -439,163 +596,6 @@ pub mod macros {
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::CliWalletArg;
-    /// Derives [`HasRestApi`](crate::rest::HasRestApi) for modules.
-    ///
-    /// REST APIs generated with this proc-macro will serve static metadata
-    /// about the module itself, such as:
-    /// - its name;
-    /// - its description;
-    /// - its [`ModuleId`](crate::ModuleId).
-    ///
-    /// In addition to static metadata, the API also provides access to
-    /// the module's state items (e.g. [`StateMap`](crate::containers::StateMap))'s
-    /// values, both at the latest block and at specific block heights.
-    /// The root path contains a listing of all state items that can be queried
-    /// through the API.
-    ///
-    /// ## Attributes: `#[rest_api(skip)]`
-    ///
-    /// Tells the proc-macro to **NOT** provide access to a specific state item
-    /// within the module.
-    ///
-    /// ```
-    /// use sov_modules_api::prelude::*;
-    /// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
-    ///
-    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
-    /// struct MyModule<S: Spec> {
-    ///     #[id]
-    ///     id: ModuleId,
-    ///     /// This state item can't be queried through the API.
-    ///     #[state]
-    ///     #[rest_api(skip)]
-    ///     state_item: StateValue<S::Address>,
-    /// }
-    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
-    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
-    /// #    type Spec = S;
-    /// #    type Config = ();
-    /// #    type CallMessage = ();
-    /// #    type Event = ();
-    /// #
-    /// #    fn genesis(
-    /// #        &self,
-    /// #        _config: &Self::Config,
-    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
-    /// #    ) -> Result<(), sov_modules_api::Error> {
-    /// #        Ok(())
-    /// #    }
-    /// #
-    /// #    fn call(
-    /// #        &self,
-    /// #        _msg: Self::CallMessage,
-    /// #        _context: &Context<Self::Spec>,
-    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
-    /// #        unimplemented!()
-    /// #    }
-    /// # }
-    /// # // END MODULE IMPL
-    /// ```
-    ///
-    /// ## Attributes: `#[rest_api(include)]`
-    ///
-    /// Tells the proc-macro that compilation **MUST** fail if the marked state
-    /// item can't be exposed through the API, e.g. for unsatisfied trait
-    /// bounds, instead of silently ignoring the item.
-    ///
-    /// ```
-    /// use sov_modules_api::prelude::*;
-    /// use sov_modules_api::{ModuleId, ModuleInfo, StateValue};
-    ///
-    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
-    /// struct MyModule<S: Spec> {
-    ///     #[id]
-    ///     id: ModuleId,
-    ///     /// If someone were to replace `S::Address` with a type that doesn't
-    ///     /// satisfy the necessary trait bounds, the compiler will complain.
-    ///     #[state]
-    ///     #[rest_api(include)]
-    ///     state_item: StateValue<S::Address>,
-    /// }
-    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
-    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
-    /// #    type Spec = S;
-    /// #    type Config = ();
-    /// #    type CallMessage = ();
-    /// #    type Event = ();
-    /// #
-    /// #    fn genesis(
-    /// #        &self,
-    /// #        _config: &Self::Config,
-    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
-    /// #    ) -> Result<(), sov_modules_api::Error> {
-    /// #        Ok(())
-    /// #    }
-    /// #
-    /// #    fn call(
-    /// #        &self,
-    /// #        _msg: Self::CallMessage,
-    /// #        _context: &Context<Self::Spec>,
-    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
-    /// #        unimplemented!()
-    /// #    }
-    /// # }
-    /// # // END MODULE IMPL
-    /// ```
-    ///
-    /// ## Attributes: `#[rest_api(doc = "...")]`
-    ///
-    /// Overrides the description of the marked item used in the generated
-    /// metadata. By default, descriptions are fetched from docstrings.
-    ///
-    /// You can use this attribute at the top of the module as well as state items.
-    ///
-    /// ```
-    /// use sov_modules_api::prelude::*;
-    /// use sov_modules_api::{ModuleId, ModuleInfo, StateMap};
-    ///
-    /// /// This docstring will not be used.
-    /// #[derive(Clone, ModuleInfo, ModuleRestApi)]
-    /// #[rest_api(doc = "This is a description of the module.")]
-    /// #[rest_api(doc = "")]
-    /// #[rest_api(doc = "This is a second paragraph in the description.")]
-    /// struct MyModule<S: Spec> {
-    ///     #[id]
-    ///     id: ModuleId,
-    ///     /// This description will not be used.
-    ///     #[state]
-    ///     #[rest_api(doc = "My favorite state item!")]
-    ///     state_item: StateMap<S::Address, u64>,
-    /// }
-    /// # // BEGIN MODULE IMPL, COPY-PASTE-ME (https://doc.rust-lang.org/rustdoc/write-documentation/documentation-tests.html#hiding-portions-of-the-example)
-    /// # impl<S: Spec> sov_modules_api::Module for MyModule<S> {
-    /// #    type Spec = S;
-    /// #    type Config = ();
-    /// #    type CallMessage = ();
-    /// #    type Event = ();
-    /// #
-    /// #    fn genesis(
-    /// #        &self,
-    /// #        _config: &Self::Config,
-    /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
-    /// #    ) -> Result<(), sov_modules_api::Error> {
-    /// #        Ok(())
-    /// #    }
-    /// #
-    /// #    fn call(
-    /// #        &self,
-    /// #        _msg: Self::CallMessage,
-    /// #        _context: &Context<Self::Spec>,
-    /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-    /// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
-    /// #        unimplemented!()
-    /// #    }
-    /// # }
-    /// # // END MODULE IMPL
-    /// ```
-    pub use sov_modules_macros::ModuleRestApi;
     /// Derives [`HasRestApi`](crate::rest::HasRestApi) for runtimes.
     ///
     /// For each module listed in this runtime, the proc-macro will mount its
@@ -604,7 +604,7 @@ pub mod macros {
     /// [`crate::rest`] for more information about these traits.
     ///
     /// Modules listed in the runtime for which no
-    /// [`ModuleRestApi`] is derived will simply be ignored.
+    /// [`crate::ModuleRestApi`] is derived will simply be ignored.
     ///
     /// ## Attributes: `#[rest_api(skip)]`
     ///
@@ -613,7 +613,7 @@ pub mod macros {
     /// ## Attributes: `#[rest_api(doc)]`
     ///
     /// This attribute behaves exactly the same as it does for
-    /// [`ModuleRestApi`].
+    /// [`crate::ModuleRestApi`].
     pub use sov_modules_macros::RuntimeRestApi;
     /// Implements the [`SchemaGenerator`](sov_wallet_format::traits::SchemaGenerator) trait for the
     /// annotated struct or enum.

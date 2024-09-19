@@ -8,7 +8,10 @@ pub use event::Event;
 #[cfg(feature = "native")]
 pub use query::*;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
+use sov_modules_api::{
+    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateValue, TxState,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -18,26 +21,23 @@ pub struct ExampleModuleConfig {}
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-/// - Should derive `ModuleCallJsonSchema` if the "native" feature is enabled.
-///   This is optional, and is only used to generate a JSON Schema for your
-///   module's call messages (which is useful to develop clients, CLI tooling
-///   etc.).
-#[derive(ModuleInfo, Clone)]
-pub struct ExampleModule<S: sov_modules_api::Spec> {
+/// - Can derive ModuleRestApi to automatically generate Rest API endpoints
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct ExampleModule<S: Spec> {
     /// Id of the module.
     #[id]
     pub id: ModuleId,
 
     /// Some value kept in the state.
     #[state]
-    pub value: sov_modules_api::StateValue<u32>,
+    pub value: StateValue<u32>,
 
     /// Reference to the Bank module.
     #[module]
     pub(crate) _bank: sov_bank::Bank<S>,
 }
 
-impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
+impl<S: Spec> Module for ExampleModule<S> {
     type Spec = S;
 
     type Config = ExampleModuleConfig;
@@ -60,7 +60,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ExampleModule<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {
                 Ok(self.set_value(new_value, context, state)?)

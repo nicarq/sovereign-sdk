@@ -7,32 +7,36 @@ mod event;
 pub use call::*;
 pub use event::Event;
 pub use genesis::*;
-use sov_modules_api::{Context, Error, GenesisState, ModuleId, ModuleInfo, TxState};
+use sov_modules_api::{
+    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateValue, StateVec, TxState,
+};
 
 /// A new module:
 /// - Must derive `ModuleInfo`
 /// - Must contain `[address]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
-pub struct ValueSetter<S: sov_modules_api::Spec> {
+/// - Can derive ModuleRestApi to automatically generate Rest API endpoints
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct ValueSetter<S: Spec> {
     /// The ID of the module.
     #[id]
     pub id: ModuleId,
 
     /// Some value kept in the state.
     #[state]
-    pub value: sov_modules_api::StateValue<u32>,
+    pub value: StateValue<u32>,
 
     /// Some more values kept in state.
     #[state]
-    many_values: sov_modules_api::StateVec<u8>,
+    many_values: StateVec<u8>,
 
     /// Holds the address of the admin user who is allowed to update the value.
     #[state]
-    pub admin: sov_modules_api::StateValue<S::Address>,
+    pub admin: StateValue<S::Address>,
 }
 
-impl<S: sov_modules_api::Spec> sov_modules_api::Module for ValueSetter<S> {
+impl<S: Spec> Module for ValueSetter<S> {
     type Spec = S;
 
     type Config = ValueSetterConfig<S>;
@@ -55,7 +59,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for ValueSetter<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {
                 Ok(self.set_value(new_value, context, state)?)

@@ -5,7 +5,7 @@ use reth_primitives::constants::{EMPTY_RECEIPTS, EMPTY_ROOT_HASH, EMPTY_TRANSACT
 use reth_primitives::revm_primitives::{AccountInfo, Address, SpecId, B256, U256};
 use reth_primitives::{Bloom, Bytes, EMPTY_OMMER_ROOT_HASH, KECCAK_EMPTY};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::GenesisState;
+use sov_modules_api::{GenesisState, Module, Spec};
 
 use crate::evm::db_init::InitEvmDb;
 use crate::evm::primitive_types::Block;
@@ -81,10 +81,10 @@ impl Default for EvmConfig {
     }
 }
 
-impl<S: sov_modules_api::Spec> Evm<S> {
+impl<S: Spec> Evm<S> {
     pub(crate) fn init_module(
         &self,
-        config: &<Self as sov_modules_api::Module>::Config,
+        config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         let mut evm_db = self.get_db(state);

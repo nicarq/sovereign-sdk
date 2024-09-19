@@ -3,7 +3,7 @@ use sov_bank::Amount;
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
+use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, TxState};
 
 use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 
@@ -48,7 +48,7 @@ pub enum CallMessage {
     },
 }
 
-impl<S: sov_modules_api::Spec, Da: sov_modules_api::DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Tries to register a sequencer by staking the provided amount of gas tokens.
     /// This method uses the context's sender as the sequencer's address.
     ///

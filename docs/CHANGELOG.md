@@ -1,3 +1,4 @@
+- #1472 Export `ModuleRestApi` at the top level of `sov_modules_api` rather than `sov_modules_api::macros::ModuleRestApi`
 - #1474 Add a test for the optimistic workflow
 - #1464 Improve the code structure of the integration tests
 - #1461 Add `ProcessManager` that manages processes consuming StateTransitionInfo.

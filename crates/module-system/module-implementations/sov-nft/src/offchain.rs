@@ -1,6 +1,7 @@
 #[cfg(feature = "offchain")]
 use postgres::NoTls;
 use sov_modules_api::macros::offchain;
+use sov_modules_api::Spec;
 
 #[cfg(feature = "offchain")]
 use crate::sql::*;
@@ -12,7 +13,7 @@ use crate::{Collection, Nft, OwnerAddress};
 
 /// Syncs a collection to the corresponding table "collections" in postgres
 #[offchain]
-pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
+pub fn update_collection<S: Spec>(collection: &Collection<S>) {
     // Extract the necessary metadata from the collection
     let collection_name = collection.get_name();
     let creator_address = collection.get_creator();
@@ -57,7 +58,7 @@ pub fn update_collection<S: sov_modules_api::Spec>(collection: &Collection<S>) {
 /// Additionally, this function also has logic to track the counts of NFTs held by each user
 /// in each collection.
 #[offchain]
-pub fn update_nft<S: sov_modules_api::Spec>(nft: &Nft<S>, old_owner: Option<OwnerAddress<S>>) {
+pub fn update_nft<S: Spec>(nft: &Nft<S>, old_owner: Option<OwnerAddress<S>>) {
     let collection_id = nft.get_collection_id().to_string();
     let nft_id = nft.get_token_id();
     let new_owner_str = nft.get_owner().to_string();

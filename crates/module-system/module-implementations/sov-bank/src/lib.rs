@@ -17,7 +17,8 @@ pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_bech32;
 use sov_modules_api::{
-    CallResponse, Context, Error, Gas, GenesisState, ModuleId, ModuleInfo, TxState,
+    CallResponse, Context, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, TxState,
 };
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -57,8 +58,8 @@ pub struct BankGasConfig<GU: Gas> {
 /// - Token creation.
 /// - Token transfers.
 /// - Token burn.
-#[derive(Clone, ModuleInfo, sov_modules_api::macros::ModuleRestApi)]
-pub struct Bank<S: sov_modules_api::Spec> {
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct Bank<S: Spec> {
     /// The id of the sov-bank module.
     #[id]
     pub(crate) id: ModuleId,
@@ -69,10 +70,10 @@ pub struct Bank<S: sov_modules_api::Spec> {
 
     /// A mapping of [`TokenId`]s to tokens in the sov-bank.
     #[state]
-    pub(crate) tokens: sov_modules_api::StateMap<TokenId, Token<S>>,
+    pub(crate) tokens: StateMap<TokenId, Token<S>>,
 }
 
-impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
+impl<S: Spec> Module for Bank<S> {
     type Spec = S;
 
     type Config = BankConfig<S>;
@@ -94,7 +95,7 @@ impl<S: sov_modules_api::Spec> sov_modules_api::Module for Bank<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<CallResponse, Error> {
         match msg {
             call::CallMessage::CreateToken {
                 salt,

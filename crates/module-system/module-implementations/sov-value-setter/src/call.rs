@@ -4,7 +4,7 @@ use anyhow::Result;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, EventEmitter, TxState};
+use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -44,7 +44,7 @@ pub enum SetValueError {
     WrongSender,
 }
 
-impl<S: sov_modules_api::Spec> ValueSetter<S> {
+impl<S: Spec> ValueSetter<S> {
     /// Sets `value` field to the `new_value`, only admin is authorized to call this method.
     pub(crate) fn set_value(
         &self,
