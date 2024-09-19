@@ -129,7 +129,7 @@ async fn send_test_bank_txs(
     assert_eq!(token_id, token_id_response);
 
     // create token. height 2
-    let tx = build_create_token_tx(&key, 0);
+    let tx = build_create_token_tx(&key, 0, 1000);
     let slot_number = tx_sender.send_txs(client, &[tx]).await?;
     assert_eq!(1, slot_number);
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;

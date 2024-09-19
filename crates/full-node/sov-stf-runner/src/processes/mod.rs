@@ -7,6 +7,7 @@ pub use prover_service::*;
 use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
+use tokio::task::JoinHandle;
 pub use zk_manager::*;
 mod stf_info_manager;
 pub use stf_info_manager::*;
@@ -50,8 +51,10 @@ where
         aggregated_proof_block_jump: usize,
         max_channel_size: usize,
         max_nb_of_infos_in_db: u64,
-    ) -> anyhow::Result<Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>>
-    {
+    ) -> anyhow::Result<(
+        Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+        JoinHandle<()>,
+    )> {
         let (st_info_sender, st_info_receiver) =
             new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
 
@@ -64,11 +67,11 @@ where
             st_info_receiver,
         );
 
-        proof_manager
+        let handle = proof_manager
             .post_aggregated_proof_to_da_in_background()
             .await;
 
-        Ok(st_info_sender)
+        Ok((st_info_sender, handle))
     }
 
     /// Starts process that generates optimistic proofs in the background.
@@ -76,6 +79,15 @@ where
         self,
     ) -> anyhow::Result<Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>>
     {
-        unimplemented!()
+        let (st_info_sender, mut st_info_receiver) =
+            new_stf_info_channel(self.ledger_db, 1, 2).await?;
+
+        tokio::spawn(async move {
+            loop {
+                _ = st_info_receiver.read_next().await;
+            }
+        });
+
+        Ok(st_info_sender)
     }
 }

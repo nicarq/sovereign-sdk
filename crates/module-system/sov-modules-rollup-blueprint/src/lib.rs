@@ -294,13 +294,15 @@ mod blueprint {
                             process_manager.start_op_workflow_in_background().await?
                         }
                         OperatingMode::Zk => {
-                            process_manager
+                            let (st_info_sender, _) = process_manager
                                 .start_zk_workflow_in_background(
                                     rollup_config.proof_manager.aggregated_proof_block_jump,
                                     1,
-                                    2,
+                                    1,
                                 )
-                                .await?
+                                .await?;
+
+                            st_info_sender
                         }
                     };
 

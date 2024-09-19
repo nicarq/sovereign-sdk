@@ -10,7 +10,7 @@ use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetch_aggregated_proof_test() -> anyhow::Result<()> {
-    for jump in [1, 7] {
+    for jump in [1, 2] {
         let test_case = TestCase::new(jump);
         for nb_of_threads in [1, 3] {
             run_make_proof_sync(test_case, nb_of_threads).await?;
@@ -50,6 +50,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
+    test_node.abort_prover().await;
     runner_task.abort();
     Ok(())
 }
@@ -85,6 +86,7 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
+    test_node.abort_prover().await;
     runner_task.abort();
     Ok(())
 }

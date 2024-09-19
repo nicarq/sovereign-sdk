@@ -61,7 +61,7 @@ async fn send_test_bank_txs(
 
     assert_eq!(token_id, token_id_response);
 
-    let tx = build_create_token_tx(&key, 0);
+    let tx = build_create_token_tx(&key, 0, 1000);
     tx_sender.send_txs(client, &[tx]).await?;
     assert_balance(client, 1000, token_id, user_address, None).await?;
 
