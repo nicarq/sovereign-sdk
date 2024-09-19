@@ -29,6 +29,7 @@ use sov_stf_runner::{
 };
 use tokio::sync::broadcast::Receiver;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 use crate::helpers::hash_stf::HashStf;
 
@@ -49,6 +50,7 @@ pub struct TestNode {
     inner_vm: MockZkvm,
     _outer_vm: MockZkvm,
     ledger_db: LedgerDb,
+    prover_handle: Option<JoinHandle<()>>,
 }
 
 impl TestNode {
@@ -98,6 +100,12 @@ impl TestNode {
     ) -> anyhow::Result<Option<AggregatedProofPublicData>> {
         let proof_from_db = self.ledger_db.get_latest_aggregated_proof().await?;
         Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
+    }
+
+    pub async fn abort_prover(self) {
+        if let Some(handle) = self.prover_handle {
+            handle.abort();
+        }
     }
 }
 
@@ -203,7 +211,7 @@ pub async fn initialize_runner(
 
     let prover_config = RollupProverConfig::Prove;
 
-    let st_info_sender = match nb_of_prover_threads {
+    let (st_info_sender, handle) = match nb_of_prover_threads {
         Some(threads) => {
             let prover_service = ParallelProverService::new(
                 inner_vm.clone(),
@@ -226,18 +234,18 @@ pub async fn initialize_runner(
                 Box::new(DummyProofSerializer::new()),
             );
 
-            let st_info_sender = process_manager
+            let (st_info_sender, handle) = process_manager
                 .start_zk_workflow_in_background(
                     rollup_config.proof_manager.aggregated_proof_block_jump,
                     1,
-                    2,
+                    1,
                 )
                 .await
                 .unwrap();
 
-            Some(st_info_sender)
+            (Some(st_info_sender), Some(handle))
         }
-        None => None,
+        None => (None, None),
     };
 
     let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
@@ -265,6 +273,7 @@ pub async fn initialize_runner(
             inner_vm,
             _outer_vm: outer_vm,
             ledger_db,
+            prover_handle: handle,
         },
     )
 }

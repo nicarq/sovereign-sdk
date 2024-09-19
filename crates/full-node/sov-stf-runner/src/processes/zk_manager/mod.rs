@@ -5,6 +5,7 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
@@ -106,12 +107,12 @@ where
     }
 
     /// Starts a background task for `AggregatedProof` generation.
-    pub async fn post_aggregated_proof_to_da_in_background(self) {
+    pub async fn post_aggregated_proof_to_da_in_background(self) -> JoinHandle<()> {
         tokio::spawn(async move {
             if let Err(e) = self.post_aggregated_proof_to_da_when_ready().await {
                 tracing::error!(error = ?e, "Failed to post aggregated proof to DA");
             }
-        });
+        })
     }
 
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.

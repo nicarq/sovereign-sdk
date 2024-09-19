@@ -1,3 +1,4 @@
+- #1474 Add a test for the optimistic workflow
 - #1464 Improve the code structure of the integration tests
 - #1461 Add `ProcessManager` that manages processes consuming StateTransitionInfo.
 - #1459 Modifies the `TxState` trait to make it compatible with the `ApiStateAccessor` so that it becomes possible to test module call methods directly using the `ApiStateAccessor`.

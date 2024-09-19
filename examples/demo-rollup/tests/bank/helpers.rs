@@ -52,13 +52,17 @@ pub(crate) fn create_keys_and_addresses() -> (
     (key, user_address, token_id, recipient_address)
 }
 
-pub(crate) fn build_create_token_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
+pub(crate) fn build_create_token_tx(
+    key: &TestPrivateKey,
+    nonce: u64,
+    initial_balance: u64,
+) -> Transaction<TestSpec> {
     let user_address: <TestSpec as Spec>::Address = key.to_address();
     let msg =
         RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             salt: TOKEN_SALT,
             token_name: TOKEN_NAME.to_string(),
-            initial_balance: 1000,
+            initial_balance,
             mint_to_address: user_address,
             authorized_minters: vec![],
         });

@@ -1,4 +1,5 @@
 mod helpers;
+mod op_rollup;
 mod zk_rollup;
 use std::sync::Arc;
 
