@@ -415,6 +415,7 @@ where
             let mut batch_count = 0;
             let get_block_start = std::time::Instant::now();
             let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
+            let get_block_time = get_block_start.elapsed();
             debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
 
             let (stf_pre_state, filtered_block) = self
@@ -460,7 +461,9 @@ where
                     .collect::<Vec<_>>(),
                 "Extracted relevant blobs"
             );
+            let da_extraction_time = stf_execution_start.elapsed();
 
+            let apply_slot_start = std::time::Instant::now();
             let slot_result = self.stf.apply_slot(
                 self.state_manager.get_state_root(),
                 stf_pre_state,
@@ -470,6 +473,7 @@ where
                 relevant_blobs.as_iters(),
                 ExecutionContext::Node,
             );
+            let apply_slot_time = apply_slot_start.elapsed();
 
             // --- Before destructuring the receipt, extract some data for metrics ---
             let batch_bytes_processed: u64 = relevant_blobs
@@ -485,12 +489,13 @@ where
             let proof_blobs_processed = slot_result.proof_receipts.len();
             // --- End metric extraction ---
 
+            let get_relevant_proofs_start = std::time::Instant::now();
             // Get merkle proofs for the relevant blobs
             let relevant_proofs = self
                 .da_service
                 .get_extraction_proof(&filtered_block, &relevant_blobs)
                 .await;
-
+            let get_relevant_proofs_time = get_relevant_proofs_start.elapsed();
             // Handling executed data
             let mut data_to_commit = SlotCommit::new(filtered_block);
             for receipt in slot_result.batch_receipts {
@@ -567,9 +572,26 @@ where
                 metrics
                     .stf_transition_sec
                     .observe(stf_execution_start.elapsed().as_secs_f64());
+                metrics.get_block_sec.observe(get_block_time.as_secs_f64());
+
                 metrics
-                    .get_block_sec
-                    .observe(get_block_start.elapsed().as_secs_f64());
+                    .process_slot_ms_by_slot
+                    .set(loop_start.elapsed().as_millis() as i64);
+                metrics
+                    .stf_transition_with_commit_ms_by_slot
+                    .set(apply_slot_start.elapsed().as_millis() as i64);
+                metrics
+                    .apply_slot_ms_by_slot
+                    .set(apply_slot_time.as_millis() as i64);
+                metrics
+                    .extract_blobs_ms_by_slot
+                    .set(da_extraction_time.as_millis() as i64);
+                metrics
+                    .get_blob_extraction_proof_ms_by_slot
+                    .set(get_relevant_proofs_time.as_millis() as i64);
+                metrics
+                    .get_block_ms_by_slot
+                    .set(get_block_time.as_millis() as i64);
             });
         }
     }
