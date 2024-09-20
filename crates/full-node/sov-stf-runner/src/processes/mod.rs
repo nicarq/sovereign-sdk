@@ -1,11 +1,14 @@
 //! Processes responsible for creating different kind of proofs.
+mod op_manager;
 mod prover_service;
 mod zk_manager;
 use std::sync::Arc;
 
+use op_manager::attestations::AttestationsManager;
 pub use prover_service::*;
 use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::optimistic::BondingProofService;
 use sov_rollup_interface::stf::ProofSerializer;
 use tokio::task::JoinHandle;
 pub use zk_manager::*;
@@ -75,18 +78,18 @@ where
     }
 
     /// Starts process that generates optimistic proofs in the background.
-    pub async fn start_op_workflow_in_background(
+    pub async fn start_op_workflow_in_background<Bps: BondingProofService>(
         self,
+        bonding_proof_service: Bps,
     ) -> anyhow::Result<Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>>
     {
-        let (st_info_sender, mut st_info_receiver) =
-            new_stf_info_channel(self.ledger_db, 1, 2).await?;
+        let (st_info_sender, st_info_receiver) = new_stf_info_channel(self.ledger_db, 1, 2).await?;
 
-        tokio::spawn(async move {
-            loop {
-                _ = st_info_receiver.read_next().await;
-            }
-        });
+        let attestations_manager =
+            AttestationsManager::new(st_info_receiver, bonding_proof_service);
+        attestations_manager
+            .post_attestation_to_da_in_background()
+            .await;
 
         Ok(st_info_sender)
     }

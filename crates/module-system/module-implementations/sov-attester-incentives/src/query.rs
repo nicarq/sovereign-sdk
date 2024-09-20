@@ -1,5 +1,6 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
+use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::{ApiStateAccessor, DaSpec, Spec, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
@@ -61,10 +62,10 @@ where
     /// attestations for this specific amount of time.
     pub fn get_bond_proof(
         &self,
-        address: S::Address,
+        address: &S::Address,
         state: &mut ApiStateAccessor<S>,
     ) -> StorageProof<<S::Storage as Storage>::Proof> {
-        self.bonded_attesters.get_with_proof(&address, state)
+        self.bonded_attesters.get_with_proof(address, state)
     }
 
     /// TODO: Make the unbonding amount queryable:
@@ -74,5 +75,60 @@ where
         _witness: &<S::Storage as Storage>::Witness,
     ) -> u64 {
         todo!("Make the unbonding amount queryable: https://github.com/Sovereign-Labs/sovereign-sdk/issues/675")
+    }
+}
+
+/// Implementation of the [`BondingProofServiceImpl`] for the [`AttesterIncentives`] module.
+pub struct BondingProofServiceImpl<S, Da>
+where
+    S: sov_modules_api::Spec,
+    Da: sov_modules_api::DaSpec,
+{
+    attester_address: S::Address,
+    attester_incentives: AttesterIncentives<S, Da>,
+    storage: tokio::sync::watch::Receiver<S::Storage>,
+}
+
+impl<S, Da> BondingProofServiceImpl<S, Da>
+where
+    S: sov_modules_api::Spec,
+    Da: sov_modules_api::DaSpec,
+{
+    /// Creates a new `BondingProofServiceImpl` service.
+    pub fn new(
+        attester_address: S::Address,
+        attester_incentives: AttesterIncentives<S, Da>,
+        storage: tokio::sync::watch::Receiver<S::Storage>,
+    ) -> Self {
+        Self {
+            attester_address,
+            attester_incentives,
+            storage,
+        }
+    }
+}
+
+impl<S, Da> BondingProofService for BondingProofServiceImpl<S, Da>
+where
+    S: sov_modules_api::Spec,
+    Da: sov_modules_api::DaSpec,
+{
+    type StateProof = StorageProof<<S::Storage as Storage>::Proof>;
+
+    fn get_bonding_proof(
+        &self,
+        height: u64,
+    ) -> ProofOfBond<<Self as BondingProofService>::StateProof> {
+        let storage = self.storage.borrow().clone();
+        let state = ApiStateAccessor::<S>::new(storage);
+        let mut state = state.get_archival_at(height);
+        let proof = self
+            .attester_incentives
+            .get_bond_proof(&self.attester_address, &mut state);
+
+        ProofOfBond {
+            claimed_rollup_height: height,
+            proof,
+        }
     }
 }

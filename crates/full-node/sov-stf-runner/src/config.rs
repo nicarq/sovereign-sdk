@@ -143,7 +143,7 @@ mod tests {
             bind_port = 12346
             [proof_manager]
             aggregated_proof_block_jump = 22
-            prover_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
+            prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             [sequencer]
             max_allowed_blocks_behind = 5
             sequencer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
@@ -185,7 +185,7 @@ mod tests {
             proof_manager: ProofManagerConfig {
                 aggregated_proof_block_jump: 22,
                 prover_address: Address::from_str(
-                    "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+                    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
                 )
                 .unwrap(),
             },

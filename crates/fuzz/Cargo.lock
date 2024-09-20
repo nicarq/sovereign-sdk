@@ -4943,6 +4943,7 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

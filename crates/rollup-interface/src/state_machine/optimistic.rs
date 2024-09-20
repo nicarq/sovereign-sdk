@@ -27,6 +27,14 @@ pub struct ProofOfBond<StateProof> {
     pub proof: StateProof,
 }
 
+/// Service that knows how to generate a [`ProofOfBond`] for a given rollup height.
+pub trait BondingProofService: Send + Sync + 'static {
+    /// The actual state proof that the attester was bonded.
+    type StateProof;
+    /// Gets the bonding proof for the given height.
+    fn get_bonding_proof(&self, height: u64) -> ProofOfBond<Self::StateProof>;
+}
+
 /// An attestation that a particular DA layer block transitioned the rollup state to some value
 #[derive(
     Debug,

@@ -38,6 +38,10 @@ impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da>
     pub(crate) fn initial_state_root(&self) -> &StateRoot {
         &self.data.initial_state_root
     }
+
+    pub(crate) fn witness(self) -> StateTransitionWitness<StateRoot, Witness, Da> {
+        self.data
+    }
 }
 
 /// Materializes STF infos and sends notifications to the associated `Receiver`.
