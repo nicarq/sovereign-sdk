@@ -9068,6 +9068,7 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "thiserror",
+ "tokio",
  "tracing",
 ]
 

@@ -30,6 +30,8 @@
 //! `Runtime::decode_call` accepts serialized call message and returns a type that implements the `DispatchCall` trait.
 //!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
 
+#[cfg(feature = "native")]
+pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
 use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities};
 #[cfg(feature = "native")]
@@ -42,6 +44,7 @@ use sov_sequencer_registry::SequencerStakeMeter;
 pub use crate::authentication::EthereumToRollupAddressConverter;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
+
 /// The `demo-stf runtime`.
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 #[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]

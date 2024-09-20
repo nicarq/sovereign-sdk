@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
+use demo_stf::runtime::{BondingProofServiceImpl, EthereumToRollupAddressConverter, Runtime};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
@@ -69,6 +69,17 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
+
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec>;
+
+    fn create_bonding_proof_service(
+        &self,
+        attester_address: <Self::Spec as Spec>::Address,
+        storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
+    ) -> Self::BondingProofService {
+        let runtime = Runtime::<Self::Spec, Self::DaSpec>::default();
+        BondingProofServiceImpl::new(attester_address, runtime.attester_incentives, storage)
+    }
 
     fn get_operating_mode(
         genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,

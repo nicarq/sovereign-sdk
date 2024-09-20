@@ -66,7 +66,7 @@ pub mod transaction;
 
 /// Reexports traits and utilities for optimistic rollups.
 pub mod optimistic {
-    pub use sov_rollup_interface::optimistic::{Attestation, ProofOfBond};
+    pub use sov_rollup_interface::optimistic::{Attestation, BondingProofService, ProofOfBond};
 }
 
 /// Reexports traits and utilities for DA layers.

@@ -1,3 +1,6 @@
+- #1480 Add the AttestationsManager, which is responsible for managing Attestation creation. This PR will break the `sov-rollup-starter` in several ways:
+  1. Updates `prover_address` in rollup_config.toml.
+  2. Adds a new method and an associated type to `FullNodeBlueprint`
 - #1467 Adds the prefix `sov_` to all metrics emitted by the rollup.
 - #1472 Export `ModuleRestApi` at the top level of `sov_modules_api` rather than `sov_modules_api::macros::ModuleRestApi`
 - #1474 Add a test for the optimistic workflow

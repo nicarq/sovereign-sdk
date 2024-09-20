@@ -23,7 +23,7 @@ use sov_stf_runner::{
 use sov_test_utils::ApiClient;
 use tokio::task::JoinHandle;
 
-const PROVER_ADDRESS: &str = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx";
+const PROVER_ADDRESS: &str = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
 
 pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
