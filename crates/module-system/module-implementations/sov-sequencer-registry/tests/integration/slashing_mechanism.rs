@@ -1,10 +1,11 @@
 use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::GasMeter;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     AsUser, AtomicNumber, BatchTestCase, SkippedReason, TestUser, TransactionTestCase,
-    TransactionType, TEST_DEFAULT_USER_STAKE,
+    TransactionType,
 };
 
 use crate::helpers::{
@@ -102,14 +103,12 @@ fn test_sequencer_without_enough_stake() {
         mut runner,
     ) = setup();
 
-    let minimal_bond = runner
-        .query_state(|state| {
-            TestSequencerRegistry::default()
-                .minimum_bond
-                .get(state)
-                .unwrap_infallible()
-        })
-        .expect("The minimum bond should be set at genesis");
+    let minimal_bond = runner.query_state(|state| {
+        TestSequencerRegistry::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
 
     let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
 
@@ -131,14 +130,25 @@ fn test_sequencer_without_enough_stake() {
     //
     // Next we send a malformed transaction. Since the sequencer's balance is below the minimum, the transaction
     // is ignored. This means that the sequencer is *not* slashed even though the transaction is malicious.
-    runner.execute_transaction(TransactionTestCase {
-        input: admin
-            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(10),
-            )
-            .with_max_fee(0),
-        assert: Box::new(move |result, _state| {
-           match &result.tx_receipt {
+    runner.execute_batch(BatchTestCase {
+        input: vec![
+            admin
+                .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+                    sov_value_setter::CallMessage::SetValue(10),
+                )
+                .with_max_fee(0),
+            malformed_transaction,
+        ]
+        .into(),
+        assert: Box::new(move |result, state| {
+            assert_eq!(
+                result.batch_receipt.clone().unwrap().tx_receipts.len(), 1,
+                "Only the first transaction should have been included in the batch"
+            );
+
+            let tx_receipt = &result.batch_receipt.unwrap().tx_receipts[0];
+
+            match &tx_receipt.receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
                     if let SkippedReason::CannotReserveGas(error_message) = reason {
                         assert!(
@@ -152,19 +162,14 @@ fn test_sequencer_without_enough_stake() {
                 },
                 unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
             };
-        }),
-    }).execute_batch(BatchTestCase {
-        input: vec![malformed_transaction].into(),
-        assert: Box::new(move |result, state| {
-            assert!(result.batch_receipt.is_none(), "Batch should have been dropped");
+
             assert!(
                 TestSequencerRegistry::default()
                     .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
                     .unwrap_infallible(),
                 "The additional sequencer should still be registered"
             );
-
-        })
+        }),
     });
 }
 
@@ -184,6 +189,13 @@ fn slashed_sequencer_should_not_preserve_balance() {
     let additional_sequencer_address = additional_sequencer.address();
     let additional_sequencer_balance = additional_sequencer.available_gas_balance;
 
+    let user_stake_value = runner.query_state(|state| {
+        TestSequencerRegistry::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
+
     let gas_consumed_registration_ref = AtomicNumber::new(0);
     let gas_consumed_registration_ref_1 = gas_consumed_registration_ref.clone();
 
@@ -191,17 +203,21 @@ fn slashed_sequencer_should_not_preserve_balance() {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: additional_sequencer_da_address.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
         assert: Box::new(move |result, state| {
             assert_eq!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&additional_sequencer_da_address.into(), state)
+                    .is_sender_allowed(
+                        &additional_sequencer_da_address.into(),
+                        &state.gas_price().clone(),
+                        state
+                    )
                     .unwrap(),
                 AllowedSequencer {
                     address: additional_sequencer_address,
-                    balance: TEST_DEFAULT_USER_STAKE,
+                    balance: user_stake_value,
                 },
                 "The additional sequencer should be registered"
             );
@@ -225,7 +241,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 Some(
                     additional_sequencer_balance
                         - gas_consumed_registration_ref_1.get()
-                        - TEST_DEFAULT_USER_STAKE
+                        - user_stake_value
                 ),
                 "The sequencer's balance should be equal to the initial balance minus the gas used to register + the stake amount"
             );
@@ -237,17 +253,21 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 da_address: additional_sequencer_da_address.as_ref().to_vec(),
                 // We try to register the sequencer with a new stake amount that is not a multiple of the
                 // previous stake amount to ensure that the stake amount is not accumulated.
-                amount: 3 * TEST_DEFAULT_USER_STAKE / 2,
+                amount: 3 * user_stake_value / 2,
             },
         ),
         assert: Box::new(move |_result, state| {
             assert_eq!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&additional_sequencer_da_address.into(), state)
+                    .is_sender_allowed(
+                        &additional_sequencer_da_address.into(),
+                        &state.gas_price().clone(),
+                        state
+                    )
                     .unwrap(),
                 AllowedSequencer {
                     address: additional_sequencer_address,
-                    balance: 3 * TEST_DEFAULT_USER_STAKE / 2,
+                    balance: 3 * user_stake_value / 2,
                 },
                 "The additional sequencer should be registered"
             );

@@ -178,7 +178,12 @@ where
     fn current_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
 
-        ApiStateAccessor::<S>::new(stf_state)
+        let mut state_checkpoint =
+            StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
+
+        let base_fee_per_gas = self.stf.kernel().base_fee_per_gas(&mut state_checkpoint);
+
+        ApiStateAccessor::<S>::new_with_price(stf_state, base_fee_per_gas)
     }
 
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
@@ -375,7 +380,7 @@ where
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<S, M> = input.into();
         let sequencer = self.config.sequencer_da_address;
-        let mut state = ApiStateAccessor::<S>::new(stf_state.clone());
+        let mut state = self.current_state();
         let mut nonces = self.nonces.clone();
 
         let mut blobs = match slot_input {

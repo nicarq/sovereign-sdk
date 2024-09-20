@@ -81,15 +81,16 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         mut scratchpad: TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, SequencerStakeMeter<S::Gas>> {
-        let allowed_sequencer = match self.is_sender_allowed(sender, &mut scratchpad) {
-            Ok(seq) => seq,
-            Err(e) => {
-                return Err(AuthorizeSequencerError {
-                    tx_scratchpad: scratchpad,
-                    reason: e.into(),
-                })
-            }
-        };
+        let allowed_sequencer =
+            match self.is_sender_allowed(sender, base_fee_per_gas, &mut scratchpad) {
+                Ok(seq) => seq,
+                Err(e) => {
+                    return Err(AuthorizeSequencerError {
+                        tx_scratchpad: scratchpad,
+                        reason: e.into(),
+                    })
+                }
+            };
 
         let seq_meter = SequencerStakeMeter::<S::Gas> {
             remaining_stake: allowed_sequencer.balance,

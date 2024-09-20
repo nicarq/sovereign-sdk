@@ -79,6 +79,7 @@ where
         rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let mut state_accessor = maybe_archival_accessor(
+            // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
             ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
             rollup_height_opt.map(|q| q.0.rollup_height),
         );
@@ -124,6 +125,7 @@ where
         rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> (ApiStateAccessor<M::Spec>, NamespacedStateVec<N, T, Codec>) {
         (
+            // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
             maybe_archival_accessor(
                 ApiStateAccessor::new(self.storage.borrow().clone()),
                 rollup_height_opt.map(|q| q.0.rollup_height),
@@ -207,6 +209,7 @@ where
         Path(key): Path<K>,
         rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<K, V>> {
+        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
         let mut working_set = maybe_archival_accessor(
             ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
             rollup_height_opt.map(|q| q.0.rollup_height),

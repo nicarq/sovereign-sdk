@@ -30,15 +30,19 @@
     },
     "minimum_bond": {
       "description": "The minimum bond for a prover.",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+      "allOf": [
+        {
+          "$ref": "#/definitions/GasUnit(2)"
+        }
+      ]
     },
     "proving_penalty": {
       "description": "A penalty for provers who submit a proof for transitions that were already proven",
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+      "allOf": [
+        {
+          "$ref": "#/definitions/GasUnit(2)"
+        }
+      ]
     }
   },
   "definitions": {
@@ -46,6 +50,15 @@
       "description": "Address",
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
+    },
+    "GasUnit(2)": {
+      "description": "GasUnit is an array of u64 of size 2",
+      "type": "array",
+      "items": {
+        "type": "number"
+      },
+      "maxItems": 2,
+      "minItems": 2
     }
   }
 }

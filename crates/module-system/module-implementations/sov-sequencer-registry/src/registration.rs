@@ -1,22 +1,26 @@
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, ModuleInfo, Spec, StateAccessor, StateWriter};
+use sov_modules_api::{DaSpec, Gas, ModuleInfo, Spec, StateAccessor, StateWriter, TxState};
 use sov_state::User;
 
 use crate::{AllowedSequencer, CustomError, SequencerRegistry};
 
 impl<S: Spec, Da: DaSpec> StakeRegistration for SequencerRegistry<S, Da> {
+    type Spec = S;
+
     type PrimaryAddress = Da::Address;
 
     type RollupAddress = S::Address;
 
     type CustomError = CustomError<Self::RollupAddress, Self::PrimaryAddress>;
 
-    fn get_minimum_bond<ST: StateAccessor>(
+    fn get_minimum_bond<ST: TxState<S>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error> {
-        self.minimum_bond.get(state)
+        self.minimum_bond
+            .get(state)
+            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(state.gas_price())))
     }
 
     fn get_allowed_staker<ST: StateAccessor>(

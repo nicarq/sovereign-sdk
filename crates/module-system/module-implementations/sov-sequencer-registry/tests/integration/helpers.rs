@@ -1,12 +1,11 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::AllowedSequencer;
-use sov_modules_api::ApiStateAccessor;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{ApiStateAccessor, GasMeter};
 use sov_sequencer_registry::{SequencerRegistry, SequencerRegistryError};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
-use sov_test_utils::{
-    generate_optimistic_runtime, TestSequencer, TestUser, TEST_DEFAULT_USER_STAKE,
-};
+use sov_test_utils::{generate_optimistic_runtime, TestSequencer, TestUser};
 
 pub type S = sov_test_utils::TestSpec;
 pub type Da = MockDaSpec;
@@ -33,6 +32,16 @@ pub struct TestRoles {
     pub admin: TestUser<S>,
 }
 
+/// Returns the minimal bond required to register a sequencer at the current slot.
+pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, Da>, S>) -> u64 {
+    runner.query_state(|state| {
+        TestSequencerRegistry::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    })
+}
+
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
 pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
@@ -43,6 +52,7 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
     let genesis_sequencer_da_address = genesis_sequencer.da_address;
     let genesis_sequencer_balance = genesis_sequencer.user_info.available_gas_balance;
     let genesis_sequencer_address = genesis_sequencer.user_info.address();
+    let genesis_sequencer_bond = genesis_sequencer.bond;
 
     let admin = genesis_config.additional_accounts[0].clone();
 
@@ -59,11 +69,14 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
     runner.query_state(|state| {
         // Check that the sequencer account is bonded
         assert_eq!(
-            TestSequencerRegistry::default()
-                .is_sender_allowed(&genesis_sequencer_da_address, state),
+            TestSequencerRegistry::default().is_sender_allowed(
+                &genesis_sequencer_da_address,
+                &state.gas_price().clone(),
+                state
+            ),
             Ok(AllowedSequencer {
                 address: genesis_sequencer_address,
-                balance: TEST_DEFAULT_USER_STAKE,
+                balance: genesis_sequencer_bond,
             }),
             "The genesis attester should be bonded"
         );

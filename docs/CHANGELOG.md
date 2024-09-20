@@ -1,3 +1,4 @@
+- #1470 Expresses all the bonds from the `AttesterIncentives`, the `ProverIncentives` and the `SequencerRegistry` in terms of multi-dimensional gas units instead of raw token value. That way the bond value of the rollup `sequencers/attesters/challengers/provers` will become dependent of the fluctuations of the gas price (which, in turn, makes the security of the rollup *independent* of the gas price fluctuations).
 - #1480 Add the AttestationsManager, which is responsible for managing Attestation creation. This PR will break the `sov-rollup-starter` in several ways:
   1. Updates `prover_address` in rollup_config.toml.
   2. Adds a new method and an associated type to `FullNodeBlueprint`

@@ -4,11 +4,71 @@ use core::fmt::{self, Debug, Display};
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
+#[cfg(feature = "native")]
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use thiserror::Error;
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
+#[cfg(feature = "native")]
+pub trait GasArray:
+    'static
+    + fmt::Debug
+    + Display
+    + Clone
+    + Send
+    + Sync
+    + PartialEq
+    + Eq
+    + PartialOrd
+    + Ord
+    + JsonSchema
+    + core::hash::Hash
+    + Serialize
+    + DeserializeOwned
+    + BorshSerialize
+    + BorshDeserialize
+{
+    /// A zeroed instance of the unit.
+    const ZEROED: Self;
+
+    /// Creates a unit from a multi-dimensional unit with arbitrary dimension.
+    fn from_slice(dimensions: &[u64]) -> Self;
+
+    /// Returns a multi-dimensional representation of the unit.
+    fn as_slice(&self) -> &[u64];
+
+    /// Returns a mutable reference to the multi-dimensional representation of the unit.
+    fn as_slice_mut(&mut self) -> &mut [u64];
+
+    /// Creates a multi-dimensional representation of the unit.
+    fn to_vec(&self) -> Vec<u64>;
+
+    /// In-place combination of gas units, resulting in an addition.
+    fn combine(&mut self, rhs: &Self) -> &mut Self;
+
+    /// Out-of-place substraction of gas units.
+    ///
+    /// # Output
+    /// Returns [`None`] if the substraction in any gas dimension underflows.
+    fn checked_sub(&self, rhs: &Self) -> Option<Self>;
+
+    /// In-place division of gas units.
+    fn scalar_division(&mut self, scalar: u64) -> &mut Self;
+
+    /// In-place product of gas units, resulting in a multiplication.
+    fn scalar_product(&mut self, scalar: u64) -> &mut Self;
+
+    /// In-place addition of gas units with a scalar.
+    fn scalar_add(&mut self, scalar: u64) -> &mut Self;
+
+    /// In-place substraction of gas units with a scalar.
+    fn scalar_sub(&mut self, scalar: u64) -> &mut Self;
+}
+
+/// A multi-dimensional gas unit represented as an array of `u64`.`
+#[cfg(not(feature = "native"))]
 pub trait GasArray:
     'static
     + fmt::Debug
@@ -120,7 +180,28 @@ impl<const N: usize> Debug for GasPrice<N> {
 }
 
 macro_rules! impl_gas_dimensions {
-    ($t: ty, $n: expr) => {
+    ($t: ty, $t_name: literal, $n: expr) => {
+        #[cfg(feature = "native")]
+        impl schemars::JsonSchema for $t {
+            fn schema_name() -> String {
+                $t_name.to_owned() + "(" + stringify!($n) + ")"
+            }
+
+            fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+                serde_json::from_value(serde_json::json!({
+                    "type": "array",
+                    "minItems": $n,
+                    "maxItems": $n,
+                    "items": {
+                        "type": "number"
+                    },
+                    // This description assumes that `serializer` uses a human-readable format.
+                    "description": $t_name.to_owned() + " is an array of u64 of size " + stringify!($n),
+                }))
+                .unwrap()
+            }
+        }
+
         impl ::serde::Serialize for $t {
             fn serialize<__S>(&self, serializer: __S) -> Result<__S::Ok, __S::Error>
             where
@@ -238,8 +319,8 @@ macro_rules! impl_gas_unit {
             }
         }
 
-        impl_gas_dimensions!(GasUnit<$n>, $n);
-        impl_gas_dimensions!(GasPrice<$n>, $n);
+        impl_gas_dimensions!(GasUnit<$n>, "GasUnit", $n);
+        impl_gas_dimensions!(GasPrice<$n>, "GasPrice", $n);
     };
 }
 

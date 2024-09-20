@@ -1,8 +1,9 @@
 use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
+use sov_chain_state::ChainState;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Genesis, Spec};
+use sov_modules_api::{DaSpec, GasArray, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
@@ -72,18 +73,22 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
     pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
         // Generate with default stake * 2 because the user will be staked as a sequencer and a
         // prover.
+        let default_user_stake_value = ChainState::<TestSpec, MockDaSpec>::initial_gas_value(
+            <<TestSpec as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE),
+        );
+
         let prover_sequencer =
-            TestUser::generate(TEST_DEFAULT_USER_STAKE * 2 + TEST_DEFAULT_USER_BALANCE);
+            TestUser::generate(default_user_stake_value * 2 + TEST_DEFAULT_USER_BALANCE);
         let sequencer = TestSequencer {
             user_info: prover_sequencer.clone(),
             da_address: MockAddress::from([172; 32]),
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: default_user_stake_value,
         };
         let prover = TestProver {
             // By default we generate the prover as the same user as the sequencer
             // because provers must be registered sequencers.
             user_info: prover_sequencer,
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: default_user_stake_value,
         };
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
@@ -115,16 +120,22 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
         gas_token_name: String,
     ) -> Self {
         let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
+        let default_user_stake = <S::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
         Self {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
-                minimum_bond: initial_sequencer.bond,
+                seq_bond: initial_sequencer.bond,
+                minimum_bond: default_user_stake.clone(),
                 is_preferred_sequencer: true,
             },
             prover_incentives: ProverIncentivesConfig {
-                minimum_bond: initial_prover.bond,
-                proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+                minimum_bond: default_user_stake.clone(),
+                proving_penalty: {
+                    let mut proving_penalty = default_user_stake.clone();
+                    proving_penalty.scalar_division(2);
+                    proving_penalty
+                },
                 initial_provers: vec![(
                     initial_prover.as_user().address().clone(),
                     initial_prover.bond,
@@ -132,8 +143,8 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
             },
             // unused in zk mode
             attester_incentives: AttesterIncentivesConfig {
-                minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
-                minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
+                minimum_attester_bond: default_user_stake.clone(),
+                minimum_challenger_bond: default_user_stake.clone(),
                 initial_attesters: vec![(
                     attester_placeholder.address().clone(),
                     attester_placeholder.balance(),

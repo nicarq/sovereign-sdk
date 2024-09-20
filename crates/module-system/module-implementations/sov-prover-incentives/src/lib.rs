@@ -18,8 +18,8 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateMap, StateReader, StateValue, TxState,
+    CallResponse, Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -40,19 +40,23 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     pub bonded_provers: StateMap<S::Address, Amount>,
 
     /// The minimum bond for a prover to be eligible for onchain verification
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
+    ///
+    /// This bond is expressed in gas units. When provers are submitting proofs, they should
+    /// have bonded at least the token value of this `minimum_bond` at the current `base_fee_per_gas`.
     #[state]
     #[rest_api(include)]
-    pub minimum_bond: StateValue<Amount>,
+    pub minimum_bond: StateValue<S::Gas>,
 
     /// The highest slot height for which the reward has been claimed. The next proofs should claim the next slot height.
     #[state]
     pub last_claimed_reward: StateValue<TransitionHeight>,
 
     /// A penalty for provers who submit a proof for transitions that were already proven
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This should be express in gas units.
+    ///
+    /// This quantity is expressed in gas units. When provers are penalized proofs, they will
+    /// get penalized the token value of this `proving_penalty` at the current `base_fee_per_gas`.
     #[state]
-    pub proving_penalty: StateValue<Amount>,
+    pub proving_penalty: StateValue<S::Gas>,
 
     /// Reference to the Bank module.
     #[module]
@@ -113,5 +117,15 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
             .operating_mode(state)
             .expect("Operating mode retrieval should be infallible")
             == OperatingMode::Zk
+    }
+
+    /// Returns the proving penalty as a [`u64`] value using the gas price contained in the state accessor.
+    pub fn proving_penalty_value<State: TxState<S>>(
+        &self,
+        state: &mut State,
+    ) -> Result<Option<u64>, <State as StateReader<User>>::Error> {
+        self.proving_penalty
+            .get(state)
+            .map(|maybe_penalty| maybe_penalty.map(|penalty| penalty.value(state.gas_price())))
     }
 }

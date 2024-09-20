@@ -88,15 +88,19 @@ where
 
     /// The minimum bond for an attester to be eligble
     /// This should always be above the maximum gas limit to avoid collusion.
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
+    ///
+    /// This bond is expressed in gas units. When attesters are submitting attestations, they should
+    /// have bonded at least the token value of this `minimum_bond` at the current `base_fee_per_gas`.
     #[state]
-    pub minimum_attester_bond: StateValue<Amount>,
+    pub minimum_attester_bond: StateValue<S::Gas>,
 
     /// The minimum bond for an attester to be eligble
     /// This should always be above the maximum gas limit to avoid collusion.
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/360>`: This bond should be express in gas units.
+    ///
+    /// This bond is expressed in gas units. When challengers are submitting challenges, they should
+    /// have bonded at least the token value of this `minimum_bond` at the current `base_fee_per_gas`.
     #[state]
-    pub minimum_challenger_bond: StateValue<Amount>,
+    pub minimum_challenger_bond: StateValue<S::Gas>,
 
     /// The height of the most recent block which light clients know to be finalized
     #[state]

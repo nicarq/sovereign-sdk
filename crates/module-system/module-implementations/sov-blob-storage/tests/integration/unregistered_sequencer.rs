@@ -1,10 +1,11 @@
 use sov_blob_storage::UNREGISTERED_BLOBS_PER_SLOT;
 use sov_mock_da::{MockBlob, MockDaSpec};
 use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
-use sov_test_utils::{AsUser, SequencerInfo, TestSequencer, TEST_DEFAULT_USER_STAKE};
+use sov_test_utils::{AsUser, SequencerInfo, TestSequencer};
 
 use crate::helpers_basic_kernel::{build_basic_blobs, setup_basic_kernel};
 use crate::helpers_soft_confirmations::{
@@ -20,12 +21,19 @@ fn make_unregistered_blobs<
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     runner: &mut TestRunner<K>,
 ) -> Vec<MockBlob> {
+    let user_stake_value = runner.query_state(|state| {
+        SequencerRegistry::<S, MockDaSpec>::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
+
     (0..num_blobs)
         .map(|_| {
             let tx = sender.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
                 sov_sequencer_registry::CallMessage::Register {
                     da_address: sender.da_address.as_ref().to_vec(),
-                    amount: TEST_DEFAULT_USER_STAKE,
+                    amount: user_stake_value,
                 },
             );
 

@@ -11,9 +11,9 @@ use crate::AttesterIncentives;
 #[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct AttesterIncentivesConfig<S: Spec> {
     /// The minimum bond for an attester.
-    pub minimum_attester_bond: Amount,
+    pub minimum_attester_bond: S::Gas,
     /// The minimum bond for a challenger.
-    pub minimum_challenger_bond: Amount,
+    pub minimum_challenger_bond: S::Gas,
     /// A list of initial attesters and their bonded amount.
     pub initial_attesters: Vec<(S::Address, Amount)>,
     /// The finality period of the rollup (constant) in the number of DA layer slots processed.

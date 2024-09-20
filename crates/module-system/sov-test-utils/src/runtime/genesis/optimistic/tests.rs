@@ -1,9 +1,10 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
+use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, OperatingMode, PrivateKey, Spec};
+use sov_modules_api::{Address, DaSpec, GasArray, OperatingMode, PrivateKey, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
@@ -81,7 +82,9 @@ fn run_value_setter_txs_with_assertions(
         &[],
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),
-        TEST_DEFAULT_USER_STAKE,
+        ChainState::<TestSpec, MockDaSpec>::initial_gas_value(<TestSpec as Spec>::Gas::from_slice(
+            &TEST_DEFAULT_USER_STAKE,
+        )),
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
     );
@@ -115,14 +118,11 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
     additional_accounts: &[(S::Address, u64)],
     seq_rollup_address: S::Address,
     seq_da_address: Da::Address,
-    seq_stake_amount: u64,
+    seq_bond: u64,
     token_name: String,
     init_balance: u64,
 ) -> crate::runtime::GenesisConfig<S, Da> {
-    assert!(
-        init_balance >= seq_stake_amount,
-        "sequencer cannot stake more than its initial balance"
-    );
+    let user_stake = <<S as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
     let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     crate::runtime::GenesisConfig {
         value_setter: ValueSetterConfig {
@@ -131,20 +131,28 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
         sequencer_registry: SequencerConfig {
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
-            minimum_bond: seq_stake_amount,
+            seq_bond,
+            minimum_bond: user_stake.clone(),
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {
-            minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
-            minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
-            initial_attesters: vec![(admin.clone(), TEST_DEFAULT_USER_STAKE)],
+            minimum_attester_bond: user_stake.clone(),
+            minimum_challenger_bond: user_stake.clone(),
+            initial_attesters: vec![(
+                admin.clone(),
+                ChainState::<S, MockDaSpec>::initial_gas_value(user_stake.clone()),
+            )],
             rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
             maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,
             light_client_finalized_height: TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
         },
         prover_incentives: ProverIncentivesConfig {
-            minimum_bond: TEST_DEFAULT_USER_STAKE,
-            proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+            minimum_bond: user_stake.clone(),
+            proving_penalty: {
+                let mut proving_penalty = user_stake.clone();
+                proving_penalty.scalar_division(2);
+                proving_penalty
+            },
             initial_provers: vec![(prover_placeholder.address(), prover_placeholder.balance())],
         },
         bank: BankConfig {

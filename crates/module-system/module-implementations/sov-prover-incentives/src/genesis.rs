@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, GenesisState, Module, Spec};
 
-use crate::{Amount, ProverIncentives};
+use crate::ProverIncentives;
 
 /// Configuration of the prover incentives module. Specifies the minimum bond, the commitment to
 /// the allowed verifier method and a set of initial provers with their
@@ -21,9 +21,9 @@ use crate::{Amount, ProverIncentives};
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 pub struct ProverIncentivesConfig<S: Spec> {
     /// A penalty for provers who submit a proof for transitions that were already proven
-    pub proving_penalty: Amount,
+    pub proving_penalty: S::Gas,
     /// The minimum bond for a prover.
-    pub minimum_bond: u64,
+    pub minimum_bond: S::Gas,
     /// A list of initial provers and their bonded amount.
     pub initial_provers: Vec<(S::Address, u64)>,
 }

@@ -6,6 +6,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_bank::{Bank, Coins, TokenId};
+use sov_chain_state::ChainState;
 use sov_db::storage_manager::NativeChangeSet;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
@@ -13,8 +14,8 @@ use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasUnit,
-    OperatingMode, RawTx, Spec,
+    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasArray,
+    GasUnit, OperatingMode, RawTx, Spec,
 };
 use sov_modules_macros::config_value;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
@@ -27,8 +28,8 @@ use sov_test_utils::runtime::genesis::default_basic_kernel_genesis;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{
-    TestPrivateKey, TestProver, TestSequencer, TestStorageSpec, TestUser, TEST_DEFAULT_MAX_FEE,
-    TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_STAKE,
+    TestPrivateKey, TestProver, TestSequencer, TestSpec, TestStorageSpec, TestUser,
+    TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_STAKE,
 };
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
@@ -264,15 +265,18 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
         .map(|_| TestUser::generate_with_default_balance())
         .collect();
 
+    let user_stake = <<TestSpec as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
+    let user_stake_value = ChainState::<TestSpec, MockDaSpec>::initial_gas_value(user_stake);
+
     let minimal_config = MinimalZkGenesisConfig::<BenchSpec, MockDaSpec>::from_args(
         TestProver {
             user_info: rollup_mega_admin.clone(),
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: user_stake_value,
         },
         TestSequencer {
             user_info: rollup_mega_admin.clone(),
             da_address: MOCK_SEQUENCER_DA_ADDRESS.into(),
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: user_stake_value,
         },
         &senders,
         "sov-test-gas-token".to_string(),

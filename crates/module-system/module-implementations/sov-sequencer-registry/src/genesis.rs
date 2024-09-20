@@ -1,6 +1,5 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sov_bank::Amount;
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, GenesisState, Spec};
 
@@ -27,8 +26,10 @@ pub struct SequencerConfig<S: Spec, Da: DaSpec> {
     pub seq_rollup_address: S::Address,
     /// The Data Availability (DA) address of the sequencer.
     pub seq_da_address: Da::Address,
+    /// Initial sequencer bond
+    pub seq_bond: u64,
     /// The minimum bond required for a sequencer to send transactions.
-    pub minimum_bond: Amount,
+    pub minimum_bond: S::Gas,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -46,8 +47,9 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
         tracing::info!(
             sequencer_rollup_address = %config.seq_rollup_address,
             sequencer_da_address = %config.seq_da_address,
+            sequencer_bond = %config.seq_bond,
             is_preferred_sequencer = config.is_preferred_sequencer,
-            minimum_bond = config.minimum_bond,
+            minimum_bond = %config.minimum_bond,
             "Starting sequencer registry genesis..."
         );
         self.minimum_bond.set(&config.minimum_bond, state)?;
@@ -55,7 +57,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
         self.register_staker(
             &config.seq_da_address,
             &config.seq_rollup_address,
-            config.minimum_bond,
+            config.seq_bond,
             state,
         )?;
 
@@ -74,7 +76,7 @@ mod tests {
 
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::prelude::*;
-    use sov_modules_api::AddressBech32;
+    use sov_modules_api::{AddressBech32, GasArray};
     use sov_test_utils::TestSpec;
 
     use crate::SequencerConfig;
@@ -95,7 +97,8 @@ mod tests {
         let config = SequencerConfig::<TestSpec, MockDaSpec> {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
-            minimum_bond: 50,
+            seq_bond: 100,
+            minimum_bond: <<TestSpec as Spec>::Gas as GasArray>::from_slice(&[50; 2]),
             is_preferred_sequencer: true,
         };
 
@@ -103,7 +106,8 @@ mod tests {
         {
             "seq_rollup_address":"sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
-            "minimum_bond":50,
+            "seq_bond":100,
+            "minimum_bond":[50, 50],
             "is_preferred_sequencer":true
         }"#;
 

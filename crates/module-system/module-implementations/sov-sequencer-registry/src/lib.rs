@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Coins, GAS_TOKEN_ID};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
-    BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
+    BasicAddress, CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
     Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader,
     StateValue, TxScratchpad, TxState,
 };
@@ -79,9 +79,11 @@ pub struct SequencerRegistry<S: Spec, Da: DaSpec> {
     pub(crate) bank: sov_bank::Bank<S>,
 
     /// The minimum bond for a sequencer to send transactions.
-    /// TODO(@theochap): This should be expressed in gas units.
+    ///     
+    /// This bond is expressed in gas units. When sequencers are submitting batches, they should
+    /// have bonded at least the token value of this `minimum_bond` at the current `base_fee_per_gas`.
     #[state]
-    pub minimum_bond: StateValue<Amount>,
+    pub minimum_bond: StateValue<S::Gas>,
 
     /// Only batches from sequencers from this list are going to be processed.
     /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
@@ -167,16 +169,19 @@ impl<S: Spec, Da: DaSpec> Module for SequencerRegistry<S, Da> {
 
 impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
-    pub fn get_coins_to_lock<Reader: StateReader<User>>(
+    pub fn get_coins_to_lock<Reader: TxState<S>>(
         &self,
         state: &mut Reader,
-    ) -> Result<Coins, Reader::Error> {
+    ) -> Result<Coins, <Reader as StateReader<User>>::Error> {
         let amount = self
             .minimum_bond
             .get(state)?
             .expect("The minimum bond should be set at genesis");
+
+        let amount_value = amount.value(state.gas_price());
+
         Ok(Coins {
-            amount,
+            amount: amount_value,
             token_id: GAS_TOKEN_ID,
         })
     }
@@ -228,6 +233,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     pub fn is_sender_allowed(
         &self,
         sender: &Da::Address,
+        gas_price: &<S::Gas as Gas>::Price,
         state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
         if let Some(sequencer) = self
@@ -241,10 +247,12 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
                 .unwrap_infallible()
                 .expect("The minimum bond should be set at genesis");
 
-            if sequencer.balance < min_bond {
+            let min_bond_value = min_bond.value(gas_price);
+
+            if sequencer.balance < min_bond_value {
                 return Err(AllowedSequencerError::InsufficientStakeAmount {
                     bond_amount: sequencer.balance,
-                    minimum_bond_amount: min_bond,
+                    minimum_bond_amount: min_bond_value,
                 });
             }
 

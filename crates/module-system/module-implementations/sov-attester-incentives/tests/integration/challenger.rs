@@ -10,7 +10,7 @@ use sov_state::StorageRoot;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, AsUser, AtomicNumber, BondedTestChallenger, ProofInput, ProofTestCase,
-    TestAttester, TransactionTestCase, TEST_DEFAULT_USER_STAKE, TEST_ROLLUP_FINALITY_PERIOD,
+    TestAttester, TransactionTestCase, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 use crate::helpers::{
@@ -33,7 +33,9 @@ fn setup_with_wrong_attestation() -> (
     let genesis_attester_bond = genesis_attester.bond;
 
     let genesis_challenger_address = genesis_challenger.user_info.address();
-    let genesis_challenger_bond = TEST_DEFAULT_USER_STAKE;
+    let genesis_challenger_bond = runner.query_state(|state| {
+        TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
+    });
 
     let expected_challenger_balance = AtomicNumber::new(genesis_challenger.user_info.balance());
     let expected_challenger_balance_2 = expected_challenger_balance.clone();
