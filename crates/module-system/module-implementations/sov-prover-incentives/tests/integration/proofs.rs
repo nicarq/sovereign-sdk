@@ -1,5 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{InvalidProofError, ProofOutcome};
+use sov_modules_api::{Gas, GasArray, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -113,7 +113,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
         assert: Box::new(move |result, state| {
-            match result.proof_receipt.unwrap().outcome {
+            match result.proof_receipt.clone().unwrap().outcome {
                 ProofOutcome::Invalid(InvalidProofError::ProverPenalized(_)) => {}
                 _ => panic!("Expected prover to be penalized"),
             }
@@ -124,12 +124,16 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 .get(state)
                 .unwrap()
                 .unwrap();
+            let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(
+                &result.proof_receipt.unwrap().gas_price,
+            );
+
             let bonded_amount = prover_incentives
                 .bonded_provers
                 .get(&prover_address, state)
                 .unwrap()
                 .unwrap();
-            assert_eq!(bonded_amount, prover.bond - penalty);
+            assert_eq!(bonded_amount, prover.bond - penalty.value(&gas_price));
         }),
     });
 }

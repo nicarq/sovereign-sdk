@@ -1,9 +1,9 @@
 mod errors;
 pub use errors::*;
 use sov_rollup_interface::{BasicAddress, RollupAddress as SovRollupAddress};
-use sov_state::{EventContainer, User};
+use sov_state::User;
 
-use crate::{StateAccessor, StateWriter};
+use crate::{StateAccessor, StateWriter, TxState};
 
 /// A trait that abstracts the generic logic for staking and un-staking across various sov-modules.
 pub trait StakeRegistration {
@@ -13,10 +13,12 @@ pub trait StakeRegistration {
     type RollupAddress: SovRollupAddress;
     /// Custom module error type. This allows handling module specific errors in the library logic.
     type CustomError;
+    /// The associated spec type.
+    type Spec: crate::Spec;
 
     /// Tries to register a staker by staking the provided amount.
     #[allow(clippy::type_complexity)]
-    fn register_staker<ST: StateAccessor + EventContainer>(
+    fn register_staker<ST: TxState<Self::Spec>>(
         &self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,
@@ -36,6 +38,7 @@ pub trait StakeRegistration {
             return Err(RegistrationError::AlreadyRegistered(rollup_address.clone()));
         }
 
+        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1478>`): now that the minimum bonds are dynamic, we don't need this check anymore.
         let minimum_bond = match self.get_minimum_bond(state)? {
             Some(min_amount) => min_amount,
             None => {
@@ -69,7 +72,7 @@ pub trait StakeRegistration {
 
     /// Increases the balance of the sender, updating the state of the registry.
     #[allow(clippy::type_complexity)]
-    fn deposit_funds<ST: StateAccessor + EventContainer>(
+    fn deposit_funds<ST: TxState<Self::Spec>>(
         &self,
         staker: &Self::PrimaryAddress,
         amount: u64,
@@ -113,7 +116,7 @@ pub trait StakeRegistration {
 
     /// Tries to unstake the sender.
     #[allow(clippy::type_complexity)]
-    fn exit_staker<ST: StateAccessor + EventContainer>(
+    fn exit_staker<ST: TxState<Self::Spec>>(
         &self,
         staker: &Self::PrimaryAddress,
         state: &mut ST,
@@ -146,21 +149,21 @@ pub trait StakeRegistration {
     }
 
     /// The minimum allowed bond.
-    fn get_minimum_bond<ST: StateAccessor>(
+    fn get_minimum_bond<ST: TxState<Self::Spec>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error>;
 
     /// Get the allowed staker.
     #[allow(clippy::type_complexity)]
-    fn get_allowed_staker<ST: StateAccessor>(
+    fn get_allowed_staker<ST: TxState<Self::Spec>>(
         &self,
         address: &Self::PrimaryAddress,
         state: &mut ST,
     ) -> Result<Option<(Self::RollupAddress, u64)>, <ST as StateWriter<User>>::Error>;
 
     /// Set the allowed staker.
-    fn set_allowed_staker<ST: StateAccessor>(
+    fn set_allowed_staker<ST: TxState<Self::Spec>>(
         &self,
         primary_address: &Self::PrimaryAddress,
         rollup_address: &Self::RollupAddress,

@@ -8,7 +8,7 @@ use crate::test_helpers::{get_appropriate_rollup_prover_config, TestRollup};
 
 #[derive(Debug, Deserialize)]
 struct ValueResponse {
-    value: u64,
+    value: [u64; 2],
 }
 
 #[tokio::test(flavor = "multi_thread")]

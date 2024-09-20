@@ -212,6 +212,7 @@ impl<T, S: Spec> ApiState<T, S> {
     /// API.
     pub fn api_state_accessor(&self) -> ApiStateAccessor<S> {
         let storage = self.storage().clone();
+        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
         let state_accessor = ApiStateAccessor::new(storage);
 
         maybe_archival_accessor(state_accessor, self.rollup_height)

@@ -6,7 +6,8 @@ use std::marker::PhantomData;
 use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
-    BasicAddress, DaSpec, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue,
+    BasicAddress, DaSpec, Gas, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue,
+    TxState,
 };
 use sov_state::User;
 use thiserror::Error;
@@ -39,7 +40,7 @@ type AttesterRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
 
 struct Staker<'a, S: Spec, Da: DaSpec> {
     bonded_stakers: &'a StateMap<S::Address, Amount>,
-    minimum_bond: &'a StateValue<Amount>,
+    minimum_bond: &'a StateValue<S::Gas>,
     bank: &'a sov_bank::Bank<S>,
     id: &'a ModuleId,
     _phantom: PhantomData<Da>,
@@ -78,11 +79,15 @@ where
 
     type CustomError = CustomError<S::Address>;
 
-    fn get_minimum_bond<ST: StateAccessor>(
+    type Spec = S;
+
+    fn get_minimum_bond<ST: TxState<S>>(
         &self,
         state: &mut ST,
-    ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
-        self.minimum_bond.get(state)
+    ) -> Result<Option<Amount>, <ST as sov_modules_api::StateWriter<sov_state::User>>::Error> {
+        self.minimum_bond
+            .get(state)
+            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(state.gas_price())))
     }
 
     fn get_allowed_staker<ST: StateAccessor>(

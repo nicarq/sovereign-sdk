@@ -1,23 +1,27 @@
 use anyhow::Result;
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, ModuleInfo, Spec, StateAccessor};
+use sov_modules_api::{DaSpec, Gas, ModuleInfo, Spec, StateAccessor, TxState};
 use sov_state::User;
 
 use crate::{CustomError, ProverIncentives};
 
 impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
+    type Spec = S;
+
     type PrimaryAddress = S::Address;
 
     type RollupAddress = S::Address;
 
     type CustomError = CustomError;
 
-    fn get_minimum_bond<ST: StateAccessor>(
+    fn get_minimum_bond<ST: TxState<S>>(
         &self,
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<User>>::Error> {
-        self.minimum_bond.get(state)
+        self.minimum_bond.get(state).map(|maybe_minimum_bond| {
+            maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(state.gas_price()))
+        })
     }
 
     fn get_allowed_staker<ST: StateAccessor>(

@@ -4,6 +4,7 @@ use sov_state::{NativeStorage, ProvableCompileTimeNamespace, Storage, StoragePro
 
 use super::internals::Delta;
 use super::seal::CachedAccessor;
+use crate::gas::GasArray;
 use crate::{
     Gas, GasMeter, GasMeteringError, ProvenStateAccessor, Spec, StateReaderAndWriter, TypedEvent,
     UnlimitedGasMeter,
@@ -52,14 +53,17 @@ impl<S: Spec> EventContainer for ApiStateAccessor<S> {
 
 impl<S: Spec> ApiStateAccessor<S> {
     /// Creates a new [`ApiStateAccessor`] instance backed by the given [`Spec::Storage`].
-    ///
-    /// TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1458`): add a method to build an [`ApiStateAccessor`] with a gas price.
-    pub fn new(inner: S::Storage) -> Self {
+    pub fn new_with_price(inner: S::Storage, gas_price: <S::Gas as Gas>::Price) -> Self {
         Self {
             delta: Delta::new(inner.clone(), None),
             events: Vec::new(),
-            gas_meter: UnlimitedGasMeter::new(),
+            gas_meter: UnlimitedGasMeter::new_with_price(gas_price),
         }
+    }
+
+    /// Creates a new [`ApiStateAccessor`] instance backed by the given [`Spec::Storage`] and a zero gas price.
+    pub fn new(inner: S::Storage) -> Self {
+        Self::new_with_price(inner, <S::Gas as Gas>::Price::ZEROED)
     }
 
     fn storage(&self) -> &S::Storage {

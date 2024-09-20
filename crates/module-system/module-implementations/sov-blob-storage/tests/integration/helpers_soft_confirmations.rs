@@ -1,9 +1,10 @@
-use sov_chain_state::ChainStateConfig;
+use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
-use sov_modules_api::{CryptoSpec, OperatingMode, Spec};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{CryptoSpec, GasArray, OperatingMode, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -30,10 +31,13 @@ pub fn setup_soft_confirmation_kernel() -> (
     let regular_sequencer = genesis_config.additional_accounts[1].clone();
     let regular_sequencer_da_address = MockAddress::new([42; 32]);
 
+    let user_stake = <<S as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
+    let user_stake_value = ChainState::<S, MockDaSpec>::initial_gas_value(user_stake);
+
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,
         da_address: regular_sequencer_da_address,
-        bond: TEST_DEFAULT_USER_STAKE,
+        bond: user_stake_value,
     };
 
     // Run genesis registering the attester and sequencer we've generated.
@@ -79,6 +83,13 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
     let regular_sequencer = &test_data.regular_sequencer;
     let regular_sequencer_da_address = regular_sequencer.da_address;
 
+    let user_stake_value = runner.query_state(|state| {
+        SequencerRegistry::<S, MockDaSpec>::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
+
     // We currently have to manually build the soft-confirmation blob
     // There is an issue to fix that: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1330`
     let mut nonces = runner.nonces().clone();
@@ -91,7 +102,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
                     .create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
                         sov_sequencer_registry::CallMessage::Register {
                             da_address: regular_sequencer_da_address.as_ref().to_vec(),
-                            amount: TEST_DEFAULT_USER_STAKE,
+                            amount: user_stake_value,
                         },
                     )]),
                 sequencer_address: test_data.preferred_sequencer.da_address,

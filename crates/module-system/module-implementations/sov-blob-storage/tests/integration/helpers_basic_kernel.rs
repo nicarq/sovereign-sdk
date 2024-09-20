@@ -1,7 +1,7 @@
-use sov_chain_state::ChainStateConfig;
+use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
-use sov_modules_api::{CryptoSpec, OperatingMode, Spec};
+use sov_modules_api::{CryptoSpec, GasArray, OperatingMode, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{BatchType, TestSequencer, TEST_DEFAULT_USER_STAKE};
@@ -23,10 +23,13 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpe
     let regular_sequencer = genesis_config.additional_accounts[1].clone();
     let regular_sequencer_da_address = MockAddress::new([42; 32]);
 
+    let user_stake = <<S as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
+    let user_stake_value = ChainState::<S, MockDaSpec>::initial_gas_value(user_stake);
+
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,
         da_address: regular_sequencer_da_address,
-        bond: TEST_DEFAULT_USER_STAKE,
+        bond: user_stake_value,
     };
 
     // Run genesis registering the attester and sequencer we've generated.

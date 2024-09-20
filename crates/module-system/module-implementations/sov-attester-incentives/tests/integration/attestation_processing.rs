@@ -7,7 +7,7 @@ use sov_test_utils::runtime::sov_attester_incentives::{AttesterIncentives, CallM
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, AsUser, AtomicNumber, ProofInput, ProofTestCase, TestAttester,
-    TransactionTestCase, TEST_DEFAULT_USER_STAKE,
+    TransactionTestCase,
 };
 
 use super::helpers::{setup, TestRuntimeEvent, S};
@@ -166,7 +166,7 @@ fn test_burn_on_invalid_attestation() {
                             .get_attester_bond_amount(&attester_address, state)
                             .unwrap_infallible()
                             .value,
-                        TEST_DEFAULT_USER_STAKE,
+                        attester_bond,
                     );
                 }),
             }

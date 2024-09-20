@@ -1,8 +1,7 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, StateAccessor, TxState};
-use sov_state::EventContainer;
+use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, TxState};
 
 use super::{AttesterRegistryError, CustomError, Staker};
 use crate::{AttesterIncentives, Event, UnbondingInfo};
@@ -12,7 +11,7 @@ where
     S: Spec,
     Da: DaSpec,
 {
-    pub(crate) fn register_attester<ST: StateAccessor + EventContainer>(
+    pub(crate) fn register_attester<ST: TxState<S>>(
         &self,
         bond_amount: u64,
         user_address: &S::Address,
@@ -34,7 +33,7 @@ where
         Ok(CallResponse::default())
     }
 
-    pub(crate) fn deposit_attester<ST: StateAccessor + EventContainer>(
+    pub(crate) fn deposit_attester<ST: TxState<S>>(
         &self,
         amount: u64,
         attester_address: &S::Address,

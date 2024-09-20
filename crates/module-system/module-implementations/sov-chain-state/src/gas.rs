@@ -114,6 +114,16 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         <<S as Spec>::Gas as Gas>::Price::from_slice(INITIAL_BASE_FEE_PER_GAS)
     }
 
+    /// Computes the initial value of the gas unit using the initial base fee per gas.
+    ///
+    /// # TODO
+    /// This method can (and should) be converted in a constant time constructor. The current implementation of the
+    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
+    /// require a new proc-macro, see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
+    pub fn initial_gas_value(gas: S::Gas) -> u64 {
+        gas.value(&Self::initial_base_fee_per_gas())
+    }
+
     /// Specifies the initial gas limit for the genesis block.
     /// This value is retrieved from the config file and is then converted to a [`sov_modules_api::GasUnit`] at runtime
     ///

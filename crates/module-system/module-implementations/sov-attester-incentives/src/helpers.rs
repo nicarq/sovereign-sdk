@@ -5,7 +5,7 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    DaSpec, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
+    DaSpec, Gas, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use sov_state::User;
@@ -156,7 +156,7 @@ where
     /// The proof must refer to a valid state of the rollup. The initial root hash must represent a state between
     /// the bonding proof one and the current state.
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_bonding_proof<ST: StateReader<User, Error: Into<anyhow::Error>>>(
+    pub(crate) fn check_bonding_proof<ST: TxState<S>>(
         &self,
         sender: &S::Address,
         attestation: &Attestation<
@@ -209,7 +209,7 @@ where
             .expect("The minimum bond should be set at genesis");
 
         // We then have to check that the bond was greater than the minimum bond
-        if bond < minimum_bond {
+        if bond < minimum_bond.value(state.gas_price()) {
             return Err(ProcessAttestationErrors::AttesterNotBonded);
         }
 

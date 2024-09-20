@@ -1,6 +1,7 @@
 use std::cmp::max;
 
 use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
     StateReader, TxState, Zkvm,
@@ -90,8 +91,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
 
         // Check that the prover has enough balance to process the proof.
         let minimum_bond = self
-            .minimum_bond
-            .get(state)
+            .get_minimum_bond(state)
             .map_err(Into::<anyhow::Error>::into)?;
         let minimum_bond = minimum_bond.expect("The minimum bond should be set at genesis");
 
@@ -222,8 +222,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
     ) -> Result<(), ProcessProofError> {
         // Penalize the prover
         let fine = self
-            .proving_penalty
-            .get(state)
+            .proving_penalty_value(state)
             .map_err(Into::<anyhow::Error>::into)?
             .expect("Should be set at genesis");
 

@@ -16,7 +16,6 @@ use crate::runtime::{GenesisConfig, TestRunner};
 use crate::{
     BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase, TransactionType,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE,
 };
 
 type S = crate::TestSpec;
@@ -128,10 +127,17 @@ fn test_register_sequencer() {
 
     let new_sequencer_address = MockAddress::from([42; 32]);
 
+    let user_stake_value = runner.query_state(|state| {
+        SequencerRegistry::<S, MockDaSpec>::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
+
     let new_sequencer = TestSequencer::<S, MockDaSpec> {
         user_info: additional_user,
         da_address: new_sequencer_address,
-        bond: TEST_DEFAULT_USER_STAKE,
+        bond: user_stake_value,
     };
 
     // We first bond the sequencer

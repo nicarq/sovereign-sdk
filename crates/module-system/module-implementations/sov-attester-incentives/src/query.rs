@@ -1,11 +1,13 @@
 //! Defines the query methods for the attester incentives module
 use serde::{Deserialize, Serialize};
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
-use sov_modules_api::{ApiStateAccessor, DaSpec, Spec, StateReader};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, GasMeter, Spec, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
 use super::AttesterIncentives;
+use crate::UnbondingInfo;
 
 /// The response type to the `getBondAmount` query.
 #[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
@@ -68,13 +70,33 @@ where
         self.bonded_attesters.get_with_proof(address, state)
     }
 
-    /// TODO: Make the unbonding amount queryable:
+    /// Returns the value of the `minimum_attester_bond` at the current gas price.
+    pub fn get_minimal_attester_bond_value(&self, state: &mut ApiStateAccessor<S>) -> u64 {
+        self.minimum_attester_bond
+            .get(state)
+            .unwrap_infallible()
+            .expect("The minimum attester bond should be set at genesis")
+            .value(state.gas_price())
+    }
+
+    /// Returns the value of the `minimum_challenger_bond` at the current gas price.
+    pub fn get_minimal_challenger_bond_value(&self, state: &mut ApiStateAccessor<S>) -> u64 {
+        self.minimum_challenger_bond
+            .get(state)
+            .unwrap_infallible()
+            .expect("The minimum challenger bond should be set at genesis")
+            .value(state.gas_price())
+    }
+
+    /// Returns the unbonding amount of the given address.
     pub fn get_unbonding_amount(
         &self,
-        _address: S::Address,
-        _witness: &<S::Storage as Storage>::Witness,
-    ) -> u64 {
-        todo!("Make the unbonding amount queryable: https://github.com/Sovereign-Labs/sovereign-sdk/issues/675")
+        address: S::Address,
+        state: &mut ApiStateAccessor<S>,
+    ) -> Option<UnbondingInfo> {
+        self.unbonding_attesters
+            .get(&address, state)
+            .unwrap_infallible()
     }
 }
 

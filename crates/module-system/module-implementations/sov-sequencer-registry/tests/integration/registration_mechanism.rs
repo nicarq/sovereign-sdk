@@ -2,17 +2,16 @@ use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::TxEffect;
+use sov_modules_api::{GasMeter, TxEffect};
 use sov_sequencer_registry::{CallMessage, CustomError};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
     AsUser, AtomicNumber, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
-    TEST_DEFAULT_USER_STAKE,
 };
 
 use crate::helpers::{
-    setup, TestRoles, TestRuntimeEvent, TestSequencerRegistry, TestSequencerRegistryError,
-    ANOTHER_SEQUENCER_DA_ADDRESS, NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
+    minimal_bond, setup, TestRoles, TestRuntimeEvent, TestSequencerRegistry,
+    TestSequencerRegistryError, ANOTHER_SEQUENCER_DA_ADDRESS, NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -77,18 +76,24 @@ fn test_new_sequencer_registration() {
     let other_sequencer_address = additional_sequencer.address();
     let other_sequencer_da_address = MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS);
 
+    let user_stake_value = minimal_bond(&runner);
+
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: other_sequencer_da_address.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has correctly been registered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_allowed(
+                        &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
+                        &state.gas_price().clone(),
+                        state
+                    )
                     .is_ok(),
                 "The sequencer is not registered"
             );
@@ -97,12 +102,12 @@ fn test_new_sequencer_registration() {
                 event,
                 TestRuntimeEvent::SequencerRegistry(
                     sov_sequencer_registry::Event::Registered { sequencer, amount }
-                ) if *sequencer == other_sequencer_address && *amount == TEST_DEFAULT_USER_STAKE
+                ) if *sequencer == other_sequencer_address && *amount == user_stake_value
             )));
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_USER_STAKE - result.gas_value_used)
+                Some(TEST_DEFAULT_USER_BALANCE - user_stake_value - result.gas_value_used)
             );
         }),
     });
@@ -135,7 +140,9 @@ fn test_registration_not_enough_funds() {
 
     let additional_sequencer_address = additional_sequencer.address();
 
-    let amount_to_register = other_sequencer_balance + TEST_DEFAULT_USER_STAKE;
+    let user_stake_value = minimal_bond(&runner);
+
+    let amount_to_register = other_sequencer_balance + user_stake_value;
 
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
@@ -175,11 +182,13 @@ fn test_registration_second_time() {
 
     let other_sequencer_address = additional_sequencer.address();
 
+    let user_stake_value = minimal_bond(&runner);
+
     runner.execute(
         additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
     );
@@ -188,7 +197,7 @@ fn test_registration_second_time() {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
         assert: Box::new(move |result, _state| match &result.tx_receipt {
@@ -220,18 +229,24 @@ fn test_exit_happy_path() {
     let other_sequencer_balance_ref = AtomicNumber::new(additional_sequencer.available_gas_balance);
     let other_sequencer_balance_ref_1 = other_sequencer_balance_ref.clone();
 
+    let user_stake_value = minimal_bond(&runner);
+
     let register = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: other_sequencer_da_address.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has correctly been registered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_allowed(
+                        &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
+                        &state.gas_price().clone(),
+                        state
+                    )
                     .is_ok(),
                 "The sequencer is not registered"
             );
@@ -240,7 +255,7 @@ fn test_exit_happy_path() {
             // Assert that the other sequencer balance has been updated
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&other_sequencer_address, state),
-                Some(other_sequencer_balance_ref.get() - TEST_DEFAULT_USER_STAKE)
+                Some(other_sequencer_balance_ref.get() - user_stake_value)
             );
         }),
     };
@@ -254,16 +269,21 @@ fn test_exit_happy_path() {
             // Assert that the sequencer has correctly been unregistered
             assert!(
                 TestSequencerRegistry::default()
-                    .is_sender_allowed(&MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                    .is_sender_allowed(
+                        &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
+                        &state.gas_price().clone(),
+                        state
+                    )
                     .is_err(),
                 "The sequencer should be registered"
             );
+            let expected_balance_to_withdraw = user_stake_value;
             // Assert that an exit event has been emitted
             assert!(result.events.iter().any(|event| matches!(
                 event,
                 TestRuntimeEvent::SequencerRegistry(
                     sov_sequencer_registry::Event::Exited { sequencer, amount_withdrawn }
-                ) if *sequencer == other_sequencer_address && *amount_withdrawn == 100000000
+                ) if *sequencer == other_sequencer_address && *amount_withdrawn == expected_balance_to_withdraw
             )));
             // Update the other sequencer's balance
             other_sequencer_balance_ref_1.sub(result.gas_value_used);
@@ -326,17 +346,19 @@ fn test_exit_different_sender_fails() {
         mut runner,
     ) = setup();
 
+    let user_stake_value = minimal_bond(&runner);
+
     let additional_sequencer_register = additional_sequencer
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         );
     let second_sequencer_register = second_sequencer.create_plain_message::<TestSequencerRegistry>(
         sov_sequencer_registry::CallMessage::Register {
             da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
-            amount: TEST_DEFAULT_USER_STAKE,
+            amount: user_stake_value,
         },
     );
     runner.execute(additional_sequencer_register);
@@ -402,12 +424,13 @@ fn test_get_preferred_sequencer_after_exit() {
     ) = setup();
 
     let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
+    let user_stake_value = minimal_bond(&runner);
 
     let register_additional_sequencer = additional_sequencer
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: ANOTHER_SEQUENCER_DA_ADDRESS.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         );
     let exit_default_sequencer = default_sequencer.create_plain_message::<TestSequencerRegistry>(
@@ -446,12 +469,13 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 
     let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
     let default_sequencer_address = default_sequencer.user_info.address();
+    let user_stake_value = minimal_bond(&runner);
 
     runner.execute_transaction(TransactionTestCase {
         input: default_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
                 da_address: default_sequencer.da_address.as_ref().to_vec(),
-                amount: default_sequencer_balance + TEST_DEFAULT_USER_STAKE,
+                amount: default_sequencer_balance + user_stake_value,
             },
         ),
         assert: Box::new(move |result, _state| match &result.tx_receipt {
@@ -461,7 +485,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
                     ModuleError(
                         TestSequencerRegistryError::InsufficientFundsToTopUpAccount {
                             address: default_sequencer_address,
-                            amount_to_add: default_sequencer_balance + TEST_DEFAULT_USER_STAKE,
+                            amount_to_add: default_sequencer_balance + user_stake_value,
                         }
                         .into(),
                     ),
@@ -480,7 +504,11 @@ fn test_non_registered_sequencer_is_not_allowed() {
     runner.query_state(|state| {
         assert!(
             TestSequencerRegistry::default()
-                .is_sender_allowed(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)
+                .is_sender_allowed(
+                    &MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
+                    &state.gas_price().clone(),
+                    state
+                )
                 .is_err(),
             "Non-registered sequencers should not be allowed"
         );
@@ -499,12 +527,13 @@ fn test_non_registered_sequencer_cannot_send_batches() {
     let (TestRoles { admin, .. }, mut runner) = setup();
 
     runner.config.sequencer_da_address = NON_DEFAULT_SEQUENCER_DA_ADDRESS.into();
+    let user_stake_value = minimal_bond(&runner);
 
     let outcome = runner.execute(BatchType(vec![admin
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         )]));
 
@@ -522,11 +551,13 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
         mut runner,
     ) = setup();
 
+    let user_stake_value = minimal_bond(&runner);
+
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
                 da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.as_ref().to_vec(),
-                amount: TEST_DEFAULT_USER_STAKE,
+                amount: user_stake_value,
             },
         ),
         assert: Box::new(move |result, _state| match &result.tx_receipt {

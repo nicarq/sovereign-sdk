@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use sov_accounts::{AccountConfig, AccountData, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
+use sov_chain_state::ChainState;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Genesis, Spec};
+use sov_modules_api::{DaSpec, Gas, GasArray, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -99,12 +100,17 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
-        let prover_sequencer =
-            TestUser::generate(TEST_DEFAULT_USER_STAKE * 3 + TEST_DEFAULT_USER_BALANCE);
+        // The stake value is doubled to ensure that sequencers can still send batches when gas price fluctuates
+        let user_stake_value =
+            <<TestSpec as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE)
+                .value(&ChainState::<TestSpec, MockDaSpec>::initial_base_fee_per_gas())
+                * 2;
+
+        let prover_sequencer = TestUser::generate(user_stake_value * 3 + TEST_DEFAULT_USER_BALANCE);
 
         let attester = TestAttester {
             user_info: prover_sequencer.clone(),
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: user_stake_value,
             slot_to_attest: 1,
         };
 
@@ -115,7 +121,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
         let sequencer = TestSequencer {
             user_info: prover_sequencer,
             da_address: MockAddress::from([172; 32]),
-            bond: TEST_DEFAULT_USER_STAKE,
+            bond: user_stake_value,
         };
 
         Self::with_defaults(attester, challenger, sequencer, vec![])
@@ -252,12 +258,13 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
-                minimum_bond: initial_sequencer.bond,
+                seq_bond: initial_sequencer.bond,
+                minimum_bond: S::Gas::from_slice(&TEST_DEFAULT_USER_STAKE),
                 is_preferred_sequencer: true,
             },
             attester_incentives: AttesterIncentivesConfig {
-                minimum_attester_bond: TEST_DEFAULT_USER_STAKE,
-                minimum_challenger_bond: TEST_DEFAULT_USER_STAKE,
+                minimum_attester_bond: S::Gas::from_slice(&TEST_DEFAULT_USER_STAKE),
+                minimum_challenger_bond: S::Gas::from_slice(&TEST_DEFAULT_USER_STAKE),
                 initial_attesters: vec![(
                     initial_attester.as_user().address().clone(),
                     initial_attester.bond,
@@ -268,8 +275,12 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
             },
             // unused in optimistic mode
             prover_incentives: ProverIncentivesConfig {
-                minimum_bond: TEST_DEFAULT_USER_STAKE,
-                proving_penalty: TEST_DEFAULT_USER_STAKE / 2,
+                minimum_bond: S::Gas::from_slice(&TEST_DEFAULT_USER_STAKE),
+                proving_penalty: {
+                    let mut user_stake = S::Gas::from_slice(&TEST_DEFAULT_USER_STAKE);
+                    user_stake.scalar_division(2);
+                    user_stake
+                },
                 initial_provers: vec![(
                     prover_placeholder.address().clone(),
                     prover_placeholder.balance(),

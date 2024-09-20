@@ -40,4 +40,22 @@ where
             Ok(Self::initial_base_fee_per_gas())
         }
     }
+
+    /// Returns the *virtual* base fee per gas contained in a [`KernelStateAccessor`].
+    ///
+    /// TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1479>`): remove once the linked issue is fixed. This should be unified with the `base_fee_per_gas` method above.
+    pub fn virtual_base_fee_per_gas(
+        &self,
+        state: &mut KernelStateAccessor<S::Storage>,
+    ) -> <S::Gas as sov_modules_api::Gas>::Price {
+        if let Some(in_progress_transition) = self
+            .in_progress_transition
+            .get(&(state.virtual_slot_number()), state)
+            .unwrap_infallible()
+        {
+            in_progress_transition.gas_info.base_fee_per_gas
+        } else {
+            Self::initial_base_fee_per_gas()
+        }
+    }
 }
