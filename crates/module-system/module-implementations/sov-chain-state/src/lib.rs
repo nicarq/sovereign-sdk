@@ -13,6 +13,8 @@ use sov_modules_api::{
 };
 
 mod genesis;
+use std::convert::Infallible;
+
 pub use genesis::*;
 use serde::de::DeserializeOwned;
 use sov_modules_api::OperatingMode;
@@ -382,12 +384,12 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 
     /// Returns the transition in progress of the module of the previous slot.
-    pub fn get_in_progress_transition_prev_slot(
+    pub fn get_in_progress_transition_prev_slot<Reader: VersionReader<Error = Infallible>>(
         &self,
-        state: &mut KernelStateAccessor<S::Storage>,
+        state: &mut Reader,
     ) -> Option<TransitionInProgress<S, Da>> {
         self.in_progress_transition
-            .get(&(state.rollup_height_to_access() - 1), state)
+            .get(&(state.rollup_height_to_access().saturating_sub(1)), state)
             .unwrap_infallible()
     }
 

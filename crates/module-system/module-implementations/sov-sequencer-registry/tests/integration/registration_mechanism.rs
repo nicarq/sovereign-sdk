@@ -1,17 +1,23 @@
+use std::collections::HashMap;
+
+use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_mock_da::MockAddress;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::Error::ModuleError;
-use sov_modules_api::{GasMeter, TxEffect};
-use sov_sequencer_registry::{CallMessage, CustomError};
+use sov_modules_api::{Gas, GasArray, GasMeter, Spec, TxEffect};
+use sov_sequencer_registry::{CallMessage, CustomError, SequencerRegistry};
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
 use sov_test_utils::{
-    AsUser, AtomicNumber, BatchTestCase, BatchType, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicNumber, BatchTestCase, BatchType, TransactionTestCase, TransactionType,
+    TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{
-    minimal_bond, setup, TestRoles, TestRuntimeEvent, TestSequencerRegistry,
-    TestSequencerRegistryError, ANOTHER_SEQUENCER_DA_ADDRESS, NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
+    minimal_bond, setup, setup_with_custom_runtime, Da, TestRoles, TestRuntimeEvent,
+    TestSequencerRegistry, TestSequencerRegistryError, ANOTHER_SEQUENCER_DA_ADDRESS,
+    NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -575,5 +581,134 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
             }
             unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
         }),
+    });
+}
+
+/// This test ensures that the sequencer cannot sequence anymore when the gas price is too high.
+/// That is, if the gas price increases, the sequencer will not have bonded enough funds and then won't be able to sequence anymore.
+/// Currently, the easiest way to do this is to artificially change the gas cost of some operation in the bank module. We do that
+/// by modifying the runtime manually.
+#[test]
+fn test_cannot_sequence_when_gas_price_is_too_high() {
+    let mut gas_limit =
+        <<S as Spec>::Gas as GasArray>::from_slice(&config_value!("INITIAL_GAS_LIMIT"));
+    let gas_target = gas_limit.scalar_division(2).clone();
+
+    let zero_gas = <S as Spec>::Gas::zero();
+
+    let mut runtime = RT::default();
+
+    runtime
+        .bank
+        .override_gas_config(sov_bank::BankGasConfig::<<S as Spec>::Gas> {
+            burn: gas_target.clone(),
+            mint: zero_gas.clone(),
+            create_token: zero_gas.clone(),
+            transfer: zero_gas.clone(),
+            freeze: zero_gas.clone(),
+        });
+
+    let (roles, mut runner) = setup_with_custom_runtime(runtime);
+
+    let mut nonces = HashMap::new();
+
+    let additional_sequencer_da_address = MockAddress::new([1; 32]);
+
+    let additional_sequencer_bond = minimal_bond(&runner);
+
+    let initial_gas_price = runner.query_state(|state| state.gas_price().clone());
+
+    let (bank_signed, register_signed) = runner.query_state(|state| {
+        let bank_signed = roles
+            .admin
+            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
+                coins: sov_bank::Coins {
+                    amount: 1,
+                    token_id: GAS_TOKEN_ID,
+                },
+            })
+            .with_max_fee(roles.admin.available_gas_balance / 2)
+            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+
+        let register_signed = roles
+            .additional_sequencer
+            .create_plain_message::<SequencerRegistry<S, Da>>(CallMessage::Register {
+                da_address: additional_sequencer_da_address.as_ref().to_vec(),
+                amount: additional_sequencer_bond,
+            })
+            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+
+        (bank_signed, register_signed)
+    });
+
+    // We execute a batch of two transactions, check that the total gas used is higher than the target.
+    runner.execute_batch(BatchTestCase {
+        input: BatchType(vec![
+            TransactionType::<SequencerRegistry<S, Da>, S>::PreAuthenticated(bank_signed),
+            TransactionType::<SequencerRegistry<S, Da>, S>::PreAuthenticated(register_signed),
+        ]),
+        assert: Box::new(move |result, _state| {
+            assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);
+
+            let mut total_gas_used = <S as Spec>::Gas::zero();
+
+            for (i, tx_receipt) in result.batch_receipt.unwrap().tx_receipts.iter().enumerate() {
+                match &tx_receipt.receipt {
+                    TxEffect::Successful(tx_contents) => {
+                        total_gas_used.combine(&tx_contents.gas_used);
+                    }
+                    _ => {
+                        panic!("Tx {i} with receipt {tx_receipt:?} should be successful");
+                    }
+                }
+            }
+
+            assert!(
+                total_gas_used > gas_target,
+                "The total gas used should be higher than the initial gas used"
+            );
+        }),
+    });
+
+    // We advance one slot to reflect the gas update on the state.
+    runner.advance_slots(1);
+
+    let new_bond_amount = minimal_bond(&runner);
+
+    runner.query_state(|state| {
+        let new_gas_price = state.gas_price().clone();
+
+        assert!(
+            new_gas_price > initial_gas_price,
+            "The new gas price {new_gas_price} should be higher than the initial gas price {initial_gas_price}"
+        );
+
+        assert!(
+            new_bond_amount > additional_sequencer_bond,
+            "The new bond amount {new_bond_amount} should be higher than the initial additional sequencer bond {additional_sequencer_bond}."
+        );
+
+        // The sequencer should be registered
+        assert!(
+            SequencerRegistry::<S, Da>::default()
+                .is_registered_sequencer(&additional_sequencer_da_address, state)
+                .unwrap_infallible(),
+            "The additional sequencer should be registered"
+        );
+
+        // But he should not be allowed to send transactions because he doesn't have enough stake.
+        assert_eq!(
+            SequencerRegistry::<S, Da>::default().is_sender_allowed(
+                &additional_sequencer_da_address,
+                &new_gas_price,
+                state
+            ),
+            Err(
+                sov_sequencer_registry::AllowedSequencerError::InsufficientStakeAmount {
+                    bond_amount: additional_sequencer_bond,
+                    minimum_bond_amount: new_bond_amount
+                }
+            )
+        );
     });
 }

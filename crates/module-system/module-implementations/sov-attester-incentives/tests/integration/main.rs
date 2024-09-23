@@ -1,4 +1,5 @@
 mod attestation_processing;
+mod bond_value;
 mod challenger;
 mod deposit;
 mod helpers;

@@ -32,8 +32,21 @@ pub type SetupParams = (
     TestUser<S>,
 );
 
-/// Helper that sets up the tests and checks that the genesis state is valid.
-pub(crate) fn setup() -> SetupParams {
+/// Returns the minimal bond required to register an attester at the current slot.
+pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+    runner.query_state(|state| {
+        TestAttesterIncentives::default().get_minimal_attester_bond_value(state)
+    })
+}
+
+/// Returns the minimal bond required to register a challenger at the current slot.
+pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+    runner.query_state(|state| {
+        TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
+    })
+}
+
+pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S, MockDaSpec>) -> SetupParams {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
     let genesis_config =
@@ -52,8 +65,7 @@ pub(crate) fn setup() -> SetupParams {
     // Run genesis registering the attester and sequencer we've generated.
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into());
 
-    let runner =
-        TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
     runner.query_state(|state| {
         // Check that the attester account is bonded
@@ -80,6 +92,11 @@ pub(crate) fn setup() -> SetupParams {
         genesis_challenger,
         additional_account,
     )
+}
+
+/// Helper that sets up the tests and checks that the genesis state is valid.
+pub(crate) fn setup() -> SetupParams {
+    setup_with_custom_runtime(RT::default())
 }
 
 pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<Bank<S>, S> {

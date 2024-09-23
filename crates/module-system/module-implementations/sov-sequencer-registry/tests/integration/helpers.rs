@@ -44,7 +44,9 @@ pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, Da>, S>) -> u64 {
 
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
-pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
+///
+/// Same as [`setup`] but allows to pass a custom runtime.
+pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
 
@@ -64,7 +66,7 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
     runner.query_state(|state| {
         // Check that the sequencer account is bonded
@@ -97,4 +99,10 @@ pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
         },
         runner,
     )
+}
+
+/// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
+/// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
+pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
+    setup_with_custom_runtime(RT::default())
 }
