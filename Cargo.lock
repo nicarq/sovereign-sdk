@@ -1610,6 +1610,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a21f936df1771bf62b77f047b726c4625ff2e8aa607c01ec06e5a05bd8463401"
 dependencies = [
  "android-tzdata",
+ "arbitrary",
  "iana-time-zone",
  "num-traits",
  "serde",
@@ -9490,6 +9491,7 @@ name = "sov-mock-da"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "bincode",
  "borsh",

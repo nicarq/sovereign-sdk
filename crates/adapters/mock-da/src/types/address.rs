@@ -9,6 +9,7 @@ pub const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [0u8; 32];
 #[derive(
     Debug, PartialEq, Clone, Eq, Copy, Hash, Default, borsh::BorshDeserialize, borsh::BorshSerialize,
 )]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 pub struct MockAddress {
     /// Underlying mock address.
     addr: [u8; 32],

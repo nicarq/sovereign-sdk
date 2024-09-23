@@ -13,7 +13,7 @@ use sov_state::{Storage, StorageProof, Witness};
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
-use crate::{ExecutionContext, PublicKeyExt, SignatureExt};
+use crate::{ExecutionContext, MaybeArbitrary, PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
@@ -44,6 +44,7 @@ pub trait Spec:
     type Address: RollupAddress
         + BorshSerialize
         + BorshDeserialize
+        + MaybeArbitrary
         + Sync
         + ::schemars::JsonSchema
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
@@ -52,6 +53,7 @@ pub trait Spec:
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(not(feature = "native"))]
     type Address: RollupAddress
+        + MaybeArbitrary
         + BorshSerialize
         + BorshDeserialize
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;

@@ -74,19 +74,20 @@ openapiv3 = "2.0.0"
 
 [features]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "proptest/default",
-    "sov-db/arbitrary",
-    "sov-mock-zkvm/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-rest-utils/arbitrary",
-    "sov-rollup-interface/arbitrary",
-    "sov-state/arbitrary",
-    "sov-sequencer-registry/arbitrary",
-    "sov-test-utils/arbitrary",
-    "sov-risc0-adapter/arbitrary",
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"proptest/default",
+	"sov-db/arbitrary",
+	"sov-mock-zkvm/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-rest-utils/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-state/arbitrary",
+	"sov-sequencer-registry/arbitrary",
+	"sov-test-utils/arbitrary",
+	"sov-risc0-adapter/arbitrary",
+	"sov-mock-da/arbitrary"
 ]
 bench = [
     "sov-cycle-utils",
