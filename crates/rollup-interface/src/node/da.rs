@@ -234,15 +234,15 @@ pub trait DaService: Send + Sync + 'static {
         fee: Self::Fee,
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
 
-    /// Sends an aggregated ZK proofs to the DA layer.
-    async fn send_aggregated_zk_proof(
+    /// Sends a proof to the DA layer.
+    async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
         fee: Self::Fee,
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
 
-    /// Fetches all aggregated ZK proofs at a specified block height.
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
+    /// Fetches all proofs at a specified block height.
+    async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
 
     /// Estimates the appropriate fee for a blob with a given size
     async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error>;
@@ -402,24 +402,24 @@ where
         .await
     }
 
-    async fn send_aggregated_zk_proof(
+    async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
         fee: D::Fee,
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
-            || D::send_aggregated_zk_proof(&self.da_service, aggregated_proof_data, fee),
-            "send_aggregated_zk_proof",
+            || D::send_proof(&self.da_service, aggregated_proof_data, fee),
+            "send_proof",
         )
         .await
     }
 
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+    async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
-            || D::get_aggregated_proofs_at(&self.da_service, height),
-            "get_aggregated_proofs_at",
+            || D::get_proofs_at(&self.da_service, height),
+            "get_proofs_at",
         )
         .await
     }

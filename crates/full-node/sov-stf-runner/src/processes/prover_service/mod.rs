@@ -3,6 +3,7 @@ mod parallel;
 mod block_proof;
 
 use async_trait::async_trait;
+use borsh::BorshSerialize;
 pub use parallel::ParallelProverService;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -91,7 +92,14 @@ pub enum ProverServiceError {
 #[async_trait]
 pub trait ProverService: Send + Sync + 'static {
     /// Ths root hash of state merkle tree.
-    type StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static;
+    type StateRoot: BorshSerialize
+        + Serialize
+        + DeserializeOwned
+        + Clone
+        + AsRef<[u8]>
+        + Send
+        + Sync
+        + 'static;
     /// Data that is produced during batch execution.
     type Witness: Serialize + DeserializeOwned + Send + Sync;
     /// Data Availability service.

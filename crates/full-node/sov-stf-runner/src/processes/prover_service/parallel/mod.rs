@@ -147,7 +147,8 @@ impl<Address, StateRoot, Witness, Da, InnerVm, OuterVm, V> ProverService
 where
     Address:
         BorshSerialize + AsRef<[u8]> + Serialize + DeserializeOwned + Clone + Send + Sync + 'static,
-    StateRoot: Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
+    StateRoot:
+        BorshSerialize + Serialize + DeserializeOwned + Clone + AsRef<[u8]> + Send + Sync + 'static,
     Witness: Serialize + DeserializeOwned + Send + Sync + 'static,
     Da: DaService,
     InnerVm: ZkvmHost + 'static,

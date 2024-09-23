@@ -85,8 +85,12 @@ where
     {
         let (st_info_sender, st_info_receiver) = new_stf_info_channel(self.ledger_db, 1, 2).await?;
 
-        let attestations_manager =
-            AttestationsManager::new(st_info_receiver, bonding_proof_service);
+        let attestations_manager = AttestationsManager::new(
+            st_info_receiver,
+            bonding_proof_service,
+            self.proof_serializer,
+            self.da_service,
+        );
         attestations_manager
             .post_attestation_to_da_in_background()
             .await;
