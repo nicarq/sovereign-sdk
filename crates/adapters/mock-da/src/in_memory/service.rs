@@ -377,9 +377,9 @@ impl DaService for MockDaService {
         })
     }
 
-    /// Sends aggregated proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
+    /// Sends proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
     /// alongside the next batch of transactions (after calling the `send_transaction` function).
-    async fn send_aggregated_zk_proof(
+    async fn send_proof(
         &self,
         proof: &[u8],
         _fee: Self::Fee,
@@ -401,7 +401,7 @@ impl DaService for MockDaService {
         })
     }
 
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+    async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self.get_block_at(height).await?.proof_blobs;
         Ok(blobs
             .into_iter()
@@ -635,25 +635,23 @@ mod tests {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
         let fee = da.estimate_fee(aggregated_proof_data.len()).await?;
-        da.send_aggregated_zk_proof(&aggregated_proof_data, fee)
-            .await?;
+        da.send_proof(&aggregated_proof_data, fee).await?;
 
         let tx_data = vec![1];
         let fee = da.estimate_fee(tx_data.len()).await?;
         da.send_transaction(&tx_data, fee).await?;
 
-        let proofs = da.get_aggregated_proofs_at(1).await?;
+        let proofs = da.get_proofs_at(1).await?;
         assert_eq!(vec![aggregated_proof_data], proofs);
 
         for i in 2..5 {
             let aggregated_proof_data = vec![i];
-            da.send_aggregated_zk_proof(&aggregated_proof_data, fee)
-                .await?;
+            da.send_proof(&aggregated_proof_data, fee).await?;
         }
         let tx_data = vec![1];
         da.send_transaction(&tx_data, fee).await?;
 
-        let proofs = da.get_aggregated_proofs_at(2).await?;
+        let proofs = da.get_proofs_at(2).await?;
         assert_eq!(vec![vec![2], vec![3], vec![4]], proofs);
 
         Ok(())

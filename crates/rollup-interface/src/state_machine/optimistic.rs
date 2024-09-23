@@ -30,7 +30,7 @@ pub struct ProofOfBond<StateProof> {
 /// Service that knows how to generate a [`ProofOfBond`] for a given rollup height.
 pub trait BondingProofService: Send + Sync + 'static {
     /// The actual state proof that the attester was bonded.
-    type StateProof;
+    type StateProof: BorshSerialize + BorshDeserialize + Send + Sync;
     /// Gets the bonding proof for the given height.
     fn get_bonding_proof(&self, height: u64) -> ProofOfBond<Self::StateProof>;
 }

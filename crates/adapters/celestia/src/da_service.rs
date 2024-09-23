@@ -420,7 +420,7 @@ impl DaService for CelestiaService {
     }
 
     #[instrument(skip(self, aggregated_proof), err)]
-    async fn send_aggregated_zk_proof(
+    async fn send_proof(
         &self,
         aggregated_proof: &[u8],
         fee: Self::Fee,
@@ -432,7 +432,7 @@ impl DaService for CelestiaService {
     }
 
     #[instrument(err)]
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+    async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self
             .read_client
             .blob_get_all(height, &[self.rollup_proof_namespace])
@@ -974,7 +974,7 @@ mod tests {
             .await;
 
         let fee = CelestiaFee::estimated(zk_proof.len());
-        da_service.send_aggregated_zk_proof(&zk_proof, fee).await?;
+        da_service.send_proof(&zk_proof, fee).await?;
 
         Ok(())
     }

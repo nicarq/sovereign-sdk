@@ -162,9 +162,7 @@ where
 
                 let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 
-                self.da_service
-                    .send_aggregated_zk_proof(&serialized_proof, fee)
-                    .await?;
+                self.da_service.send_proof(&serialized_proof, fee).await?;
             }
         }
         Ok(())

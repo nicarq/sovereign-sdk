@@ -80,8 +80,9 @@ async fn send_test_bank_txs(
         )
         .await?;
 
+        // Check max_attested_height from the previous slot.
         let max_attested_height = get_max_attested_height(client).await?;
-        assert_eq!(0, max_attested_height);
+        assert_eq!(i, max_attested_height);
     }
     Ok(())
 }

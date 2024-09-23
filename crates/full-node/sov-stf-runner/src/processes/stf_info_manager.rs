@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use borsh::BorshSerialize;
 use rockbound::SchemaBatch;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -224,7 +225,7 @@ where
 
 impl<StateRoot, Witness, Da: DaSpec> Receiver<StateRoot, Witness, Da>
 where
-    StateRoot: Serialize + DeserializeOwned,
+    StateRoot: BorshSerialize + Serialize + DeserializeOwned,
     Witness: Serialize + DeserializeOwned,
 {
     /// Reads the next [`StateTransitionInfo`] from the Db.

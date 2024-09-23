@@ -267,7 +267,7 @@ impl DaService for StorableMockDaService {
         })
     }
 
-    async fn send_aggregated_zk_proof(
+    async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
         _fee: Self::Fee,
@@ -293,7 +293,7 @@ impl DaService for StorableMockDaService {
         })
     }
 
-    async fn get_aggregated_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
+    async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
         let blobs = self.get_block_at(height).await?.proof_blobs;
         Ok(blobs
             .into_iter()
