@@ -76,5 +76,6 @@ arbitrary = [
 	"sov-state/arbitrary",
 	"rockbound/arbitrary",
 	"sov-accounts/arbitrary",
-	"sov-nonces/arbitrary"
+	"sov-nonces/arbitrary",
+	"sov-mock-da/arbitrary"
 ]

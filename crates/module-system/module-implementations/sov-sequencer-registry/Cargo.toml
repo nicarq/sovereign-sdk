@@ -59,13 +59,14 @@ bench = [
 ]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "sov-modules-api/arbitrary",
-    "sov-sequencer-registry/arbitrary",
-    "sov-state/arbitrary",
-    "sov-test-utils/arbitrary",
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"sov-modules-api/arbitrary",
+	"sov-sequencer-registry/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
+	"sov-mock-da/arbitrary"
 ]
 native = [
 	"jsonrpsee",

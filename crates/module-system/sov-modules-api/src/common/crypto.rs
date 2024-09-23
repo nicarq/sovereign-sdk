@@ -84,5 +84,10 @@ impl<P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerial
 {
 }
 
+/// A PrivateKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PrivateKey`] trait by requiring
+/// the `arbitrary` trait when the `arbitrary` feature is enabled.
 #[cfg(feature = "native")]
-pub use sov_rollup_interface::crypto::PrivateKey as PrivateKeyExt;
+pub trait PrivateKeyExt: sov_rollup_interface::crypto::PrivateKey + crate::MaybeArbitrary {}
+
+#[cfg(feature = "native")]
+impl<P: sov_rollup_interface::crypto::PrivateKey + crate::MaybeArbitrary> PrivateKeyExt for P {}
