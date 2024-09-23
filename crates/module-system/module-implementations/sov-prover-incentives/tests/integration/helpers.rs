@@ -5,6 +5,8 @@ use sov_bank::{Bank, GAS_TOKEN_ID};
 use sov_chain_state::ChainState;
 use sov_mock_da::{MockDaSpec, MockValidityCond};
 use sov_mock_zkvm::MockCodeCommitment;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
     SerializedAggregatedProof, SovApiProofSerializer, Spec,
@@ -23,7 +25,19 @@ pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([
 
 generate_zk_runtime!(TestRuntime <= );
 
-pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) {
+/// Returns the minimal bond required to register a prover at the current slot.
+pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+    runner.query_state(|state| {
+        TestProverIncentives::default()
+            .get_minimum_bond(state)
+            .unwrap_infallible()
+            .unwrap()
+    })
+}
+
+pub(crate) fn setup_with_custom_runtime(
+    runtime: TestRuntime<S, MockDaSpec>,
+) -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) {
     let minimal_genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(1);
     let unbonded_user = minimal_genesis_config
         .additional_accounts
@@ -32,10 +46,14 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) 
         .clone();
     let prover = minimal_genesis_config.initial_prover.clone();
     let genesis_config = GenesisConfig::from_minimal_config(minimal_genesis_config.into());
-    let runner =
-        TestRunner::new_with_genesis(genesis_config.into_genesis_params(), TestRuntime::default());
+    let runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
 
     (runner, prover, unbonded_user)
+}
+
+/// Same as [`setup_with_custom_runtime`] but uses the default runtime.
+pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) {
+    setup_with_custom_runtime(TestRuntime::default())
 }
 
 pub(crate) fn build_proof(
