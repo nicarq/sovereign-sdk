@@ -1,3 +1,4 @@
+- #1493 Makes it mandatory to manually set the `max_fee` in the CLI wallet. Transactions that don't set that value won't be accepted by the CLI. Consumers should ensure there is always a value set for the `max_fee` when using the CLI.
 ## 2024-09-20
 
 Adds a new `arbitrary::Arbitrary` bound on the `Spec::Address` associated type and the `PrivateKeyExt` trait when `arbitrary` feature is enabled.

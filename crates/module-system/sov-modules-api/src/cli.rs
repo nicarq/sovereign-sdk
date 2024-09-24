@@ -25,6 +25,7 @@ pub trait CliTxImportArg {
 
     /// The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
     /// charged for the gas fees of the transaction. This value contains both the tip and the base fee.
+    /// It is mandatory to set this value as there is no associated default value.
     fn max_fee(&self) -> u64;
 
     /// The gas limit for the transaction execution. This is an optional field that can be used to enforce a
@@ -60,8 +61,7 @@ pub struct JsonStringArg {
     #[arg(
         long,
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
-        charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
-        default_value = "10000000"
+        charged for the gas fees of the transaction. This value contains both the tip and the base fee."
     )]
     pub max_fee: u64,
 
@@ -103,8 +103,7 @@ pub struct FileNameArg {
     #[arg(
         long,
         help = "The max fee to pay for the transaction execution. This is the maximum amount expressed in gas tokens that can be
-        charged for the gas fees of the transaction. This value contains both the tip and the base fee.",
-        default_value = "0"
+        charged for the gas fees of the transaction. This value contains both the tip and the base fee."
     )]
     pub max_fee: u64,
 
