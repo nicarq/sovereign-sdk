@@ -166,7 +166,7 @@ impl TestRollup {
         // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
         // Otherwise batches are going to be rejected
         let sequencer_address = MockAddress::new([0; 32]);
-        let block_time_ms = 10_000;
+        let block_time_ms = 1_000;
         let storable_mock_da_connection_string = "sqlite::memory:".to_string();
 
         let mock_da_config = MockDaConfig {
