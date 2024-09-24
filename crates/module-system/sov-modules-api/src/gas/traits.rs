@@ -339,30 +339,6 @@ impl_gas_unit!(5);
 impl_gas_unit!(6);
 impl_gas_unit!(7);
 impl_gas_unit!(8);
-impl_gas_unit!(9);
-impl_gas_unit!(10);
-impl_gas_unit!(11);
-impl_gas_unit!(12);
-impl_gas_unit!(13);
-impl_gas_unit!(14);
-impl_gas_unit!(15);
-impl_gas_unit!(16);
-impl_gas_unit!(17);
-impl_gas_unit!(18);
-impl_gas_unit!(19);
-impl_gas_unit!(20);
-impl_gas_unit!(21);
-impl_gas_unit!(22);
-impl_gas_unit!(23);
-impl_gas_unit!(24);
-impl_gas_unit!(25);
-impl_gas_unit!(26);
-impl_gas_unit!(27);
-impl_gas_unit!(28);
-impl_gas_unit!(29);
-impl_gas_unit!(30);
-impl_gas_unit!(31);
-impl_gas_unit!(32);
 
 impl<'a> From<&'a GasPrice<1>> for u64 {
     fn from(value: &'a GasPrice<1>) -> Self {
@@ -491,7 +467,7 @@ impl<GU: Gas> UnlimitedGasMeter<GU> {
 impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
     fn charge_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.gas_used.combine(gas);
-        std::result::Result::Ok(())
+        Ok(())
     }
 
     fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
