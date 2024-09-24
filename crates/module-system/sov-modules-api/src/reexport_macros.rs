@@ -409,6 +409,12 @@ pub mod macros {
     ///     defined by [`impl_hash32_type`](crate::impl_hash32_type).
     pub use sov_modules_macros::config_bech32;
     /// Reads a TOML value from the rollup configuration manifest file and
+    /// converts it into a [`crate::gas::GasPrice`] expression available at compile time.
+    pub use sov_modules_macros::config_gas_price;
+    /// Reads a TOML value from the rollup configuration manifest file and
+    /// converts it into a [`crate::gas::GasUnit`] expression available at compile time.
+    pub use sov_modules_macros::config_gas_unit;
+    /// Reads a TOML value from the rollup configuration manifest file and
     /// converts it into a Rust expression available at compile time. Nulls and
     /// objects are not supported.
     pub use sov_modules_macros::config_value;

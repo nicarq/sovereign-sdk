@@ -226,6 +226,13 @@ macro_rules! impl_gas_dimensions {
             }
         }
 
+        impl $t {
+            /// Creates a new [`$t`] from an array of [`u64`].
+            pub const fn new(array: [u64; $n]) -> Self {
+                Self(array)
+            }
+        }
+
         impl GasArray for $t {
             const ZEROED: Self = Self([0; $n]);
 
