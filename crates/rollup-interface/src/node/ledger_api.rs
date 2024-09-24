@@ -100,7 +100,7 @@ pub enum EventIdentifier {
     /// An offset into a particular transaction (i.e. the 3rd event in transaction number 5).
     TxIdAndOffset(TxIdAndOffset),
     /// The monotonically increasing number of the event, ordered by the DA layer For example, if the first tx
-    /// contains 7 events, tx 2 contains 11 events, and tx 3 contains 7 txs,
+    /// contains 7 events, tx 2 contains 11 events, and tx 3 contains 7 events,
     /// the last event in tx 3 would have number 25. The counter never resets.
     Number(u64),
 }
