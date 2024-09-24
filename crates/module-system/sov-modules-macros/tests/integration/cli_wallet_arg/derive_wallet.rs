@@ -137,6 +137,8 @@ fn main() {
             r#"{"first_field": 1, "str_field": "hello"}"#,
             "--chain-id",
             "0",
+            "--max-fee",
+            "0",
         ])
         .expect("parsing must succeed")
         .into();
@@ -151,6 +153,8 @@ fn main() {
             "--json",
             r#"{"Bar": 2}"#,
             "--chain-id",
+            "0",
+            "--max-fee",
             "0",
         ])
         .expect("parsing must succeed")
