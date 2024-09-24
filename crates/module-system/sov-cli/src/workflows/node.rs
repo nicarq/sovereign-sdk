@@ -8,6 +8,9 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_bank::TokenId;
 use sov_modules_api::clap;
+use sov_modules_api::digest::Digest;
+use sov_rollup_interface::zk::CryptoSpec;
+use sov_rollup_interface::TxHash;
 
 use crate::node_client::NodeClient;
 use crate::wallet_state::{KeyIdentifier, WalletState};
@@ -142,6 +145,12 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                 };
 
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
+
+                for (i, tx) in txs.iter().enumerate() {
+                    let tx_hash =
+                        TxHash::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx).into());
+                    println!("Submitting tx: {}: {}", i, tx_hash);
+                }
 
                 api_client.publish_batch(txs, *wait_for_processing).await?;
             }
