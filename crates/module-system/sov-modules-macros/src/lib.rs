@@ -139,7 +139,9 @@ mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
-use compile_manifest_constants::{make_const_bech32, make_const_value};
+use compile_manifest_constants::{
+    make_const_bech32, make_const_gas_price, make_const_gas_unit, make_const_value,
+};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
@@ -243,6 +245,24 @@ pub fn config_bech32(tokens: TokenStream) -> TokenStream {
 
     let ConstBech32Input { lit_str, ty } = parse_macro_input!(tokens as ConstBech32Input);
     handle_macro_error_and_expand(fn_name!(), make_const_bech32(&lit_str, &ty))
+}
+
+#[proc_macro]
+pub fn config_gas_unit(tokens: TokenStream) -> TokenStream {
+    let constant_name = parse_macro_input!(tokens as syn::LitStr);
+    handle_macro_error_and_expand(
+        fn_name!(),
+        make_const_gas_unit(&constant_name).map(Into::into),
+    )
+}
+
+#[proc_macro]
+pub fn config_gas_price(tokens: TokenStream) -> TokenStream {
+    let constant_name = parse_macro_input!(tokens as syn::LitStr);
+    handle_macro_error_and_expand(
+        fn_name!(),
+        make_const_gas_price(&constant_name).map(Into::into),
+    )
 }
 
 #[proc_macro]
