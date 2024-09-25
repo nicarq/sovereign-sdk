@@ -1,5 +1,5 @@
 use sov_modules_api::capabilities::TryReserveGasError;
-use sov_modules_api::transaction::{AuthenticatedTransactionData, TransactionConsumption};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
 use sov_modules_api::{
     AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, StateAccessorError,
     TxScratchpad, WorkingSet,
@@ -145,19 +145,19 @@ impl<S: Spec> Bank<S> {
     }
 
     /// Computes and allocates the gas consumed by the transaction to the base fee and the tip recipients.
-    pub fn allocate_consumed_gas(
+    pub fn reward_prover(
         &self,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,
 
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        base_fee: &ProverRewards,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.transfer_from(
             self.id.to_payable(),
             base_fee_recipient.as_token_holder(),
             Coins {
-                amount: tx_consumption.base_fee_value(),
+                amount: base_fee.0,
                 token_id: GAS_TOKEN_ID,
             },
             tx_scratchpad,
@@ -169,7 +169,7 @@ impl<S: Spec> Bank<S> {
     pub fn refund_remaining_gas(
         &self,
         payer: &S::Address,
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
@@ -178,7 +178,7 @@ impl<S: Spec> Bank<S> {
             self.id.to_payable(),
             payer,
             Coins {
-                amount: tx_consumption.remaining_funds(),
+                amount: remaining_funds.0,
                 token_id: GAS_TOKEN_ID,
             },
             tx_scratchpad,

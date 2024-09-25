@@ -41,13 +41,13 @@ impl<GU: Gas> TransactionConsumption<GU> {
 
     /// The base fee reward of the transaction expressed as a gas token amount.
     /// This amounts to compute the scalar product of [`Self::base_fee`] by the current gas price.
-    pub fn base_fee_value(&self) -> u64 {
-        self.base_fee.value(&self.gas_price)
+    pub fn base_fee_value(&self) -> ProverRewards {
+        ProverRewards(self.base_fee.value(&self.gas_price))
     }
 
     /// The priority fee reward of the transaction expressed as a gas token amount.
-    pub const fn priority_fee(&self) -> u64 {
-        self.priority_fee
+    pub const fn priority_fee(&self) -> SequencerReward {
+        SequencerReward(self.priority_fee)
     }
 
     /// If the total consumption overflows, we saturate, because we know that this amount will always be lower than the max fee.
@@ -58,10 +58,18 @@ impl<GU: Gas> TransactionConsumption<GU> {
     }
 
     /// The remaining amount of gas tokens locked in the meter.
-    pub fn remaining_funds(&self) -> u64 {
-        self.remaining_funds
+    pub fn remaining_funds(&self) -> RemainingFunds {
+        RemainingFunds(self.remaining_funds)
     }
 }
+
+/// The prover reward.
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
+pub struct ProverRewards(pub u64);
+
+/// The remaining amount of gas tokens
+#[derive(Copy, Debug, Clone, PartialEq, Eq)]
+pub struct RemainingFunds(pub u64);
 
 /// The type used to represent the sequencer reward. This type should be obtained from the [`TransactionConsumption`] type.
 #[derive(

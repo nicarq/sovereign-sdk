@@ -4,7 +4,7 @@ use sov_modules_api::capabilities::{
     SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::{
-    AuthenticatedTransactionData, SequencerReward, TransactionConsumption,
+    AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, GasMeter, InvalidProofError,
@@ -37,9 +37,9 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
             .map_err(Into::into)
     }
 
-    fn allocate_consumed_gas(
+    fn reward_prover(
         &self,
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        prover_rewards: &ProverRewards,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
@@ -58,17 +58,17 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
 
         // TODO(@theochap): In the next PR this method will become failible
         self.bank
-            .allocate_consumed_gas(&rewarded_module, tx_consumption, tx_scratchpad);
+            .reward_prover(&rewarded_module, prover_rewards, tx_scratchpad);
     }
 
     fn refund_remaining_gas(
         &self,
         sender: &S::Address,
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.bank
-            .refund_remaining_gas(sender, tx_consumption, tx_scratchpad);
+            .refund_remaining_gas(sender, remaining_funds, tx_scratchpad);
     }
 }
 
