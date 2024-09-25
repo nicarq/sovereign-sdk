@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, KernelStateAccessor, Spec, VersionReader};
+use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, Spec, VersionReader};
 
 use crate::ChainState;
 
@@ -37,7 +37,7 @@ where
         {
             Ok(in_progress_transition.gas_info.base_fee_per_gas)
         } else {
-            Ok(Self::initial_base_fee_per_gas())
+            Ok(<S as GasSpec>::initial_base_fee_per_gas())
         }
     }
 
@@ -55,7 +55,7 @@ where
         {
             in_progress_transition.gas_info.base_fee_per_gas
         } else {
-            Self::initial_base_fee_per_gas()
+            <S as GasSpec>::initial_base_fee_per_gas()
         }
     }
 }

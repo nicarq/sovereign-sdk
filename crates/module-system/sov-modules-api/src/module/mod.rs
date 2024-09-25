@@ -10,11 +10,13 @@ use crate::{GenesisState, ModuleId, TxState};
 
 mod dispatch;
 mod event;
+mod gas_spec;
 mod prefix;
 mod spec;
 
 pub use dispatch::*;
 pub use event::*;
+pub use gas_spec::*;
 pub use prefix::*;
 pub use spec::*;
 

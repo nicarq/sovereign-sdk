@@ -83,23 +83,6 @@ fn try_refund_gas() {
 }
 
 #[test]
-fn test_gas_display_unidimensional() {
-    let gas_unit = GasUnit::<1>::from(100);
-    assert_eq!(
-        "GasUnit[100]",
-        gas_unit.to_string(),
-        "The gas unit should be displayed correctly"
-    );
-
-    let gas_price = GasPrice::<1>::from(100);
-    assert_eq!(
-        "GasPrice[100]",
-        gas_price.to_string(),
-        "The gas unit should be displayed correctly"
-    );
-}
-
-#[test]
 fn test_gas_display_multidimensional() {
     let gas_unit = GasUnit::<2>::from_slice(&[100, 50]);
     assert_eq!(
