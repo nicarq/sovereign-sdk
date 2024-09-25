@@ -101,17 +101,23 @@ pub struct MockBlockHeader {
 }
 
 impl MockBlockHeader {
-    /// Generates [`MockBlockHeader`] with given height, where hashes are derived from height.
+    /// Generates [`MockBlockHeader`] with given height & time, where hashes are derived from height.
     /// Can be used in tests, where a header of the following blocks will be consistent.
-    pub fn from_height(height: u64) -> MockBlockHeader {
+    pub fn new(height: u64, time: Time) -> MockBlockHeader {
         let prev_hash = u64_to_bytes(height);
         let hash = u64_to_bytes(height + 1);
         MockBlockHeader {
             height,
             hash: MockHash(hash),
             prev_hash: MockHash(prev_hash),
-            time: Time::now(),
+            time,
         }
+    }
+
+    /// Generates [`MockBlockHeader`] with given height, where hashes are derived from height.
+    /// Can be used in tests, where a header of the following blocks will be consistent.
+    pub fn from_height(height: u64) -> MockBlockHeader {
+        Self::new(height, Time::now())
     }
 }
 

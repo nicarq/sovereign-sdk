@@ -15,6 +15,7 @@ use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::KernelSlotHooks;
+use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
@@ -90,6 +91,13 @@ impl<S: Spec, Da: DaSpec> SlotReceipt<S, Da> {
 pub struct RunnerConfig<Da: DaSpec> {
     /// The sequencers DA address used as the address of the sender of a blob.
     pub sequencer_da_address: Da::Address,
+    /// Allows tests to explicitly set the time of the next header.
+    /// This can be useful if the code you are testing relies on header timestamps.
+    ///
+    /// Only the very next block header will be overriden, all subsequent headers will revert to the
+    /// default behaviour, this includes [`TestRunnerWithKernel::simulate`] &
+    /// [`TestRunnerWithKernel::advance_slots`] calls.
+    pub override_next_header_timestamp: Option<Time>,
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -270,6 +278,7 @@ where
 
         let config = RunnerConfig {
             sequencer_da_address,
+            override_next_header_timestamp: None,
         };
 
         Self {
@@ -282,8 +291,13 @@ where
         }
     }
 
-    fn next_header(&self) -> MockBlockHeader {
-        MockBlockHeader::from_height(self.curr_slot_number() + 1)
+    fn next_header(&mut self) -> MockBlockHeader {
+        let height = self.curr_slot_number() + 1;
+        let override_timestamp = self.config.override_next_header_timestamp.take();
+        match override_timestamp {
+            Some(timestamp) => MockBlockHeader::new(height, timestamp),
+            None => MockBlockHeader::from_height(height),
+        }
     }
 
     fn txs_to_blobs<M: Module>(
@@ -381,7 +395,7 @@ where
     /// This is useful to retreive non-deterministic outcomes associated with execution such as
     /// dynamic gas prices.
     pub fn simulate<T: Into<SlotInput<S, M>>, M>(
-        &self,
+        &mut self,
         input: T,
     ) -> (TestApplySlotOutputWithKernel<RT, K, S>, NoncesMap<S>)
     where

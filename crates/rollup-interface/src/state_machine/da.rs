@@ -1,6 +1,7 @@
 //! Defines traits and types used by the rollup to verify claims about the
 //! DA layer.
 use core::fmt::Debug;
+use std::cmp::Ordering;
 use std::fmt::Display;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -286,6 +287,21 @@ pub struct Time {
     nanos: u32,
 }
 
+impl PartialOrd for Time {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Time {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.secs.cmp(&other.secs) {
+            Ordering::Equal => self.nanos.cmp(&other.nanos),
+            other => other,
+        }
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 #[error("Only intervals less than one second may be represented as nanoseconds")]
 /// An error that occurs when trying to create a `NanoSeconds` representing more than one second
@@ -392,4 +408,25 @@ pub struct DaProof<InclusionMultiProof, CompletenessProof> {
     pub inclusion_proof: InclusionMultiProof,
     /// A proof that a claimed set of transactions is complete.
     pub completeness_proof: CompletenessProof,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_time_comparision() {
+        let expected_before = Time::new(1, NanoSeconds(5));
+        let expected_after = Time::new(10, NanoSeconds(1));
+
+        assert!(expected_before < expected_after);
+    }
+
+    #[test]
+    fn test_time_comparision_equal_seconds() {
+        let expected_before = Time::new(1, NanoSeconds(5));
+        let expected_after = Time::new(1, NanoSeconds(6));
+
+        assert!(expected_before < expected_after);
+    }
 }
