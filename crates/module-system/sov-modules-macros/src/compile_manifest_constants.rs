@@ -1,11 +1,61 @@
 use proc_macro::TokenStream;
-use syn::Ident;
+use syn::{Ident, LitStr};
 
 use crate::manifest::Manifest;
 
 pub fn make_const_value(constant_name: &syn::LitStr) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = Ident::new(&constant_name.value(), constant_name.span());
     Manifest::read_constants(&field_ident)?.parse_expression(&field_ident)
+}
+
+fn parse_gas_dimensions(
+    constant_name: &syn::LitStr,
+    manifest: &Manifest,
+) -> Result<usize, syn::Error> {
+    let gas_dimensions_string = String::from("GAS_DIMENSIONS");
+    let lit_str = LitStr::new(&gas_dimensions_string, constant_name.span());
+
+    let expr_from_config_file = make_const_value(&lit_str).map_err(|_| {
+        syn::Error::new(
+            constant_name.span(),
+            format!(
+                "Impossible to get the number of gas dimensions from the config constant file. The constant named `{}` inside `{}` does not exist.",
+                gas_dimensions_string, manifest.path().display()
+            ),
+        )
+    })?;
+
+    let gas_dimensions = syn::parse::<syn::ExprLit>(expr_from_config_file.clone().into())
+        .map_err(|_| {
+            syn::Error::new(
+                constant_name.span(),
+                format!(
+                "The constant named `{}` inside `{}` represents a number of gas dimensions - it should be an expression litteral. Instead, it is: `{}`",
+                    gas_dimensions_string, manifest.path().display(), expr_from_config_file
+                ),
+            )
+        })?;
+
+    match gas_dimensions.lit {
+        syn::Lit::Int(lit) => lit.base10_parse::<usize>().map_err(|_| {
+            syn::Error::new(
+                constant_name.span(),
+                format!(
+                    "The constant named `{}` inside `{}` is not a valid number of gas dimensions. It should be an integer expressed in base 10. Instead, it is: `{}`",
+                    gas_dimensions_string, manifest.path().display(), expr_from_config_file
+                ),
+            )
+        }),
+        _ => {
+            Err(syn::Error::new(
+                constant_name.span(),
+                format!(
+                    "The constant named `{}` inside `{}` is not a valid number of gas dimensions. It should be an integer. Instead, it is: `{}`",
+                    gas_dimensions_string, manifest.path().display(), expr_from_config_file
+                ),
+            ))
+        }
+    }
 }
 
 /// Helper function to parse a gas constant. Returns the inner expression and the length of the associated array.
@@ -29,13 +79,25 @@ fn parse_const_gas(constant_name: &syn::LitStr) -> Result<(syn::ExprArray, usize
 
     let len = gas_array_expr.elems.len();
 
+    let gas_dimensions = parse_gas_dimensions(constant_name, &manifest)?;
+
+    if gas_dimensions != len {
+        return Err(syn::Error::new(
+            constant_name.span(),
+            format!(
+                "The constant named `{}` inside `{}` has {} dimensions, but the number of gas dimensions is {}. The number of gas dimensions should be the same as the number of dimensions of the gas unit.",
+                constant_name.value(), manifest.path().display(), len, gas_dimensions
+            ),
+        ));
+    }
+
     Ok((gas_array_expr, len))
 }
 
 pub fn make_const_gas_price(constant_name: &syn::LitStr) -> syn::Result<TokenStream> {
     let (gas_array_expr, len) = parse_const_gas(constant_name)?;
     Ok(quote::quote! {
-        GasPrice::<#len>::new( #gas_array_expr )
+        GasPrice::<#len>::from_primitive( #gas_array_expr )
     }
     .into())
 }
@@ -43,7 +105,7 @@ pub fn make_const_gas_price(constant_name: &syn::LitStr) -> syn::Result<TokenStr
 pub fn make_const_gas_unit(constant_name: &syn::LitStr) -> syn::Result<TokenStream> {
     let (gas_array_expr, len) = parse_const_gas(constant_name)?;
     Ok(quote::quote! {
-        GasUnit::<#len>::new( #gas_array_expr )
+        GasUnit::<#len>::from_primitive( #gas_array_expr )
     }
     .into())
 }

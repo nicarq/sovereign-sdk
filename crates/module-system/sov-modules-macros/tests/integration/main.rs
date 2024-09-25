@@ -79,6 +79,7 @@ fn constants_from_manifests_test() {
     t.pass("tests/integration/constants/create_constant.rs");
     t.pass("tests/integration/constants/create_gas_constant.rs");
     t.compile_fail("tests/integration/constants/create_gas_constant_invalid_type.rs");
+    t.compile_fail("tests/integration/constants/create_gas_constant_invalid_dimension.rs");
     t.compile_fail("tests/integration/constants/create_gas_constant_not_array.rs");
     t.compile_fail("tests/integration/constants/create_gas_price_instead_of_unit.rs");
     t.compile_fail("tests/integration/constants/bech32_constant_invalid_checksum.rs");

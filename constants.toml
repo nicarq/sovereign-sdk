@@ -19,6 +19,8 @@ DEFERRED_SLOTS_COUNT = 5
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.
 UNREGISTERED_BLOBS_PER_SLOT = 5
+# Number of gas dimensions
+GAS_DIMENSIONS = 2
 # The fixed gas price of checking forced sequencer registration transactions.
 # This price is added to regular transaction checks & execution costs.
 # This should be set in such a way that forced sequencer registration is more expensive

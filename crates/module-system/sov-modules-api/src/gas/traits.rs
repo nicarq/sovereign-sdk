@@ -8,7 +8,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_modules_macros::config_value;
 use thiserror::Error;
+
+const GAS_DIMENSIONS: usize = config_value!("GAS_DIMENSIONS");
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
 #[cfg(feature = "native")]
@@ -29,6 +32,9 @@ pub trait GasArray:
     + DeserializeOwned
     + BorshSerialize
     + BorshDeserialize
+    + From<[u64; GAS_DIMENSIONS]>
+    + Into<[u64; GAS_DIMENSIONS]>
+    + AsRef<[u64; GAS_DIMENSIONS]>
 {
     /// A zeroed instance of the unit.
     const ZEROED: Self;
@@ -85,6 +91,9 @@ pub trait GasArray:
     + DeserializeOwned
     + BorshSerialize
     + BorshDeserialize
+    + From<[u64; GAS_DIMENSIONS]>
+    + Into<[u64; GAS_DIMENSIONS]>
+    + AsRef<[u64; GAS_DIMENSIONS]>
 {
     /// A zeroed instance of the unit.
     const ZEROED: Self;
@@ -184,7 +193,7 @@ macro_rules! impl_gas_dimensions {
         #[cfg(feature = "native")]
         impl schemars::JsonSchema for $t {
             fn schema_name() -> String {
-                $t_name.to_owned() + "(" + stringify!($n) + ")"
+                $t_name.to_owned() + "(" + &format!("{}", $n) + ")"
             }
 
             fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
@@ -196,7 +205,7 @@ macro_rules! impl_gas_dimensions {
                         "type": "number"
                     },
                     // This description assumes that `serializer` uses a human-readable format.
-                    "description": $t_name.to_owned() + " is an array of u64 of size " + stringify!($n),
+                    "description": $t_name.to_owned() + " is an array of u64 of size " + &format!("{}", $n),
                 }))
                 .unwrap()
             }
@@ -226,9 +235,21 @@ macro_rules! impl_gas_dimensions {
             }
         }
 
+        impl From<$t> for [u64; $n] {
+            fn from(gas: $t) -> [u64; $n] {
+                gas.0
+            }
+        }
+
+        impl AsRef<[u64; $n]> for $t {
+            fn as_ref(&self) -> &[u64; $n] {
+                &self.0
+            }
+        }
+
         impl $t {
             /// Creates a new [`$t`] from an array of [`u64`].
-            pub const fn new(array: [u64; $n]) -> Self {
+            pub const fn from_primitive(array: [u64; $n]) -> Self {
                 Self(array)
             }
         }
@@ -320,7 +341,7 @@ macro_rules! impl_gas_unit {
             fn value(&self, price: &Self::Price) -> u64 {
                 self.0
                     .iter()
-                    .zip(price.as_slice().iter().copied())
+                    .zip(price.as_ref().iter().copied())
                     .map(|(a, b)| a.saturating_mul(b))
                     .fold(0, |a, b| a.saturating_add(b))
             }
@@ -331,14 +352,7 @@ macro_rules! impl_gas_unit {
     };
 }
 
-impl_gas_unit!(1);
-impl_gas_unit!(2);
-impl_gas_unit!(3);
-impl_gas_unit!(4);
-impl_gas_unit!(5);
-impl_gas_unit!(6);
-impl_gas_unit!(7);
-impl_gas_unit!(8);
+impl_gas_unit!(GAS_DIMENSIONS);
 
 impl<'a> From<&'a GasPrice<1>> for u64 {
     fn from(value: &'a GasPrice<1>) -> Self {
@@ -354,7 +368,7 @@ impl From<GasPrice<1>> for u64 {
 
 impl From<u64> for GasPrice<1> {
     fn from(value: u64) -> Self {
-        GasPrice::from_slice(&[value])
+        GasPrice([value])
     }
 }
 
@@ -372,7 +386,7 @@ impl From<GasUnit<1>> for u64 {
 
 impl From<u64> for GasUnit<1> {
     fn from(value: u64) -> Self {
-        GasUnit::from_slice(&[value])
+        GasUnit([value])
     }
 }
 

@@ -8,6 +8,8 @@ freeze = [1, 1]
 [constants]
 # We use the ID 4321 for demo purposes. Change this value before deploying!
 CHAIN_ID = 4321
+# Number of gas dimensions
+GAS_DIMENSIONS = 2
 # When using soft-confirmations, this parameter sets the maximum number of slots that a transaction can be deferred by the sequencer before
 # being force-executed by the rollup. Decreasing the number of slots means that "forced" transactions are processed
 # more quickly in the worst case, but increases the likelihood that some soft confirmations
@@ -98,4 +100,5 @@ INITIAL_BASE_FEE_PER_GAS = [100, 100]
 BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 ELASTICITY_MULTIPLIER = 2
 TEST_GAS_CONST_CORRECT = [1, 1]
-TEST_GAS_CONST_CORRECT_2 = [0, 1, 32, 18]
+TEST_GAS_CONST_CORRECT_2 = [0, 32]
+TEST_GAS_CONST_INCORRECT_DIM = [0]

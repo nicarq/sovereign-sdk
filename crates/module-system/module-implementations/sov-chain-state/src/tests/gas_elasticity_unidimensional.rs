@@ -1,21 +1,28 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{GasArray, GasPrice, GasUnit};
 use sov_test_utils::TestSpec;
 
-use crate::{BlockGasInfo, ChainState};
+use crate::ChainState;
+
+struct BaseFeeUpdateConfig {
+    gas_limit: u64,
+    gas_used: u64,
+    base_fee_per_gas: u64,
+}
 
 /// These tests ensure that the unidimensional base fee per gas update function has the correct behavior
 fn assert_correct_gas_update(
-    prev_block_gas_info: &BlockGasInfo<GasUnit<1>>,
-    expected_base_fee_per_gas: &GasPrice<1>,
+    prev_block_gas_info: BaseFeeUpdateConfig,
+    expected_base_fee_per_gas: u64,
     assert_error_message: &str,
 ) {
     let computed_base_fee_per_gas =
         ChainState::<TestSpec, MockDaSpec>::compute_base_fee_per_gas_unidimensional(
-            prev_block_gas_info,
+            prev_block_gas_info.gas_limit,
+            prev_block_gas_info.gas_used,
+            prev_block_gas_info.base_fee_per_gas,
         );
     assert_eq!(
-        *expected_base_fee_per_gas,
+        expected_base_fee_per_gas,
         computed_base_fee_per_gas,
         "The result of `compute_base_fee_per_gas_unidimensional` does not match the expected value. 
         Expected: {:?}, actual: {:?}, test message: {}",
@@ -29,12 +36,12 @@ fn assert_correct_gas_update(
 #[test]
 fn test_zero_base_fee_gas_below_target() {
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::ZEROED,
-            gas_used: GasUnit::ZEROED,
-            base_fee_per_gas: GasPrice::ZEROED,
+        BaseFeeUpdateConfig {
+            gas_limit: 0,
+            gas_used: 0,
+            base_fee_per_gas: 0,
         },
-        &GasPrice::ZEROED,
+        0,
         "When the base fee per gas is zero, it should remain to zero if the gas used is below the target",
     );
 }
@@ -47,12 +54,12 @@ fn test_zero_base_fee_gas_above_target() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(GAS_LIMIT),
-            gas_used: GasUnit::<1>::from(gas_target + 1),
-            base_fee_per_gas: GasPrice::ZEROED,
+        BaseFeeUpdateConfig {
+            gas_limit: GAS_LIMIT,
+            gas_used: gas_target + 1,
+            base_fee_per_gas: 0,
         },
-        &GasPrice::<1>::from(1),
+        1,
         "When the base fee per gas is zero, it should be equal to one if the gas used is above the target",
     );
 }
@@ -66,12 +73,12 @@ fn test_base_fee_target_reached() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(GAS_LIMIT),
-            gas_used: GasUnit::<1>::from(gas_target),
-            base_fee_per_gas: GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        BaseFeeUpdateConfig {
+            gas_limit: GAS_LIMIT,
+            gas_used: gas_target,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
-        &GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        INITIAL_BASE_FEE_PER_GAS,
         "When the gas target is met, the base fee per gas shouldn't change",
     );
 }
@@ -90,12 +97,12 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(gas_limit),
-            gas_used: GasUnit::<1>::from(2 * gas_target),
-            base_fee_per_gas: GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        BaseFeeUpdateConfig {
+            gas_limit,
+            gas_used: 2 * gas_target,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
-        &GasPrice::<1>::from(expected_base_fee_per_gas),
+        expected_base_fee_per_gas,
         "The base fee per gas should increase by `base_fee_per_gas * (1/BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is twice as much as the target",
     );
 
@@ -105,12 +112,12 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(new_gas_limit);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(new_gas_limit),
-            gas_used: GasUnit::<1>::from(2 * new_gas_target),
-            base_fee_per_gas: GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        BaseFeeUpdateConfig {
+            gas_limit: new_gas_limit,
+            gas_used: 2 * new_gas_target,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
-        &GasPrice::<1>::from(expected_base_fee_per_gas),
+        expected_base_fee_per_gas,
         "The base fee per gas should increase by `base_fee_per_gas * (1/BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is twice as much as the target. The new base fee should not depend on the value of the gas used, as long as it is twice as much as the target",
     );
 }
@@ -130,12 +137,12 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(gas_limit),
-            gas_used: GasUnit::<1>::from(gas_target/2),
-            base_fee_per_gas: GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        BaseFeeUpdateConfig {
+            gas_limit,
+            gas_used: gas_target/2,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
-        &GasPrice::<1>::from(expected_base_fee_per_gas),
+        expected_base_fee_per_gas,
         "The base fee per gas should decrease by `base_fee_per_gas * 1/(2*BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is half the target",
     );
 
@@ -145,12 +152,12 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
         ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(new_gas_limit);
 
     assert_correct_gas_update(
-        &BlockGasInfo {
-            gas_limit: GasUnit::<1>::from(new_gas_limit),
-            gas_used: GasUnit::<1>::from(new_gas_target/2),
-            base_fee_per_gas: GasPrice::<1>::from(INITIAL_BASE_FEE_PER_GAS),
+        BaseFeeUpdateConfig {
+            gas_limit: new_gas_limit,
+            gas_used: new_gas_target/2,
+            base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
-        &GasPrice::<1>::from(expected_base_fee_per_gas),
+        expected_base_fee_per_gas,
         "The base fee per gas should increase by `base_fee_per_gas * 1/(2*BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is half the target. The new base fee should not depend on the value of the gas used",
     );
 }

@@ -1,8 +1,10 @@
-use sov_modules_api::macros::config_gas_unit;
+use sov_modules_api::macros::{config_gas_unit, config_value};
 use sov_modules_api::{GasPrice, GasUnit};
 
-pub const TEST_GAS: GasPrice<2> = config_gas_unit!("TEST_GAS_CONST_CORRECT");
+const GAS_DIMENSIONS: usize = config_value!("GAS_DIMENSIONS");
+
+pub const TEST_GAS: GasPrice<GAS_DIMENSIONS> = config_gas_unit!("TEST_GAS_CONST_CORRECT");
 
 fn main() {
-    assert_eq!(TEST_GAS, GasPrice::<2>::from([1, 1]));
+    assert_eq!(TEST_GAS, GasPrice::<GAS_DIMENSIONS>::from([1, 1]));
 }

@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{DaSpec, Gas, GasArray, GasPrice, GasUnit, Spec};
+use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Spec};
 use thiserror::Error;
 
 use crate::{BlockGasInfo, ChainState};
@@ -155,7 +155,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
     /// Computes the initial gas target (genesis block) by calling [`ChainState::gas_target`] on the initial gas limit.
     pub fn initial_gas_target() -> S::Gas {
-        Self::gas_target(&Self::initial_gas_limit())
+        Self::gas_target(&<S as GasSpec>::initial_gas_limit())
     }
 }
 
@@ -164,17 +164,12 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// This reproduces the logic of the EIP-1559 specification to compute the updated `base_fee_per_gas` (`<https://eips.ethereum.org/EIPS/eip-1559>`).
     /// Note that here we drop the `parent` prefix and call the state variables `gas_limit`, `gas_used` and `base_fee_per_gas`.
     pub(crate) fn compute_base_fee_per_gas_unidimensional(
-        parent_gas_info: &BlockGasInfo<GasUnit<1>>,
-    ) -> GasPrice<1> {
-        let BlockGasInfo {
-            gas_limit,
-            gas_used,
-            mut base_fee_per_gas,
-        } = parent_gas_info.clone();
-
+        gas_limit: u64,
+        gas_used: u64,
+        mut base_fee_per_gas: u64,
+    ) -> u64 {
         // The gas target is equal to `gas_limit // ELASTICITY_MULTIPLIER`
-        let gas_target =
-            GasUnit::<1>::from(Self::ELASTICITY_MULTIPLIER.apply_div(gas_limit.into()));
+        let gas_target = Self::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
 
         if gas_used == gas_target {
             // We reached the gas target, so we don't need to update the base fee
@@ -184,10 +179,9 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
             // Compute the difference in absolute value between the gas target and the gas used.
             // This value is the delta between the gas target and the gas used. We need to then apply the `base_fee_per_gas` to compute its value in tokens.
-            let gas_used_delta_as_u64 =
-                u64::from(gas_target.clone()).abs_diff(gas_used.clone().into());
-            let gas_used_delta = GasUnit::<1>::from(gas_used_delta_as_u64);
-            let gas_used_delta_value = gas_used_delta.value(&base_fee_per_gas);
+            let gas_used_delta_as_u64 = gas_target.abs_diff(gas_used);
+            let gas_used_delta = gas_used_delta_as_u64;
+            let gas_used_delta_value = gas_used_delta * base_fee_per_gas;
 
             // This division expresses the `base_fee_per_gas` delta as the ration (gas_used_delta_value / gas_target).
             // If the division underflows, the delta is set to zero
@@ -195,7 +189,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             // Note here that this operation gives a value that can be expressed as a `GasPrice<1>` because we do
             // `base_fee_per_gas * (gas_used_delta / gas_target)`.
             let base_fee_per_gas_delta_u64 = gas_used_delta_value
-                .checked_div(gas_target.clone().into())
+                .checked_div(gas_target)
                 .unwrap_or_default();
 
             // We normalize the result, the same way as in the EIP-1559 specification (`<https://eips.ethereum.org/EIPS/eip-1559>`)
@@ -204,18 +198,17 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
             if gas_used > gas_target {
                 // In that case, we take the maximum with `1` to make sure the `base_fee_per_gas` is always increased
-                let base_fee_per_gas_delta_normalized =
-                    GasPrice::<1>::from(max(base_fee_per_gas_delta_normalized, 1));
+                let base_fee_per_gas_delta_normalized = max(base_fee_per_gas_delta_normalized, 1);
 
-                base_fee_per_gas.combine(&base_fee_per_gas_delta_normalized);
+                base_fee_per_gas += base_fee_per_gas_delta_normalized;
 
                 base_fee_per_gas
             } else {
                 // Although unlikely, the `base_fee_per_gas` can reach zero. We cannot have a negative value for gas price
                 // so we saturate at zero.
                 base_fee_per_gas
-                    .checked_sub(&GasPrice::<1>::from(base_fee_per_gas_delta_normalized))
-                    .unwrap_or(GasPrice::<1>::ZEROED)
+                    .checked_sub(base_fee_per_gas_delta_normalized)
+                    .unwrap_or_default()
             }
         }
     }
@@ -234,15 +227,14 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             .base_fee_per_gas
             .as_slice()
             .iter()
-            .zip(parent_gas_info.gas_limit.as_slice())
-            .zip(parent_gas_info.gas_used.as_slice())
+            .zip(parent_gas_info.gas_limit.as_slice().iter())
+            .zip(parent_gas_info.gas_used.as_slice().iter())
             .map(|((base_fee_per_gas, gas_limit), gas_used)| {
-                Self::compute_base_fee_per_gas_unidimensional(&BlockGasInfo {
-                    gas_limit: GasUnit::<1>::from(*gas_limit),
-                    gas_used: GasUnit::<1>::from(*gas_used),
-                    base_fee_per_gas: GasPrice::<1>::from(*base_fee_per_gas),
-                })
-                .into()
+                Self::compute_base_fee_per_gas_unidimensional(
+                    *gas_limit,
+                    *gas_used,
+                    *base_fee_per_gas,
+                )
             })
             .collect();
 
