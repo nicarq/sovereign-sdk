@@ -98,7 +98,6 @@ sov-evm = { path = "crates/module-system/module-implementations/sov-evm", defaul
 sov-sequencer = { path = "crates/full-node/sov-sequencer", default-features = false, version = "0.3" }
 sov-nft = { path = "crates/module-system/module-implementations/sov-nft", default-features = false, version = "0.3" }
 sov-accounts = { path = "crates/module-system/module-implementations/sov-accounts", default-features = false, version = "0.3" }
-sov-rng-da-service = { path = "crates/utils/rng-da-service", default-features = false, version = "0.3" }
 sov-ledger-apis = { path = "crates/full-node/sov-ledger-apis", default-features = false, version = "0.3" }
 sov-eth-dev-signer = { path = "crates/full-node/sov-eth-dev-signer", default-features = false, version = "0.3" }
 sov-modules-api = { path = "crates/module-system/sov-modules-api", default-features = false, version = "0.3" }
