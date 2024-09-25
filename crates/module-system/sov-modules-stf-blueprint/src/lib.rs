@@ -177,30 +177,6 @@ pub enum TxProcessingErrorReason {
     InvalidUnregisteredTx(String),
 }
 
-impl TryInto<(SkippedReason, TxHash)> for TxProcessingErrorReason {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<(SkippedReason, TxHash), Self::Error> {
-        match self {
-            TxProcessingErrorReason::Nonce {
-                reason,
-                raw_tx_hash,
-            } => Ok((SkippedReason::IncorrectNonce(reason), raw_tx_hash)),
-            TxProcessingErrorReason::CannotResolveContext {
-                reason,
-                raw_tx_hash,
-            } => Ok((SkippedReason::CannotResolveContext(reason), raw_tx_hash)),
-            TxProcessingErrorReason::CannotReserveGas {
-                reason,
-                raw_tx_hash,
-            } => Ok((SkippedReason::CannotReserveGas(reason), raw_tx_hash)),
-            err => Err(anyhow::anyhow!(
-                "The transaction processing error - {err} - cannot be mapped to a SkippedReason"
-            )),
-        }
-    }
-}
-
 /// Error type raised when processing a transaction
 pub struct TxProcessingError<S: Spec> {
     /// The transaction scratchpad when the error was raised

@@ -180,32 +180,44 @@ where
                             gas_used,
                         );
                     }
-
-                    // In these cases the sequencer is penalized and we can just ignore the outcome
-                    err => {
-                        match TryInto::<(SkippedReason, TxHash)>::try_into(err) {
-                            Ok((reason, raw_tx_hash)) => {
-                                warn!(
-                                    error = %reason,
-                                    raw_tx_hash = hex::encode(raw_tx_hash),
-                                    tx_idx = %idx,
-                                    "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
-                                );
-
-                                let tx_receipt = TransactionReceipt {
-                                    tx_hash: raw_tx_hash,
-                                    body_to_save: None,
-                                    events: Vec::new(),
-                                    receipt: TxEffect::Skipped(reason),
-                                };
-
-                                tx_receipts.push(tx_receipt);
-                            }
-                            Err(err) => {
-                                // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
-                                error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
-                            }
-                        }
+                    TxProcessingErrorReason::Nonce {
+                        reason,
+                        raw_tx_hash,
+                    } => {
+                        let tx_receipt = create_tx_receipt(
+                            SkippedReason::IncorrectNonce(reason),
+                            raw_tx_hash,
+                            idx,
+                        );
+                        tx_receipts.push(tx_receipt);
+                    }
+                    TxProcessingErrorReason::CannotReserveGas {
+                        reason,
+                        raw_tx_hash,
+                    } => {
+                        let tx_receipt = create_tx_receipt(
+                            SkippedReason::CannotReserveGas(reason),
+                            raw_tx_hash,
+                            idx,
+                        );
+                        tx_receipts.push(tx_receipt);
+                    }
+                    TxProcessingErrorReason::CannotResolveContext {
+                        reason,
+                        raw_tx_hash,
+                    } => {
+                        let tx_receipt = create_tx_receipt(
+                            SkippedReason::CannotResolveContext(reason),
+                            raw_tx_hash,
+                            idx,
+                        );
+                        tx_receipts.push(tx_receipt);
+                    }
+                    err @ TxProcessingErrorReason::AuthenticationError(
+                        AuthenticationError::Invalid(_),
+                    ) => {
+                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
+                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
                     }
                 }
             }
@@ -665,5 +677,25 @@ pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
         TxEffect::Successful(ref successful) => successful.gas_used.clone(),
         TxEffect::Reverted(ref reverted) => reverted.gas_used.clone(),
         TxEffect::Skipped(_) => S::Gas::zero(),
+    }
+}
+
+fn create_tx_receipt<S: Spec>(
+    reason: SkippedReason,
+    raw_tx_hash: TxHash,
+    idx: usize,
+) -> TransactionReceipt<S> {
+    warn!(
+        error = %reason,
+        raw_tx_hash = %raw_tx_hash,
+        tx_idx = %idx,
+        "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
+    );
+
+    TransactionReceipt {
+        tx_hash: raw_tx_hash,
+        body_to_save: None,
+        events: Vec::new(),
+        receipt: TxEffect::Skipped(reason),
     }
 }
