@@ -40,7 +40,7 @@ impl Drop for DropNotifier {
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_drop_notifier() {
         let (notifier, notified) = DropNotifier::build();
 
@@ -48,7 +48,7 @@ mod tests {
         notified.await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn no_drop_no_notification() {
         let (_notifier, notified) = DropNotifier::build();
 

@@ -22,7 +22,12 @@ async-trait = { workspace = true }
 backon = { workspace = true, optional = true }
 borsh = { workspace = true }
 bytes = { workspace = true, default-features = true }
-derive_more = { workspace = true, features = ["as_ref", "display", "from", "from_str"] }
+derive_more = { workspace = true, features = [
+    "as_ref",
+    "display",
+    "from",
+    "from_str",
+] }
 digest = { workspace = true }
 futures = { workspace = true, optional = true, features = ["alloc"] }
 hex = { workspace = true }
@@ -42,7 +47,7 @@ proptest = { workspace = true }
 proptest-derive = { workspace = true }
 serde_json = { workspace = true }
 sov-rollup-interface = { path = ".", features = ["native", "arbitrary"] }
-tokio = { workspace = true, features = ["sync", "rt", "macros"] }
+tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread"] }
 
 [features]
 native = [
@@ -51,7 +56,7 @@ native = [
     "schemars",
     "sov-rollup-interface/native",
     "tracing",
-	"serde_json",
+    "serde_json",
 ]
 arbitrary = [
     "dep:arbitrary",

@@ -590,7 +590,7 @@ mod tests {
         params: serde_json::Value,
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_correct() -> anyhow::Result<()> {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 
@@ -647,7 +647,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_application_level_error() -> anyhow::Result<()> {
         // Our calculation of gas is off and the gas limit exceeded, for example
         let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
@@ -690,7 +690,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_internal_server_error() -> anyhow::Result<()> {
         let (mock_server, _config, da_service, _namespace) = setup_test_service(None).await;
 
@@ -718,7 +718,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_blob_response_timeout() -> anyhow::Result<()> {
         let timeout = 1;
         let (mock_server, _config, da_service, _namespace) =
@@ -766,7 +766,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn verification_succeeds_for_correct_blocks() {
         let blocks = [
             with_rollup_batch_data::filtered_block(),
@@ -792,7 +792,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn verification_fails_if_tx_missing() {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
@@ -816,7 +816,7 @@ mod tests {
         assert!(error.to_string().contains("Transaction missing"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn verification_fails_if_not_all_etxs_are_proven() {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
@@ -838,7 +838,7 @@ mod tests {
         assert!(error.to_string().contains("not all blobs proven"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_blobs_from_padded_namespace() {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
         let (_, _, da_service, _) = setup_service(
@@ -853,7 +853,7 @@ mod tests {
     }
 
     // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[ignore = "TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/430"]
     async fn _verification_for_padded_namespace() {
         let block: FilteredCelestiaBlock = with_namespace_padding::filtered_block();
@@ -876,7 +876,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn verification_fails_if_there_is_less_blobs_than_proofs() {
         let block = with_rollup_batch_data::filtered_block();
         let (_, _, da_service, rollup_params) = setup_test_service(None).await;
@@ -901,7 +901,7 @@ mod tests {
         assert!(error.to_string().contains("more proofs than blobs"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[should_panic]
     async fn verification_fails_for_incorrect_namespace() {
         let block = with_rollup_proof_data::filtered_block();
@@ -922,7 +922,7 @@ mod tests {
             verifier.verify_relevant_tx_list(&block.header, &relevant_blobs, relevant_proofs);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_proof() -> anyhow::Result<()> {
         let (mock_server, config, da_service, rollup_params) = setup_test_service(None).await;
 

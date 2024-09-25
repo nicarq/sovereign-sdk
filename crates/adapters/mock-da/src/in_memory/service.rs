@@ -420,7 +420,7 @@ mod tests {
 
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_empty() {
         let mut da = MockDaService::new(MockAddress::new([1; 32]));
         da.wait_attempts = 10;
@@ -568,13 +568,13 @@ mod tests {
 
     mod instant_finality {
         use super::*;
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         /// Pushing a blob and immediately reading it
         async fn push_pull_single_thread() {
             test_push_and_read(0, 10).await;
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn push_many_then_read() {
             test_push_many_then_read(0, 10).await;
         }
@@ -583,21 +583,21 @@ mod tests {
     mod non_instant_finality {
         use super::*;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn push_pull_single_thread() {
             test_push_and_read(1, 10).await;
             test_push_and_read(3, 10).await;
             test_push_and_read(5, 10).await;
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn push_many_then_read() {
             test_push_many_then_read(1, 10).await;
             test_push_many_then_read(3, 10).await;
             test_push_many_then_read(5, 10).await;
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn read_multiple_times() {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
@@ -630,7 +630,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_zk_submission() -> anyhow::Result<()> {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
@@ -660,7 +660,7 @@ mod tests {
     mod reo4g_control {
         use super::*;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_reorg_control_success() {
             let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
 
@@ -696,7 +696,7 @@ mod tests {
             assert_ne!(head_before, head_after);
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_attempt_reorg_after_finalized() {
             let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(3);
 
@@ -745,7 +745,7 @@ mod tests {
             assert_ne!(block_3_after, block_3_after_reorg);
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_planned_reorg() {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
@@ -777,7 +777,7 @@ mod tests {
             assert!(da.planned_fork.is_some());
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn test_planned_reorg_shorter() {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;

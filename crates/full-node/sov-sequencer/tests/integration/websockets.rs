@@ -4,7 +4,7 @@ use sov_test_utils::sequencer::TestSequencerSetup;
 
 use crate::generate_txs;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn mempool_eviction_event() {
     let mempool_max_txs_count = 1;
     let sequencer = TestSequencerSetup::with_real_batch_builder_and_mempool_max_txs_count(
@@ -52,7 +52,7 @@ async fn mempool_eviction_event() {
     assert!(subscription.next().await.is_none());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn rpc_subscribe() {
     let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
     let client = sequencer.client();

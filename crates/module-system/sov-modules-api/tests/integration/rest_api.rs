@@ -101,7 +101,7 @@ impl<S: Spec> TxHooks for MyRuntime<S> {
     type TxState = WorkingSet<S>;
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn rest_api_routes() {
     let _module_name = "my-foo-module";
     let _data: u32 = 1200;

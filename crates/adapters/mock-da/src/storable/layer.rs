@@ -396,7 +396,7 @@ mod tests {
         assert_eq!(expected, proof.full_data());
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn empty_layer() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
 
@@ -427,7 +427,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn submit_batches_and_restart_regular_sqlite() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let db_path = tempdir.path().join("mock_da.sqlite");
@@ -454,7 +454,7 @@ mod tests {
         submit_blobs_and_restart(&connection_string, expected_blocks).await
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn submit_batches_and_restart_with_empty_blocks() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let db_path = tempdir.path().join("mock_da.sqlite");
@@ -479,7 +479,7 @@ mod tests {
         submit_blobs_and_restart(&connection_string, expected_blocks).await
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn submit_batches_and_proofs_and_restart_regular() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let db_path = tempdir.path().join("mock_da.sqlite");
@@ -511,7 +511,7 @@ mod tests {
         submit_blobs_and_restart(&connection_string, expected_blocks).await
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn close_before_producing_block() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let sender_1 = MockAddress::new([1; 32]);
@@ -582,7 +582,7 @@ mod tests {
             .map_or(false, |output| output.status.success())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     #[cfg_attr(not(feature = "postgres"), ignore)]
     async fn test_postgresql_existing() -> anyhow::Result<()> {
         if !is_docker_running() {

@@ -44,7 +44,7 @@ type TestSTF<'a> = StfBlueprint<
 >;
 
 /// This test reproduces the proof generation process for the rollup used in benchmarks.
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(skip_guest_build, ignore)]
 async fn test_proof_generation() {
     sov_test_utils::logging::initialize_logging();

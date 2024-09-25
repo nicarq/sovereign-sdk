@@ -49,7 +49,7 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["test-util", "macros"] }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
 rand = { workspace = true }
 testcontainers = { version = "0.21", features = ["blocking"] }
 testcontainers-modules = { version = "0.9", features = ["postgres"] }

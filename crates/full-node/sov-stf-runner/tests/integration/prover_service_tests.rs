@@ -18,7 +18,7 @@ use crate::helpers::genesis_state_root;
 type StateRoot = Vec<u8>;
 type Address = Vec<u8>;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     let TestProver {
         prover_service,
@@ -53,7 +53,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_prover_status_busy() -> anyhow::Result<()> {
     let TestProver {
         prover_service,
@@ -141,7 +141,7 @@ async fn test_prover_status_busy() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_generate_multiple_proofs_for_the_same_witness() -> anyhow::Result<()> {
     let TestProver { prover_service, .. } = make_new_prover();
 
@@ -165,7 +165,7 @@ async fn test_generate_multiple_proofs_for_the_same_witness() -> anyhow::Result<
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
     let total_nb_of_blocks: usize = 10;
     let jump = 5;

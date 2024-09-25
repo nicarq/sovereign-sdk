@@ -62,4 +62,4 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }
 sov-db = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["test-util", "macros"] }
+tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }

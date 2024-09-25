@@ -213,7 +213,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn get_cached() {
         let txsm = TxStatusManager::<MockDaSpec>::default();
 
@@ -242,7 +242,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn multiple_subscribers_to_same_tx_dont_leak_memory() {
         let txsm = TxStatusManager::<MockDaSpec>::default();
 
@@ -268,7 +268,7 @@ mod tests {
         assert_eq!(txsm.senders.read().unwrap().len(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn multiple_subscribers() {
         let txsm = TxStatusManager::<MockDaSpec>::default();
 

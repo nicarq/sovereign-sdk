@@ -463,7 +463,7 @@ pub trait SlotData:
 mod tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn should_run_async_fn_with_retries() {
         let error = "some error".to_string();
         let retry_counter = tokio::sync::Mutex::new(0);
