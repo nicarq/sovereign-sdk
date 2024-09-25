@@ -6,7 +6,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
 pub(crate) use gas_metering::TxGasMeter;
 pub(crate) use rewards::transaction_consumption_helper;
-pub use rewards::{forced_sequencer_registration_cost, SequencerReward, TransactionConsumption};
+pub use rewards::{
+    forced_sequencer_registration_cost, ProverRewards, RemainingFunds, SequencerReward,
+    TransactionConsumption,
+};
 use serde::{Deserialize, Serialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;

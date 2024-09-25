@@ -1,6 +1,6 @@
 use sov_rollup_interface::da::DaSpec;
 
-use crate::transaction::{AuthenticatedTransactionData, TransactionConsumption};
+use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
 use crate::{GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
@@ -34,15 +34,15 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         pre_exec_working_set: PreExecWorkingSet<S, Meter>,
     ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>>;
 
-    /// Allocates the gas consumed by the transaction to the base fee and the tip recipients.
+    /// Rewards the prover
     /// This method should not fail.
     ///
     /// ## Correctness note
     /// TODO(@theochap): The rollup developper has to make sure to pre-allocate enough gas to prevent the
     /// transaction sender from underpaying for this operation.
-    fn allocate_consumed_gas(
+    fn reward_prover(
         &self,
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        prover_rewards: &ProverRewards,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 
@@ -55,7 +55,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     fn refund_remaining_gas(
         &self,
         sender: &S::Address,
-        tx_consumption: &TransactionConsumption<S::Gas>,
+        remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 }

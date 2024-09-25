@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
     SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
-use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
+use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     DaSpec, Gas, GasArray, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
@@ -118,15 +118,16 @@ where
 
             runtime.gas_enforcer().refund_remaining_gas(
                 &sequencer_rollup_address,
-                &transaction_consumption,
+                &transaction_consumption.remaining_funds(),
                 &mut tx_scratchpad,
             );
 
-            runtime
-                .gas_enforcer()
-                .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
+            runtime.gas_enforcer().reward_prover(
+                &transaction_consumption.base_fee_value(),
+                &mut tx_scratchpad,
+            );
 
-            let sequencer_reward = SequencerReward(transaction_consumption.priority_fee());
+            let sequencer_reward = transaction_consumption.priority_fee();
             runtime.sequencer_remuneration().reward_sequencer(
                 &sequencer_rollup_address,
                 sequencer_reward,

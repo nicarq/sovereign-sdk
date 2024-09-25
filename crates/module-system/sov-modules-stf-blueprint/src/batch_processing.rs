@@ -613,15 +613,16 @@ where
 
     runtime.gas_enforcer().refund_remaining_gas(
         ctx.sender(),
-        &transaction_consumption,
+        &transaction_consumption.remaining_funds(),
         &mut tx_scratchpad,
     );
 
-    runtime
-        .gas_enforcer()
-        .allocate_consumed_gas(&transaction_consumption, &mut tx_scratchpad);
+    runtime.gas_enforcer().reward_prover(
+        &transaction_consumption.base_fee_value(),
+        &mut tx_scratchpad,
+    );
 
-    let sequencer_reward = SequencerReward(transaction_consumption.priority_fee());
+    let sequencer_reward = transaction_consumption.priority_fee();
     runtime.sequencer_remuneration().reward_sequencer(
         ctx.sequencer(),
         sequencer_reward,
