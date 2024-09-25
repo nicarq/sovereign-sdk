@@ -1,6 +1,8 @@
 use sov_bank::{Bank, Coins, GAS_TOKEN_ID};
+use sov_chain_state::ChainState;
 use sov_mock_da::MockAddress;
 use sov_modules_api::capabilities::FatalError;
+use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
@@ -448,4 +450,25 @@ fn test_custom_transaction_format_2() {
         }
         _ => panic!("The message is not a plain message"),
     }
+}
+
+#[test]
+fn test_override_next_block_timestamp() {
+    let (_, mut runner) = setup();
+    let chain_state = ChainState::<S, MockDaSpec>::default();
+
+    runner.config.override_next_header_timestamp = Some(Time::from_secs(200));
+    runner.advance_slots(1);
+
+    let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
+    assert_eq!(time, Time::from_secs(200));
+
+    let before = Time::now();
+
+    runner.advance_slots(1);
+
+    let now = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
+
+    // ensure we revert back to using `Time::now` internally by default
+    assert!(before < now);
 }
