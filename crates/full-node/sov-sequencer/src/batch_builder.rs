@@ -540,7 +540,7 @@ mod tests {
 
         use super::*;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn accept_valid_tx() {
             let tx = generate_random_valid_tx(0);
 
@@ -565,7 +565,7 @@ mod tests {
             batch_builder.accept_tx(tx.data).await.unwrap();
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn reject_tx_too_big() {
             let tx = generate_random_valid_tx(0);
             let batch_size = tx.data.len().saturating_sub(1);
@@ -586,7 +586,7 @@ mod tests {
             assert_eq!(accept_result.unwrap_err().title, "Transaction is too big");
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn new_tx_on_full_mempool_causes_evictions() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -612,7 +612,7 @@ mod tests {
             assert_eq!(MAX_TX_POOL_SIZE, batch_builder.mempool.len());
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn reject_random_bytes_tx() {
             let tx = generate_random_bytes();
 
@@ -631,7 +631,7 @@ mod tests {
             assert!(accept_result.is_err());
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn reject_signed_tx_with_invalid_payload() {
             let private_key = TestPrivateKey::generate();
             let tx = generate_signed_tx_with_invalid_payload(&private_key, 0);
@@ -668,7 +668,7 @@ mod tests {
 
         use super::*;
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn error_on_empty_mempool() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -689,7 +689,7 @@ mod tests {
             );
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn duplicate_txs_are_ignored() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
@@ -718,7 +718,7 @@ mod tests {
             assert_eq!(batch_builder.get_next_blob(1).await.unwrap().len(), 1);
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn build_batch_invalidates_everything_on_missed_genesis() {
             let value_setter_admin = TestPrivateKey::generate();
             let txs = [
@@ -741,7 +741,7 @@ mod tests {
             }
         }
 
-        #[tokio::test]
+        #[tokio::test(flavor = "multi_thread")]
         async fn builds_batch_skipping_invalid_txs() {
             let tmpdir = tempfile::tempdir().unwrap();
             let mut storage_manager = SimpleStorageManager::new(tmpdir.path());

@@ -301,7 +301,7 @@ mod tests {
         assert!(logs_contain("stopping listener"));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_on_empty_mempool() {
         let sequencer = new_sequencer(MockBatchBuilder::default()).await;
         let client = sequencer.client();
@@ -317,7 +317,7 @@ mod tests {
         assert_eq!(error_response.status().map(|s| s.as_u16()), Some(409));
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_submit_happy_path() {
         let tx1 = vec![1, 2, 3];
         let tx2 = vec![3, 4, 5];
@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(tx2, batch.txs[1].data);
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_accept_tx() {
         let batch_builder = MockBatchBuilder { mempool: vec![] };
         let da_service = MockDaService::new(MockAddress::default());

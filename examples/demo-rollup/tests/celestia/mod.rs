@@ -112,7 +112,7 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "Run manually"]
 async fn test_celestia_increasing_blob_sizes() -> anyhow::Result<()> {
     // cargo test -p sov-demo-rollup --test all_tests celestia::test_celestia_increasing_blob_sizes -- --nocapture --ignored

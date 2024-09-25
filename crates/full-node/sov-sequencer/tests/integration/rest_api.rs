@@ -4,7 +4,7 @@ use sov_test_utils::sequencer::TestSequencerSetup;
 
 use crate::generate_txs;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn axum_submit_batch_ok() {
     let sequencer = TestSequencerSetup::with_real_batch_builder().await.unwrap();
     let client = sequencer.client();

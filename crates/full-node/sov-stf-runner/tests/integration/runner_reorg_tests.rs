@@ -26,7 +26,7 @@ type MockInitVariant = InitVariant<
     DaServiceWithRetries<MockDaService>,
 >;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_simple_reorg_case() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
@@ -89,11 +89,11 @@ async fn test_simple_reorg_case() {
     assert_eq!(expected_committed_root_hash.unwrap(), committed_root_hash);
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 #[ignore = "TBD"]
 async fn test_several_reorgs() {}
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_instant_finality_data_stored() {
     let tmp_dir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);

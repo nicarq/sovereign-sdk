@@ -425,7 +425,7 @@ mod tests {
         Ok(finalized)
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn state_manager_on_empty_transitions_non_instant_finalization() -> anyhow::Result<()> {
         // Checks that the same block returned when storage requested on new
         let tempdir = tempfile::tempdir()?;
@@ -445,7 +445,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_instant_finality() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
@@ -475,7 +475,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_reorg_happened_correct_block_returned() -> anyhow::Result<()> {
         // The idea of the test is
         // to check that state manager returns the correct block and storage after reorg.
@@ -535,7 +535,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_no_seen_block_has_been_tracked() -> anyhow::Result<()> {
         // The idea of the test, is that state manager receives a request for storage for a block
         // That is not a part of the current chain.
@@ -587,7 +587,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn test_save_last_finalized_larger_than_seen_transitions() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;

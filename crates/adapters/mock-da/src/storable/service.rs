@@ -341,7 +341,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn multiple_threads_producing_reading() -> anyhow::Result<()> {
         let da_layer = Arc::new(RwLock::new(StorableMockDaLayer::new_in_memory(0).await?));
         let block_time = Duration::from_millis(50);
@@ -394,7 +394,7 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn querying_height_above_u32_max() -> anyhow::Result<()> {
         let producing = BlockProducing::OnSubmit(Duration::from_millis(10));
         let mut service = StorableMockDaService::new_in_memory(MockAddress::new([0; 32]), 0).await;

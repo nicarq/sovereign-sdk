@@ -43,4 +43,4 @@ sov-ledger-json-client = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 tempfile = "3"
-tokio = { workspace = true, features = ["test-util"] }
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }

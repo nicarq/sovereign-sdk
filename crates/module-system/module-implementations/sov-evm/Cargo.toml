@@ -36,7 +36,9 @@ tracing = { workspace = true }
 alloy-sol-types = { version = "0.7.7", default-features = false }
 alloy-eips = { version = "0.2", default-features = false }
 # `rlp` feature implicitly enabled via `reth-` crates, but this allows us to explicitly access Error type from there
-alloy-primitives = { version = "0.7.7", default-features = false, features = ["rlp"] }
+alloy-primitives = { version = "0.7.7", default-features = false, features = [
+    "rlp",
+] }
 
 alloy-rpc-types = { workspace = true, optional = true }
 revm = { workspace = true, features = [
@@ -52,7 +54,7 @@ reth-rpc-eth-types = { workspace = true, optional = true }
 
 [dev-dependencies]
 sov-evm = { path = ".", features = ["native"] }
-tokio = { workspace = true, features = ["macros", "rt"] }
+tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tempfile = { workspace = true }
 bytes = { workspace = true }
 ethers-signers = { workspace = true }

@@ -47,7 +47,7 @@ async fn get_filtered_slot_events() {
     assert_eq!(events[1].key, "bar");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_slot_subscription() {
     let temp_dir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleLedgerStorageManager::new(temp_dir.path());

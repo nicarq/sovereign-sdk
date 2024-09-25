@@ -15,7 +15,7 @@ use crate::evm::primitive_types::TransactionSignedAndRecovered;
 use crate::helpers::prepare_call_env;
 use crate::primitive_types::Block;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn tx_rlp_encoding_test() -> Result<(), Box<dyn std::error::Error>> {
     let wallet = "dcf2cbdd171a21c480aa7f53d77f31bb102282b3ff099c78e3118b37348c72f7"
         .parse::<LocalWallet>()?;
