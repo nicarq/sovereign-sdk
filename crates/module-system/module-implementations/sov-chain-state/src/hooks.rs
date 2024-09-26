@@ -1,6 +1,6 @@
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, KernelStateAccessor, KernelWriter, Spec};
+use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec};
 use sov_state::{StateRoot, Storage};
 
 use crate::{BlockGasInfo, ChainState, StateTransition, TransitionInProgress};
@@ -45,7 +45,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
                 .set(pre_state_root, state)
                 .unwrap_infallible();
 
-            BlockGasInfo::new(Self::initial_gas_limit(), Self::initial_base_fee_per_gas())
+            BlockGasInfo::new(S::initial_gas_limit(), S::initial_base_fee_per_gas())
         } else {
             let transition: StateTransition<S, Da> = {
                 let TransitionInProgress {
@@ -80,7 +80,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
             BlockGasInfo::new(
                 // TODO(@theochap): the gas limit should be updated dynamically `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/271`
-                Self::initial_gas_limit(),
+                S::initial_gas_limit(),
                 computed_base_fee,
             )
         };

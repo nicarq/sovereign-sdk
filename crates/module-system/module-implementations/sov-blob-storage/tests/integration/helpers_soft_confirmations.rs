@@ -1,10 +1,10 @@
-use sov_chain_state::{ChainState, ChainStateConfig};
+use sov_chain_state::ChainStateConfig;
 use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CryptoSpec, GasArray, OperatingMode, Spec};
+use sov_modules_api::{CryptoSpec, Gas, GasSpec, OperatingMode, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -31,8 +31,8 @@ pub fn setup_soft_confirmation_kernel() -> (
     let regular_sequencer = genesis_config.additional_accounts[1].clone();
     let regular_sequencer_da_address = MockAddress::new([42; 32]);
 
-    let user_stake = <<S as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
-    let user_stake_value = ChainState::<S, MockDaSpec>::initial_gas_value(user_stake);
+    let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
+    let user_stake_value = user_stake.value(&S::initial_base_fee_per_gas());
 
     let regular_sequencer = TestSequencer {
         user_info: regular_sequencer,

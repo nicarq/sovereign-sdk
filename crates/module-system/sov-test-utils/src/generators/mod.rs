@@ -7,7 +7,7 @@ use std::rc::Rc;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{Batch, CryptoSpec, EncodeCall, FullyBakedTx, GasArray, Module, RawTx, Spec};
+use sov_modules_api::{Batch, CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
 
 use crate::{TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
@@ -97,9 +97,7 @@ pub trait MessageGenerator {
             Self::DEFAULT_CHAIN_ID,
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
-            Some(<Self::Spec as Spec>::Gas::from_slice(
-                &TEST_DEFAULT_GAS_LIMIT,
-            )),
+            Some(<Self::Spec as Spec>::Gas::from(TEST_DEFAULT_GAS_LIMIT)),
         )
     }
 
@@ -123,9 +121,7 @@ pub trait MessageGenerator {
             Self::DEFAULT_CHAIN_ID,
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
-            Some(<Self::Spec as Spec>::Gas::from_slice(
-                &TEST_DEFAULT_GAS_LIMIT,
-            )),
+            Some(<Self::Spec as Spec>::Gas::from(TEST_DEFAULT_GAS_LIMIT)),
         )
     }
 

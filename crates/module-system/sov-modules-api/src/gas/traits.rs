@@ -35,21 +35,11 @@ pub trait GasArray:
     + From<[u64; GAS_DIMENSIONS]>
     + Into<[u64; GAS_DIMENSIONS]>
     + AsRef<[u64; GAS_DIMENSIONS]>
+    + AsMut<[u64; GAS_DIMENSIONS]>
+    + TryFrom<Vec<u64>, Error: Into<anyhow::Error> + Debug>
 {
     /// A zeroed instance of the unit.
     const ZEROED: Self;
-
-    /// Creates a unit from a multi-dimensional unit with arbitrary dimension.
-    fn from_slice(dimensions: &[u64]) -> Self;
-
-    /// Returns a multi-dimensional representation of the unit.
-    fn as_slice(&self) -> &[u64];
-
-    /// Returns a mutable reference to the multi-dimensional representation of the unit.
-    fn as_slice_mut(&mut self) -> &mut [u64];
-
-    /// Creates a multi-dimensional representation of the unit.
-    fn to_vec(&self) -> Vec<u64>;
 
     /// In-place combination of gas units, resulting in an addition.
     fn combine(&mut self, rhs: &Self) -> &mut Self;
@@ -94,21 +84,11 @@ pub trait GasArray:
     + From<[u64; GAS_DIMENSIONS]>
     + Into<[u64; GAS_DIMENSIONS]>
     + AsRef<[u64; GAS_DIMENSIONS]>
+    + AsMut<[u64; GAS_DIMENSIONS]>
+    + TryFrom<Vec<u64>, Error: Into<anyhow::Error> + Debug>
 {
     /// A zeroed instance of the unit.
     const ZEROED: Self;
-
-    /// Creates a unit from a multi-dimensional unit with arbitrary dimension.
-    fn from_slice(dimensions: &[u64]) -> Self;
-
-    /// Returns a multi-dimensional representation of the unit.
-    fn as_slice(&self) -> &[u64];
-
-    /// Returns a mutable reference to the multi-dimensional representation of the unit.
-    fn as_slice_mut(&mut self) -> &mut [u64];
-
-    /// Creates a multi-dimensional representation of the unit.
-    fn to_vec(&self) -> Vec<u64>;
 
     /// In-place combination of gas units, resulting in an addition.
     fn combine(&mut self, rhs: &Self) -> &mut Self;
@@ -241,9 +221,30 @@ macro_rules! impl_gas_dimensions {
             }
         }
 
+        impl TryFrom<Vec<u64>> for $t {
+            type Error = anyhow::Error;
+
+            fn try_from(value: Vec<u64>) -> Result<Self, Self::Error> {
+                if value.len() != $n {
+                    anyhow::bail!("Impossible to convert to a gas unit. The array must have {} elements, but it has {}", $n, value.len());
+                }
+
+                let mut output = [0; $n];
+                output.copy_from_slice(&value);
+
+                Ok(Self(output))
+            }
+        }
+
         impl AsRef<[u64; $n]> for $t {
             fn as_ref(&self) -> &[u64; $n] {
                 &self.0
+            }
+        }
+
+        impl AsMut<[u64; $n]> for $t {
+            fn as_mut(&mut self) -> &mut [u64; $n] {
+                &mut self.0
             }
         }
 
@@ -257,41 +258,18 @@ macro_rules! impl_gas_dimensions {
         impl GasArray for $t {
             const ZEROED: Self = Self([0; $n]);
 
-            fn from_slice(dimensions: &[u64]) -> Self {
-                // as demonstrated on the link below, the compiler can easily optimize the conversion as if
-                // it is a transparent type.
-                //
-                // https://rust.godbolt.org/z/rPhaxnPEY
-                let mut unit = Self::ZEROED;
-                unit.0
-                    .iter_mut()
-                    .zip(dimensions.iter().copied())
-                    .for_each(|(a, b)| *a = b);
-                unit
-            }
-
-            fn as_slice(&self) -> &[u64] {
-                &self.0[..]
-            }
-
-            fn as_slice_mut(&mut self) -> &mut [u64] {
-                &mut self.0[..]
-            }
-
-            fn to_vec(&self) -> Vec<u64> {
-                self.0.to_vec()
-            }
-
             fn checked_sub(&self, rhs: &Self) -> Option<Self> {
-                let res: Option<Vec<u64>> = self
-                    .0
-                    .as_slice()
-                    .iter()
-                    .zip(rhs.0.as_slice())
-                    .map(|(l, r)| l.checked_sub(*r))
-                    .collect();
+                let mut output = [0; $n];
 
-                res.map(|v| Self::from_slice(&v))
+                for (i, (l, r)) in self.0.iter().zip(rhs.0.as_slice()).enumerate() {
+                    if let Some(res) = l.checked_sub(*r) {
+                        output[i] = res;
+                    } else {
+                        return None
+                    }
+                }
+
+                Some(Self(output))
             }
 
             fn scalar_division(&mut self, scalar: u64) -> &mut Self {

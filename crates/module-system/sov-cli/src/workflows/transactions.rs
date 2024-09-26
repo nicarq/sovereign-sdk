@@ -8,7 +8,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
-use sov_modules_api::{CliWallet, DispatchCall, GasArray, Spec};
+use sov_modules_api::{CliWallet, DispatchCall, Spec};
 use sov_rollup_interface::common::HexString;
 
 use crate::wallet_state::{sign_tx, KeyIdentifier, WalletState};
@@ -198,7 +198,10 @@ where
             .try_into()
             .map_err(Into::<anyhow::Error>::into)?;
 
-        let gas_limit = gas_limit.map(|m| GasArray::from_slice(&m));
+        let gas_limit = gas_limit
+            .map(<S as Spec>::Gas::try_from)
+            .transpose()
+            .map_err(Into::<anyhow::Error>::into)?;
 
         Ok(UnsignedTransactionWithoutNonce::new(
             tx,

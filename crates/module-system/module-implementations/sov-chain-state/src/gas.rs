@@ -37,6 +37,12 @@ impl NonZeroRatio {
     }
 }
 
+impl From<NonZeroRatio> for u64 {
+    fn from(ratio: NonZeroRatio) -> u64 {
+        ratio.0.into()
+    }
+}
+
 impl TryFrom<u8> for NonZeroRatio {
     type Error = NonZeroRatioConversionError;
 
@@ -95,62 +101,13 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// defined in the EIP-1559 specification its default value is 2.
     pub const ELASTICITY_MULTIPLIER: NonZeroRatio = Self::elasticity_multiplier();
 
-    /// Specifies the initial base fee per gas for the genesis block.
-    ///
-    /// # TODO
-    /// This method should be converted in a constant time constructor. The current implementation of the
-    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
-    /// require a new proc-macro, see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
-    ///
-    /// # Note
-    /// This constant is the same as the `INITIAL_BASE_FEE_PER_GAS` constant
-    /// defined in the EIP-1559 specification. Its default value is `[100, 100]`.
-    ///
-    /// # Safety
-    /// This method panics if the initial gas price is not set at genesis
-    pub fn initial_base_fee_per_gas() -> <S::Gas as Gas>::Price {
-        const INITIAL_BASE_FEE_PER_GAS: &[u64] = &config_value!("INITIAL_BASE_FEE_PER_GAS");
-
-        <<S as Spec>::Gas as Gas>::Price::from_slice(INITIAL_BASE_FEE_PER_GAS)
-    }
-
-    /// Computes the initial value of the gas unit using the initial base fee per gas.
-    ///
-    /// # TODO
-    /// This method can (and should) be converted in a constant time constructor. The current implementation of the
-    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasPrice`] constants, so this will probably
-    /// require a new proc-macro, see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
-    pub fn initial_gas_value(gas: S::Gas) -> u64 {
-        gas.value(&Self::initial_base_fee_per_gas())
-    }
-
-    /// Specifies the initial gas limit for the genesis block.
-    /// This value is retrieved from the config file and is then converted to a [`sov_modules_api::GasUnit`] at runtime
-    ///
-    /// # TODO
-    /// This method should be converted in a constant time constructor. The current implementation of the
-    /// [`config_value!`] macro cannot be used to define [`sov_modules_api::GasUnit`] constants, so this will probably
-    /// require a new proc-macro `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/475>`.
-    ///
-    /// # Note
-    /// This constant is the same as the `INITIAL_BASE_FEE_PER_GAS` constant
-    /// defined in the EIP-1559 specification its default value is `[1, 1]`.
-    pub fn initial_gas_limit() -> S::Gas {
-        const INITIAL_GAS_LIMIT: &[u64] = &config_value!("INITIAL_GAS_LIMIT");
-
-        S::Gas::from_slice(INITIAL_GAS_LIMIT)
-    }
-
     /// Computes the gas target for the provided gas limit.
     /// Basically, divides each dimension of the gas limit by the [`ChainState::ELASTICITY_MULTIPLIER`].
     pub fn gas_target(gas_limit: &S::Gas) -> S::Gas {
-        S::Gas::from_slice(
-            &gas_limit
-                .as_slice()
-                .iter()
-                .map(|g| Self::ELASTICITY_MULTIPLIER.apply_div(*g))
-                .collect::<Vec<u64>>(),
-        )
+        let mut gas_target = gas_limit.clone();
+        gas_target.scalar_division(Self::ELASTICITY_MULTIPLIER.into());
+
+        gas_target
     }
 
     /// Computes the initial gas target (genesis block) by calling [`ChainState::gas_target`] on the initial gas limit.
@@ -223,21 +180,20 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     pub fn compute_base_fee_per_gas(
         parent_gas_info: &BlockGasInfo<S::Gas>,
     ) -> <S::Gas as Gas>::Price {
-        let res: Vec<u64> = parent_gas_info
-            .base_fee_per_gas
-            .as_slice()
-            .iter()
-            .zip(parent_gas_info.gas_limit.as_slice().iter())
-            .zip(parent_gas_info.gas_used.as_slice().iter())
-            .map(|((base_fee_per_gas, gas_limit), gas_used)| {
-                Self::compute_base_fee_per_gas_unidimensional(
+        let mut output = parent_gas_info.base_fee_per_gas.clone();
+        output
+            .as_mut()
+            .iter_mut()
+            .zip(parent_gas_info.gas_limit.as_ref().iter())
+            .zip(parent_gas_info.gas_used.as_ref().iter())
+            .for_each(|((base_fee_per_gas, gas_limit), gas_used)| {
+                *base_fee_per_gas = Self::compute_base_fee_per_gas_unidimensional(
                     *gas_limit,
                     *gas_used,
                     *base_fee_per_gas,
-                )
-            })
-            .collect();
+                );
+            });
 
-        <S::Gas as Gas>::Price::from_slice(res.as_slice())
+        output
     }
 }

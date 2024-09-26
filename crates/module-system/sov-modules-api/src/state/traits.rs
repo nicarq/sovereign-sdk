@@ -1,7 +1,6 @@
 use std::convert::Infallible;
 use std::fmt::Debug;
 
-use sov_modules_macros::config_value;
 #[cfg(feature = "native")]
 use sov_state::StorageProof;
 use sov_state::{
@@ -12,9 +11,10 @@ use sov_state::{
 use thiserror::Error;
 
 use super::accessors::seal::CachedAccessor;
+use crate::gas::GasArray;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 use crate::UnmeteredStateWrapper;
-use crate::{Gas, GasMeter, GasMeteringError, Spec};
+use crate::{Gas, GasMeter, GasMeteringError, GasSpec, Spec};
 
 /// A type that can both read and write the normal "user-space" state of the rollup.
 ///
@@ -169,73 +169,12 @@ pub enum StateAccessorError<GU: Gas> {
 /// ## NOTE
 /// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
 /// optimal
-pub(crate) fn decode_gas_cost<GU: Gas>(input: &SlotValue) -> GU {
-    const GAS_TO_CHARGE_FOR_DECODING: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_DECODING");
-    let mut gas_cost = GU::from_slice(&GAS_TO_CHARGE_FOR_DECODING);
+pub(crate) fn decode_gas_cost<Spec: GasSpec>(input: &SlotValue) -> Spec::Gas {
+    let mut gas_cost = Spec::gas_to_charge_for_decoding();
     let input_len = input.value().len();
     gas_cost.scalar_product(input_len as u64);
 
     gas_cost
-}
-
-/// Returns the gas to charge for a read operation. This value is the maximum amount of gas that can be charged
-/// for a read operation. Some of this amount may be refunded to the gas meter if the read operation access a warm value.
-///
-/// ## NOTE
-/// The constants' value should be updated based on benchmarks to ensure that the gas cost of the read operation is
-/// optimal
-pub(crate) fn gas_to_charge_for_read<GU: Gas>() -> GU {
-    const GAS_TO_CHARGE_FOR_READ: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_ACCESS");
-    GU::from_slice(&GAS_TO_CHARGE_FOR_READ)
-}
-
-/// Gas to refund for a read operation. Now this is the value to refund for a read operation that accesses a warm value.
-/// In the future we may want to support more access patterns and improve the granularity of the refund.
-pub(crate) fn gas_to_refund_for_hot_read<GU: Gas>() -> GU {
-    const GAS_TO_REFUND_FOR_HOT_READ: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS");
-    GU::from_slice(&GAS_TO_REFUND_FOR_HOT_READ)
-}
-
-/// Returns the gas to charge for a write operation. This value is the maximum amount of gas that can be charged
-/// for a write operation. Some of this amount may be refunded to the gas meter if the write operation access a warm value.
-///
-/// ## NOTE
-/// The constants' value should be updated based on benchmarks to ensure that the gas cost of the write operation is
-/// optimal
-///  
-/// For now, charges the same amount of gas for delete as for write.
-/// In the future, we may want to charge a different amount and improve the granularity of the refund.
-pub(crate) fn gas_to_charge_for_write<GU: Gas>() -> GU {
-    const GAS_TO_CHARGE_FOR_WRITE: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_WRITE");
-    GU::from_slice(&GAS_TO_CHARGE_FOR_WRITE)
-}
-
-/// Gas to refund for a write operation. Now this is the value to refund for a write operation that accesses a warm value.
-/// In the future we may want to support more access patterns and improve the granularity of the refund.
-pub(crate) fn gas_to_refund_for_hot_write<GU: Gas>() -> GU {
-    const GAS_TO_REFUND_FOR_HOT_WRITE: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
-    GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
-}
-
-/// Returns the gas to charge for a delete operation. This value is the maximum amount of gas that can be charged
-/// for a delete operation. Some of this amount may be refunded to the gas meter if the delete operation access a warm value.
-///
-/// ## NOTE
-/// The constants' value should be updated based on benchmarks to ensure that the gas cost of the delete operation is
-/// optimal
-///  
-/// For now, charges the same amount of gas for delete as for delete.
-/// In the future, we may want to charge a different amount and improve the granularity of the refund.
-pub(crate) fn gas_to_charge_for_delete<GU: Gas>() -> GU {
-    const GAS_TO_CHARGE_FOR_WRITE: [u64; 2] = config_value!("GAS_TO_CHARGE_FOR_WRITE");
-    GU::from_slice(&GAS_TO_CHARGE_FOR_WRITE)
-}
-
-/// Gas to refund for a delete operation. Now this is the value to refund for a delete operation that accesses a warm value.
-/// In the future we may want to support more access patterns and improve the granularity of the refund.
-pub(crate) fn gas_to_refund_for_hot_delete<GU: Gas>() -> GU {
-    const GAS_TO_REFUND_FOR_HOT_WRITE: [u64; 2] = config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
-    GU::from_slice(&GAS_TO_REFUND_FOR_HOT_WRITE)
 }
 
 /// A trait that represents a [`StateReader`] and [`StateWriter`] to a given namespace that never fails on state accesses. Accessing the state with structs that implement
@@ -346,18 +285,18 @@ pub trait AccessoryStateReader: CachedAccessor<Accessory> {}
 /// A trait wrapper that replicates the functionality of [`StateReader`] but with a gas metering interface.
 /// This allows a storage reader to charge gas for read operations.
 pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter<Self::GU>
+    CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
 {
-    type GU: Gas;
+    type Spec: GasSpec;
 }
 
 macro_rules! blanket_impl_metered_state_reader {
     ($namespace:ty) => {
         impl<T: ProvableStateReader<$namespace>> StateReader<$namespace> for T {
-            type Error = StateAccessorError<T::GU>;
+            type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
             fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Self::Error> {
-                self.charge_gas(&gas_to_charge_for_read())
+                self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_access())
                     .map_err(|e| StateAccessorError::Get{
                         key: key.clone(),
                         inner: e,
@@ -367,7 +306,7 @@ macro_rules! blanket_impl_metered_state_reader {
                 let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
 
                 if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&gas_to_refund_for_hot_read()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                 }
 
                 Ok(val)
@@ -385,7 +324,7 @@ macro_rules! blanket_impl_metered_state_reader {
                 let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
                 if let Some(storage_value) = &storage_value {
-                    self.charge_gas(&decode_gas_cost(storage_value)).map_err(|e| StateAccessorError::Decode{
+                    self.charge_gas(&decode_gas_cost::<T::Spec>(storage_value)).map_err(|e| StateAccessorError::Decode{
                         key: storage_key.clone(),
                         inner: e,
                         namespace: <$namespace>::PROVABLE_NAMESPACE,
@@ -446,18 +385,18 @@ pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
 }
 
 pub trait ProvableStateWriter<N: ProvableCompileTimeNamespace>:
-    CachedAccessor<N> + GasMeter<Self::GU>
+    CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
 {
-    type GU: Gas;
+    type Spec: GasSpec;
 }
 
 macro_rules! blanket_impl_metered_state_writer {
     ($namespace:ty) => {
         impl<T: ProvableStateWriter<$namespace>> StateWriter<$namespace> for T {
-            type Error = StateAccessorError<T::GU>;
+            type Error = StateAccessorError<<T::Spec as GasSpec>::Gas>;
 
             fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Self::Error> {
-                self.charge_gas(&gas_to_charge_for_write())
+                self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_write())
                     .map_err(|e| StateAccessorError::Set{
                         key: key.clone(),
                         inner: e,
@@ -466,14 +405,14 @@ macro_rules! blanket_impl_metered_state_writer {
                 let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
 
                 if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                 }
 
                 Ok(())
             }
 
             fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
-                self.charge_gas(&gas_to_charge_for_delete()).
+                self.charge_gas(&<T::Spec as GasSpec>::gas_to_charge_for_delete()).
                     map_err(|e| StateAccessorError::Delete{
                         key: key.clone(),
                         inner: e,
@@ -482,7 +421,7 @@ macro_rules! blanket_impl_metered_state_writer {
                 let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
 
                 if is_value_cached == IsValueCached::Yes {
-                    self.refund_gas(&gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                    self.refund_gas(&<T::Spec as GasSpec>::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                 }
 
                 Ok(())

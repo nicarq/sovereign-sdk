@@ -1,7 +1,6 @@
 use std::cmp::min;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_macros::config_value;
 
 use super::data::PriorityFeeBips;
 use crate::{Gas, GasArray, Spec};
@@ -129,12 +128,4 @@ pub(crate) fn transaction_consumption_helper<S: Spec>(
         priority_fee: tip,
         gas_price: gas_price.clone(),
     }
-}
-
-/// A fixed gas cost to pay to register an unregistered sender as a sequencer.
-pub fn forced_sequencer_registration_cost<S: Spec>() -> S::Gas {
-    const GAS_FORCED_SEQUENCER_REGISTRATION_COST: [u64; 2] =
-        config_value!("GAS_FORCED_SEQUENCER_REGISTRATION_COST");
-
-    S::Gas::from_slice(&GAS_FORCED_SEQUENCER_REGISTRATION_COST)
 }

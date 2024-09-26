@@ -1,7 +1,7 @@
 use sov_bank::{Bank, Coins, ReserveGasErrorReason, GAS_TOKEN_ID};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, GasArray, GasUnit, Spec, TxEffect};
+use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
 use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TestUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestData};
@@ -102,14 +102,15 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
             .unwrap(),
     );
 
-    let gas_price_simulation = <<S as Spec>::Gas as Gas>::Price::from_slice(
-        &simulation_result
+    let gas_price_simulation = <<S as Spec>::Gas as Gas>::Price::try_from(
+        simulation_result
             .batch_receipts
             .last()
             .unwrap()
             .gas_price
             .clone(),
-    );
+    )
+    .unwrap();
 
     let gas_used_value_simulation = gas_used_simulation.value(&gas_price_simulation);
 
@@ -342,7 +343,7 @@ fn test_reserve_gas_price_too_high() {
                 },
             })
             .with_max_fee(sender_balance)
-            .with_gas_limit(Some(GasUnit::from_slice(&[sender_balance / 2; 2]))),
+            .with_gas_limit(Some(GasUnit::from([sender_balance / 2; 2]))),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(

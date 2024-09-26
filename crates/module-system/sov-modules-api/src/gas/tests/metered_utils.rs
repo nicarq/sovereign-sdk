@@ -26,10 +26,10 @@ fn create_working_set(
 
 #[test]
 fn test_metered_hasher_happy_path() {
-    let gas_to_charge_for_hash_update = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from_slice(&[2, 2]);
+    let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
+    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
 
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
@@ -59,10 +59,10 @@ fn test_metered_hasher_happy_path() {
 
 #[test]
 fn test_metered_hasher_not_enough_gas_to_finalize() {
-    let gas_to_charge_for_hash_update = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from_slice(&[2, 2]);
+    let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
+    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
 
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
@@ -91,10 +91,10 @@ fn test_metered_hasher_not_enough_gas_to_finalize() {
 
 #[test]
 fn test_metered_hasher_not_enough_gas_to_update() {
-    let gas_to_charge_for_hash_update = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from_slice(&[2, 2]);
+    let gas_to_charge_for_hash_update = GasUnit::<2>::from([5, 5]);
+    let gas_to_charge_for_hash_finalize = GasUnit::<2>::from([2, 2]);
 
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
@@ -119,10 +119,10 @@ fn test_metered_hasher_not_enough_gas_to_update() {
 
 #[test]
 fn test_metered_signature() {
-    let gas_to_charge_for_signature = GasUnit::<2>::from_slice(&[5, 5]);
-    let mut fixed_cost = GasUnit::<2>::from_slice(&[1000, 1000]);
+    let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
+    let mut fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
@@ -155,10 +155,10 @@ fn test_metered_signature() {
 
 #[test]
 fn test_metered_signature_not_enough_gas() {
-    let gas_to_charge_for_signature = GasUnit::<2>::from_slice(&[5, 5]);
-    let mut fixed_cost = GasUnit::<2>::from_slice(&[1000, 1000]);
+    let gas_to_charge_for_signature = GasUnit::<2>::from([5, 5]);
+    let mut fixed_cost = GasUnit::<2>::from([1000, 1000]);
 
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = [1_u8; 32];
 
@@ -198,8 +198,8 @@ pub struct BorshTestStruct {
 
 #[test]
 fn test_metered_deserializer() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = BorshTestStruct {
         field1: 1,
@@ -230,8 +230,8 @@ fn test_metered_deserializer() {
 
 #[test]
 fn test_metered_deserializer_not_enough_gas() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = BorshTestStruct {
         field1: 1,
@@ -262,8 +262,8 @@ fn test_metered_deserializer_not_enough_gas() {
 
 #[test]
 fn test_metered_deserializer_invalid_data() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from_slice(&[5, 5]);
-    let gas_price = GasPrice::<2>::from_slice(&[1, 1]);
+    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
     let data = BorshTestStruct {
         field1: 1,

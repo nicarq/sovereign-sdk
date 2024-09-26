@@ -291,14 +291,14 @@ pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>
     state: &mut PreExecWorkingSet<S, Meter>,
 ) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
     let raw_tx_hash = MeteredHasher::<
-        S::Gas,
+        _,
         PreExecWorkingSet<S, Meter>,
         <S::CryptoSpec as CryptoSpec>::Hasher,
-    >::digest(raw_tx, state)
+    >::digest::<S>(raw_tx, state)
     .map(TxHash::new)
     .map_err(|e| AuthenticationError::Invalid(e.to_string()))?;
 
-    let tx = <Transaction<S> as MeteredBorshDeserialize<S::Gas>>::deserialize(&mut raw_tx, state)
+    let tx = <Transaction<S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
         .map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
     })?;
