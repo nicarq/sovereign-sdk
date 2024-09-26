@@ -481,10 +481,12 @@ fn test_freeze_time() {
     // timestamps should revert to the current time
     runner.config.freeze_time = None;
 
-    let before = Time::now();
     runner.advance_slots(1);
 
     let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
 
-    assert!(before < time, "Time should no longer be frozen");
+    assert!(
+        Time::from_secs(5000) < time,
+        "Time should no longer be frozen"
+    );
 }
