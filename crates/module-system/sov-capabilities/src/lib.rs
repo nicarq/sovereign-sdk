@@ -56,7 +56,6 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
             self.attester_incentives.id().to_payable()
         };
 
-        // TODO(@theochap): In the next PR this method will become failible
         self.bank
             .reward_prover(&rewarded_module, prover_rewards, tx_scratchpad);
     }

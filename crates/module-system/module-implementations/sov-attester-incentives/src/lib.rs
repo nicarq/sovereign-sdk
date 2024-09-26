@@ -107,7 +107,6 @@ where
     pub light_client_finalized_height: StateValue<TransitionHeight>,
 
     /// The reward burn rate for the attester incentives module
-    /// TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/285>`: This should be a constant.
     #[state]
     pub reward_burn_rate: StateValue<BurnRate>,
 

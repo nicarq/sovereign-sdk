@@ -395,25 +395,6 @@ impl<'a, H> Arbitrary<'a> for Address<H> {
 impl<H: Send + Sync + 'static> BasicAddress for Address<H> {}
 impl<H: Send + Sync + 'static> RollupAddress for Address<H> {}
 
-/// Utilities for testing.
-/// TODO(@theochap): to deprecate in favor of the `sov-test-utils` crate.
-#[cfg(feature = "test-utils")]
-pub mod test_utils {
-    use digest::Digest;
-    use sov_rollup_interface::zk::CryptoSpec;
-
-    use crate::Spec;
-
-    /// A utility function for generating an address from a string.
-    pub fn generate_address<S: Spec>(key: &str) -> S::Address
-    where
-        S::Address: From<[u8; 32]>,
-    {
-        let hash: [u8; 32] = <S::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
-        S::Address::from(hash)
-    }
-}
-
 // TODO(@preston-evans98): unify core and modules, then
 // enable sov-modules-macros and do this
 // #[sov_modules_macros::config_constant]
