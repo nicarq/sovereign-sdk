@@ -14,7 +14,6 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, Runtime, TransactionReceipt, TxEffect, TxProcessingError,
-    TxProcessingErrorReason,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::batch_builder::{AcceptTxError, BatchBuilder, TxWithHash};
@@ -97,7 +96,7 @@ where
         mut ctx: BatchConstructionContext<S>,
     ) -> (
         BatchConstructionContext<S>,
-        Result<Option<TransactionReceipt<S>>, TxProcessingErrorReason>,
+        Result<Option<TransactionReceipt<S>>, TxProcessingError>,
     ) {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
@@ -119,18 +118,15 @@ where
             ExecutionContext::Sequencer,
         );
 
-        match res {
-            Err(TxProcessingError {
-                tx_scratchpad,
-                reason,
-            }) => {
+        let (tx_result, tx_scratchpad) = res;
+        match tx_result {
+            Err(reason) => {
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = tx_scratchpad.revert();
 
                 (ctx, Err(reason))
             }
             Ok(ApplyTxResult {
-                tx_scratchpad,
                 receipt,
                 sequencer_reward,
             }) => {
@@ -282,7 +278,7 @@ where
                     ctx = c;
                     txr
                 }
-                (c, Err(TxProcessingErrorReason::Nonce { .. })) => {
+                (c, Err(TxProcessingError::Nonce { .. })) => {
                     tracing::info!(
                         hash = %mempool_tx.hash,
                         "Transaction processing error due to nonce; ignoring tx",
