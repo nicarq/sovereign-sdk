@@ -38,24 +38,6 @@ pub trait StakeRegistration {
             return Err(RegistrationError::AlreadyRegistered(rollup_address.clone()));
         }
 
-        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1478>`): now that the minimum bonds are dynamic, we don't need this check anymore.
-        let minimum_bond = match self.get_minimum_bond(state)? {
-            Some(min_amount) => min_amount,
-            None => {
-                tracing::error!(staker = ?primary_address, "No minimum bond set");
-                return Err(RegistrationError::NoMinimumBondSet(rollup_address.clone()));
-            }
-        };
-
-        if amount < minimum_bond {
-            tracing::error!(amount = ?amount, minimum_bond = ?minimum_bond, "Insufficient stake amount");
-            return Err(RegistrationError::InsufficientStakeAmount {
-                address: rollup_address.clone(),
-                bond_amount: amount,
-                minimum_bond_amount: minimum_bond,
-            });
-        }
-
         self.transfer_bond_from_staker(rollup_address, amount, state)
             .map_err(|e| {
                 tracing::error!(staker = ?primary_address, error = ?e, "Insufficient funds to register");
