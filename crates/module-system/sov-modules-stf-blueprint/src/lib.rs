@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Batch, BatchSequencerReceipt, TxScratchpad, VersionReader};
+use sov_modules_api::{Batch, BatchSequencerReceipt, VersionReader};
 use sov_state::StateRoot;
 mod batch_processing;
 mod proof_processing;
@@ -127,8 +127,6 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
 /// This is the value returned when [`process_tx`] succeeds.
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
 pub struct ApplyTxResult<S: Spec> {
-    /// The transaction scratchpad following the application of the transaction.
-    pub tx_scratchpad: TxScratchpad<S::Storage>,
     /// The transaction receipt.
     pub receipt: TransactionReceipt<S>,
     /// The amount of gas tokens that the sequencer should be rewarded.
@@ -137,7 +135,7 @@ pub struct ApplyTxResult<S: Spec> {
 
 /// The different errors that can be raised after transaction processing
 #[derive(Error, Debug)]
-pub enum TxProcessingErrorReason {
+pub enum TxProcessingError {
     /// The sequencer is not authorized to execute the transaction
     #[error("The sequencer is not authorized to execute the transaction, error {0}")]
     SequencerUnauthorized(String),
@@ -175,14 +173,6 @@ pub enum TxProcessingErrorReason {
     /// These transactions can be processed in the case of direct sequencer registration.
     #[error("The unregistered senders transaction was rejected from processing, reason: {0}")]
     InvalidUnregisteredTx(String),
-}
-
-/// Error type raised when processing a transaction
-pub struct TxProcessingError<S: Spec> {
-    /// The transaction scratchpad when the error was raised
-    pub tx_scratchpad: TxScratchpad<S::Storage>,
-    /// The reason of the error
-    pub reason: TxProcessingErrorReason,
 }
 
 /// Genesis parameters for a blueprint

@@ -20,7 +20,7 @@ use tracing::{debug, error, info, warn};
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
     ApplyTxResult, RevertedTxContents, Runtime, SkippedReason, SuccessfulTxContents, TxEffect,
-    TxProcessingError, TxProcessingErrorReason, TxReceiptContents,
+    TxProcessingError, TxReceiptContents,
 };
 
 /// The receipt type for a transacition using the STF blueprint.
@@ -118,14 +118,12 @@ where
             )
         };
 
-        match process_tx_result {
-            Err(TxProcessingError {
-                tx_scratchpad,
-                reason,
-            }) => {
-                checkpoint = tx_scratchpad.commit();
+        let (tx_result, tx_scratchpad) = process_tx_result;
+        checkpoint = tx_scratchpad.commit();
+        match tx_result {
+            Err(reason) => {
                 match reason {
-                    TxProcessingErrorReason::SequencerUnauthorized(reason) => {
+                    TxProcessingError::SequencerUnauthorized(reason) => {
                         let remaining = raw_txs.len() - idx - 1;
                         error!(
                             reason = %reason,
@@ -138,9 +136,9 @@ where
                     }
 
                     // If the sequencer raised a fatal error then he needs to get slashed and we stop applying the batch
-                    TxProcessingErrorReason::AuthenticationError(
-                        AuthenticationError::FatalError(err),
-                    ) => {
+                    TxProcessingError::AuthenticationError(AuthenticationError::FatalError(
+                        err,
+                    )) => {
                         error!(
                                 sequencer_da_address = %sequencer_da_address,
                                 err=%err, "Tx authentication raised a fatal error, sequencer slashed");
@@ -159,7 +157,7 @@ where
                             gas_used,
                         );
                     }
-                    TxProcessingErrorReason::InvalidUnregisteredTx(reason) => {
+                    TxProcessingError::InvalidUnregisteredTx(reason) => {
                         warn!(
                             sequencer_da_address = %sequencer_da_address,
                             reason = %reason,
@@ -180,7 +178,7 @@ where
                             gas_used,
                         );
                     }
-                    TxProcessingErrorReason::Nonce {
+                    TxProcessingError::Nonce {
                         reason,
                         raw_tx_hash,
                     } => {
@@ -191,7 +189,7 @@ where
                         );
                         tx_receipts.push(tx_receipt);
                     }
-                    TxProcessingErrorReason::CannotReserveGas {
+                    TxProcessingError::CannotReserveGas {
                         reason,
                         raw_tx_hash,
                     } => {
@@ -202,7 +200,7 @@ where
                         );
                         tx_receipts.push(tx_receipt);
                     }
-                    TxProcessingErrorReason::CannotResolveContext {
+                    TxProcessingError::CannotResolveContext {
                         reason,
                         raw_tx_hash,
                     } => {
@@ -213,21 +211,18 @@ where
                         );
                         tx_receipts.push(tx_receipt);
                     }
-                    err @ TxProcessingErrorReason::AuthenticationError(
-                        AuthenticationError::Invalid(_),
-                    ) => {
+                    err @ TxProcessingError::AuthenticationError(AuthenticationError::Invalid(
+                        _,
+                    )) => {
                         // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
                         error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
                     }
                 }
             }
             Ok(ApplyTxResult {
-                tx_scratchpad,
                 receipt,
                 sequencer_reward,
             }) => {
-                checkpoint = tx_scratchpad.commit();
-
                 gas_used.combine(&get_gas_used(&receipt));
                 tx_receipts.push(receipt);
 
@@ -262,7 +257,10 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     height: u64,
     scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
-) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
+) -> (
+    Result<ApplyTxResult<S>, TxProcessingError>,
+    TxScratchpad<S::Storage>,
+) {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
     let (_, mut pre_exec_working_set) = match runtime.sequencer_authorization().authorize_sequencer(
@@ -275,22 +273,22 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             reason,
             tx_scratchpad,
         }) => {
-            return Err(TxProcessingError {
+            return (
+                Err(TxProcessingError::SequencerUnauthorized(reason.to_string())),
                 tx_scratchpad,
-                reason: TxProcessingErrorReason::SequencerUnauthorized(reason.to_string()),
-            });
+            );
         }
     };
 
     let (tx, auth_data, message) =
         match authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set) {
             Err(AuthenticationError::FatalError(reason)) => {
-                return Err(TxProcessingError {
-                    tx_scratchpad: pre_exec_working_set.into(),
-                    reason: TxProcessingErrorReason::AuthenticationError(
+                return (
+                    Err(TxProcessingError::AuthenticationError(
                         AuthenticationError::FatalError(reason),
-                    ),
-                });
+                    )),
+                    pre_exec_working_set.into(),
+                );
             }
             Err(AuthenticationError::Invalid(reason)) => {
                 // Applies the outcome of the transaction execution to update the sequencer's state.
@@ -300,12 +298,12 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     pre_exec_working_set,
                 );
 
-                return Err(TxProcessingError {
-                    tx_scratchpad,
-                    reason: TxProcessingErrorReason::AuthenticationError(
+                return (
+                    Err(TxProcessingError::AuthenticationError(
                         AuthenticationError::Invalid(reason),
-                    ),
-                });
+                    )),
+                    tx_scratchpad,
+                );
             }
             Ok((tx, auth_data, message)) => (tx, auth_data, message),
         };
@@ -331,13 +329,13 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 pre_exec_working_set,
             );
 
-            return Err(TxProcessingError {
-                tx_scratchpad,
-                reason: TxProcessingErrorReason::CannotResolveContext {
+            return (
+                Err(TxProcessingError::CannotResolveContext {
                     reason: err_string,
                     raw_tx_hash,
-                },
-            });
+                }),
+                tx_scratchpad,
+            );
         }
     };
 
@@ -356,13 +354,13 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             pre_exec_working_set,
         );
 
-        return Err(TxProcessingError {
-            tx_scratchpad,
-            reason: TxProcessingErrorReason::Nonce {
+        return (
+            Err(TxProcessingError::Nonce {
                 reason: err_string,
                 raw_tx_hash,
-            },
-        });
+            }),
+            tx_scratchpad,
+        );
     }
 
     let working_set =
@@ -383,18 +381,18 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     pre_exec_working_set,
                 );
 
-                return Err(TxProcessingError {
-                    tx_scratchpad,
-                    reason: TxProcessingErrorReason::CannotReserveGas {
+                return (
+                    Err(TxProcessingError::CannotReserveGas {
                         reason: reason_string,
                         raw_tx_hash,
-                    },
-                });
+                    }),
+                    tx_scratchpad,
+                );
             }
         };
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    Ok(apply_tx(
+    let (apply_tx, tx_scratchpad) = apply_tx(
         runtime,
         ctx,
         tx,
@@ -403,7 +401,8 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         message,
         working_set,
         sequencer_da_address,
-    ))
+    );
+    (Ok(apply_tx), tx_scratchpad)
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -434,7 +433,10 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     height: u64,
     tx_scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
-) -> Result<ApplyTxResult<S>, TxProcessingError<S>> {
+) -> (
+    Result<ApplyTxResult<S>, TxProcessingError>,
+    TxScratchpad<S::Storage>,
+) {
     let mut pre_exec_working_set =
         tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new_with_price(gas_price.clone()));
 
@@ -445,10 +447,10 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     ) {
         Ok(v) => v,
         Err(e) => {
-            return Err(TxProcessingError {
-                reason: TxProcessingErrorReason::InvalidUnregisteredTx(e.to_string()),
-                tx_scratchpad: pre_exec_working_set.into(),
-            });
+            return (
+                Err(TxProcessingError::InvalidUnregisteredTx(e.to_string())),
+                pre_exec_working_set.into(),
+            );
         }
     };
 
@@ -465,13 +467,13 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         ) {
         Ok(ctx) => ctx,
         Err(e) => {
-            return Err(TxProcessingError {
-                tx_scratchpad: pre_exec_working_set.into(),
-                reason: TxProcessingErrorReason::CannotResolveContext {
+            return (
+                Err(TxProcessingError::CannotResolveContext {
                     reason: e.to_string(),
                     raw_tx_hash,
-                },
-            });
+                }),
+                pre_exec_working_set.into(),
+            );
         }
     };
 
@@ -481,23 +483,23 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         &ctx,
         &mut pre_exec_working_set,
     ) {
-        return Err(TxProcessingError {
-            tx_scratchpad: pre_exec_working_set.into(),
-            reason: TxProcessingErrorReason::Nonce {
+        return (
+            Err(TxProcessingError::Nonce {
                 reason: e.to_string(),
                 raw_tx_hash,
-            },
-        });
+            }),
+            pre_exec_working_set.into(),
+        );
     }
 
     if let Err(e) = pre_exec_working_set.charge_gas(&forced_sequencer_registration_cost::<S>()) {
-        return Err(TxProcessingError {
-            tx_scratchpad: pre_exec_working_set.into(),
-            reason: TxProcessingErrorReason::CannotReserveGas {
+        return (
+            Err(TxProcessingError::CannotReserveGas {
                 reason: e.to_string(),
                 raw_tx_hash,
-            },
-        });
+            }),
+            pre_exec_working_set.into(),
+        );
     }
 
     let working_set =
@@ -510,18 +512,18 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 reason,
                 pre_exec_working_set,
             }) => {
-                return Err(TxProcessingError {
-                    tx_scratchpad: pre_exec_working_set.into(),
-                    reason: TxProcessingErrorReason::CannotReserveGas {
+                return (
+                    Err(TxProcessingError::CannotReserveGas {
                         reason: reason.to_string(),
                         raw_tx_hash,
-                    },
-                });
+                    }),
+                    pre_exec_working_set.into(),
+                );
             }
         };
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    Ok(apply_tx(
+    let (apply_tx, tx_scratchpad) = apply_tx(
         runtime,
         ctx,
         tx,
@@ -530,7 +532,9 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         message,
         working_set,
         sequencer_da_address,
-    ))
+    );
+
+    (Ok(apply_tx), tx_scratchpad)
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -566,7 +570,7 @@ fn apply_tx<S, RT, Da>(
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
     sequencer_da_address: &Da::Address,
-) -> ApplyTxResult<S>
+) -> (ApplyTxResult<S>, TxScratchpad<S::Storage>)
 where
     S: Spec,
     Da: DaSpec,
@@ -648,11 +652,13 @@ where
         "Transaction has been executed",
     );
 
-    ApplyTxResult::<S> {
+    (
+        ApplyTxResult::<S> {
+            receipt,
+            sequencer_reward,
+        },
         tx_scratchpad,
-        receipt,
-        sequencer_reward,
-    }
+    )
 }
 
 fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
