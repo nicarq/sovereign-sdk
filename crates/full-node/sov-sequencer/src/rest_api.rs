@@ -14,13 +14,13 @@ use sov_rest_utils::{
     ErrorObject, Path,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
-use sov_rollup_interface::node::batch_builder::AcceptTxError;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;
 use utoipa_swagger_ui::{Config, SwaggerUi};
 
+use crate::batch_builders::AcceptTxError;
 use crate::{Sequencer, SequencerSpec, SubmittedBatchInfo, TxStatus};
 
 /// This function does a pretty expensive clone of the entire OpenAPI
@@ -187,7 +187,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         };
 
         Ok(TxInfo {
-            id: tx_with_hash.hash,
+            id: tx_with_hash.tx_hash,
             status: TxStatus::Submitted,
         }
         .into())

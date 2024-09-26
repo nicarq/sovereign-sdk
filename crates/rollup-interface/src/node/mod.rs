@@ -4,6 +4,5 @@
 //! This code is **never** used inside of zkVMs, so it can be non-deterministic,
 //! access system resources or networking, write data to disk, etc..
 
-pub mod batch_builder;
 pub mod da;
 pub mod ledger_api;

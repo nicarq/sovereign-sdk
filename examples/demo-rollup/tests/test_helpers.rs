@@ -14,11 +14,11 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{Address, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
-use sov_sequencer::FairBatchBuilderConfig;
+use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
+use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
-    HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, SequencerConfig,
-    StorageConfig,
+    HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
 };
 use sov_test_utils::ApiClient;
 use tokio::task::JoinHandle;
@@ -82,11 +82,13 @@ pub async fn construct_rollup(
         },
         sequencer: SequencerConfig {
             max_allowed_blocks_behind: 5,
-            batch_builder: FairBatchBuilderConfig {
+            // Set ttl to zero to disable for testing. This prevents nondeterminism.
+            dropped_tx_ttl_secs: 0,
+            da_address: sequencer_address,
+            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
-                sequencer_address,
-            },
+            }),
         },
     };
 

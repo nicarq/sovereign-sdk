@@ -18,13 +18,14 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
-use sov_sequencer::FairBatchBuilderConfig;
+use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
+use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_stf_runner::processes::{
     ParallelProverService, RollupProverConfig, WorkflowProcessManager,
 };
 use sov_stf_runner::{
-    HttpServerConfig, InitVariant, ProofManagerConfig, RollupConfig, RunnerConfig, SequencerConfig,
+    HttpServerConfig, InitVariant, ProofManagerConfig, RollupConfig, RunnerConfig,
     StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
@@ -156,7 +157,7 @@ pub async fn initialize_runner(
     >,
     TestNode,
 ) {
-    let rollup_config = RollupConfig::<_, MockDaConfig, FairBatchBuilderConfig<MockDaSpec>> {
+    let rollup_config = RollupConfig::<_, MockDaService> {
         storage: StorageConfig {
             path: path.to_path_buf(),
         },
@@ -183,11 +184,13 @@ pub async fn initialize_runner(
         },
         sequencer: SequencerConfig {
             max_allowed_blocks_behind: 5,
-            batch_builder: FairBatchBuilderConfig {
+            // Set ttl to zero to disable for testing. This prevents nondeterminism.
+            dropped_tx_ttl_secs: 0,
+            da_address: da_service.da_service().sequencer_address(),
+            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
-                sequencer_address: da_service.da_service().sequencer_address(),
-            },
+            }),
         },
     };
 

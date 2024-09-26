@@ -4,9 +4,26 @@ use anyhow::Context;
 use celestia_types::state::{AccAddress, AddressKind, AddressTrait};
 // use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_rollup_interface::reexports::schemars::{self};
 
 #[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize, Hash, derive_more::Display)] // TODO: , BorshDeserialize, BorshSerialize)]
 pub struct CelestiaAddress(AccAddress);
+
+#[cfg(feature = "native")]
+impl schemars::JsonSchema for CelestiaAddress {
+    fn schema_name() -> String {
+        "CelestiaAddress".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "description": "A Celestia address",
+        }))
+        .expect("Invalid schema; this is a bug, please report it")
+    }
+}
 
 impl AsRef<[u8]> for CelestiaAddress {
     fn as_ref(&self) -> &[u8] {

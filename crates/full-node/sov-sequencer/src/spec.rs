@@ -2,8 +2,9 @@ use std::marker::PhantomData;
 
 use serde::de::DeserializeOwned;
 use sov_modules_api::{StoredEvent, TxReceiptContents};
-use sov_rollup_interface::node::batch_builder::BatchBuilder;
 use sov_rollup_interface::node::da::DaService;
+
+use crate::batch_builders::BatchBuilder;
 
 /// A bunch of associated types that define the behavior of a
 /// [`Sequencer`](crate::Sequencer).

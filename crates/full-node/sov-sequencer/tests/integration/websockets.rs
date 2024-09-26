@@ -8,7 +8,7 @@ use crate::generate_txs;
 async fn mempool_eviction_event() {
     let mempool_max_txs_count = 1;
     let sequencer = TestSequencerSetup::with_real_batch_builder_and_mempool_max_txs_count(
-        mempool_max_txs_count,
+        mempool_max_txs_count.try_into().unwrap(),
     )
     .await
     .unwrap();

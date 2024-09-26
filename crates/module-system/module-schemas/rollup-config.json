@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "RollupConfig_for_Address_and_AnyValue_and_AnyValue",
+  "title": "RollupConfig",
   "description": "Rollup Configuration",
   "type": "object",
   "required": [
@@ -12,7 +12,12 @@
   ],
   "properties": {
     "da": {
-      "description": "Data Availability service configuration."
+      "description": "Data Availability service configuration.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/MockDaConfig"
+        }
+      ]
     },
     "proof_manager": {
       "description": "Proof manager configuration.",
@@ -34,7 +39,7 @@
       "description": "Sequencer (and batch builder) configuration.",
       "allOf": [
         {
-          "$ref": "#/definitions/SequencerConfig_for_AnyValue"
+          "$ref": "#/definitions/SequencerConfig"
         }
       ]
     },
@@ -53,6 +58,25 @@
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
     },
+    "BlockProducingConfig": {
+      "description": "Configuration for block producing.",
+      "oneOf": [
+        {
+          "description": "New blocks are produced periodically. This means that empty blocks can be produced.",
+          "type": "string",
+          "enum": [
+            "periodic"
+          ]
+        },
+        {
+          "description": "New blocks are produced only when blob is submitted. This also means that block has only one blob.",
+          "type": "string",
+          "enum": [
+            "onsubmit"
+          ]
+        }
+      ]
+    },
     "HttpServerConfig": {
       "description": "Configuration for HTTP server(s) exposed by the node.",
       "type": "object",
@@ -70,6 +94,56 @@
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
+        }
+      }
+    },
+    "MockAddress": {
+      "description": "Mock address; 32 bytes in hex-encoded format",
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    },
+    "MockDaConfig": {
+      "description": "The configuration for Mock Da.",
+      "type": "object",
+      "required": [
+        "connection_string",
+        "sender_address"
+      ],
+      "properties": {
+        "block_producing": {
+          "description": "How MockDaService should produce blocks.",
+          "default": "onsubmit",
+          "allOf": [
+            {
+              "$ref": "#/definitions/BlockProducingConfig"
+            }
+          ]
+        },
+        "block_time_ms": {
+          "description": "Block time depends on `block_producing`: - For [`BlockProducingConfig::Periodic`] it defines how often new blocks will be produced, approximately. - For [`BlockProducingConfig::OnSubmit`] it defines max time service will wait for a new block to be submitted.",
+          "default": 120000,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "connection_string": {
+          "description": "Connection string to the database for storing Da Data. - \"sqlite://demo_data/da.sqlite?mode=rwc\" - \"sqlite::memory:\" - \"postgresql://root:hunter2@aws.amazon.com/mock-da\"",
+          "type": "string"
+        },
+        "finalization_blocks": {
+          "description": "Defines how many blocks progress to finalization.",
+          "default": 0,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "sender_address": {
+          "description": "The address to use to \"submit\" blobs on the mock da layer.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MockAddress"
+            }
+          ]
         }
       }
     },
@@ -146,18 +220,80 @@
         }
       }
     },
-    "SequencerConfig_for_AnyValue": {
+    "SequencerConfig": {
       "description": "Sequencer configuration.",
       "type": "object",
+      "oneOf": [
+        {
+          "description": "A standard batch builder, which can post transactions to the rollup but not give soft confirmations.",
+          "type": "object",
+          "required": [
+            "standard"
+          ],
+          "properties": {
+            "standard": {
+              "$ref": "#/definitions/StdBatchBuilderConfig"
+            }
+          },
+          "additionalProperties": false
+        },
+        {
+          "description": "A \"Preferred\" batch builder which is allowed to give soft confirmations.",
+          "type": "string",
+          "enum": [
+            "preferred"
+          ]
+        }
+      ],
       "required": [
+        "da_address",
         "max_allowed_blocks_behind"
       ],
       "properties": {
+        "da_address": {
+          "description": "DA address of the sequencer.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MockAddress"
+            }
+          ]
+        },
+        "dropped_tx_ttl_secs": {
+          "description": "How many long  the sequencer keeps track of dropped transactions after being done with them.\n\nLarger values result in higher memory usage, but better tx status tracking for users.",
+          "default": 60,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "max_allowed_blocks_behind": {
           "description": "The sequencer won't process incoming requests unless the node is within this many blocks behind the DA chain head.",
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
+        }
+      }
+    },
+    "StdBatchBuilderConfig": {
+      "description": "Configuration for [`StdBatchBuilder`].",
+      "type": "object",
+      "properties": {
+        "max_batch_size_bytes": {
+          "description": "Maximum size of a batch. The batch builder will not build batches larger than this size.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "mempool_max_txs_count": {
+          "description": "Maximum number of transactions in mempool. Once this limit is reached, the batch builder will evict older transactions.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint",
+          "minimum": 1.0
         }
       }
     },

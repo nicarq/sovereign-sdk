@@ -1,7 +1,17 @@
+## 2024-09-25
+- Adds new `JsonSchema` bounds on all `Address` types and `DaService::Config`. 
+- Makes a significant refactor to the `BatchBuilder` trait
+- Changes the signature of the `create_endpoints` function of `RollupBlueprint` to be `async
+- Removes the third generic parameter from `RollupConfig` and changes the type of the second one from `DaService::Config` to `DaService`
+- Renames the `sequencer_address` item in the `rollup_config.toml` to `da_address` to clarify the usage. 
+- Changes the syntax of the `sequencer` section in `rollup_config.toml`. Now, callers must include one of `[sequencer.standard]` or `[sequencer.preferred]` there.
+
+
 - #1510 Removes the `from_slice` method from the `GasArray` trait in favor of implementations of `From<[u64; config_value!("GAS_DIMENSIONS")]` and an implementation of `TryFrom<Vec<u64>>`. Consumers of the SDK should ensure they replace their use of the `from_slice` method with `From<[u64; config_value!("GAS_DIMENSIONS")]` (preferred solution, for type-safety reasons), otherwise they can use the `TryFrom<Vec<u64>>` method.
 - #1514 Refactors `TestRunnerWithKernel::config.override_next_header_timestamp` to instead be `TestRunnerWithKernel::config.freeze_time`. It will now set the timestamp of all blocks to the provided timestamp instead of only the next block.
 - #1509 Adds a `GasSpec` trait that is blanket implemented over the `Spec` trait. This adds a `GAS_DIMENSIONS` constant to be specified in the `constants.toml` file and removes all the other gas dimensions. Consumers of the SDK should ensure they only use one gas dimension and they specify the value of the `GAS_DIMENSIONS` constant in the `constants.toml` file.
 - #1493 Makes it mandatory to manually set the `max_fee` in the CLI wallet. Transactions that don't set that value won't be accepted by the CLI. Consumers should ensure there is always a value set for the `max_fee` when using the CLI.
+
 ## 2024-09-20
 
 Adds a new `arbitrary::Arbitrary` bound on the `Spec::Address` associated type and the `PrivateKeyExt` trait when `arbitrary` feature is enabled.

@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
+use sov_rollup_interface::node::da::DaService;
+use sov_sequencer::SequencerConfig;
 
 pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
 
@@ -56,29 +58,20 @@ pub struct ProofManagerConfig<Address> {
 }
 
 /// Rollup Configuration
-#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
-pub struct RollupConfig<Address, DaServiceConfig, BatchBuilderConfig> {
+#[derive(Debug, Clone, Deserialize, JsonSchema, derivative::Derivative)]
+#[derivative(PartialEq(bound = "Address: PartialEq, Da: DaService"))]
+#[schemars(bound = "Address: JsonSchema, Da: DaService", rename = "RollupConfig")]
+pub struct RollupConfig<Address, Da: DaService> {
     /// Currently rollup config runner only supports storage path parameter
     pub storage: StorageConfig,
     /// Runner own configuration.
     pub runner: RunnerConfig,
     /// Data Availability service configuration.
-    pub da: DaServiceConfig,
+    pub da: Da::Config,
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
-    pub sequencer: SequencerConfig<BatchBuilderConfig>,
-}
-
-/// Sequencer configuration.
-#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
-pub struct SequencerConfig<B> {
-    /// The sequencer won't process incoming requests unless the node is within
-    /// this many blocks behind the DA chain head.
-    pub max_allowed_blocks_behind: u64,
-    /// Batch builder configuration.
-    #[serde(flatten)]
-    pub batch_builder: B,
+    pub sequencer: SequencerConfig<Da::Spec>,
 }
 
 /// Reads toml file as a specific type.
@@ -107,10 +100,10 @@ mod tests {
 
     use sha2::Sha256;
     use sov_celestia_adapter::verifier::address::CelestiaAddress;
-    use sov_celestia_adapter::verifier::CelestiaSpec;
-    use sov_celestia_adapter::CelestiaConfig;
+    use sov_celestia_adapter::CelestiaService;
     use sov_modules_api::Address;
-    use sov_sequencer::FairBatchBuilderConfig;
+    use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
+    use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
     use tempfile::NamedTempFile;
 
     use super::*;
@@ -146,16 +139,14 @@ mod tests {
             prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             [sequencer]
             max_allowed_blocks_behind = 5
-            sequencer_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
+            da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
+            [sequencer.standard]
         "#;
 
         let config_file = create_config_from(config);
 
-        let config: RollupConfig<
-            Address<Sha256>,
-            CelestiaConfig,
-            FairBatchBuilderConfig<CelestiaSpec>,
-        > = from_toml_path(config_file.path()).unwrap();
+        let config: RollupConfig<Address<Sha256>, CelestiaService> =
+            from_toml_path(config_file.path()).unwrap();
 
         let expected = RollupConfig {
             runner: RunnerConfig {
@@ -191,14 +182,15 @@ mod tests {
             },
             sequencer: SequencerConfig {
                 max_allowed_blocks_behind: 5,
-                batch_builder: FairBatchBuilderConfig {
+                dropped_tx_ttl_secs: 60,
+                da_address: CelestiaAddress::from_str(
+                    "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
+                )
+                .unwrap(),
+                batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                     mempool_max_txs_count: None,
                     max_batch_size_bytes: None,
-                    sequencer_address: CelestiaAddress::from_str(
-                        "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
-                    )
-                    .unwrap(),
-                },
+                }),
             },
         };
         assert_eq!(config, expected);

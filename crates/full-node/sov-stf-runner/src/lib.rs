@@ -11,7 +11,6 @@ mod runner;
 mod state_manager;
 
 pub use crate::config::{
-    from_toml_path, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
-    SequencerConfig, StorageConfig,
+    from_toml_path, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
 };
 pub use crate::runner::*;

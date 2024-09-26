@@ -36,6 +36,7 @@ derive_more = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 jsonrpsee = { workspace = true, features = ["http-client"], optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, optional = true, features = ["sync"] }
@@ -55,7 +56,11 @@ postcard = { version = "1", features = ["use-std"] }
 proptest = { workspace = true, features = ["std"] }
 sov-celestia-adapter = { path = ".", features = ["native"] }
 wiremock = "0.5"
-tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = [
+    "test-util",
+    "macros",
+    "rt-multi-thread",
+] }
 # For serialization testing
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
@@ -74,10 +79,7 @@ native = [
     "sov-cycle-utils?/native",
     "dep:tower",
 ]
-risc0 = [
-    "sov-celestia-adapter/risc0",
-    "sov-cycle-utils?/risc0"
-]
+risc0 = ["sov-celestia-adapter/risc0", "sov-cycle-utils?/risc0"]
 bench = [
     "dep:sov-cycle-utils",
     "dep:risc0-zkvm",

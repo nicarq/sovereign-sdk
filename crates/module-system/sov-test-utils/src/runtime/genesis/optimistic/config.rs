@@ -96,6 +96,8 @@ impl<S: Spec, Da: DaSpec> HighLevelOptimisticGenesisConfig<S, Da> {
 }
 
 impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
+    /// The sequencer address used by [`HighLevelOptimisticGenesisConfig::generate`].
+    pub const SEQUENCER_DA_ADDR: MockAddress = MockAddress::new([172; 32]);
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
@@ -118,7 +120,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
 
         let sequencer = TestSequencer {
             user_info: prover_sequencer,
-            da_address: MockAddress::from([172; 32]),
+            da_address: Self::SEQUENCER_DA_ADDR,
             bond: user_stake_value,
         };
 
