@@ -174,7 +174,11 @@ impl Default for BatchReceiptStrategyArgs {
     }
 }
 
-impl<B, T: TxReceiptContents> Arbitrary for BatchReceipt<B, T>
+impl<
+        B,
+        T: TxReceiptContents,
+        GasPrice: std::fmt::Debug + Into<Vec<u64>> + TryFrom<Vec<u64>, Error: std::fmt::Debug>,
+    > Arbitrary for BatchReceipt<B, T, GasPrice>
 where
     B: Arbitrary + 'static,
     T::Reverted: Arbitrary + 'static,
@@ -211,7 +215,7 @@ where
                         batch_hash,
                         tx_receipts: txs,
                         inner: receipt,
-                        gas_price,
+                        gas_price: gas_price.try_into().unwrap(),
                     }
                 })
                 .boxed()

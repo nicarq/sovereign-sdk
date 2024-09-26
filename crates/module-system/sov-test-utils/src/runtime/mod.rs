@@ -504,16 +504,7 @@ where
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
         let gas_used = get_gas_used(&tx_receipt);
-        let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::try_from(
-            batch_receipt.gas_price.clone(),
-        )
-        .unwrap_or_else(|_|
-            panic!(
-                "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
-                batch_receipt.gas_price,
-                std::any::type_name::<<S::Gas as Gas>::Price>()
-            )
-        );
+        let gas_price = batch_receipt.gas_price.clone();
 
         let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,

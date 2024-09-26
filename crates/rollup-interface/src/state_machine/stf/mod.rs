@@ -56,14 +56,16 @@ mod sealed {
 /// can use to store arbitrary typed data, like the gas used by the batch. They are also generic over a type `TxReceiptContents`,
 /// since they contain a vectors of [`TransactionReceipt`]s.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "T: TxReceiptContents, BatchReceiptContents: Serialize + DeserializeOwned + Clone")]
-pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents> {
+#[serde(
+    bound = "T: TxReceiptContents, BatchReceiptContents: Serialize + DeserializeOwned + Clone, GasPrice: Serialize + DeserializeOwned"
+)]
+pub struct BatchReceipt<BatchReceiptContents, T: TxReceiptContents, GasPrice: Debug> {
     /// The canonical hash of this batch
     pub batch_hash: [u8; 32],
     /// The receipts of all the transactions in this batch.
     pub tx_receipts: Vec<TransactionReceipt<T>>,
     /// Computed gas price for this batch.
-    pub gas_price: Vec<u64>,
+    pub gas_price: GasPrice,
     /// Any additional structured data to be saved in the database and served over RPC
     pub inner: BatchReceiptContents,
 }
@@ -161,7 +163,8 @@ pub struct ApplySlotOutput<
     /// Receipt for each applied proof transaction
     pub proof_receipts: ProofReceipts<Stf::Address, Da, Stf::StateRoot, Stf::StorageProof>,
     /// Receipt for each applied batch
-    pub batch_receipts: Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents>>,
+    pub batch_receipts:
+        Vec<BatchReceipt<Stf::BatchReceiptContents, Stf::TxReceiptContents, Stf::GasPrice>>,
     /// Witness after applying the whole block
     pub witness: Stf::Witness,
 }
@@ -199,6 +202,9 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
 
     /// State of the rollup after transition.
     type ChangeSet;
+
+    /// Gas price type.
+    type GasPrice: Debug;
 
     /// The storage proof for attestation.
     type StorageProof: Serialize + DeserializeOwned + Clone + Debug;

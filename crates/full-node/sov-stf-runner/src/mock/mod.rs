@@ -19,6 +19,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 {
     type Address = Vec<u8>;
     type StateRoot = Vec<u8>;
+    type GasPrice = ();
     type GenesisParams = ();
     type PreState = ();
     type ChangeSet = ();
@@ -58,7 +59,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 batch_hash: [0; 32],
                 tx_receipts: vec![],
                 inner: (),
-                gas_price: vec![],
+                gas_price: (),
             }],
             witness: (),
         }

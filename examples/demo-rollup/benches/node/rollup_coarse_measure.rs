@@ -19,7 +19,7 @@ use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, RawTx, Spec};
+use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, Gas, RawTx, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 use sov_rollup_interface::da::{BlockHeaderTrait, RelevantBlobs};
@@ -228,11 +228,15 @@ fn setup(
 
     let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
 
-    let data_to_commit: SlotCommit<MockBlock, BatchSequencerOutcome, ()> =
-        SlotCommit::new(MockBlock {
-            header: genesis_block_header.clone(),
-            ..Default::default()
-        });
+    let data_to_commit: SlotCommit<
+        MockBlock,
+        BatchSequencerOutcome,
+        (),
+        <<TestSpec as Spec>::Gas as Gas>::Price,
+    > = SlotCommit::new(MockBlock {
+        header: genesis_block_header.clone(),
+        ..Default::default()
+    });
     let mut ledger_change_set = ledger_db
         .materialize_slot(data_to_commit, current_root.as_ref())
         .unwrap();

@@ -31,6 +31,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 
     type Address = [u8; 32];
 
+    type GasPrice = ();
+
     // This represents the initial configuration of the rollup, but it is not supported in this tutorial.
     type GenesisParams = ();
     type PreState = ();
@@ -95,7 +97,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 batch_hash: hash,
                 tx_receipts: vec![],
                 inner: result,
-                gas_price: vec![],
+                gas_price: (),
             });
         }
 

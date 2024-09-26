@@ -209,6 +209,7 @@ impl<
                     _,
                     Stf::BatchReceiptContents,
                     Stf::TxReceiptContents,
+                    Stf::GasPrice,
                 > = SlotCommit::new(block);
                 let mut ledger_change_set =
                     ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
