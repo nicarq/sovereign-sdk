@@ -79,18 +79,12 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
         &self,
         sender: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        mut scratchpad: TxScratchpad<S::Storage>,
+        scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, SequencerStakeMeter<S::Gas>> {
-        let allowed_sequencer =
-            match self.is_sender_allowed(sender, base_fee_per_gas, &mut scratchpad) {
-                Ok(seq) => seq,
-                Err(e) => {
-                    return Err(AuthorizeSequencerError {
-                        tx_scratchpad: scratchpad,
-                        reason: e.into(),
-                    })
-                }
-            };
+        let allowed_sequencer = match self.is_sender_allowed(sender, base_fee_per_gas, scratchpad) {
+            Ok(seq) => seq,
+            Err(e) => return Err(AuthorizeSequencerError { reason: e.into() }),
+        };
 
         let seq_meter = SequencerStakeMeter::<S::Gas> {
             remaining_stake: allowed_sequencer.balance,
@@ -98,10 +92,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
             gas_price: base_fee_per_gas.clone(),
         };
 
-        Ok((
-            allowed_sequencer,
-            scratchpad.to_pre_exec_working_set(seq_meter),
-        ))
+        Ok((allowed_sequencer, seq_meter))
     }
 
     /// Refunds some of the sequencer's staked amount.

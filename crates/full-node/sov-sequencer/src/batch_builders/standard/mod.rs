@@ -266,18 +266,15 @@ where
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
             let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
-            let tx_scratchpad = checkpoint.to_tx_scratchpad();
+            let mut tx_scratchpad = checkpoint.to_tx_scratchpad();
 
-            let (_, mut pre_exec_ws) = match self
+            let (_, seq_stake_meter) = match self
                 .runtime
                 .sequencer_authorization()
-                .authorize_sequencer(&self.sequencer_address, &gas_price, tx_scratchpad)
+                .authorize_sequencer(&self.sequencer_address, &gas_price, &mut tx_scratchpad)
             {
                 Ok(ok) => ok,
-                Err(AuthorizeSequencerError {
-                    reason,
-                    tx_scratchpad,
-                }) => {
+                Err(AuthorizeSequencerError { reason }) => {
                     error!(%reason, "Sequencer authorization failed");
 
                     return (
@@ -290,6 +287,8 @@ where
                     );
                 }
             };
+
+            let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(seq_stake_meter);
 
             let auth_res = match self.runtime.authenticate(&authenticated, &mut pre_exec_ws) {
                 Ok(ok) => ok,

@@ -80,7 +80,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
         &self,
         sequencer: &<Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, Self::SequencerStakeMeter> {
         self.sequencer_registry
             .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
