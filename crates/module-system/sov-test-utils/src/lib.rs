@@ -8,6 +8,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 pub use api_client::ApiClient;
+use borsh::BorshSerialize;
 pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use generators::MessageGenerator;
 pub use interface::*;
@@ -16,7 +17,7 @@ pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
 pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, Spec};
 pub use sov_modules_stf_blueprint::{get_gas_used, SkippedReason};
@@ -127,6 +128,27 @@ pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
         gas_limit: None,
         chain_id: config_value!("CHAIN_ID"),
     }
+}
+
+/// Creates signed transaction with default test parameters from serializable RuntimeCallMessage.
+pub fn default_test_signed_transaction<T: BorshSerialize>(
+    key: &TestPrivateKey,
+    msg: &T,
+    nonce: u64,
+) -> Transaction<TestSpec> {
+    let tx_details = default_test_tx_details::<TestSpec>();
+
+    Transaction::<TestSpec>::new_signed_tx(
+        key,
+        UnsignedTransaction::new(
+            borsh::to_vec(&msg).unwrap(),
+            tx_details.chain_id,
+            tx_details.max_priority_fee_bips,
+            tx_details.max_fee,
+            nonce,
+            tx_details.gas_limit,
+        ),
+    )
 }
 
 /// An implementation of [`sov_rollup_interface::stf::TxReceiptContents`] for testing. TestTxReceiptContents uses

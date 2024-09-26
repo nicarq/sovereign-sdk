@@ -11,6 +11,12 @@ Adds a new `arbitrary::Arbitrary` bound on the `Spec::Address` associated type a
 - #1467 Adds the prefix `sov_` to all metrics emitted by the rollup.
 - #1472 Export `ModuleRestApi` at the top level of `sov_modules_api` rather than `sov_modules_api::macros::ModuleRestApi`
 - #1474 Add a test for the optimistic workflow
+- #1463 Brings several fixes and changes in generated REST API for Runtime with modules:
+   - Breaking: If StateValue or elements in StateVec and StateMap are not found HTTP 404 is returned instead of HTTP 200 with null value.
+   - Correct return type for `StateValue` in OpenAPI spec.
+   - Correct bech32 regex for `TokenId` and `ModuleId` in OpenAPI spec.
+   - List of modules endpoint is brought back after accidental disabling.
+   - Added `operationId` to custom REST API endpoints in Bank module.
 - #1464 Improve the code structure of the integration tests
 - #1461 Add `ProcessManager` that manages processes consuming StateTransitionInfo.
 - #1459 Modifies the `TxState` trait to make it compatible with the `ApiStateAccessor` so that it becomes possible to test module call methods directly using the `ApiStateAccessor`.

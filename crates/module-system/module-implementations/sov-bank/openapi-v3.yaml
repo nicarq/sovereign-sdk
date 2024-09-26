@@ -7,6 +7,7 @@ paths:
   /tokens/{token_id}/total-supply:
     get:
       summary: Get the total supply of a specific token
+      operationId: "bank_custom_token_get_total_supply"
       tags: [Bank]
       parameters:
         - name: token_id
@@ -23,6 +24,7 @@ paths:
   /tokens/{token_id}/balances/{address}:
     get:
       summary: Fetch the current balance of the token for a given user
+      operationId: "bank_custom_token_get_user_balance"
       tags: [Bank]
       parameters:
         - name: token_id
@@ -44,6 +46,7 @@ paths:
   /tokens:
     get:
       summary: Compute a token ID from the given parameters
+      operationId: "bank_custom_token_compute_token_id"
       tags: [Bank]
       parameters:
         - name: token_name
@@ -78,9 +81,8 @@ components:
       type: object
     TokenId:
       type: string
-      # bech32 encoded token id, prefix with "token_".
-      pattern: "^token_1[a-km-zA-HJ-NP-Z1-9]+$"
-      description: The ID of a token.
+      pattern: "^token_1[02-9ac-hj-np-z]+$"
+      description: bech32 encoded token id, prefix with "token_".
     Address:
       type: string
       description: The address of a rollup user.

@@ -3,9 +3,10 @@ pub mod state;
 mod types;
 
 use sov_rest_utils::ApiResult;
+use sov_state::Namespace;
 
 use self::state::StateItemKind;
-use self::types::{ModuleObject, Namespace};
+use self::types::ModuleObject;
 use super::*;
 use crate::ApiStateAccessor;
 
@@ -94,7 +95,7 @@ where
 {
     fn rest_api(&self, _storage: StorageReceiver<R::Spec>) -> axum::Router<()> {
         axum::Router::new()
-            .route("/modules/", get(Self::root_handler))
+            .route("/modules", get(Self::root_handler))
             .with_state(self.clone())
             .fallback(sov_rest_utils::errors::global_404)
     }
