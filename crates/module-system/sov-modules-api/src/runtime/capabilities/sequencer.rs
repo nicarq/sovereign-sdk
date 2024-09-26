@@ -9,14 +9,12 @@ use crate::transaction::SequencerReward;
 use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
-pub struct AuthorizeSequencerError<S: Spec> {
+pub struct AuthorizeSequencerError {
     /// The reason why the sequencer was not authorized.
     pub reason: anyhow::Error,
-    /// A [`TxScratchpad`] that contains all the changes made during the transaction processing
-    pub tx_scratchpad: TxScratchpad<S::Storage>,
 }
 
-impl<S: Spec> Debug for AuthorizeSequencerError<S> {
+impl Debug for AuthorizeSequencerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("AuthorizeSequencerError")
             .field(&self.reason)
@@ -35,13 +33,8 @@ pub struct AllowedSequencer<S: Spec> {
 }
 
 /// The result of the [`SequencerAuthorization::authorize_sequencer`] capability.
-pub type AuthorizationResult<S, SequencerStakeMeter> = Result<
-    (
-        AllowedSequencer<S>,
-        PreExecWorkingSet<S, SequencerStakeMeter>,
-    ),
-    AuthorizeSequencerError<S>,
->;
+pub type AuthorizationResult<S, SequencerStakeMeter> =
+    Result<(AllowedSequencer<S>, SequencerStakeMeter), AuthorizeSequencerError>;
 
 /// Authorizes the sequencer to submit and process batches.
 pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
@@ -52,12 +45,12 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     ///
     /// ## Returns
     /// Returns a [`AuthorizeSequencerError`] error if the sequencer is not registered or does not have enough staked amount.
-    /// Returns a [`PreExecWorkingSet`] if the sequencer is registered and has enough staked amount.
+    /// Returns a `Self::SequencerStakeMeter` if the sequencer is registered and has enough staked amount.
     fn authorize_sequencer(
         &self,
         sequencer: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> AuthorizationResult<S, Self::SequencerStakeMeter>;
 
     /// Penalizes the sequencer without slashing his account.

@@ -201,20 +201,18 @@ where
     fn authorize_sequencer(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        tx_scratchpad: TxScratchpad<S::Storage>,
+        mut tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> PreExecWorkingSetResult<S, Da, RT> {
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             gas_price,
-            tx_scratchpad,
+            &mut tx_scratchpad,
         ) {
-            Ok((allowed_sequencer, pre_exec_working_set)) => {
+            Ok((allowed_sequencer, seq_stake_meter)) => {
+                let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(seq_stake_meter);
                 WorkflowResult::Proceed((allowed_sequencer.address, pre_exec_working_set))
             }
-            Err(AuthorizeSequencerError {
-                reason,
-                tx_scratchpad,
-            }) => WorkflowResult::EarlyReturn(
+            Err(AuthorizeSequencerError { reason }) => WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S, Da>(
                         self.blob_hash,

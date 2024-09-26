@@ -256,7 +256,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     sequencer_da_address: &D::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
-    scratchpad: TxScratchpad<S::Storage>,
+    mut scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
@@ -264,22 +264,21 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 ) {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
-    let (_, mut pre_exec_working_set) = match runtime.sequencer_authorization().authorize_sequencer(
+    let (_, seq_stake_meter) = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_da_address,
         gas_price,
-        scratchpad,
+        &mut scratchpad,
     ) {
-        Ok(pre_exec_working_set) => pre_exec_working_set,
-        Err(AuthorizeSequencerError {
-            reason,
-            tx_scratchpad,
-        }) => {
+        Ok(seq_stake_meter) => seq_stake_meter,
+        Err(AuthorizeSequencerError { reason }) => {
             return (
                 Err(TxProcessingError::SequencerUnauthorized(reason.to_string())),
-                tx_scratchpad,
+                scratchpad,
             );
         }
     };
+
+    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(seq_stake_meter);
 
     let (tx, auth_data, message) =
         match authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set) {
