@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
+use heck::ToSnakeCase;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::json;
@@ -42,12 +43,15 @@ pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
         json!({
             "get": {
                 "summary": "Get the value of a `StateValue`.",
-                "operationId": format!("{}_{}_get_state_value", module_name, field_name),
+                "operationId": format!("{}_{}_get_state_value", module_name.to_snake_case(), field_name),
                 "tags": [module_name],
                 "parameters": [rollup_height_param()],
                 "responses": {
                     "200": {
                         "$ref": "#/components/responses/StateValueResponse"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
                     }
                 }
             }
@@ -58,35 +62,56 @@ pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
 /// The OpenAPI paths specification for
 /// [`StateMap`](crate::containers::StateMap).
 pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
-    vec![(
-        "/items/{key}".to_string(),
-        json!({
-            "get": {
-                "summary": "Get the value of a `StateMap` element.",
-                "operationId": format!("{}_{}_get_state_map_element", module_name, field_name),
-                "tags": [module_name],
-                "parameters": [
-                    {
-                        "name": "key",
-                        "in": "path",
-                        "required": true,
-                        "schema": {
-                            "type": "string",
+    vec![
+        (
+            "".to_string(),
+            json!({
+                "get": {
+                    "summary": "Get general information about a `StateMap`.",
+                    "operationId": format!("{}_{}_get_state_map_info", module_name.to_snake_case(), field_name),
+                    "tags": [module_name],
+                    "parameters": [rollup_height_param()],
+                    "responses": {
+                        "200": {
+                            "$ref": "#/components/responses/StateMapResponse"
+                        },
+                        "400": {
+                            "$ref": "#/components/responses/BadRequestResponse"
                         }
-                    },
-                    rollup_height_param(),
-                ],
-                "responses": {
-                    "200": {
-                        "$ref": "#/components/responses/StateMapElementResponse"
-                    },
-                    "400": {
-                        "$ref": "#/components/responses/BadRequestResponse"
                     }
                 }
-            }
-        }),
-    )]
+            }),
+        ),
+        (
+            "/items/{key}".to_string(),
+            json!({
+                "get": {
+                    "summary": "Get the value of a `StateMap` element.",
+                    "operationId": format!("{}_{}_get_state_map_element", module_name.to_snake_case(), field_name),
+                    "tags": [module_name],
+                    "parameters": [
+                        {
+                            "name": "key",
+                            "in": "path",
+                            "required": true,
+                            "schema": {
+                                "type": "string",
+                            }
+                        },
+                        rollup_height_param(),
+                    ],
+                    "responses": {
+                        "200": {
+                            "$ref": "#/components/responses/StateMapElementResponse"
+                        },
+                        "404": {
+                            "$ref": "#/components/responses/NotFound"
+                        }
+                    }
+                }
+            }),
+        ),
+    ]
 }
 
 /// The OpenAPI paths specification for
@@ -98,7 +123,7 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
             json!({
                 "get": {
                     "summary": "Get general information about a `StateVec`, including its length.",
-                    "operationId": format!("{}_{}_get_state_vec_info", module_name, field_name),
+                    "operationId": format!("{}_{}_get_state_vec_info", module_name.to_snake_case(), field_name),
                     "tags": [module_name],
                     "parameters": [rollup_height_param()],
                     "responses": {
@@ -117,7 +142,7 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
             json!({
                 "get": {
                     "summary": "Get the value of a `StateVec` element.",
-                    "operationId": format!("{}_{}_get_state_vec_element", module_name, field_name),
+                    "operationId": format!("{}_{}_get_state_vec_element", module_name.to_snake_case(), field_name),
                     "tags": [module_name],
                     "parameters": [
                         {

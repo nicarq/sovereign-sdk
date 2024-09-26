@@ -85,6 +85,7 @@ sov-value-setter = { workspace = true, features = ["native"] }
 humantime = "2.1"
 reth-primitives = { workspace = true }
 futures = { workspace = true }
+demo-stf-json-client = { workspace = true }
 
 hex = { workspace = true }
 bincode = { workspace = true }

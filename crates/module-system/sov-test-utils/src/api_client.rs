@@ -27,7 +27,7 @@ pub struct ApiClient {
     pub rpc: WsClient,
 
     /// This is temporary while REST clients for each module appear.
-    rest_port: u16,
+    pub rest_port: u16,
     /// [`reqwest::Client`] client as temporary sub for JSON client
     pub raw_rest: Client,
 }

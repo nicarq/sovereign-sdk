@@ -1,4 +1,4 @@
-//! When autogenerating APIs for state items, we have a few
+//! When auto-generating APIs for state items, we have a few
 //! requirements:
 //!
 //! 1. We require a "blanket" implementation on **ALL** state items,
@@ -7,7 +7,7 @@
 //!    all unsuitable state items were marked with `skip`. See
 //!    [`StateItemRestApi`].
 //! 2. We require a method that is purposefully **NOT**
-//!    blanket-implemented, to cause a compilation errors when unsuitable
+//!    blanket-implemented to cause a compilation errors when unsuitable
 //!    state items are marked with `include`. See
 //!    [`StateItemRestApiExists`].se std::marker::PhantomData;
 
@@ -17,6 +17,7 @@ use std::marker::PhantomData;
 use axum::extract::State;
 use axum::routing::get;
 use serde::Serialize;
+use sov_rest_utils::errors::not_found_404;
 use sov_rest_utils::{ApiResult, Path, Query};
 use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
@@ -153,9 +154,15 @@ where
         let (mut api_state_accessor, state_vec) =
             Self::checkpoint_and_vec(&state, rollup_height_opt);
 
-        let value = state_vec
+        let value = match state_vec
             .get(item_index, &mut api_state_accessor)
-            .unwrap_infallible();
+            .unwrap_infallible()
+        {
+            None => {
+                return Err(not_found_404(&state.state_item_info.name, item_index));
+            }
+            Some(v) => v,
+        };
         Ok(StateItemContents::VecElement {
             index: item_index,
             value,
@@ -199,7 +206,7 @@ where
             prefix: state.state_item_info.prefix,
             description: state.state_item_info.description.clone(),
             name: state.state_item_info.name.clone(),
-            namespace: state.state_item_info.namespace.clone(),
+            namespace: state.state_item_info.namespace,
         }
         .into())
     }
@@ -220,7 +227,12 @@ where
         );
 
         let value = state_map.get(&key, &mut working_set).unwrap_infallible();
-        Ok(StateItemContents::MapElement { key, value }.into())
+        match value {
+            // Known issue, will be solved later
+            // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/f3b934e33833ec3621f46a3b31824a344de7b433/crates/full-node/sov-ledger-apis/src/lib.rs#L387
+            None => Err(not_found_404(&state.state_item_info.name, "unknown")),
+            Some(value) => Ok(StateItemContents::MapElement { key, value }.into()),
+        }
     }
 }
 

@@ -19,7 +19,7 @@ use sov_sequencer_json_client::types;
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct NonceResponse {
     key: CredentialId,
-    value: Option<u64>,
+    value: u64,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -62,7 +62,9 @@ impl NodeClient {
         })
     }
 
-    /// Getting nonce from given public key.
+    /// Fetches the nonce associated with a given public key.
+    /// Returns an error if the HTTP request fails or the response cannot be parsed.
+    /// If nonce is not found, it will return 0.
     pub async fn get_nonce_for_public_key<S: sov_modules_api::Spec>(
         &self,
         pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
@@ -75,15 +77,11 @@ impl NodeClient {
         let response = self.http_client.get(&nonce_url).send().await?;
         let response = response.json::<ResponseObject<NonceResponse>>().await?;
 
-        let data = response
-            .data
-            .ok_or_else(|| anyhow::anyhow!("No data in nonce response"))?;
-
-        let nonce = data.value;
+        let nonce = response.data.map(|data| data.value).unwrap_or_default();
 
         tracing::debug!(url = nonce_url, ?nonce, "Queried nonce");
 
-        Ok(nonce.unwrap_or_default())
+        Ok(nonce)
     }
 
     /// Getting [`TokenId`] from given parameters.

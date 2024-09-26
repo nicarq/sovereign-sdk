@@ -89,3 +89,20 @@ pub fn internal_server_error_response_500(err: impl ToString) -> Response {
     }
     .into_response()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn check_404() {
+        let r404 = not_found_404("MY RESOURCE", "id-101");
+        assert_eq!(StatusCode::from_u16(404).unwrap(), r404.status());
+    }
+
+    #[test]
+    fn check_500() {
+        let r500 = internal_server_error_response_500("check check");
+        assert_eq!(StatusCode::from_u16(500).unwrap(), r500.status());
+    }
+}

@@ -10,28 +10,8 @@ use crate::{ModuleId, ModuleInfo};
 pub enum StateItemContents<K, V> {
     Value { value: Option<V> },
     Vec { length: usize },
-    VecElement { index: usize, value: Option<V> },
-    MapElement { key: K, value: Option<V> },
-}
-
-/// Identical to [`sov_state::namespaces::Namespace`], but with a custom
-/// [`serde`] implementation.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "snake_case")] // <-- This is the important difference.
-pub enum Namespace {
-    User,
-    Kernel,
-    Accessory,
-}
-
-impl From<sov_state::namespaces::Namespace> for Namespace {
-    fn from(value: sov_state::namespaces::Namespace) -> Self {
-        match value {
-            sov_state::namespaces::Namespace::User => Self::User,
-            sov_state::namespaces::Namespace::Kernel => Self::Kernel,
-            sov_state::namespaces::Namespace::Accessory => Self::Accessory,
-        }
-    }
+    VecElement { index: usize, value: V },
+    MapElement { key: K, value: V },
 }
 
 #[derive(Debug, Clone, Serialize)]

@@ -147,10 +147,10 @@ async fn rest_api_routes() {
 
     // 1. Root
     // 2. Module details
-    // 3-4. state values
+    // 3-4. State values
     // 5-6. Vec: info and item
-    // 7. Map
-    let expected_paths_count = 7;
+    // 7-8. Map: info and item
+    let expected_paths_count = 8;
     assert_eq!(expected_paths_count, spec.paths.paths.len());
     for (path, item) in spec.paths.paths {
         let get_operation = match item.operations.get(&PathItemType::Get) {
@@ -187,6 +187,9 @@ async fn rest_api_routes() {
                 path = path.replace(key, value);
             }
         }
+        if path == "/" {
+            path = "".to_string();
+        }
 
         let url = format!("{}{}", base_path, path);
         let response = client
@@ -196,11 +199,16 @@ async fn rest_api_routes() {
             .expect("Failed querying router");
 
         let status = response.status();
+        // Root resource is trimmed by top level router, but here it will get HTTP 404.
+        let success_condition = if path_parameters.is_empty() {
+            status.is_success()
+        } else {
+            !status.is_server_error()
+        };
         assert!(
-            status.is_success(),
+            success_condition,
             "Failed querying URL {} | {}",
-            url,
-            status
+            url, status
         );
     }
 }

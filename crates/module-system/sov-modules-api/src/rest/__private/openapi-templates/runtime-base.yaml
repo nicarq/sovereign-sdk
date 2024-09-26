@@ -15,7 +15,7 @@ paths:
   /:
     get:
       summary: Get the list of modules
-      operationId: getModules
+      operationId: get_modules
       responses:
         "200":
           description: OK
@@ -28,13 +28,11 @@ paths:
                     type: object
                     properties:
                       modules:
-                        type: array
-                        items:
-                          $ref: "#/components/schemas/ModuleOverviewFromRuntime"
+                        $ref: '#/components/schemas/Modules'
   /{moduleName}:
     get:
       summary: Get module information by name
-      operationId: getModule
+      operationId: get_module
       parameters:
         - name: moduleName
           in: path
@@ -65,6 +63,17 @@ components:
         type: integer
         minimum: 0
   responses:
+    StateMapResponse:
+      description: Contains meta information about `StateMap`, such as its prefix, type and description
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/StateValueBase"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
     StateMapElementResponse:
       description: Response containing the value of a `StateMap` element.
       content:
@@ -127,15 +136,26 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/StateValue"
+                $ref: "#/components/schemas/AnyJsonValue"
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - data
     NotFound:
       description: The requested resource was not found
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            type: object
+            properties:
+              errors:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Error"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - errors
     BadRequestResponse:
       description: The request has invalid parameters
       content:
@@ -151,14 +171,21 @@ components:
                 $ref: "#/components/schemas/AnyJsonValue"
   schemas:
     AnyJsonValue:
+      description: "Any JSON type, including null."
+      nullable: true
       oneOf:
         - type: string
+          title: "String"
         - type: number
+          title: "Number"
         - type: boolean
+          title: "Boolean"
         - type: array
+          title: "Array"
           items:
             x-stainless-any: true
         - type: object
+          title: "Object"
           additionalProperties: true
     Module:
       type: object
@@ -173,24 +200,31 @@ components:
           description: A short description of the module.
         prefix:
           $ref: "#/components/schemas/Prefix"
-        state:
+        state_items:
           type: object
           additionalProperties:
-            $ref: "#/components/schemas/StateValue"
-    StateValue:
+            $ref: "#/components/schemas/StateValueBase"
+    StateValueBase:
       type: object
       properties:
-        r#type:
+        prefix:
+          $ref: "#/components/schemas/Prefix"
+        type:
           type: string
           description: The type of the state value.
-        name:
-          type: string
-          description: The name of the state value.
         description:
           type: string
           description: A short description of the state value.
         namespace:
           $ref: "#/components/schemas/Namespace"
+    StateValue:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the value.
+      additionalProperties:
+        $ref: "#/components/schemas/StateValueBase"
     Namespace:
       type: string
       description: The namespace of the state value.
@@ -205,14 +239,20 @@ components:
       example: "0x1234567890abcdef"
     ModuleId:
       type: string
-      # Variable length hex string, prefix with "module_".
-      pattern: "^module_[a-fA-F0-9]+$"
-      description: The ID of a module.
+      pattern: "^module_1[02-9ac-hj-np-z]+$"
+      example: "module_1r5glamudyy9ysysfjkwu3wf9cjqs98e47tzc6pxuqlp48phqk36sh0zjpk"
+      description: The ID of a module, bech32 encoded with `module_` prefix.
+    Modules:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/ModuleOverviewFromRuntime'
     ModuleOverviewFromRuntime:
       type: object
       properties:
         id:
           $ref: "#/components/schemas/ModuleId"
+      required:
+        - id
     Error:
       type: object
       properties:
@@ -223,8 +263,9 @@ components:
         title:
           type: string
         details:
-          type: object
-          properties:
-            message:
-              type: string
+          $ref: "#/components/schemas/AnyJsonValue"
+      required:
+        - status
+        - title
+        - details
 

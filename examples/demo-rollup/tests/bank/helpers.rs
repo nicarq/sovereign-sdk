@@ -4,14 +4,11 @@ use sov_bank::{Coins, TokenId};
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::rest::utils::{ErrorObject, ResponseObject};
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PrivateKey, Spec};
-use sov_modules_macros::config_value;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
-use sov_test_utils::{
-    ApiClient, TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
-};
+use sov_test_utils::{default_test_signed_transaction, ApiClient, TestPrivateKey, TestSpec};
 
 use super::{TOKEN_NAME, TOKEN_SALT};
 use crate::test_helpers::read_private_keys;
@@ -66,21 +63,7 @@ pub(crate) fn build_create_token_tx(
             mint_to_address: user_address,
             authorized_minters: vec![],
         });
-    let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
-    let max_fee = TEST_DEFAULT_MAX_FEE;
-    let gas_limit = None;
-    Transaction::<TestSpec>::new_signed_tx(
-        key,
-        UnsignedTransaction::new(
-            borsh::to_vec(&msg).unwrap(),
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            nonce,
-            gas_limit,
-        ),
-    )
+    default_test_signed_transaction(key, &msg, nonce)
 }
 
 pub(crate) fn build_transfer_token_tx(
@@ -95,21 +78,7 @@ pub(crate) fn build_transfer_token_tx(
             to: recipient,
             coins: Coins { amount, token_id },
         });
-    let chain_id = config_value!("CHAIN_ID");
-    let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
-    let max_fee = TEST_DEFAULT_MAX_FEE;
-    let gas_limit = None;
-    Transaction::<TestSpec>::new_signed_tx(
-        key,
-        UnsignedTransaction::new(
-            borsh::to_vec(&msg).unwrap(),
-            chain_id,
-            max_priority_fee_bips,
-            max_fee,
-            nonce,
-            gas_limit,
-        ),
-    )
+    default_test_signed_transaction(key, &msg, nonce)
 }
 
 pub(crate) fn build_multiple_transfers(
