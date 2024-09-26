@@ -307,7 +307,6 @@ where
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
 
-        // TODO(@theochap): for now we are using the unmetered gas meter here, but we should add type safety to be able to remove that method.
         if let Err(e) = self.runtime.genesis(&params.runtime, &mut genesis_accessor) {
             tracing::error!(error = %e, "Runtime initialization must succeed");
             panic!("Runtime initialization must succeed {}", e);

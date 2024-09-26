@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
+use sha2::Digest;
 use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
-use sov_modules_api::test_utils::generate_address;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, Spec};
 
@@ -54,6 +54,15 @@ pub struct BankMessageGenerator<S: Spec> {
 const DEFAULT_TOKEN_NAME: &str = "Token1";
 const DEFAULT_SALT: u64 = 10;
 const DEFAULT_INIT_BALANCE: u64 = 1000000;
+
+/// A utility function for generating an address from a string.
+fn generate_address<S: Spec>(key: &str) -> S::Address
+where
+    S::Address: From<[u8; 32]>,
+{
+    let hash: [u8; 32] = <S::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
+    S::Address::from(hash)
+}
 
 /// Gets the default token ID for the given address.
 pub fn get_default_token_id<S: Spec>(address: &<S as Spec>::Address) -> TokenId {

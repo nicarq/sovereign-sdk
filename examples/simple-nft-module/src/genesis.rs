@@ -33,11 +33,20 @@ impl<S: Spec> NonFungibleToken<S> {
 
 #[cfg(test)]
 mod test {
-    use sov_modules_api::test_utils::generate_address;
-    use sov_modules_api::Spec;
+    use sov_modules_api::digest::Digest;
+    use sov_modules_api::{CryptoSpec, Spec};
     use sov_test_utils::TestSpec;
 
     use super::NonFungibleTokenConfig;
+
+    /// A utility function for generating an address from a string.
+    fn generate_address<S: Spec>(key: &str) -> S::Address
+    where
+        S::Address: From<[u8; 32]>,
+    {
+        let hash: [u8; 32] = <S::CryptoSpec as CryptoSpec>::Hasher::digest(key.as_bytes()).into();
+        S::Address::from(hash)
+    }
 
     #[test]
     fn test_config_serialization() {
