@@ -270,6 +270,8 @@ where
 
     type Address = S::Address;
 
+    type GasPrice = <S::Gas as Gas>::Price;
+
     type GenesisParams =
         GenesisParams<<RT as Genesis>::Config, <K as Kernel<S::Storage>>::GenesisConfig>;
     type PreState = S::Storage;

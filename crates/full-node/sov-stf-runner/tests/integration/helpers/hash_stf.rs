@@ -73,6 +73,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     type ChangeSet = NativeChangeSet;
     type TxReceiptContents = ();
     type StorageProof = ();
+    type GasPrice = ();
     type BatchReceiptContents = [u8; 32];
     type Witness = ArrayWitness;
     type Condition = Cond;

@@ -26,8 +26,11 @@ pub type TransactionReceipt<S> =
     sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
 
 /// The receipt for a batch using the STF blueprint.
-pub type BatchReceipt<S, Da> =
-    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<Da>, TxReceiptContents<S>>;
+pub type BatchReceipt<S, Da> = sov_rollup_interface::stf::BatchReceipt<
+    BatchSequencerReceipt<Da>,
+    TxReceiptContents<S>,
+    <<S as Spec>::Gas as Gas>::Price,
+>;
 
 const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
@@ -73,7 +76,7 @@ where
                     da_address: sequencer_da_address,
                     outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
                 },
-                gas_price: Vec::new(),
+                gas_price: gas_price.clone(),
             },
             checkpoint,
             S::Gas::zero(),
@@ -149,7 +152,7 @@ where
                                     da_address: sequencer_da_address,
                                     outcome: BatchSequencerOutcome::Slashed(err),
                                 },
-                                gas_price: gas_price.as_ref().to_vec(),
+                                gas_price: gas_price.clone(),
                             },
                             checkpoint,
                             gas_used,
@@ -170,7 +173,7 @@ where
                                     da_address: sequencer_da_address,
                                     outcome: BatchSequencerOutcome::Ignored(reason),
                                 },
-                                gas_price: Vec::new(),
+                                gas_price: gas_price.clone(),
                             },
                             checkpoint,
                             gas_used,
@@ -237,7 +240,7 @@ where
                 da_address: sequencer_da_address,
                 outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
             },
-            gas_price: gas_price.as_ref().to_vec(),
+            gas_price: gas_price.clone(),
         },
         checkpoint,
         gas_used,

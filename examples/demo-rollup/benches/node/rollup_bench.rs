@@ -21,7 +21,7 @@ use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
 use sov_nft::NonFungibleTokenConfig;
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_rollup_interface::stf::{BatchReceipt, ExecutionContext, StateTransitionFunction};
+use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_state::{ProverStorage, StorageRoot};
 use sov_test_utils::runtime::genesis::default_basic_kernel_genesis;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
@@ -39,6 +39,12 @@ type Stf = StfBlueprint<
     MockDaSpec,
     Runtime<BenchSpec, MockDaSpec>,
     BasicKernel<BenchSpec, MockDaSpec>,
+>;
+
+type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
+    BatchSequencerReceipt<MockDaSpec>,
+    TxReceiptContents<S>,
+    <<S as Spec>::Gas as Gas>::Price,
 >;
 
 const CHAIN_ID: u64 = config_value!("CHAIN_ID");
@@ -95,9 +101,7 @@ fn build_send_tx(sender: &TestUser<BenchSpec>, nonce: u64, token_id: TokenId) ->
     )
 }
 
-fn assert_batch_receipts<S: Spec>(
-    batch_receipts: &[BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents<S>>],
-) {
+fn assert_batch_receipts<S: Spec>(batch_receipts: &[BatchReceipt<S>]) {
     for batch in batch_receipts {
         if let BatchSequencerOutcome::Rewarded(r) = batch.inner.outcome {
             assert_eq!(0, r.0);

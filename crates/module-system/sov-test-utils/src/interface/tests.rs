@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::{
-    ApiStateAccessor, BatchReceipt, BatchSequencerReceipt, DaSpec, Module, ProofReceipt,
+    ApiStateAccessor, BatchSequencerReceipt, DaSpec, Gas, Module, ProofReceipt,
     RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
 };
 pub use sov_modules_stf_blueprint::TxReceiptContents;
@@ -10,6 +10,11 @@ use sov_state::{Storage, StorageProof};
 use super::{BatchType, ProofInput, TransactionType};
 
 type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S>)>;
+type BatchReceipt<S> = sov_modules_api::BatchReceipt<
+    BatchSequencerReceipt<MockDaSpec>,
+    TxReceiptContents<S>,
+    <<S as Spec>::Gas as Gas>::Price,
+>;
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {
@@ -81,8 +86,7 @@ pub struct BatchAssertContext<S: Spec, Da: DaSpec> {
     ///
     /// This can be [`None`] if the batch was dropped before it was executed,
     /// this can happen if the sender was not a registered sequencer.
-    pub batch_receipt:
-        Option<BatchReceipt<BatchSequencerReceipt<MockDaSpec>, TxReceiptContents<S>>>,
+    pub batch_receipt: Option<BatchReceipt<S>>,
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].

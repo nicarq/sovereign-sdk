@@ -57,7 +57,7 @@ async fn test_slot_subscription() {
     let mut slots_subscription = ledger_db.subscribe_slots();
     let _ = ledger_db
         .materialize_slot(
-            SlotCommit::<_, MockBlob, ()>::new(MockBlock::default()),
+            SlotCommit::<_, MockBlob, (), ()>::new(MockBlock::default()),
             b"state-root",
         )
         .unwrap();
