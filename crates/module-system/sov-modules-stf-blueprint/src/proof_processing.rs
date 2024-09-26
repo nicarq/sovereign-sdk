@@ -8,7 +8,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    DaSpec, Gas, GasArray, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
+    DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
@@ -139,8 +139,8 @@ where
                     proof_receipt: ProofReceipt {
                         blob_hash,
                         outcome,
-                        gas_used: transaction_consumption.base_fee().to_vec(),
-                        gas_price: gas_price.to_vec(),
+                        gas_used: transaction_consumption.base_fee().as_ref().to_vec(),
+                        gas_price: gas_price.as_ref().to_vec(),
                     },
                     gas_used: transaction_consumption.base_fee().clone(),
                 },
@@ -320,7 +320,7 @@ fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     ProofReceipt {
         blob_hash,
         outcome: ProofOutcome::Invalid(reason),
-        gas_used: S::Gas::zero().to_vec(),
+        gas_used: S::Gas::zero().as_ref().to_vec(),
         gas_price: Vec::new(),
     }
 }

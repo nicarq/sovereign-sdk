@@ -6,13 +6,11 @@ use sov_modules_api::capabilities::{
     TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::transaction::{
-    forced_sequencer_registration_cost, AuthenticatedTransactionData, SequencerReward,
-};
+use sov_modules_api::transaction::{AuthenticatedTransactionData, SequencerReward};
 use sov_modules_api::{
     BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, Context, DaSpec, DispatchCall,
-    Error, ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Spec,
-    StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    Error, ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, PreExecWorkingSet,
+    Spec, StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, error, info, warn};
@@ -151,7 +149,7 @@ where
                                     da_address: sequencer_da_address,
                                     outcome: BatchSequencerOutcome::Slashed(err),
                                 },
-                                gas_price: gas_price.to_vec(),
+                                gas_price: gas_price.as_ref().to_vec(),
                             },
                             checkpoint,
                             gas_used,
@@ -239,7 +237,7 @@ where
                 da_address: sequencer_da_address,
                 outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
             },
-            gas_price: gas_price.to_vec(),
+            gas_price: gas_price.as_ref().to_vec(),
         },
         checkpoint,
         gas_used,
@@ -492,7 +490,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         );
     }
 
-    if let Err(e) = pre_exec_working_set.charge_gas(&forced_sequencer_registration_cost::<S>()) {
+    if let Err(e) = pre_exec_working_set.charge_gas(&S::gas_forced_sequencer_registration_cost()) {
         return (
             Err(TxProcessingError::CannotReserveGas {
                 reason: e.to_string(),

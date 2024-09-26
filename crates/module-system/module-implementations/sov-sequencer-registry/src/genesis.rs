@@ -76,7 +76,7 @@ mod tests {
 
     use sov_mock_da::{MockAddress, MockDaSpec};
     use sov_modules_api::prelude::*;
-    use sov_modules_api::{AddressBech32, GasArray};
+    use sov_modules_api::AddressBech32;
     use sov_test_utils::TestSpec;
 
     use crate::SequencerConfig;
@@ -98,7 +98,7 @@ mod tests {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
             seq_bond: 100,
-            minimum_bond: <<TestSpec as Spec>::Gas as GasArray>::from_slice(&[50; 2]),
+            minimum_bond: <TestSpec as Spec>::Gas::from([50; 2]),
             is_preferred_sequencer: true,
         };
 

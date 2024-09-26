@@ -6,7 +6,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{DaSpec, GasArray, GasUnit};
+use sov_modules_api::{DaSpec, GasUnit};
 use sov_modules_stf_blueprint::SkippedReason;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -270,7 +270,7 @@ fn test_custom_transaction_details_gas_limit() {
         input: admin
             .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
             .with_max_fee(admin.available_gas_balance)
-            .with_gas_limit(Some(GasUnit::from_slice(&[admin.available_gas_balance; 2]))),
+            .with_gas_limit(Some(GasUnit::from([admin.available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
@@ -367,7 +367,7 @@ fn test_custom_transaction_format() {
         })
         .with_max_fee(100)
         .with_max_priority_fee_bips(PriorityFeeBips::from_percentage(10))
-        .with_gas_limit(Some(GasUnit::from_slice(&[5; 2])))
+        .with_gas_limit(Some(GasUnit::from([5; 2])))
         .with_chain_id(5555);
 
     match message {
@@ -394,7 +394,7 @@ fn test_custom_transaction_format() {
                 PriorityFeeBips::from_percentage(10)
             );
             assert_eq!(details.max_fee, 100);
-            assert_eq!(details.gas_limit, Some(GasUnit::from_slice(&[5; 2])));
+            assert_eq!(details.gas_limit, Some(GasUnit::from([5; 2])));
 
             assert_eq!(details.chain_id, 5555);
         }
@@ -416,7 +416,7 @@ fn test_custom_transaction_format_2() {
         .with_details(TxDetails {
             max_fee: 100,
             max_priority_fee_bips: PriorityFeeBips::from_percentage(10),
-            gas_limit: Some(GasUnit::from_slice(&[5; 2])),
+            gas_limit: Some(GasUnit::from([5; 2])),
             chain_id: 5555,
         });
 
@@ -444,7 +444,7 @@ fn test_custom_transaction_format_2() {
                 PriorityFeeBips::from_percentage(10)
             );
             assert_eq!(details.max_fee, 100);
-            assert_eq!(details.gas_limit, Some(GasUnit::from_slice(&[5; 2])));
+            assert_eq!(details.gas_limit, Some(GasUnit::from([5; 2])));
 
             assert_eq!(details.chain_id, 5555);
         }

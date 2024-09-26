@@ -19,7 +19,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, GasArray, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
+    Error, Gas, GasSpec, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
     RuntimeEventProcessor, Spec, StateCheckpoint, TxEffect,
 };
 use sov_modules_stf_blueprint::{
@@ -195,7 +195,7 @@ where
             {
                 transition.gas_price().clone()
             } else {
-                ChainState::<S, MockDaSpec>::initial_base_fee_per_gas()
+                S::initial_base_fee_per_gas()
             }
         };
 
@@ -504,8 +504,17 @@ where
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
         let gas_used = get_gas_used(&tx_receipt);
-        let gas_price =
-            <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(&batch_receipt.gas_price);
+        let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::try_from(
+            batch_receipt.gas_price.clone(),
+        )
+        .unwrap_or_else(|_|
+            panic!(
+                "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
+                batch_receipt.gas_price,
+                std::any::type_name::<<S::Gas as Gas>::Price>()
+            )
+        );
+
         let ctx = TransactionAssertContext::from_receipt::<MockDaSpec>(
             tx_receipt,
             gas_used.value(&gas_price),
@@ -547,9 +556,24 @@ where
         let proof_receipt = result.proof_receipts.first().cloned();
 
         let gas_value_used = if let Some(proof_receipt) = &proof_receipt {
-            let gas_used = <S as Spec>::Gas::from_slice(&proof_receipt.gas_used);
-            let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::from_slice(
-                &proof_receipt.gas_price,
+            let gas_used = <S as Spec>::Gas::try_from(proof_receipt.gas_used.clone()).unwrap_or_else(
+                |_|
+                panic!(
+                    "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
+                    proof_receipt.gas_used,
+                    std::any::type_name::<S::Gas>()
+                )
+            );
+            let gas_price = <<S as Spec>::Gas as sov_modules_api::Gas>::Price::try_from(
+                proof_receipt.gas_price.clone(),
+            )
+            .unwrap_or_else(
+                |_|
+                panic!(
+                    "Impossible to convert gas used {:?} to a gas unit {}. This is a bug - the batch receipt should always contain the correct number of gas dimensions. Please report this bug",
+                    proof_receipt.gas_used,
+                    std::any::type_name::<<S::Gas as Gas>::Price>()
+                )
             );
 
             gas_used.value(&gas_price)

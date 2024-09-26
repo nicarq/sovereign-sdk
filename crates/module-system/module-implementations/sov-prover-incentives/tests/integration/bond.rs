@@ -145,8 +145,7 @@ fn test_unbonding() {
 /// by modifying the runtime manually.
 #[test]
 fn test_cannot_prove_when_gas_price_is_too_high() {
-    let mut gas_limit =
-        <<S as Spec>::Gas as GasArray>::from_slice(&config_value!("INITIAL_GAS_LIMIT"));
+    let mut gas_limit = <S as Spec>::Gas::from(config_value!("INITIAL_GAS_LIMIT"));
     let gas_target = gas_limit.scalar_division(2).clone();
 
     let zero_gas = <S as Spec>::Gas::zero();

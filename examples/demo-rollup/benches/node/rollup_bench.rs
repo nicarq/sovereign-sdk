@@ -6,7 +6,6 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_bank::{Bank, Coins, TokenId};
-use sov_chain_state::ChainState;
 use sov_db::storage_manager::NativeChangeSet;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
@@ -14,7 +13,7 @@ use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, GasArray,
+    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, Gas, GasSpec,
     GasUnit, OperatingMode, RawTx, Spec,
 };
 use sov_modules_macros::config_value;
@@ -265,8 +264,8 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
         .map(|_| TestUser::generate_with_default_balance())
         .collect();
 
-    let user_stake = <<TestSpec as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
-    let user_stake_value = ChainState::<TestSpec, MockDaSpec>::initial_gas_value(user_stake);
+    let user_stake = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
+    let user_stake_value = user_stake.value(&TestSpec::initial_base_fee_per_gas());
 
     let minimal_config = MinimalZkGenesisConfig::<BenchSpec, MockDaSpec>::from_args(
         TestProver {

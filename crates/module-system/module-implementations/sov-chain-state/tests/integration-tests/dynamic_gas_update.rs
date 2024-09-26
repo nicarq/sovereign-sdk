@@ -2,10 +2,9 @@
 //! is above/below the gas target.
 
 use sov_bank::Coins;
-use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{Gas, GasArray, Spec};
+use sov_modules_api::{Gas, GasArray, GasSpec, Spec};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::{Bank, TestRunner};
@@ -51,8 +50,7 @@ fn setup_dynamic_gas_update_tests() -> (
         },
     );
 
-    let mut gas_limit =
-        <<S as Spec>::Gas as GasArray>::from_slice(&config_value!("INITIAL_GAS_LIMIT"));
+    let mut gas_limit = <S as Spec>::Gas::from(config_value!("INITIAL_GAS_LIMIT"));
     let gas_target = gas_limit.scalar_division(2);
 
     let zero_gas = <S as Spec>::Gas::zero();
@@ -106,8 +104,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
             assert!(result.tx_receipt.is_successful());
 
             assert!(
-                result.gas_value_used
-                    > gas_target.value(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas()),
+                result.gas_value_used > gas_target.value(&S::initial_base_fee_per_gas()),
                 "The gas used should be greater than the gas target"
             );
         }),
@@ -119,9 +116,10 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
 
     assert_eq!(result.batch_receipts.len(), 1);
     let gas_price =
-        <<S as Spec>::Gas as Gas>::Price::from_slice(&result.batch_receipts[0].gas_price);
+        <<S as Spec>::Gas as Gas>::Price::try_from(result.batch_receipts[0].gas_price.clone())
+            .unwrap();
 
-    let initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+    let initial_gas_price = S::initial_base_fee_per_gas();
 
     assert!(
         gas_price > initial_gas_price,
@@ -155,8 +153,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
             assert!(result.tx_receipt.is_successful());
 
             assert!(
-                result.gas_value_used
-                    < gas_target.value(&ChainState::<S, MockDaSpec>::initial_base_fee_per_gas()),
+                result.gas_value_used < gas_target.value(&S::initial_base_fee_per_gas()),
                 "The gas used should be lower than the gas target"
             );
         }),
@@ -168,9 +165,10 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
 
     assert_eq!(result.batch_receipts.len(), 1);
     let gas_price =
-        <<S as Spec>::Gas as Gas>::Price::from_slice(&result.batch_receipts[0].gas_price);
+        <<S as Spec>::Gas as Gas>::Price::try_from(result.batch_receipts[0].gas_price.clone())
+            .unwrap();
 
-    let initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+    let initial_gas_price = S::initial_base_fee_per_gas();
 
     assert!(
         gas_price < initial_gas_price,

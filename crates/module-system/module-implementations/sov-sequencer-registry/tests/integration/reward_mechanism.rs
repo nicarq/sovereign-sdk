@@ -1,10 +1,9 @@
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Bank, GAS_TOKEN_ID};
-use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{Gas, ModuleInfo};
+use sov_modules_api::{Gas, GasSpec, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TransactionTestCase};
@@ -44,7 +43,7 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
             .last()
             .unwrap(),
     );
-    let initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+    let initial_gas_price = S::initial_base_fee_per_gas();
 
     (
         test_roles,

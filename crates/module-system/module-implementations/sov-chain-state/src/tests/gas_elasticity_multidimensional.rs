@@ -1,5 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{Gas, GasArray, GasPrice, Spec};
+use sov_modules_api::{Gas, GasArray, GasPrice, GasSpec, Spec};
 use sov_test_utils::TestSpec;
 
 use crate::{BlockGasInfo, ChainState};
@@ -15,7 +15,7 @@ const GAS_DELTA_FRACTION: u64 = 2;
 /// given an amount of gas used, the initial gas limit and the initial base fee per gas.
 fn test_helper(gas_used: &<TestSpec as Spec>::Gas) -> <<TestSpec as Spec>::Gas as Gas>::Price {
     let mut parent_gas_info = BlockGasInfo::new(
-        ChainState::<TestSpec, MockDaSpec>::initial_gas_limit(),
+        TestSpec::initial_gas_limit(),
         INITIAL_BASE_FEE_PER_GAS.into(),
     );
 
@@ -41,8 +41,8 @@ fn test_base_fee_does_not_change_if_target_is_reached() {
 #[test]
 fn test_base_fee_increases_if_above_target() {
     let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
-    let gas_increase_amount: u64 = gas_target.as_slice().iter().sum::<u64>()
-        / (gas_target.as_slice().len() as u64)
+    let gas_increase_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
+        / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
 
     let mut gas_used = gas_target.clone();
@@ -57,11 +57,11 @@ fn test_base_fee_increases_if_above_target() {
     );
 
     let delta_base_fee_per_gas = computed_base_fee_per_gas
-        .checked_sub(&GasPrice::from_slice(&INITIAL_BASE_FEE_PER_GAS))
+        .checked_sub(&GasPrice::from(INITIAL_BASE_FEE_PER_GAS))
         .expect("The computed base fee per gas should be above the INITIAL_BASE_FEE_PER_GAS");
 
     assert!(
-        delta_base_fee_per_gas > GasPrice::from_slice(&[1; 2]),
+        delta_base_fee_per_gas > GasPrice::from([1; 2]),
         "The base fee per gas delta should increase by more than 1, actual value {:?}",
         delta_base_fee_per_gas
     );
@@ -71,8 +71,8 @@ fn test_base_fee_increases_if_above_target() {
 #[test]
 fn test_base_fee_decreases_if_below_target() {
     let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
-    let gas_decrease_amount: u64 = gas_target.as_slice().iter().sum::<u64>()
-        / (gas_target.as_slice().len() as u64)
+    let gas_decrease_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
+        / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
 
     let mut gas_used = gas_target.clone();
@@ -93,34 +93,30 @@ fn test_base_fee_decreases_if_below_target() {
 #[test]
 fn test_base_fee_varies_accross_each_dimension() {
     let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
-    let gas_delta_amount: u64 = gas_target.as_slice().iter().sum::<u64>()
-        / (gas_target.as_slice().len() as u64)
+    let gas_delta_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
+        / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
 
     let mut gas_used = gas_target.clone();
 
-    gas_used
-        .as_slice_mut()
-        .iter_mut()
-        .enumerate()
-        .for_each(|(i, g)| {
-            if i % 2 == 0 {
-                *g += gas_delta_amount;
-            } else {
-                *g -= gas_delta_amount;
-            }
-        });
+    gas_used.as_mut().iter_mut().enumerate().for_each(|(i, g)| {
+        if i % 2 == 0 {
+            *g += gas_delta_amount;
+        } else {
+            *g -= gas_delta_amount;
+        }
+    });
 
     let computed_base_fee_per_gas = test_helper(&gas_used);
 
     let initial_base_fee_per_gas =
-        <<TestSpec as Spec>::Gas as Gas>::Price::from_slice(&INITIAL_BASE_FEE_PER_GAS);
+        <<TestSpec as Spec>::Gas as Gas>::Price::from(INITIAL_BASE_FEE_PER_GAS);
 
     // The base fee per gas should decrease below the initial base fee per gas for odd dimensions and increase for even dimensions.
     computed_base_fee_per_gas
-        .as_slice()
+        .as_ref()
         .iter()
-        .zip(initial_base_fee_per_gas.as_slice())
+        .zip(initial_base_fee_per_gas.as_ref())
         .enumerate()
         .for_each(|(i, (g, initial_base_fee_per_gas))| {
             if i % 2 == 0 {

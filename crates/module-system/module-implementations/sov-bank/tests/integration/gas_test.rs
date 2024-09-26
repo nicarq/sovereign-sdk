@@ -1,10 +1,8 @@
 use sov_bank::{Bank, BankGasConfig, CallMessage, GAS_TOKEN_ID};
-use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, Gas, GasArray, Spec, TxEffect};
+use sov_modules_api::{Error, Gas, GasSpec, Spec, TxEffect};
 use sov_test_utils::{
-    AsUser, AtomicNumber, MockDaSpec, TransactionTestAssert, TransactionTestCase,
-    TEST_DEFAULT_USER_BALANCE,
+    AsUser, AtomicNumber, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::helpers::{setup_with_custom_runtime, TestData, RT, S};
@@ -71,7 +69,7 @@ fn gas_price_constants_are_charged_correctly() {
     let gas_consumed_without_price_ref_1 = gas_consumed_without_price_ref.clone();
 
     gas_test_setup(
-        Some(<S as Spec>::Gas::from_slice(&[0; 2])),
+        Some(<S as Spec>::Gas::from([0; 2])),
         move |PostCreateTokenContext {
                   user_address,
                   user_initial_balance,
@@ -95,8 +93,8 @@ fn gas_price_constants_are_charged_correctly() {
         },
     );
 
-    let gas_to_charge_for_create_token = <S as Spec>::Gas::from_slice(&[100; 2]);
-    let bank_initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+    let gas_to_charge_for_create_token = <S as Spec>::Gas::from([100; 2]);
+    let bank_initial_gas_price = S::initial_base_fee_per_gas();
 
     gas_test_setup(
         Some(gas_to_charge_for_create_token.clone()),
@@ -136,10 +134,10 @@ fn config_constants_are_charged_correctly() {
 
     // compute the expected gas cost, based on the json constants
     let create_token_config_cost = Bank::<S>::default().gas_config().create_token.clone();
-    let bank_initial_gas_price = ChainState::<S, MockDaSpec>::initial_base_fee_per_gas();
+    let bank_initial_gas_price = S::initial_base_fee_per_gas();
 
     gas_test_setup(
-        Some(<S as Spec>::Gas::from_slice(&[0; 2])),
+        Some(<S as Spec>::Gas::from([0; 2])),
         move |PostCreateTokenContext {
                   user_initial_balance,
                   user_address,
@@ -197,7 +195,7 @@ fn config_constants_are_charged_correctly() {
 #[test]
 fn not_enough_gas_wont_panic() {
     gas_test_setup(
-        Some(<S as Spec>::Gas::from_slice(&[
+        Some(<S as Spec>::Gas::from([
             TEST_DEFAULT_USER_BALANCE / 2,
             TEST_DEFAULT_USER_BALANCE / 2,
         ])),
@@ -230,7 +228,7 @@ fn not_enough_gas_wont_panic() {
 #[test]
 fn very_high_gas_to_charge_wont_panic_or_overflow() {
     gas_test_setup(
-        Some(<S as Spec>::Gas::from_slice(&[u64::MAX - 1, u64::MAX - 1])),
+        Some(<S as Spec>::Gas::from([u64::MAX - 1, u64::MAX - 1])),
         |_| {
             Box::new(move |result, _state| {
                 assert!(

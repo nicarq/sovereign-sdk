@@ -1,10 +1,9 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
-use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, GasArray, OperatingMode, PrivateKey, Spec};
+use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, OperatingMode, PrivateKey, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
@@ -82,9 +81,8 @@ fn run_value_setter_txs_with_assertions(
         &[],
         sequencer_rollup_addr,
         SEQUENCER_ADDR.into(),
-        ChainState::<TestSpec, MockDaSpec>::initial_gas_value(<TestSpec as Spec>::Gas::from_slice(
-            &TEST_DEFAULT_USER_STAKE,
-        )),
+        <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
+            .value(&TestSpec::initial_base_fee_per_gas()),
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
     );
@@ -122,7 +120,7 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
     token_name: String,
     init_balance: u64,
 ) -> crate::runtime::GenesisConfig<S, Da> {
-    let user_stake = <<S as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
+    let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     crate::runtime::GenesisConfig {
         value_setter: ValueSetterConfig {
@@ -140,7 +138,7 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
             minimum_challenger_bond: user_stake.clone(),
             initial_attesters: vec![(
                 admin.clone(),
-                ChainState::<S, MockDaSpec>::initial_gas_value(user_stake.clone()),
+                user_stake.value(&S::initial_base_fee_per_gas()),
             )],
             rollup_finality_period: TEST_ROLLUP_FINALITY_PERIOD,
             maximum_attested_height: TEST_MAX_ATTESTED_HEIGHT,

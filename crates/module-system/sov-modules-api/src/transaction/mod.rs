@@ -6,10 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
 pub(crate) use gas_metering::TxGasMeter;
 pub(crate) use rewards::transaction_consumption_helper;
-pub use rewards::{
-    forced_sequencer_registration_cost, ProverRewards, RemainingFunds, SequencerReward,
-    TransactionConsumption,
-};
+pub use rewards::{ProverRewards, RemainingFunds, SequencerReward, TransactionConsumption};
 use serde::{Deserialize, Serialize};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
@@ -101,7 +98,7 @@ impl<S: Spec> Transaction<S> {
         let serialized_tx = borsh::to_vec(&self.to_unsigned_transaction()).map_err(|e| {
             TransactionVerificationError::TransactionDeserializationError(e.to_string())
         })?;
-        MeteredSignature::<S::Gas, _>::new(self.signature.clone())
+        MeteredSignature::new::<S>(self.signature.clone())
             .verify(&self.pub_key, &serialized_tx, meter)
             .map_err(TransactionVerificationError::from)?;
 

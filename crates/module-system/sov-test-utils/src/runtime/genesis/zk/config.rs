@@ -1,9 +1,8 @@
 use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
-use sov_chain_state::ChainState;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, GasArray, Genesis, Spec};
+use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
@@ -73,9 +72,8 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
     pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
         // Generate with default stake * 2 because the user will be staked as a sequencer and a
         // prover.
-        let default_user_stake_value = ChainState::<TestSpec, MockDaSpec>::initial_gas_value(
-            <<TestSpec as Spec>::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE),
-        );
+        let default_user_stake_value = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
+            .value(&TestSpec::initial_base_fee_per_gas());
 
         let prover_sequencer =
             TestUser::generate(default_user_stake_value * 2 + TEST_DEFAULT_USER_BALANCE);
@@ -120,7 +118,7 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
         gas_token_name: String,
     ) -> Self {
         let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
-        let default_user_stake = <S::Gas as GasArray>::from_slice(&TEST_DEFAULT_USER_STAKE);
+        let default_user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
         Self {
             sequencer_registry: SequencerConfig {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),

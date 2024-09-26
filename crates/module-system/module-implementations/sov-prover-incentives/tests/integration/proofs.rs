@@ -1,5 +1,5 @@
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::{Gas, GasArray, InvalidProofError, ProofOutcome, Spec};
+use sov_modules_api::{Gas, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -124,9 +124,10 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
                 .get(state)
                 .unwrap()
                 .unwrap();
-            let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(
-                &result.proof_receipt.unwrap().gas_price,
-            );
+            let gas_price = <<S as Spec>::Gas as Gas>::Price::try_from(
+                result.proof_receipt.unwrap().gas_price.clone(),
+            )
+            .unwrap();
 
             let bonded_amount = prover_incentives
                 .bonded_provers

@@ -6,7 +6,7 @@ use sov_test_utils::storage::new_finalized_storage;
 
 use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
-use crate::{Gas, GasArray, GasMeter, Spec, WorkingSet};
+use crate::{Gas, GasMeter, Spec, WorkingSet};
 
 type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
 
@@ -21,8 +21,8 @@ fn create_working_set(
 
 #[test]
 fn test_charge_gas_to_set() {
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
-    let gas_set_cost = <S as Spec>::Gas::from_slice(&config_value!("GAS_TO_CHARGE_FOR_WRITE"));
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
+    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_WRITE"));
     let remaining_funds = gas_set_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
@@ -42,8 +42,8 @@ fn test_charge_gas_to_set() {
 
 #[test]
 fn test_charge_gas_retrieve() {
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
-    let gas_access_cost = <S as Spec>::Gas::from_slice(&config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
+    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
     let remaining_funds = gas_access_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);
@@ -63,13 +63,13 @@ fn test_charge_gas_retrieve() {
 
 #[test]
 fn test_charge_gas_set_then_retrieve() {
-    let gas_price = <<S as Spec>::Gas as Gas>::Price::from_slice(&[1; 2]);
+    let gas_price = <<S as Spec>::Gas as Gas>::Price::from([1; 2]);
 
-    let gas_access_cost = <S as Spec>::Gas::from_slice(&config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
+    let gas_access_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_ACCESS"));
     let gas_hot_access_refund =
-        <S as Spec>::Gas::from_slice(&config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS"));
+        <S as Spec>::Gas::from(config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS"));
 
-    let gas_set_cost = <S as Spec>::Gas::from_slice(&config_value!("GAS_TO_CHARGE_FOR_WRITE"));
+    let gas_set_cost = <S as Spec>::Gas::from(config_value!("GAS_TO_CHARGE_FOR_WRITE"));
     let remaining_funds = gas_access_cost.value(&gas_price) + gas_set_cost.value(&gas_price);
 
     let mut working_set = create_working_set(remaining_funds, &gas_price);

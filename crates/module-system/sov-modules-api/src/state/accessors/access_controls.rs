@@ -73,11 +73,9 @@ mod http_api {
 
     use super::CachedAccessor;
     use crate::gas::GasMeter;
+    use crate::module::GasSpec;
     use crate::state::accessors::http_api::ApiStateAccessor;
-    use crate::state::traits::{
-        decode_gas_cost, gas_to_charge_for_delete, gas_to_charge_for_read, gas_to_charge_for_write,
-        gas_to_refund_for_hot_delete, gas_to_refund_for_hot_read, gas_to_refund_for_hot_write,
-    };
+    use crate::state::traits::decode_gas_cost;
     use crate::{AccessoryStateReader, AccessoryStateWriter, Spec, StateReader, StateWriter};
 
     macro_rules! inner_impl_http_api_state_reader {
@@ -85,12 +83,12 @@ mod http_api {
         type Error = Infallible;
 
         fn get(&mut self, key: &SlotKey) -> Result<Option<SlotValue>, Infallible> {
-            self.charge_gas(&gas_to_charge_for_read()).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
+            self.charge_gas(&S::gas_to_charge_for_access()).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!");
 
             let (val, is_value_cached) = CachedAccessor::<$namespace>::get_cached(self, key);
 
             if is_value_cached == IsValueCached::Yes {
-                self.refund_gas(&gas_to_refund_for_hot_read()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                self.refund_gas(&S::gas_to_refund_for_hot_access()).expect("Failed to refund gas for read operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
             }
 
             Ok(val)
@@ -108,7 +106,7 @@ mod http_api {
             let storage_value = <Self as StateReader<$namespace>>::get(self, storage_key)?;
 
             if let Some(storage_value) = &storage_value {
-                self.charge_gas(&decode_gas_cost(storage_value)).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!")
+                self.charge_gas(&decode_gas_cost::<S>(storage_value)).expect("We should never fail to charge gas for read operation of api accessors. This is a bug!")
             }
 
             Ok(storage_value
@@ -122,25 +120,25 @@ mod http_api {
                 type Error = Infallible;
 
                 fn set(&mut self, key: &SlotKey, value: SlotValue) -> Result<(), Infallible> {
-                    self.charge_gas(&gas_to_charge_for_write())
+                    self.charge_gas(&S::gas_to_charge_for_write())
                         .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
                     let is_value_cached = CachedAccessor::<$namespace>::set_cached(self, key, value);
 
                     if is_value_cached == IsValueCached::Yes {
-                        self.refund_gas(&gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                        self.refund_gas(&S::gas_to_refund_for_hot_write()).expect("Failed to refund gas for write operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                     }
 
                     Ok(())
                 }
 
                 fn delete(&mut self, key: &SlotKey) -> Result<(), Infallible> {
-                    self.charge_gas(&gas_to_charge_for_delete())
+                    self.charge_gas(&S::gas_to_charge_for_delete())
                     .expect("We should never fail to charge gas for write operation of api accessors. This is a bug!");
 
                     let is_value_cached = CachedAccessor::<$namespace>::delete_cached(self, key);
 
                     if is_value_cached == IsValueCached::Yes {
-                        self.refund_gas(&gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
+                        self.refund_gas(&S::gas_to_refund_for_hot_delete()).expect("Failed to refund gas for delete operation. This is a bug. The gas refund constant should always be lower than the gas to charge.");
                     }
 
                     Ok(())
@@ -209,19 +207,19 @@ impl<S: Storage> StateWriter<User> for TxScratchpad<S> {
 impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateReader<User>
     for PreExecWorkingSet<S, PreExecChecksMeter>
 {
-    type GU = S::Gas;
+    type Spec = S;
 }
 impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateWriter<User>
     for PreExecWorkingSet<S, PreExecChecksMeter>
 {
-    type GU = S::Gas;
+    type Spec = S;
 }
 
 impl<S: Spec> ProvableStateReader<User> for WorkingSet<S> {
-    type GU = S::Gas;
+    type Spec = S;
 }
 impl<S: Spec> ProvableStateWriter<User> for WorkingSet<S> {
-    type GU = S::Gas;
+    type Spec = S;
 }
 
 impl<S: Spec> AccessoryStateWriter for WorkingSet<S> {}

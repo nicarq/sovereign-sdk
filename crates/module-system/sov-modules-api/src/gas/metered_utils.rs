@@ -9,6 +9,7 @@ use sov_rollup_interface::crypto::{SigVerificationError, Signature};
 use thiserror::Error;
 
 use crate::gas::traits::{Gas, GasMeter, GasMeteringError};
+use crate::GasSpec;
 
 /// A metered hasher that charges gas for each operation.
 /// This data structure should be used in the module system to charge gas when hashing data.
@@ -22,20 +23,12 @@ pub struct MeteredHasher<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<Output
 impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
     MeteredHasher<'a, GU, Meter, Hasher>
 {
-    /// Default gas price to charge for each hash update operation. This is a per-byte price and it has to be multiplied by the length of the data.
-    pub const DEFAULT_GAS_TO_CHARGE_FOR_HASH_UPDATE: [u64; 2] =
-        config_value!("GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE");
-
-    /// Default gas price to charge for each hash finalize operation.
-    pub const DEFAULT_GAS_TO_CHARGE_FOR_HASH_FINALIZE: [u64; 2] =
-        config_value!("GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE");
-
-    /// Create a new metered hasher from a given gas meter with default gas prices [`Self::DEFAULT_GAS_TO_CHARGE_FOR_HASH_UPDATE`] and [`Self::DEFAULT_GAS_TO_CHARGE_FOR_HASH_FINALIZE`]
-    pub fn new(meter: &'a mut Meter) -> Self {
+    /// Create a new metered hasher from a given gas meter with default gas prices [`GasSpec::gas_to_charge_per_byte_hash_update`] and [`GasSpec::gas_to_charge_per_byte_hash_finalize`]
+    pub fn new<Spec: GasSpec<Gas = GU>>(meter: &'a mut Meter) -> Self {
         Self::new_with_custom_price(
             meter,
-            GU::from_slice(&Self::DEFAULT_GAS_TO_CHARGE_FOR_HASH_UPDATE),
-            GU::from_slice(&Self::DEFAULT_GAS_TO_CHARGE_FOR_HASH_FINALIZE),
+            Spec::gas_to_charge_per_byte_hash_update(),
+            Spec::gas_to_charge_per_byte_hash_finalize(),
         )
     }
 
@@ -74,8 +67,11 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
     }
 
     /// Computes the hash of the given data. Performs the same operation as [`Digest::digest`] but charges gas.
-    pub fn digest(data: &[u8], meter: &'a mut Meter) -> Result<[u8; 32], GasMeteringError<GU>> {
-        let mut hasher = Self::new(meter);
+    pub fn digest<Spec: GasSpec<Gas = GU>>(
+        data: &[u8],
+        meter: &'a mut Meter,
+    ) -> Result<[u8; 32], GasMeteringError<GU>> {
+        let mut hasher = Self::new::<Spec>(meter);
         hasher.update(data)?;
         Self::finalize(hasher).map_err(|(_, e)| e)
     }
@@ -112,22 +108,14 @@ pub struct MeteredSignature<GU: Gas, Sign: Signature> {
 }
 
 impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
-    const DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION: [u64; 2] =
-        config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION");
-
-    const DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION: [u64; 2] =
-        config_value!("DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION");
-
     /// Creates a new [`MeteredSignature`] from a given [`Signature`] with a default gas price.
-    pub fn new(inner: Sign) -> Self {
+    pub fn new<Spec: GasSpec<Gas = GU>>(inner: Sign) -> Self {
         Self {
             inner,
-            gas_to_charge_per_byte_for_verification: GU::from_slice(
-                &Self::DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION,
-            ),
-            fixed_gas_to_charge_per_verification: GU::from_slice(
-                &Self::DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION,
-            ),
+            gas_to_charge_per_byte_for_verification:
+                Spec::gas_to_charge_per_byte_signature_verification(),
+            fixed_gas_to_charge_per_verification:
+                Spec::fixed_gas_to_charge_per_signature_verification(),
         }
     }
 
@@ -185,14 +173,13 @@ pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
     const DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION: [u64; 2] =
         config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION");
 
-    /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`Self::DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION`]
+    /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
     /// amount of gas for each byte of the struct to deserialize.
-    fn deserialize(
+    fn deserialize<Spec: GasSpec<Gas = GU>>(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<GU>,
     ) -> Result<Self, MeteredBorshDeserializeError<GU>> {
-        let deserialization_cost =
-            GU::from_slice(&Self::DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION);
+        let deserialization_cost = Spec::gas_to_charge_per_byte_borsh_deserialization();
 
         Self::deserialize_with_custom_cost(buf, meter, deserialization_cost)
     }
