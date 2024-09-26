@@ -8016,7 +8016,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-Labs/rockbound?rev=d640252e19c08ff47ce1dc2c209b9b1ba2bf9343#d640252e19c08ff47ce1dc2c209b9b1ba2bf9343"
+source = "git+https://github.com/sovereign-Labs/rockbound?rev=4ff4c7c6b302107c3189a0438c14d481c0134b96#4ff4c7c6b302107c3189a0438c14d481c0134b96"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -9186,6 +9186,7 @@ dependencies = [
  "prost",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "schemars",
  "serde",
  "serde_json",
  "sha2 0.10.8",
@@ -9865,6 +9866,7 @@ dependencies = [
  "rand 0.8.5",
  "reltester",
  "rockbound",
+ "schemars",
  "serde",
  "serde_json",
  "serde_with",
@@ -9879,7 +9881,6 @@ dependencies = [
  "sov-rollup-interface",
  "sov-sequencer-json-client",
  "sov-state",
- "sov-stf-runner",
  "sov-test-utils",
  "sov-value-setter",
  "tempfile",

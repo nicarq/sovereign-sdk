@@ -26,6 +26,17 @@ pub(super) struct Delta<S: Storage> {
 }
 
 impl<S: Storage> Delta<S> {
+    pub(super) fn clone_with_empty_witness(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+            witness: Default::default(),
+            kernel_cache: self.kernel_cache.clone(),
+            user_cache: self.user_cache.clone(),
+            accessory_writes: self.accessory_writes.clone(),
+            version: self.version,
+        }
+    }
+
     #[cfg(feature = "native")]
     pub(super) fn new(inner: S, version: Option<u64>) -> Self {
         Self::with_witness(inner, Default::default(), version)

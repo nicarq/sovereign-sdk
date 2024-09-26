@@ -17,6 +17,7 @@ use futures::stream::BoxStream;
 use futures::StreamExt;
 use jsonrpsee::http_client::transport::HttpBackend;
 use jsonrpsee::http_client::{HeaderMap, HttpClient};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
@@ -142,7 +143,7 @@ impl CelestiaService {
 }
 
 /// Runtime configuration for the [`DaService`] implementation.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, JsonSchema)]
 pub struct CelestiaConfig {
     /// The JWT used to authenticate with the Celestia RPC server
     pub celestia_rpc_auth_token: String,

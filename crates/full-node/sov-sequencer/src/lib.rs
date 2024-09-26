@@ -1,17 +1,17 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
-mod batch_builder;
+pub mod batch_builders;
+mod config;
 mod db;
 mod drop_notifier;
-mod mempool;
 mod rest_api;
 mod sequencer;
 mod spec;
 mod tx_status;
 
-pub use batch_builder::{FairBatchBuilder, FairBatchBuilderConfig};
-pub use db::{MempoolTx, SequencerDb};
+pub use config::{BatchBuilderConfig, SequencerConfig};
+pub use db::{SeqDbTx, SequencerDb};
 pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::TxHash;

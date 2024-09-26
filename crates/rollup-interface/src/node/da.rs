@@ -6,6 +6,7 @@ use std::time::Duration;
 use backon::{BackoffBuilder, ExponentialBuilder, Retryable};
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tracing::error;
@@ -129,7 +130,7 @@ pub trait DaService: Send + Sync + 'static {
 
     /// [`serde`]-compatible configuration data for this [`DaService`]. Parsed
     /// from TOML.
-    type Config: Send + Sync + 'static;
+    type Config: JsonSchema + PartialEq + Send + Sync + 'static;
 
     /// The verifier for this DA layer.
     type Verifier: DaVerifier<Spec = Self::Spec> + Clone;

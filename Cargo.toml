@@ -126,7 +126,7 @@ sov-test-harness = { path = "crates/utils/test-harness" }
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6209abff72929f5ba41614f5cea3e4a748428c3" }
-rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "d640252e19c08ff47ce1dc2c209b9b1ba2bf9343" }
+rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "4ff4c7c6b302107c3189a0438c14d481c0134b96" }
 sov-wallet-format = { git = "ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git", rev = "0860de2877084066477d0157a0f5a311bd1be919" }
 # External dependencies
 async-trait = "0.1.81"
@@ -178,7 +178,9 @@ tracing-test = { version = "0.2.5", features = [
 ] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
 utoipa = "4.2"
 # Based on top of 7.1, but have fix for infinite redirect. Should be good to switch back to crates version, when 7.2 is released.
-utoipa-swagger-ui = { git = "https://github.com/juhaku/utoipa.git", rev = "a985d8c1340f80ab69b2b0e5de799df98d567732", features = ["axum"] }
+utoipa-swagger-ui = { git = "https://github.com/juhaku/utoipa.git", rev = "a985d8c1340f80ab69b2b0e5de799df98d567732", features = [
+    "axum",
+] }
 unwrap-infallible = "0.1.5"
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }

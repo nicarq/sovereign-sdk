@@ -28,6 +28,7 @@ serde_json = { workspace = true }
 serde = { workspace = true }
 strum = { version = "0.26", features = ["derive"] }
 toml = { workspace = true }
+sov-sequencer = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "server"] }
 tokio = { workspace = true, features = ["net", "sync", "rt-multi-thread", "time"] }
 hex = { workspace = true }

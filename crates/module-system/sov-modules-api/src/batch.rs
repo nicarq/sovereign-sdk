@@ -7,9 +7,20 @@ use crate::transaction::SequencerReward;
 
 /// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    derive_more::AsRef,
+)]
 pub struct FullyBakedTx {
     /// Serialized transaction.
+    #[as_ref(forward)]
     pub data: Vec<u8>,
 }
 
@@ -22,9 +33,19 @@ impl FullyBakedTx {
 
 /// RawTx represents a serialized signed rollup transaction. A RawTx needs to be encoded
 /// with authentication information before being placed on the DA layer.
-#[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(
+    Debug,
+    PartialEq,
+    Clone,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    derive_more::AsRef,
+)]
 pub struct RawTx {
     /// Serialized transaction.
+    #[as_ref(forward)]
     pub data: Vec<u8>,
 }
 

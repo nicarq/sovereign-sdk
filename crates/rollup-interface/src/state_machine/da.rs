@@ -30,7 +30,7 @@ pub trait DaSpec:
     type BlobTransaction: BlobReaderTrait<Address = Self::Address> + Send + Sync;
 
     /// How transactions can be identified on the DA layer.
-    type TransactionId: serde::Serialize + Clone + Debug + Display + Send + Sync;
+    type TransactionId: Serialize + DeserializeOwned + Clone + Debug + Display + Send + Sync;
 
     /// The type used to represent addresses on the DA layer.
     type Address: BasicAddress + Send + Sync;

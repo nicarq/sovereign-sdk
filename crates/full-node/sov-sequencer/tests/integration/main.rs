@@ -8,6 +8,7 @@ use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::{MessageGenerator, TestPrivateKey, TestSpec};
 
 mod rest_api;
+mod std_batch_builder;
 mod websockets;
 
 /// Generates a hanful of transactions and returns the hash of the first one.

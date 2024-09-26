@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use rockbound::SchemaBatch;
@@ -8,43 +8,51 @@ use sov_db::rocks_db_config::gen_rocksdb_options;
 use sov_db::{
     define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
 };
+use sov_modules_api::FullyBakedTx;
 use sov_rollup_interface::TxHash;
 use uuid::Uuid;
 
-use crate::mempool::TxIdWithinMempool;
-
+/// Transactions within [`SequencerDb`] are identified by a monotonically
+/// increasing
+/// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
+/// which is then converted to a [`u128`].
+pub type SeqDbTxId = u128;
 /// A database holding transactions that have been submitted to the sequencer
 /// and other related data.
 #[derive(Clone, Debug)]
 pub struct SequencerDb {
     db: Arc<rockbound::DB>,
+    entry_ttl_after_use: Duration,
 }
 
 impl SequencerDb {
-    const DB_PATH_SUFFIX: &'static str = "mempool";
-    const DB_NAME: &'static str = "mempool-db";
-
-    const TABLES: &'static [&'static str] = &[MempoolTxByHash::table_name()];
+    const DB_PATH_SUFFIX: &'static str = "sequencer";
+    const DB_NAME: &'static str = "sequencer-db";
+    const TABLES: &'static [&'static str] = &[SeqDbTxByHash::table_name()];
 
     /// Initializes a new [`SequencerDb`] at the given path.
-    pub fn new(path: impl AsRef<Path>) -> anyhow::Result<Self> {
+    pub fn new(path: impl AsRef<Path>, entry_ttl_after_use: Duration) -> anyhow::Result<Self> {
         let path = path.as_ref().join(Self::DB_PATH_SUFFIX);
-        let db = rockbound::DB::open(
+        let db = rockbound::DB::open_with_ttl(
             path,
             Self::DB_NAME,
             Self::TABLES.iter().copied(),
             &gen_rocksdb_options(&Default::default(), false),
+            entry_ttl_after_use,
         )?;
 
-        Ok(Self { db: Arc::new(db) })
+        Ok(Self {
+            db: Arc::new(db),
+            entry_ttl_after_use,
+        })
     }
 
-    /// Returns all transactions stored in the mempool, keyed by their hash.
-    pub fn read_all(&self) -> anyhow::Result<HashMap<TxHash, MempoolTx>> {
-        let mut txs = HashMap::new();
-        for iter_res in self.db.iter::<MempoolTxByHash>()? {
+    /// Returns all transactions stored in the database.
+    pub fn read_all(&self) -> anyhow::Result<Vec<SeqDbTx>> {
+        let mut txs = vec![];
+        for iter_res in self.db.iter::<SeqDbTxByHash>()? {
             let item = iter_res?;
-            txs.insert(item.key, item.value);
+            txs.push(item.value);
         }
         Ok(txs)
     }
@@ -53,47 +61,61 @@ impl SequencerDb {
     pub fn remove(&self, hashes: &[TxHash]) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for hash in hashes {
-            batch.delete::<MempoolTxByHash>(hash)?;
+            batch.delete::<SeqDbTxByHash>(hash)?;
         }
         self.db.write_schemas(&batch)?;
         Ok(())
     }
 
+    /// Returns the configured time-to-live of [`SequencerDb`] entries.
+    pub fn ttl(&self) -> Duration {
+        self.entry_ttl_after_use
+    }
+
+    /// Returns true if a transaction with the given hash is present in the database.
+    pub async fn contains_tx(&self, tx_hash: &TxHash) -> anyhow::Result<bool> {
+        self.db
+            .get::<SeqDbTxByHash>(tx_hash)
+            .map(|value| value.is_some())
+    }
+
     /// Inserts a single transaction into the mempool.
-    pub fn insert(&self, tx: &MempoolTx) -> anyhow::Result<()> {
-        self.db.put::<MempoolTxByHash>(&tx.hash, tx)?;
+    pub async fn insert(&self, tx: &SeqDbTx) -> anyhow::Result<()> {
+        self.db.put::<SeqDbTxByHash>(&tx.hash, tx)?;
         Ok(())
     }
 }
 
-/// A transaction as stored inside [`SequencerDb`].
+/// A transaction stored inside [`SequencerDb`].
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
-pub struct MempoolTx {
-    /// The raw, unmodified transaction bytes.
-    pub tx_bytes: Vec<u8>,
-    /// The hash of the transaction.
+pub struct SeqDbTx {
+    /// The encoded, unmodified transaction bytes.
+    pub tx_bytes: FullyBakedTx,
+    /// The hash of the transaction, as calculated by
+    /// [`BatchBuilder::accept_tx`](crate::batch_builders::BatchBuilder::accept_tx).
     pub hash: TxHash,
-    /// A monotonically increasing counter used to order transactions by
+    /// A monotonically increasing UUIDv7 counter used to order transactions by
     /// insertion time. Gaps are allowed.
-    pub incremental_id: TxIdWithinMempool,
+    pub uuid_v7: u128,
 }
 
-impl MempoolTx {
-    /// Creates a new [`MempoolTx`] from the given transaction bytes.
-    pub fn new(hash: TxHash, tx_bytes: Vec<u8>) -> Self {
+impl SeqDbTx {
+    /// Creates a new [`SeqDbTx`] from the given transaction bytes.
+    pub fn new(hash: TxHash, tx_bytes: FullyBakedTx) -> Self {
         Self {
             tx_bytes,
             hash,
             // UUIDv7 are monotonically increasing. See here:
             // <https://github.com/uuid-rs/uuid/releases/tag/1.9.0>.
-            incremental_id: Uuid::now_v7().as_u128(),
+            uuid_v7: Uuid::now_v7().as_u128(),
         }
     }
 }
 
 define_table_with_seek_key_codec!(
-    /// Transactions stored in the mempool, keyed by hash.
-    (MempoolTxByHash) TxHash => MempoolTx
+    /// Accepted transactions waiting to be published as part of a batch and
+    /// stored in the [`SequencerDb`], keyed by hash.
+    (SeqDbTxByHash) TxHash => SeqDbTx
 );
 
 #[cfg(test)]

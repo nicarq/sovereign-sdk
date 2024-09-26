@@ -46,6 +46,7 @@ mod blueprint {
     use std::marker::PhantomData;
     use std::net::SocketAddr;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use anyhow::Context;
     use async_trait::async_trait;
@@ -64,9 +65,8 @@ mod blueprint {
     use sov_rollup_interface::optimistic::BondingProofService;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-    use sov_sequencer::{
-        FairBatchBuilder, FairBatchBuilderConfig, Sequencer, SequencerDb, SequencerSpec,
-    };
+    use sov_sequencer::batch_builders::standard::StdBatchBuilder;
+    use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
     use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
@@ -134,17 +134,13 @@ mod blueprint {
         ) -> <<Self::ProverService as ProverService>::Verifier as Zkvm>::CodeCommitment;
 
         /// Creates RPC methods for the rollup.
-        fn create_endpoints(
+        async fn create_endpoints(
             &self,
             storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,
-            rollup_config: &RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<RuntimeEndpoints>;
 
         /// Creates GenesisConfig from genesis files.
@@ -156,11 +152,7 @@ mod blueprint {
                 Self::DaSpec,
             >>::GenesisPaths,
             kernel_genesis: <Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
-            _rollup_config: &RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<
             GenesisParams<
                 <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
@@ -181,22 +173,14 @@ mod blueprint {
         /// Creates instance of [`DaService`].
         async fn create_da_service(
             &self,
-            rollup_config: &RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> Self::DaService;
 
         /// Creates instance of [`ProverService`].
         async fn create_prover_service(
             &self,
             prover_config: RollupProverConfig,
-            rollup_config: &RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
             da_service: &Self::DaService,
         ) -> Self::ProverService;
 
@@ -204,11 +188,7 @@ mod blueprint {
         /// Panics if initialization fails.
         fn create_storage_manager(
             &self,
-            rollup_config: &RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<Self::StorageManager>;
 
         /// Creates instance of a LedgerDb.
@@ -227,11 +207,7 @@ mod blueprint {
                 Self::DaSpec,
             >>::GenesisPaths,
             kernel_genesis_config: <Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
-            rollup_config: RollupConfig<
-                <Self::Spec as Spec>::Address,
-                <Self::DaService as DaService>::Config,
-                FairBatchBuilderConfig<Self::DaSpec>,
-            >,
+            rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
             prover_config: Option<RollupProverConfig>,
         ) -> anyhow::Result<Rollup<Self, M>>
         where
@@ -253,7 +229,10 @@ mod blueprint {
                 .get_block_at(rollup_config.runner.genesis_height)
                 .await?;
 
-            let sequencer_db = SequencerDb::new(&rollup_config.storage.path)?;
+            let sequencer_db = SequencerDb::new(
+                &rollup_config.storage.path,
+                Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
+            )?;
 
             let prev_root = ledger_db
                 .get_head_slot()?
@@ -272,13 +251,15 @@ mod blueprint {
                 tokio::sync::watch::channel(prover_storage);
             // We pass "bootstrap" storage here,
             // as it will be replaced with the latest on after first processed block.
-            let endpoints = self.create_endpoints(
-                api_storage_receiver,
-                &ledger_db,
-                &sequencer_db,
-                &da_service,
-                &rollup_config,
-            )?;
+            let endpoints = self
+                .create_endpoints(
+                    api_storage_receiver,
+                    &ledger_db,
+                    &sequencer_db,
+                    &da_service,
+                    &rollup_config,
+                )
+                .await?;
 
             let native_stf = StfBlueprint::new();
 
@@ -431,7 +412,7 @@ mod blueprint {
         <B::OuterZkvmHost as ZkvmHost>::Guest:
             ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
     {
-        type BatchBuilder = FairBatchBuilder<B::Spec, B::DaSpec, B::Runtime, B::Kernel>;
+        type BatchBuilder = StdBatchBuilder<(B::Spec, B::DaSpec, B::Runtime), B::Kernel>;
         type Da = B::DaService;
         type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
         type TxReceipt = TxReceiptContents<B::Spec>;

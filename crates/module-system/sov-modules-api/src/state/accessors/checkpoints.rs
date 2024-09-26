@@ -17,6 +17,20 @@ pub struct StateCheckpoint<S: Storage> {
 }
 
 impl<S: Storage> StateCheckpoint<S> {
+    /// Deep copy the state checkpoint (including its caches), ignoring
+    /// the witness.
+    ///
+    /// Since this method leaves the witness of the new
+    /// checkpoint in a state that is inconsistent with its caches,
+    /// it should only be used in situations where the witness is not needed,
+    /// such as in the API accessors.
+    pub fn clone_with_empty_witness(&self) -> Self {
+        Self {
+            delta: self.delta.clone_with_empty_witness(),
+            virtual_slot_num: self.virtual_slot_num,
+        }
+    }
+
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
     pub fn new<K: Kernel<S>>(inner: S, kernel: &K) -> Self {
