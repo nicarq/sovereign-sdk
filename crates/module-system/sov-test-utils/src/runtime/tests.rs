@@ -453,22 +453,38 @@ fn test_custom_transaction_format_2() {
 }
 
 #[test]
-fn test_override_next_block_timestamp() {
+fn test_freeze_time() {
     let (_, mut runner) = setup();
     let chain_state = ChainState::<S, MockDaSpec>::default();
 
-    runner.config.override_next_header_timestamp = Some(Time::from_secs(200));
+    runner.config.freeze_time = Some(Time::from_secs(200));
     runner.advance_slots(1);
 
     let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
     assert_eq!(time, Time::from_secs(200));
 
-    let before = Time::now();
-
     runner.advance_slots(1);
 
-    let now = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
+    let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
 
-    // ensure we revert back to using `Time::now` internally by default
-    assert!(before < now);
+    // time is still frozen
+    assert_eq!(time, Time::from_secs(200));
+
+    runner.config.freeze_time = Some(Time::from_secs(5000));
+    runner.advance_slots(1);
+
+    let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
+
+    // frozen time is updated
+    assert_eq!(time, Time::from_secs(5000));
+
+    // timestamps should revert to the current time
+    runner.config.freeze_time = None;
+
+    let before = Time::now();
+    runner.advance_slots(1);
+
+    let time = runner.query_kernel_state(|state| chain_state.get_time_prev_slot(state));
+
+    assert!(before < time, "Time should no longer be frozen");
 }
