@@ -5,8 +5,10 @@ pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
 };
-use sov_bank::GAS_TOKEN_ID;
-pub use sov_bank::{Bank, BankConfig, Coins, IntoPayable, Payable, TokenConfig, TokenId};
+pub use sov_bank::{
+    Bank, BankConfig, CallMessage as BankCallMessage, Coins, IntoPayable, Payable, TokenConfig,
+    TokenId, GAS_TOKEN_ID,
+};
 use sov_blob_storage::PreferredBatchData;
 pub use sov_capabilities::StandardProvenRollupCapabilities;
 use sov_chain_state::ChainState;

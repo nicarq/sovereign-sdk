@@ -10,8 +10,8 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthorizeSequencerError, HasCapabilities, KernelSlotHooks, SequencerAuthorization,
-    TransactionAuthenticator,
+    AuthenticationError, AuthorizeSequencerError, HasCapabilities, KernelSlotHooks,
+    SequencerAuthorization, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
@@ -366,7 +366,7 @@ where
 
     async fn clear_batch(&mut self) -> anyhow::Result<()> {
         for tx_hash in self.tx_hashes_of_last_batch.drain(..) {
-            self.mempool.remove(&tx_hash);
+            self.mempool.remove_without_notifying(&tx_hash);
         }
 
         Ok(())
@@ -404,29 +404,34 @@ where
             let mut cursor = self.mempool_cursor(&ctx);
 
             while let Some(mempool_tx) = self.mempool.next(&mut cursor) {
-                let tx_receipt = match self.try_add_tx_to_batch(&mempool_tx, ctx) {
-                    (c, Ok(txr)) => {
-                        ctx = c;
-                        txr
-                    }
-                    (c, Err(TxProcessingError::Nonce { .. })) => {
-                        tracing::info!(
-                            hash = %mempool_tx.hash,
-                            "Transaction processing error due to nonce; ignoring tx",
-                        );
-                        ctx = c;
-                        continue;
-                    }
-                    // TODO SEQUENCER; almost all of these errors are recoverable in the sense that
-                    // a batch can still be produced. We should not abort in these cases.
-                    (ctx, Err(reason)) => {
-                        return (
-                            ctx.state_checkpoint,
-                            Err(anyhow::anyhow!(
-                                "An non-recoverable error occurred when trying to add the tx to the batch: {reason}"
-                            )),
-                        )
-                    }
+                let (context, tx_receipt) = self.try_add_tx_to_batch(&mempool_tx, ctx);
+                ctx = context;
+
+                let tx_receipt = match tx_receipt {
+                    Ok(txr) => txr,
+                    Err(e) => match e {
+                        // If authentication is fatally broken or the tx is for an unregistered sequencer, we can
+                        // never submit it succesfully so drop it from the mempool
+                        TxProcessingError::InvalidUnregisteredTx(_)
+                        | TxProcessingError::AuthenticationError(
+                            AuthenticationError::FatalError(_),
+                        ) => {
+                            tracing::info!(hash= %mempool_tx.hash, error = %e, "Invalid tx detected in mempool; dropping tx",);
+                            self.mempool
+                                .drop(&mempool_tx.hash, "Transaction is invalid".to_string());
+                            continue;
+                        }
+                        // Otherwise, the issue has to do with the current state of the rollup, which could change at any point.
+                        // We won't add the invalid tx to the batch, but we don't drop it either since it may become valid soon.
+                        TxProcessingError::SequencerUnauthorized(_)
+                        | TxProcessingError::AuthenticationError(AuthenticationError::Invalid(_))
+                        | TxProcessingError::Nonce { .. }
+                        | TxProcessingError::CannotReserveGas { .. }
+                        | TxProcessingError::CannotResolveContext { .. } => {
+                            tracing::info!(hash= %mempool_tx.hash, reason = %e, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
+                            continue;
+                        }
+                    },
                 };
 
                 match tx_receipt.map(|r| r.receipt) {
@@ -468,7 +473,7 @@ where
 
             // TODO SEQUENCER; don't drain txs from mempool until the batch is submitted
             for tx in &txs {
-                self.mempool.remove(&tx.hash);
+                self.mempool.remove_without_notifying(&tx.hash);
             }
 
             if txs.is_empty() {

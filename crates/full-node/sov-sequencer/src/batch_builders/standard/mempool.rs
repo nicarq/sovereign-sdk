@@ -75,7 +75,8 @@ impl<Da: DaSpec> Mempool<Da> {
         Some(tx.clone())
     }
 
-    pub fn remove(&mut self, hash: &TxHash) {
+    /// Remove the tx from the mempool without notifying subscribers
+    pub fn remove_without_notifying(&mut self, hash: &TxHash) {
         let Some(tx) = self.txs_by_hash.remove(hash) else {
             return;
         };
@@ -87,6 +88,13 @@ impl<Da: DaSpec> Mempool<Da> {
 
         self.txs_ordered_by_incremental_id.remove(&tx.uuid_v7);
         self.txs_ordered_by_most_fair_fit.remove(&cursor);
+    }
+
+    /// Drop a transaction from the mempool and notify subscribers.
+    pub fn drop(&mut self, hash: &TxHash, reason: String) {
+        self.remove_without_notifying(hash);
+        // Notify about the drop.
+        self.txsm.notify(*hash, TxStatus::Dropped { reason });
     }
 
     fn make_space_for_tx(&mut self) {
@@ -106,15 +114,7 @@ impl<Da: DaSpec> Mempool<Da> {
                 "Evicting transaction from the mempool to make space for a new one"
             );
 
-            self.remove(&tx_hash);
-
-            // Notify about the eviction.
-            self.txsm.notify(
-                tx_hash,
-                TxStatus::Dropped {
-                    reason: "Mempool is full".to_string(),
-                },
-            );
+            self.drop(&tx_hash, "Mempool is full".to_string());
         }
     }
 

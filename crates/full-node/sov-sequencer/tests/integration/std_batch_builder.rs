@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::time::Duration;
 
 use base64::prelude::*;
@@ -7,14 +8,17 @@ use sov_mock_da::{MockDaService, MockDaSpec};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, BlobReaderTrait, FullyBakedTx, RawTx};
+use sov_modules_api::{Address, Batch, BlobReaderTrait, FullyBakedTx, RawTx};
 use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer_json_client::types;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::TestOptimisticRuntime;
+use sov_test_utils::runtime::{Bank, Coins, TestOptimisticRuntime, GAS_TOKEN_ID};
 use sov_test_utils::sequencer::TestSequencerSetup;
-use sov_test_utils::{EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{
+    EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    TEST_DEFAULT_USER_BALANCE,
+};
 use sov_value_setter::ValueSetter;
 
 pub type MyBatchBuilder = StdBatchBuilder<
@@ -40,15 +44,15 @@ async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
         .unwrap()
 }
 
-fn valid_tx_bytes(setup: &TestSequencerSetup<MyBatchBuilder>, nonce: u64) -> RawTx {
-    let msg = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
-        sov_value_setter::CallMessage::SetValue(1),
-    );
-
+fn build_tx(
+    setup: &TestSequencerSetup<MyBatchBuilder>,
+    nonce: u64,
+    call_message: Vec<u8>,
+) -> RawTx {
     let tx = borsh::to_vec(&Transaction::<TestSpec>::new_signed_tx(
         &setup.admin_private_key,
         UnsignedTransaction::new(
-            msg,
+            call_message,
             config_value!("CHAIN_ID"),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
@@ -59,6 +63,18 @@ fn valid_tx_bytes(setup: &TestSequencerSetup<MyBatchBuilder>, nonce: u64) -> Raw
     .unwrap();
 
     RawTx::new(tx)
+}
+
+fn valid_tx_bytes(
+    setup: &TestSequencerSetup<MyBatchBuilder>,
+    nonce: u64,
+    value_to_set: u32,
+) -> RawTx {
+    let msg = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
+        sov_value_setter::CallMessage::SetValue(value_to_set),
+    );
+
+    build_tx(setup, nonce, msg)
 }
 
 fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
@@ -97,8 +113,8 @@ async fn test_submit_on_empty_mempool() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_happy_path() {
     let sequencer = new_sequencer().await;
-    let tx1 = valid_tx_bytes(&sequencer, 0);
-    let tx2 = valid_tx_bytes(&sequencer, 1);
+    let tx1 = valid_tx_bytes(&sequencer, 0, 0);
+    let tx2 = valid_tx_bytes(&sequencer, 1, 1);
     sequencer
         .client()
         .accept_tx(&types::AcceptTxBody {
@@ -139,11 +155,66 @@ async fn test_accept_tx() {
 
     let client = sequencer.client();
 
-    let tx = valid_tx_bytes(&sequencer, 0);
+    let tx = valid_tx_bytes(&sequencer, 0, 0);
 
     client
         .accept_tx(&types::AcceptTxBody {
             body: BASE64_STANDARD.encode(&tx.data),
+        })
+        .await
+        .unwrap();
+    client
+        .publish_batch(&types::PublishBatchBody {
+            transactions: vec![],
+        })
+        .await
+        .unwrap();
+    let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
+    let block_data = submitted_block.batch_blobs[0].full_data();
+    let batch = Batch::try_from_slice(block_data).unwrap();
+
+    assert_eq!(wrap_with_auth(tx).data, batch.txs[0].data);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+// Test how the batch builder handles invalid transactions inside the mempool by
+// inserting two valid transactions, then draining the sender's balance so that
+// the second one has insufficent gas. This is a regression test for the bug
+// where an out-of-gas error during batch creation prevented the entire
+// batch from being submitted.
+async fn test_batch_building_with_out_of_gas_error() {
+    let sequencer = new_sequencer().await;
+
+    // -- Build a transaction which drains the user's wallet --
+    let drain_wallet_msg = sov_test_utils::runtime::BankCallMessage::<TestSpec>::Transfer {
+        to: Address::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx")
+            .unwrap(),
+        coins: Coins {
+            amount: TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_MAX_FEE, // Leave enough tokens to pay gas for the first tx
+            token_id: GAS_TOKEN_ID,
+        },
+    };
+    let drain_wallet_msg: Vec<u8> = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<
+        Bank<TestSpec>,
+    >>::encode_call(drain_wallet_msg);
+    // --  END tx construction --
+
+    let drainer = build_tx(&sequencer, 0, drain_wallet_msg);
+    let tx_with_insufficient_gas = valid_tx_bytes(&sequencer, 1, 1);
+
+    // Send the two transactions, drainer first. Since the default builder
+    // uses FIFO, this ensures that it gets included first, leaving the other one out of gas.
+    let client = sequencer.client();
+    client
+        .accept_tx(&types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&drainer.data),
+        })
+        .await
+        .unwrap();
+
+    client
+        .accept_tx(&types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx_with_insufficient_gas.data),
         })
         .await
         .unwrap();
@@ -155,10 +226,10 @@ async fn test_accept_tx() {
         .await
         .unwrap();
 
+    // As a sanity check, assert that the second transaction wasn't included
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
-
     let batch = Batch::try_from_slice(block_data).unwrap();
-
-    assert_eq!(wrap_with_auth(tx).data, batch.txs[0].data);
+    assert_eq!(wrap_with_auth(drainer).data, batch.txs[0].data);
+    assert_eq!(batch.txs.len(), 1);
 }
