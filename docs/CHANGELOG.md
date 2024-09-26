@@ -1,3 +1,4 @@
+- #1514 Refactors `TestRunnerWithKernel::config.override_next_header_timestamp` to instead be `TestRunnerWithKernel::config.freeze_time`. It will now set the timestamp of all blocks to the provided timestamp instead of only the next block.
 - #1509 Adds a `GasSpec` trait that is blanket implemented over the `Spec` trait. This adds a `GAS_DIMENSIONS` constant to be specified in the `constants.toml` file and removes all the other gas dimensions. Consumers of the SDK should ensure they only use one gas dimension and they specify the value of the `GAS_DIMENSIONS` constant in the `constants.toml` file.
 - #1493 Makes it mandatory to manually set the `max_fee` in the CLI wallet. Transactions that don't set that value won't be accepted by the CLI. Consumers should ensure there is always a value set for the `max_fee` when using the CLI.
 ## 2024-09-20

@@ -91,13 +91,9 @@ impl<S: Spec, Da: DaSpec> SlotReceipt<S, Da> {
 pub struct RunnerConfig<Da: DaSpec> {
     /// The sequencers DA address used as the address of the sender of a blob.
     pub sequencer_da_address: Da::Address,
-    /// Allows tests to explicitly set the time of the next header.
-    /// This can be useful if the code you are testing relies on header timestamps.
-    ///
-    /// Only the very next block header will be overriden, all subsequent headers will revert to the
-    /// default behaviour, this includes [`TestRunnerWithKernel::simulate`] &
-    /// [`TestRunnerWithKernel::advance_slots`] calls.
-    pub override_next_header_timestamp: Option<Time>,
+    /// All blocks produced by the runner will be at the time provided.
+    /// This is useful if your tests are dependent on timestamps.
+    pub freeze_time: Option<Time>,
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -278,7 +274,7 @@ where
 
         let config = RunnerConfig {
             sequencer_da_address,
-            override_next_header_timestamp: None,
+            freeze_time: None,
         };
 
         Self {
@@ -293,10 +289,10 @@ where
 
     fn next_header(&mut self) -> MockBlockHeader {
         let height = self.curr_slot_number() + 1;
-        let override_timestamp = self.config.override_next_header_timestamp.take();
-        match override_timestamp {
-            Some(timestamp) => MockBlockHeader::new(height, timestamp),
-            None => MockBlockHeader::from_height(height),
+        if let Some(timestamp) = &self.config.freeze_time {
+            MockBlockHeader::new(height, timestamp.clone())
+        } else {
+            MockBlockHeader::from_height(height)
         }
     }
 
