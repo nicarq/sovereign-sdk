@@ -125,7 +125,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "c-kzg",
- "derive_more",
+ "derive_more 0.99.18",
  "k256",
  "once_cell",
  "serde",
@@ -164,7 +164,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "const-hex",
- "derive_more",
+ "derive_more 0.99.18",
  "getrandom 0.2.15",
  "hex-literal",
  "itoa",
@@ -405,7 +405,7 @@ checksum = "03704f265cbbb943b117ecb5055fd46e8f41e7dc8a58b1aed20bcd40ace38c15"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "derive_more",
+ "derive_more 0.99.18",
  "hashbrown 0.14.5",
  "nybbles",
  "serde",
@@ -1702,7 +1702,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim 0.11.1",
+ "strsim",
 ]
 
 [[package]]
@@ -2176,36 +2176,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b750cb3417fd1b327431a470f388520309479ab0bf5e323505daf0290cd3850"
-dependencies = [
- "darling_core 0.14.4",
- "darling_macro 0.14.4",
-]
-
-[[package]]
-name = "darling"
 version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f63b86c8a8826a49b8c21f08a2d07338eec8d900540f8630dc76284be802989"
 dependencies = [
- "darling_core 0.20.10",
- "darling_macro 0.20.10",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "109c1ca6e6b7f82cc233a97004ea8ed7ca123a9af07a8230878fcfda9b158bf0"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim 0.10.0",
- "syn 1.0.109",
+ "darling_core",
+ "darling_macro",
 ]
 
 [[package]]
@@ -2218,19 +2194,8 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim 0.11.1",
+ "strsim",
  "syn 2.0.72",
-]
-
-[[package]]
-name = "darling_macro"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4aab4dbc9f7611d8b55048a3a16d2d010c2c8334e46304b40ac1cc14bf3b48e"
-dependencies = [
- "darling_core 0.14.4",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -2239,7 +2204,7 @@ version = "0.20.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d336a2a514f6ccccaa3e09b02d41d35330c07ddf03a62165fcec10bb561c7806"
 dependencies = [
- "darling_core 0.20.10",
+ "darling_core",
  "quote",
  "syn 2.0.72",
 ]
@@ -2443,6 +2408,27 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn 2.0.72",
+]
+
+[[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.72",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -4273,7 +4259,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "hex",
  "jsonrpsee",
  "rockbound",
@@ -6201,12 +6187,12 @@ dependencies = [
 
 [[package]]
 name = "prettier-please"
-version = "0.1.16"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be31b7957122175fcf33c6d8f54489a5262176020bf096026a86b308b7fa5b23"
+checksum = "32db37eb2b0ec0af154e9c1b33425902d8cd9481e35167c4e9ffb28fec3916bb"
 dependencies = [
  "proc-macro2",
- "syn 1.0.109",
+ "syn 2.0.72",
 ]
 
 [[package]]
@@ -6926,7 +6912,7 @@ version = "1.0.4"
 source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9#ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9"
 dependencies = [
  "auto_impl",
- "derive_more",
+ "derive_more 0.99.18",
  "metrics",
  "parking_lot",
  "pin-project",
@@ -6953,7 +6939,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-trie",
  "auto_impl",
- "derive_more",
+ "derive_more 0.99.18",
  "once_cell",
  "reth-ethereum-forks",
  "reth-network-peers",
@@ -7015,7 +7001,7 @@ version = "1.0.4"
 source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9#ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9"
 dependencies = [
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "metrics",
  "modular-bitfield",
  "parity-scale-codec",
@@ -7051,7 +7037,7 @@ dependencies = [
  "alloy-genesis",
  "alloy-rlp",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "reth-chainspec",
  "reth-codecs-derive",
  "reth-primitives",
@@ -7167,7 +7153,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-admin",
  "auto_impl",
- "derive_more",
+ "derive_more 0.99.18",
  "enr 0.12.1",
  "futures",
  "reth-eth-wire-types",
@@ -7236,7 +7222,7 @@ dependencies = [
  "alloy-rlp",
  "bytes",
  "c-kzg",
- "derive_more",
+ "derive_more 0.99.18",
  "k256",
  "modular-bitfield",
  "once_cell",
@@ -7266,7 +7252,7 @@ dependencies = [
  "alloy-rlp",
  "byteorder",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "modular-bitfield",
  "reth-codecs",
  "revm-primitives 7.1.0",
@@ -7281,7 +7267,7 @@ source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49c
 dependencies = [
  "alloy-primitives",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "modular-bitfield",
  "reth-codecs",
  "serde",
@@ -7310,7 +7296,7 @@ version = "1.0.4"
 source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9#ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9"
 dependencies = [
  "alloy-sol-types",
- "derive_more",
+ "derive_more 0.99.18",
  "futures",
  "jsonrpsee-core",
  "jsonrpsee-types",
@@ -7407,7 +7393,7 @@ version = "1.0.4"
 source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9#ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9"
 dependencies = [
  "alloy-primitives",
- "derive_more",
+ "derive_more 0.99.18",
  "serde",
  "strum 0.26.3",
 ]
@@ -7505,7 +7491,7 @@ source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49c
 dependencies = [
  "alloy-rlp",
  "auto_impl",
- "derive_more",
+ "derive_more 0.99.18",
  "itertools 0.13.0",
  "rayon",
  "reth-execution-errors",
@@ -7528,7 +7514,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-trie",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "itertools 0.13.0",
  "nybbles",
  "reth-codecs",
@@ -7653,7 +7639,7 @@ dependencies = [
  "bitvec",
  "c-kzg",
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "dyn-clone",
  "enumn",
  "hashbrown 0.14.5",
@@ -8343,7 +8329,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5174a470eeb535a721ae9fdd6e291c2411a906b96592182d05217591d5c5cf7b"
 dependencies = [
  "byteorder",
- "derive_more",
+ "derive_more 0.99.18",
  "twox-hash",
 ]
 
@@ -8378,7 +8364,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "parity-scale-codec",
  "scale-info-derive",
 ]
@@ -8805,7 +8791,7 @@ version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8fee4991ef4f274617a51ad4af30519438dacb2f56ac773b08a1922ff743350"
 dependencies = [
- "darling 0.20.10",
+ "darling",
  "proc-macro2",
  "quote",
  "syn 2.0.72",
@@ -9108,7 +9094,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "jsonrpsee",
  "schemars",
  "serde",
@@ -9128,7 +9114,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "hex",
  "serde",
  "sov-bank",
@@ -9176,7 +9162,7 @@ dependencies = [
  "celestia-tendermint",
  "celestia-tendermint-proto",
  "celestia-types",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "jsonrpsee",
@@ -9229,7 +9215,7 @@ dependencies = [
  "anyhow",
  "base64 0.22.1",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "directories",
  "futures",
  "hex",
@@ -9466,7 +9452,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "insta",
@@ -9528,7 +9514,7 @@ dependencies = [
  "borsh",
  "bytes",
  "chrono",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "rand 0.8.5",
@@ -9600,7 +9586,7 @@ dependencies = [
  "borsh",
  "clap",
  "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "digest 0.10.7",
  "heck 0.5.0",
  "hex",
@@ -9649,8 +9635,8 @@ dependencies = [
  "blake2",
  "borsh",
  "convert_case 0.6.0",
- "darling 0.14.4",
- "derive_more",
+ "darling",
+ "derive_more 1.0.0",
  "hex",
  "jsonrpsee",
  "prettier-please",
@@ -9665,7 +9651,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-wallet-format-macro-helpers",
- "syn 1.0.109",
+ "syn 2.0.72",
  "tempfile",
  "toml",
  "trybuild",
@@ -9757,7 +9743,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "jsonrpsee",
  "schemars",
  "serde",
@@ -9780,7 +9766,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "proptest",
  "proptest-derive",
@@ -9828,7 +9814,7 @@ dependencies = [
  "backon",
  "borsh",
  "bytes",
- "derive_more",
+ "derive_more 1.0.0",
  "digest 0.10.7",
  "futures",
  "hex",
@@ -9856,7 +9842,7 @@ dependencies = [
  "bincode",
  "borsh",
  "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "jsonrpsee",
@@ -10048,7 +10034,7 @@ dependencies = [
  "borsh",
  "clap",
  "derive-getters",
- "derive_more",
+ "derive_more 1.0.0",
  "futures",
  "hex",
  "rand 0.8.5",
@@ -10080,7 +10066,7 @@ dependencies = [
  "axum-server",
  "borsh",
  "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "ethereum-types",
  "ethers-contract",
  "ethers-core",
@@ -10156,7 +10142,7 @@ version = "0.1.0"
 source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
 dependencies = [
  "convert_case 0.6.0",
- "darling 0.20.10",
+ "darling",
  "hex",
  "proc-macro2",
  "quote",
@@ -10826,12 +10812,6 @@ dependencies = [
  "unicode-normalization",
  "unicode-properties",
 ]
-
-[[package]]
-name = "strsim"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "strsim"

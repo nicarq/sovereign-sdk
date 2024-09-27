@@ -31,7 +31,7 @@ pub struct BankConfig<S: Spec> {
     schemars(bound = "S: Spec", rename = "TokenConfig")
 )]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
-#[display(fmt = "{:?}", self)]
+#[display("{:?}", self)]
 pub struct TokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,

@@ -149,7 +149,7 @@ dependencies = [
  "bytes",
  "cfg-if",
  "const-hex",
- "derive_more",
+ "derive_more 0.99.18",
  "getrandom",
  "hex-literal",
  "itoa",
@@ -353,7 +353,7 @@ checksum = "03704f265cbbb943b117ecb5055fd46e8f41e7dc8a58b1aed20bcd40ace38c15"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "derive_more",
+ "derive_more 0.99.18",
  "hashbrown 0.14.5",
  "nybbles",
  "serde",
@@ -1356,7 +1356,7 @@ dependencies = [
  "anstream",
  "anstyle",
  "clap_lex",
- "strsim 0.11.1",
+ "strsim",
 ]
 
 [[package]]
@@ -1679,36 +1679,12 @@ dependencies = [
 
 [[package]]
 name = "darling"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b750cb3417fd1b327431a470f388520309479ab0bf5e323505daf0290cd3850"
-dependencies = [
- "darling_core 0.14.4",
- "darling_macro 0.14.4",
-]
-
-[[package]]
-name = "darling"
 version = "0.20.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "83b2eb4d90d12bdda5ed17de686c2acb4c57914f8f921b8da7e112b5a36f3fe1"
 dependencies = [
- "darling_core 0.20.9",
- "darling_macro 0.20.9",
-]
-
-[[package]]
-name = "darling_core"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "109c1ca6e6b7f82cc233a97004ea8ed7ca123a9af07a8230878fcfda9b158bf0"
-dependencies = [
- "fnv",
- "ident_case",
- "proc-macro2",
- "quote",
- "strsim 0.10.0",
- "syn 1.0.109",
+ "darling_core",
+ "darling_macro",
 ]
 
 [[package]]
@@ -1721,19 +1697,8 @@ dependencies = [
  "ident_case",
  "proc-macro2",
  "quote",
- "strsim 0.11.1",
+ "strsim",
  "syn 2.0.68",
-]
-
-[[package]]
-name = "darling_macro"
-version = "0.14.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4aab4dbc9f7611d8b55048a3a16d2d010c2c8334e46304b40ac1cc14bf3b48e"
-dependencies = [
- "darling_core 0.14.4",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -1742,7 +1707,7 @@ version = "0.20.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "733cabb43482b1a1b53eee8583c2b9e8684d592215ea83efd305dd31bc2f0178"
 dependencies = [
- "darling_core 0.20.9",
+ "darling_core",
  "quote",
  "syn 2.0.68",
 ]
@@ -1855,6 +1820,27 @@ dependencies = [
  "quote",
  "rustc_version 0.4.0",
  "syn 2.0.68",
+]
+
+[[package]]
+name = "derive_more"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
+dependencies = [
+ "derive_more-impl",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.68",
+ "unicode-xid",
 ]
 
 [[package]]
@@ -4423,12 +4409,12 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "prettier-please"
-version = "0.1.16"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be31b7957122175fcf33c6d8f54489a5262176020bf096026a86b308b7fa5b23"
+checksum = "32db37eb2b0ec0af154e9c1b33425902d8cd9481e35167c4e9ffb28fec3916bb"
 dependencies = [
  "proc-macro2",
- "syn 1.0.109",
+ "syn 2.0.68",
 ]
 
 [[package]]
@@ -4944,7 +4930,7 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "k256",
  "once_cell",
  "rayon",
@@ -4968,7 +4954,7 @@ dependencies = [
  "alloy-rlp",
  "byteorder",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "modular-bitfield",
  "reth-codecs",
  "revm-primitives",
@@ -4997,7 +4983,7 @@ version = "1.0.4"
 source = "git+https://github.com/paradigmxyz/reth?rev=ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9#ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9"
 dependencies = [
  "alloy-primitives",
- "derive_more",
+ "derive_more 0.99.18",
  "serde",
  "strum",
 ]
@@ -5013,7 +4999,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-trie",
  "bytes",
- "derive_more",
+ "derive_more 0.99.18",
  "itertools 0.13.0",
  "nybbles",
  "reth-codecs",
@@ -5494,7 +5480,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eca070c12893629e2cc820a9761bedf6ce1dcddc9852984d1dc734b8bd9bd024"
 dependencies = [
  "cfg-if",
- "derive_more",
+ "derive_more 0.99.18",
  "parity-scale-codec",
  "scale-info-derive",
 ]
@@ -5801,7 +5787,7 @@ version = "3.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8fee4991ef4f274617a51ad4af30519438dacb2f56ac773b08a1922ff743350"
 dependencies = [
- "darling 0.20.9",
+ "darling",
  "proc-macro2",
  "quote",
  "syn 2.0.68",
@@ -6011,7 +5997,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -6025,7 +6011,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "hex",
  "serde",
  "sov-chain-state",
@@ -6063,7 +6049,7 @@ dependencies = [
  "celestia-tendermint",
  "celestia-tendermint-proto",
  "celestia-types",
- "derive_more",
+ "derive_more 1.0.0",
  "hex",
  "nmt-rs",
  "prost",
@@ -6168,7 +6154,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
- "derive_more",
+ "derive_more 1.0.0",
  "hex",
  "serde",
  "sha2 0.10.8",
@@ -6201,7 +6187,7 @@ dependencies = [
  "bech32 0.11.0",
  "borsh",
  "derivative",
- "derive_more",
+ "derive_more 1.0.0",
  "digest 0.10.7",
  "hex",
  "serde",
@@ -6223,14 +6209,14 @@ dependencies = [
  "bech32 0.11.0",
  "blake2",
  "convert_case 0.6.0",
- "darling 0.14.4",
- "derive_more",
+ "darling",
+ "derive_more 1.0.0",
  "hex",
  "prettier-please",
  "proc-macro2",
  "quote",
  "sov-wallet-format-macro-helpers",
- "syn 1.0.109",
+ "syn 2.0.68",
  "toml",
 ]
 
@@ -6277,7 +6263,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more",
+ "derive_more 1.0.0",
  "serde",
  "sov-bank",
  "sov-chain-state",
@@ -6295,7 +6281,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "bytes",
- "derive_more",
+ "derive_more 1.0.0",
  "digest 0.10.7",
  "hex",
  "serde",
@@ -6389,7 +6375,7 @@ version = "0.1.0"
 source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
 dependencies = [
  "convert_case 0.6.0",
- "darling 0.20.9",
+ "darling",
  "hex",
  "proc-macro2",
  "quote",
@@ -6797,12 +6783,6 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
-
-[[package]]
-name = "strsim"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
 name = "strsim"

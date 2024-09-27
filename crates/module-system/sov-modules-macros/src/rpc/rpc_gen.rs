@@ -6,14 +6,14 @@ use self::utils::*;
 use crate::common::doc_attributes;
 
 struct RpcMethod {
-    method: syn::ImplItemMethod,
+    method: syn::ImplItemFn,
     docs: Vec<Attribute>,
     rpc_attribute: RpcMethodAttribute,
     api_state_accessor_arg: Option<ApiStateAccessorArg>,
 }
 
 impl RpcMethod {
-    fn parse(method: &syn::ImplItemMethod) -> syn::Result<Self> {
+    fn parse(method: &syn::ImplItemFn) -> syn::Result<Self> {
         let rpc_attribute = RpcMethodAttribute::parse(method)?;
         let api_state_accessor_arg = ApiStateAccessorArg::parse(&method.sig)?;
 
@@ -29,7 +29,7 @@ impl RpcMethod {
 
     /// Returns an identical copy of the original method, but with the `#[method_rpc]`
     /// attribute removed.
-    fn method_without_rpc_attr(&self) -> syn::ImplItemMethod {
+    fn method_without_rpc_attr(&self) -> syn::ImplItemFn {
         let mut method = self.method.clone();
         method.attrs.remove(self.rpc_attribute.index_within_attrs);
         method
@@ -49,7 +49,7 @@ impl RpcMethod {
 
         // Remove the working set argument from the method signature, if present.
         if let Some(ApiStateAccessorArg { idx, .. }) = self.api_state_accessor_arg {
-            let mut inputs: Vec<syn::FnArg> = method_signature.inputs.into_iter().collect();
+            let mut inputs: Vec<FnArg> = method_signature.inputs.into_iter().collect();
             inputs.remove(idx);
             method_signature.inputs = inputs.into_iter().collect();
         }
@@ -137,7 +137,7 @@ impl RpcImplBlock {
 }
 
 fn inner_rpc_gen(
-    mut attr_contents: Vec<syn::NestedMeta>,
+    mut attr_contents: Vec<syn::Meta>,
     input: syn::ItemImpl,
     type_name: Ident,
 ) -> syn::Result<TokenStream> {
@@ -165,12 +165,12 @@ fn inner_rpc_gen(
     // items (trait method definitions and server method implementations) as we
     // go.
     for item in input.items.iter() {
-        if let ImplItem::Method(ref method) = item {
+        if let ImplItem::Fn(ref method) = item {
             let method = RpcMethod::parse(method)?;
 
             rpc_info.set_api_state_accessor_type(&method)?;
             rpc_trait_items.push(method.annotated_signature_for_rpc_trait());
-            bare_impl_block_items.push(ImplItem::Method(method.method_without_rpc_attr()));
+            bare_impl_block_items.push(ImplItem::Fn(method.method_without_rpc_attr()));
 
             rpc_info.methods.push(method);
         }
@@ -237,10 +237,7 @@ fn inner_rpc_gen(
     })
 }
 
-pub fn rpc_gen(
-    attr_contents: Vec<syn::NestedMeta>,
-    input: syn::ItemImpl,
-) -> syn::Result<proc_macro2::TokenStream> {
+pub fn rpc_gen(attr_contents: Vec<syn::Meta>, input: syn::ItemImpl) -> syn::Result<TokenStream> {
     let type_name = match *input.self_ty {
         syn::Type::Path(ref type_path) => type_path.path.segments.last().unwrap().ident.clone(),
         ref other => {
@@ -255,26 +252,28 @@ pub fn rpc_gen(
 }
 
 mod utils {
+    use syn::Meta;
+
     use super::*;
 
-    pub fn add_attr_meta_if_missing(attrs: &mut Vec<syn::NestedMeta>, new_meta: syn::Meta) {
+    pub fn add_attr_meta_if_missing(attrs: &mut Vec<Meta>, new_meta: Meta) {
         if attrs.iter().any(|attr| match attr {
-            syn::NestedMeta::Meta(meta) => meta.path() == new_meta.path(),
+            Meta::Path(path) => path == new_meta.path(),
             _ => false,
         }) {
             return;
         }
 
-        attrs.push(syn::NestedMeta::Meta(new_meta));
+        attrs.push(new_meta);
     }
 
-    pub fn function_arg_names(signature: &Signature) -> syn::Result<Vec<syn::Ident>> {
+    pub fn function_arg_names(signature: &Signature) -> syn::Result<Vec<Ident>> {
         signature
             .inputs
             .iter()
             .map(|item| match item {
-                syn::FnArg::Receiver(arg) => Ok(syn::Ident::new("self", arg.self_token.span)),
-                syn::FnArg::Typed(syn::PatType { pat, .. }) => {
+                FnArg::Receiver(arg) => Ok(Ident::new("self", arg.self_token.span)),
+                FnArg::Typed(PatType { pat, .. }) => {
                     if let syn::Pat::Ident(syn::PatIdent { ident, .. }) = &**pat {
                         Ok(ident.clone())
                     } else {
@@ -293,15 +292,25 @@ mod utils {
     impl RpcMethodAttribute {
         // Returns an attribute with the name `rpc_method` replaced with `method`, and the index
         /// into the argument array where the attribute was found.
-        pub fn parse(method: &syn::ImplItemMethod) -> syn::Result<Self> {
-            use syn::{Meta, MetaList};
-
+        pub fn parse(method: &syn::ImplItemFn) -> syn::Result<Self> {
             for (idx, attribute) in method.attrs.iter().enumerate() {
-                if let Ok(Meta::List(MetaList { path, .. })) = attribute.parse_meta() {
+                if let Meta::List(syn::MetaList {
+                    path,
+                    delimiter,
+                    tokens,
+                }) = &attribute.meta
+                {
                     if path.is_ident("rpc_method") {
-                        let mut new_attr = attribute.clone();
-                        let path = &mut new_attr.path;
-                        path.segments.last_mut().unwrap().ident = format_ident!("method");
+                        // Create a new attribute with the modified path
+                        let new_attr = Attribute {
+                            meta: Meta::List(syn::MetaList {
+                                path: parse_quote!(method),
+                                delimiter: delimiter.clone(),
+                                tokens: tokens.clone(),
+                            }),
+                            ..attribute.clone()
+                        };
+
                         return Ok(Self {
                             attr: new_attr,
                             index_within_attrs: idx,
@@ -319,7 +328,7 @@ mod utils {
 
     pub struct ApiStateAccessorArg {
         pub ty: syn::Type,
-        pub ident: syn::Ident,
+        pub ident: Ident,
         pub idx: usize,
     }
 

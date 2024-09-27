@@ -138,7 +138,7 @@ pub trait Gas: GasArray {
     BorshDeserialize,
     derive_more::Display,
 )]
-#[display(fmt = "GasUnit{:?}", "self.0")]
+#[display("GasUnit{:?}", self.0)]
 pub struct GasUnit<const N: usize>([u64; N]);
 
 impl<const N: usize> Debug for GasUnit<N> {
@@ -159,7 +159,7 @@ impl<const N: usize> Debug for GasUnit<N> {
     BorshDeserialize,
     derive_more::Display,
 )]
-#[display(fmt = "GasPrice{:?}", "self.0")]
+#[display("GasPrice{:?}", self.0)]
 pub struct GasPrice<const N: usize>([u64; N]);
 
 impl<const N: usize> Debug for GasPrice<N> {

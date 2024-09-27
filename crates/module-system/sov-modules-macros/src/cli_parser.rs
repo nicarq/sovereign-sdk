@@ -1,13 +1,10 @@
+use proc_macro2::Ident;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields};
 
 use crate::common::{doc_attributes, pascal_case_ident, StructFieldExtractor};
 
-type CliWalletArgSpec = (
-    proc_macro2::TokenStream,
-    proc_macro2::TokenStream,
-    syn::Ident,
-);
+type CliWalletArgSpec = (proc_macro2::TokenStream, proc_macro2::TokenStream, Ident);
 
 pub(crate) fn derive_cli_wallet(
     name: &'static str,
@@ -347,7 +344,7 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
             StructFieldExtractor::get_or_generate_named_fields(&variant.fields, false);
         named_variant_fields
             .iter_mut()
-            .for_each(|field| field.filter_attrs(|attr| attr.path.is_ident("doc")));
+            .for_each(|field| field.filter_attrs(|attr| attr.path().is_ident("doc")));
         let variant_field_names = named_variant_fields
             .iter()
             .map(|f| &f.ident)
@@ -429,7 +426,7 @@ fn derive_cli_wallet_arg_struct(
         StructFieldExtractor::get_or_generate_named_fields(&data_struct.fields, true);
     named_fields
         .iter_mut()
-        .for_each(|field| field.filter_attrs(|attr| attr.path.is_ident("doc")));
+        .for_each(|field| field.filter_attrs(|attr| attr.path().is_ident("doc")));
     let field_names = named_fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
     let conversion_logic = match data_struct.fields {
         Fields::Named(_) => quote! {{

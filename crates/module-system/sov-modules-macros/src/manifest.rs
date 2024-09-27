@@ -214,7 +214,7 @@ impl<'a> Manifest<'a> {
         Ok(quote::quote!(#expr))
     }
 
-    fn err<P, T>(path: P, ident: &syn::Ident, msg: T) -> syn::Error
+    fn err<P, T>(path: P, ident: &Ident, msg: T) -> syn::Error
     where
         P: AsRef<Path>,
         T: fmt::Display,

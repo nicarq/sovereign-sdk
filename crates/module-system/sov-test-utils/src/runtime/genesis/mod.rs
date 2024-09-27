@@ -16,7 +16,7 @@ pub mod zk;
 
 /// A wrapper around a string that can be used to easily identify a test token.
 #[derive(Debug, Eq, Hash, Clone, PartialEq, derive_more::Display)]
-#[display(fmt = "TestToken({})", "self.0")]
+#[display("TestToken({})", self.0)]
 pub struct TestTokenName(
     /// The name of the token. Can be any human-readable string.
     pub String,
