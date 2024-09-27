@@ -116,7 +116,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             NodeWorkflows::GetBalance { account, token_id } => {
                 let account = wallet_state.resolve_account(account.as_ref())?;
                 let balance = api_client
-                    .get_balance::<S>(&account.address, token_id)
+                    .get_balance::<S>(&account.address, token_id, None)
                     .await?;
                 println!(
                     "Balance of token {} for account {} is {}",

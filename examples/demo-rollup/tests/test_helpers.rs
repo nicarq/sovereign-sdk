@@ -6,6 +6,7 @@ use std::sync::Arc;
 use demo_stf::genesis_config::GenesisPaths;
 use sha2::Sha256;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
+use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
 use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::storable::service::StorableMockDaService;
@@ -20,7 +21,6 @@ use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
 };
-use sov_test_utils::ApiClient;
 use tokio::task::JoinHandle;
 
 const PROVER_ADDRESS: &str = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
@@ -150,7 +150,7 @@ pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {
 
 pub struct TestRollup {
     pub rollup_task: JoinHandle<()>,
-    pub client: ApiClient,
+    pub client: NodeClient,
     pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
 }
 
@@ -162,7 +162,7 @@ impl TestRollup {
         rt_genesis_paths: GenesisPaths,
         kernel_genesis_paths: BasicKernelGenesisPaths,
     ) -> anyhow::Result<TestRollup> {
-        let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
+        let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
         // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
@@ -189,9 +189,8 @@ impl TestRollup {
         )
         .await;
 
-        let rpc_port = rpc_port_rx.await?.port();
         let rest_port = rest_port_rx.await?.port();
-        let client = ApiClient::new(rpc_port, rest_port).await?;
+        let client = NodeClient::new_at_localhost(rest_port).await?;
 
         Ok(TestRollup {
             rollup_task,

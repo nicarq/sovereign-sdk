@@ -7,6 +7,7 @@ use futures::StreamExt;
 use rand::Rng;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
+use sov_cli::NodeClient;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
@@ -14,7 +15,7 @@ use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::da::DaSpec;
-use sov_test_utils::{ApiClient, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();
@@ -79,18 +80,17 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
     );
     println!("Generate {} messages", messages.len());
 
-    let rpc_port = 12345;
     let rest_port = 12346;
-    let client = ApiClient::new(rpc_port, rest_port).await?;
+    let client = NodeClient::new_at_localhost(rest_port).await?;
 
-    let mut slot_subscription = client.ledger.subscribe_slots().await.unwrap();
+    let mut slot_subscription = client.ledger.subscribe_slots().await?;
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
         let tx = Transaction::<DefaultSpec<Risc0Verifier, Risc0Verifier, Native>>::new_signed_tx(
             &token_deployer.private_key,
             UnsignedTransaction::new(
-                borsh::to_vec(&message).unwrap(),
+                borsh::to_vec(&message)?,
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,
@@ -102,9 +102,8 @@ async fn submit_blobs_increasing_size<Da: DaSpec>() -> anyhow::Result<()> {
         client
             .sequencer
             .publish_batch_with_serialized_txs(&[tx])
-            .await
-            .unwrap();
-        let slot = slot_subscription.next().await.unwrap().unwrap();
+            .await?;
+        let slot = slot_subscription.next().await.unwrap()?;
         println!("SLOT: {} received", slot.number);
         tokio::time::sleep(Duration::from_millis(1000)).await;
     }

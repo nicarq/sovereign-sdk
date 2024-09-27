@@ -7,7 +7,6 @@
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
-pub use api_client::ApiClient;
 use borsh::BorshSerialize;
 pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use generators::MessageGenerator;
@@ -26,8 +25,6 @@ use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
 
 use crate::runtime::BasicKernel;
-
-mod api_client;
 
 mod evm;
 

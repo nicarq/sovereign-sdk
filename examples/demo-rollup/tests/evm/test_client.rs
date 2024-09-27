@@ -11,9 +11,11 @@ use ethers_signers::Wallet;
 use futures::StreamExt;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
+use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use reth_primitives::Bytes;
+use sov_cli::NodeClient;
 use sov_ledger_json_client::WsSubscription;
-use sov_test_utils::{ApiClient, SimpleStorageContract, TestSpec, TEST_DEFAULT_MAX_FEE};
+use sov_test_utils::{SimpleStorageContract, TestSpec, TEST_DEFAULT_MAX_FEE};
 
 const GAS: u64 = 900000u64;
 
@@ -22,7 +24,8 @@ pub(crate) struct TestClient {
     pub(crate) from_addr: Address,
     contract: SimpleStorageContract,
     client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
-    node_client: ApiClient,
+    node_client: NodeClient,
+    rpc: WsClient,
 }
 
 impl TestClient {
@@ -41,7 +44,12 @@ impl TestClient {
             .await
             .unwrap();
 
-        let node_client = ApiClient::new(rpc_addr.port(), rest_addr.port())
+        let rpc = WsClientBuilder::default()
+            .build(&format!("ws://127.0.0.1:{}", rpc_addr.port()))
+            .await
+            .unwrap();
+
+        let node_client = NodeClient::new_at_localhost(rest_addr.port())
             .await
             .unwrap();
 
@@ -51,12 +59,12 @@ impl TestClient {
             contract,
             client,
             node_client,
+            rpc,
         }
     }
 
     pub(crate) async fn send_publish_batch_request(&self) {
         let _: String = self
-            .node_client
             .rpc
             .request("eth_publishBatch", rpc_params![])
             .await
@@ -263,8 +271,7 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_accounts(&self) -> Vec<Address> {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_accounts", rpc_params![])
             .await
             .unwrap()
@@ -283,7 +290,6 @@ impl TestClient {
 
     pub(crate) async fn eth_chain_id(&self) -> u64 {
         let chain_id: ethereum_types::U64 = self
-            .node_client
             .rpc
             .request("eth_chainId", rpc_params![])
             .await
@@ -293,8 +299,7 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_get_balance(&self, address: Address) -> ethereum_types::U256 {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_getBalance", rpc_params![address, "latest"])
             .await
             .unwrap()
@@ -305,16 +310,14 @@ impl TestClient {
         address: Address,
         index: ethereum_types::U256,
     ) -> ethereum_types::U256 {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_getStorageAt", rpc_params![address, index, "latest"])
             .await
             .unwrap()
     }
 
     pub(crate) async fn eth_get_code(&self, address: Address) -> Bytes {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_getCode", rpc_params![address, "latest"])
             .await
             .unwrap()
@@ -322,7 +325,6 @@ impl TestClient {
 
     pub(crate) async fn eth_get_transaction_count(&self, address: Address) -> u64 {
         let count: ethereum_types::U64 = self
-            .node_client
             .rpc
             .request("eth_getTransactionCount", rpc_params![address, "latest"])
             .await
@@ -332,8 +334,7 @@ impl TestClient {
     }
 
     pub(crate) async fn eth_gas_price(&self) -> ethereum_types::U256 {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_gasPrice", rpc_params![])
             .await
             .unwrap()
@@ -343,8 +344,7 @@ impl TestClient {
         &self,
         block_number: Option<String>,
     ) -> Block<TxHash> {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_getBlockByNumber", rpc_params![block_number, false])
             .await
             .unwrap()
@@ -354,8 +354,7 @@ impl TestClient {
         &self,
         block_number: Option<String>,
     ) -> Block<Transaction> {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_getBlockByNumber", rpc_params![block_number, true])
             .await
             .unwrap()
@@ -366,8 +365,7 @@ impl TestClient {
         tx: TypedTransaction,
         block_number: Option<String>,
     ) -> Result<Bytes, Box<dyn std::error::Error>> {
-        self.node_client
-            .rpc
+        self.rpc
             .request("eth_call", rpc_params![tx, block_number])
             .await
             .map_err(|e| e.into())
@@ -379,7 +377,6 @@ impl TestClient {
         block_number: Option<String>,
     ) -> u64 {
         let gas: ethereum_types::U64 = self
-            .node_client
             .rpc
             .request("eth_estimateGas", rpc_params![tx, block_number])
             .await
