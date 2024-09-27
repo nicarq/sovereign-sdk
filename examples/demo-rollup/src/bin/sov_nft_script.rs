@@ -161,7 +161,7 @@ async fn main() -> anyhow::Result<()> {
     let account_pool_config =
         AccountPoolConfig::new(args.private_keys_dir.to_string(), args.node_url.clone(), 3);
 
-    let node_client = NodeClient::new(&args.node_url)?;
+    let node_client = NodeClient::new(&args.node_url).await?;
 
     let account_pool = AccountPool::<DemoSpec>::new_from_config(account_pool_config).await?;
 

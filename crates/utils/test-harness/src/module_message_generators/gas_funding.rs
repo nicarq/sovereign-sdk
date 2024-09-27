@@ -24,7 +24,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
     node_url: &str,
     account_pool: &AccountPool<S>,
 ) -> anyhow::Result<Vec<PreparedCallMessage<S, Bank<S>>>> {
-    let node_client = NodeClient::new(node_url)?;
+    let node_client = NodeClient::new(node_url).await?;
 
     let gas_whale_account_pool_indices = {
         let mut map = HashMap::<&S::Address, u64>::new();

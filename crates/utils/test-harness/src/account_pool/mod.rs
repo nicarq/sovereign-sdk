@@ -162,7 +162,7 @@ impl<S: Spec> AccountPool<S> {
             tracing::debug!(address = %account.address(), "Address has been read from disk");
         }
 
-        let node_client = NodeClient::new(config.node_url())?;
+        let node_client = NodeClient::new(config.node_url()).await?;
 
         // TODO @gskapka pass in a flag to opt out of this if you know the accounts from file have a nonce of 0?
         // Refreshing nonces before generating new users to avoid non needed HTTP calls.

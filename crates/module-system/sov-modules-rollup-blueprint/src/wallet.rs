@@ -1,7 +1,5 @@
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 use sov_cli::wallet_state::WalletState;
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::node::NodeWorkflows;
@@ -37,7 +35,7 @@ struct CliApp<File: clap::Subcommand, Json: clap::Subcommand, S: Spec> {
 #[async_trait]
 pub trait WalletBlueprint<M: ExecutionMode>: FullNodeBlueprint<M>
 where
-    // The types here a quite complicated but they are never exposed to the user
+    // The types here are quite complicated, but they are never exposed to the user
     // as the WalletTemplate is implemented for any types that implements FullNodeBlueprint.
     <Self::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <Self::Spec as Spec>::InnerZkvm>,
     <Self::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <Self::Spec as Spec>::OuterZkvm>,
@@ -59,7 +57,7 @@ where
     async fn run_wallet<File: clap::Subcommand, Json: clap::Subcommand>() -> anyhow::Result<()>
     where
         <<Self as RollupBlueprint<M>>::Runtime as DispatchCall>::Decodable:
-            BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+            BorshSerialize + BorshDeserialize + serde::Serialize + serde::de::DeserializeOwned,
         File: CliFrontEnd<<Self as RollupBlueprint<M>>::Runtime> + CliTxImportArg + Send + Sync,
         Json: CliFrontEnd<<Self as RollupBlueprint<M>>::Runtime> + CliTxImportArg + Send + Sync,
 
