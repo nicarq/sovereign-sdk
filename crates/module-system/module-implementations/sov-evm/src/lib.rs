@@ -24,7 +24,7 @@ mod event;
 #[cfg(feature = "native")]
 mod helpers;
 
-pub use authenticate::{authenticate, EthereumAuthenticator};
+pub use authenticate::{authenticate, tx_hash, EthereumAuthenticator};
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::Address as EvmAddress;
@@ -47,6 +47,8 @@ use crate::evm::primitive_types::{Block, Receipt, SealedBlock, TransactionSigned
 pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
 #[cfg(feature = "native")]
 pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
+
+pub use conversions::convert_to_transaction_signed;
 
 /// A pending Ethereum transaction.
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]

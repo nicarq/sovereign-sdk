@@ -1,9 +1,7 @@
 use alloy_primitives::private::alloy_rlp::Error as RlpError;
 use alloy_primitives::TxKind;
 use reth_primitives::revm_primitives::{Address, BlockEnv, TxEnv, U256};
-use reth_primitives::{
-    Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered, TransactionSignedNoHash,
-};
+use reth_primitives::{Bytes as RethBytes, TransactionSigned, TransactionSignedEcRecovered};
 use thiserror::Error;
 
 use super::primitive_types::SealedBlock;
@@ -26,7 +24,7 @@ impl From<SealedBlock> for BlockEnv {
     }
 }
 
-pub(crate) fn create_tx_env(tx: &TransactionSignedNoHash, signer: Address) -> TxEnv {
+pub(crate) fn create_tx_env(tx: &TransactionSigned, signer: Address) -> TxEnv {
     let to = match tx.to() {
         Some(addr) => TxKind::Call(addr),
         None => TxKind::Create,
@@ -66,29 +64,25 @@ pub enum RlpConversionError {
     InvalidSignature,
 }
 
-// And convert it to the original EthApiError ourselves or directly to RPC
-impl TryFrom<RlpEvmTransaction> for TransactionSignedNoHash {
-    type Error = RlpConversionError;
-
-    fn try_from(data: RlpEvmTransaction) -> Result<Self, Self::Error> {
-        let data = RethBytes::from(data.rlp);
-        // We can skip that, it is done inside `decode_enveloped` method
-        if data.is_empty() {
-            return Err(RlpConversionError::EmptyRawTx);
-        }
-
-        let transaction = TransactionSigned::decode_enveloped(&mut data.as_ref())?;
-
-        Ok(transaction.into())
+/// Coverts RLP encoded transaction to `TransactionSigned`.
+pub fn convert_to_transaction_signed(
+    data: RlpEvmTransaction,
+) -> Result<TransactionSigned, RlpConversionError> {
+    let data = RethBytes::from(data.rlp);
+    // We can skip that, it is done inside `decode_enveloped` method
+    if data.is_empty() {
+        return Err(RlpConversionError::EmptyRawTx);
     }
+
+    let tx = TransactionSigned::decode_enveloped(&mut data.as_ref())?;
+    Ok(tx)
 }
 
 impl TryFrom<RlpEvmTransaction> for TransactionSignedEcRecovered {
     type Error = RlpConversionError;
 
     fn try_from(evm_tx: RlpEvmTransaction) -> Result<Self, Self::Error> {
-        let tx = TransactionSignedNoHash::try_from(evm_tx)?;
-        let tx: TransactionSigned = tx.into();
+        let tx = convert_to_transaction_signed(evm_tx)?;
         let tx = tx
             .into_ecrecovered()
             .ok_or(RlpConversionError::InvalidSignature)?;
