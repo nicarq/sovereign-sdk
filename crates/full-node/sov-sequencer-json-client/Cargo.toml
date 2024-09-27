@@ -19,11 +19,11 @@ workspace = true
 # Core Progenitor dependencies, as described by the Progenitor README.
 chrono = { workspace = true, features = ["serde"] }
 futures = "0.3"
-progenitor = { git = "https://github.com/oxidecomputer/progenitor", rev = "0050f08b95edf9c0a7cbaad94161351af18e0246" }
+progenitor = { version = "0.8.0" }
 regress = "0.4.1"
-reqwest = { version = "0.11", features = ["rustls-tls", "json", "stream"] }
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
+reqwest = { version = "0.12", features = ["rustls-tls", "json", "stream"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
 
 # Custom extensions for WebSockets and our own code additions.
 anyhow = { workspace = true }

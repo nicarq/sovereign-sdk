@@ -74,6 +74,8 @@ components:
                 $ref: "#/components/schemas/StateValueBase"
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - data
     StateMapElementResponse:
       description: Response containing the value of a `StateMap` element.
       content:
@@ -96,7 +98,7 @@ components:
             required:
               - data
     StateVecResponse:
-      description: Response containing meta informration about vector
+      description: Response containing meta information about vector
       content:
         application/json:
           schema:
@@ -109,6 +111,8 @@ components:
                     type: integer
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - data
     StateVecElementResponse:
       description: Response containing the value of a `StateVec` element.
       content:
@@ -123,11 +127,13 @@ components:
                     type: integer
                   value:
                     $ref: "#/components/schemas/AnyJsonValue"
+                required:
+                  - index
+                  - value
               meta:
                 $ref: "#/components/schemas/AnyJsonValue"
             required:
-              - index
-              - value
+              - data
     StateValueResponse:
       description: Response containing the `StateValue`.
       content:
