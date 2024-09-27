@@ -90,7 +90,7 @@ impl BlockHashTrait for MockHash {}
 
 /// A mock block header used for testing.
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone, derive_more::Display)]
-#[display(fmt = "{:?}", self)]
+#[display("{:?}", self)]
 pub struct MockBlockHeader {
     /// The height of this block.
     pub height: u64,

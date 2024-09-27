@@ -11,7 +11,7 @@ use crate::{Gas, GasArray, Spec};
 /// ## Type safety
 /// To build this data structure outside of `sov-modules-api`, one would need to call [`crate::WorkingSet::finalize`] or [`crate::WorkingSet::checkpoint`]
 #[derive(PartialEq, Eq, Debug, derive_more::Display)]
-#[display(fmt = "{:?}", self)]
+#[display("{:?}", self)]
 pub struct TransactionConsumption<GU: Gas> {
     /// The amount of funds locked in the transaction that remains after transaction is executed and tip is processed.
     /// This amount includes the `base_fee` and the `priority_fee` gas token consumption
@@ -84,7 +84,7 @@ pub struct RemainingFunds(pub u64);
     derive_more::Into,
     derive_more::Display,
 )]
-#[display(fmt = "SequencerReward({})", "self.0")]
+#[display("SequencerReward({})", self.0)]
 pub struct SequencerReward(pub u64);
 
 impl SequencerReward {

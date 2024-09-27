@@ -1,6 +1,3 @@
-// TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1079
-// Rust 1.79, before darling is updated
-#![allow(clippy::manual_unwrap_or_default)]
 use darling::{ast, util, FromDeriveInput, FromField};
 use proc_macro2::TokenStream;
 use quote::quote;

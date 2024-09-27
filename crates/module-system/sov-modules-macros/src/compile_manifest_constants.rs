@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
-use syn::{Ident, LitStr};
+use proc_macro2::Ident;
+use syn::LitStr;
 
 use crate::manifest::Manifest;
 
@@ -30,7 +31,7 @@ fn parse_gas_dimensions(
             syn::Error::new(
                 constant_name.span(),
                 format!(
-                "The constant named `{}` inside `{}` represents a number of gas dimensions - it should be an expression litteral. Instead, it is: `{}`",
+                "The constant named `{}` inside `{}` represents a number of gas dimensions - it should be an expression literal. Instead, it is: `{}`",
                     gas_dimensions_string, manifest.path().display(), expr_from_config_file
                 ),
             )
@@ -60,7 +61,7 @@ fn parse_gas_dimensions(
 
 /// Helper function to parse a gas constant. Returns the inner expression and the length of the associated array.
 fn parse_const_gas(constant_name: &syn::LitStr) -> Result<(syn::ExprArray, usize), syn::Error> {
-    // Parse the constant from the configuration file, and convert it to a Rust
+    // Parse the constant from the configuration file and convert it to a Rust
     // expression...
     let field_ident = Ident::new(&constant_name.value(), constant_name.span());
     let manifest = Manifest::read_constants(&field_ident)?;
@@ -117,7 +118,7 @@ pub fn make_const_bech32(
     use bech32::primitives::decode::CheckedHrpstring;
     use bech32::Bech32m;
 
-    // Parse the constant from the configuration file, and convert it to a Rust
+    // Parse the constant from the configuration file and convert it to a Rust
     // expression...
     let field_ident = Ident::new(&constant_name.value(), constant_name.span());
     let manifest = Manifest::read_constants(&field_ident)?;

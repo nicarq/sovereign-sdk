@@ -12,7 +12,7 @@ publish = true
 [dependencies]
 anyhow = { workspace = true }
 axum = { workspace = true, features = ["query", "ws", "json", "original-uri"] }
-derive_more = { workspace = true, default-features = true }
+derive_more = { workspace = true, default-features = true, features = ["deref", "display"] }
 futures = { workspace = true }
 proptest = { workspace = true, features = ["std"], optional = true }
 proptest-derive = { workspace = true, optional = true }

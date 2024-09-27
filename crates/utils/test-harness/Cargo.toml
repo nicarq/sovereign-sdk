@@ -15,7 +15,7 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 async-trait = { workspace = true }
-derive_more = { workspace = true }
+derive_more = { workspace = true, features = ["constructor", "deref_mut"] }
 borsh = { workspace = true }
 clap = { workspace = true }
 derive-getters = { workspace = true }

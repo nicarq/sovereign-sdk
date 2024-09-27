@@ -163,8 +163,8 @@ fn make_prefix_func(
     }
 }
 
-fn prefix_func_ident(ident: &proc_macro2::Ident) -> proc_macro2::Ident {
-    syn::Ident::new(&format!("_prefix_{ident}"), ident.span())
+fn prefix_func_ident(ident: &Ident) -> Ident {
+    Ident::new(&format!("_prefix_{ident}"), ident.span())
 }
 
 fn make_fn_id(id_ident: &proc_macro2::Ident) -> syn::Result<proc_macro2::TokenStream> {
@@ -249,7 +249,7 @@ fn make_init_module(
 }
 
 fn make_init_gas_config(
-    parent: &Ident,
+    parent: &proc_macro2::Ident,
     field: &ModuleField,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
@@ -263,7 +263,7 @@ fn make_init_phantomdata(field: &ModuleField) -> proc_macro2::TokenStream {
     quote::quote! { let #field_ident = ::std::marker::PhantomData; }
 }
 
-fn make_module_prefix_fn(struct_ident: &Ident) -> proc_macro2::TokenStream {
+fn make_module_prefix_fn(struct_ident: &proc_macro2::Ident) -> proc_macro2::TokenStream {
     let body = make_module_prefix_fn_body(struct_ident);
     quote::quote! {
         fn prefix(&self) -> sov_modules_api::ModulePrefix {
@@ -272,7 +272,7 @@ fn make_module_prefix_fn(struct_ident: &Ident) -> proc_macro2::TokenStream {
     }
 }
 
-fn make_module_prefix_fn_body(struct_ident: &Ident) -> proc_macro2::TokenStream {
+fn make_module_prefix_fn_body(struct_ident: &proc_macro2::Ident) -> proc_macro2::TokenStream {
     quote::quote! {
         let module_path = module_path!();
         sov_modules_api::ModulePrefix::new_module(module_path, stringify!(#struct_ident))
@@ -281,8 +281,8 @@ fn make_module_prefix_fn_body(struct_ident: &Ident) -> proc_macro2::TokenStream 
 
 fn make_init_id(
     field: &ModuleField,
-    struct_ident: &Ident,
-    generic_param: &Ident,
+    struct_ident: &proc_macro2::Ident,
+    generic_param: &proc_macro2::Ident,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
     let generate_prefix = make_module_prefix_fn_body(struct_ident);
@@ -301,12 +301,14 @@ fn make_init_id(
 
 /// Internal `proc macro` parsing utilities.
 pub mod parsing {
+    use proc_macro2::Ident;
+
     use super::*;
 
     /// A fully parsed and validated `struct` marked with
     /// `#[derive(ModuleInfo)]`.
     pub struct StructDef<'a> {
-        pub ident: &'a proc_macro2::Ident,
+        pub ident: &'a Ident,
         pub impl_generics: ImplGenerics<'a>,
         pub type_generics: TypeGenerics<'a>,
         pub generic_param: Ident,
@@ -344,7 +346,7 @@ pub mod parsing {
 
     #[derive(Clone)]
     pub struct ModuleField {
-        pub ident: syn::Ident,
+        pub ident: Ident,
         pub ty: syn::Type,
         pub attr: ModuleFieldAttribute,
     }
@@ -361,58 +363,37 @@ pub mod parsing {
 
     impl ModuleFieldAttribute {
         fn parse(attr: &Attribute) -> syn::Result<Self> {
-            match attr.path.segments[0].ident.to_string().as_str() {
-                "module" => {
-                    if attr.tokens.is_empty() {
-                        Ok(Self::Module)
-                    } else {
-                        Err(syn::Error::new_spanned(
+            let attr_name = attr
+                .path()
+                .segments
+                .last()
+                .ok_or_else(|| syn::Error::new_spanned(attr, "Invalid attribute"))?
+                .ident
+                .to_string();
+            match attr_name.as_str() {
+                "module" | "kernel_module" | "id" | "gas" | "phantom" => {
+                    match &attr.meta {
+                        syn::Meta::Path(_) => {
+                            // This is the case for attributes without arguments
+                            Ok(match attr_name.as_str() {
+                                "module" => Self::Module,
+                                "kernel_module" => Self::KernelModule,
+                                "id" => Self::Address,
+                                "gas" => Self::Gas,
+                                "phantom" => Self::Phantom,
+                                _ => unreachable!("attributes names should have been prefiltered by pattern; this is a bug"),
+                            })
+                        }
+                        _ => Err(syn::Error::new_spanned(
                             attr,
-                            "The `#[module]` attribute does not accept any arguments.",
-                        ))
-                    }
-                }
-                "kernel_module" => {
-                    if attr.tokens.is_empty() {
-                        Ok(Self::KernelModule)
-                    } else {
-                        Err(syn::Error::new_spanned(
-                            attr,
-                            "The `#[kernel_module]` attribute does not accept any arguments.",
-                        ))
-                    }
-                }
-                "id" => {
-                    if attr.tokens.is_empty() {
-                        Ok(Self::Address)
-                    } else {
-                        Err(syn::Error::new_spanned(
-                            attr,
-                            "The `#[id]` attribute does not accept any arguments.",
-                        ))
+                            format!(
+                                "The `#[{}]` attribute does not accept any arguments.",
+                                attr_name
+                            ),
+                        )),
                     }
                 }
                 "state" => parse_state_attr(attr),
-                "gas" => {
-                    if attr.tokens.is_empty() {
-                        Ok(Self::Gas)
-                    } else {
-                        Err(syn::Error::new_spanned(
-                            attr,
-                            "The `#[gas]` attribute does not accept any arguments.",
-                        ))
-                    }
-                }
-                "phantom" => {
-                    if attr.tokens.is_empty() {
-                        Ok(Self::Phantom)
-                    } else {
-                        Err(syn::Error::new_spanned(
-                            attr,
-                            "The `#[phantom]` attribute does not accept any arguments.",
-                        ))
-                    }
-                }
                 _ => unreachable!("attribute names were validated already; this is a bug"),
             }
         }
@@ -422,34 +403,42 @@ pub mod parsing {
         let syntax_err =
             syn::Error::new_spanned(attr, "Invalid syntax for the `#[state]` attribute.");
 
-        let meta = if attr.tokens.is_empty() {
-            return Ok(ModuleFieldAttribute::State {
-                codec_builder: None,
-            });
-        } else {
-            attr.parse_meta()?
-        };
+        match &attr.meta {
+            syn::Meta::Path(_) => {
+                // This handles the case of a simple #[state] attribute with no arguments
+                Ok(ModuleFieldAttribute::State {
+                    codec_builder: None,
+                })
+            }
+            syn::Meta::List(meta_list) => {
+                if meta_list.tokens.is_empty() {
+                    return Ok(ModuleFieldAttribute::State {
+                        codec_builder: None,
+                    });
+                }
 
-        let meta_list = match meta {
-            syn::Meta::List(l) if !l.nested.is_empty() => l,
-            _ => return Err(syntax_err),
-        };
-        let name_value = match &meta_list.nested[0] {
-            syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) => nv,
-            _ => return Err(syntax_err),
-        };
+                let name_value = meta_list.parse_args::<syn::MetaNameValue>()?;
 
-        if name_value.path.get_ident().map(Ident::to_string).as_deref() != Some("codec_builder") {
-            return Err(syntax_err);
+                if name_value.path.get_ident().map(Ident::to_string).as_deref()
+                    != Some("codec_builder")
+                {
+                    return Err(syntax_err);
+                }
+
+                let codec_builder_path = match &name_value.value {
+                    syn::Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Str(lit),
+                        ..
+                    }) => lit.parse_with(syn::Path::parse_mod_style)?,
+                    _ => return Err(syntax_err),
+                };
+
+                Ok(ModuleFieldAttribute::State {
+                    codec_builder: Some(codec_builder_path),
+                })
+            }
+            _ => Err(syntax_err),
         }
-
-        let codec_builder_path = match &name_value.lit {
-            syn::Lit::Str(lit) => lit.parse_with(syn::Path::parse_mod_style)?,
-            _ => return Err(syntax_err),
-        };
-        Ok(ModuleFieldAttribute::State {
-            codec_builder: Some(codec_builder_path),
-        })
     }
 
     fn parse_module_fields(data: &syn::Data) -> syn::Result<Vec<ModuleField>> {
@@ -525,7 +514,7 @@ pub mod parsing {
         }
     }
 
-    fn get_field_ident(field: &syn::Field) -> syn::Result<&syn::Ident> {
+    fn get_field_ident(field: &syn::Field) -> syn::Result<&Ident> {
         field.ident.as_ref().ok_or(syn::Error::new_spanned(
             field,
             "The `ModuleInfo` macro supports structs only, unnamed fields witnessed.",
@@ -536,7 +525,7 @@ pub mod parsing {
         let ident = get_field_ident(field)?;
         let mut attr = None;
         for a in field.attrs.iter() {
-            match a.path.segments[0].ident.to_string().as_str() {
+            match a.path().segments[0].ident.to_string().as_str() {
                 "state" | "module" | "id" | "gas" | "kernel_module" | "phantom" => {
                     if attr.is_some() {
                         return Err(syn::Error::new_spanned(ident, "Only one attribute out of `#[kernel_module]`, `#[module]`, `#[state]`, `#[id]`, `#[gas]`, and `#[phantom]` is allowed per field."));

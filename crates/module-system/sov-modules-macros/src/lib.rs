@@ -281,14 +281,26 @@ pub fn derive_wallet(input: TokenStream) -> TokenStream {
     )
 }
 
+#[cfg(feature = "native")]
+struct AttributeArgs(syn::punctuated::Punctuated<syn::Meta, syn::Token![,]>);
+
+#[cfg(feature = "native")]
+impl syn::parse::Parse for AttributeArgs {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        Ok(AttributeArgs(
+            syn::punctuated::Punctuated::parse_terminated(input)?,
+        ))
+    }
+}
+
 #[proc_macro_attribute]
 #[cfg(feature = "native")]
 pub fn rpc_gen(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let attr_contents: Vec<syn::NestedMeta> = parse_macro_input!(attr);
+    let attr_contents = parse_macro_input!(attr as AttributeArgs);
     let input = parse_macro_input!(item as syn::ItemImpl);
     handle_macro_error_and_expand(
         fn_name!(),
-        rpc::rpc_gen(attr_contents, input).map(Into::into),
+        rpc::rpc_gen(attr_contents.0.into_iter().collect(), input).map(Into::into),
     )
 }
 

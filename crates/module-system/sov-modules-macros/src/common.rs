@@ -4,17 +4,14 @@ use quote::{format_ident, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
-use syn::{
-    DataStruct, Fields, GenericParam, ImplGenerics, Meta, NestedMeta, TypeGenerics, VisPublic,
-    Visibility,
-};
+use syn::{DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics, Visibility};
 
 #[derive(Clone)]
 pub(crate) struct StructNamedField {
-    pub(crate) ident: proc_macro2::Ident,
+    pub(crate) ident: Ident,
     pub(crate) ty: syn::Type,
     pub(crate) attrs: Vec<syn::Attribute>,
-    pub(crate) vis: syn::Visibility,
+    pub(crate) vis: Visibility,
 }
 
 impl StructNamedField {
@@ -28,12 +25,14 @@ impl StructNamedField {
 
     #[cfg_attr(not(feature = "native"), allow(unused))]
     pub(crate) fn contains_attr(&self, attr_ident: &str) -> bool {
-        self.attrs.iter().any(|attr| attr.path.is_ident(attr_ident))
+        self.attrs
+            .iter()
+            .any(|attr| attr.path().is_ident(attr_ident))
     }
 }
 
 impl ToTokens for StructNamedField {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
         let docs = &self.attrs;
         let vis = &self.vis;
         let ident = &self.ident;
@@ -91,9 +90,7 @@ impl StructFieldExtractor {
                     let ident = Ident::new(&format!("field{}", i), field.span());
                     let ty = &field.ty;
                     let vis = if public {
-                        Visibility::Public(VisPublic {
-                            pub_token: Default::default(),
-                        })
+                        Visibility::Public(Default::default())
                     } else {
                         field.vis.clone()
                     };
@@ -111,9 +108,7 @@ impl StructFieldExtractor {
                 .map(|field| {
                     let ty = &field.ty;
                     let vis = if public {
-                        Visibility::Public(VisPublic {
-                            pub_token: Default::default(),
-                        })
+                        Visibility::Public(Default::default())
                     } else {
                         field.vis.clone()
                     };
@@ -164,7 +159,7 @@ pub(crate) const CALL: &str = "Call";
 
 /// Represents "parsed" rust struct.
 pub(crate) struct StructDef<'a> {
-    pub(crate) ident: proc_macro2::Ident,
+    pub(crate) ident: Ident,
     pub(crate) impl_generics: ImplGenerics<'a>,
     pub(crate) type_generics: TypeGenerics<'a>,
     pub(crate) generic_param: &'a Ident,
@@ -174,7 +169,7 @@ pub(crate) struct StructDef<'a> {
 
 impl<'a> StructDef<'a> {
     pub(crate) fn new(
-        ident: proc_macro2::Ident,
+        ident: Ident,
         fields: Vec<StructNamedField>,
         impl_generics: ImplGenerics<'a>,
         type_generics: TypeGenerics<'a>,
@@ -194,10 +189,10 @@ impl<'a> StructDef<'a> {
     /// Creates an enum type based on the underlying struct.
     pub(crate) fn create_enum(
         &self,
-        enum_legs: &[proc_macro2::TokenStream],
+        enum_legs: &[TokenStream],
         postfix: &'static str,
         extra_attributes: &[TokenStream],
-    ) -> proc_macro2::TokenStream {
+    ) -> TokenStream {
         let enum_ident = self.enum_ident(postfix);
         let impl_generics = &self.impl_generics;
         let where_clause = &self.where_clause;
@@ -251,29 +246,25 @@ pub(crate) fn get_derived_enum_attrs(
     input: &syn::DeriveInput,
     mut default_attrs: Vec<TokenStream>,
 ) -> syn::Result<Vec<TokenStream>> {
-    let err_msg = format!(
-        "Expected #[{}(...)] attribute to have the form #[{}(my_attr, derive(MyDerive))]",
-        ident, ident
-    );
     let mut attributes = Vec::new();
     let mut found_opt_out = false;
-    for attr in input.attrs.iter().filter(|attr| attr.path.is_ident(ident)) {
-        let event_attrs =
-            attr.parse_args_with(Punctuated::<NestedMeta, Comma>::parse_terminated)?;
+    for attr in input
+        .attrs
+        .iter()
+        .filter(|attr| attr.path().is_ident(ident))
+    {
+        let event_attrs = attr.parse_args_with(Punctuated::<Meta, Comma>::parse_terminated)?;
         for event_attr in event_attrs {
             match event_attr {
-                NestedMeta::Meta(meta) => match meta {
-                    Meta::Path(path) => {
-                        if path.is_ident("no_default_attrs") {
-                            found_opt_out = true;
-                        } else {
-                            attributes.push(quote::quote! {#[#path]});
-                        }
+                Meta::Path(path) => {
+                    if path.is_ident("no_default_attrs") {
+                        found_opt_out = true;
+                    } else {
+                        attributes.push(quote::quote! {#[#path]});
                     }
-                    Meta::List(list) => attributes.push(quote::quote! {#[#list]}),
-                    Meta::NameValue(value) => attributes.push(quote::quote! {#[#value]}),
-                },
-                NestedMeta::Lit(_) => return Err(syn::Error::new_spanned(event_attr, err_msg)),
+                }
+                Meta::List(list) => attributes.push(quote::quote! {#[#list]}),
+                Meta::NameValue(value) => attributes.push(quote::quote! {#[#value]}),
             }
         }
     }
@@ -285,10 +276,6 @@ pub(crate) fn get_derived_enum_attrs(
         default_attrs.extend(attributes);
         Ok(default_attrs)
     }
-}
-
-fn syn_lit_to_expr(lit: syn::Lit) -> syn::Expr {
-    syn::Expr::Lit(syn::ExprLit { attrs: vec![], lit })
 }
 
 /// Converts a TOML value into a Rust expression of the most appropriate type.
@@ -306,12 +293,18 @@ pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::E
         Value::Table(_) => Err(error("table")),
         Value::Float(_) => Err(error("float")),
         Value::Datetime(_) => Err(error("datetime")),
-        Value::Boolean(b) => Ok(syn_lit_to_expr(syn::Lit::Bool(syn::LitBool::new(*b, span)))),
-        Value::Integer(num) => Ok(syn_lit_to_expr(syn::Lit::Int(syn::LitInt::new(
-            &num.to_string(),
-            span,
-        )))),
-        Value::String(s) => Ok(syn_lit_to_expr(syn::Lit::Str(syn::LitStr::new(s, span)))),
+        Value::Boolean(b) => Ok(syn::Expr::Lit(syn::ExprLit {
+            attrs: Vec::new(),
+            lit: syn::Lit::Bool(syn::LitBool::new(*b, span)),
+        })),
+        Value::Integer(num) => Ok(syn::Expr::Lit(syn::ExprLit {
+            attrs: Vec::new(),
+            lit: syn::Lit::Int(syn::LitInt::new(&num.to_string(), span)),
+        })),
+        Value::String(s) => Ok(syn::Expr::Lit(syn::ExprLit {
+            attrs: Vec::new(),
+            lit: syn::Lit::Str(syn::LitStr::new(s, span)),
+        })),
         Value::Array(arr) => {
             let values: Vec<syn::Expr> = arr
                 .iter()
@@ -319,7 +312,7 @@ pub fn toml_value_to_expr(value: &toml::Value, span: Span) -> syn::Result<syn::E
                 .collect::<syn::Result<_>>()?;
             Ok(syn::Expr::Array(syn::ExprArray {
                 attrs: Vec::new(),
-                bracket_token: syn::token::Bracket { span },
+                bracket_token: syn::token::Bracket::default(),
                 elems: syn::punctuated::Punctuated::from_iter(values),
             }))
         }
@@ -360,7 +353,7 @@ pub fn wrap_in_new_scope(code: TokenStream) -> TokenStream {
 pub fn doc_attributes(attrs: &[syn::Attribute]) -> Vec<syn::Attribute> {
     attrs
         .iter()
-        .filter(|attr| attr.path.is_ident("doc"))
+        .filter(|attr| attr.path().is_ident("doc"))
         .cloned()
         .collect::<Vec<_>>()
 }
@@ -368,33 +361,46 @@ pub fn doc_attributes(attrs: &[syn::Attribute]) -> Vec<syn::Attribute> {
 /// Iterates over all `#[doc = "..."`] attributes and concatenates their inner
 /// string values, separated by newlines.
 pub fn join_doc_comments(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
-    use syn::Lit;
-
+    // Collect string literals from doc comments
     let string_literals = attrs
         .iter()
-        .filter_map(|attr| attr.parse_meta().ok())
-        .filter_map(|meta| match meta {
-            Meta::NameValue(ref name_value) if name_value.path.is_ident("doc") => {
-                Some(name_value.lit.clone())
+        .filter_map(|attr| {
+            // Match attributes that are doc comments
+            if let Meta::NameValue(name_value) = &attr.meta {
+                if name_value.path.is_ident("doc") {
+                    Some(name_value.value.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
             }
-            _ => None,
         })
-        .map(|lit| match lit {
-            Lit::Str(s) => Ok(s.value()),
-            other => Err(syn::Error::new(
-                other.span(),
-                "Doc comment is not a string literal",
-            )),
+        .map(|expr| {
+            // Extract the string literal from the expression
+            if let syn::Expr::Lit(syn::ExprLit {
+                lit: syn::Lit::Str(lit_str),
+                ..
+            }) = expr
+            {
+                Ok(lit_str.value())
+            } else {
+                Err(syn::Error::new(
+                    expr.span(),
+                    "Doc comment is not a string literal",
+                ))
+            }
         })
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<syn::Result<Vec<_>>>()?;
 
     if string_literals.is_empty() {
         return Ok(None);
     }
 
+    // Process the collected strings
     let trimmed: Vec<_> = string_literals
         .iter()
-        .flat_map(|lit| lit.split('\n').collect::<Vec<_>>())
+        .flat_map(|s| s.split('\n'))
         .map(|line| line.trim().to_string())
         .collect();
 
@@ -428,7 +434,7 @@ mod tests {
 
     #[test]
     fn get_generic_type_param_first_const() {
-        // error test case for get_generics_type_param when first generic param is const
+        // error test case for get_generics_type_param when the first generic param is const
         let generics = syn::parse_quote! {
             <const T: Trait>
         };
