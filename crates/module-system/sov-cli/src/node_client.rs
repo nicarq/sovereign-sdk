@@ -7,13 +7,14 @@ use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
-use reqwest::ClientBuilder;
+use reqwest::{ClientBuilder, StatusCode};
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_ledger_json_client::Client as LedgerClient;
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_sequencer_json_client::types;
 
@@ -34,12 +35,31 @@ struct AuthorizedMintersResponse<S: sov_modules_api::Spec> {
     authorized_minters: Vec<TokenHolder<S>>,
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+struct AllowedSequencerResponse<S: sov_modules_api::Spec, Da: DaSpec> {
+    key: Da::Address,
+    value: AllowedSequencer<S>,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+pub struct AllowedSequencer<S: sov_modules_api::Spec> {
+    pub address: S::Address,
+    pub balance: Amount,
+}
+
 /// NodeClient is a collection of helper methods that can interact with rollup node via REST API.
+#[derive(Debug)]
 pub struct NodeClient {
-    base_url: String,
+    /// Base URL where runtime, sequencer and ledger routers are mounted.
+    pub base_url: String,
+    /// Client that used to communicate with Runtime REST API.
     http_client: reqwest::Client,
-    ledger_client: LedgerClient,
-    sequencer_client: sov_sequencer_json_client::Client,
+    /// A [`sov_sequencer_json_client::Client`] for communication with the sequencer.
+    pub ledger: sov_ledger_json_client::Client,
+    /// A [`sov_ledger_json_client::Client`] for communication with the ledger.
+    pub sequencer: sov_sequencer_json_client::Client,
 }
 
 impl NodeClient {
@@ -53,17 +73,23 @@ impl NodeClient {
             anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
         }
         let ledger_url = format!("{}/ledger", api_url);
-        let ledger_client = LedgerClient::new(&ledger_url);
+        let ledger = LedgerClient::new(&ledger_url);
 
         let sequencer_url = format!("{}/sequencer", api_url);
-        let sequencer_client = sov_sequencer_json_client::Client::new(&sequencer_url);
+        let sequencer = sov_sequencer_json_client::Client::new(&sequencer_url);
 
         Ok(NodeClient {
             base_url,
             http_client,
-            ledger_client,
-            sequencer_client,
+            ledger,
+            sequencer,
         })
+    }
+
+    /// Simplified constructor for testing.
+    pub async fn new_at_localhost(port: u16) -> anyhow::Result<Self> {
+        let api_url = format!("http://127.0.0.1:{}", port);
+        Self::new(&api_url).await
     }
 
     /// Fetches the nonce associated with a given public key.
@@ -159,10 +185,14 @@ impl NodeClient {
         &self,
         account_address: &S::Address,
         token_id: &TokenId,
+        rollup_height: Option<u64>,
     ) -> anyhow::Result<Amount> {
+        let height_param: String = rollup_height
+            .map(|h| format!("?rollup_height={}", h))
+            .unwrap_or_default();
         let balance_url = format!(
-            "{}/modules/bank/tokens/{}/balances/{}",
-            self.base_url, token_id, account_address
+            "{}/modules/bank/tokens/{}/balances/{}{}",
+            self.base_url, token_id, account_address, height_param
         );
         let amount = self.query_amount(&balance_url).await?;
 
@@ -183,7 +213,7 @@ impl NodeClient {
         wait_for_processing: bool,
     ) -> anyhow::Result<()> {
         let response = self
-            .sequencer_client
+            .sequencer
             .publish_batch(&types::PublishBatchBody {
                 transactions: raw_txs
                     .into_iter()
@@ -216,7 +246,7 @@ impl NodeClient {
             let start_wait = Instant::now();
 
             // Subscribe to slots only to check our batch if the slot has been published.
-            let mut slot_subscription = self.ledger_client.subscribe_slots().await?;
+            let mut slot_subscription = self.ledger.subscribe_slots().await?;
 
             while start_wait.elapsed() < max_waiting_time {
                 if let Some(latest_slot) = slot_subscription.next().await.transpose()? {
@@ -235,6 +265,55 @@ impl NodeClient {
             );
         }
         Ok(())
+    }
+
+    /// Performs a get request at given URL on the REST API socket.
+    pub async fn query_rest_endpoint<R: serde::de::DeserializeOwned>(
+        &self,
+        url: &str,
+    ) -> anyhow::Result<R> {
+        let url = format!("{}{}", self.base_url, url);
+        let response = self.http_client.get(url).send().await?;
+        let data = response.json::<R>().await?;
+        Ok(data)
+    }
+
+    /// HTTP GET to the given endpoint, returning plain text.
+    pub async fn http_get(&self, url: &str) -> anyhow::Result<String> {
+        let url = format!("{}{}", self.base_url, url);
+        Ok(self.http_client.get(url).send().await?.text().await?)
+    }
+
+    /// Requests if given DA address is allowed sequencer.
+    /// Returns balance as well.
+    pub async fn sequencer_rollup_address<S: sov_modules_api::Spec, Da: DaSpec>(
+        &self,
+        da_address: &Da::Address,
+    ) -> anyhow::Result<Option<AllowedSequencer<S>>> {
+        let url = format!(
+            "{}/modules/sequencer-registry/state/allowed-sequencers/items/{}",
+            self.base_url, &da_address,
+        );
+
+        let response = self.http_client.get(url).send().await?;
+        let response = match response
+            .json::<ResponseObject<AllowedSequencerResponse<S, Da>>>()
+            .await
+        {
+            Ok(r) => r,
+            Err(err) => {
+                if err.status() == Some(StatusCode::NOT_FOUND) {
+                    return Ok(None);
+                }
+                anyhow::bail!(err);
+            }
+        };
+
+        let allowed_sequencer = response
+            .data
+            .expect("Data should be set, otherwise HTTP 404");
+
+        Ok(Some(allowed_sequencer.value))
     }
 }
 
@@ -264,5 +343,6 @@ async fn check_if_rollup_has_standard_modules(
 
     Ok(module_response.modules.contains_key("bank")
         && module_response.modules.contains_key("accounts")
-        && module_response.modules.contains_key("nonces"))
+        && module_response.modules.contains_key("nonces")
+        && module_response.modules.contains_key("sequencer-registry"))
 }

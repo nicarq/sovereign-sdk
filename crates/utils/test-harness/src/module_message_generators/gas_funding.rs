@@ -30,7 +30,9 @@ pub async fn get_gas_funding_txs<S: Spec>(
         let mut map = HashMap::<&S::Address, u64>::new();
         // Skip generated accounts as we know they don't existing on the rollup.
         for address in account_pool.imported_addresses() {
-            let balance = node_client.get_balance::<S>(address, &GAS_TOKEN_ID).await?;
+            let balance = node_client
+                .get_balance::<S>(address, &GAS_TOKEN_ID, None)
+                .await?;
             if balance >= MINIMAL_WHALE_BALANCE {
                 let index = account_pool.get_index(address).expect("Impossible happened: imported account cannot be mapped to index back by address");
                 map.insert(address, *index);

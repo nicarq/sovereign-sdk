@@ -1,14 +1,14 @@
 use demo_stf::runtime::RuntimeCall;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
+use sov_cli::NodeClient;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
-use sov_modules_api::rest::utils::{ErrorObject, ResponseObject};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PrivateKey, Spec};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
-use sov_test_utils::{default_test_signed_transaction, ApiClient, TestPrivateKey, TestSpec};
+use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
 use super::{TOKEN_NAME, TOKEN_SALT};
 use crate::test_helpers::read_private_keys;
@@ -100,48 +100,23 @@ pub(crate) fn build_multiple_transfers(
 }
 
 pub(crate) async fn assert_balance(
-    client: &ApiClient,
+    client: &NodeClient,
     assert_amount: u64,
     token_id: TokenId,
     user_address: <TestSpec as Spec>::Address,
-    version: Option<u64>,
+    rollup_height: Option<u64>,
 ) -> anyhow::Result<()> {
-    let balance_response_rpc = sov_bank::BankRpcClient::<TestSpec>::balance_of(
-        &client.rpc,
-        version,
-        user_address,
-        token_id,
-    )
-    .await?;
-    assert_eq!(
-        balance_response_rpc.amount.unwrap_or_default(),
-        assert_amount
-    );
-
-    let height_param: String = version
-        .map(|h| format!("?rollup_height={}", h))
-        .unwrap_or_default();
-    let balance_url = format!(
-        "/modules/bank/tokens/{}/balances/{}{}",
-        token_id, user_address, height_param
-    );
-
-    let balance_response_rest = client
-        .query_rest_endpoint::<ResponseObject<Coins>>(&balance_url)
+    let actual_amount = client
+        .get_balance::<TestSpec>(&user_address, &token_id, rollup_height)
         .await?;
-
-    assert_eq!(Vec::<ErrorObject>::new(), balance_response_rest.errors);
-    let rest_amount = balance_response_rest.data.unwrap().amount;
-
-    assert_eq!(assert_amount, rest_amount);
-
+    assert_eq!(assert_amount, actual_amount);
     Ok(())
 }
 
 pub(crate) async fn assert_aggregated_proof(
     initial_slot: u64,
     final_slot: u64,
-    client: &ApiClient,
+    client: &NodeClient,
 ) -> anyhow::Result<()> {
     let proof_response = client.ledger.get_latest_aggregated_proof().await?;
 
@@ -177,7 +152,7 @@ pub(crate) fn assert_aggregated_proof_public_data(
 }
 
 pub(crate) async fn assert_slot_finality(
-    client: &ApiClient,
+    client: &NodeClient,
     slot_number: u64,
     expected_finality: FinalityStatus,
 ) {
@@ -198,7 +173,7 @@ pub(crate) async fn assert_slot_finality(
 }
 
 pub(crate) async fn assert_bank_event<S: Spec>(
-    client: &ApiClient,
+    client: &NodeClient,
     event_number: u64,
     expected_event: BankEvent<S>,
 ) -> anyhow::Result<()> {

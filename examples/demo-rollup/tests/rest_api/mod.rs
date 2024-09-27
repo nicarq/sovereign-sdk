@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use anyhow::Context;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use demo_stf_json_client::types::AnyJsonValue;
@@ -71,7 +72,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     )
     .await?;
 
-    // Based on assumption that this key is admin in sov-value-setter
+    // Based on an assumption that this key is admin in sov-value-setter
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let msg = RuntimeCall::<TestSpec, MockDaSpec>::ValueSetter(
         sov_value_setter::CallMessage::SetManyValues(vec![1, 2, 3, 4, 5, 6, 7, 8]),
@@ -86,7 +87,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         .await?;
     slot_subscription.next().await;
 
-    let url = format!("http://127.0.0.1:{}/modules", test_rollup.client.rest_port);
+    let url = format!("{}/modules", &test_rollup.client.base_url);
     Ok(demo_stf_json_client::Client::new(&url))
 }
 
@@ -94,19 +95,27 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
 async fn test_runtime_spec_with_gen_client() -> anyhow::Result<()> {
     let runtime_client = setup().await?;
 
-    check_base_runtime_info(&runtime_client).await?;
-    check_state_value(&runtime_client).await?;
-    check_state_map(&runtime_client).await?;
-    check_state_vec(&runtime_client).await?;
-    check_custom_endpoints(&runtime_client).await?;
-    check_historical_data(&runtime_client).await?;
+    check_base_runtime_info(&runtime_client)
+        .await
+        .context("Base runtime check")?;
+    check_state_value(&runtime_client)
+        .await
+        .context("StateValue")?;
+    check_state_map(&runtime_client).await.context("StateMap")?;
+    check_state_vec(&runtime_client).await.context("StateVec")?;
+    check_custom_endpoints(&runtime_client)
+        .await
+        .context("Custom endpoints")?;
+    check_historical_data(&runtime_client)
+        .await
+        .context("Historical data")?;
 
     Ok(())
 }
 
 async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
-    //Get list of modules
-    let modules = client.get_modules().await?;
+    //Get the list of modules
+    let modules = client.get_modules().await.context("Modules list")?;
     let modules = modules.data.clone().unwrap().modules.unwrap().0;
 
     // There are some modules, but to make test break less we have loose check that some data has been put in the response.
@@ -115,7 +124,10 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
     let bank = modules.get("bank").unwrap().clone();
     assert!(bank.id.starts_with("module_1"));
 
-    let bank_module_info = client.get_module("bank").await?;
+    let bank_module_info = client
+        .get_module("bank")
+        .await
+        .context("Bank module info")?;
     let bank_module_info = bank_module_info.data.clone().unwrap();
     let module_name = bank_module_info.name.unwrap();
     assert_eq!("Bank", module_name);
@@ -216,7 +228,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
         meta_info.namespace
     );
 
-    // Get state map: known value.
+    // Get the state map: known value.
     let token_deployer = read_private_keys::<TestSpec>("token_deployer_private_key.json");
     let credential_id_response = client
         .accounts_credential_ids_get_state_map_element(&token_deployer.address.to_string(), None)

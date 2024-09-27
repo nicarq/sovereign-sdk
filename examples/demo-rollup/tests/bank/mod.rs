@@ -6,13 +6,14 @@ use std::sync::Arc;
 use anyhow::Context;
 use demo_stf::runtime::Runtime;
 use futures::StreamExt;
+use sov_cli::NodeClient;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
-use sov_test_utils::{ApiClient, TestSpec};
+use sov_test_utils::TestSpec;
 
 const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
@@ -20,7 +21,7 @@ const TOKEN_NAME: &str = "test_token";
 trait TxSender {
     async fn send_txs(
         &self,
-        client: &ApiClient,
+        client: &NodeClient,
         transactions: &[Transaction<TestSpec>],
     ) -> anyhow::Result<u64>;
 }
@@ -38,7 +39,7 @@ impl DaLayerTxSender {
 impl TxSender for DaLayerTxSender {
     async fn send_txs(
         &self,
-        client: &ApiClient,
+        client: &NodeClient,
         transactions: &[Transaction<TestSpec>],
     ) -> anyhow::Result<u64> {
         let authenticated_txs = transactions
@@ -76,7 +77,7 @@ struct SequencerTxSender;
 impl TxSender for SequencerTxSender {
     async fn send_txs(
         &self,
-        client: &ApiClient,
+        client: &NodeClient,
         transactions: &[Transaction<TestSpec>],
     ) -> anyhow::Result<u64> {
         let mut slot_subscription = client

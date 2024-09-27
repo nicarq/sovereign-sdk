@@ -1,9 +1,10 @@
 use anyhow::Context;
 use demo_stf::genesis_config::GenesisPaths;
 use futures::StreamExt;
+use sov_cli::NodeClient;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::BlockProducingConfig;
-use sov_test_utils::{ApiClient, TestSpec};
+use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME, TOKEN_SALT};
@@ -40,18 +41,13 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
 
 async fn send_test_bank_txs(
     test_case: TestCase,
-    client: &ApiClient,
+    client: &NodeClient,
     tx_sender: impl TxSender,
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
-
-    let token_id_response = sov_bank::BankRpcClient::<TestSpec>::token_id(
-        &client.rpc,
-        TOKEN_NAME.to_owned(),
-        user_address,
-        TOKEN_SALT,
-    )
-    .await?;
+    let token_id_response = client
+        .get_token_id::<TestSpec>(TOKEN_NAME, TOKEN_SALT, &user_address)
+        .await?;
 
     let mut aggregated_proof_subscription = client
         .ledger

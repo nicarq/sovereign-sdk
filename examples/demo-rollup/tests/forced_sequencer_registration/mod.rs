@@ -4,6 +4,7 @@ use anyhow::Context;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use futures::StreamExt;
+use sov_cli::NodeClient;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
@@ -11,7 +12,7 @@ use sov_modules_api::RawTx;
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_utils::{ApiClient, TestPrivateKey, TestSpec};
+use sov_test_utils::{TestPrivateKey, TestSpec};
 
 use crate::test_helpers::{construct_rollup, read_private_keys};
 
@@ -21,7 +22,7 @@ const MINIMUM_BOND: u64 = 100_000_000;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
-    let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
+    let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
     let rollup = construct_rollup(
         GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
@@ -41,9 +42,8 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
             .unwrap();
     });
 
-    let rpc_port = rpc_port_rx.await.unwrap().port();
-    let rest_port = rest_port_rx.await.unwrap().port();
-    let client = ApiClient::new(rpc_port, rest_port).await?;
+    let rest_port = rest_port_rx.await?.port();
+    let client = NodeClient::new_at_localhost(rest_port).await?;
 
     tokio::select! {
         err = rollup_task => err?,
@@ -54,7 +54,7 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
 
 async fn forced_sequencer_registration_test_case(
     da_service: Arc<impl DaService>,
-    client: &ApiClient,
+    client: &NodeClient,
 ) -> anyhow::Result<()> {
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
@@ -67,21 +67,17 @@ async fn forced_sequencer_registration_test_case(
         .ledger
         .subscribe_slots()
         .await
-        .context("Failed to subscribe to slots!")
-        .unwrap();
+        .context("Failed to subscribe to slots!")?;
 
     let _ = da_service.send_transaction(&blob, fee).await.unwrap();
 
-    slot_subscription.next().await.unwrap().unwrap();
+    slot_subscription.next().await.unwrap()?;
 
-    let sequencer_address_response = sov_sequencer_registry::SequencerRegistryRpcClient::<
-        TestSpec,
-        MockDaSpec,
-    >::sequencer_address(&client.rpc, UNREGISTERED_SENDER)
-    .await
-    .unwrap();
+    let allowed_sequencer_response = client
+        .sequencer_rollup_address::<TestSpec, MockDaSpec>(&UNREGISTERED_SENDER)
+        .await?;
 
-    assert!(sequencer_address_response.address.is_some());
+    assert!(allowed_sequencer_response.is_some());
 
     Ok(())
 }
