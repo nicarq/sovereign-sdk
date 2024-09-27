@@ -1,10 +1,11 @@
 use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
 };
-use reth_primitives::{Log as RethLog, TransactionSignedNoHash};
+use reth_primitives::{Log as RethLog, TransactionSigned};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
+use crate::conversions::convert_to_transaction_signed;
 use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
@@ -41,7 +42,7 @@ impl<S: Spec> Evm<S> {
                 "EVM transaction must be authenticated by the EVM authenticator"
             ))?;
 
-        let evm_tx: TransactionSignedNoHash = message.rlp.try_into()?;
+        let evm_tx: TransactionSigned = convert_to_transaction_signed(message.rlp)?;
 
         let block_env = self
             .block_env
@@ -110,7 +111,7 @@ impl<S: Spec> Evm<S> {
         let pending_transaction = PendingTransaction {
             transaction: TransactionSignedAndRecovered {
                 signer,
-                signed_transaction: evm_tx.into(),
+                signed_transaction: evm_tx,
                 block_number: block_env.number.to(),
             },
             receipt,

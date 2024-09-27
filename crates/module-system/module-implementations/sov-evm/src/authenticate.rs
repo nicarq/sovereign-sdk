@@ -12,7 +12,22 @@ use sov_modules_api::{FullyBakedTx, GasMeter, PreExecWorkingSet, RawTx, Spec};
 use sov_rollup_interface::TxHash;
 
 use crate::conversions::RlpConversionError;
-use crate::{CallMessage, RlpEvmTransaction};
+use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
+
+/// Calculate transaction hash without recovering the signer.
+pub fn tx_hash<S: Spec, Meter: GasMeter<S::Gas>>(
+    raw_tx: &[u8],
+) -> Result<TxHash, AuthenticationError> {
+    let tx = RlpEvmTransaction::try_from_slice(raw_tx).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
+
+    let tx = convert_to_transaction_signed(tx).map_err(|e| {
+        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+    })?;
+
+    Ok(TxHash::new(tx.hash.into()))
+}
 
 /// Authenticates a raw evm transaction.
 ///

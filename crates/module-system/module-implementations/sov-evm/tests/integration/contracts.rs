@@ -2,7 +2,7 @@ use reth_primitives::{TxKind, U256};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult};
-use sov_evm::{executor, Evm, SpecId};
+use sov_evm::{convert_to_transaction_signed, executor, Evm, SpecId};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
 use sov_test_utils::{SimpleStorageContract, TransactionType};
@@ -60,7 +60,7 @@ fn test_invalid_contract_execution() {
         let result = executor::execute_tx(
             &mut evm_db,
             &BlockEnv::default(),
-            &signed_eth_tx.try_into().unwrap(),
+            &convert_to_transaction_signed(signed_eth_tx).unwrap(),
             account.address(),
             cfg_env_with_handler,
         )

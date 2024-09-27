@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnvWithHandlerCfg, EVMError, Env, EnvWithHandlerCfg, ExecutionResult,
 };
-use reth_primitives::TransactionSignedNoHash;
+use reth_primitives::TransactionSigned;
 use revm::{Database, DatabaseCommit, EvmBuilder};
 
 use crate::evm::conversions::create_tx_env;
@@ -12,7 +12,7 @@ use crate::evm::conversions::create_tx_env;
 pub fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
-    tx: &TransactionSignedNoHash,
+    tx: &TransactionSigned,
     signer: Address,
     config_env: CfgEnvWithHandlerCfg,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {

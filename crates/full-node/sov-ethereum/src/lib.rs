@@ -10,11 +10,11 @@ use std::sync::{Arc, Mutex};
 
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{Bytes, TransactionSignedNoHash as RethTransactionSignedNoHash, B256, U256};
+use reth_primitives::{Bytes, B256, U256};
 use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
 pub use sov_evm::EthereumAuthenticator;
-use sov_evm::{Evm, RlpEvmTransaction};
+use sov_evm::{convert_to_transaction_signed, Evm, RlpEvmTransaction};
 use sov_modules_api::{ApiStateAccessor, Batch, RawTx};
 use sov_rollup_interface::node::da::DaService;
 use tokio::sync::watch;
@@ -97,8 +97,8 @@ impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethe
 
 impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethereum<S, Da, RT> {
     fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
-        let signed_transaction: RethTransactionSignedNoHash =
-            raw_tx.clone().try_into().map_err(EthApiError::from)?;
+        let signed_transaction =
+            convert_to_transaction_signed(raw_tx.clone()).map_err(EthApiError::from)?;
 
         let tx_hash = signed_transaction.hash();
         let message = borsh::to_vec(&raw_tx).expect("Failed to serialize raw tx");
