@@ -90,7 +90,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             ))?
             .clone();
 
-        let api_client = NodeClient::new(&url)?;
+        let api_client = NodeClient::new(&url).await?;
 
         match self {
             NodeWorkflows::SetUrl { .. } => {

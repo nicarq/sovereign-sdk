@@ -1,5 +1,6 @@
 //! Contains a simple client to interact with sovereign rollup node
 
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use anyhow::Context;
@@ -43,11 +44,14 @@ pub struct NodeClient {
 
 impl NodeClient {
     /// Constructor. Implies base url for rollup node, as sequencer and ledger are appended.
-    pub fn new(api_url: &str) -> anyhow::Result<Self> {
+    pub async fn new(api_url: &str) -> anyhow::Result<Self> {
         let base_url = api_url.to_string();
         let http_client = ClientBuilder::default()
             .build()
             .map_err(|e| anyhow::anyhow!(e))?;
+        if !check_if_rollup_has_standard_modules(&http_client, &base_url).await? {
+            anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
+        }
         let ledger_url = format!("{}/ledger", api_url);
         let ledger_client = LedgerClient::new(&ledger_url);
 
@@ -232,4 +236,33 @@ impl NodeClient {
         }
         Ok(())
     }
+}
+
+#[derive(serde::Deserialize)]
+struct ModuleInfo {
+    #[allow(dead_code)]
+    id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct ModulesList {
+    modules: HashMap<String, ModuleInfo>,
+}
+
+/// Call to list of modules endpoint and checking if all modules are listed there.
+/// It assumes that "bank", "accounts" and "nonces" are standard Sovereign modules.
+async fn check_if_rollup_has_standard_modules(
+    client: &reqwest::Client,
+    base_url: &str,
+) -> anyhow::Result<bool> {
+    let url = format!("{}/modules", base_url);
+    let response = client.get(&url).send().await?;
+    let response_json: ResponseObject<ModulesList> = response.json().await?;
+    let module_response = response_json
+        .data
+        .ok_or(anyhow::anyhow!("List of modules is missing"))?;
+
+    Ok(module_response.modules.contains_key("bank")
+        && module_response.modules.contains_key("accounts")
+        && module_response.modules.contains_key("nonces"))
 }
