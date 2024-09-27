@@ -218,7 +218,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
         .sequencer_registry_allowed_sequencers_get_state_map_info(None)
         .await?;
 
-    let meta_info = meta_info.data.clone().unwrap();
+    let meta_info = meta_info.data.clone();
 
     assert!(!meta_info.description.unwrap().is_empty());
     assert!(meta_info.prefix.unwrap().starts_with("0x"));
@@ -268,26 +268,29 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
 async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     let state_vec_info = client
         .value_setter_many_values_get_state_vec_info(None)
-        .await?;
-    let info = state_vec_info.data.clone().unwrap().length.unwrap();
+        .await
+        .context("vector info")?;
+    let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(8, info);
 
     // TODO: Check value
 
     let state_vec_element_0 = client
         .value_setter_many_values_get_state_vec_element(0, None)
-        .await?;
+        .await
+        .context("first element")?;
 
     let state_vec_element_1 = client
         .value_setter_many_values_get_state_vec_element(1, None)
         .await?;
     let state_vec_element_last = client
         .value_setter_many_values_get_state_vec_element(7, None)
-        .await?;
+        .await
+        .context("last element")?;
 
-    let value_0_json = state_vec_element_0.data.clone().unwrap().value.unwrap();
-    let value_1_json = state_vec_element_1.data.clone().unwrap().value.unwrap();
-    let value_last_json = state_vec_element_last.data.clone().unwrap().value.unwrap();
+    let value_0_json = state_vec_element_0.data.clone().value;
+    let value_1_json = state_vec_element_1.data.clone().value;
+    let value_last_json = state_vec_element_last.data.clone().value;
 
     match (value_0_json, value_1_json, value_last_json) {
         (
@@ -337,7 +340,7 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     let state_vec_info = client
         .value_setter_many_values_get_state_vec_info(Some(0))
         .await?;
-    let info = state_vec_info.data.clone().unwrap().length.unwrap();
+    let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(0, info);
 
     // TODO: Returns head value, should be 404 https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
