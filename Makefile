@@ -64,7 +64,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	rustup target add wasm32-unknown-unknown
 
 install-risc0-toolchain:
-	cargo install cargo-risczero
+	cargo install cargo-risczero@1.0.5 # Temporarily pin to 1.0.5 since 1.1 fails to build
 	cargo risczero install --version r0.1.79.0
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
