@@ -81,6 +81,10 @@ fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
     TestOptimisticRuntime::<TestSpec, MockDaSpec>::encode_with_standard_auth(raw_tx)
 }
 
+// This test has to be single-threaded because logs from other threads don't
+// show up in traced_test (https://github.com/dbrgn/tracing-test/issues/23).
+// This also means we have to be on tokio 1.41 or newer,
+// to prevent an indefinite stall due to https://github.com/tokio-rs/tokio/issues/6839.
 #[tokio::test]
 #[traced_test]
 async fn dropping_sequencer_stops_listener() {

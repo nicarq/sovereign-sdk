@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use futures::StreamExt;
 use sov_db::ledger_db::LedgerDb;
+use sov_modules_api::rest::ApiState;
 use sov_modules_api::RawTx;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -26,6 +27,10 @@ pub struct Sequencer<Ss: SequencerSpec> {
 
 pub struct Inner<Ss: SequencerSpec> {
     batch_builder: Mutex<Ss::BatchBuilder>,
+    // The sequencer's copy of the batch-builder's API state. This is
+    // automatically updated by the batch-builder with the latest state.
+    // We simply cache a copy so that we don't need to lock the builder to retrieve it.
+    api_state: ApiState<(), <Ss::BatchBuilder as BatchBuilder>::Spec>,
     sequencer_db: SequencerDb,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
@@ -41,8 +46,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         ledger_db: LedgerDb,
     ) -> Self {
         let (drop_notifier, dropped) = DropNotifier::build();
+        let api_state = batch_builder.api_state();
         let inner = Arc::new(Inner {
             batch_builder: Mutex::new(batch_builder),
+            api_state,
             sequencer_db,
             da_service,
             tx_status_manager,
@@ -65,6 +72,11 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
     pub(crate) fn tx_status_manager(&self) -> &TxStatusManager<<Ss::Da as DaService>::Spec> {
         &self.tx_status_manager
+    }
+
+    /// Get the latest API state from the batch builder
+    pub fn api_state(&self) -> ApiState<(), <Ss::BatchBuilder as BatchBuilder>::Spec> {
+        self.api_state.clone()
     }
 
     /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
@@ -192,6 +204,7 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
     mut drop_notification: DropNotification,
 ) -> anyhow::Result<()> {
     let mut sub = ledger_db.subscribe_slots();
+    let mut storage_receiver = inner.batch_builder.lock().await.storage_receiver();
 
     loop {
         tokio::select! {
@@ -199,6 +212,13 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
                 info!("Sequencer was dropped, stopping listener for new slots");
                 break;
             },
+            changed = storage_receiver.changed() => {
+                if changed.is_ok() {
+                    let storage = storage_receiver.borrow().clone();
+                    inner.batch_builder.lock().await.set_state(0, storage).await;
+                }
+            },
+
             slot_number_opt = sub.next() => {
                 if let Some(slot_number) = slot_number_opt {
                     notify_processed_slot::<Ss>(inner.clone(), &ledger_db,  slot_number).await?;

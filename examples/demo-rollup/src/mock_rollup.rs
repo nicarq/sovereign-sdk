@@ -70,7 +70,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec>;
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec, Self::Kernel>;
 
     fn create_bonding_proof_service(
         &self,
@@ -112,7 +112,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
+        crate::eth::register_ethereum::<Self::Spec, Self::Kernel, Self::DaService, Self::Runtime>(
             da_service.clone(),
             storage,
             &mut endpoints.jsonrpsee_module,

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use capabilities::mocks::MockKernel;
 use sov_modules_api::*;
 use sov_state::{Prefix, Storage, StorageProof};
@@ -15,11 +17,11 @@ fn make_user_map_proof(
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
     StateMap<u32, u32>,
 ) {
+    let kernel = MockKernel::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let mut state =
-        StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &MockKernel::<S>::default());
+    let mut state = StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &kernel);
     let map = StateMap::new(Prefix::new(vec![0]));
     map.set(&key, &value, &mut state).unwrap_infallible();
 
@@ -31,7 +33,8 @@ fn make_user_map_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut state = ApiStateAccessor::<S>::new(storage);
+    let state_checkpoint = StateCheckpoint::new::<MockKernel<S>>(storage.clone(), &kernel);
+    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
 
     let proof = map.get_with_proof(&1, &mut state);
     (root, proof, map)
@@ -45,6 +48,7 @@ fn make_user_value_proof(
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
     StateValue<u32>,
 ) {
+    let kernel = MockKernel::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
@@ -61,7 +65,8 @@ fn make_user_value_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let mut state = ApiStateAccessor::<S>::new(storage);
+    let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
 
     let proof = state_val.get_with_proof(&mut state);
     (root, proof, state_val)
@@ -152,6 +157,7 @@ mod value {
 
 #[test]
 fn test_archival_proof_gen() {
+    let kernel = MockKernel::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let state_val = StateValue::new(Prefix::new(vec![0]));
@@ -164,6 +170,7 @@ fn test_archival_proof_gen() {
             storage.clone(),
             &MockKernel::<S>::new(iter, iter),
         );
+
         if iter % 2 == 0 {
             state_val.set(&iter, &mut state).unwrap_infallible();
         } else {
@@ -183,7 +190,8 @@ fn test_archival_proof_gen() {
 
     let storage = storage_manager.create_storage();
     // Generate a proof at each archival state and validate it against the root
-    let mut api_state_accessor = ApiStateAccessor::<S>::new(storage.clone());
+    let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
     for iter in 0..10 {
         let mut archival_accessor = api_state_accessor.get_archival_at(iter + 1); // Versions are 1-indexed
         let proof = state_val.get_with_proof(&mut archival_accessor);

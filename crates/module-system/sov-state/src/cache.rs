@@ -174,7 +174,7 @@ enum ValueExistsInCache {
 /// By tracking original values, we can detect and eliminate write patterns where a key is
 /// changed temporarily and then reset to its original value
 #[derive(Default, Clone)]
-struct CacheLog {
+pub struct CacheLog {
     log: std::collections::HashMap<SlotKey, Access>,
 }
 
@@ -290,7 +290,7 @@ impl CacheLog {
 #[derive(Default, Clone)]
 pub struct ProvableStorageCache<N> {
     /// Transaction cache.
-    tx_cache: CacheLog,
+    pub tx_cache: CacheLog,
     /// Ordered reads and writes.
     pub ordered_db_reads: Vec<(SlotKey, Option<SlotValue>)>,
     phantom: core::marker::PhantomData<N>,
@@ -307,14 +307,27 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         witness: &S::Witness,
         version: Option<u64>,
     ) -> (Option<SlotValue>, IsValueCached) {
+        let read = self.get_without_caching(key, value_reader, witness, version);
+        if read.1 == IsValueCached::No {
+            self.add_read(key.clone(), read.0.clone());
+        }
+
+        read
+    }
+
+    /// Like [`ProvableStorageCache::get_or_fetch`] but does not add the read to the cache.
+    pub fn get_without_caching<S: Storage>(
+        &self,
+        key: &SlotKey,
+        value_reader: &S,
+        witness: &S::Witness,
+        version: Option<u64>,
+    ) -> (Option<SlotValue>, IsValueCached) {
         match self.tx_cache.get_value(key) {
-            ValueExistsInCache::Yes(cache_value_exists) => {
-                (cache_value_exists.map(Into::into), IsValueCached::Yes)
-            }
+            ValueExistsInCache::Yes(cache_value) => (cache_value, IsValueCached::Yes),
             // If the value does not exist in the cache, then fetch it from an external source.
             ValueExistsInCache::No => {
                 let storage_value = value_reader.get::<N>(key, version, witness);
-                self.add_read(key.clone(), storage_value.clone());
                 (storage_value, IsValueCached::No)
             }
         }

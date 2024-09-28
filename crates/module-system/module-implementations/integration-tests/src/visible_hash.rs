@@ -4,7 +4,7 @@ use sov_kernels::soft_confirmations::{
     SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
 };
 use sov_mock_da::MockDaSpec;
-use sov_modules_api::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::capabilities::{Kernel, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -120,7 +120,9 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestVisibleHashRuntime<S, Da> {
 
 fn setup<K>(kernel_config: K::GenesisConfig) -> (TestUser<S>, TestRunnerWithKernel<K>)
 where
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId> + Kernel<<S as Spec>::Storage>,
+    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
+        + Kernel<<S as Spec>::Storage>
+        + KernelWithSlotMapping<S>,
 {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -151,7 +153,9 @@ fn last_state_root_closure<K>(
     runner: &mut TestRunnerWithKernel<K>,
     num_slots: u64,
 ) where
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId> + Kernel<<S as Spec>::Storage>,
+    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
+        + Kernel<<S as Spec>::Storage>
+        + KernelWithSlotMapping<S>,
 {
     let module = TestVisibleHashModule::<S>::default();
 

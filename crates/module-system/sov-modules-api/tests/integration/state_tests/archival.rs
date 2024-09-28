@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::sync::Arc;
 
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{ApiStateAccessor, StateCheckpoint, StateValue};
@@ -37,7 +38,8 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
     for i in 1..100 {
-        let api_accessor = ApiStateAccessor::<S>::new(storage.clone());
+        let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()), None);
 
         for j in 1..(i - 1) {
             let mut archival_api_accessor = api_accessor.get_archival_at(j);

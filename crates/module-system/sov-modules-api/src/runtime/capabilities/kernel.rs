@@ -4,11 +4,25 @@ use sov_state::Storage;
 use super::BlobSelector;
 use crate::{BootstrapWorkingSet, Gas, KernelStateAccessor, Spec, StateCheckpoint};
 
+/// Allows the kernel to map between a slot number and the visible height at that slot.
+/// This is used to enable access to the correct (visible) kernel state during archival queries.
+#[cfg(feature = "native")]
+pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
+    /// Gets the visible slot number as of the given true slot number.
+    // This method takes `ApiStateAccessor` rather than an `impl Trait` because
+    // we need it to be object safe
+    fn visible_slot_number_at(
+        &self,
+        true_slot_number: u64,
+        state: &mut crate::state::ApiStateAccessor<S>,
+    ) -> u64;
+}
+
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Storage>: Default + Sync + Send {
+pub trait Kernel<S: Storage>: Default {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;
 

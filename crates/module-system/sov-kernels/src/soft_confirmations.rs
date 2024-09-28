@@ -4,6 +4,8 @@ use std::path::PathBuf;
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
@@ -27,6 +29,19 @@ pub struct SoftConfirmationsKernelGenesisPaths {
 pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
     /// The chain state genesis config
     pub chain_state: <ChainState<S, Da> as KernelModule>::Config,
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for SoftConfirmationsKernel<S, Da> {
+    fn visible_slot_number_at(
+        &self,
+        true_slot_number: u64,
+        state: &mut sov_modules_api::ApiStateAccessor<S>,
+    ) -> u64 {
+        self.chain_state
+            .visible_slot_number_at(true_slot_number, state)
+            .unwrap_infallible()
+    }
 }
 
 impl<S: Spec, Da: DaSpec> Kernel<S::Storage> for SoftConfirmationsKernel<S, Da> {

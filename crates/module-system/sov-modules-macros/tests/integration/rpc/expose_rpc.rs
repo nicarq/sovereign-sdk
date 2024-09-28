@@ -1,11 +1,12 @@
 use jsonrpsee::core::RpcResult;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    prelude::UnwrapInfallible, ApiStateAccessor, CallResponse, Context, Error, Module, ModuleId,
-    ModuleInfo, Spec, StateValue, TxState,
+    ApiStateAccessor, CallResponse, Context, DispatchCall, Error, Module, ModuleId, ModuleInfo,
+    Spec, StateValue, TxState,
 };
 
-#[derive(ModuleInfo)]
+#[derive(ModuleInfo, Clone)]
 pub struct QueryModule<S: Spec> {
     #[id]
     pub id: ModuleId,
@@ -61,7 +62,7 @@ impl<S: Spec> QueryModule<S> {
 }
 
 #[expose_rpc]
-#[derive(Default)]
+#[derive(Default, DispatchCall)]
 struct Runtime<S: Spec> {
     pub first: QueryModule<S>,
 }

@@ -335,16 +335,15 @@ pub trait CliWallet: DispatchCall {
 #[doc(hidden)]
 #[cfg(feature = "native")]
 pub mod __rpc_macros_private {
+    use rest::ApiState;
+
     use super::*;
 
     /// A [`Module`] that also exposes a JSON-RPC server.
     pub trait ModuleWithRpcServer {
         type Spec: Spec;
 
-        fn rpc_methods(
-            &self,
-            storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
-        ) -> jsonrpsee::RpcModule<()>;
+        fn rpc_methods(&self, state: ApiState<(), Self::Spec>) -> jsonrpsee::RpcModule<()>;
     }
 
     // Auto-ref trick so that implementing JSON-RPC for modules is effectively
@@ -355,10 +354,7 @@ pub mod __rpc_macros_private {
     {
         type Spec = M::Spec;
 
-        fn rpc_methods(
-            &self,
-            _storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
-        ) -> jsonrpsee::RpcModule<()> {
+        fn rpc_methods(&self, _state: ApiState<(), Self::Spec>) -> jsonrpsee::RpcModule<()> {
             jsonrpsee::RpcModule::new(())
         }
     }

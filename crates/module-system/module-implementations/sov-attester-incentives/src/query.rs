@@ -1,8 +1,13 @@
 //! Defines the query methods for the attester incentives module
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
+use sov_modules_api::capabilities::{Kernel, KernelWithSlotMapping};
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, GasMeter, Spec, StateReader};
+use sov_modules_api::{
+    ApiStateAccessor, DaSpec, Gas, GasMeter, Spec, StateCheckpoint, StateReader,
+};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
@@ -64,10 +69,10 @@ where
     /// attestations for this specific amount of time.
     pub fn get_bond_proof(
         &self,
-        address: &S::Address,
+        address: S::Address,
         state: &mut ApiStateAccessor<S>,
     ) -> StorageProof<<S::Storage as Storage>::Proof> {
-        self.bonded_attesters.get_with_proof(address, state)
+        self.bonded_attesters.get_with_proof(&address, state)
     }
 
     /// Returns the value of the `minimum_attester_bond` at the current gas price.
@@ -101,7 +106,7 @@ where
 }
 
 /// Implementation of the [`BondingProofServiceImpl`] for the [`AttesterIncentives`] module.
-pub struct BondingProofServiceImpl<S, Da>
+pub struct BondingProofServiceImpl<S, Da, K>
 where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
@@ -109,12 +114,14 @@ where
     attester_address: S::Address,
     attester_incentives: AttesterIncentives<S, Da>,
     storage: tokio::sync::watch::Receiver<S::Storage>,
+    phantom: std::marker::PhantomData<K>,
 }
 
-impl<S, Da> BondingProofServiceImpl<S, Da>
+impl<S, Da, K> BondingProofServiceImpl<S, Da, K>
 where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
+    K: KernelWithSlotMapping<S>,
 {
     /// Creates a new `BondingProofServiceImpl` service.
     pub fn new(
@@ -126,14 +133,16 @@ where
             attester_address,
             attester_incentives,
             storage,
+            phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<S, Da> BondingProofService for BondingProofServiceImpl<S, Da>
+impl<S, Da, K> BondingProofService for BondingProofServiceImpl<S, Da, K>
 where
     S: sov_modules_api::Spec,
     Da: sov_modules_api::DaSpec,
+    K: KernelWithSlotMapping<S> + Kernel<S::Storage>,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;
 
@@ -142,11 +151,12 @@ where
         height: u64,
     ) -> ProofOfBond<<Self as BondingProofService>::StateProof> {
         let storage = self.storage.borrow().clone();
-        let state = ApiStateAccessor::<S>::new(storage);
+        let checkpoint = StateCheckpoint::new(storage, &K::default());
+        let state = ApiStateAccessor::<S>::new(&checkpoint, Arc::new(K::default()), Some(height));
         let mut state = state.get_archival_at(height);
         let proof = self
             .attester_incentives
-            .get_bond_proof(&self.attester_address, &mut state);
+            .get_bond_proof(self.attester_address.clone(), &mut state);
 
         ProofOfBond {
             claimed_rollup_height: height,

@@ -153,10 +153,11 @@ impl<S: Spec> NonFungibleToken<S> {
 
     async fn route_get_nft(
         state: ApiState<Self, S>,
+        mut accessor: ApiStateAccessor<S>,
         Path((collection_id, token_id)): Path<(CollectionId, TokenId)>,
     ) -> ApiResult<NftDetails<S>> {
         Ok(state
-            .nft(collection_id, token_id, &mut state.api_state_accessor())
+            .nft(collection_id, token_id, &mut accessor)
             .unwrap_infallible()
             .ok_or_else(|| {
                 errors::not_found_404("NFT", NftIdentifier(token_id, collection_id).to_string())
@@ -167,14 +168,15 @@ impl<S: Spec> NonFungibleToken<S> {
 
 impl<S: Spec> HasCustomRestApi for NonFungibleToken<S> {
     type Spec = S;
-    fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
+
+    fn custom_rest_api(&self, state: ApiState<(), S>) -> axum::Router<()> {
         axum::Router::new()
             .route("/collections", get(Self::route_compute_collection_id))
             .route(
                 "/collections/:collectionId/:tokenId",
                 get(Self::route_get_nft),
             )
-            .with_state(state)
+            .with_state(state.with(self.clone()))
     }
 }
 

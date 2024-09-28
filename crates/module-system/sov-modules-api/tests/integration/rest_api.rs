@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use reqwest::Client;
+use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::hooks::TxHooks;
-use sov_modules_api::rest::HasRestApi;
+use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, TxState, WorkingSet,
+    StateCheckpoint, StateValue, TxState, WorkingSet,
 };
 use sov_test_utils::TestSpec;
 use utoipa::openapi::path::ParameterIn;
@@ -114,10 +116,19 @@ async fn rest_api_routes() {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage_manager = sov_test_utils::storage::SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
-    let (_sender, receiver) = tokio::sync::watch::channel(storage);
+    let (_sender, receiver) = tokio::sync::watch::channel(StateCheckpoint::new(
+        storage,
+        &MockKernel::<TestSpec>::default(),
+    ));
     let runtime = MyRuntime::<TestSpec>::default();
+    let state = ApiState::build(
+        Arc::new(()),
+        receiver,
+        Arc::new(MockKernel::default()),
+        None,
+    );
 
-    let router = runtime.rest_api(receiver);
+    let router = runtime.rest_api(state);
 
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let rest_address = listener.local_addr().unwrap();

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 pub use sov_accounts::Accounts;
 pub use sov_attester_incentives;
@@ -16,7 +17,7 @@ pub use sov_chain_state::ChainStateConfig;
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::KernelSlotHooks;
+use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -138,7 +139,7 @@ impl<RT, K, S> TestRunnerWithKernel<RT, K, S>
 where
     RT: Runtime<S, MockDaSpec> + MinimalGenesis<S, Da = MockDaSpec>,
     S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {
@@ -184,6 +185,7 @@ where
 
     fn current_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
+        let kernel = K::default();
 
         let mut state_checkpoint =
             StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
@@ -201,7 +203,12 @@ where
             }
         };
 
-        ApiStateAccessor::<S>::new_with_price(stf_state, base_fee_per_gas)
+        ApiStateAccessor::<S>::new_with_price(
+            &state_checkpoint,
+            Arc::new(kernel),
+            None,
+            base_fee_per_gas,
+        )
     }
 
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.

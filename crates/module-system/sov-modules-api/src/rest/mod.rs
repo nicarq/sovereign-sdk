@@ -25,20 +25,18 @@
 //! no REST API will be available for them.
 
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::sync::Arc;
 
 use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::Query;
+use tokio::sync::watch;
 use utoipa::openapi::OpenApi;
 
+use crate::capabilities::KernelWithSlotMapping;
 use crate::hooks::TxHooks;
-use crate::map::NamespacedStateMap;
-use crate::rest::__private::maybe_archival_accessor;
-use crate::vec::NamespacedStateVec;
-use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec};
+use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint};
 
 /// This Rust module is **NOT** part of the public API of the crate, and can
 /// change at any time.
@@ -66,7 +64,7 @@ pub extern crate sov_rest_utils as utils;
 ///   [`StateVec`](crate::containers::StateVec).
 pub trait HasRestApi<S: Spec> {
     /// Returns an [`axum::Router`] on the provided [`StorageReceiver`] instance for the REST API.
-    fn rest_api(&self, storage: StorageReceiver<S>) -> axum::Router<()>;
+    fn rest_api(&self, _state: ApiState<(), S>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasRestApi::rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
@@ -77,7 +75,7 @@ pub trait HasRestApi<S: Spec> {
 
 /// Makes deriving [`HasRestApi`] for modules optional, with the autoref trick.
 impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
-    fn rest_api(&self, _state: StorageReceiver<M::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<(), M::Spec>) -> axum::Router<()> {
         axum::Router::new()
     }
 
@@ -110,7 +108,8 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 ///
 /// impl<S: Spec> HasCustomRestApi for MyModule<S> {
 ///     type Spec = S;
-///     fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
+///
+///     fn custom_rest_api(&self, state: ApiState<(), S>) -> axum::Router<()> {
 ///         use axum::routing::get;
 ///
 ///         axum::Router::new()
@@ -147,17 +146,9 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 pub trait HasCustomRestApi: Sized + Clone {
     /// Spec for [`ApiState`]
     type Spec: Spec;
-    /// Returns an [`axum::Router`] on the provided [`ApiState`] instance for the REST API.
-    fn custom_rest_api(&self, state: ApiState<Self, Self::Spec>) -> axum::Router<()>;
 
-    /// Lower-level alternative detail to [`HasCustomRestApi::custom_rest_api`],
-    /// if you're not interested in using [`ApiState`].
-    fn custom_rest_api_from_storage(
-        &self,
-        storage: StorageReceiver<Self::Spec>,
-    ) -> axum::Router<()> {
-        self.custom_rest_api(ApiState::new(self.clone(), storage))
-    }
+    /// Returns an [`axum::Router`] on the provided [`ApiState`] instance for the REST API.
+    fn custom_rest_api(&self, state: ApiState<(), Self::Spec>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasCustomRestApi::custom_rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
@@ -172,7 +163,8 @@ pub trait HasCustomRestApi: Sized + Clone {
 /// This "blanket" implementation uses the [Autoref-based stable specialization](https://github.com/dtolnay/case-studies/tree/master/autoref-specialization)
 impl<T: ModuleInfo> HasCustomRestApi for &T {
     type Spec = T::Spec;
-    fn custom_rest_api(&self, _state: ApiState<Self, Self::Spec>) -> axum::Router<()> {
+
+    fn custom_rest_api(&self, _state: ApiState<(), Self::Spec>) -> axum::Router<()> {
         tracing::trace!(module = std::any::type_name::<T>(), id = %self.id(), "No `HasCustomRestApi` implementation found for module");
         axum::Router::new()
     }
@@ -180,48 +172,93 @@ impl<T: ModuleInfo> HasCustomRestApi for &T {
 
 /// A wrapper around [`Spec::Storage`] that is appropriate for use as a state
 /// type of module and runtime [`axum::Router`]s.
-#[derive(derivative::Derivative, derive_more::Deref)]
+#[derive(derive_more::Deref, derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct ApiState<T, S: Spec> {
     #[deref]
     inner: Arc<T>,
-    storage_receiver: StorageReceiver<S>,
-    rollup_height: Option<u64>,
+    checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+    kernel: Arc<dyn KernelWithSlotMapping<S>>,
+    /// The `height` query parameter extracted from the request, when applicable.
+    requested_height: Option<u64>,
 }
 
 impl<T, S: Spec> ApiState<T, S> {
-    /// Creates an [`ApiState`] that subscribes to the given
-    /// [`StorageReceiver`].
-    pub fn new(inner: T, storage_receiver: StorageReceiver<S>) -> Self {
+    /// Creates an [`ApiState`] backed by a Tokio [`watch`] channel of
+    /// [`StateCheckpoint`]s.
+    pub fn build(
+        inner: Arc<T>,
+        checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        requested_height: Option<u64>,
+    ) -> Self {
         Self {
-            inner: Arc::new(inner),
-            storage_receiver,
-            rollup_height: None,
+            inner,
+            checkpoint_receiver,
+            kernel,
+            requested_height,
         }
     }
 
-    /// Returns a reference to the latest available storage.
-    ///
-    /// You will usually not call this method directly, as storage alone
-    /// can't be used to read state.
-    pub fn storage(&self) -> impl Deref<Target = S::Storage> + '_ {
-        self.storage_receiver.borrow()
+    /// Replaces the inner data with a new value.
+    pub fn with<T1>(self, inner: T1) -> ApiState<T1, S> {
+        ApiState {
+            inner: Arc::new(inner),
+            checkpoint_receiver: self.checkpoint_receiver,
+            kernel: self.kernel,
+            requested_height: self.requested_height,
+        }
     }
 
-    /// Returns a [`ApiStateAccessor`] that you can use to read state from within REST
-    /// API.
-    pub fn api_state_accessor(&self) -> ApiStateAccessor<S> {
-        let storage = self.storage().clone();
-        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
-        let state_accessor = ApiStateAccessor::new(storage);
+    /// Returns an [`ApiStateAccessor`] that you can use to read state from within REST API. This accessor
+    /// honors the rollup_height query param. If you want to read state from a different height,
+    /// use [`Self::build_api_state_accessor`] instead.
+    pub fn default_api_state_accessor(&self) -> ApiStateAccessor<S> {
+        self.build_api_state_accessor(self.requested_height)
+    }
 
-        maybe_archival_accessor(state_accessor, self.rollup_height)
+    /// Returns an [`ApiStateAccessor`] that you can use to read state from within REST
+    /// API. The new accessor can be set to read any historical rollup state available to the node,
+    /// or to read the rollup's latest state (by passing `None` as the height parameter).
+    pub fn build_api_state_accessor(&self, height: Option<u64>) -> ApiStateAccessor<S> {
+        let checkpoint = self.checkpoint_receiver.borrow();
+        let visible_height = height.map(|height| {
+            let kernel = self.kernel.clone();
+            let mut state = ApiStateAccessor::new(&*checkpoint, self.kernel.clone(), None);
+            kernel.visible_slot_number_at(height, &mut state)
+        });
+        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
+
+        ApiStateAccessor::new(&*checkpoint, self.kernel.clone(), visible_height)
     }
 }
 
 #[axum::async_trait]
-impl<T, S: Spec> FromRequestParts<ApiState<T, S>> for ApiState<T, S>
+impl<T, S> FromRequestParts<ApiState<T, S>> for ApiState<T, S>
 where
+    T: Send + Sync,
+    S: Spec,
+{
+    type Rejection = utils::ErrorObject;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &ApiState<T, S>,
+    ) -> Result<Self, Self::Rejection> {
+        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
+            .await
+            .ok()
+            .map(|q| q.0.rollup_height);
+        let mut output = state.clone();
+        output.requested_height = rollup_height;
+        Ok(output)
+    }
+}
+
+#[axum::async_trait]
+impl<T, S> FromRequestParts<ApiState<T, S>> for ApiStateAccessor<S>
+where
+    S: Spec,
     T: Send + Sync,
 {
     type Rejection = utils::ErrorObject;
@@ -235,10 +272,7 @@ where
             .ok()
             .map(|q| q.0.rollup_height);
 
-        let mut state = state.clone();
-        state.rollup_height = rollup_height;
-
-        Ok(state)
+        Ok(state.build_api_state_accessor(rollup_height))
     }
 }
 

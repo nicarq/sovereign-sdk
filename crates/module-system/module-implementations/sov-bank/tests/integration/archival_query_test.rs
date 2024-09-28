@@ -33,6 +33,16 @@ fn transfer_token_and_query_old_balances() {
             },
         ));
 
+        // Test queries for latest height.
+        runner.query_state(|state| {
+            assert_eq!(
+                Bank::<TestSpec>::default()
+                    .get_balance_of(&receiver.address(), token_id, state)
+                    .unwrap_infallible(),
+                Some(AMOUNT_PER_TRANSFER * i)
+            );
+        });
+
         for j in 1..i {
             runner.query_state(|state| {
                 let archival_state = &mut state.get_archival_at(j);

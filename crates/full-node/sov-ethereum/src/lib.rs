@@ -1,5 +1,8 @@
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
+use sov_modules_api::capabilities::{Kernel, KernelWithSlotMapping};
+use sov_modules_api::rest::StorageReceiver;
+use tokio::sync::watch;
 mod batch_builder;
 mod gas_price;
 #[cfg(feature = "local")]
@@ -15,9 +18,8 @@ use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
 pub use sov_evm::EthereumAuthenticator;
 use sov_evm::{convert_to_transaction_signed, Evm, RlpEvmTransaction};
-use sov_modules_api::{ApiStateAccessor, Batch, RawTx};
+use sov_modules_api::{ApiStateAccessor, Batch, RawTx, StateCheckpoint};
 use sov_rollup_interface::node::da::DaService;
-use tokio::sync::watch;
 
 use crate::batch_builder::EthBatchBuilder;
 use crate::gas_price::gas_oracle::GasPriceOracle;
@@ -34,13 +36,14 @@ pub struct EthRpcConfig {
 
 pub fn get_ethereum_rpc<
     S: sov_modules_api::Spec,
+    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
     storage: watch::Receiver<S::Storage>,
-) -> RpcModule<Ethereum<S, Da, RT>> {
+) -> RpcModule<Ethereum<S, K, Da, RT>> {
     // Unpack config
     let EthRpcConfig {
         min_blob_size,
@@ -59,27 +62,34 @@ pub fn get_ethereum_rpc<
         storage,
     ));
 
-    register_rpc_methods(&mut rpc).expect("Failed to register sequencer RPC methods");
+    register_rpc_methods::<S, K, Da, RT>(&mut rpc)
+        .expect("Failed to register sequencer RPC methods");
     rpc
 }
 
-pub struct Ethereum<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> {
+pub struct Ethereum<S: sov_modules_api::Spec, K, Da: DaService, RT: EthereumAuthenticator<S>> {
     da_service: Da,
     batch_builder: Arc<Mutex<EthBatchBuilder>>,
     gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
-    storage: watch::Receiver<S::Storage>,
-    _phantom: PhantomData<RT>,
+    storage: StorageReceiver<S>,
+    _phantom: PhantomData<(K, RT)>,
 }
 
-impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethereum<S, Da, RT> {
+impl<
+        S: sov_modules_api::Spec,
+        K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+        Da: DaService,
+        RT: EthereumAuthenticator<S>,
+    > Ethereum<S, K, Da, RT>
+{
     fn new(
         da_service: Da,
         batch_builder: Arc<Mutex<EthBatchBuilder>>,
         gas_price_oracle_config: GasPriceOracleConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
-        storage: watch::Receiver<S::Storage>,
+        storage: StorageReceiver<S>,
     ) -> Self {
         let evm = Evm::<S>::default();
         let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
@@ -93,9 +103,22 @@ impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethe
             _phantom: PhantomData,
         }
     }
+
+    #[cfg(feature = "local")]
+    fn api_state_accessor(&self) -> ApiStateAccessor<S> {
+        let kernel = K::default();
+        let empty_checkpoint = StateCheckpoint::new(self.storage.borrow().clone(), &kernel);
+        ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None)
+    }
 }
 
-impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethereum<S, Da, RT> {
+impl<
+        S: sov_modules_api::Spec,
+        K: Kernel<S::Storage>,
+        Da: DaService,
+        RT: EthereumAuthenticator<S>,
+    > Ethereum<S, K, Da, RT>
+{
     fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
         let signed_transaction =
             convert_to_transaction_signed(raw_tx.clone()).map_err(EthApiError::from)?;
@@ -177,14 +200,17 @@ impl<S: sov_modules_api::Spec, Da: DaService, RT: EthereumAuthenticator<S>> Ethe
 
 fn register_rpc_methods<
     S: sov_modules_api::Spec,
+    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(
-    rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
+    rpc: &mut RpcModule<Ethereum<S, K, Da, RT>>,
 ) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
-            let mut state = ApiStateAccessor::<S>::new(ethereum.storage.borrow().clone());
+            let kernel = K::default();
+            let empty_checkpoint = StateCheckpoint::new(ethereum.storage.borrow().clone(), &kernel);
+            let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
 
             let suggested_tip = ethereum
                 .gas_price_oracle
@@ -235,7 +261,7 @@ fn register_rpc_methods<
     )?;
 
     #[cfg(feature = "local")]
-    signer::register_signer_rpc_methods::<_, _, RT>(rpc)?;
+    signer::register_signer_rpc_methods::<_, _, _, RT>(rpc)?;
 
     Ok(())
 }

@@ -11,7 +11,7 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthorizeSequencerError, HasCapabilities, KernelSlotHooks,
-    SequencerAuthorization, TransactionAuthenticator,
+    KernelWithSlotMapping, SequencerAuthorization, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
@@ -148,7 +148,9 @@ where
 impl<Z, K> BatchBuilder for StdBatchBuilder<Z, K>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: Kernel<<Z::Spec as Spec>::Storage> + KernelSlotHooks<Z::Spec, Z::Da> + Send + Sync + 'static,
+    K: Kernel<<Z::Spec as Spec>::Storage>
+        + KernelWithSlotMapping<Z::Spec>
+        + KernelSlotHooks<Z::Spec, Z::Da>,
 {
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
@@ -169,13 +171,9 @@ where
         let storage = storage_recv.borrow();
 
         let checkpoint = StateCheckpoint::new(storage.clone(), &*kernel);
-        let (checkpoint_sender, _) = watch::channel(checkpoint);
+        let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
 
-        // Right now, this API state is pretty useless because it just holds the rollup's underlying storage.
-        // In the next PR, the inner storage type of `ApiState` will be changed to `StateCheckpoint` and we'll pass the
-        // checkpoint_receiver instead of the `storage_recv`, which will allow us to keep state updates from the sequencer
-        // in memory on the top of the rollup storage.
-        let api_state = ApiState::new((), storage_recv.clone());
+        let api_state = ApiState::build(Arc::new(()), checkpoint_receiver, kernel.clone(), None);
 
         let checkpoint = StateCheckpoint::new(storage.clone(), &*kernel);
         let txsm = TxStatusManager::default();

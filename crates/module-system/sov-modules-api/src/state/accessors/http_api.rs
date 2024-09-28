@@ -1,27 +1,110 @@
-use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, SlotValue};
-#[cfg(feature = "native")]
-use sov_state::{NativeStorage, ProvableCompileTimeNamespace, Storage, StorageProof};
+use std::collections::HashMap;
+use std::sync::Arc;
 
-use super::internals::Delta;
-use super::seal::CachedAccessor;
-use crate::gas::GasArray;
-use crate::{
-    Gas, GasMeter, GasMeteringError, ProvenStateAccessor, Spec, StateReaderAndWriter, TypedEvent,
-    UnlimitedGasMeter,
+use sov_state::{
+    namespaces, CompileTimeNamespace, EventContainer, IsValueCached, Namespace,
+    ProvableStorageCache, SlotKey, SlotValue, Storage,
 };
 
-/// A storage wrapper that can be used to access the state inside http api requests.
-/// This is the data structure that should be used inside RPC and REST macros to generate storage accessors.
+use super::seal::CachedAccessor;
+use super::StateCheckpoint;
+use crate::capabilities::{Kernel, KernelWithSlotMapping};
+use crate::gas::GasArray;
+use crate::{Gas, GasMeter, GasMeteringError, Spec, TypedEvent, UnlimitedGasMeter};
+
+impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S> {
+    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+        match N::NAMESPACE {
+            Namespace::User => self.user_cache.get_without_caching(
+                key,
+                &self.storage,
+                &self.witness,
+                self.storage_version,
+            ),
+            Namespace::Kernel => self.kernel_cache.get_without_caching(
+                key,
+                &self.storage,
+                &self.witness,
+                self.storage_version,
+            ),
+            Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
+                Some(Some(value)) => (Some(value), IsValueCached::Yes),
+                Some(None) => (None, IsValueCached::Yes),
+                None => (
+                    self.storage.get_accessory(key, self.storage_version),
+                    IsValueCached::No,
+                ),
+            },
+        }
+    }
+
+    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
+        match N::NAMESPACE {
+            Namespace::User => self.user_cache.set(key, value),
+            Namespace::Kernel => self.kernel_cache.set(key, value),
+            Namespace::Accessory => {
+                if self
+                    .accessory_writes
+                    .insert(key.clone(), Some(value))
+                    .is_none()
+                {
+                    IsValueCached::No
+                } else {
+                    IsValueCached::Yes
+                }
+            }
+        }
+    }
+
+    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
+        match N::NAMESPACE {
+            Namespace::User => self.user_cache.delete(key),
+            Namespace::Kernel => self.kernel_cache.delete(key),
+            Namespace::Accessory => {
+                if self.accessory_writes.remove(key).is_none() {
+                    IsValueCached::No
+                } else {
+                    IsValueCached::Yes
+                }
+            }
+        }
+    }
+}
+
+/// A [`crate::StateReaderAndWriter`] designed for use within REST APIs and JSON-RPC.
 ///
-/// ## Usage note
-/// This method does not charge for read/write operations. Transaction simulation through the http api will use a
-/// different storage accessor that has less permissions that this one. In particular reading operations to the accessory
-/// state won't be allowed.
+/// It can read and write accessory data as well as "user" and "kernel" data.
 pub struct ApiStateAccessor<S: Spec> {
-    pub(super) delta: Delta<S::Storage>,
+    storage: S::Storage,
+    witness: <<S as Spec>::Storage as Storage>::Witness,
     events: Vec<TypedEvent>,
     gas_meter: UnlimitedGasMeter<S::Gas>,
+    kernel_cache: ProvableStorageCache<namespaces::Kernel>,
+    user_cache: ProvableStorageCache<namespaces::User>,
+    accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
+    kernel: Arc<dyn KernelWithSlotMapping<S>>,
+    storage_version: Option<u64>,
 }
+
+#[cfg(feature = "native")]
+const _: () = {
+    use sov_state::{NativeStorage, ProvableCompileTimeNamespace, StorageProof};
+
+    use crate::{ProvenStateAccessor, StateReaderAndWriter};
+
+    impl<N, S: Spec> ProvenStateAccessor<N> for ApiStateAccessor<S>
+    where
+        N: ProvableCompileTimeNamespace,
+        S::Storage: NativeStorage,
+        ApiStateAccessor<S>: StateReaderAndWriter<N>,
+    {
+        type Proof = <<S as Spec>::Storage as Storage>::Proof;
+
+        fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
+            self.storage.get_with_proof::<N>(key, self.storage_version)
+        }
+    }
+};
 
 impl<S: Spec> GasMeter<S::Gas> for ApiStateAccessor<S> {
     fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
@@ -51,67 +134,83 @@ impl<S: Spec> EventContainer for ApiStateAccessor<S> {
     }
 }
 
-impl<S: Spec> ApiStateAccessor<S> {
-    /// Creates a new [`ApiStateAccessor`] instance backed by the given [`Spec::Storage`].
-    pub fn new_with_price(inner: S::Storage, gas_price: <S::Gas as Gas>::Price) -> Self {
+impl<S: Spec + 'static> ApiStateAccessor<S> {
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zer.
+    pub fn new(
+        state_checkpoint: &StateCheckpoint<S::Storage>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        storage_version: Option<u64>,
+    ) -> Self {
+        Self::new_with_price(
+            state_checkpoint,
+            kernel,
+            storage_version,
+            <S::Gas as Gas>::Price::ZEROED,
+        )
+    }
+
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zer.
+    pub fn new_with_price(
+        state_checkpoint: &StateCheckpoint<S::Storage>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        storage_version: Option<u64>,
+        gas_price: <S::Gas as Gas>::Price,
+    ) -> Self {
+        let delta: &super::internals::Delta<<S as Spec>::Storage> = &state_checkpoint.delta;
+
         Self {
-            delta: Delta::new(inner.clone(), None),
-            events: Vec::new(),
+            storage: delta.inner.clone(),
+            witness: Default::default(),
             gas_meter: UnlimitedGasMeter::new_with_price(gas_price),
-        }
-    }
-
-    /// Creates a new [`ApiStateAccessor`] instance backed by the given [`Spec::Storage`] and a zero gas price.
-    pub fn new(inner: S::Storage) -> Self {
-        Self::new_with_price(inner, <S::Gas as Gas>::Price::ZEROED)
-    }
-
-    fn storage(&self) -> &S::Storage {
-        &self.delta.inner
-    }
-
-    /// Creates a new archival rest state checkpoint with the same underlying `Storage` but an empty Delta, without
-    /// modifying the original [`ApiStateAccessor`].
-    pub fn get_archival_at(&self, version: u64) -> Self {
-        let storage = self.storage().clone();
-
-        Self {
-            delta: Delta::new(storage.clone(), Some(version)),
             events: Vec::new(),
-            gas_meter: UnlimitedGasMeter::new(),
+            kernel_cache: delta.kernel_cache.clone(),
+            user_cache: delta.user_cache.clone(),
+            accessory_writes: delta.accessory_writes.clone(),
+            kernel,
+            storage_version,
         }
     }
-}
 
-impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        CachedAccessor::<N>::get_cached(&mut self.delta, key)
+    /// Creates a new [`ApiStateAccessor`] from the provided Storage with a gas price of zero.
+    pub fn from_storage<K: Kernel<S::Storage> + KernelWithSlotMapping<S>>(
+        storage: S::Storage,
+        kernel: K,
+    ) -> Self {
+        let empty_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+        Self::new(&empty_checkpoint, Arc::new(kernel), None)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        CachedAccessor::<N>::set_cached(&mut self.delta, key, value)
+    fn clone_without_witness_or_events(&self) -> Self {
+        Self {
+            events: Vec::new(),
+            gas_meter: self.gas_meter.clone(),
+            storage: self.storage.clone(),
+            witness: Default::default(),
+            kernel_cache: self.kernel_cache.clone(),
+            user_cache: self.user_cache.clone(),
+            accessory_writes: self.accessory_writes.clone(),
+            kernel: self.kernel.clone(),
+            storage_version: self.storage_version,
+        }
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        CachedAccessor::<N>::delete_cached(&mut self.delta, key)
+    /// Sets the accessor to return data consistent with the rollup's state
+    /// as of the provided slot number.
+    pub fn set_rollup_height(&mut self, height: Option<u64>) {
+        let visible_height = height.map(|height| {
+            let kernel = self.kernel.clone();
+            kernel.visible_slot_number_at(height, self)
+        });
+
+        self.storage_version = visible_height;
     }
-}
 
-#[cfg(feature = "native")]
-impl<S: Spec> ApiStateAccessor<S> {
-    fn version(&self) -> Option<u64> {
-        self.delta.version
-    }
-}
-
-#[cfg(feature = "native")]
-impl<N: ProvableCompileTimeNamespace, S: Spec> ProvenStateAccessor<N> for ApiStateAccessor<S>
-where
-    ApiStateAccessor<S>: StateReaderAndWriter<N>,
-{
-    type Proof = <S::Storage as Storage>::Proof;
-
-    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
-        self.storage().get_with_proof::<N>(key, self.version())
+    /// Returns a new accessor which accesses the rollup
+    pub fn get_archival_at(&self, height: u64) -> ApiStateAccessor<S> {
+        // TODO: Is cloning the gas price the intended behavior here?
+        // TODO: Is cloning the caches the correct behavior here?
+        let mut state = self.clone_without_witness_or_events();
+        state.set_rollup_height(Some(height));
+        state
     }
 }

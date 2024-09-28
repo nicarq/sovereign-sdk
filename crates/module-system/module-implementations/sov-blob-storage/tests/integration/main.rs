@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
-use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
+use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec};
 use sov_modules_stf_blueprint::BatchReceipt;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -34,7 +34,9 @@ generate_zk_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
 /// Returns the current virtual slot number in the runner.
 pub fn virtual_slot<
-    K: KernelSlotHooks<S, Da> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, Da>
+        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
+        + KernelWithSlotMapping<S>,
 >(
     runner: &TestRunner<K>,
 ) -> u64 {
@@ -43,7 +45,9 @@ pub fn virtual_slot<
 
 /// Returns the last `k` slot receipts
 pub fn last_slot_receipts<
-    K: KernelSlotHooks<S, Da> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, Da>
+        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
+        + KernelWithSlotMapping<S>,
 >(
     runner: &TestRunner<K>,
     k: usize,
@@ -90,7 +94,9 @@ fn check_virtual_slot_height(
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
 fn assert_blobs_are_correctly_received_helper<
-    K: KernelSlotHooks<S, MockDaSpec> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, MockDaSpec>
+        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
+        + KernelWithSlotMapping<S>,
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<usize>>,

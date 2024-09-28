@@ -14,7 +14,7 @@
 use std::convert::Infallible;
 use std::marker::PhantomData;
 
-use axum::extract::State;
+use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
 use serde::Serialize;
 use sov_rest_utils::errors::not_found_404;
@@ -23,11 +23,10 @@ use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
-use super::{
-    maybe_archival_accessor, ModuleSendSync, NamespacedStateMap, NamespacedStateVec,
-    RollupHeightQueryParam, StateItemInfo, StorageReceiver,
-};
+use super::{ApiState, ModuleSendSync, RollupHeightQueryParam, StateItemInfo};
+use crate::map::NamespacedStateMap;
 use crate::value::NamespacedStateValue;
+use crate::vec::NamespacedStateVec;
 use crate::{ApiStateAccessor, Module, StateReader};
 
 #[derive(Debug, Clone, Serialize)]
@@ -41,9 +40,30 @@ pub enum StateItemKind {
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct StateItemRestApiImpl<M: Module, T> {
-    pub storage: StorageReceiver<M::Spec>,
+    pub api_state: ApiState<(), M::Spec>,
     pub state_item_info: StateItemInfo,
     pub phantom: PhantomData<T>,
+}
+
+#[axum::async_trait]
+impl<M, T> FromRequestParts<StateItemRestApiImpl<M, T>> for ApiStateAccessor<M::Spec>
+where
+    M: ModuleSendSync,
+    T: Send + Sync + 'static,
+{
+    type Rejection = crate::rest::utils::ErrorObject;
+
+    async fn from_request_parts(
+        parts: &mut axum::http::request::Parts,
+        state: &StateItemRestApiImpl<M, T>,
+    ) -> Result<Self, Self::Rejection> {
+        let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
+            .await
+            .ok()
+            .map(|q| q.0.rollup_height);
+
+        Ok(state.api_state.build_api_state_accessor(rollup_height))
+    }
 }
 
 pub trait StateItemRestApi {
@@ -77,20 +97,14 @@ where
 {
     async fn get_state_value_route(
         State(state): State<Self>,
-        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
+        mut accessor: ApiStateAccessor<M::Spec>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let mut state_accessor = maybe_archival_accessor(
-            // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
-            ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
-            rollup_height_opt.map(|q| q.0.rollup_height),
-        );
-
         let state_value = NamespacedStateValue::<N, T, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
         );
 
-        let value = state_value.get(&mut state_accessor).unwrap_infallible();
+        let value = state_value.get(&mut accessor).unwrap_infallible();
         Ok(StateItemContents::Value { value }.into())
     }
 }
@@ -121,43 +135,28 @@ where
     Codec::KeyCodec: StateItemCodec<usize>,
     Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
 {
-    fn checkpoint_and_vec(
-        &self,
-        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
-    ) -> (ApiStateAccessor<M::Spec>, NamespacedStateVec<N, T, Codec>) {
-        (
-            // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
-            maybe_archival_accessor(
-                ApiStateAccessor::new(self.storage.borrow().clone()),
-                rollup_height_opt.map(|q| q.0.rollup_height),
-            ),
-            NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default()),
-        )
+    fn vec(&self) -> NamespacedStateVec<N, T, Codec> {
+        NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
     }
 
     async fn get_state_vec_route(
-        State(state): State<Self>,
-        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
+        state: State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut api_state_accessor, state_vec) =
-            Self::checkpoint_and_vec(&state, rollup_height_opt);
+        let state_vec = state.vec();
+        let length = state_vec.len(&mut accessor).unwrap_infallible();
 
-        let length = state_vec.len(&mut api_state_accessor).unwrap_infallible();
         Ok(StateItemContents::Vec { length }.into())
     }
 
     async fn get_state_vec_item_route(
-        State(state): State<Self>,
+        state: State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
         Path(item_index): Path<usize>,
-        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<T, T>> {
-        let (mut api_state_accessor, state_vec) =
-            Self::checkpoint_and_vec(&state, rollup_height_opt);
+        let state_vec = state.vec();
 
-        let value = match state_vec
-            .get(item_index, &mut api_state_accessor)
-            .unwrap_infallible()
-        {
+        let value = match state_vec.get(item_index, &mut accessor).unwrap_infallible() {
             None => {
                 return Err(not_found_404(&state.state_item_info.name, item_index));
             }
@@ -213,20 +212,15 @@ where
 
     async fn get_state_map_item_route(
         State(state): State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
         Path(key): Path<K>,
-        rollup_height_opt: Option<Query<RollupHeightQueryParam>>,
     ) -> ApiResult<StateItemContents<K, V>> {
-        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
-        let mut working_set = maybe_archival_accessor(
-            ApiStateAccessor::<M::Spec>::new(state.storage.borrow().clone()),
-            rollup_height_opt.map(|q| q.0.rollup_height),
-        );
         let state_map = NamespacedStateMap::<N, K, V, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
         );
 
-        let value = state_map.get(&key, &mut working_set).unwrap_infallible();
+        let value = state_map.get(&key, &mut accessor).unwrap_infallible();
         match value {
             // Known issue, will be solved later
             // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/f3b934e33833ec3621f46a3b31824a344de7b433/crates/full-node/sov-ledger-apis/src/lib.rs#L387

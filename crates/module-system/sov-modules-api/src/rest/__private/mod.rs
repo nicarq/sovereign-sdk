@@ -8,7 +8,6 @@ use sov_state::Namespace;
 use self::state::StateItemKind;
 use self::types::ModuleObject;
 use super::*;
-use crate::ApiStateAccessor;
 
 /// Trait "alias" for simpler trait bounds.
 pub trait ModuleSendSync: Module + Send + Sync + 'static {}
@@ -23,17 +22,6 @@ pub struct StateItemInfo {
     pub description: Option<String>,
     pub namespace: Namespace,
     pub prefix: Prefix,
-}
-
-pub fn maybe_archival_accessor<S: Spec>(
-    api_state_accessor: ApiStateAccessor<S>,
-    rollup_height_opt: Option<u64>,
-) -> ApiStateAccessor<S> {
-    if let Some(rollup_height) = rollup_height_opt {
-        api_state_accessor.get_archival_at(rollup_height)
-    } else {
-        api_state_accessor
-    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -93,7 +81,7 @@ impl<R> HasRestApi<R::Spec> for RuntimeRestApiBaseImpl<R>
 where
     R: TxHooks + Send + Sync + 'static,
 {
-    fn rest_api(&self, _storage: StorageReceiver<R::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<(), R::Spec>) -> axum::Router<()> {
         axum::Router::new()
             .route("/modules", get(Self::root_handler))
             .with_state(self.clone())
@@ -116,7 +104,7 @@ impl<M> HasRestApi<<M as Module>::Spec> for ModuleRestApiBaseImpl<M>
 where
     M: ModuleSendSync + ModuleInfo + Clone,
 {
-    fn rest_api(&self, _storage: StorageReceiver<<M as Module>::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<(), <M as Module>::Spec>) -> axum::Router<()> {
         axum::Router::new()
             .route("/", get(Self::root_route))
             .with_state(self.clone())

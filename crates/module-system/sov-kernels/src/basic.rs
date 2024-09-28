@@ -6,6 +6,8 @@ use anyhow::Context;
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
@@ -82,6 +84,17 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BasicKernel<S, Da> {
         Ok(self
             .blob_storage
             .select_blobs_as_based_sequencer(current_blobs, state))
+    }
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for BasicKernel<S, Da> {
+    fn visible_slot_number_at(
+        &self,
+        true_slot_number: u64,
+        _state: &mut sov_modules_api::ApiStateAccessor<S>,
+    ) -> u64 {
+        true_slot_number
     }
 }
 

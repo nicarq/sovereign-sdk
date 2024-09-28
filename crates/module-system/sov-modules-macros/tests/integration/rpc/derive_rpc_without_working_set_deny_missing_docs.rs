@@ -1,11 +1,11 @@
 //! Regression test for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/163>.
 
 #![deny(missing_docs)]
-use sov_modules_api::ModuleId;
 use sov_modules_api::macros::rpc_gen;
+use sov_modules_api::ModuleId;
 
 /// docs
-#[derive(sov_modules_api::ModuleInfo)]
+#[derive(sov_modules_api::ModuleInfo, Clone)]
 pub struct TestStruct<S: sov_modules_api::Spec> {
     /// docs
     #[id]

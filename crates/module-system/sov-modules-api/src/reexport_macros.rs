@@ -497,7 +497,7 @@ pub mod macros {
     /// use sov_modules_api::macros::rpc_gen;
     /// use jsonrpsee::core::RpcResult;
     ///
-    /// #[derive(ModuleInfo)]
+    /// #[derive(ModuleInfo, Clone)]
     /// struct MyModule<S: Spec> {
     ///     #[id]
     ///     id: ModuleId,

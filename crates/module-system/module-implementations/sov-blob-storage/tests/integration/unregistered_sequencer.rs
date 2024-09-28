@@ -1,6 +1,6 @@
 use sov_blob_storage::UNREGISTERED_BLOBS_PER_SLOT;
 use sov_mock_da::{MockBlob, MockDaSpec};
-use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks};
+use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -14,7 +14,9 @@ use crate::helpers_soft_confirmations::{
 use crate::{HashMap, TestData, TestRunner, RT, S};
 
 fn make_unregistered_blobs<
-    K: KernelSlotHooks<S, MockDaSpec> + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>,
+    K: KernelSlotHooks<S, MockDaSpec>
+        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
+        + KernelWithSlotMapping<S>,
 >(
     num_blobs: u64,
     sender: &TestSequencer<S, MockDaSpec>,

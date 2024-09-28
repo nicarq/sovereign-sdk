@@ -84,13 +84,13 @@ where
 
     #[cfg(feature = "native")]
     fn endpoints(
-        storage: tokio::sync::watch::Receiver<S::Storage>,
+        api_state: sov_modules_api::rest::ApiState<(), S>,
     ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
         use ::sov_modules_api::prelude::*;
         use ::sov_modules_api::rest::HasRestApi;
         use utoipa_swagger_ui::{Config, SwaggerUi};
 
-        let axum_router = Self::default().rest_api(storage.clone()).merge(
+        let axum_router = Self::default().rest_api(api_state.clone()).merge(
             SwaggerUi::new("/swagger-ui")
                 .external_url_unchecked(
                     "/openapi-v3.yaml",
@@ -100,7 +100,7 @@ where
         );
 
         sov_modules_stf_blueprint::RuntimeEndpoints {
-            jsonrpsee_module: get_rpc_methods::<S, Da>(storage.clone()),
+            jsonrpsee_module: get_rpc_methods::<S, Da>(api_state),
             axum_router,
         }
     }
