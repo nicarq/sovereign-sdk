@@ -122,6 +122,8 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
 pub mod mocks {
     //! Mocks for the rollup capabilities module
 
+    #[cfg(feature = "native")]
+    use super::KernelWithSlotMapping;
     use super::{Kernel, Spec};
     use crate::{BootstrapWorkingSet, KernelStateAccessor};
 
@@ -149,6 +151,17 @@ pub mod mocks {
         pub fn increase_heights(&mut self) {
             self.true_slot_number += 1;
             self.visible_slot_number += 1;
+        }
+    }
+
+    #[cfg(feature = "native")]
+    impl<S: Spec> KernelWithSlotMapping<S> for MockKernel<S> {
+        fn visible_slot_number_at(
+            &self,
+            true_slot_number: u64,
+            _state: &mut crate::ApiStateAccessor<S>,
+        ) -> u64 {
+            true_slot_number
         }
     }
 

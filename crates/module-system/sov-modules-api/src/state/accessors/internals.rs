@@ -19,9 +19,9 @@ use super::UniversalStateAccessor;
 pub(super) struct Delta<S: Storage> {
     pub(super) inner: S,
     witness: S::Witness,
-    kernel_cache: ProvableStorageCache<namespaces::Kernel>,
-    user_cache: ProvableStorageCache<namespaces::User>,
-    accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
+    pub(crate) kernel_cache: ProvableStorageCache<namespaces::Kernel>,
+    pub(crate) user_cache: ProvableStorageCache<namespaces::User>,
+    pub(crate) accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
     pub(super) version: Option<u64>,
 }
 
@@ -35,11 +35,6 @@ impl<S: Storage> Delta<S> {
             accessory_writes: self.accessory_writes.clone(),
             version: self.version,
         }
-    }
-
-    #[cfg(feature = "native")]
-    pub(super) fn new(inner: S, version: Option<u64>) -> Self {
-        Self::with_witness(inner, Default::default(), version)
     }
 
     pub(super) fn with_witness(inner: S, witness: S::Witness, version: Option<u64>) -> Self {

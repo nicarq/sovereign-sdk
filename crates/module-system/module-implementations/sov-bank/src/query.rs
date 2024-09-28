@@ -79,10 +79,11 @@ impl<S: Spec> Bank<S> {
 impl<S: Spec> Bank<S> {
     async fn route_balance(
         state: ApiState<Self, S>,
+        mut accessor: ApiStateAccessor<S>,
         Path((token_id, user_address)): Path<(TokenId, S::Address)>,
     ) -> ApiResult<Coins> {
         let amount = state
-            .get_balance_of(&user_address, token_id, &mut state.api_state_accessor())
+            .get_balance_of(&user_address, token_id, &mut accessor)
             .unwrap_infallible()
             .ok_or_else(|| errors::not_found_404("Balance", user_address))?;
 
@@ -91,10 +92,11 @@ impl<S: Spec> Bank<S> {
 
     async fn route_total_supply(
         state: ApiState<Self, S>,
+        mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
     ) -> ApiResult<Coins> {
         let amount = state
-            .get_total_supply_of(&token_id, &mut state.api_state_accessor())
+            .get_total_supply_of(&token_id, &mut accessor)
             .unwrap_infallible()
             .ok_or_else(|| errors::not_found_404("Token", token_id))?;
 
@@ -110,11 +112,12 @@ impl<S: Spec> Bank<S> {
 
     async fn route_authorized_minters(
         state: ApiState<Self, S>,
+        mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
     ) -> ApiResult<types::AuthorizedMintersResponse<S>> {
         let authorized_minters = state
             .tokens
-            .get(&token_id, &mut state.api_state_accessor())
+            .get(&token_id, &mut accessor)
             .unwrap_infallible()
             .ok_or_else(|| errors::not_found_404("Token", token_id))?
             .authorized_minters;
@@ -124,7 +127,8 @@ impl<S: Spec> Bank<S> {
 
 impl<S: Spec> HasCustomRestApi for Bank<S> {
     type Spec = S;
-    fn custom_rest_api(&self, state: ApiState<Self, S>) -> axum::Router<()> {
+
+    fn custom_rest_api(&self, state: ApiState<(), S>) -> axum::Router<()> {
         axum::Router::new()
             .route(
                 "/tokens/:tokenId/balances/:address",
@@ -139,7 +143,7 @@ impl<S: Spec> HasCustomRestApi for Bank<S> {
                 get(Self::route_authorized_minters),
             )
             .route("/tokens", get(Self::route_find_token_id))
-            .with_state(state)
+            .with_state(state.with(self.clone()))
     }
 
     fn custom_openapi_spec(&self) -> Option<OpenApi> {

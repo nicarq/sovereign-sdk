@@ -1,4 +1,9 @@
+## 2024-09-26
+- Changes the argument to the `Runtime::endpoints`, `HasRestApi::rest_api` and `get_rpc_methods` functions to `sov_modules_api::rest::ApiState<(), S>`
+- Renames the `ApiStateAccessor::new` function to `from_storage` and adds the `Kernel` as a second argument.
+
 - #1518 Removes the hardcoded `Vec<u64>` type to represents the gas price inside the `BatchReceipt` struct. The `StateTransitionFunction` trait now also has an associated `GasPrice` type to represent the notion of gas price inside `sov-rollup-interface`. Consumers of the SDK should ensure they replace their use of the `Vec<u64>` with a new generic `GasPrice` type and to specify the associated `GasPrice` type inside their implementations of the `StateTransitionFunction`. 
+
 ## 2024-09-25
 - Adds new `JsonSchema` bounds on all `Address` types and `DaService::Config`. 
 - Makes a significant refactor to the `BatchBuilder` trait

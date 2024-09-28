@@ -21,7 +21,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
             quote! {
                 {
-                    let module_router: axum::Router<()> = (&self.#module_identifier).rest_api(storage.clone());
+                    let module_router: axum::Router<()> = (&self.#module_identifier).rest_api(api_state.clone());
                     router = router.nest(#path, module_router);
                 }
             }
@@ -71,7 +71,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
         #[automatically_derived]
         impl #impl_generics HasRestApi<<Self as TxHooks>::Spec> for #ident #ty_generics #where_clause {
-            fn rest_api(&self, storage: StorageReceiver<<Self as TxHooks>::Spec>) -> axum::Router<()> {
+            fn rest_api(&self, api_state: ApiState<(), <Self as TxHooks>::Spec>) -> axum::Router<()> {
                 let base_impl = RuntimeRestApiBaseImpl {
                     // At the time of writing, runtimes are not guaranteed to be
                     // `Clone` but they are `Default`, so we create a new
@@ -79,7 +79,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                     runtime: ::std::sync::Arc::new(Self::default()),
                     modules: ::std::vec![#(#module_names_and_ids),*].into_iter().collect(),
                 };
-                let mut router = base_impl.rest_api(storage.clone());
+                let mut router = base_impl.rest_api(api_state.clone());
 
                 #(#router_nest_ops)*
 

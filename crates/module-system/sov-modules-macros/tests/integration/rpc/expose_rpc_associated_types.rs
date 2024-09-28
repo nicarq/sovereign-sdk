@@ -35,7 +35,7 @@ impl Data for u32 {}
 pub mod my_module {
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(ModuleInfo, Clone)]
     pub struct QueryModule<S: Spec, D: Data> {
         #[id]
         pub id: ModuleId,

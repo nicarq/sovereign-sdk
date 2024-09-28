@@ -74,7 +74,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec>;
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec, Self::Kernel>;
 
     fn get_operating_mode(
         genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
@@ -116,7 +116,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
+        crate::eth::register_ethereum::<Self::Spec, Self::Kernel, Self::DaService, Self::Runtime>(
             da_service.clone(),
             storage.clone(),
             &mut endpoints.jsonrpsee_module,

@@ -6,7 +6,7 @@ mod wallet;
 #[cfg(feature = "native")]
 pub use endpoints::*;
 use pluggable_traits::PluggableSpec;
-use sov_modules_api::capabilities::KernelSlotHooks;
+use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BlobDataWithId, DaSpec, Spec};
 #[cfg(feature = "native")]
@@ -33,6 +33,7 @@ pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync {
 
     /// The kernel for the rollup.
     type Kernel: KernelSlotHooks<Self::Spec, Self::DaSpec, BlobType = BlobDataWithId>
+        + KernelWithSlotMapping<Self::Spec>
         + Send
         + Sync
         + 'static;
@@ -54,6 +55,7 @@ mod blueprint {
     use sov_db::schema::{DeltaReader, SchemaBatch};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
+    use sov_modules_api::rest::StorageReceiver;
     use sov_modules_api::runtime::capabilities::Kernel;
     use sov_modules_api::{
         OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec, Zkvm,
@@ -136,7 +138,7 @@ mod blueprint {
         /// Creates RPC methods for the rollup.
         async fn create_endpoints(
             &self,
-            storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
+            storage: StorageReceiver<Self::Spec>,
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,

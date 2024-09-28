@@ -1,10 +1,13 @@
 use std::convert::Infallible;
+use std::sync::Arc;
 use std::vec;
 
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, FullyBakedTx, Spec,
+    StateCheckpoint,
 };
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -82,8 +85,9 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
     // Generate a new storage instance after dumping data to the db.
     {
         let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
+        let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
         let stf_state = storage_manager.create_storage();
-        let mut state = ApiStateAccessor::new(stf_state);
+        let mut state = ApiStateAccessor::from_storage(stf_state, kernel);
         let resp = runtime
             .bank
             .supply_of(None, get_default_token_id::<S>(&admin_address), &mut state)
@@ -166,7 +170,9 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         .create_state_after(block_1.header())
         .unwrap();
 
-    let mut state = ApiStateAccessor::new(stf_storage);
+    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &kernel);
+    let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
 
     let resp = runtime
         .bank
@@ -243,7 +249,11 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     storage_manager.commit(apply_block_result.change_set);
 
     let stf_storage = storage_manager.create_storage();
-    let mut state = ApiStateAccessor::<TestSpec>::new(stf_storage);
+
+    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &kernel);
+    let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
+
     let successful_reg = runtime
         .sequencer_registry
         .is_registered_sequencer(&direct_sequencer.into(), &mut state)
@@ -317,7 +327,9 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
     storage_manager.commit(apply_block_result.change_set);
 
-    let mut state = ApiStateAccessor::<TestSpec>::new(storage_manager.create_storage());
+    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+
     let successful_reg = runtime
         .sequencer_registry
         .is_registered_sequencer(&direct_sequencer.into(), &mut state)
@@ -382,7 +394,9 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
     storage_manager.commit(apply_block_result.change_set);
 
-    let mut state = ApiStateAccessor::<TestSpec>::new(storage_manager.create_storage());
+    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+
     let registered = runtime
         .sequencer_registry
         .is_registered_sequencer(&MockAddress::new(some_sequencer), &mut state)
@@ -490,7 +504,9 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     storage_manager.commit(apply_block_result.change_set);
 
     // unregistered sequencer tx in the first blob was successfully applied
-    let mut state = ApiStateAccessor::<TestSpec>::new(storage_manager.create_storage());
+    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+
     let registered = runtime
         .sequencer_registry
         .is_registered_sequencer(&MockAddress::new(some_sequencer), &mut state)

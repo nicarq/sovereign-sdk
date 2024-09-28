@@ -30,7 +30,7 @@ pub fn expose_rpc(
             quote! {
                 #(#attrs)*
                 rpc_module
-                    .merge((&runtime.#module_ident).rpc_methods(storage.clone()))
+                    .merge((&runtime.#module_ident).rpc_methods(api_state.clone()))
                     .unwrap();
             }
         })
@@ -43,9 +43,9 @@ pub fn expose_rpc(
     let fn_get_rpc_methods: proc_macro2::TokenStream = quote! {
         /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods
         /// exposed by the runtime.
-        pub fn get_rpc_methods #impl_generics (storage: ::jsonrpsee::tokio::sync::watch::Receiver<
-            S::Storage
-        >) -> ::jsonrpsee::RpcModule<()> #where_clause {
+        pub fn get_rpc_methods #impl_generics (
+            api_state: ::sov_modules_api::rest::ApiState<(), <#runtime_type as sov_modules_api::module::DispatchCall>::Spec>,
+        ) -> ::jsonrpsee::RpcModule<()> #where_clause {
             // The attributes from merge operations may generate "unused doc
             // comment" warnings. Just to be safe, we ignore absolutely all
             // warnings.

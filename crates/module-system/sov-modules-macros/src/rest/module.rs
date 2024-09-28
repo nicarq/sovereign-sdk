@@ -58,7 +58,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
             quote! {
                 router = {
                     let state_impl = StateItemRestApiImpl::<Self, #ty> {
-                        storage: storage.clone(),
+                        api_state: api_state.clone(),
                         state_item_info: #state_item_expr,
                         phantom: PhantomData::<#ty>::default(),
                     };
@@ -134,7 +134,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
         #[automatically_derived]
         impl #impl_generics HasRestApi<<Self as Module>::Spec> for #module_ty #type_generics #where_clause {
-            fn rest_api(&self, storage: StorageReceiver<<Self as Module>::Spec>) -> axum::Router<()> {
+            fn rest_api(&self, api_state: ApiState<(), <Self as Module>::Spec>) -> axum::Router<()> {
                 let mut state_item_routers: Vec<axum::Router<()>> = vec![];
                 let base_impl = ModuleRestApiBaseImpl::<Self> {
                     module: Arc::new(Self::default()),
@@ -142,11 +142,11 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
                     state_items: #map_of_state_item_exprs,
                 };
 
-                let mut router: axum::Router<()> = (&base_impl).rest_api(storage.clone());
+                let mut router: axum::Router<()> = (&base_impl).rest_api(api_state.clone());
 
                 #(#router_nest_ops)*
 
-                let custom_router = (self).custom_rest_api_from_storage(storage.clone());
+                let custom_router = (self).custom_rest_api(api_state);
                 router = router.nest("/", custom_router);
 
                 router

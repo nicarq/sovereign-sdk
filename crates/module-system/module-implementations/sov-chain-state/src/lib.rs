@@ -8,8 +8,8 @@ mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    BootstrapWorkingSet, KernelStateAccessor, KernelWriter, ModuleId, Spec, StateAccessor,
-    StateReader, StateReaderAndWriter, Zkvm,
+    BootstrapWorkingSet, KernelStateAccessor, ModuleId, Spec, StateAccessor, StateReader,
+    StateReaderAndWriter, Zkvm,
 };
 
 mod genesis;
@@ -227,6 +227,10 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     #[state]
     next_visible_slot_number: KernelStateValue<TransitionHeight>,
 
+    #[state]
+    true_to_virtual_slot_number_history:
+        sov_modules_api::KernelStateMap<TransitionHeight, TransitionHeight>,
+
     /// The real slot number of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
@@ -304,9 +308,46 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             .unwrap_or_default()
     }
 
+    /// Returns the visible slot number corresponding to the provided real slot.
+    pub fn visible_slot_number_at<T>(
+        &self,
+        true_slot_number: u64,
+        state: &mut T,
+    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
+    where
+        T: StateReader<Kernel>,
+    {
+        let visible_slot_number = self
+            .true_to_virtual_slot_number_history
+            .get(&true_slot_number, state)?
+            .unwrap_or_default();
+
+        dbg!(true_slot_number, visible_slot_number);
+        Ok(visible_slot_number)
+    }
+
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_number(&self, value: &u64, state: &mut impl KernelWriter) {
+    pub fn set_next_visible_slot_number(
+        &self,
+        value: &u64,
+        state: &mut KernelStateAccessor<S::Storage>,
+    ) {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
+
+        let true_slot_num = self
+            .next_true_slot_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+        let visible_slot_num = self
+            .next_visible_slot_number
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+
+        self.true_to_virtual_slot_number_history
+            .set(&true_slot_num, &visible_slot_num, state)
+            .unwrap_infallible();
         self.next_visible_slot_number
             .set(value, state)
             .unwrap_infallible();

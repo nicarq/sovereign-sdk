@@ -97,7 +97,7 @@ impl RpcImplBlock {
             Ok(quote! {
                 #( #docs )*
                 #signature {
-                    let #api_state_accessor_ident = &mut Self::api_state_accessor(self);
+                    let #api_state_accessor_ident = &mut Self::build_api_state_accessor(self, None);
                     <#module_type>::#method_name(#(#arg_names),*)
                 }
             })
@@ -226,12 +226,9 @@ fn inner_rpc_gen(
 
             fn rpc_methods(
                 &self,
-                storage: jsonrpsee::tokio::sync::watch::Receiver<<Self::Spec as sov_modules_api::Spec>::Storage>,
+                api_state: sov_modules_api::rest::ApiState<(), Self::Spec>,
             ) -> jsonrpsee::RpcModule<()> {
-                sov_modules_api::rest::ApiState::<#module_type, <#module_type as ::sov_modules_api::ModuleInfo>::Spec>::new(
-                    ::core::default::Default::default(),
-                    storage,
-                ).into_rpc().remove_context()
+                api_state.with::<Self>(self.clone()).into_rpc().remove_context()
             }
         }
     })

@@ -59,7 +59,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 
     /// Default RPC methods and Axum router.
     #[cfg(feature = "native")]
-    fn endpoints(storage: tokio::sync::watch::Receiver<S::Storage>) -> RuntimeEndpoints;
+    fn endpoints(storage: sov_modules_api::rest::ApiState<(), S>) -> RuntimeEndpoints;
 
     /// Reads genesis configs.
     #[cfg(feature = "native")]
