@@ -72,17 +72,19 @@ pub trait TransactionAuthenticator<S: Spec> {
         &self,
         tx: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData>;
+    ) -> Result<
+        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
+        AuthenticationError,
+    >;
+
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
     fn authenticate_unregistered(
         &self,
         tx: &Self::Input,
         state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
-    ) -> AuthenticationResult<
-        S,
-        Self::Decodable,
-        Self::AuthorizationData,
+    ) -> Result<
+        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
     >;
 
@@ -145,9 +147,9 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
     );
 }
 
-/// Result of the authentication.
-pub type AuthenticationResult<S, Decodable, Auth, Err = AuthenticationError> =
-    Result<(AuthenticatedTransactionAndRawHash<S>, Auth, Decodable), Err>;
+/// Output of the authentication.
+pub type AuthenticationOutput<S, Decodable, Auth> =
+    (AuthenticatedTransactionAndRawHash<S>, Auth, Decodable);
 
 /// Error variants that can be raised as a [`AuthenticationError::FatalError`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
@@ -237,7 +239,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
     tx: Transaction<S>,
     meter: &mut impl GasMeter<S::Gas>,
-) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>, AuthenticationError> {
+) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     if tx.details.chain_id != CHAIN_ID {
         return Err(AuthenticationError::FatalError(
             FatalError::InvalidChainId {
@@ -289,7 +291,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>(
     mut raw_tx: &[u8],
     state: &mut PreExecWorkingSet<S, Meter>,
-) -> AuthenticationResult<S, D::Decodable, AuthorizationData<S>> {
+) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     let raw_tx_hash = MeteredHasher::<
         _,
         PreExecWorkingSet<S, Meter>,

@@ -1,7 +1,7 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSignedEcRecovered;
 use sov_modules_api::capabilities::{
-    AuthenticationResult, AuthorizationData, TransactionAuthenticator,
+    AuthenticationOutput, AuthorizationData, TransactionAuthenticator,
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
@@ -47,7 +47,7 @@ pub fn authenticate<
 >(
     raw_tx: &[u8],
     _pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
-) -> AuthenticationResult<S, CallMessage, AuthorizationData<S>> {
+) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 
     let tx = RlpEvmTransaction::try_from_slice(raw_tx).map_err(|e| {
