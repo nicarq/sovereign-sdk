@@ -193,10 +193,13 @@ macro_rules! impl_standard_runtime_authenticator {
                     S,
                     Self::SequencerStakeMeter,
                 >,
-            ) -> ::sov_modules_api::capabilities::AuthenticationResult<
-                S,
-                Self::Decodable,
-                Self::AuthorizationData,
+            ) -> ::core::result::Result<
+                ::sov_modules_api::capabilities::AuthenticationOutput<
+                    S,
+                    Self::Decodable,
+                    Self::AuthorizationData,
+                >,
+                ::sov_modules_api::capabilities::AuthenticationError,
             > {
                 ::sov_modules_api::capabilities::authenticate::<S, Self, Self::SequencerStakeMeter>(
                     &tx.0.data,
@@ -211,10 +214,12 @@ macro_rules! impl_standard_runtime_authenticator {
                     S,
                     ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
                 >,
-            ) -> ::sov_modules_api::capabilities::AuthenticationResult<
-                S,
-                Self::Decodable,
-                Self::AuthorizationData,
+            ) -> ::core::result::Result<
+                ::sov_modules_api::capabilities::AuthenticationOutput<
+                    S,
+                    Self::Decodable,
+                    Self::AuthorizationData,
+                >,
                 ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
             > {
                 ::core::result::Result::Ok(::sov_modules_api::capabilities::authenticate::<

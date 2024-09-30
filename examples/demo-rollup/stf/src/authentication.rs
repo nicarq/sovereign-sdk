@@ -2,8 +2,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_evm::EthereumAuthenticator;
-use sov_modules_api::capabilities::{AuthorizationData, UnregisteredAuthenticationError};
-use sov_modules_api::runtime::capabilities::{AuthenticationResult, TransactionAuthenticator};
+use sov_modules_api::capabilities::{
+    AuthenticationError, AuthenticationOutput, AuthorizationData, UnregisteredAuthenticationError,
+};
+use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::{DaSpec, DispatchCall, PreExecWorkingSet, RawTx, Spec, UnlimitedGasMeter};
 use sov_sequencer_registry::SequencerStakeMeter;
 
@@ -25,7 +27,10 @@ where
         &self,
         input: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> AuthenticationResult<S, Self::Decodable, Self::AuthorizationData> {
+    ) -> Result<
+        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
+        AuthenticationError,
+    > {
         match input {
             Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<
                 S,
@@ -49,10 +54,8 @@ where
         &self,
         raw_tx: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
-    ) -> AuthenticationResult<
-        S,
-        Self::Decodable,
-        Self::AuthorizationData,
+    ) -> Result<
+        AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
     > {
         let contents = if let Auth::Mod(tx) = raw_tx {

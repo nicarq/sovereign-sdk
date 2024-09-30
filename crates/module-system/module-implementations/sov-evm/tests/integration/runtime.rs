@@ -60,10 +60,13 @@ where
         &self,
         tx: &AuthenticatorInput,
         pre_exec_ws: &mut sov_modules_api::PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> sov_modules_api::capabilities::AuthenticationResult<
-        S,
-        Self::Decodable,
-        Self::AuthorizationData,
+    ) -> Result<
+        sov_modules_api::capabilities::AuthenticationOutput<
+            S,
+            Self::Decodable,
+            Self::AuthorizationData,
+        >,
+        sov_modules_api::capabilities::AuthenticationError,
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
             _,
@@ -82,10 +85,12 @@ where
             S,
             sov_modules_api::UnlimitedGasMeter<<S as Spec>::Gas>,
         >,
-    ) -> sov_modules_api::capabilities::AuthenticationResult<
-        S,
-        Self::Decodable,
-        Self::AuthorizationData,
+    ) -> Result<
+        sov_modules_api::capabilities::AuthenticationOutput<
+            S,
+            Self::Decodable,
+            Self::AuthorizationData,
+        >,
         sov_modules_api::capabilities::UnregisteredAuthenticationError,
     > {
         unimplemented!()

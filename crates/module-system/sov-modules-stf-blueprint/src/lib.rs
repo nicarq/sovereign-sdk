@@ -6,9 +6,11 @@ use sov_modules_api::{Batch, BatchSequencerReceipt, VersionReader};
 use sov_state::StateRoot;
 mod batch_processing;
 mod proof_processing;
+mod sequencer_mode;
 #[cfg(feature = "test-utils")]
 mod utils;
-pub use batch_processing::{get_gas_used, process_tx, BatchReceipt, TransactionReceipt};
+pub use batch_processing::{get_gas_used, BatchReceipt, TransactionReceipt};
+pub use sequencer_mode::registered::process_tx;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
