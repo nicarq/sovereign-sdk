@@ -185,8 +185,8 @@ pub enum AuthenticationError {
     #[error("Transaction authentication raised a fatal error, error: {0}")]
     FatalError(FatalError),
     /// The transaction authentication returned an error, but including it could have been an honest mistake. The sequencer should be charged enough to cover the cost of checking the transaction but not slashed.
-    #[error("Transaction authentication was invalid. error: {0}.")]
-    Invalid(
+    #[error("Transaction authentication ran out of gas: {0}.")]
+    OutOfGas(
         /// The reason for the penalization.       
         String,
     ),
@@ -200,6 +200,9 @@ pub enum UnregisteredAuthenticationError {
     /// The transaction authentication failed in a way that is unrecoverable.
     #[error("Transaction authentication raised a fatal error, error: {0}")]
     FatalError(FatalError),
+    /// Transaction run out of gas
+    #[error("Transaction ran out of gas, error: {0}")]
+    OutOfGas(String),
     /// The runtime call included in the transaction wasn't a sequencer registry "Register"
     /// message.
     #[error("The runtime call included in the transaction was invalid.")]
@@ -211,14 +214,6 @@ pub enum UnregisteredAuthenticationError {
     InvalidAuthenticator,
 }
 
-impl From<AuthenticationError> for UnregisteredAuthenticationError {
-    fn from(value: AuthenticationError) -> Self {
-        match value {
-            AuthenticationError::FatalError(e) => Self::FatalError(e),
-            AuthenticationError::Invalid(e) => Self::FatalError(FatalError::Other(e)),
-        }
-    }
-}
 /// Data required to authorize a sov-transaction.
 pub struct AuthorizationData<S: Spec> {
     /// The nonce of the transaction.
@@ -254,7 +249,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
         | TransactionVerificationError::TransactionDeserializationError(_) => {
             AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
         }
-        TransactionVerificationError::GasError(_) => AuthenticationError::Invalid(e.to_string()),
+        TransactionVerificationError::GasError(_) => AuthenticationError::OutOfGas(e.to_string()),
     })?;
 
     let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
@@ -298,7 +293,7 @@ pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>
         <S::CryptoSpec as CryptoSpec>::Hasher,
     >::digest::<S>(raw_tx, state)
     .map(TxHash::new)
-    .map_err(|e| AuthenticationError::Invalid(e.to_string()))?;
+    .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
     let tx = <Transaction<S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
         .map_err(|e| {

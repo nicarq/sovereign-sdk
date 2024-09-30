@@ -68,7 +68,15 @@ where
                 S,
                 Runtime<S, Da>,
                 UnlimitedGasMeter<S::Gas>,
-            >(contents, pre_exec_ws)?;
+            >(contents, pre_exec_ws)
+            .map_err(|e| match e {
+                AuthenticationError::FatalError(err) => {
+                    UnregisteredAuthenticationError::FatalError(err)
+                }
+                AuthenticationError::OutOfGas(err) => {
+                    UnregisteredAuthenticationError::OutOfGas(err)
+                }
+            })?;
 
         match &runtime_call {
             RuntimeCall::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {

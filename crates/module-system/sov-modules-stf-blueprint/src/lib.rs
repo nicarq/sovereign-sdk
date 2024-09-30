@@ -15,10 +15,11 @@ pub use sequencer_mode::registered::process_tx;
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, BlobOrigin, HasCapabilities, TransactionAuthenticator,
+    UnregisteredAuthenticationError,
 };
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
-use sov_modules_api::transaction::SequencerReward;
+use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
@@ -129,10 +130,10 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
 /// This is the value returned when [`process_tx`] succeeds.
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
 pub struct ApplyTxResult<S: Spec> {
+    /// Gas consumption.
+    pub transaction_consumption: TransactionConsumption<S::Gas>,
     /// The transaction receipt.
     pub receipt: TransactionReceipt<S>,
-    /// The amount of gas tokens that the sequencer should be rewarded.
-    pub sequencer_reward: SequencerReward,
 }
 
 /// The different errors that can be raised after transaction processing
@@ -141,40 +142,22 @@ pub enum TxProcessingError {
     /// The sequencer is not authorized to execute the transaction
     #[error("The sequencer is not authorized to execute the transaction, error {0}")]
     SequencerUnauthorized(String),
-    /// The transaction was not correctly authenticated
+    /// The transaction from a registered sequencer was not correctly authenticated.
     #[error("The transaction was not correctly authenticated {0}")]
-    AuthenticationError(AuthenticationError),
-    /// The transaction was not applied because it didn't pass the pre-execution gas checks
-    /// (from the `GasEnforcer::try_reserve_gas` capability).
-    /// In this case, the sequencer should be charged the amount of gas used for the pre-execution checks.
-    #[error("The transaction was not applied because it didn't pass the pre-execution gas checks, reason: {reason}, tx hash: {}.", raw_tx_hash)]
-    CannotReserveGas {
-        /// The reason why this error was raised.
-        reason: String,
-        /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: TxHash,
-    },
-    /// The transaction was not applied because it was a duplicate.
-    #[error("The transaction was not applied because it had an invalid nonce, reason: {reason}, tx hash: {}.", raw_tx_hash)]
-    Nonce {
-        /// The reason why this error was raised.
-        reason: String,
-        /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: TxHash,
-    },
-
-    /// The transaction was not applied because the `Context` could not be resolved.
-    #[error("The transaction was not applied because the `Context` could not be resolved, reason: {reason}, tx hash: {}.", raw_tx_hash)]
-    CannotResolveContext {
-        /// The reason why this error was raised.
-        reason: String,
-        /// The raw hash of the transaction that was skipped.
-        raw_tx_hash: TxHash,
-    },
+    InvalidRegisteredTx(AuthenticationError),
     /// Transaction from unregistered sequencer was rejected.
     /// These transactions can be processed in the case of direct sequencer registration.
     #[error("The unregistered senders transaction was rejected from processing, reason: {0}")]
-    InvalidUnregisteredTx(String),
+    InvalidUnregisteredTx(UnregisteredAuthenticationError),
+
+    /// The transactions was skipped.
+    #[error("The transaction was skipped, reason: {reason}")]
+    Skipped {
+        /// Skip reason
+        reason: SkippedReason,
+        /// Hash of the transaction.
+        raw_tx_hash: TxHash,
+    },
 }
 
 /// Genesis parameters for a blueprint

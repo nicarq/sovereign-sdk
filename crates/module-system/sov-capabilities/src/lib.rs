@@ -9,7 +9,7 @@ use sov_modules_api::transaction::{
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, GasMeter, InvalidProofError,
     ModuleInfo, PreExecWorkingSet, SovAttestation, SovStateTransitionPublicData, Spec,
-    StateCheckpoint, TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    TxScratchpad, UnlimitedGasMeter, WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
@@ -240,12 +240,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
             .reward_sequencer(sender, reward.into(), state);
     }
 
-    fn slash_sequencer(
-        &self,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S::Storage>,
-    ) {
-        self.sequencer_registry
-            .slash_sequencer(sender, state_checkpoint);
+    fn slash_sequencer(&self, sender: &Da::Address, state: &mut TxScratchpad<S::Storage>) {
+        self.sequencer_registry.slash_sequencer(sender, state);
     }
 }

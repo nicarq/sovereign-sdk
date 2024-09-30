@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
-use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint, TxScratchpad};
+use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError {
@@ -79,9 +79,5 @@ pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
     );
 
     /// Slash the sequencer for malicious behavior.
-    fn slash_sequencer(
-        &self,
-        sender: &Da::Address,
-        state_checkpoint: &mut StateCheckpoint<S::Storage>,
-    );
+    fn slash_sequencer(&self, sender: &Da::Address, state: &mut TxScratchpad<S::Storage>);
 }

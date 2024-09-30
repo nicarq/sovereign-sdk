@@ -1,8 +1,8 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, FatalError, GasEnforcer, TransactionAuthenticator, TransactionAuthorizer,
-    TryReserveGasError, UnregisteredAuthenticationError,
+    AuthenticationOutput, FatalError, GasEnforcer, SequencerRemuneration, TransactionAuthenticator,
+    TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
     DaSpec, ExecutionContext, FullyBakedTx, Gas, GasMeter, GasSpec, PreExecWorkingSet, Spec,
@@ -10,7 +10,7 @@ use sov_modules_api::{
 };
 
 use crate::sequencer_mode::common::apply_tx;
-use crate::{ApplyTxResult, Runtime, TxProcessingError};
+use crate::{ApplyTxResult, Runtime, SkippedReason, TxProcessingError};
 
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
@@ -36,7 +36,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         Ok(v) => v,
         Err(e) => {
             return (
-                Err(TxProcessingError::InvalidUnregisteredTx(e.to_string())),
+                Err(TxProcessingError::InvalidUnregisteredTx(e)),
                 pre_exec_working_set.into(),
             );
         }
@@ -56,8 +56,8 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         Ok(ctx) => ctx,
         Err(e) => {
             return (
-                Err(TxProcessingError::CannotResolveContext {
-                    reason: e.to_string(),
+                Err(TxProcessingError::Skipped {
+                    reason: SkippedReason::CannotResolveContext(e.to_string()),
                     raw_tx_hash,
                 }),
                 pre_exec_working_set.into(),
@@ -72,8 +72,8 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         &mut pre_exec_working_set,
     ) {
         return (
-            Err(TxProcessingError::Nonce {
-                reason: e.to_string(),
+            Err(TxProcessingError::Skipped {
+                reason: SkippedReason::IncorrectNonce(e.to_string()),
                 raw_tx_hash,
             }),
             pre_exec_working_set.into(),
@@ -82,8 +82,8 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 
     if let Err(e) = pre_exec_working_set.charge_gas(&S::gas_forced_sequencer_registration_cost()) {
         return (
-            Err(TxProcessingError::CannotReserveGas {
-                reason: e.to_string(),
+            Err(TxProcessingError::Skipped {
+                reason: SkippedReason::CannotReserveGas(e.to_string()),
                 raw_tx_hash,
             }),
             pre_exec_working_set.into(),
@@ -101,8 +101,8 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 pre_exec_working_set,
             }) => {
                 return (
-                    Err(TxProcessingError::CannotReserveGas {
-                        reason: reason.to_string(),
+                    Err(TxProcessingError::Skipped {
+                        reason: SkippedReason::CannotReserveGas(reason.to_string()),
                         raw_tx_hash,
                     }),
                     pre_exec_working_set.into(),
@@ -111,15 +111,33 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         };
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    let (apply_tx, tx_scratchpad) = apply_tx(
-        runtime,
-        ctx,
-        tx,
+    let (apply_tx, mut tx_scratchpad) =
+        apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
+
+    let transaction_consumption = &apply_tx.transaction_consumption;
+
+    runtime.transaction_authorizer().mark_tx_attempted(
         &auth_data,
-        raw_tx_hash,
-        message,
-        working_set,
         sequencer_da_address,
+        &mut tx_scratchpad,
+    );
+
+    runtime.gas_enforcer().refund_remaining_gas(
+        ctx.sender(),
+        &transaction_consumption.remaining_funds(),
+        &mut tx_scratchpad,
+    );
+
+    runtime.gas_enforcer().reward_prover(
+        &transaction_consumption.base_fee_value(),
+        &mut tx_scratchpad,
+    );
+
+    let sequencer_reward = transaction_consumption.priority_fee();
+    runtime.sequencer_remuneration().reward_sequencer(
+        ctx.sequencer(),
+        sequencer_reward,
+        &mut tx_scratchpad,
     );
 
     (Ok(apply_tx), tx_scratchpad)

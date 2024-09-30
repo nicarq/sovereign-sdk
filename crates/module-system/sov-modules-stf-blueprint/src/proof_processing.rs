@@ -269,8 +269,9 @@ where
     fn slash_for_bad_serialization(
         &self,
         blob_hash: [u8; 32],
-        mut state: StateCheckpoint<S::Storage>,
+        state: StateCheckpoint<S::Storage>,
     ) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>) {
+        let mut state = state.to_tx_scratchpad();
         self.runtime
             .sequencer_remuneration()
             .slash_sequencer(self.sequencer_da_address, &mut state);
@@ -285,7 +286,7 @@ where
                 ),
                 gas_used: S::Gas::zero(),
             },
-            state,
+            state.commit(),
         )
     }
 

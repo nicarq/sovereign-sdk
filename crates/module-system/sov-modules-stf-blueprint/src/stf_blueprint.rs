@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::runtime::capabilities::{KernelSlotHooks, SequencerRemuneration};
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{
     BatchSequencerOutcome, BatchWithId, DaSpec, ExecutionContext, Gas, ProofReceipt, Spec,
     StateCheckpoint, Storage,
@@ -105,9 +105,6 @@ where
         if let BatchSequencerOutcome::Slashed(reason) = &batch_sequencer_receipt.outcome {
             info!(sequencer_da_address =
                 %batch_sequencer_receipt.da_address, ?reason, "Slashing sequencer");
-            self.runtime
-                .sequencer_remuneration()
-                .slash_sequencer(&batch_sequencer_receipt.da_address, &mut next_checkpoint);
         }
 
         for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {

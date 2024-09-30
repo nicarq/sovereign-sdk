@@ -128,11 +128,52 @@ where
                             remaining = remaining,
                             "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
                         );
-                        break;
+
+                        return (
+                            BatchReceipt {
+                                batch_hash: batch_with_id.id,
+                                tx_receipts,
+                                inner: BatchSequencerReceipt {
+                                    da_address: sequencer_da_address,
+                                    outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+                                },
+                                gas_price: gas_price.clone(),
+                            },
+                            checkpoint,
+                            gas_used,
+                        );
                     }
 
+                    TxProcessingError::InvalidUnregisteredTx(reason) => {
+                        warn!(
+                            sequencer_da_address = %sequencer_da_address,
+                            reason = %reason,
+                            "Processing of unregistered sequencer transaction raised error, skipping"
+                        );
+
+                        return (
+                            BatchReceipt {
+                                batch_hash: batch_with_id.id,
+                                tx_receipts: Vec::new(),
+                                inner: BatchSequencerReceipt {
+                                    da_address: sequencer_da_address,
+                                    outcome: BatchSequencerOutcome::Ignored(reason.to_string()),
+                                },
+                                gas_price: gas_price.clone(),
+                            },
+                            checkpoint,
+                            gas_used,
+                        );
+                    }
+
+                    err @ TxProcessingError::InvalidRegisteredTx(AuthenticationError::OutOfGas(
+                        _,
+                    )) => {
+                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
+                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
+                    }
                     // If the sequencer raised a fatal error then he needs to get slashed and we stop applying the batch
-                    TxProcessingError::AuthenticationError(AuthenticationError::FatalError(
+                    TxProcessingError::InvalidRegisteredTx(AuthenticationError::FatalError(
                         err,
                     )) => {
                         error!(
@@ -153,75 +194,24 @@ where
                             gas_used,
                         );
                     }
-                    TxProcessingError::InvalidUnregisteredTx(reason) => {
-                        warn!(
-                            sequencer_da_address = %sequencer_da_address,
-                            reason = %reason,
-                            "Processing of unregistered sequencer transaction raised error, skipping"
-                        );
 
-                        return (
-                            BatchReceipt {
-                                batch_hash: batch_with_id.id,
-                                tx_receipts: Vec::new(),
-                                inner: BatchSequencerReceipt {
-                                    da_address: sequencer_da_address,
-                                    outcome: BatchSequencerOutcome::Ignored(reason),
-                                },
-                                gas_price: gas_price.clone(),
-                            },
-                            checkpoint,
-                            gas_used,
-                        );
-                    }
-                    TxProcessingError::Nonce {
+                    TxProcessingError::Skipped {
                         reason,
                         raw_tx_hash,
                     } => {
-                        let tx_receipt = create_tx_receipt(
-                            SkippedReason::IncorrectNonce(reason),
-                            raw_tx_hash,
-                            idx,
-                        );
+                        let tx_receipt = create_tx_receipt(reason, raw_tx_hash, idx);
                         tx_receipts.push(tx_receipt);
-                    }
-                    TxProcessingError::CannotReserveGas {
-                        reason,
-                        raw_tx_hash,
-                    } => {
-                        let tx_receipt = create_tx_receipt(
-                            SkippedReason::CannotReserveGas(reason),
-                            raw_tx_hash,
-                            idx,
-                        );
-                        tx_receipts.push(tx_receipt);
-                    }
-                    TxProcessingError::CannotResolveContext {
-                        reason,
-                        raw_tx_hash,
-                    } => {
-                        let tx_receipt = create_tx_receipt(
-                            SkippedReason::CannotResolveContext(reason),
-                            raw_tx_hash,
-                            idx,
-                        );
-                        tx_receipts.push(tx_receipt);
-                    }
-                    err @ TxProcessingError::AuthenticationError(AuthenticationError::Invalid(
-                        _,
-                    )) => {
-                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
-                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
                     }
                 }
             }
             Ok(ApplyTxResult {
+                transaction_consumption,
                 receipt,
-                sequencer_reward,
             }) => {
                 gas_used.combine(&get_gas_used(&receipt));
                 tx_receipts.push(receipt);
 
+                let sequencer_reward = transaction_consumption.priority_fee();
                 accumulated_reward.accumulate(sequencer_reward);
             }
         }

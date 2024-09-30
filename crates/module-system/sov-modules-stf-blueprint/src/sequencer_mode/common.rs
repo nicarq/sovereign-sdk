@@ -1,12 +1,9 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
-use sov_modules_api::capabilities::{
-    GasEnforcer, SequencerRemuneration, TransactionAuthenticator, TransactionAuthorizer,
-};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{Context, DaSpec, DispatchCall, Error, Spec, TxScratchpad, WorkingSet};
 use sov_rollup_interface::TxHash;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
@@ -20,21 +17,19 @@ use crate::{
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn apply_tx<S, RT, Da>(
     runtime: &RT,
-    ctx: Context<S>,
+    ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,
-    auth_data: &<RT as TransactionAuthenticator<S>>::AuthorizationData,
     raw_tx_hash: TxHash,
     message: <RT as DispatchCall>::Decodable,
     mut working_set: WorkingSet<S>,
-    sequencer_da_address: &Da::Address,
 ) -> (ApplyTxResult<S>, TxScratchpad<S::Storage>)
 where
     S: Spec,
     Da: DaSpec,
     RT: Runtime<S, Da>,
 {
-    let tx_result = attempt_tx(tx, message, &ctx, runtime, &mut working_set);
-    let (mut tx_scratchpad, receipt, transaction_consumption) = match tx_result {
+    let tx_result = attempt_tx(tx, message, ctx, runtime, &mut working_set);
+    let (tx_scratchpad, receipt, transaction_consumption) = match tx_result {
         Ok(_) => {
             let (tx_scratchpad, transaction_consumption, events) = working_set.finalize();
             let gas_used = transaction_consumption.base_fee();
@@ -78,41 +73,10 @@ where
         }
     };
 
-    runtime.transaction_authorizer().mark_tx_attempted(
-        auth_data,
-        sequencer_da_address,
-        &mut tx_scratchpad,
-    );
-
-    runtime.gas_enforcer().refund_remaining_gas(
-        ctx.sender(),
-        &transaction_consumption.remaining_funds(),
-        &mut tx_scratchpad,
-    );
-
-    runtime.gas_enforcer().reward_prover(
-        &transaction_consumption.base_fee_value(),
-        &mut tx_scratchpad,
-    );
-
-    let sequencer_reward = transaction_consumption.priority_fee();
-    runtime.sequencer_remuneration().reward_sequencer(
-        ctx.sequencer(),
-        sequencer_reward,
-        &mut tx_scratchpad,
-    );
-
-    debug!(
-        tx_hash = hex::encode(raw_tx_hash),
-        receipt = ?receipt.receipt,
-        consumption = %transaction_consumption,
-        "Transaction has been executed",
-    );
-
     (
         ApplyTxResult::<S> {
+            transaction_consumption,
             receipt,
-            sequencer_reward,
         },
         tx_scratchpad,
     )
