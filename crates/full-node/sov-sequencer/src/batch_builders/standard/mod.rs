@@ -119,8 +119,9 @@ where
             }
             Ok(ApplyTxResult {
                 receipt,
-                sequencer_reward,
+                transaction_consumption,
             }) => {
+                let sequencer_reward = transaction_consumption.priority_fee();
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = tx_scratchpad.commit();
                 ctx.reward.accumulate(sequencer_reward);
@@ -411,7 +412,7 @@ where
                         // If authentication is fatally broken or the tx is for an unregistered sequencer, we can
                         // never submit it succesfully so drop it from the mempool
                         TxProcessingError::InvalidUnregisteredTx(_)
-                        | TxProcessingError::AuthenticationError(
+                        | TxProcessingError::InvalidRegisteredTx(
                             AuthenticationError::FatalError(_),
                         ) => {
                             tracing::info!(hash= %mempool_tx.hash, error = %e, "Invalid tx detected in mempool; dropping tx",);
@@ -422,10 +423,10 @@ where
                         // Otherwise, the issue has to do with the current state of the rollup, which could change at any point.
                         // We won't add the invalid tx to the batch, but we don't drop it either since it may become valid soon.
                         TxProcessingError::SequencerUnauthorized(_)
-                        | TxProcessingError::AuthenticationError(AuthenticationError::Invalid(_))
-                        | TxProcessingError::Nonce { .. }
-                        | TxProcessingError::CannotReserveGas { .. }
-                        | TxProcessingError::CannotResolveContext { .. } => {
+                        | TxProcessingError::InvalidRegisteredTx(AuthenticationError::OutOfGas(
+                            _,
+                        ))
+                        | TxProcessingError::Skipped { .. } => {
                             tracing::info!(hash= %mempool_tx.hash, reason = %e, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
                             continue;
                         }

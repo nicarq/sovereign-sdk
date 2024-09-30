@@ -222,11 +222,18 @@ macro_rules! impl_standard_runtime_authenticator {
                 >,
                 ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
             > {
-                ::core::result::Result::Ok(::sov_modules_api::capabilities::authenticate::<
+                ::sov_modules_api::capabilities::authenticate::<
                     S,
                     Self,
                     ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
-                >(&tx.0.data, pre_exec_ws)?)
+                >(&tx.0.data, pre_exec_ws) .map_err(|e| match e {
+                    ::sov_modules_api::capabilities::AuthenticationError::FatalError(err) => {
+                        ::sov_modules_api::capabilities::UnregisteredAuthenticationError::FatalError(err)
+                    }
+                    ::sov_modules_api::capabilities::AuthenticationError::OutOfGas(err) => {
+                        ::sov_modules_api::capabilities::UnregisteredAuthenticationError::OutOfGas(err)
+                    }
+                })
             }
 
             fn add_standard_auth(tx: ::sov_modules_api::RawTx) -> Self::Input {
