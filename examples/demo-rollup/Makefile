@@ -18,10 +18,8 @@ get_token := $(DOCKER_COMPOSE) exec -it sequencer-0 celestia bridge auth admin -
 get_token_1 := $(DOCKER_COMPOSE) exec -it sequencer-1 celestia bridge auth admin --p2p.network "private"
 
 
-clean: check-docker
 clean:
-	@echo "Stopping local celestia network setup"
-	$(DOCKER_COMPOSE) down --volumes --rmi local
+	# Important cleanup steps happen first
 	rm -f "$(CREDENTIALS_DIR)/$(KEY_NAME).jwt"
 	rm -rf "./demo_data"
 	rm -rf "mock_da.sqlite"
@@ -32,18 +30,26 @@ clean:
 		echo "Path is empty or too short, not safe to remove"; \
 		exit 1; \
 	fi
-	@echo "removing celestia rollup database ${path}"
+	@echo "Removing Celestia rollup database ${path}"
 	rm -rf "${path}"
 	$(eval path := ./$(shell awk -F'=' '/^path/ {print $$2}' mock_rollup_config.toml | tr -d '[:space:]"\n'))
 	@if [ -z "${path}" ] || [ "${path}" = "./" ]; then \
 		echo "Path is empty or too short, not safe to remove"; \
 		exit 1; \
 	fi
-	@echo "removing mock rollup database ${path}"
+	@echo "Removing mock rollup database ${path}"
 	rm -rf "${path}"
-	@echo "removing unsent transactions from local storage"
+	@echo "Removing unsent transactions from local storage"
 	@if [ -f "$(SOV_CLI_REL_PATH)" ]; then \
 		$(SOV_CLI_REL_PATH) transactions clean; \
+	fi
+
+	# Attempt to stop the local Celestia network, but do not fail if Docker is not relevant
+	@if command -v docker > /dev/null 2>&1 && docker info > /dev/null 2>&1; then \
+		echo "Stopping local Celestia network setup"; \
+		$(DOCKER_COMPOSE) down --volumes --rmi local; \
+	else \
+		echo "Docker daemon not running or Docker not installed, skipping Docker cleanup"; \
 	fi
 
 clean-wallet:
