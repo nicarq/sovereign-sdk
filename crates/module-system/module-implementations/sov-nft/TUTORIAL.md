@@ -551,7 +551,13 @@ offchain = ["sov-nft/offchain"]
 
 ### 6. Test the functionality
 
-- We need to start `demo-rollup` with the `offchain` feature enabled.
+- We need to add `offchain` feature to `demo-rollup`:
+   ```toml
+   [features]
+   default = []  
+   # Other features..
+   offchain = ["demo-stf/offchain", "sov-nft/offchain"]
+   ```
 - For Data Availability, we'll be using the MockDA which functions in-memory and does not require running or connecting to any external services
 
 ```bash
