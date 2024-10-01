@@ -31,6 +31,7 @@ sov-rollup-interface = { workspace = true, features = ["native"] }
 tokio = { workspace = true, features = ["macros"] }
 tracing = { workspace = true }
 utoipa-swagger-ui = { workspace = true, features = ["axum"] }
+openapiv3 = { workspace = true }
 
 [dev-dependencies]
 assert-json-diff = "2"

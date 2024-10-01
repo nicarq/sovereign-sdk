@@ -2,19 +2,19 @@ openapi: "3.0.2"
 info:
   title: Sovereign SDK Runtime API
   version: 0.1.0
-  description: |
-    This is the JSON API for the Sovereign SDK runtimes and modules.
   contact:
     name: Sovereign Labs
     url: https://github.com/Sovereign-Labs/sovereign-sdk-wip
     email: info@sovereign.xyz
 servers:
-  - url: http://localhost:12346/modules
-    description: Modules
+  - url: http://localhost:12346
+    description: Localhost
 paths:
-  /:
+  /modules:
     get:
       summary: Get the list of modules
+      tags:
+        - Runtime
       operationId: get_modules
       responses:
         "200":
@@ -29,9 +29,11 @@ paths:
                     properties:
                       modules:
                         $ref: '#/components/schemas/Modules'
-  /{moduleName}:
+  /modules/{moduleName}:
     get:
       summary: Get module information by name
+      tags:
+        - Runtime
       operationId: get_module
       parameters:
         - name: moduleName
@@ -50,7 +52,7 @@ paths:
                   data:
                     $ref: "#/components/schemas/Module"
         "404":
-          $ref: "#/components/responses/NotFound"
+          $ref: "#/components/responses/StateNotFound"
 
 components:
   parameters:
@@ -73,7 +75,7 @@ components:
               data:
                 $ref: "#/components/schemas/StateValueBase"
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - data
     StateMapElementResponse:
@@ -87,14 +89,14 @@ components:
                 type: object
                 properties:
                   key:
-                    $ref: "#/components/schemas/AnyJsonValue"
+                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
                   value:
-                    $ref: "#/components/schemas/AnyJsonValue"
+                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
                 required:
                   - key
                   - value
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - data
     StateVecResponse:
@@ -110,7 +112,7 @@ components:
                   length:
                     type: integer
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - data
     StateVecElementResponse:
@@ -126,12 +128,12 @@ components:
                   index:
                     type: integer
                   value:
-                    $ref: "#/components/schemas/AnyJsonValue"
+                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
                 required:
                   - index
                   - value
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - data
     StateValueResponse:
@@ -142,12 +144,12 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - data
-    NotFound:
+    StateNotFound:
       description: The requested resource was not found
       content:
         application/json:
@@ -157,9 +159,9 @@ components:
               errors:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Error"
+                  $ref: "#/components/schemas/RuntimeError"
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
             required:
               - errors
     BadRequestResponse:
@@ -172,11 +174,11 @@ components:
               errors:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Error"
+                  $ref: "#/components/schemas/RuntimeError"
               meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+                $ref: "#/components/schemas/RuntimeAnyJsonValue"
   schemas:
-    AnyJsonValue:
+    RuntimeAnyJsonValue:
       description: "Any JSON type, including null."
       nullable: true
       oneOf:
@@ -259,7 +261,7 @@ components:
           $ref: "#/components/schemas/ModuleId"
       required:
         - id
-    Error:
+    RuntimeError:
       type: object
       properties:
         status:
@@ -269,7 +271,7 @@ components:
         title:
           type: string
         details:
-          $ref: "#/components/schemas/AnyJsonValue"
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
       required:
         - status
         - title
