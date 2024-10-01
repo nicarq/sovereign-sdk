@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{
     TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::{
-    DaSpec, ExecutionContext, FullyBakedTx, Gas, PreExecWorkingSet, Spec, TxScratchpad,
+    DaSpec, ExecutionContext, FullyBakedTx, Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad,
 };
 
 use crate::sequencer_mode::common::apply_tx;
@@ -62,10 +62,13 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 );
             }
             Err(AuthenticationError::OutOfGas(reason)) => {
-                let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
+                let remaining_stake = pre_exec_working_set.remaining_funds();
+                let mut tx_scratchpad = pre_exec_working_set.into();
+                runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
                     AuthenticationError::OutOfGas(reason.clone()),
-                    pre_exec_working_set,
+                    remaining_stake,
+                    &mut tx_scratchpad,
                 );
 
                 return (
@@ -92,11 +95,15 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         Ok(ctx) => ctx,
         Err(err) => {
             let err_string = err.to_string();
+            let remaining_stake = pre_exec_working_set.remaining_funds();
+            let mut tx_scratchpad = pre_exec_working_set.into();
+
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
+            runtime.sequencer_authorization().penalize_sequencer(
                 sequencer_da_address,
                 err,
-                pre_exec_working_set,
+                remaining_stake,
+                &mut tx_scratchpad,
             );
 
             return (
@@ -117,11 +124,15 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     ) {
         let err_string = err.to_string();
 
+        let remaining_stake = pre_exec_working_set.remaining_funds();
+        let mut tx_scratchpad = pre_exec_working_set.into();
+
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-        let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
+        runtime.sequencer_authorization().penalize_sequencer(
             sequencer_da_address,
             err,
-            pre_exec_working_set,
+            remaining_stake,
+            &mut tx_scratchpad,
         );
 
         return (
@@ -144,11 +155,15 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 pre_exec_working_set,
             }) => {
                 let reason_string = reason.to_string();
+                let remaining_funds = pre_exec_working_set.remaining_funds();
+                let mut tx_scratchpad = pre_exec_working_set.into();
+
                 // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                let tx_scratchpad = runtime.sequencer_authorization().penalize_sequencer(
+                runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
                     reason,
-                    pre_exec_working_set,
+                    remaining_funds,
+                    &mut tx_scratchpad,
                 );
 
                 return (

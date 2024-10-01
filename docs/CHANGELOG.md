@@ -1,3 +1,6 @@
+## 2024-10-01
+- #1544 `SequencerAuthorization::penalize_sequencer` capability now takes `TxScratchpad` as an argument.
+
 ## 2024-09-26
 - Changes the argument to the `Runtime::endpoints`, `HasRestApi::rest_api` and `get_rpc_methods` functions to `sov_modules_api::rest::ApiState<(), S>`
 - Renames the `ApiStateAccessor::new` function to `from_storage` and adds the `Kernel` as a second argument.

@@ -8,7 +8,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    DaSpec, Gas, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
+    DaSpec, Gas, GasMeter, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
     ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
@@ -298,11 +298,15 @@ where
             <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
         >,
     ) -> TxScratchpad<S::Storage> {
+        let remaining_funds = pre_exec_working_set.remaining_funds();
+        let mut tx_scratchpad = pre_exec_working_set.into();
         self.runtime.sequencer_authorization().penalize_sequencer(
             self.sequencer_da_address,
             reason,
-            pre_exec_working_set,
-        )
+            remaining_funds,
+            &mut tx_scratchpad,
+        );
+        tx_scratchpad
     }
 }
 
