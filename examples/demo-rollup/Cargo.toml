@@ -110,8 +110,8 @@ criterion = "0.5.1"
 
 [features]
 default = []
+# Used for using different encoding between host and guest
 bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
-
 bench = [
     "hex",
     "risc0/bench",
@@ -125,7 +125,6 @@ bench = [
     "sov-sp1-adapter/bench",
     "sov-cycle-utils",
 ]
-offchain = ["demo-stf/offchain", "sov-nft/offchain"]
 
 [[bench]]
 name = "rollup_bench"
