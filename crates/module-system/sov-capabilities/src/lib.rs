@@ -90,10 +90,11 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
         &self,
         sequencer: &Da::Address,
         reason: impl std::fmt::Display,
-        pre_exec_working_set: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> TxScratchpad<S::Storage> {
+        remaining_stake: u64,
+        state: &mut TxScratchpad<S::Storage>,
+    ) {
         self.sequencer_registry
-            .penalize_sequencer(sequencer, reason, pre_exec_working_set)
+            .penalize_sequencer(sequencer, reason, remaining_stake, state);
     }
 }
 

@@ -1,9 +1,7 @@
 use sov_bank::Amount;
 use sov_modules_api::capabilities::{AuthorizationResult, AuthorizeSequencerError};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{
-    DaSpec, Gas, GasMeter, GasMeteringError, PreExecWorkingSet, Spec, TxScratchpad,
-};
+use sov_modules_api::{DaSpec, Gas, GasMeter, GasMeteringError, Spec, TxScratchpad};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
@@ -116,24 +114,19 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
         &self,
         sender: &Da::Address,
         reason: impl std::fmt::Display,
-        pre_exec_working_set: PreExecWorkingSet<S, SequencerStakeMeter<S::Gas>>,
-    ) -> TxScratchpad<S::Storage> {
-        let penalty_amount = pre_exec_working_set.gas_used_value();
-        let remaining_stake = pre_exec_working_set.remaining_funds();
-
-        let mut scratchpad = pre_exec_working_set.into();
-
+        remaining_stake: u64,
+        state: &mut TxScratchpad<S::Storage>,
+    ) {
         if let Some(AllowedSequencer {
             address,
             balance: _,
         }) = self
             .allowed_sequencers
-            .get(sender, &mut scratchpad)
+            .get(sender, state)
             .unwrap_infallible()
         {
             tracing::info!(
                 sequencer = %address,
-                penalty_amount = ?penalty_amount,
                 remaining_stake = %remaining_stake,
                 reason = %reason,
                 "The sequencer was penalized",
@@ -146,12 +139,10 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
                         address,
                         balance: remaining_stake,
                     },
-                    &mut scratchpad,
+                    state,
                 )
                 .unwrap_infallible();
         }
-
-        scratchpad
     }
 }
 

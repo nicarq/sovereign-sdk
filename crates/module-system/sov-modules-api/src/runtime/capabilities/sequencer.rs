@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
-use crate::{Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad};
+use crate::{Gas, GasMeter, Spec, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError {
@@ -57,15 +57,14 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.
     ///
     /// ## Note
-    /// This method consumes the [`PreExecWorkingSet`].
     /// It should only be called once the sequencer cannot be penalized anymore.
-    /// The penalty should be accumulated in the [`SequencerAuthorization::SequencerStakeMeter`] during the execution of the transaction.
     fn penalize_sequencer(
         &self,
         sequencer: &Da::Address,
         reason: impl std::fmt::Display,
-        pre_exec_ws: PreExecWorkingSet<S, Self::SequencerStakeMeter>,
-    ) -> TxScratchpad<S::Storage>;
+        penalty: u64,
+        state: &mut TxScratchpad<S::Storage>,
+    );
 }
 
 /// Functionality related to the rewarding and slashing of the sequencer.

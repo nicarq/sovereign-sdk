@@ -17,7 +17,7 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    AuthorizeTransactionError, Batch, ExecutionContext, FullyBakedTx, Gas, RawTx, Spec,
+    AuthorizeTransactionError, Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
     StateCheckpoint, VersionReader,
 };
 use sov_modules_stf_blueprint::{
@@ -293,10 +293,13 @@ where
                 Ok(ok) => ok,
                 Err(err) => {
                     let details = err.to_string();
-                    let tx_scratchpad = self.runtime.sequencer_authorization().penalize_sequencer(
+                    let remaining_stake = pre_exec_ws.remaining_funds();
+                    let mut tx_scratchpad = pre_exec_ws.into();
+                    self.runtime.sequencer_authorization().penalize_sequencer(
                         &self.sequencer_address,
                         err,
-                        pre_exec_ws,
+                        remaining_stake,
+                        &mut tx_scratchpad,
                     );
                     return (
                         tx_scratchpad.revert(),
@@ -316,31 +319,33 @@ where
             let tx_hash = auth_res.0.raw_tx_hash;
             let authenticated_tx = auth_res.0;
 
-            let working_set = match pre_exec_ws
-                .transfer_gas_to_working_set(&authenticated_tx.authenticated_tx)
-            {
-                Ok(ok) => ok,
-                Err(AuthorizeTransactionError {
-                    pre_exec_working_set,
-                    reason,
-                }) => {
-                    let details = reason.to_string();
-                    let tx_scratchpad = self.runtime.sequencer_authorization().penalize_sequencer(
-                        &self.sequencer_address,
-                        reason,
+            let working_set =
+                match pre_exec_ws.transfer_gas_to_working_set(&authenticated_tx.authenticated_tx) {
+                    Ok(ok) => ok,
+                    Err(AuthorizeTransactionError {
                         pre_exec_working_set,
-                    );
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(AcceptTxError {
-                            // Not enough gas, so 403 seems appropriate.
-                            http_status: StatusCode::FORBIDDEN.as_u16(),
-                            title: "Not enough gas for pre-execution checks".to_string(),
-                            details,
-                        }),
-                    );
-                }
-            };
+                        reason,
+                    }) => {
+                        let details = reason.to_string();
+                        let remaining_stake = pre_exec_working_set.remaining_funds();
+                        let mut tx_scratchpad = pre_exec_working_set.into();
+                        self.runtime.sequencer_authorization().penalize_sequencer(
+                            &self.sequencer_address,
+                            reason,
+                            remaining_stake,
+                            &mut tx_scratchpad,
+                        );
+                        return (
+                            tx_scratchpad.revert(),
+                            Err(AcceptTxError {
+                                // Not enough gas, so 403 seems appropriate.
+                                http_status: StatusCode::FORBIDDEN.as_u16(),
+                                title: "Not enough gas for pre-execution checks".to_string(),
+                                details,
+                            }),
+                        );
+                    }
+                };
 
             {
                 self.mempool.add_new_tx(tx_hash, baked_tx.clone());
