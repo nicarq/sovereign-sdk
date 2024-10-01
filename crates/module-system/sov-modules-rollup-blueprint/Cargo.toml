@@ -30,6 +30,7 @@ sov-ledger-apis = { workspace = true, optional = true }
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
 borsh = { workspace = true }
+openapiv3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
@@ -50,5 +51,5 @@ native = [
     "sov-state/native",
     "sov-stf-runner",
     "tokio",
-    "sov-sequencer-registry/native"
+    "sov-sequencer-registry/native",
 ]

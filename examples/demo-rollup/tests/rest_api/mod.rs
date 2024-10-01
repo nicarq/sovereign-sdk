@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
-use demo_stf_json_client::types::AnyJsonValue;
+use demo_stf_json_client::types::RuntimeAnyJsonValue;
 use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::GAS_TOKEN_ID;
@@ -87,8 +87,9 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         .await?;
     slot_subscription.next().await;
 
-    let url = format!("{}/modules", &test_rollup.client.base_url);
-    Ok(demo_stf_json_client::Client::new(&url))
+    Ok(demo_stf_json_client::Client::new(
+        &test_rollup.client.base_url,
+    ))
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -161,7 +162,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     let finality_period = client
         .attester_incentives_rollup_finality_period_get_state_value(None)
         .await?;
-    let finality_period = if let AnyJsonValue::Object(inner) = &finality_period.data {
+    let finality_period = if let RuntimeAnyJsonValue::Object(inner) = &finality_period.data {
         let value = inner
             .get("value")
             .cloned()
@@ -180,7 +181,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
         .sequencer_registry_minimum_bond_get_state_value(None)
         .await?;
 
-    let sequencer_bond = if let AnyJsonValue::Object(inner) = &sequencer_bond.data {
+    let sequencer_bond = if let RuntimeAnyJsonValue::Object(inner) = &sequencer_bond.data {
         let value = inner
             .get("value")
             .cloned()
@@ -202,7 +203,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     // Empty value
     let empty_value = client.value_setter_value_get_state_value(None).await?;
     match &empty_value.data {
-        AnyJsonValue::Object(inner) => {
+        RuntimeAnyJsonValue::Object(inner) => {
             let value = inner.get("value");
             assert_eq!(Some(&serde_json::Value::Null), value);
         }
@@ -234,7 +235,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
         .accounts_credential_ids_get_state_map_element(&token_deployer.address.to_string(), None)
         .await?;
 
-    if let AnyJsonValue::String(k) = credential_id_response.data.key.clone() {
+    if let RuntimeAnyJsonValue::String(k) = credential_id_response.data.key.clone() {
         assert_eq!(token_deployer.address.to_string(), k);
     } else {
         panic!(
@@ -242,7 +243,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
             &credential_id_response.data.key
         );
     }
-    if let AnyJsonValue::Array(credentials) = &credential_id_response.data.value {
+    if let RuntimeAnyJsonValue::Array(credentials) = &credential_id_response.data.value {
         assert_eq!(1, credentials.len());
         let credential_jsoned = credentials.first().unwrap().clone();
         let credential_id = credential_jsoned.as_str().unwrap().to_string();
@@ -294,9 +295,9 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
 
     match (value_0_json, value_1_json, value_last_json) {
         (
-            AnyJsonValue::Number(value_0),
-            AnyJsonValue::Number(value_1),
-            AnyJsonValue::Number(value_last),
+            RuntimeAnyJsonValue::Number(value_0),
+            RuntimeAnyJsonValue::Number(value_1),
+            RuntimeAnyJsonValue::Number(value_last),
         ) => {
             assert_eq!(1.0, value_0);
             assert_eq!(2.0, value_1);

@@ -35,16 +35,24 @@ use utoipa_swagger_ui::{Config, SwaggerUi};
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
 
+const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
+
 /// This function does a pretty expensive clone of the entire OpenAPI
 /// specification object, so it might be slow.
 pub(crate) fn openapi_spec() -> serde_json::Value {
     static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
 
     OPENAPI_SPEC
-        .get_or_init(|| {
-            let openapi_spec_raw_yaml_contents = include_str!("../openapi-v3.yaml");
-            serde_yaml::from_str::<serde_json::Value>(openapi_spec_raw_yaml_contents).unwrap()
-        })
+        .get_or_init(|| serde_yaml::from_str::<serde_json::Value>(RAW_YAML_SPEC).unwrap())
+        .clone()
+}
+
+/// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
+/// Performs clone of the whole spec, so might be slow.
+pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
+    static OPENAPI_SPEC_V3: OnceLock<openapiv3::OpenAPI> = OnceLock::new();
+    OPENAPI_SPEC_V3
+        .get_or_init(|| serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
         .clone()
 }
 

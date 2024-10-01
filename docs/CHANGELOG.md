@@ -1,5 +1,8 @@
 ## 2024-10-01
 - #1544 `SequencerAuthorization::penalize_sequencer` capability now takes `TxScratchpad` as an argument.
+ 
+## 2024-09-30
+- #1537 Removes need to define swagger-ui in `Runtime::endpoints` implementation. Now it works out of the box by `sov_modules_rollup_blueprint::register_endpoints`.
 
 ## 2024-09-26
 - Changes the argument to the `Runtime::endpoints`, `HasRestApi::rest_api` and `get_rpc_methods` functions to `sov_modules_api::rest::ApiState<(), S>`

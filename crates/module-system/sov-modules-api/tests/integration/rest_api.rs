@@ -198,9 +198,6 @@ async fn rest_api_routes() {
                 path = path.replace(key, value);
             }
         }
-        if path == "/" {
-            path = "".to_string();
-        }
 
         let url = format!("{}{}", base_path, path);
         let response = client

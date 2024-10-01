@@ -51,7 +51,7 @@ pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                         "$ref": "#/components/responses/StateValueResponse"
                     },
                     "404": {
-                        "$ref": "#/components/responses/NotFound"
+                        "$ref": "#/components/responses/StateNotFound"
                     }
                 }
             }
@@ -105,7 +105,7 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                             "$ref": "#/components/responses/StateMapElementResponse"
                         },
                         "404": {
-                            "$ref": "#/components/responses/NotFound"
+                            "$ref": "#/components/responses/StateNotFound"
                         }
                     }
                 }
@@ -179,7 +179,7 @@ pub fn runtime_spec(module_specs: HashMap<String, OpenApi>) -> OpenApi {
     for (module_name, mut module_spec) in module_specs {
         let old_paths = std::mem::take(&mut module_spec.paths);
         for (path, mut path_item) in old_paths.paths {
-            let runtime_path = format!("/{}{}", module_name, path);
+            let runtime_path = format!("/modules/{}{}", module_name, path);
             // Because: https://github.com/juhaku/utoipa/issues/972
             path_item.extensions = None;
             module_spec.paths.paths.insert(runtime_path, path_item);
