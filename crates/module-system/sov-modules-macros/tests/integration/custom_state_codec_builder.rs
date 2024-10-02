@@ -1,39 +1,36 @@
-use std::panic::catch_unwind;
+//! Tests that the `codec_builder` feature of the `#[state]` attribute works
+//! correctly i.e. the specified builder is used instead of `Default::default`.
+
+use std::marker::PhantomData;
 
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::{CryptoSpec, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue};
+use sov_modules_api::{ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue};
 use sov_state::{DefaultStorageSpec, StateCodec, StateItemDecoder, StateItemEncoder, ZkStorage};
-use sov_test_utils::ZkTestSpec;
-
-type Hasher = <<ZkTestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher;
+use sov_test_utils::{TestHasher, ZkTestSpec};
 
 #[derive(ModuleInfo)]
-struct TestModule<S>
-where
-    S: Spec,
-{
+struct TestModule<S: Spec> {
     #[id]
     id: ModuleId,
-
-    #[state(codec_builder = "crate::CustomCodec::new")]
+    #[state(codec_builder = "CustomCodec::new")]
     state_value: StateValue<u32, CustomCodec>,
-
     #[phantom]
-    phantom: std::marker::PhantomData<S>,
+    phantom: PhantomData<S>,
 }
 
 #[derive(Default, Clone)]
-struct CustomCodec;
+struct CustomCodec(u32);
 
 impl CustomCodec {
     fn new() -> Self {
-        Self
+        CustomCodec(42)
     }
 }
 
 impl StateCodec for CustomCodec {
     type KeyCodec = Self;
     type ValueCodec = Self;
+
     fn key_codec(&self) -> &Self::KeyCodec {
         self
     }
@@ -44,9 +41,11 @@ impl StateCodec for CustomCodec {
 
 impl<V> StateItemEncoder<V> for CustomCodec {
     fn encode(&self, _value: &V) -> Vec<u8> {
-        unimplemented!()
+        std::env::set_var("TEST", self.0.to_string());
+        vec![]
     }
 }
+
 impl<V> StateItemDecoder<V> for CustomCodec {
     type Error = String;
 
@@ -55,14 +54,14 @@ impl<V> StateItemDecoder<V> for CustomCodec {
     }
 }
 
+#[test]
 fn main() {
-    let storage: ZkStorage<DefaultStorageSpec<Hasher>> = ZkStorage::new();
+    let storage: ZkStorage<DefaultStorageSpec<TestHasher>> = ZkStorage::new();
     let module: TestModule<ZkTestSpec> = TestModule::default();
 
-    catch_unwind(|| {
-        let mut state: StateCheckpoint<<ZkTestSpec as Spec>::Storage> =
-            StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
-        module.state_value.set(&0u32, &mut state).unwrap();
-    })
-    .unwrap_err();
+    let mut state: StateCheckpoint<<ZkTestSpec as Spec>::Storage> =
+        StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
+    module.state_value.set(&0u32, &mut state).unwrap();
+
+    assert_eq!(std::env::var("TEST").unwrap(), "42");
 }

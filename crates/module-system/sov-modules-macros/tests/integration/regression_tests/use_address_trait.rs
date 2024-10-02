@@ -12,5 +12,3 @@ struct TestModule<S: Spec> {
     #[phantom]
     phantom: std::marker::PhantomData<S>,
 }
-
-fn main() {}

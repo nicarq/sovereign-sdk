@@ -1,5 +1,5 @@
 error: The `ModuleInfo` macro requires `[address]` attribute.
- --> tests/integration/module_info/missing_address.rs:3:10
+ --> tests/integration/trybuild/module_info/missing_address.rs:3:10
   |
 3 | #[derive(ModuleInfo)]
   |          ^^^^^^^^^^

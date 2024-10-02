@@ -1,5 +1,5 @@
 error: No generic parameters found
- --> tests/integration/module_info/no_generics.rs:3:10
+ --> tests/integration/trybuild/module_info/no_generics.rs:3:10
   |
 3 | #[derive(ModuleInfo)]
   |          ^^^^^^^^^^
