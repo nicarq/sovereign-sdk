@@ -7,12 +7,11 @@ use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 
 use crate::TokenId;
 
-/// Derives token ID from `token_name`, `originator` and `salt`.
-pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>, salt: u64) -> TokenId {
+/// Derives token ID from `token_name` and `originator`
+pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>) -> TokenId {
     let mut hasher = <S::CryptoSpec as CryptoSpec>::Hasher::new();
     hasher.update(originator.as_token_holder().as_bytes());
     hasher.update(token_name.as_bytes());
-    hasher.update(salt.to_le_bytes());
 
     let hash: [u8; 32] = hasher.finalize().into();
     TokenId::from(hash)

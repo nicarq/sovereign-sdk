@@ -45,7 +45,6 @@ fn gas_test_setup(
 
     runner.execute_transaction(TransactionTestCase {
         input: user.create_plain_message::<Bank<S>>(CallMessage::CreateToken {
-            salt: 0,
             token_name: "sov-test-token".to_string(),
             initial_balance: 1000,
             mint_to_address: user.address(),

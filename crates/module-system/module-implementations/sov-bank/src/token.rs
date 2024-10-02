@@ -291,7 +291,7 @@ impl<S: Spec> Token<S> {
     }
 
     /// Creates a token from a given set of parameters.
-    /// The `token_name`, `originator`  (as a `u8` slice), and the `salt` (`u64` number) are used as an input
+    /// The `token_name`, `originator`  (as a `u8` slice)are used as an input
     /// to an hash function that computes the token ID. Then the initial accounts and balances are populated
     /// from the `identities_and_balances` slice and the `total_supply` of tokens is updated each time.
     /// Returns a tuple containing the computed `token_id` and the created `token` object.
@@ -300,11 +300,10 @@ impl<S: Spec> Token<S> {
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         authorized_minters: &[TokenHolderRef<'_, S>],
         originator: impl Payable<S>,
-        salt: u64,
         parent_prefix: &Prefix,
         state: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<(TokenId, Self)> {
-        let token_id = super::get_token_id::<S>(token_name, originator, salt);
+        let token_id = super::get_token_id::<S>(token_name, originator);
         let token = Self::create_with_token_id(
             token_name,
             identities_and_balances,

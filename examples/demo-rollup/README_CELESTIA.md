@@ -110,7 +110,7 @@ $ ../../target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path de
 2024-03-05T14:42:28.838260Z  INFO rockbound: Opened RocksDB rocksdb_name="native-db"
 2024-03-05T14:42:29.087513Z  INFO rockbound: Opened RocksDB rocksdb_name="ledger-db"
 2024-03-05T14:42:29.089568Z  INFO sov_stf_runner::runner: No history detected. Initializing chain on the block header... header=sov_celestia_adapter::celestia::CelestiaHeader prev_hash=0x88f40f107bd45687b37c57ce7d4a6a303e1635417a4c6afe84401ffdf97b3bf3 hash=0x248042f683e50f55a34847323ae367f88f692dfc60629ce78d2c8c70a86466f5 height=3
-2024-03-05T14:42:29.090544Z DEBUG sov_bank::genesis: Bank genesis token config: TokenConfig { token_name: sov-demo-token, address_and_balances: [(sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94, 100000000)], authorized_minters: [sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94], salt: 0 }
+2024-03-05T14:42:29.090544Z DEBUG sov_bank::genesis: Bank genesis token config: TokenConfig { token_name: sov-demo-token, address_and_balances: [(sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94, 100000000)], authorized_minters: [sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94]}
 2024-03-05T14:42:29.119153Z  INFO sov_stf_runner::runner: Chain initialization is done genesis_root="34b162718eaf1878f6dc0306a9cc9d17fb0c0337343f6e21c0babb44480adb5d2674feeb85ae0e109d4f8e2714a55fd287d7e447997fbc42a43d1c634a74bce3"
 2024-03-05T14:42:29.119211Z DEBUG sov_stf_runner::runner: Initializing StfRunner last_slot_processed_before_shutdown=0 runner_config.genesis_height=3 first_unprocessed_height_at_startup=4
 2024-03-05T14:42:29.119759Z  INFO sov_stf_runner::runner: Starting RPC server rpc_address=127.0.0.1:12345
@@ -178,8 +178,6 @@ use sov_bank::Amount;
 pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
-        /// Random value used to create a unique token ID.
-        salt: u64,
         /// The name of the new token.
         token_name: String,
         /// The initial balance of the new token.
@@ -241,7 +239,7 @@ Here's an example of a JSON representing the above call:
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
       "amount": 200,
-      "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+      "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
     }
   }
 }
@@ -291,7 +289,7 @@ Adding the following transaction to batch:
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         "coins": {
           "amount": 200,
-          "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+          "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
         }
       }
     }
@@ -322,8 +320,8 @@ This command will use your default private key.
 #### 4. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
-{"data":{"amount":1000000,"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"meta":{}}
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42/total-supply | jq -c -M
+{"data":{"amount":1000000,"token_id":"token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"},"meta":{}}
 ```
 
 ### Makefile

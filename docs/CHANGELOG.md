@@ -1,4 +1,8 @@
 ## 2024-10-01
+- #1546 Removes `salt` from `CallMessage::CreateToken` in the bank module. This is are the breaking changes for the clients of the API:
+1. The salt hast to be removed form all the call messages. 
+2. The "GAS_TOKEN_ID" was updated from `token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6` to `token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7` 
+
 - #1544 `SequencerAuthorization::penalize_sequencer` capability now takes `TxScratchpad` as an argument.
  
 ## 2024-09-30

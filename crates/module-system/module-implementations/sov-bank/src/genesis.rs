@@ -152,6 +152,7 @@ mod tests {
     use sov_test_utils::TestSpec;
 
     use super::*;
+    use crate::get_token_id;
 
     #[test]
     fn test_config_serialization() {
@@ -161,7 +162,7 @@ mod tests {
         .unwrap()
         .into();
         let token_id =
-            TokenId::from_str("token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6")
+            TokenId::from_str("token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7")
                 .unwrap();
 
         let config = BankConfig::<TestSpec> {
@@ -188,7 +189,7 @@ mod tests {
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
-                    "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6",
+                    "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7",
                     "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",1000]],
                     "authorized_minters":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
                 }
@@ -198,5 +199,21 @@ mod tests {
         let parsed_config: BankConfig<TestSpec> = serde_json::from_str(data).unwrap();
 
         assert_eq!(config, parsed_config);
+    }
+
+    #[test]
+    fn test_token_id() {
+        let originator: <TestSpec as Spec>::Address = AddressBech32::from_str(
+            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+        )
+        .unwrap()
+        .into();
+
+        let gas_token_id = get_token_id::<TestSpec>("sov-gas-token", &originator);
+        assert_eq!(
+            gas_token_id,
+            TokenId::from_str("token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7")
+                .unwrap()
+        );
     }
 }

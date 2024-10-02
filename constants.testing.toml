@@ -28,7 +28,7 @@ UNREGISTERED_BLOBS_PER_SLOT = 5
 # used only when users feel they are being censored.
 GAS_FORCED_SEQUENCER_REGISTRATION_COST = [100000, 100000]
 # The ID of the "native token" of the rollup, which is used to pay gas fees.
-GAS_TOKEN_ID = "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+GAS_TOKEN_ID = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
 # --- Gas parameters to charge for state accesses ---
 # The cost of a storage access operation.
 GAS_TO_CHARGE_FOR_ACCESS = [5, 5]

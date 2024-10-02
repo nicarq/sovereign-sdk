@@ -8,7 +8,7 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME, TOKEN_SALT};
+use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::*;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
@@ -51,7 +51,7 @@ async fn send_test_bank_txs(
 
     let (key, user_address, token_id, _recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, TOKEN_SALT, &user_address)
+        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
 
     assert_eq!(token_id, token_id_response);

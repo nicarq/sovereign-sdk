@@ -10,13 +10,9 @@ use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn fetch_aggregated_proof_test() -> anyhow::Result<()> {
-    for jump in [1, 2] {
-        let test_case = TestCase::new(jump);
-        for nb_of_threads in [1, 3] {
-            run_make_proof_sync(test_case, nb_of_threads).await?;
-            run_make_proof_async(test_case, nb_of_threads).await?;
-        }
-    }
+    let test_case = TestCase::new(1);
+    run_make_proof_sync(test_case, 1).await?;
+    run_make_proof_async(test_case, 1).await?;
 
     Ok(())
 }

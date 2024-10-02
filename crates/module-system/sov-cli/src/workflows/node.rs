@@ -30,7 +30,7 @@ pub enum NodeWorkflows<S: sov_modules_api::Spec> {
         #[clap(subcommand)]
         account: Option<KeyIdentifier<S>>,
     },
-    /// Query the address of token by name, salt and owner
+    /// Query the address of token by name and owner
     FindTokenId {
         /// The name of the token to query for
         token_name: String,
@@ -38,8 +38,6 @@ pub enum NodeWorkflows<S: sov_modules_api::Spec> {
         /// In the case of genesis token, it can be looked up in genesis config JSON.
         /// Check the server logs if it does not match.
         deployer_address: S::Address,
-        /// A salt used in the token ID derivation.
-        salt: u64,
     },
     /// Query the rollup nod for the token balance of an account
     GetBalance {
@@ -106,10 +104,9 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
             NodeWorkflows::FindTokenId {
                 token_name,
                 deployer_address,
-                salt,
             } => {
                 let token_id = api_client
-                    .get_token_id::<S>(token_name, *salt, deployer_address)
+                    .get_token_id::<S>(token_name, deployer_address)
                     .await?;
                 println!("Id of token {} is {}", token_name, token_id);
             }

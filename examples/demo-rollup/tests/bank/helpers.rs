@@ -10,7 +10,7 @@ use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
-use super::{TOKEN_NAME, TOKEN_SALT};
+use super::TOKEN_NAME;
 use crate::test_helpers::read_private_keys;
 
 pub(crate) struct TestCase {
@@ -41,7 +41,7 @@ pub(crate) fn create_keys_and_addresses() -> (
     let key = key_and_address.private_key;
     let user_address: <TestSpec as Spec>::Address = key_and_address.address;
 
-    let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address, TOKEN_SALT);
+    let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address);
 
     let recipient_key = TestPrivateKey::generate();
     let recipient_address: <TestSpec as Spec>::Address = recipient_key.to_address();
@@ -57,7 +57,6 @@ pub(crate) fn build_create_token_tx(
     let user_address: <TestSpec as Spec>::Address = key.to_address();
     let msg =
         RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
-            salt: TOKEN_SALT,
             token_name: TOKEN_NAME.to_string(),
             initial_balance,
             mint_to_address: user_address,

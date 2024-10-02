@@ -30,8 +30,6 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
 pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
-        /// Random value use to create a unique token ID.
-        salt: u64,
         /// The name of the new token.
         token_name: String,
         /// The initial balance of the new token.
@@ -78,14 +76,13 @@ impl<S: Spec> Bank<S> {
     pub fn create_token(
         &self,
         token_name: String,
-        salt: u64,
         initial_balance: Amount,
         minter: impl Payable<S>,
         authorized_minters: Vec<impl Payable<S>>,
         originator: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
-        tracing::info!(%token_name, %salt, %initial_balance, %minter, sender= %originator, "Create token request");
+        tracing::info!(%token_name,  %initial_balance, %minter, sender= %originator, "Create token request");
 
         let authorized_minters = authorized_minters
             .iter()
@@ -97,7 +94,6 @@ impl<S: Spec> Bank<S> {
             &[(minter.as_token_holder(), initial_balance)],
             &authorized_minters,
             originator,
-            salt,
             self.tokens.prefix(),
             state,
         )?;

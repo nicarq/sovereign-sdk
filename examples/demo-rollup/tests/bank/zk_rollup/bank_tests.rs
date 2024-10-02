@@ -13,7 +13,7 @@ use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{DaLayerTxSender, SequencerTxSender, TxSender, TOKEN_NAME, TOKEN_SALT};
+use crate::bank::{DaLayerTxSender, SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::*;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
@@ -111,7 +111,7 @@ async fn send_test_bank_txs(
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, TOKEN_SALT, &user_address)
+        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
 
     let mut aggregated_proofs_posted_to_da_subscription =

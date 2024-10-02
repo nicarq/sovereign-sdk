@@ -125,7 +125,6 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
 
     runner.execute(
         user.create_plain_message::<Bank<S>>(CallMessage::CreateToken {
-            salt: 0,
             token_name: token_name.to_string(),
             initial_balance: 100,
             mint_to_address: user.address(),
