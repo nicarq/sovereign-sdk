@@ -9783,6 +9783,7 @@ dependencies = [
  "borsh",
  "derivative",
  "derive_more 1.0.0",
+ "openapiv3",
  "serde",
  "serde_json",
  "serde_yaml",
