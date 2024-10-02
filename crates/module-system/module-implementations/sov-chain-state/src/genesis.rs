@@ -42,7 +42,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             "Starting chain state genesis...",
         );
 
-        self.next_true_slot_number.set(&1, state)?;
+        self.true_slot_number.set(&0, state)?;
         self.next_visible_slot_number.set(&0, state)?;
 
         self.time.set_true_current(&config.current_time, state);

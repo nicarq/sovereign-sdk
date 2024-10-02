@@ -16,7 +16,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
 
         let kernel_root = if let Some(transition) = self
-            .get_historical_transitions(state.virtual_slot_number().saturating_sub(1), state)
+            .get_historical_transitions(state.virtual_slot_number(), state)
             .unwrap_infallible()
         {
             transition.post_state_root().clone()
@@ -38,6 +38,9 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> <S::Storage as Storage>::Root {
+        // We increment the slot number at the very beginning of the slot execution
+        self.increment_true_slot_number(state);
+
         let gas_info = if self.genesis_root.get(state).unwrap_infallible().is_none() {
             // The genesis hash is not set, hence this is the
             // first transition right after the genesis block
@@ -100,11 +103,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn end_slot_hook(
-        &self,
-        gas_used: &S::Gas,
-        state: &mut KernelStateAccessor<S::Storage>,
-    ) -> Option<[u8; 32]> {
+    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S::Storage>) {
         let mut in_progress_transition = self
             .in_progress_transition
             .get(&(state.true_slot_number()), state)
@@ -117,33 +116,5 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
         self.in_progress_transition
             .set_true_current(&in_progress_transition, state);
-
-        // Soft confirmations:
-        // - if the current virtual slot is behind the true slot number, kernel root computed at the end of the current slot
-        // should not be visible. We should return the kernel root that was computed when the true height was equal to the virtual height.
-        // - if the current virtual slot is equal to the true slot number, we cannot know the next kernel root yet, so we return None and we
-        // use the root computed when the state gets commited as a visible root.
-        let kernel_root = if state.virtual_slot_number() == 0 {
-            Some(
-                self.genesis_root
-                    .get(state)
-                    .unwrap_infallible()
-                    .expect("Genesis height should always be set.")
-                    .namespace_root(sov_state::ProvableNamespace::Kernel),
-            )
-        } else {
-            self.get_historical_transitions(state.virtual_slot_number(), state)
-                .unwrap_infallible()
-                .map(|transition| {
-                    transition
-                        .post_state_root()
-                        .namespace_root(sov_state::ProvableNamespace::Kernel)
-                })
-        };
-
-        // We increment the slot number at the very end of the slot execution
-        self.increment_true_slot_number(state);
-
-        kernel_root
     }
 }

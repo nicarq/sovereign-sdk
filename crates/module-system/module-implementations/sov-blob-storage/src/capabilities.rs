@@ -59,7 +59,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     {
         tracing::trace!("On based sequencer path");
 
-        self.set_next_visible_slot_number(state.rollup_height_to_access().saturating_add(1), state);
+        self.set_next_visible_slot_number(state.rollup_height_to_access(), state);
 
         self.select_blobs_da_ordering(current_blobs, state)
     }

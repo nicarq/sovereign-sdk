@@ -169,7 +169,7 @@ pub mod mocks {
         fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_slot_number
         }
-        fn visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+        fn next_visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.visible_slot_number
         }
 

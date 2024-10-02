@@ -246,6 +246,7 @@ fn visible_hash_basic_kernel() {
 }
 
 /// Tests that the visible kernel hash does not update for each slot for the soft confirmations Kernel
+/// The finalize hook hash should always match the most recent slot hash.
 #[test]
 fn visible_hash_soft_confirmations_kernel() {
     let (_, mut runner) =
@@ -259,39 +260,35 @@ fn visible_hash_soft_confirmations_kernel() {
             },
         });
 
-    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT");
+    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
 
     let genesis_hash = runner
         .state_root()
         .clone()
         .namespace_root(ProvableNamespace::Kernel);
 
-    // We run `DEFERRED_SLOTS_COUNT` slots. The visible hash should not update
+    // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The visible hash should not update
     last_state_root_closure(
         &mut |TestClosureArgs {
-                  prev_finalize_hook_hash,
                   begin_slot_hash,
                   finalize_hook_hash,
                   current_slot_hash,
+                  ..
               }| {
-            assert_eq!(
-                prev_finalize_hook_hash, begin_slot_hash,
-                "The previous finalize slot hash should match the current begin slot hash"
-            );
-
             assert_eq!(
                 begin_slot_hash, genesis_hash,
                 "The begin slot hash should match the genesis hash"
             );
 
-            assert_eq!(
+            assert_ne!(
                 finalize_hook_hash, begin_slot_hash,
                 "The begin and finalize slot hashes should match"
             );
 
-            assert_ne!(
+            // The finalize hook hash should always match the most recent slot hash
+            assert_eq!(
                 finalize_hook_hash, current_slot_hash,
-                "The last finalize slot hash should not match the current slot hash"
+                "The last finalize slot hash should match the current slot hash"
             );
         },
         &mut runner,
@@ -313,6 +310,7 @@ fn visible_hash_soft_confirmations_kernel() {
         &mut |TestClosureArgs {
                   begin_slot_hash,
                   finalize_hook_hash,
+                  current_slot_hash,
                   ..
               }| {
             assert_ne!(
@@ -320,9 +318,20 @@ fn visible_hash_soft_confirmations_kernel() {
                 "The last begin and finalize kernel hashes should not match"
             );
 
-            assert_eq!(
+            assert_ne!(
+                begin_slot_hash, expected_visible_hash,
+                "The begin kernel hash should match the hash of the first transition"
+            );
+
+            assert_ne!(
                 finalize_hook_hash, expected_visible_hash,
                 "The last finalize kernel hash should match the hash of the first transition"
+            );
+
+            // The finalize hook hash should always match the most recent slot hash
+            assert_eq!(
+                finalize_hook_hash, current_slot_hash,
+                "The last finalize slot hash should match the current slot hash"
             );
         },
         &mut runner,

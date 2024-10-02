@@ -3,7 +3,6 @@
 mod stf_blueprint;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{Batch, BatchSequencerReceipt, VersionReader};
-use sov_state::StateRoot;
 mod batch_processing;
 mod proof_processing;
 mod sequencer_mode;
@@ -29,7 +28,7 @@ use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::TxHash;
 use sov_state::storage::StateUpdate;
-use sov_state::{ProvableNamespace, Storage, StorageProof};
+use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
@@ -186,24 +185,6 @@ where
         self.runtime.begin_slot_hook(visible_hash, state);
     }
 
-    /// Helper method for soft-confirmations:
-    /// - if the next kernel hash is not provided by the `end_slot_hook`, we use the current one.
-    /// - we build the visible hash manually from its kernel and user components.
-    fn next_visible_hash(
-        maybe_next_kernel_hash: Option<[u8; 32]>,
-        root_hash: &<S::Storage as Storage>::Root,
-    ) -> <S::Storage as Storage>::Root {
-        let kernel_hash = if let Some(next_kernel_hash) = maybe_next_kernel_hash {
-            next_kernel_hash
-        } else {
-            root_hash.namespace_root(ProvableNamespace::Kernel)
-        };
-
-        let user_hash = root_hash.namespace_root(ProvableNamespace::User);
-
-        <S::Storage as Storage>::Root::from_namespace_roots(user_hash, kernel_hash)
-    }
-
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn end_slot(
         &self,
@@ -220,8 +201,7 @@ where
 
         let mut kernel_state_accessor = self.kernel.accessor(&mut checkpoint);
 
-        let maybe_next_kernel_hash = self
-            .kernel
+        self.kernel
             .end_slot_hook(gas_used, &mut kernel_state_accessor);
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
@@ -230,11 +210,8 @@ where
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
-        let next_visible_root_hash =
-            Self::next_visible_hash(maybe_next_kernel_hash, &next_root_hash);
-
         self.runtime
-            .finalize_hook(&next_visible_root_hash, &mut accessory_delta);
+            .finalize_hook(&next_root_hash, &mut accessory_delta);
 
         state_update.add_accessory_items(accessory_delta.freeze());
         let change_set = storage.materialize_changes(&state_update);

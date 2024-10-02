@@ -43,7 +43,7 @@ impl<S: Storage> StateCheckpoint<S> {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
-        let virtual_slot_num = kernel.visible_slot_number(&mut bootstrap_state);
+        let virtual_slot_num = kernel.next_visible_slot_number(&mut bootstrap_state);
 
         Self {
             delta,

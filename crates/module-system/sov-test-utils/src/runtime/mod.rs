@@ -200,7 +200,8 @@ where
         // a special method to query the gas from the chain state inside the API.
         let base_fee_per_gas = {
             if let Some(transition) = ChainState::<S, MockDaSpec>::default()
-                .get_in_progress_transition_prev_slot(&mut state_checkpoint)
+                .get_in_progress_transition(&mut state_checkpoint)
+                .unwrap_infallible()
             {
                 transition.gas_price().clone()
             } else {

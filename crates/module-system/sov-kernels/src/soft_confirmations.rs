@@ -53,7 +53,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S::Storage> for SoftConfirmationsKernel<S, Da> 
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.next_visible_slot_number(state)
     }
 
@@ -101,8 +101,8 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
         &self,
         gas_used: &S::Gas,
         state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
-    ) -> Option<[u8; 32]> {
-        self.chain_state.end_slot_hook(gas_used, state)
+    ) {
+        self.chain_state.end_slot_hook(gas_used, state);
     }
 
     fn base_fee_per_gas(

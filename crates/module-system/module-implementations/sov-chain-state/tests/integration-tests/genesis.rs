@@ -13,7 +13,7 @@ fn chain_state_kernel_genesis() {
             ChainState::<S, MockDaSpec>::default()
                 .true_slot_number(kernel)
                 .unwrap(),
-            1,
+            0,
             "The kernel should be initialized to zero"
         );
 
