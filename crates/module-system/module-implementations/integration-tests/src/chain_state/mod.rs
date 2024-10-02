@@ -42,14 +42,14 @@ fn chain_state_kernel_updates_basic_kernel() {
     runner.query_kernel_state(|kernel| {
         assert_eq!(
             kernel.rollup_height_to_access(),
-            1,
-            "The kernel should be initialized to one"
+            0,
+            "The kernel should be initialized to zero"
         );
 
         assert_eq!(
             kernel.virtual_slot_number(),
-            1,
-            "The kernel virtual slot should be initialized to one"
+            0,
+            "The kernel virtual slot should be initialized to zero"
         );
     });
 
@@ -60,14 +60,14 @@ fn chain_state_kernel_updates_basic_kernel() {
     runner.query_kernel_state(|kernel| {
         assert_eq!(
             kernel.rollup_height_to_access(),
-            2,
-            "The kernel should be updated to two"
+            1,
+            "The kernel should be updated to one"
         );
 
         assert_eq!(
             kernel.virtual_slot_number(),
-            2,
-            "The kernel virtual slot should be updated to two"
+            1,
+            "The kernel virtual slot should be updated to one"
         );
     });
 }
@@ -94,7 +94,8 @@ fn test_chain_state_gas_updates() {
         let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition_prev_slot(kernel)
+            .get_in_progress_transition(kernel)
+            .unwrap_infallible()
             .unwrap();
 
         assert_eq!(
@@ -155,7 +156,8 @@ fn test_chain_state_historical_transition_update() {
 
     let in_progress_transition = runner.query_kernel_state(|kernel| {
         ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition_prev_slot(kernel)
+            .get_in_progress_transition(kernel)
+            .unwrap_infallible()
             .unwrap()
     });
 

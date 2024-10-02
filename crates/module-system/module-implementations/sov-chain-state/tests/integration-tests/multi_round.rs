@@ -71,7 +71,8 @@ fn test_chain_state_update_gas_used() {
             );
 
             let in_progress_tx = ChainState::<S, MockDaSpec>::default()
-                .get_in_progress_transition_prev_slot(kernel)
+                .get_in_progress_transition(kernel)
+                .unwrap_infallible()
                 .unwrap();
 
             assert_eq!(
@@ -96,8 +97,11 @@ fn test_chain_state_update_time() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |_round, kernel, _result| {
-            let current_time =
-                nanosecs(ChainState::<S, MockDaSpec>::default().get_time_prev_slot(kernel));
+            let current_time = nanosecs(
+                ChainState::<S, MockDaSpec>::default()
+                    .get_time(kernel)
+                    .unwrap(),
+            );
 
             assert!(
                 previous_time < current_time,
@@ -145,13 +149,13 @@ fn test_chain_state_kernel_updates() {
         &mut |round, kernel, _result| {
             assert_eq!(
                 kernel.rollup_height_to_access(),
-                round + 2,
+                round + 1,
                 "The kernel should be updated to the current round"
             );
 
             assert_eq!(
                 kernel.virtual_slot_number(),
-                round + 2,
+                round + 1,
                 "The kernel virtual slot should be updated to the current round"
             );
         },
@@ -168,7 +172,8 @@ fn test_chain_state_update_transitions() {
         &mut |round, kernel, _result| {
             if round == 0 {
                 let in_progress_transition = ChainState::<S, MockDaSpec>::default()
-                    .get_in_progress_transition_prev_slot(kernel)
+                    .get_in_progress_transition(kernel)
+                    .unwrap_infallible()
                     .unwrap();
                 historical_transitions.push(in_progress_transition);
             } else {
@@ -207,7 +212,8 @@ fn test_chain_state_update_transitions() {
 
                 historical_transitions.push(
                     ChainState::<S, MockDaSpec>::default()
-                        .get_in_progress_transition_prev_slot(kernel)
+                        .get_in_progress_transition(kernel)
+                        .unwrap_infallible()
                         .unwrap(),
                 );
             }

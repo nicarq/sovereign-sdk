@@ -44,8 +44,8 @@ pub trait Kernel<S: Storage>: Default {
 
     /// Return the current slot number
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
-    /// Return the slot number at which transactions currently *appear* to be executing.
-    fn visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    /// Return the next value of the slot number at which transactions currently *appear* to be executing.
+    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
@@ -63,13 +63,11 @@ pub trait KernelSlotHooks<S: Spec, Da: DaSpec>:
     ) -> <S::Storage as Storage>::Root;
 
     /// Called at the end of a slot
-    /// Returns the kernel root hash accessible at the next *virtual* rollup height if any.
-    /// Otherwise returns [`None`].
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
-    ) -> Option<[u8; 32]>;
+    );
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
     fn base_fee_per_gas(&self, state: &mut StateCheckpoint<S::Storage>) -> <S::Gas as Gas>::Price;

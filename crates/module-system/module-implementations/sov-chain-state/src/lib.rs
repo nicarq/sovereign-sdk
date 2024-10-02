@@ -235,7 +235,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The real slot number of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
-    next_true_slot_number: KernelStateValue<TransitionHeight>,
+    true_slot_number: KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -295,7 +295,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        Ok(self.next_true_slot_number.get(state)?.unwrap_or_default())
+        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
     }
 
     /// Returns transition height for the next slot to start execution
@@ -336,7 +336,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
 
         let true_slot_num = self
-            .next_true_slot_number
+            .true_slot_number
             .get(state)
             .unwrap_infallible()
             .unwrap_or_default();
@@ -363,18 +363,6 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
             .time
             .get_current(state)?
             .expect("Time must be set at initialization"))
-    }
-
-    /// Returns the time from the previous slot, as reported by the DA layer.
-    ///
-    /// ## TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385>`)
-    /// This method is meant to be temporary used in tests until the issue linked above is resolved.
-    #[cfg(feature = "test-utils")]
-    pub fn get_time_prev_slot(&self, state: &mut KernelStateAccessor<S::Storage>) -> Time {
-        self.time
-            .get(&(state.rollup_height_to_access() - 1), state)
-            .unwrap_infallible()
-            .expect("Time must be set at initialization")
     }
 
     /// Return the genesis hash of the module.
