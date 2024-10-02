@@ -99,7 +99,6 @@ impl<S: Spec> Module for Bank<S> {
     ) -> Result<CallResponse, Error> {
         match msg {
             call::CallMessage::CreateToken {
-                salt,
                 token_name,
                 initial_balance,
                 mint_to_address,
@@ -114,7 +113,6 @@ impl<S: Spec> Module for Bank<S> {
 
                 self.create_token(
                     token_name,
-                    salt,
                     initial_balance,
                     &mint_to_address,
                     authorized_minters,

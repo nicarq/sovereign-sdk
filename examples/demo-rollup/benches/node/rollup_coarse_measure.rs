@@ -250,10 +250,8 @@ fn setup(
     let mut setup_txs: Vec<FullyBakedTx> = Vec::new();
 
     let token_name = "sov-bench-token";
-    let salt = 31337;
-    let token_id = sov_bank::get_token_id::<TestSpec>(token_name, token_deployer_address, salt);
+    let token_id = sov_bank::get_token_id::<TestSpec>(token_name, token_deployer_address);
     let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::CreateToken {
-        salt,
         token_name: token_name.to_string(),
         // Mint for everyone, including themselves.
         initial_balance: 0,

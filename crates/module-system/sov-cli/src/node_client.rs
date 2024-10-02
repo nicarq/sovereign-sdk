@@ -118,12 +118,11 @@ impl NodeClient {
     pub async fn get_token_id<S: sov_modules_api::Spec>(
         &self,
         token_name: &str,
-        salt: u64,
         deployer: &S::Address,
     ) -> anyhow::Result<TokenId> {
         let token_url = format!(
-            "{}/modules/bank/tokens?token_name={}&salt={}&sender={}",
-            self.base_url, token_name, salt, deployer
+            "{}/modules/bank/tokens?token_name={}&sender={}",
+            self.base_url, token_name, deployer
         );
         tracing::debug!(url = token_url, "Querying token_id");
 

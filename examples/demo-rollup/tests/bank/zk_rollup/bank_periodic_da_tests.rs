@@ -7,7 +7,7 @@ use sov_mock_da::BlockProducingConfig;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME, TOKEN_SALT};
+use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::*;
 
 #[tokio::test(flavor = "multi_thread")]
@@ -46,7 +46,7 @@ async fn send_test_bank_txs(
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, TOKEN_SALT, &user_address)
+        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
 
     let mut aggregated_proof_subscription = client

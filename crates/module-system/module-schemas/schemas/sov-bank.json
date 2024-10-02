@@ -16,7 +16,6 @@
             "authorized_minters",
             "initial_balance",
             "mint_to_address",
-            "salt",
             "token_name"
           ],
           "properties": {
@@ -40,12 +39,6 @@
                   "$ref": "#/definitions/Address"
                 }
               ]
-            },
-            "salt": {
-              "description": "Random value use to create a unique token ID.",
-              "type": "integer",
-              "format": "uint64",
-              "minimum": 0.0
             },
             "token_name": {
               "description": "The name of the new token.",

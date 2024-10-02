@@ -1,8 +1,8 @@
 {
-  "burn": {
-    "coins": {
-      "amount": 300,
-      "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+    "burn": {
+        "coins": {
+            "amount": 300,
+            "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
+        }
     }
-  }
 }

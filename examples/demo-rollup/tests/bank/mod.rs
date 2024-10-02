@@ -15,7 +15,6 @@ use sov_modules_api::{Batch, RawTx};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_test_utils::TestSpec;
 
-const TOKEN_SALT: u64 = 0;
 const TOKEN_NAME: &str = "test_token";
 
 trait TxSender {

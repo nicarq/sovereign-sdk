@@ -164,13 +164,10 @@ fn prefill_state(
     blocks_to_process: u64,
 ) -> (StorageRoot<TestStorageSpec>, TokenId) {
     let token_name = "sov-bench-token";
-    let salt = u64::MAX;
-    let token_id =
-        sov_bank::get_token_id::<BenchSpec>(token_name, &rollup_mega_admin.address(), salt);
+    let token_id = sov_bank::get_token_id::<BenchSpec>(token_name, &rollup_mega_admin.address());
 
     let create_token_msg = bake_bank_tx(
         sov_bank::CallMessage::<BenchSpec>::CreateToken {
-            salt,
             token_name: token_name.to_string(),
             initial_balance: 0,
             mint_to_address: rollup_mega_admin.address(),

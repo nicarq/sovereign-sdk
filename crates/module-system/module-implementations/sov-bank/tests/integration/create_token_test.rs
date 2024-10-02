@@ -22,17 +22,15 @@ fn create_token() {
     ) = setup();
 
     const INITIAL_TOKEN_BALANCE: u64 = 1000;
-    const SALT: u64 = 1;
 
     let user_high_token_balance_address = user_high_token_balance.address();
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1".to_string();
-    let token_id = get_token_id::<S>(&token_name, &minter_address, SALT);
+    let token_id = get_token_id::<S>(&token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
-            salt: SALT,
             token_name: token_name.clone(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
@@ -107,16 +105,14 @@ fn create_token_and_mint() {
     ) = setup();
 
     const INITIAL_TOKEN_BALANCE: u64 = 1000;
-    const SALT: u64 = 1;
 
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
     let token_name = "Token1".to_string();
-    let token_id = get_token_id::<S>(&token_name, &minter_address, SALT);
+    let token_id = get_token_id::<S>(&token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
-            salt: SALT,
             token_name: token_name.clone(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,

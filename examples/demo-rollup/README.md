@@ -104,14 +104,14 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0
+0: 0xee6a0d5790a5016076df89833e189863b4fb4ac2e2d1cbb6b97acea2ef8d537f
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f54384d0a31f332a64f7cbc3f667841d7f0/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xee6a0d5790a5016076df89833e189863b4fb4ac2e2d1cbb6b97acea2ef8d537f/events | jq
 {
   "data": [
     {
@@ -123,7 +123,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f543
           "token_name": "sov-test-token",
           "coins": {
             "amount": 1000000,
-            "token_id": "token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"
+            "token_id": "token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"
           },
           "minter": {
             "User": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
@@ -149,7 +149,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xfce2381221722b8114ba41a632c44f543
 ```
 
 We can see the TokenCreated event which contains the id of the token
-created - `token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6`
+created - `token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7`
 
 ### How to Submit Transactions
 
@@ -189,8 +189,6 @@ use sov_bank::Amount;
 pub enum CallMessage<S: sov_modules_api::Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
-        /// Random value used to create a unique token ID.
-        salt: u64,
         /// The name of the new token.
         token_name: String,
         /// The initial balance of the new token.
@@ -256,7 +254,7 @@ Here's an example of a JSON representing the above call:
     "to": "sov1zgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfpyysjzgfqve8h6h",
     "coins": {
       "amount": 200,
-      "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+      "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
     }
   }
 }
@@ -310,7 +308,7 @@ Adding the following transaction to batch:
         "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
         "coins": {
           "amount": 200,
-          "token_id": "token_1rwrh8gn2py0dl4vv65twgctmlwck6esm2as9dftumcw89kqqn3nqrduss6"
+          "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
         }
       }
     }
@@ -346,8 +344,8 @@ $ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-addres
 #### 5. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz/total-supply | jq -c -M
-{"data":{"amount":1000000,"token_id":"token_1zdwj8thgev2u3yyrrlekmvtsz4av4tp3m7dm5mx5peejnesga27ss0lusz"},"meta":{}}
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42/total-supply | jq -c -M
+{"data":{"amount":1000000,"token_id":"token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"},"meta":{}}
 ```
 
 ```bash,test-ci,bashtestmd:compare-output

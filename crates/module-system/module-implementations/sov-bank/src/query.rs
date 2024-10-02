@@ -64,14 +64,9 @@ impl<S: Spec> Bank<S> {
     }
 
     #[rpc_method(name = "tokenId")]
-    /// RPC method that returns the token ID for a given token name, sender, and salt.
-    pub fn token_id(
-        &self,
-        token_name: String,
-        sender: S::Address,
-        salt: u64,
-    ) -> RpcResult<TokenId> {
-        Ok(get_token_id::<S>(&token_name, &sender, salt))
+    /// RPC method that returns the token ID for a given token name snd sender.
+    pub fn token_id(&self, token_name: String, sender: S::Address) -> RpcResult<TokenId> {
+        Ok(get_token_id::<S>(&token_name, &sender))
     }
 }
 
@@ -106,7 +101,7 @@ impl<S: Spec> Bank<S> {
     async fn route_find_token_id(
         params: Query<types::FindTokenIdQueryParams<S::Address>>,
     ) -> ApiResult<types::TokenIdResponse> {
-        let token_id = get_token_id::<S>(&params.token_name, &params.sender, params.salt);
+        let token_id = get_token_id::<S>(&params.token_name, &params.sender);
         Ok(types::TokenIdResponse { token_id }.into())
     }
 
@@ -166,7 +161,6 @@ pub mod types {
     pub struct FindTokenIdQueryParams<Addr> {
         pub token_name: String,
         pub sender: Addr,
-        pub salt: u64,
     }
 
     #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
