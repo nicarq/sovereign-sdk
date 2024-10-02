@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
-use demo_stf_json_client::types::RuntimeAnyJsonValue;
+use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
 use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::GAS_TOKEN_ID;
@@ -152,8 +152,20 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
     assert!(value.prefix.clone().unwrap().starts_with("0x"));
     assert!(!value.description.clone().unwrap().is_empty());
 
-    // TODO: Query unknown module. https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
+    // French bank:
+    let unknown_module_info = client.get_module("le-banquoe").await.unwrap_err();
 
+    assert_eq!(
+        Some(reqwest::StatusCode::NOT_FOUND),
+        unknown_module_info.status()
+    );
+    println!("Unknown module info: {:?}", unknown_module_info);
+    check_not_found_error(
+        unknown_module_info,
+        "Not Found",
+        "url",
+        "/modules/le-banquoe",
+    );
     Ok(())
 }
 
@@ -257,12 +269,21 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
 
     // Unknown value
     let unknown = PrivateKeyAndAddress::<TestSpec>::generate();
-    let _credential_id_response = client
+    let credential_id_response = client
         .accounts_credential_ids_get_state_map_element(&unknown.address.to_string(), None)
         .await
         .unwrap_err();
-    // TODO: Known value, parameter is "to_string".
-    // TODO: Check error types. https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
+    assert_eq!(
+        Some(reqwest::StatusCode::NOT_FOUND),
+        credential_id_response.status()
+    );
+    // Known issue about not having a key in the response.
+    check_not_found_error(
+        credential_id_response,
+        "credential_ids 'unknown' not found",
+        "id",
+        "unknown",
+    );
     Ok(())
 }
 
@@ -273,8 +294,6 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
         .context("vector info")?;
     let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(8, info);
-
-    // TODO: Check value
 
     let state_vec_element_0 = client
         .value_setter_many_values_get_state_vec_element(0, None)
@@ -306,12 +325,22 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
         (_, _, _) => panic!("Incorrect type returned in vector"),
     }
 
-    let _state_vec_out_of_bounds = client
+    let state_vec_out_of_bounds = client
         .value_setter_many_values_get_state_vec_element(u16::MAX as u64, None)
         .await
         .unwrap_err();
-    // TODO: Check error types. https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
 
+    assert_eq!(
+        Some(reqwest::StatusCode::NOT_FOUND),
+        state_vec_out_of_bounds.status()
+    );
+    check_not_found_error(
+        state_vec_out_of_bounds,
+        "many_values '65535' not found",
+        // TODO: Should it be index. Offloading it to item of better id handling.
+        "id",
+        "65535",
+    );
     Ok(())
 }
 
@@ -328,11 +357,19 @@ async fn check_custom_endpoints(client: &demo_stf_json_client::Client) -> anyhow
     // Unknown user
     let unknown = PrivateKeyAndAddress::<TestSpec>::generate();
     let address = demo_stf_json_client::types::Address(unknown.address.to_string());
-    let _balance = client
+    let balance_error = client
         .bank_custom_token_get_user_balance(&gas_token_id, &address)
         .await
         .unwrap_err();
-    // TODO: Check error types. https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
+
+    assert_eq!(Some(reqwest::StatusCode::NOT_FOUND), balance_error.status());
+    let expected_title = format!("Balance '{}' not found", unknown.address);
+    check_not_found_error(
+        balance_error,
+        &expected_title,
+        "id",
+        &unknown.address.to_string(),
+    );
 
     Ok(())
 }
@@ -349,7 +386,37 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     //     .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64))
     //     .await
     //     .unwrap_err();
-    // TODO: Check error types. https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
     // println!("E: {:?}", state_vec_info);
     Ok(())
+}
+
+fn check_not_found_error(
+    credential_id_response: demo_stf_json_client::Error<RuntimeErrorContainer>,
+    expected_title: &str,
+    expected_details_key: &str,
+    expected_key: &str,
+) {
+    match credential_id_response {
+        demo_stf_json_client::Error::ErrorResponse(inner_err) => {
+            assert_eq!(1, inner_err.errors.len());
+            let error = inner_err.errors.first().unwrap();
+
+            assert_eq!(expected_title, error.title);
+            assert_eq!(404, error.status);
+            match &error.details {
+                RuntimeAnyJsonValue::Object(details) => {
+                    assert_eq!(1, details.len());
+                    assert!(details.contains_key(expected_details_key));
+                    assert_eq!(
+                        Some(serde_json::Value::String(expected_key.to_string())),
+                        details.get(expected_details_key).cloned()
+                    );
+                }
+                _ => panic!("unexpected details type: {:?}", error.details),
+            }
+        }
+        _ => {
+            panic!("Unexpected error response: {:?}", credential_id_response)
+        }
+    };
 }

@@ -1,3 +1,7 @@
+## 2024-10-02
+- #1548 Moves OpenAPI response objects to schemas so it has name and client generators have better output.
+  Adds missing 404 case for StateVecElementResponse
+
 ## 2024-10-01
 - #1546 Removes `salt` from `CallMessage::CreateToken` in the bank module. This is are the breaking changes for the clients of the API:
 1. The salt hast to be removed form all the call messages. 

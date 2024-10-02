@@ -42,7 +42,7 @@ pub fn state_value_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
         "".to_string(),
         json!({
             "get": {
-                "summary": "Get the value of a `StateValue`.",
+                "summary": "Get the value of a StateValue.",
                 "operationId": format!("{}_{}_get_state_value", module_name.to_snake_case(), field_name),
                 "tags": [module_name],
                 "parameters": [rollup_height_param()],
@@ -73,7 +73,7 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "parameters": [rollup_height_param()],
                     "responses": {
                         "200": {
-                            "$ref": "#/components/responses/StateMapResponse"
+                            "$ref": "#/components/responses/StateMapInfoResponse"
                         },
                         "400": {
                             "$ref": "#/components/responses/BadRequestResponse"
@@ -86,7 +86,7 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
             "/items/{key}".to_string(),
             json!({
                 "get": {
-                    "summary": "Get the value of a `StateMap` element.",
+                    "summary": "Get the value of a StateMap element.",
                     "operationId": format!("{}_{}_get_state_map_element", module_name.to_snake_case(), field_name),
                     "tags": [module_name],
                     "parameters": [
@@ -103,6 +103,9 @@ pub fn state_map_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "responses": {
                         "200": {
                             "$ref": "#/components/responses/StateMapElementResponse"
+                        },
+                        "400": {
+                            "$ref": "#/components/responses/BadRequestResponse"
                         },
                         "404": {
                             "$ref": "#/components/responses/StateNotFound"
@@ -128,10 +131,7 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "parameters": [rollup_height_param()],
                     "responses": {
                         "200": {
-                            "$ref": "#/components/responses/StateVecResponse"
-                        },
-                        "400": {
-                            "$ref": "#/components/responses/BadRequestResponse"
+                            "$ref": "#/components/responses/StateVecInfoResponse"
                         }
                     }
                 }
@@ -160,6 +160,12 @@ pub fn state_vec_paths(module_name: &str, field_name: &str) -> OpenApiPaths {
                     "responses": {
                         "200": {
                             "$ref": "#/components/responses/StateVecElementResponse"
+                        },
+                         "400": {
+                            "$ref": "#/components/responses/BadRequestResponse"
+                        },
+                        "404": {
+                            "$ref": "#/components/responses/StateNotFound"
                         }
                     }
                 }

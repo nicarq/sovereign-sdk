@@ -53,7 +53,6 @@ paths:
                     $ref: "#/components/schemas/Module"
         "404":
           $ref: "#/components/responses/StateNotFound"
-
 components:
   parameters:
     rollup_height:
@@ -65,118 +64,48 @@ components:
         type: integer
         minimum: 0
   responses:
-    StateMapResponse:
-      description: Contains meta information about `StateMap`, such as its prefix, type and description
+    StateMapInfoResponse:
+      description: Contains meta information about StateMap.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/StateValueBase"
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - data
+            $ref: "#/components/schemas/StateMapInfo"
     StateMapElementResponse:
-      description: Response containing the value of a `StateMap` element.
+      description: Contains the value of a StateMap element.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: object
-                properties:
-                  key:
-                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
-                  value:
-                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
-                required:
-                  - key
-                  - value
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - data
-    StateVecResponse:
-      description: Response containing meta information about vector
+            $ref: "#/components/schemas/StateMapElement"
+    StateVecInfoResponse:
+      description: Contains meta information about StateVec.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: object
-                properties:
-                  length:
-                    type: integer
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - data
+            $ref: "#/components/schemas/StateVecInfo"
     StateVecElementResponse:
-      description: Response containing the value of a `StateVec` element.
+      description: containing the value of a `StateVec` element.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: object
-                properties:
-                  index:
-                    type: integer
-                  value:
-                    $ref: "#/components/schemas/RuntimeAnyJsonValue"
-                required:
-                  - index
-                  - value
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - data
+            $ref: "#/components/schemas/StateVecElement"
     StateValueResponse:
       description: Response containing the `StateValue`.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - data
+            $ref: "#/components/schemas/StateValue"
     StateNotFound:
-      description: The requested resource was not found
+      description: The requested resource was not found.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              errors:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RuntimeError"
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
-            required:
-              - errors
+            $ref: "#/components/schemas/RuntimeErrorContainer"
     BadRequestResponse:
-      description: The request has invalid parameters
+      description: The request has invalid parameters.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              errors:
-                type: array
-                items:
-                  $ref: "#/components/schemas/RuntimeError"
-              meta:
-                $ref: "#/components/schemas/RuntimeAnyJsonValue"
+            $ref: "#/components/schemas/RuntimeErrorContainer"
   schemas:
     RuntimeAnyJsonValue:
       description: "Any JSON type, including null."
@@ -210,29 +139,9 @@ components:
           $ref: "#/components/schemas/Prefix"
         state_items:
           type: object
+          description: Items that can be displayed via REST API.
           additionalProperties:
             $ref: "#/components/schemas/StateValueBase"
-    StateValueBase:
-      type: object
-      properties:
-        prefix:
-          $ref: "#/components/schemas/Prefix"
-        type:
-          type: string
-          description: The type of the state value.
-        description:
-          type: string
-          description: A short description of the state value.
-        namespace:
-          $ref: "#/components/schemas/Namespace"
-    StateValue:
-      type: object
-      properties:
-        name:
-          type: string
-          description: Name of the value.
-      additionalProperties:
-        $ref: "#/components/schemas/StateValueBase"
     Namespace:
       type: string
       description: The namespace of the state value.
@@ -242,7 +151,7 @@ components:
         - accessory
     Prefix:
       type: string
-      description: The prefix of the module.
+      description: The prefix of the module in the state tree.
       pattern: "^0x[a-fA-F0-9]+$"
       example: "0x1234567890abcdef"
     ModuleId:
@@ -276,4 +185,98 @@ components:
         - status
         - title
         - details
+    RuntimeErrorContainer:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeError"
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+    StateValueBase:
+      type: object
+      properties:
+        prefix:
+          $ref: "#/components/schemas/Prefix"
+        type:
+          type: string
+          description: The type of the state value.
+        description:
+          type: string
+          description: A short description of the state value.
+        namespace:
+          $ref: "#/components/schemas/Namespace"
+    StateValueInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Name of the value.
+      additionalProperties:
+        $ref: "#/components/schemas/StateValueBase"
+    StateValue:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+      required:
+        - data
+    StateVecInfo:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            length:
+              type: integer
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+      required:
+        - data
+    StateVecElement:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            index:
+              type: integer
+            value:
+              $ref: "#/components/schemas/RuntimeAnyJsonValue"
+          required:
+            - index
+            - value
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+      required:
+        - data
+    StateMapInfo:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/StateValueBase"
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+      required:
+        - data
+    StateMapElement:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            key:
+              $ref: "#/components/schemas/RuntimeAnyJsonValue"
+            value:
+              $ref: "#/components/schemas/RuntimeAnyJsonValue"
+          required:
+            - key
+            - value
+        meta:
+          $ref: "#/components/schemas/RuntimeAnyJsonValue"
+      required:
+        - data
 
