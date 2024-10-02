@@ -1,5 +1,5 @@
 use anyhow::Result;
-use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, Gas, ModuleInfo, Spec, StateAccessor, TxState};
 use sov_state::User;
@@ -83,6 +83,6 @@ impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
 fn gas_coins(amount: u64) -> Coins {
     Coins {
         amount,
-        token_id: GAS_TOKEN_ID,
+        token_id: config_gas_token_id(),
     }
 }

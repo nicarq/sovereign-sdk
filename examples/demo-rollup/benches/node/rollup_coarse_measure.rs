@@ -153,7 +153,7 @@ fn signed_bank_tx(
         private_key,
         UnsignedTransaction::new(
             enc_msg,
-            sov_modules_api::capabilities::CHAIN_ID,
+            sov_modules_api::capabilities::config_chain_id(),
             sov_test_utils::TEST_DEFAULT_MAX_PRIORITY_FEE,
             sov_test_utils::TEST_DEFAULT_MAX_FEE,
             nonce,

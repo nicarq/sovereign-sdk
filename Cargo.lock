@@ -9585,6 +9585,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
+ "toml",
  "tracing",
  "tracing-test",
  "unwrap-infallible",

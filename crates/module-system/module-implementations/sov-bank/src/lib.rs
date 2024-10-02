@@ -16,7 +16,7 @@ mod token;
 pub mod utils;
 pub use call::*;
 pub use genesis::*;
-use sov_modules_api::macros::config_bech32;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::{
     CallResponse, Context, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi,
     Spec, StateMap, TxState,
@@ -34,7 +34,9 @@ pub mod event;
 use crate::event::Event;
 
 /// The [`TokenId`] of the rollup's gas token.
-pub const GAS_TOKEN_ID: TokenId = config_bech32!("GAS_TOKEN_ID", TokenId);
+pub fn config_gas_token_id() -> TokenId {
+    config_value!("GAS_TOKEN_ID")
+}
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -146,5 +148,24 @@ impl<S: Spec> Module for Bank<S> {
                 Ok(self.freeze(token_id, context, state)?)
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+
+    use super::*;
+
+    #[test]
+    fn custom_gas_token_id() {
+        env::set_var(
+            "SOV_SDK_CONST_OVERRIDE_GAS_TOKEN_ID",
+            "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm",
+        );
+        assert_eq!(
+            config_gas_token_id().to_string(),
+            "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm"
+        );
     }
 }

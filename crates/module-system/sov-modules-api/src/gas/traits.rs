@@ -8,10 +8,13 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_modules_macros::config_value;
+use sov_modules_macros::config_value_private;
 use thiserror::Error;
 
-const GAS_DIMENSIONS: usize = config_value!("GAS_DIMENSIONS");
+const GAS_DIMENSIONS: usize = config_value_private!(
+    "GAS_DIMENSIONS",
+    "Couldn't parse `GAS_DIMENSIONS` in TOML file; must be a constant integer (e.g. `GAS_DIMENSIONS = { const = 2 }`)"
+);
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
 #[cfg(feature = "native")]

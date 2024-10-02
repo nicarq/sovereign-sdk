@@ -112,6 +112,17 @@ check-features: ## Checks that project compiles with all combinations of feature
 check-features-default-targets:
 	cargo hack check --workspace --feature-powerset --exclude-features default --partition $(CARGO_HACK_PARTITION_N)/$(CARGO_HACK_PARTITION_M)
 
+check-constant-overriding-is-disabled-in-release-mode:
+	# Passes in release mode...
+	SOV_SDK_CONST_OVERRIDE_CHAIN_ID=1 cargo test -p sov-modules-api --profile release-with-opt-level-0 assert_chain_id_was_not_overridden
+	# ...but not with standard test profile
+	if SOV_SDK_CONST_OVERRIDE_CHAIN_ID=1 cargo test -p sov-modules-api assert_chain_id_was_not_overridden; then \
+		echo "Check succeeded, but was expected to fail!"; \
+		exit 1; \
+	fi
+
+	@echo "Check succeeded!"
+
 check-fuzz: ## Checks that fuzz member compiles
 	$(MAKE) -C crates/fuzz check
 

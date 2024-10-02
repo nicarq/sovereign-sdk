@@ -72,14 +72,16 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 
 /// Trait used to generate messages from the DA layer to automate module testing
 pub trait MessageGenerator {
-    /// The default chain ID to use for the messages.
-    const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
-
     /// Module where the messages originate from.
     type Module: Module;
 
     /// Module spec
     type Spec: Spec;
+
+    /// The default chain ID to use for the messages. Defaults to `constants.toml` constant.
+    fn default_chain_id() -> u64 {
+        config_value!("CHAIN_ID")
+    }
 
     /// Generates a list of messages originating from the module using the provided transaction details.
     fn create_messages(
@@ -94,7 +96,7 @@ pub trait MessageGenerator {
     /// Note: sets the gas usage to the default gas limit.
     fn create_default_messages(&self) -> Vec<Message<Self::Spec, Self::Module>> {
         self.create_messages(
-            Self::DEFAULT_CHAIN_ID,
+            Self::default_chain_id(),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
             Some(<Self::Spec as Spec>::Gas::from(TEST_DEFAULT_GAS_LIMIT)),
@@ -104,7 +106,7 @@ pub trait MessageGenerator {
     /// Generates a list of messages originating from the module using default transaction details and no gas usage.
     fn create_default_messages_without_gas_usage(&self) -> Vec<Message<Self::Spec, Self::Module>> {
         self.create_messages(
-            Self::DEFAULT_CHAIN_ID,
+            Self::default_chain_id(),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
             None,
@@ -118,7 +120,7 @@ pub trait MessageGenerator {
         &self,
     ) -> Vec<FullyBakedTx> {
         self.create_encoded_txs::<RT>(
-            Self::DEFAULT_CHAIN_ID,
+            Self::default_chain_id(),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
             Some(<Self::Spec as Spec>::Gas::from(TEST_DEFAULT_GAS_LIMIT)),
@@ -132,7 +134,7 @@ pub trait MessageGenerator {
         &self,
     ) -> Vec<FullyBakedTx> {
         self.create_encoded_txs::<RT>(
-            Self::DEFAULT_CHAIN_ID,
+            Self::default_chain_id(),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
             None,

@@ -1,6 +1,6 @@
 use sov_bank::event::Event;
 use sov_bank::utils::TokenHolder;
-use sov_bank::{Bank, Coins, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, TxEffect};
 use sov_test_utils::runtime::genesis::TestTokenName;
@@ -474,7 +474,7 @@ fn burn_gas_token_also_works() {
                     // Note: we are only burning half of the gas balance because some of it is
                     // already consumed (for pre-execution checks) by the time we are reaching the burn method of the `Bank` module.
                     amount: user_gas_balance / 2,
-                    token_id: GAS_TOKEN_ID,
+                    token_id: config_gas_token_id(),
                 },
             },
         ),
@@ -486,7 +486,7 @@ fn burn_gas_token_also_works() {
                     owner: TokenHolder::User(user_address),
                     coins: Coins {
                         amount: user_gas_balance / 2,
-                        token_id: GAS_TOKEN_ID
+                        token_id: config_gas_token_id()
                     }
                 }),
                 result.events[0]
@@ -495,7 +495,7 @@ fn burn_gas_token_also_works() {
             // Check that the user's gas balance is now equal to the burnt amount minus the gas used to send the transaction
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(user_gas_balance / 2 - result.gas_value_used),
                 "The user's balance should be zero"

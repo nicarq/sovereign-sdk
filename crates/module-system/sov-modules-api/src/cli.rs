@@ -1,7 +1,6 @@
 use std::fs;
 
-use sov_modules_macros::config_value;
-
+use crate::capabilities::config_chain_id;
 use crate::{clap, CliWallet};
 
 /// A trait that defines the interface for a CLI wallet.
@@ -44,7 +43,7 @@ pub struct JsonStringArg {
     pub json: String,
 
     /// The chain ID of the transaction.
-    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_value!("CHAIN_ID"))]
+    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_chain_id())]
     pub chain_id: u64,
 
     /// the gas tip for the sequencer.
@@ -86,7 +85,7 @@ pub struct FileNameArg {
     pub path: String,
 
     /// The chain ID of the transaction.
-    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_value!("CHAIN_ID"))]
+    #[arg(long, help = "The chain ID of the transaction.", default_value_t = config_chain_id())]
     pub chain_id: u64,
 
     /// the gas tip for the sequencer.

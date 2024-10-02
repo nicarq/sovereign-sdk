@@ -12,9 +12,9 @@ use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
 
 use crate::{
-    BlobStorage, PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId,
-    PreferredProofData, PreferredSequenced, SequenceNumber, DEFERRED_SLOTS_COUNT,
-    UNREGISTERED_BLOBS_PER_SLOT,
+    config_deferred_slots_count, config_unregistered_blobs_per_slot, BlobStorage,
+    PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
+    PreferredSequenced, SequenceNumber,
 };
 
 /// Why blob can be discarded
@@ -170,7 +170,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
                     ValidateBlobOutcome::Discard(BlobDiscardReason::SenderInsufficientStake)
                 }
                 AllowedSequencerError::NotRegistered => {
-                    if unregistered_blobs_processed >= UNREGISTERED_BLOBS_PER_SLOT {
+                    if unregistered_blobs_processed >= config_unregistered_blobs_per_slot() {
                         ValidateBlobOutcome::Discard(BlobDiscardReason::MaxAllowedUnregisteredBlobs)
                     } else {
                         ValidateBlobOutcome::Accept(SequencerStatus::Unregistered)
@@ -505,7 +505,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
             if state
                 .virtual_slot_number()
-                .saturating_add(DEFERRED_SLOTS_COUNT)
+                .saturating_add(config_deferred_slots_count())
                 <= state.rollup_height_to_access()
             {
                 1
@@ -606,7 +606,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
     {
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer
-        if DEFERRED_SLOTS_COUNT == 0 {
+        if config_deferred_slots_count() == 0 {
             return Ok(self.select_blobs_as_based_sequencer(current_blobs, state));
         }
 

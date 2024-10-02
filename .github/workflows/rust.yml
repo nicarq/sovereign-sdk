@@ -90,6 +90,7 @@ jobs:
       - check-demo-rollup-table-of-contents
       - check-demo-rollup-bash-commands-mock-da
       - check-demo-rollup-bash-commands
+      - check-constant-overriding-is-disabled-in-release-mode
       - validate-packages-to-publish-yml
     steps:
       - name: Compute whether the needed jobs succeeded or failed
@@ -519,6 +520,20 @@ jobs:
         run: bashtestmd --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
       - run: chmod +x demo-rollup-readme.sh && ./demo-rollup-readme.sh
+
+  check-constant-overriding-is-disabled-in-release-mode:
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-cache-tag-check-constant-overriding-is-disabled-in-release-mode
+      - nscloud-cache-size-20gb
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          ssh_private_key: ${{ secrets.SOV_WALLET_FORMAT_ACCESS_TOKEN }}
+      - run: make check-constant-overriding-is-disabled-in-release-mode
 
   validate-packages-to-publish-yml:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4

@@ -1,4 +1,4 @@
-use sov_blob_storage::DEFERRED_SLOTS_COUNT;
+use sov_blob_storage::config_deferred_slots_count;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::GasMeter;
@@ -25,7 +25,7 @@ fn test_recovery_mode() {
     // Let's first advance the virtual slot to ensure that the sequencer needs to catch up
     // We have to stop before the `DEFERRED_SLOT_COUNT` is reached because otherwise the virtual slot
     // number will automatically increase.
-    runner.advance_slots((DEFERRED_SLOTS_COUNT - 2) as usize);
+    runner.advance_slots((config_deferred_slots_count() - 2) as usize);
 
     // First let's slash the preferred sequencer by sending a malformed blob.
     // In soft-confirmation mode, sending basic blobs is not allowed and will cause
@@ -47,7 +47,7 @@ fn test_recovery_mode() {
     });
 
     // Until it catches up, the virtual slot number should increase by two
-    let mut expected_virtual_slot_increases = vec![2; (DEFERRED_SLOTS_COUNT - 1) as usize];
+    let mut expected_virtual_slot_increases = vec![2; (config_deferred_slots_count() - 1) as usize];
     // Then the virtual slot number should only increase by one
     expected_virtual_slot_increases.push(1);
 
@@ -56,7 +56,7 @@ fn test_recovery_mode() {
         // We are not sending any blobs, we just want to assert the way the virtual slot number increases
         vec![],
         // Since we are not sending any blobs, we don't expect any receipts
-        vec![vec![]; DEFERRED_SLOTS_COUNT as usize],
+        vec![vec![]; config_deferred_slots_count() as usize],
         expected_virtual_slot_increases,
         &mut runner,
     );

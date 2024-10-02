@@ -5,7 +5,7 @@ use sov_modules_api::{GenesisState, Module, Spec};
 
 use crate::token::Token;
 use crate::utils::TokenHolderRef;
-use crate::{Bank, TokenId, GAS_TOKEN_ID};
+use crate::{config_gas_token_id, Bank, TokenId};
 
 /// Initial configuration for sov-bank module.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -64,7 +64,7 @@ impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
     fn from(gas_token_config: GasTokenConfig<S>) -> Self {
         TokenConfig {
             token_name: gas_token_config.token_name,
-            token_id: crate::GAS_TOKEN_ID,
+            token_id: crate::config_gas_token_id(),
             address_and_balances: gas_token_config.address_and_balances,
             authorized_minters: gas_token_config.authorized_minters,
         }
@@ -83,7 +83,9 @@ impl<S: Spec> core::fmt::Display for GasTokenConfig<S> {
         write!(
             f,
             "TokenConfig {{ token_name: {}, token_id: {}, address_and_balances: [{}] }}",
-            self.token_name, GAS_TOKEN_ID, address_and_balances,
+            self.token_name,
+            config_gas_token_id(),
+            address_and_balances,
         )
     }
 }
@@ -99,7 +101,7 @@ impl<S: Spec> Bank<S> {
     ) -> Result<()> {
         let parent_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
-        tracing::debug!(token_id = %GAS_TOKEN_ID, token_name = %gas_token_config.token_name, "Gas token");
+        tracing::debug!(token_id = %config_gas_token_id(), token_name = %gas_token_config.token_name, "Gas token");
         for token_config in std::iter::once(&gas_token_config).chain(config.tokens.iter()) {
             let token_id = &token_config.token_id;
             tracing::debug!(

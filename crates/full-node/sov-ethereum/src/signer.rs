@@ -10,7 +10,9 @@ use sov_rollup_interface::node::da::DaService;
 
 use crate::{to_jsonrpsee_error_object, Ethereum, ETH_RPC_ERROR};
 
-const DEFAULT_CHAIN_ID: u64 = config_value!("CHAIN_ID");
+fn config_chain_id() -> u64 {
+    config_value!("CHAIN_ID")
+}
 
 pub(crate) fn register_signer_rpc_methods<
     S: sov_modules_api::Spec,
@@ -90,7 +92,7 @@ fn to_typed_transaction_request<S: sov_modules_api::Spec>(
         .chain_id(state)
         .expect("Failed to get chain id")
         .map(|id| id.to())
-        .unwrap_or(DEFAULT_CHAIN_ID);
+        .unwrap_or(config_chain_id());
 
     let gas_price = transaction_request.gas_price.unwrap_or_default();
 

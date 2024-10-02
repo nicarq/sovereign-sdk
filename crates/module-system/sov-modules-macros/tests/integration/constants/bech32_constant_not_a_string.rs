@@ -1,8 +1,8 @@
-use sov_bank::TokenId;
-use sov_modules_api::macros::config_bech32;
+use sov_modules_api::impl_hash32_type;
+use sov_modules_api::macros::config_value;
 
-const TEST_ARRAY_OF_U8: TokenId = config_bech32!("TEST_ARRAY_OF_U8", TokenId);
+impl_hash32_type!(MyTokenId, MyTokenBech, "tok");
 
-fn main() {
-    assert_eq!(TEST_ARRAY_OF_U8, TokenId::from([0; 32]));
-}
+const TOKEN: MyTokenId = config_value!("GAS_DIMENSIONS");
+
+fn main() {}

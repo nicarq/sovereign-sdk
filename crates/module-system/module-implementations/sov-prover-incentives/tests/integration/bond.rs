@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -30,7 +30,11 @@ fn test_genesis_bond() {
         );
         assert_eq!(
             Bank::<S>::default()
-                .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
+                .get_balance_of(
+                    &genesis_prover.user_info.address(),
+                    config_gas_token_id(),
+                    state
+                )
                 .unwrap_infallible(),
             Some(genesis_prover.user_info.available_gas_balance),
             "The balance of the prover should be equal to the free balance"
@@ -67,7 +71,7 @@ fn test_topup_existing_bond() {
             );
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&prover_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&prover_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(starting_free_balance - extra_bond_amount - result.gas_value_used),
             );
@@ -108,7 +112,7 @@ fn test_bonding_new_prover() {
             );
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&unbonded_user.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&unbonded_user.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(starting_free_balance - bond_amount - result.gas_value_used),
             );
@@ -131,7 +135,11 @@ fn test_unbonding() {
                 genesis_prover.user_info.available_gas_balance + genesis_prover.bond
                     - result.gas_value_used,
                 Bank::<S>::default()
-                    .get_balance_of(&genesis_prover.user_info.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(
+                        &genesis_prover.user_info.address(),
+                        config_gas_token_id(),
+                        state
+                    )
                     .unwrap_infallible()
                     .unwrap()
             );
@@ -175,7 +183,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
             .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
                     amount: 1,
-                    token_id: GAS_TOKEN_ID,
+                    token_id: config_gas_token_id(),
                 },
             })
             .with_max_fee(prover.user_info.available_gas_balance / 2)

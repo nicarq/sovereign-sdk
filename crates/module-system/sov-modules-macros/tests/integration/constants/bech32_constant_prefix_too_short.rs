@@ -1,10 +1,8 @@
 use sov_modules_api::impl_hash32_type;
-use sov_modules_api::macros::config_bech32;
+use sov_modules_api::macros::config_value;
 
 impl_hash32_type!(MyTokenId, MyTokenBech, "token_with_long_prefix");
 
-const TEST_TOKEN_ID: MyTokenId = config_bech32!("TEST_TOKEN_ID", MyTokenId);
+const TOKEN: MyTokenId = config_value!("CONST_TOKEN_ID");
 
-fn main() {
-    assert_eq!(TEST_TOKEN_ID, MyTokenId::from([0; 32]));
-}
+fn main() {}

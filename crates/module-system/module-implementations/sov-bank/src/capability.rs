@@ -7,7 +7,7 @@ use sov_modules_api::{
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
-use crate::{Bank, Coins, Payable, GAS_TOKEN_ID};
+use crate::{config_gas_token_id, Bank, Coins, Payable};
 
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
@@ -67,24 +67,27 @@ impl<S: Spec> Bank<S> {
         mut pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
     ) -> Result<WorkingSet<S>, ReserveGasError<S, PreExecChecksMeter>> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
-        let balance =
-            match self.get_balance_of(&payer.clone(), GAS_TOKEN_ID, &mut pre_exec_working_set) {
-                Ok(Some(balance)) => balance,
-                Ok(None) => {
-                    return Err(ReserveGasError::<S, PreExecChecksMeter> {
-                        pre_exec_working_set,
-                        reason: ReserveGasErrorReason::AccountDoesNotExist {
-                            account: payer.to_string(),
-                        },
-                    })
-                }
-                Err(err) => {
-                    return Err(ReserveGasError {
-                        reason: ReserveGasErrorReason::StateAccessError(err),
-                        pre_exec_working_set,
-                    })
-                }
-            };
+        let balance = match self.get_balance_of(
+            &payer.clone(),
+            config_gas_token_id(),
+            &mut pre_exec_working_set,
+        ) {
+            Ok(Some(balance)) => balance,
+            Ok(None) => {
+                return Err(ReserveGasError::<S, PreExecChecksMeter> {
+                    pre_exec_working_set,
+                    reason: ReserveGasErrorReason::AccountDoesNotExist {
+                        account: payer.to_string(),
+                    },
+                })
+            }
+            Err(err) => {
+                return Err(ReserveGasError {
+                    reason: ReserveGasErrorReason::StateAccessError(err),
+                    pre_exec_working_set,
+                })
+            }
+        };
 
         // the signer must be able to afford the transaction
         if balance < tx.max_fee {
@@ -108,7 +111,7 @@ impl<S: Spec> Bank<S> {
             self.id.to_payable(),
             Coins {
                 amount: tx.max_fee,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
             &mut pre_exec_working_set,
         ) {
@@ -158,7 +161,7 @@ impl<S: Spec> Bank<S> {
             base_fee_recipient.as_token_holder(),
             Coins {
                 amount: base_fee.0,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
             tx_scratchpad,
         )
@@ -179,7 +182,7 @@ impl<S: Spec> Bank<S> {
             payer,
             Coins {
                 amount: remaining_funds.0,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
             tx_scratchpad,
         )

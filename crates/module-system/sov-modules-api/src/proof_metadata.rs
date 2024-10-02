@@ -1,8 +1,8 @@
-use sov_modules_macros::config_value;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
+use crate::capabilities::config_chain_id;
 use crate::transaction::{PriorityFeeBips, TxDetails};
 use crate::Spec;
 
@@ -118,7 +118,7 @@ fn make_details<S: Spec>(max_fee: u64) -> TxDetails<S> {
         max_priority_fee_bips: PriorityFeeBips::ZERO,
         max_fee,
         gas_limit: None,
-        chain_id: config_value!("CHAIN_ID"),
+        chain_id: config_chain_id(),
     }
 }
 

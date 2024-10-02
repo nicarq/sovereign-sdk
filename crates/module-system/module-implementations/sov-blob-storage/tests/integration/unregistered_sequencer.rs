@@ -1,4 +1,4 @@
-use sov_blob_storage::UNREGISTERED_BLOBS_PER_SLOT;
+use sov_blob_storage::config_unregistered_blobs_per_slot;
 use sov_mock_da::{MockBlob, MockDaSpec};
 use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -62,7 +62,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
 
     // Make more unregistered blobs than the limit
     let unregistered_blobs = make_unregistered_blobs(
-        UNREGISTERED_BLOBS_PER_SLOT + 1,
+        config_unregistered_blobs_per_slot() + 1,
         &non_registered_sequencer,
         &mut nonces,
         &mut runner,
@@ -80,7 +80,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount() {
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
         result.batch_receipts.len(),
-        UNREGISTERED_BLOBS_PER_SLOT as usize,
+        config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT`"
     );
 }
@@ -100,7 +100,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount_soft_confirmat
 
     // Make more unregistered blobs than the limit
     let mut unregistered_blobs = make_unregistered_blobs(
-        UNREGISTERED_BLOBS_PER_SLOT + 1,
+        config_unregistered_blobs_per_slot() + 1,
         &non_registered_sequencer,
         &mut nonces,
         &mut runner,
@@ -127,7 +127,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount_soft_confirmat
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
         result.batch_receipts.len(),
-        1 + UNREGISTERED_BLOBS_PER_SLOT as usize,
+        1 + config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT` plus 1 (the preferred blob)"
     );
 }
@@ -147,7 +147,7 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
 
     // Make more unregistered blobs than the limit
     let mut unregistered_blobs = make_unregistered_blobs(
-        UNREGISTERED_BLOBS_PER_SLOT + 1,
+        config_unregistered_blobs_per_slot() + 1,
         &non_registered_sequencer,
         &mut nonces,
         &mut runner,
@@ -168,7 +168,7 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
     // Assert that the number of blobs received is below the [`UNREGISTERED_BLOBS_PER_SLOT`] limit
     assert_eq!(
         result.batch_receipts.len(),
-        4 + UNREGISTERED_BLOBS_PER_SLOT as usize,
+        4 + config_unregistered_blobs_per_slot() as usize,
         "The number of blobs received should be equal to `UNREGISTERED_BLOBS_PER_SLOT` plus 4 (the registered blobs)"
     );
 }

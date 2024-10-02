@@ -3664,6 +3664,7 @@ dependencies = [
  "sov-state",
  "sov-wallet-format",
  "thiserror",
+ "toml",
  "tracing",
  "unwrap-infallible",
 ]
@@ -3682,6 +3683,7 @@ dependencies = [
  "prettier-please",
  "proc-macro2",
  "quote",
+ "serde",
  "sov-wallet-format-macro-helpers",
  "syn 2.0.77",
  "toml",

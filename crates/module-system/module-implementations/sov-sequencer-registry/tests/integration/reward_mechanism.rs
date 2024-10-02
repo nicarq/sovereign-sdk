@@ -1,5 +1,5 @@
 use sov_bank::utils::TokenHolder;
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
@@ -78,7 +78,7 @@ fn reward_mechanism_test(
         assert: Box::new(move |_result, state| {
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&default_sequencer_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&default_sequencer_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(default_sequencer_balance + expected_reward),
                 "The sequencer was not rewarded the correct amount"
@@ -128,7 +128,11 @@ fn test_reward_sequencer_registry_balance_does_not_change() {
             let sequencer_id = *SequencerRegistry::<S, MockDaSpec>::default().id();
 
             Bank::<S>::default()
-                .get_balance_of(TokenHolder::Module(sequencer_id), GAS_TOKEN_ID, state)
+                .get_balance_of(
+                    TokenHolder::Module(sequencer_id),
+                    config_gas_token_id(),
+                    state,
+                )
                 .unwrap_infallible()
         })
     };

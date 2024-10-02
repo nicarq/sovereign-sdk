@@ -20,7 +20,7 @@ DEFERRED_SLOTS_COUNT = 5
 # this serves as protection against spam.
 UNREGISTERED_BLOBS_PER_SLOT = 5
 # Number of gas dimensions
-GAS_DIMENSIONS = 2
+GAS_DIMENSIONS = { const = 2 }
 # The fixed gas price of checking forced sequencer registration transactions.
 # This price is added to regular transaction checks & execution costs.
 # This should be set in such a way that forced sequencer registration is more expensive
@@ -28,7 +28,7 @@ GAS_DIMENSIONS = 2
 # used only when users feel they are being censored.
 GAS_FORCED_SEQUENCER_REGISTRATION_COST = [100000, 100000]
 # The ID of the "native token" of the rollup, which is used to pay gas fees.
-GAS_TOKEN_ID = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
+GAS_TOKEN_ID = { bech32 = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7", type = "TokenId" }
 # --- Gas parameters to charge for state accesses ---
 # The cost of a storage access operation.
 GAS_TO_CHARGE_FOR_ACCESS = [5, 5]
@@ -70,3 +70,4 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
+

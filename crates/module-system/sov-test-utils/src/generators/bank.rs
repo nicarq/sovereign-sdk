@@ -262,7 +262,7 @@ impl<S: Spec> MessageGenerator for BankMessageGenerator<S> {
             messages.push(Message::new(
                 transfer_message.sender_pkey.clone(),
                 transfer_token_tx::<S>(transfer_message),
-                Self::DEFAULT_CHAIN_ID,
+                Self::default_chain_id(),
                 TEST_DEFAULT_MAX_PRIORITY_FEE,
                 TEST_DEFAULT_MAX_FEE,
                 gas_limit,

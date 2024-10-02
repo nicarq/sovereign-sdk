@@ -25,7 +25,7 @@ pub use genesis::*;
 #[cfg(feature = "native")]
 pub use query::*;
 use serde::{Deserialize, Serialize};
-use sov_bank::{Amount, Coins, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Amount, Coins};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
@@ -182,7 +182,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
 
         Ok(Coins {
             amount: amount_value,
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
         })
     }
 
@@ -322,7 +322,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
                 sequencer,
                 Coins {
                     amount,
-                    token_id: GAS_TOKEN_ID,
+                    token_id: config_gas_token_id(),
                 },
                 state,
             )

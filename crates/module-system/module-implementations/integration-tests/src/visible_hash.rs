@@ -259,7 +259,7 @@ fn visible_hash_soft_confirmations_kernel() {
             },
         });
 
-    const NUM_SLOTS: u64 = config_value!("DEFERRED_SLOTS_COUNT");
+    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT");
 
     let genesis_hash = runner
         .state_root()
@@ -295,7 +295,7 @@ fn visible_hash_soft_confirmations_kernel() {
             );
         },
         &mut runner,
-        NUM_SLOTS,
+        num_slots,
     );
 
     // We expect that the new kernel root matches the one after the first transition (deferred update).

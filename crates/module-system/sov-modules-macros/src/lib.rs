@@ -139,9 +139,7 @@ mod rest;
 #[cfg(feature = "native")]
 mod rpc;
 
-use compile_manifest_constants::{
-    make_const_bech32, make_const_gas_price, make_const_gas_unit, make_const_value,
-};
+use compile_manifest_constants::{make_const_value, ConfigValueInput};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
@@ -152,6 +150,7 @@ use offchain::offchain_generator;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
+// Inputs to the [`config_value`](crate::config_value) proc-macro.
 /// Returns the name of the function that invoked the proc-macro.
 // Shamelessly copy-pasted from <https://stackoverflow.com/a/40234666/5148606>.
 macro_rules! fn_name {
@@ -228,47 +227,25 @@ pub fn codec(input: TokenStream) -> TokenStream {
 }
 
 #[proc_macro]
-pub fn config_bech32(tokens: TokenStream) -> TokenStream {
-    struct ConstBech32Input {
-        lit_str: syn::LitStr,
-        ty: syn::Type,
-    }
-
-    impl syn::parse::Parse for ConstBech32Input {
-        fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
-            let lit_str = input.parse()?;
-            input.parse::<syn::Token![,]>()?;
-            let ty = input.parse()?;
-            Ok(ConstBech32Input { lit_str, ty })
-        }
-    }
-
-    let ConstBech32Input { lit_str, ty } = parse_macro_input!(tokens as ConstBech32Input);
-    handle_macro_error_and_expand(fn_name!(), make_const_bech32(&lit_str, &ty))
-}
-
-#[proc_macro]
-pub fn config_gas_unit(tokens: TokenStream) -> TokenStream {
-    let constant_name = parse_macro_input!(tokens as syn::LitStr);
-    handle_macro_error_and_expand(
-        fn_name!(),
-        make_const_gas_unit(&constant_name).map(Into::into),
-    )
-}
-
-#[proc_macro]
-pub fn config_gas_price(tokens: TokenStream) -> TokenStream {
-    let constant_name = parse_macro_input!(tokens as syn::LitStr);
-    handle_macro_error_and_expand(
-        fn_name!(),
-        make_const_gas_price(&constant_name).map(Into::into),
-    )
-}
-
-#[proc_macro]
 pub fn config_value(item: TokenStream) -> TokenStream {
-    let constant_name = parse_macro_input!(item as syn::LitStr);
-    handle_macro_error_and_expand(fn_name!(), make_const_value(&constant_name).map(Into::into))
+    let input = syn::parse_macro_input!(item as ConfigValueInput);
+    handle_macro_error_and_expand(fn_name!(), make_const_value(&input).map(Into::into))
+}
+
+/// Like [`config_value!`], but for use within the `sov_modules_api` crate only.
+#[proc_macro]
+pub fn config_value_private(item: TokenStream) -> TokenStream {
+    let input = syn::parse_macro_input!(item as ConfigValueInput);
+    let tokens = make_const_value(&input)
+        .map(|tokens| {
+            quote::quote!({
+                use crate as sov_modules_api;
+                #tokens
+            })
+        })
+        .map(Into::into);
+
+    handle_macro_error_and_expand(fn_name!(), tokens)
 }
 
 #[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]

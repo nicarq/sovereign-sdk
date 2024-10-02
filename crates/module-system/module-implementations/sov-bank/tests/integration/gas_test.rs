@@ -1,4 +1,4 @@
-use sov_bank::{Bank, BankGasConfig, CallMessage, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank, BankGasConfig, CallMessage};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, Gas, GasSpec, Spec, TxEffect};
 use sov_test_utils::{
@@ -77,7 +77,7 @@ fn gas_price_constants_are_charged_correctly() {
                 assert!(result.tx_receipt.is_successful());
 
                 let user_final_balance = Bank::<S>::default()
-                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap();
 
@@ -105,7 +105,7 @@ fn gas_price_constants_are_charged_correctly() {
                 assert!(result.tx_receipt.is_successful());
 
                 let user_final_balance = Bank::<S>::default()
-                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap();
 
@@ -145,7 +145,7 @@ fn config_constants_are_charged_correctly() {
                 assert!(result.tx_receipt.is_successful());
 
                 let user_final_balance = Bank::<S>::default()
-                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap();
 
@@ -170,7 +170,7 @@ fn config_constants_are_charged_correctly() {
                 assert!(result.tx_receipt.is_successful());
 
                 let user_final_balance = Bank::<S>::default()
-                    .get_balance_of(&user_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_address, config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap();
 

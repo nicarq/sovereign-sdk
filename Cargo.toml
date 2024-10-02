@@ -240,6 +240,10 @@ secp256k1 = { version = "0.29.0", default-features = false, features = [
 # should reduce build times for other packages.
 opt-level = 1
 
+[profile.release-with-opt-level-0]
+inherits = "release"
+opt-level = 0
+
 [patch.crates-io]
 # Fixes an issue where watch::Receiver::changed would never yield. This caused breakages in 
 # tests, but could also silently lead to blocking the runtime yielding abysmal performance.

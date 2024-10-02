@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use sov_bank::{Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
@@ -248,7 +248,7 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         let reward_amount = self.burn_rate().apply(total_reward);
 
         let coins = Coins {
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
             amount: reward_amount,
         };
 

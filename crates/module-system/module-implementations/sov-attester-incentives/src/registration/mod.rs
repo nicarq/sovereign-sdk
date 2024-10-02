@@ -3,7 +3,7 @@ pub(crate) mod challenger;
 use core::result::Result::Ok;
 use std::marker::PhantomData;
 
-use sov_bank::{Amount, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
     BasicAddress, DaSpec, Gas, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue,
@@ -148,6 +148,6 @@ where
 pub(crate) fn gas_coins(amount: u64) -> Coins {
     Coins {
         amount,
-        token_id: GAS_TOKEN_ID,
+        token_id: config_gas_token_id(),
     }
 }
