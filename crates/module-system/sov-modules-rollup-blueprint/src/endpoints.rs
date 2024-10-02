@@ -24,6 +24,7 @@ type Receipt<S, Da, RT, K> = <StfBlueprint<S, Da, RT, K> as StateTransitionFunct
 
 const LEDGER_PATH: &str = "/ledger";
 const SEQUENCER_PATH: &str = "/sequencer";
+const ROLLUP_PATH: &str = "/rollup";
 
 /// Register rollup's default RPC methods and Axum router.
 pub async fn register_endpoints<B, M>(
@@ -105,8 +106,8 @@ where
                     Receipt<B::Spec, B::DaSpec, B::Runtime, B::Kernel>,
                 >,
             >,
-        >::axum_router(storage, "/rollup");
-        endpoints.axum_router = endpoints.axum_router.nest("/rollup", gas_router);
+        >::axum_router(storage, ROLLUP_PATH);
+        endpoints.axum_router = endpoints.axum_router.nest(ROLLUP_PATH, gas_router);
     }
 
     // Even if runtime does not have Open API spec, we still want to plug in Sequencer and Ledger.
@@ -124,6 +125,8 @@ where
     merge_specs(&mut runtime_spec, ledger_spec, LEDGER_PATH)?;
     let sequencer_spec = sov_sequencer::open_api_v3_spec();
     merge_specs(&mut runtime_spec, sequencer_spec, SEQUENCER_PATH)?;
+    let rollup_spec = sov_rollup_apis::open_api_v3_spec();
+    merge_specs(&mut runtime_spec, rollup_spec, ROLLUP_PATH)?;
 
     // TODO: Server should come from parameters.
     let server = openapiv3::Server {
