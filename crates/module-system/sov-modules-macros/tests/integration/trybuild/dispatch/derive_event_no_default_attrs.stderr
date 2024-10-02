@@ -1,5 +1,5 @@
 error[E0277]: can't compare `RuntimeEvent<S>` with `RuntimeEvent<S>`
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ no implementation for `RuntimeEvent<S> == RuntimeEvent<S>`
@@ -16,7 +16,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `RuntimeEvent<S>: Clone` is not satisfied
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ the trait `Clone` is not implemented for `RuntimeEvent<S>`
@@ -32,7 +32,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: `RuntimeEvent<S>` doesn't implement `std::fmt::Debug`
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ `RuntimeEvent<S>` cannot be formatted using `{:?}`
@@ -50,7 +50,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `for<'de> RuntimeEvent<S>: Deserialize<'de>` is not satisfied
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ the trait `for<'de> Deserialize<'de>` is not implemented for `RuntimeEvent<S>`, which is required by `<Runtime<S> as RuntimeEventProcessor>::RuntimeEvent: DeserializeOwned`
@@ -79,7 +79,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `RuntimeEvent<S>: Serialize` is not satisfied
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ the trait `Serialize` is not implemented for `RuntimeEvent<S>`
@@ -107,7 +107,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `RuntimeEvent<S>: BorshSerialize` is not satisfied
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ the trait `BorshSerialize` is not implemented for `RuntimeEvent<S>`
@@ -132,7 +132,7 @@ note: required by a bound in `sov_modules_api::RuntimeEventProcessor::RuntimeEve
   = note: this error originates in the derive macro `Event` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `RuntimeEvent<S>: BorshDeserialize` is not satisfied
- --> tests/integration/dispatch/derive_event_no_default_attrs.rs:5:42
+ --> tests/integration/trybuild/dispatch/derive_event_no_default_attrs.rs:5:42
   |
 5 | #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
   |                                          ^^^^^ the trait `BorshDeserialize` is not implemented for `RuntimeEvent<S>`

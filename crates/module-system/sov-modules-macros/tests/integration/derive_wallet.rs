@@ -122,7 +122,8 @@ pub struct Runtime<S: Spec> {
     pub second: second_test_module::SecondTestStruct<S>,
 }
 
-fn main() {
+#[test]
+fn build_runtime_call() {
     use sov_modules_api::prelude::clap::Parser;
 
     let expected_foo = RuntimeCall::First(first_test_module::MyStruct {
@@ -130,7 +131,7 @@ fn main() {
         str_field: "hello".to_string(),
     });
     let foo_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
-        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from(&[
+        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from([
             "main",
             "first",
             "--json",
@@ -140,14 +141,13 @@ fn main() {
             "--max-fee",
             "0",
         ])
-        .expect("parsing must succeed")
-        .into();
+        .expect("parsing must succeed");
     let foo_ir: RuntimeMessage<JsonStringArg, TestSpec> = foo_from_cli.try_into().unwrap();
     assert_eq!(expected_foo, foo_ir.try_into().unwrap());
 
     let expected_bar = RuntimeCall::Second(second_test_module::MyEnum::Bar(2));
     let bar_from_cli: RuntimeSubcommand<JsonStringArg, TestSpec> =
-        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from(&[
+        <RuntimeSubcommand<JsonStringArg, TestSpec>>::try_parse_from([
             "main",
             "second",
             "--json",
@@ -157,8 +157,7 @@ fn main() {
             "--max-fee",
             "0",
         ])
-        .expect("parsing must succeed")
-        .into();
+        .expect("parsing must succeed");
     let bar_ir: RuntimeMessage<JsonStringArg, TestSpec> = bar_from_cli.try_into().unwrap();
 
     assert_eq!(expected_bar, bar_ir.try_into().unwrap());
