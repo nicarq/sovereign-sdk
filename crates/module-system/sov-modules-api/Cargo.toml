@@ -40,6 +40,7 @@ proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, optional = true }
+toml = { workspace = true }
 tracing = { workspace = true }
 tracing-test = { workspace = true, optional = true }
 sha2 = { workspace = true }

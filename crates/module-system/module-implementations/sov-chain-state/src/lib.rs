@@ -15,6 +15,7 @@ use sov_modules_api::{
 mod genesis;
 use std::convert::Infallible;
 
+pub use gas::{NonZeroRatio, NonZeroRatioConversionError};
 pub use genesis::*;
 use serde::de::DeserializeOwned;
 use sov_modules_api::OperatingMode;

@@ -204,7 +204,7 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
 
 #[cfg(test)]
 mod tests {
-    use sov_bank::GAS_TOKEN_ID;
+    use sov_bank::config_gas_token_id;
     use sov_mock_da::MockDaSpec;
 
     use super::HighLevelZkGenesisConfig;
@@ -235,7 +235,7 @@ mod tests {
             let bank = crate::runtime::Bank::<S>::default();
 
             assert_eq!(
-                bank.get_balance_of(&sequencer.user_info.address(), GAS_TOKEN_ID, state)
+                bank.get_balance_of(&sequencer.user_info.address(), config_gas_token_id(), state)
                     .unwrap(),
                 Some(sequencer.user_info.balance()),
             );

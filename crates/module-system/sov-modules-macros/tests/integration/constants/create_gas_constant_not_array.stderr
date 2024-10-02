@@ -1,5 +1,0 @@
-error: The constant named `TEST_TOKEN_ID` inside `$WORKSPACE/constants.testing.toml` represents a gas unit - it should be an array of integers. It's not an array in the first place: `"token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm"`
- --> tests/integration/constants/create_gas_constant_not_array.rs:6:64
-  |
-6 | pub const TEST_GAS: GasUnit<GAS_DIMENSIONS> = config_gas_unit!("TEST_TOKEN_ID");
-  |                                                                ^^^^^^^^^^^^^^^

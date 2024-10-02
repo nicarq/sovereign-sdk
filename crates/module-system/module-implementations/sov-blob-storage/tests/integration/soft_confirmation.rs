@@ -1,4 +1,4 @@
-use sov_blob_storage::{BlobStorage, DEFERRED_SLOTS_COUNT};
+use sov_blob_storage::{config_deferred_slots_count, BlobStorage};
 use sov_test_utils::SequencerInfo;
 
 use crate::helpers_soft_confirmations::{
@@ -150,10 +150,10 @@ fn non_preferred_sequencer_deferred() {
 
     let slots = vec![vec![(regular_sequencer.clone(), SequencerInfo::Regular)]];
 
-    let mut receive_order = vec![vec![]; (DEFERRED_SLOTS_COUNT - 1) as usize];
+    let mut receive_order = vec![vec![]; (config_deferred_slots_count() - 1) as usize];
     receive_order.push(vec![0]);
 
-    let mut virtual_slot_heights = vec![0; (DEFERRED_SLOTS_COUNT - 1) as usize];
+    let mut virtual_slot_heights = vec![0; (config_deferred_slots_count() - 1) as usize];
 
     virtual_slot_heights.push(1);
 
@@ -281,11 +281,15 @@ fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
     ];
 
     let mut receive_order = vec![vec![0, 1], vec![2, 3, 4, 5]];
-    receive_order.append(&mut vec![vec![]; (DEFERRED_SLOTS_COUNT - 1) as usize]);
+    receive_order.append(&mut vec![
+        vec![];
+        (config_deferred_slots_count() - 1) as usize
+    ]);
     receive_order.push(vec![6]);
 
     let mut virtual_slot_heights_increases = vec![1, 1];
-    virtual_slot_heights_increases.append(&mut vec![0; (DEFERRED_SLOTS_COUNT - 1) as usize]);
+    virtual_slot_heights_increases
+        .append(&mut vec![0; (config_deferred_slots_count() - 1) as usize]);
     virtual_slot_heights_increases.push(1);
 
     assert_blobs_are_correctly_received_soft_confirmation(

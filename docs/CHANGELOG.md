@@ -11,6 +11,20 @@
  
 ## 2024-09-30
 - #1537 Removes need to define swagger-ui in `Runtime::endpoints` implementation. Now it works out of the box by `sov_modules_rollup_blueprint::register_endpoints`.
+- #1542 removes support for `config_bech32!`, and merges it into the main proc-macro `config_value!`.
+
+  ```toml
+  [constants]
+  # ...
+
+  # BEFORE (Rust: `config_bech32!("MY_CONST", TokenId)`)
+  MY_CONST = "token_1qwqr2h2e5g961t4f2m1qt3t3d7xx7r4jchjc9ey5pe1r5u8ers9ts"
+
+  # AFTER (Rust: `config_value!("MY_CONST")`)
+  MY_CONST = { bech32 = "token_1qwqr2h2e5g961t4f2m1qt3t3d7xx7r4jchjc9ey5pe1r5u8ers9ts", type = "TokenId" }
+  ```
+
+  Moreover, the `config_value!` macro (1) is now not `const` expression -compatible by default and (2) supports overriding values in tests via env. variables. See the docs of `sov_modules_api::macros::config_value!` for a guide.
 
 ## 2024-09-26
 - Changes the argument to the `Runtime::endpoints`, `HasRestApi::rest_api` and `get_rpc_methods` functions to `sov_modules_api::rest::ApiState<(), S>`

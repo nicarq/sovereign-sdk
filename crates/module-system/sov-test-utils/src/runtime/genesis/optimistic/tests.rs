@@ -12,7 +12,7 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::genesis::{default_basic_kernel_genesis, TestTokenName};
-use crate::runtime::{Coins, TestOptimisticRuntime, TestRunner, GAS_TOKEN_ID};
+use crate::runtime::{config_gas_token_id, Coins, TestOptimisticRuntime, TestRunner};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
     TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo,
@@ -302,7 +302,7 @@ fn test_define_token_with_state() {
         token_0_holders.into_iter().for_each(|user| {
             assert_eq!(
                 Bank::<TestSpec>::default()
-                    .get_balance_of(&user.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&user.address(), config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap(),
                 user.balance(),
@@ -337,7 +337,7 @@ fn test_define_token_with_state() {
 
             assert_eq!(
                 Bank::<TestSpec>::default()
-                    .get_balance_of(&user.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&user.address(), config_gas_token_id(), state)
                     .unwrap_infallible()
                     .unwrap(),
                 TEST_DEFAULT_USER_BALANCE,

@@ -1,4 +1,4 @@
-use sov_bank::{Bank, Coins, ReserveGasErrorReason, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasErrorReason};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
@@ -45,7 +45,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&sender_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(sender_balance - result.gas_value_used)
             );
@@ -131,7 +131,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&sender.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(sender.available_gas_balance - result.gas_value_used)
             );
@@ -180,7 +180,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&sender.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&sender.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(
                     sender.available_gas_balance
@@ -251,7 +251,7 @@ fn test_reserve_gas_no_account() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&user_no_account.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&user_no_account.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 None,
                 "The user should not have any balance in the gas token"

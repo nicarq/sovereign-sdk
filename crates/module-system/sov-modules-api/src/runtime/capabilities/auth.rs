@@ -30,7 +30,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_modules_macros::config_value;
+use sov_modules_macros::config_value_private;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
@@ -46,8 +46,10 @@ use crate::{
     UnlimitedGasMeter,
 };
 
-/// The chain id of the rollup.
-pub const CHAIN_ID: u64 = config_value!("CHAIN_ID");
+/// The chain ID of the rollup.
+pub fn config_chain_id() -> u64 {
+    config_value_private!("CHAIN_ID")
+}
 
 /// Authenticates raw transactions, ensuring that the *claimed* sender really did sign off on the transaction. Note that
 /// simply *authenticating* a transaction does not guarantee that it will actually be executed. That decision is
@@ -235,10 +237,10 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     tx: Transaction<S>,
     meter: &mut impl GasMeter<S::Gas>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
-    if tx.details.chain_id != CHAIN_ID {
+    if tx.details.chain_id != config_chain_id() {
         return Err(AuthenticationError::FatalError(
             FatalError::InvalidChainId {
-                expected: CHAIN_ID,
+                expected: config_chain_id(),
                 got: tx.details.chain_id,
             },
         ));

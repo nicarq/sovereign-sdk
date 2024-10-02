@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use sov_attester_incentives::Attestation;
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
@@ -105,7 +105,7 @@ pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType
         to: recipient.address(),
         coins: sov_bank::Coins {
             amount: 1000,
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
         },
     })
 }

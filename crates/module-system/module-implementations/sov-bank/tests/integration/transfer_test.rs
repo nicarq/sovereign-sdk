@@ -1,5 +1,5 @@
 use sov_bank::utils::TokenHolder;
-use sov_bank::{Bank, CallMessage, Coins, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank, CallMessage, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, TxEffect};
 use sov_test_utils::runtime::genesis::TestTokenName;
@@ -419,7 +419,7 @@ fn test_transfer_gas_token() {
             to: receiver_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
         }),
         assert: Box::new(move |result, state| {
@@ -432,21 +432,21 @@ fn test_transfer_gas_token() {
                     to: TokenHolder::User(receiver_address),
                     coins: Coins {
                         amount: TRANSFER_AMOUNT,
-                        token_id: GAS_TOKEN_ID
+                        token_id: config_gas_token_id()
                     }
                 })
             );
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&receiver_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&receiver_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(receiver_initial_balance + TRANSFER_AMOUNT)
             );
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&sender_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&sender_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(sender_initial_balance - result.gas_value_used - TRANSFER_AMOUNT)
             );

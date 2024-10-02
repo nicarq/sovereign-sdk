@@ -47,7 +47,10 @@ type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
     <<S as Spec>::Gas as Gas>::Price,
 >;
 
-const CHAIN_ID: u64 = config_value!("CHAIN_ID");
+fn config_chain_id() -> u64 {
+    config_value!("CHAIN_ID")
+}
+
 const DEFAULT_ESTIMATED_GAS_USAGE: Option<GasUnit<2>> = None;
 
 fn bake_bank_tx(
@@ -61,7 +64,7 @@ fn bake_bank_tx(
         pk,
         UnsignedTransaction::new(
             enc_msg,
-            CHAIN_ID,
+            config_chain_id(),
             TEST_DEFAULT_MAX_PRIORITY_FEE,
             TEST_DEFAULT_MAX_FEE,
             nonce,

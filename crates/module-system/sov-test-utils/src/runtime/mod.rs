@@ -7,8 +7,8 @@ pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
 };
 pub use sov_bank::{
-    Bank, BankConfig, CallMessage as BankCallMessage, Coins, IntoPayable, Payable, TokenConfig,
-    TokenId, GAS_TOKEN_ID,
+    config_gas_token_id, Bank, BankConfig, CallMessage as BankCallMessage, Coins, IntoPayable,
+    Payable, TokenConfig, TokenId,
 };
 use sov_blob_storage::PreferredBatchData;
 pub use sov_capabilities::StandardProvenRollupCapabilities;
@@ -169,7 +169,7 @@ where
         state: &mut impl InfallibleStateAccessor,
     ) -> Option<u64> {
         sov_bank::Bank::<S>::default()
-            .get_balance_of(address, GAS_TOKEN_ID, state)
+            .get_balance_of(address, config_gas_token_id(), state)
             .unwrap_infallible()
     }
 

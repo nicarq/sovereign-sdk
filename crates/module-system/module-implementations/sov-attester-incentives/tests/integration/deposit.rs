@@ -1,4 +1,4 @@
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
@@ -27,7 +27,7 @@ fn test_deposit_successful() {
             );
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&attester_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&attester_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(starting_free_balance - extra_bond - result.gas_value_used),
             );

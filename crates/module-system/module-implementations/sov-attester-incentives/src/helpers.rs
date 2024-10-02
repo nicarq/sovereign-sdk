@@ -1,6 +1,6 @@
 use anyhow::ensure;
 use borsh::BorshDeserialize;
-use sov_bank::{BurnRate, Coins, IntoPayable, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, BurnRate, Coins, IntoPayable};
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
@@ -20,9 +20,7 @@ where
 {
     /// Returns the burn rate for the reward
     pub fn burn_rate(&self) -> BurnRate {
-        const PERCENT_BASE_FEE_TO_BURN: u8 = config_value!("PERCENT_BASE_FEE_TO_BURN");
-
-        BurnRate::new_unchecked(PERCENT_BASE_FEE_TO_BURN)
+        BurnRate::new_unchecked(config_value!("PERCENT_BASE_FEE_TO_BURN"))
     }
 
     /// Verifies the provided proof, returning its underlying storage value, if present.
@@ -141,7 +139,7 @@ where
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let coins = Coins {
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
             amount,
         };
 

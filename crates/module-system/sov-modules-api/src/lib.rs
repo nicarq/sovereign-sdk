@@ -186,6 +186,7 @@ pub mod prelude {
     pub extern crate sov_wallet_format;
     #[cfg(feature = "native")]
     pub extern crate tokio;
+    pub extern crate toml;
     #[cfg(feature = "native")]
     pub extern crate utoipa;
     #[cfg(feature = "native")]

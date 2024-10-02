@@ -1,4 +1,4 @@
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasMeter;
@@ -236,7 +236,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
             );
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&additional_sequencer_address, GAS_TOKEN_ID, state)
+                    .get_balance_of(&additional_sequencer_address, config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(
                     additional_sequencer_balance

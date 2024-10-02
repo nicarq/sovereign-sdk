@@ -1,7 +1,7 @@
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
 use sov_modules_stf_blueprint::Runtime;
@@ -43,7 +43,7 @@ where
             should_stop.clone(),
             Box::new(TokenTransferMessageGenerator::new_from_account_pool(
                 account_pool.clone(),
-                GAS_TOKEN_ID,
+                config_gas_token_id(),
             )?),
             serialized_messages_tx.clone(),
         )),

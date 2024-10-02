@@ -63,49 +63,27 @@ impl From<NonZeroRatio> for u8 {
 
 /// Defines constants used by the chain state module for gas price computation
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
-    /// A constant used to control the variations of the base fee updates.
-    /// This method is used as a constructor for [`ChainState::BASE_FEE_MAX_CHANGE_DENOMINATOR`].
-    /// This value is retrieved from the config file and is then converted to a [`NonZeroRatio`] at constant
-    /// time for type safety.
-    /// Since this value is then cached in the [`ChainState::BASE_FEE_MAX_CHANGE_DENOMINATOR`] constant, one should prefer to
-    /// use the constant directly instead of this function.
-    const fn base_fee_change_denominator() -> NonZeroRatio {
+    /// Configuration value used to control the variations of the base fee updates.
+    ///
+    /// This is sourced from the `constants.toml` file and then converted into a
+    /// [`NonZeroRatio`].
+    pub fn config_base_fee_change_denominator() -> NonZeroRatio {
         NonZeroRatio::from_u8_unwrap(config_value!("BASE_FEE_MAX_CHANGE_DENOMINATOR"))
     }
 
-    /// Constant used to control the range of variation of the gas price elasticity.
-    /// This method is used as a constructor for [`ChainState::ELASTICITY_MULTIPLIER`].
-    /// The constant value is retrieved from the config file and is then converted to a [`NonZeroRatio`] at constant
-    /// time for type safety.
-    /// Since this value is then cached in the [`ChainState::ELASTICITY_MULTIPLIER`] constant, one should prefer to
-    /// use the constant directly instead of this function.
-    const fn elasticity_multiplier() -> NonZeroRatio {
+    /// Configuration value used to control the range of variation of the gas price elasticity.
+    ///
+    /// This is sourced from the `constants.toml` file and then converted into a
+    /// [`NonZeroRatio`].
+    pub fn config_elasticity_multiplier() -> NonZeroRatio {
         NonZeroRatio::from_u8_unwrap(config_value!("ELASTICITY_MULTIPLIER"))
     }
 
-    /// Constant used to control the variations of the base fee updates.
-    /// The higher this value is, the less the base fee will change. This value is an [`u8`] greater or equal than 1
-    /// (setting this value to 0 doesn't make much sense).
-    ///
-    /// # Note
-    /// This constant is the same as the `BASE_FEE_MAX_CHANGE_DENOMINATOR` constant
-    /// defined in the EIP-1559 specification its default value is 8.
-    pub const BASE_FEE_MAX_CHANGE_DENOMINATOR: NonZeroRatio = Self::base_fee_change_denominator();
-
-    /// Constant used to control the range of variation of the gas price elasticity. This value is equal to the
-    /// ratio of the maximum gas price and the target gas price. The higher this value is, the higher the maximum gas price
-    /// can be. This value is an [`u8`] greater or equal than 1 (setting this value to 0 doesn't make much sense).
-    ///
-    /// # Note
-    /// This constant is the same as the `ELASTICITY_MULTIPLIER` constant
-    /// defined in the EIP-1559 specification its default value is 2.
-    pub const ELASTICITY_MULTIPLIER: NonZeroRatio = Self::elasticity_multiplier();
-
     /// Computes the gas target for the provided gas limit.
-    /// Basically, divides each dimension of the gas limit by the [`ChainState::ELASTICITY_MULTIPLIER`].
+    /// Basically, divides each dimension of the gas limit by the [`ChainState::config_elasticity_multiplier`].
     pub fn gas_target(gas_limit: &S::Gas) -> S::Gas {
         let mut gas_target = gas_limit.clone();
-        gas_target.scalar_division(Self::ELASTICITY_MULTIPLIER.into());
+        gas_target.scalar_division(Self::config_elasticity_multiplier().into());
 
         gas_target
     }
@@ -125,8 +103,8 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         gas_used: u64,
         mut base_fee_per_gas: u64,
     ) -> u64 {
-        // The gas target is equal to `gas_limit // ELASTICITY_MULTIPLIER`
-        let gas_target = Self::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
+        // The gas target is equal to `gas_limit // config_elasticity_multiplier(`
+        let gas_target = Self::config_elasticity_multiplier().apply_div(gas_limit);
 
         if gas_used == gas_target {
             // We reached the gas target, so we don't need to update the base fee
@@ -151,7 +129,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
 
             // We normalize the result, the same way as in the EIP-1559 specification (`<https://eips.ethereum.org/EIPS/eip-1559>`)
             let base_fee_per_gas_delta_normalized =
-                Self::BASE_FEE_MAX_CHANGE_DENOMINATOR.apply_div(base_fee_per_gas_delta_u64);
+                Self::config_base_fee_change_denominator().apply_div(base_fee_per_gas_delta_u64);
 
             if gas_used > gas_target {
                 // In that case, we take the maximum with `1` to make sure the `base_fee_per_gas` is always increased
@@ -174,7 +152,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     ///
     /// The computation of the base price for the current block is determined
     /// by the value of the `base_fee_per_gas`, `gas_limit` of the parent block as well as constant parameters
-    /// such as the [`ChainState::ELASTICITY_MULTIPLIER`] and the amount of gas used in the parent block.
+    /// such as the [`ChainState::config_elasticity_multiplier`] and the amount of gas used in the parent block.
     /// The computation follows the one described in the EIP-1559 specification, where each dimension
     /// of the multi-dimensional gas price is independently updated following EIP-1559.
     pub fn compute_base_fee_per_gas(

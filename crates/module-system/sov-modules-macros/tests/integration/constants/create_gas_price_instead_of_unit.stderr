@@ -1,9 +1,0 @@
-error[E0308]: mismatched types
- --> tests/integration/constants/create_gas_price_instead_of_unit.rs:6:48
-  |
-6 | pub const TEST_GAS: GasPrice<GAS_DIMENSIONS> = config_gas_unit!("TEST_GAS_CONST_CORRECT");
-  |                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `GasPrice<2>`, found `GasUnit<2>`
-  |
-  = note: expected struct `GasPrice<2>`
-             found struct `GasUnit<2>`
-  = note: this error originates in the macro `config_gas_unit` (in Nightly builds, run with -Z macro-backtrace for more info)

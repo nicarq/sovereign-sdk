@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use derive_more::{Deref, DerefMut};
+use sov_bank::config_gas_token_id;
 use sov_bank::utils::TokenHolder;
-use sov_bank::GAS_TOKEN_ID;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
@@ -178,7 +178,7 @@ impl<S: Spec> AccountPool<S> {
         ));
 
         let gas_token_authorized_minters: Vec<S::Address> = node_client
-            .get_authorized_minters::<S>(&GAS_TOKEN_ID)
+            .get_authorized_minters::<S>(&config_gas_token_id())
             .await?
             .into_iter()
             .filter_map(|token_holder| match token_holder {

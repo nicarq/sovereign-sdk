@@ -5,8 +5,6 @@ use proc_macro2::{Ident, TokenStream};
 use syn::{PathArguments, Type, TypePath};
 use toml::Value;
 
-use crate::common::toml_value_to_expr;
-
 const CONSTANTS_MANIFEST_PATH: Option<&str> = option_env!("CONSTANTS_MANIFEST_PATH");
 
 #[derive(Debug, Clone)]
@@ -71,10 +69,6 @@ impl<'a> Manifest<'a> {
         })?;
 
         Self::read_str(constants, constants_path, parent)
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
     }
 
     /// Gets the requested object from the manifest by key
@@ -200,18 +194,15 @@ impl<'a> Manifest<'a> {
         })
     }
 
-    pub fn parse_expression(&self, field: &Ident) -> syn::Result<TokenStream> {
+    pub fn get(&self, field: &Ident) -> syn::Result<&toml::Value> {
         let root = self.get_object(field, "constants")?;
-        let value = root.get(&field.to_string()).ok_or_else(|| {
+        root.get(&field.to_string()).ok_or_else(|| {
             Self::err(
                 &self.path,
                 field,
                 format!("manifest does not contain a `{}` attribute", field),
             )
-        })?;
-
-        let expr = toml_value_to_expr(value, field.span())?;
-        Ok(quote::quote!(#expr))
+        })
     }
 
     fn err<P, T>(path: P, ident: &Ident, msg: T) -> syn::Error

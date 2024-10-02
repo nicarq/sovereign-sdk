@@ -76,12 +76,7 @@ fn constants_from_manifests_test() {
     let t: trybuild::TestCases = trybuild::TestCases::new();
 
     // TOOD: Add compile fail on address prefix and mismatched prefix and invalid bech3
-    t.pass("tests/integration/constants/create_constant.rs");
-    t.pass("tests/integration/constants/create_gas_constant.rs");
-    t.compile_fail("tests/integration/constants/create_gas_constant_invalid_type.rs");
-    t.compile_fail("tests/integration/constants/create_gas_constant_invalid_dimension.rs");
-    t.compile_fail("tests/integration/constants/create_gas_constant_not_array.rs");
-    t.compile_fail("tests/integration/constants/create_gas_price_instead_of_unit.rs");
+    t.pass("tests/integration/constants/valid_constants.rs");
     t.compile_fail("tests/integration/constants/bech32_constant_invalid_checksum.rs");
     t.compile_fail("tests/integration/constants/bech32_constant_prefix_too_short.rs");
     t.compile_fail("tests/integration/constants/bech32_constant_prefix_too_long.rs");

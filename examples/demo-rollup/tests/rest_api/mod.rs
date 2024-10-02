@@ -6,7 +6,7 @@ use demo_stf::runtime::RuntimeCall;
 use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
 use futures::StreamExt;
 use serde::Deserialize;
-use sov_bank::GAS_TOKEN_ID;
+use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{BlockProducingConfig, MockDaSpec};
@@ -345,7 +345,8 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
 }
 
 async fn check_custom_endpoints(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
-    let gas_token_id = demo_stf_json_client::types::TokenId::from_str(&GAS_TOKEN_ID.to_string())?;
+    let gas_token_id =
+        demo_stf_json_client::types::TokenId::from_str(&config_gas_token_id().to_string())?;
     let total_gas_supply = client
         .bank_custom_token_get_total_supply(&gas_token_id)
         .await?;

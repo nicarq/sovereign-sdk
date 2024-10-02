@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_attester_incentives::{AttesterIncentives, CallMessage};
-use sov_bank::{Bank, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -82,7 +82,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
             .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
                     amount: 1,
-                    token_id: GAS_TOKEN_ID,
+                    token_id: config_gas_token_id(),
                 },
             })
             .with_max_fee(user.available_gas_balance / 2)

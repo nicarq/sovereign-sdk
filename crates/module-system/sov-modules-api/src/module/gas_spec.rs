@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_modules_macros::config_value;
+use sov_modules_macros::config_value_private;
 
 use super::Spec;
 use crate::Gas;
@@ -74,109 +74,72 @@ impl<S: Spec> GasSpec for S {
     type Gas = S::Gas;
 
     fn gas_forced_sequencer_registration_cost() -> Self::Gas {
-        const GAS_FORCED_SEQUENCER_REGISTRATION_COST: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_FORCED_SEQUENCER_REGISTRATION_COST");
-
-        Self::Gas::from(GAS_FORCED_SEQUENCER_REGISTRATION_COST)
+        Self::Gas::from(config_value_private!(
+            "GAS_FORCED_SEQUENCER_REGISTRATION_COST"
+        ))
     }
 
     fn gas_to_charge_for_access() -> Self::Gas {
-        const GAS_TO_CHARGE_FOR_ACCESS: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_FOR_ACCESS");
-
-        Self::Gas::from(GAS_TO_CHARGE_FOR_ACCESS)
+        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_ACCESS"))
     }
 
     fn gas_to_charge_for_decoding() -> Self::Gas {
-        const GAS_TO_CHARGE_FOR_DECODING: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_FOR_DECODING");
-
-        Self::Gas::from(GAS_TO_CHARGE_FOR_DECODING)
+        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_DECODING"))
     }
 
     fn fixed_gas_to_charge_per_signature_verification() -> Self::Gas {
-        const FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION: [u64; config_value!(
-            "GAS_DIMENSIONS"
-        )] = config_value!("DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION");
-
-        Self::Gas::from(FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION)
+        Self::Gas::from(config_value_private!(
+            "DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION"
+        ))
     }
 
     fn gas_to_charge_for_delete() -> Self::Gas {
-        const GAS_TO_CHARGE_FOR_DELETE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_FOR_WRITE");
-
-        Self::Gas::from(GAS_TO_CHARGE_FOR_DELETE)
+        Self::gas_to_charge_for_write()
     }
 
     fn gas_to_charge_for_write() -> Self::Gas {
-        const GAS_TO_CHARGE_FOR_WRITE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_FOR_WRITE");
-
-        Self::Gas::from(GAS_TO_CHARGE_FOR_WRITE)
+        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_FOR_WRITE"))
     }
 
     fn gas_to_charge_per_byte_borsh_deserialization() -> Self::Gas {
-        const GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION");
-
-        Self::Gas::from(GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION)
+        Self::Gas::from(config_value_private!(
+            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION"
+        ))
     }
 
     fn gas_to_charge_per_byte_hash_finalize() -> Self::Gas {
-        const GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE");
-
-        Self::Gas::from(GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE)
+        Self::Gas::from(config_value_private!(
+            "GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE"
+        ))
     }
 
     fn gas_to_charge_per_byte_hash_update() -> Self::Gas {
-        const GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE");
-
-        Self::Gas::from(GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE)
+        Self::Gas::from(config_value_private!("GAS_TO_CHARGE_PER_BYTE_HASH_UPDATE"))
     }
 
     fn gas_to_charge_per_byte_signature_verification() -> Self::Gas {
-        const GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION: [u64; config_value!(
-            "GAS_DIMENSIONS"
-        )] = config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION");
-
-        Self::Gas::from(GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION)
+        Self::Gas::from(config_value_private!(
+            "DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION"
+        ))
     }
 
     fn gas_to_refund_for_hot_access() -> Self::Gas {
-        const GAS_TO_REFUND_FOR_HOT_ACCESS: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_REFUND_FOR_HOT_ACCESS");
-
-        Self::Gas::from(GAS_TO_REFUND_FOR_HOT_ACCESS)
+        Self::Gas::from(config_value_private!("GAS_TO_REFUND_FOR_HOT_ACCESS"))
     }
 
     fn gas_to_refund_for_hot_delete() -> Self::Gas {
-        const GAS_TO_REFUND_FOR_HOT_DELETE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
-
-        Self::Gas::from(GAS_TO_REFUND_FOR_HOT_DELETE)
+        Self::gas_to_refund_for_hot_write()
     }
 
     fn gas_to_refund_for_hot_write() -> Self::Gas {
-        const GAS_TO_REFUND_FOR_HOT_WRITE: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("GAS_TO_REFUND_FOR_HOT_WRITE");
-
-        Self::Gas::from(GAS_TO_REFUND_FOR_HOT_WRITE)
+        Self::Gas::from(config_value_private!("GAS_TO_REFUND_FOR_HOT_WRITE"))
     }
 
     fn initial_base_fee_per_gas() -> <Self::Gas as Gas>::Price {
-        const INITIAL_BASE_FEE_PER_GAS: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("INITIAL_BASE_FEE_PER_GAS");
-
-        <Self::Gas as Gas>::Price::from(INITIAL_BASE_FEE_PER_GAS)
+        <Self::Gas as Gas>::Price::from(config_value_private!("INITIAL_BASE_FEE_PER_GAS"))
     }
 
     fn initial_gas_limit() -> Self::Gas {
-        const INITIAL_GAS_LIMIT: [u64; config_value!("GAS_DIMENSIONS")] =
-            config_value!("INITIAL_GAS_LIMIT");
-
-        Self::Gas::from(INITIAL_GAS_LIMIT)
+        Self::Gas::from(config_value_private!("INITIAL_GAS_LIMIT"))
     }
 }

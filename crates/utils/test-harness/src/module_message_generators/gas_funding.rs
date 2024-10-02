@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use sov_bank::{Amount, Bank, CallMessage, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Amount, Bank, CallMessage};
 use sov_cli::NodeClient;
 use sov_modules_api::prelude::tokio;
 use sov_modules_api::Spec;
@@ -31,7 +31,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
         // Skip generated accounts as we know they don't existing on the rollup.
         for address in account_pool.imported_addresses() {
             let balance = node_client
-                .get_balance::<S>(address, &GAS_TOKEN_ID, None)
+                .get_balance::<S>(address, &config_gas_token_id(), None)
                 .await?;
             if balance >= MINIMAL_WHALE_BALANCE {
                 let index = account_pool.get_index(address).expect("Impossible happened: imported account cannot be mapped to index back by address");
@@ -48,7 +48,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
     }
 
     let total_supply = node_client
-        .get_total_supply(&GAS_TOKEN_ID)
+        .get_total_supply(&config_gas_token_id())
         .await
         .expect("Gas token should exist");
 
@@ -73,7 +73,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
             let call_message = CallMessage::<S>::Mint {
                 coins: sov_bank::Coins {
                     amount: to_mint_per_whale,
-                    token_id: GAS_TOKEN_ID,
+                    token_id: config_gas_token_id(),
                 },
                 mint_to_address: whale_address.clone(),
             };
@@ -106,7 +106,7 @@ pub async fn get_gas_funding_txs<S: Spec>(
             to: account.clone(),
             coins: sov_bank::Coins {
                 amount,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
         };
 

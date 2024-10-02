@@ -400,23 +400,54 @@ pub mod macros {
     /// }
     /// ```
     pub use sov_modules_macros::address_type;
-    /// Reads a string value from the rollup configuration manifest file and
-    /// decodes it as a Bech32 value.
+    /// Reads a TOML value from the rollup configuration manifest file and
+    /// converts it into a Rust expression.
     ///
-    /// The macro takes two arguments:
-    ///  1. The name of the constant to be read from the manifest file, as a string literal.
-    ///  2. The Bech32 newtype to decode the value into. This type must be
-    ///     defined by [`impl_hash32_type`](crate::impl_hash32_type).
-    pub use sov_modules_macros::config_bech32;
-    /// Reads a TOML value from the rollup configuration manifest file and
-    /// converts it into a [`crate::gas::GasPrice`] expression available at compile time.
-    pub use sov_modules_macros::config_gas_price;
-    /// Reads a TOML value from the rollup configuration manifest file and
-    /// converts it into a [`crate::gas::GasUnit`] expression available at compile time.
-    pub use sov_modules_macros::config_gas_unit;
-    /// Reads a TOML value from the rollup configuration manifest file and
-    /// converts it into a Rust expression available at compile time. Nulls and
-    /// objects are not supported.
+    /// ## The manifest file
+    ///
+    /// The manifest file must be named `constants.toml` and it's searched
+    /// upwards starting from `OUT_DIR`. It's recommended to put it and the root
+    /// of your Cargo workspace.
+    ///
+    /// ## The `[constants]` section
+    ///
+    /// Inside the `[constants]` section, you can define constants that will then be
+    /// accessible in your code via [`config_value!`] macro.
+    ///
+    /// ```toml
+    /// [constants]
+    ///
+    /// # assert!(config_value!("BOOL"));
+    /// BOOL = true
+    ///
+    /// # assert_eq!(config_value!("UINT"), 42);
+    /// UINT = 42
+    ///
+    /// # assert_eq!(config_value!("STRING"), "foo");
+    /// STRING = "foo"
+    ///
+    /// # assert_eq!(config_value!("ARRAY_OF_U8"), [1, 2, 3]);
+    /// ARRAY_OF_U8 = [1, 2, 3]
+    ///
+    /// # assert_eq!(config_value!("TOKEN_ID"), ...);
+    /// TOKEN_ID = { bech32 = "token_1qwqr2h2e5g961t4f2m1qt3t3d7xx7r4jchjc9ey5pe1r5u8ers9ts", type = "TokenId" }
+    /// ```
+    ///
+    /// ## Overriding constants
+    ///
+    /// When testing your code, it's often useful to override constants. You can do that by setting the
+    /// `SOV_SDK_CONST_OVERRIDE_{CONSTANT_NAME}` env. variable inside your test.
+    ///
+    /// ## `const` expressions
+    ///
+    /// If you want to use a TOML constant inside a `const` expression, you can do this:
+    ///
+    /// ```toml
+    /// [constants]
+    /// MY_CONST = { const = "foobar" }
+    /// ```
+    ///
+    /// Note that this will disable overriding for this constant.
     pub use sov_modules_macros::config_value;
     /// The macro exposes RPC endpoints from all modules in the runtime.
     /// It gets storage from the Context generic

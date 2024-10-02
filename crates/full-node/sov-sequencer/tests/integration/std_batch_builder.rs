@@ -13,7 +13,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer_json_client::types;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{Bank, Coins, TestOptimisticRuntime, GAS_TOKEN_ID};
+use sov_test_utils::runtime::{config_gas_token_id, Bank, Coins, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
     EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -195,7 +195,7 @@ async fn test_batch_building_with_out_of_gas_error() {
             .unwrap(),
         coins: Coins {
             amount: TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_MAX_FEE, // Leave enough tokens to pay gas for the first tx
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
         },
     };
     let drain_wallet_msg: Vec<u8> = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<

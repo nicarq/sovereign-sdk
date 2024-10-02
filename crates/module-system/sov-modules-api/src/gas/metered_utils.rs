@@ -4,7 +4,7 @@ use borsh::BorshDeserialize;
 use digest::consts::U32;
 use digest::Digest;
 use serde::de::DeserializeOwned;
-use sov_modules_macros::config_value;
+use sov_modules_macros::config_value_private;
 use sov_rollup_interface::crypto::{SigVerificationError, Signature};
 use thiserror::Error;
 
@@ -170,8 +170,9 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
 /// A wrapper around [`BorshDeserialize`] that charges gas for deserialization.
 pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
     /// The default amount of gas to charge for each byte of struct to deserialize with borsh.
-    const DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION: [u64; 2] =
-        config_value!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION");
+    fn default_gas_to_charge_per_byte_borsh_serialization() -> [u64; 2] {
+        config_value_private!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION")
+    }
 
     /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
     /// amount of gas for each byte of the struct to deserialize.

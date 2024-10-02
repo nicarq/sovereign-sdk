@@ -1,4 +1,4 @@
-use sov_bank::{Bank, Coins, GAS_TOKEN_ID};
+use sov_bank::{config_gas_token_id, Bank, Coins};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockAddress;
 use sov_modules_api::capabilities::FatalError;
@@ -251,7 +251,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(admin.available_gas_balance - result.gas_value_used - priority_fee_bips.apply(result.gas_value_used).unwrap()),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction and the priority fee"
@@ -303,7 +303,7 @@ fn test_default_transaction_details_works() {
 
             assert_eq!(
                 Bank::<S>::default()
-                    .get_balance_of(&admin.address(), GAS_TOKEN_ID, state)
+                    .get_balance_of(&admin.address(), config_gas_token_id(), state)
                     .unwrap_infallible(),
                 Some(admin.available_gas_balance - result.gas_value_used),
                 "The admin's balance should be equal to the initial balance minus the gas used to send the transaction"
@@ -320,7 +320,7 @@ fn test_default_transaction_details() {
         to: user.address(),
         coins: Coins {
             amount: 1000,
-            token_id: GAS_TOKEN_ID,
+            token_id: config_gas_token_id(),
         },
     });
 
@@ -336,7 +336,7 @@ fn test_default_transaction_details() {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
-                        token_id: GAS_TOKEN_ID,
+                        token_id: config_gas_token_id(),
                     },
                 }
             );
@@ -362,7 +362,7 @@ fn test_custom_transaction_format() {
             to: user.address(),
             coins: Coins {
                 amount: 1000,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
         })
         .with_max_fee(100)
@@ -382,7 +382,7 @@ fn test_custom_transaction_format() {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
-                        token_id: GAS_TOKEN_ID,
+                        token_id: config_gas_token_id(),
                     },
                 }
             );
@@ -410,7 +410,7 @@ fn test_custom_transaction_format_2() {
             to: user.address(),
             coins: Coins {
                 amount: 1000,
-                token_id: GAS_TOKEN_ID,
+                token_id: config_gas_token_id(),
             },
         })
         .with_details(TxDetails {
@@ -432,7 +432,7 @@ fn test_custom_transaction_format_2() {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
-                        token_id: GAS_TOKEN_ID,
+                        token_id: config_gas_token_id(),
                     },
                 }
             );

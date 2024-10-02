@@ -51,7 +51,7 @@ fn test_zero_base_fee_gas_below_target() {
 fn test_zero_base_fee_gas_above_target() {
     const GAS_LIMIT: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(GAS_LIMIT);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -70,7 +70,7 @@ fn test_base_fee_target_reached() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
     const GAS_LIMIT: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(GAS_LIMIT);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -83,18 +83,18 @@ fn test_base_fee_target_reached() {
     );
 }
 
-/// The base fee per gas should increase by `base_fee_per_gas * 1/BASE_FEE_MAX_CHANGE_DENOMINATOR` if the gas used is twice as much as the target
+/// The base fee per gas should increase by `base_fee_per_gas * 1/config_base_fee_change_denominator()` if the gas used is twice as much as the target
 #[test]
 fn test_base_fee_increases_if_gas_used_is_twice_target() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 100;
 
     let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
-        + ChainState::<TestSpec, MockDaSpec>::BASE_FEE_MAX_CHANGE_DENOMINATOR
+        + ChainState::<TestSpec, MockDaSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS);
 
     let gas_limit: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -103,13 +103,13 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
             base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
         expected_base_fee_per_gas,
-        "The base fee per gas should increase by `base_fee_per_gas * (1/BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is twice as much as the target",
+        "The base fee per gas should increase by `base_fee_per_gas * (1/config_base_fee_change_denominator())` if the gas used is twice as much as the target",
     );
 
     // The new value of the base fee should not depend on the value of the gas used, as long as it is twice as much as the target
     let new_gas_limit: u64 = 100 * gas_limit;
     let new_gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(new_gas_limit);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -118,23 +118,23 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
             base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
         expected_base_fee_per_gas,
-        "The base fee per gas should increase by `base_fee_per_gas * (1/BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is twice as much as the target. The new base fee should not depend on the value of the gas used, as long as it is twice as much as the target",
+        "The base fee per gas should increase by `base_fee_per_gas * (1/config_base_fee_change_denominator())` if the gas used is twice as much as the target. The new base fee should not depend on the value of the gas used, as long as it is twice as much as the target",
     );
 }
 
-/// The base fee per gas should decrease by `base_fee_per_gas * 1/(2*BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is half as much as the target
+/// The base fee per gas should decrease by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator())` if the gas used is half as much as the target
 #[test]
 fn base_fee_decreases_if_gas_used_is_half_target() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
 
     let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
-        - ChainState::<TestSpec, MockDaSpec>::BASE_FEE_MAX_CHANGE_DENOMINATOR
+        - ChainState::<TestSpec, MockDaSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS)
             / 2;
 
     let gas_limit: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(gas_limit);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -143,13 +143,13 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
             base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
         expected_base_fee_per_gas,
-        "The base fee per gas should decrease by `base_fee_per_gas * 1/(2*BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is half the target",
+        "The base fee per gas should decrease by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator)` if the gas used is half the target",
     );
 
     // The new value of the base fee should not depend on the value of the gas used, as long as it is half of the target
     let new_gas_limit: u64 = 100 * gas_limit;
     let new_gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::ELASTICITY_MULTIPLIER.apply_div(new_gas_limit);
+        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -158,6 +158,6 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
             base_fee_per_gas: INITIAL_BASE_FEE_PER_GAS,
         },
         expected_base_fee_per_gas,
-        "The base fee per gas should increase by `base_fee_per_gas * 1/(2*BASE_FEE_MAX_CHANGE_DENOMINATOR)` if the gas used is half the target. The new base fee should not depend on the value of the gas used",
+        "The base fee per gas should increase by `base_fee_per_gas * 1/(2*config_base_fee_change_denominator)` if the gas used is half the target. The new base fee should not depend on the value of the gas used",
     );
 }

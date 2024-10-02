@@ -1,4 +1,4 @@
-use sov_modules_api::capabilities::CHAIN_ID;
+use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::UnsignedTransaction;
 use sov_modules_api::{CredentialId, EncodeCall, TxEffect};
@@ -21,7 +21,7 @@ fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<Value
 
     let transaction = UnsignedTransaction::new(
         runtime_msg,
-        CHAIN_ID,
+        config_chain_id(),
         TEST_DEFAULT_MAX_PRIORITY_FEE,
         TEST_DEFAULT_MAX_FEE,
         nonce,
