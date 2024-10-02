@@ -146,6 +146,11 @@ where
         self.stf.runtime()
     }
 
+    /// Returns a reference to the storage manager of the test runner.
+    pub fn storage_manager(&self) -> &SimpleStorageManager<DefaultSpecWithHasher<S>> {
+        &self.storage_manager
+    }
+
     /// Returns the state root of the previous slot.
     /// Since genesis is always ran when constructing the runner, there will always be a previous slot when executing new slots.
     pub fn state_root(&self) -> &<S::Storage as Storage>::Root {

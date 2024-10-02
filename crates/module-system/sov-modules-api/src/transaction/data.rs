@@ -80,6 +80,7 @@ impl PriorityFeeBips {
     serde::Serialize,
     serde::Deserialize,
 )]
+#[serde(bound = "S: Spec")]
 pub struct TxDetails<S: Spec> {
     /// The maximum priority fee that can be paid for this transaction expressed as a basis point percentage of the gas consumed by the transaction.
     /// Ie if the transaction has consumed `100` gas tokens, and the priority fee is set to `100_000` (10%), the

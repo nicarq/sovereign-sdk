@@ -5150,6 +5150,7 @@ dependencies = [
  "sov-ledger-apis",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer",
  "sov-sequencer-registry",
@@ -5225,6 +5226,23 @@ dependencies = [
  "tower-http",
  "tower-request-id",
  "tracing",
+]
+
+[[package]]
+name = "sov-rollup-apis"
+version = "0.3.0"
+dependencies = [
+ "axum",
+ "borsh",
+ "derivative",
+ "derive_more 1.0.0",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-rest-utils",
+ "utoipa-swagger-ui",
 ]
 
 [[package]]

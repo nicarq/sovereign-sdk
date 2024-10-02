@@ -9640,6 +9640,7 @@ dependencies = [
  "sov-ledger-apis",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer",
  "sov-sequencer-registry",
@@ -9773,6 +9774,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-rollup-apis"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "axum-server",
+ "borsh",
+ "derivative",
+ "derive_more 1.0.0",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "sov-bank",
+ "sov-kernels",
+ "sov-modules-api",
+ "sov-modules-stf-blueprint",
+ "sov-rest-utils",
+ "sov-rollup-json-client",
+ "sov-state",
+ "sov-test-utils",
+ "tempfile",
+ "utoipa-swagger-ui",
+]
+
+[[package]]
 name = "sov-rollup-interface"
 version = "0.3.0"
 dependencies = [
@@ -9797,6 +9823,21 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "sov-rollup-json-client"
+version = "0.3.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "progenitor",
+ "regress 0.4.1",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
 ]
 
 [[package]]

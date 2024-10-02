@@ -4,14 +4,23 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::{HasRestApi, StorageReceiver};
-use sov_modules_api::{RuntimeEventProcessor, Spec};
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
+use sov_modules_api::{RuntimeEventProcessor, Spec, StateTransitionFunction};
+use sov_modules_stf_blueprint::{
+    Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
+};
+use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig, SequencerDb};
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
+
+type Receipt<S, Da, RT, K> = <StfBlueprint<S, Da, RT, K> as StateTransitionFunction<
+    <S as Spec>::InnerZkvm,
+    <S as Spec>::OuterZkvm,
+    Da,
+>>::TxReceiptContents;
 
 const LEDGER_PATH: &str = "/ledger";
 const SEQUENCER_PATH: &str = "/sequencer";
@@ -36,7 +45,7 @@ where
         BatchBuilderConfig::Standard(bb_config) => {
             let batch_builder =
                 StdBatchBuilder::<(B::Spec, B::DaSpec, B::Runtime), B::Kernel>::create(
-                    storage,
+                    storage.clone(),
                     da_address,
                     sequencer_db.read_all()?,
                     bb_config,
@@ -82,6 +91,22 @@ where
             LEDGER_PATH,
             ledger_axum_router.with_state(ledger_db.clone()),
         );
+    }
+
+    // Rollup endpoint
+    {
+        let gas_router = RollupTxRouter::<
+            std::sync::Arc<
+                DefaultRollupStateProvider<
+                    B::Spec,
+                    B::DaSpec,
+                    B::Kernel,
+                    B::Runtime,
+                    Receipt<B::Spec, B::DaSpec, B::Runtime, B::Kernel>,
+                >,
+            >,
+        >::axum_router(storage, "/rollup");
+        endpoints.axum_router = endpoints.axum_router.nest("/rollup", gas_router);
     }
 
     // Even if runtime does not have Open API spec, we still want to plug in Sequencer and Ledger.
