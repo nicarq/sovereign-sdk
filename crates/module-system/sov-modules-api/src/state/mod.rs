@@ -8,8 +8,8 @@ mod tests;
 #[cfg(any(feature = "test-utils", feature = "evm"))]
 pub use accessors::UnmeteredStateWrapper;
 pub use accessors::{
-    AccessoryDelta, AuthorizeTransactionError, BootstrapWorkingSet, GenesisStateAccessor,
-    KernelStateAccessor, PreExecWorkingSet, StateCheckpoint, TxScratchpad, WorkingSet,
+    AccessoryDelta, BootstrapWorkingSet, GenesisStateAccessor, KernelStateAccessor,
+    PreExecWorkingSet, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor};

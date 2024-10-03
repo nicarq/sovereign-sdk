@@ -17,8 +17,8 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    AuthorizeTransactionError, Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
-    StateCheckpoint, VersionReader,
+    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec, StateCheckpoint,
+    VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, TransactionReceipt, TxEffect, TxProcessingError,
@@ -293,12 +293,11 @@ where
                 Ok(ok) => ok,
                 Err(err) => {
                     let details = err.to_string();
-                    let remaining_stake = pre_exec_ws.remaining_funds();
-                    let mut tx_scratchpad = pre_exec_ws.into();
+                    let (mut tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
                     self.runtime.sequencer_authorization().penalize_sequencer(
                         &self.sequencer_address,
                         err,
-                        remaining_stake,
+                        gas_meter.remaining_funds(),
                         &mut tx_scratchpad,
                     );
                     return (
@@ -319,33 +318,34 @@ where
             let tx_hash = auth_res.0.raw_tx_hash;
             let authenticated_tx = auth_res.0;
 
-            let working_set =
-                match pre_exec_ws.transfer_gas_to_working_set(&authenticated_tx.authenticated_tx) {
-                    Ok(ok) => ok,
-                    Err(AuthorizeTransactionError {
-                        pre_exec_working_set,
-                        reason,
-                    }) => {
-                        let details = reason.to_string();
-                        let remaining_stake = pre_exec_working_set.remaining_funds();
-                        let mut tx_scratchpad = pre_exec_working_set.into();
-                        self.runtime.sequencer_authorization().penalize_sequencer(
-                            &self.sequencer_address,
-                            reason,
-                            remaining_stake,
-                            &mut tx_scratchpad,
-                        );
-                        return (
-                            tx_scratchpad.revert(),
-                            Err(AcceptTxError {
-                                // Not enough gas, so 403 seems appropriate.
-                                http_status: StatusCode::FORBIDDEN.as_u16(),
-                                title: "Not enough gas for pre-execution checks".to_string(),
-                                details,
-                            }),
-                        );
-                    }
-                };
+            let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
+
+            let working_set = match WorkingSet::try_create_working_set(
+                tx_scratchpad,
+                &gas_meter,
+                &authenticated_tx.authenticated_tx,
+            ) {
+                Ok(working_set) => working_set,
+                Err(mut err) => {
+                    let reason = err.reason;
+                    self.runtime.sequencer_authorization().penalize_sequencer(
+                        &self.sequencer_address,
+                        reason.clone(),
+                        gas_meter.remaining_funds(),
+                        &mut err.scratchpad,
+                    );
+
+                    return (
+                        err.scratchpad.revert(),
+                        Err(AcceptTxError {
+                            // Not enough gas, so 403 seems appropriate.
+                            http_status: StatusCode::FORBIDDEN.as_u16(),
+                            title: "Not enough gas for pre-execution checks".to_string(),
+                            details: reason,
+                        }),
+                    );
+                }
+            };
 
             {
                 self.mempool.add_new_tx(tx_hash, baked_tx.clone());

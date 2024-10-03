@@ -26,14 +26,15 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
 
 impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
     /// Reserves enough gas for the transaction to be processed, if possible.
-    fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
+    fn try_reserve_gas(
         &self,
         tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        pre_exec_working_set: PreExecWorkingSet<S, Meter>,
-    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>> {
+        scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> Result<(), TryReserveGasError> {
         self.bank
-            .reserve_gas(tx, sender, pre_exec_working_set)
+            .reserve_gas(tx, gas_price, sender, scratchpad)
             .map_err(Into::into)
     }
 

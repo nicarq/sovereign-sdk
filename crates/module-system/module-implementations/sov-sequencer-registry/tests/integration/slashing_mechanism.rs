@@ -150,7 +150,7 @@ fn test_sequencer_without_enough_stake() {
 
             match &tx_receipt.receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let SkippedReason::CannotReserveGas(error_message) = reason {
+                    if let SkippedReason::OutOfGas(error_message) = reason {
                         assert!(
                             error_message.contains("The gas to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",

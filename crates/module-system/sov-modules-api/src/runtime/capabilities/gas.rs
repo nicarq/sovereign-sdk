@@ -1,14 +1,12 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{GasMeter, PreExecWorkingSet, Spec, TxScratchpad, WorkingSet};
+use crate::{Gas, Spec, TxScratchpad};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
-pub struct TryReserveGasError<S: Spec, Meter: GasMeter<S::Gas>> {
+pub struct TryReserveGasError {
     /// The reason why it was not possible to reserve gas.
-    pub reason: anyhow::Error,
-    /// The pre-execution working set that was used at the time of the error.
-    pub pre_exec_working_set: PreExecWorkingSet<S, Meter>,
+    pub reason: String,
 }
 
 /// Enforces gas limits and penalties for transactions.
@@ -22,17 +20,14 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// ## Behavior
     /// This function **should** charge the transaction sender for the gas locked in the transaction because his balance
     /// may change during the transaction execution.
-    ///
-    /// ## Type-safety note
-    /// TODO(@ross-weir) Make the gas meter type stricter so devs can't pass an unlimited meter
-    /// while processing transactions in the normal case: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/833>
     #[allow(clippy::result_large_err)]
-    fn try_reserve_gas<Meter: GasMeter<S::Gas>>(
+    fn try_reserve_gas(
         &self,
         tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        pre_exec_working_set: PreExecWorkingSet<S, Meter>,
-    ) -> Result<WorkingSet<S>, TryReserveGasError<S, Meter>>;
+        scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> Result<(), TryReserveGasError>;
 
     /// Rewards the prover
     /// This method should not fail.

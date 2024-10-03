@@ -1,9 +1,7 @@
 use sov_modules_api::capabilities::TryReserveGasError;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use sov_modules_api::{
-    AuthorizeTransactionError, Gas, GasMeter, PreExecWorkingSet, Spec, StateAccessorError,
-    TxScratchpad, WorkingSet,
-};
+use sov_modules_api::{Gas, Spec, StateAccessorError, TxScratchpad};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -11,7 +9,7 @@ use crate::{config_gas_token_id, Bank, Coins, Payable};
 
 /// Error types that can be raised by the `reserve_gas` method
 #[derive(Debug, Clone, Error, PartialEq, Eq)]
-pub enum ReserveGasErrorReason<S: Spec> {
+pub enum ReserveGasError<S: Spec> {
     #[error("The payer {account} does not have an account in the `Bank` module for the gas token")]
     /// The payer does not have an account in the `Bank` module for the gas token
     AccountDoesNotExist {
@@ -24,10 +22,6 @@ pub enum ReserveGasErrorReason<S: Spec> {
     #[error("The current gas price is too high to cover the maximum fee for the transaction")]
     /// The current gas price is too high to cover the maximum fee for the transaction.
     CurrentGasPriceTooHigh,
-    #[error("Insufficient gas locked to pay for pre execution checks. Error: {0}")]
-    /// Insufficient gas locked in the transaction to cover pre-execution checks such as signature checks or transaction
-    /// deserialization
-    InsufficientGasForPreExecutionChecks(String),
     /// Impossible to transfer the gas from the payer to the bank
     #[error("Impossible to transfer the gas from the payer to the bank")]
     ImpossibleToTransferGas(String),
@@ -36,21 +30,10 @@ pub enum ReserveGasErrorReason<S: Spec> {
     StateAccessError(StateAccessorError<S::Gas>),
 }
 
-/// Error type that can be raised by the `reserve_gas` method
-pub struct ReserveGasError<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
-    /// The reason for the error.
-    pub reason: ReserveGasErrorReason<S>,
-    /// The pre execution working set at the time of the error.
-    pub pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
-}
-
-impl<S: Spec, Meter: GasMeter<S::Gas>> From<ReserveGasError<S, Meter>>
-    for TryReserveGasError<S, Meter>
-{
-    fn from(value: ReserveGasError<S, Meter>) -> Self {
+impl<S: Spec> From<ReserveGasError<S>> for TryReserveGasError {
+    fn from(err: ReserveGasError<S>) -> Self {
         Self {
-            reason: value.reason.into(),
-            pre_exec_working_set: value.pre_exec_working_set,
+            reason: err.to_string(),
         }
     }
 }
@@ -60,41 +43,29 @@ impl<S: Spec> Bank<S> {
     /// Reserve the gas necessary to execute a transaction. The gas is locked at the bank's address
     /// This method loosely follows the-EIP 1559 gas price calculation.
     #[allow(clippy::result_large_err)]
-    pub fn reserve_gas<PreExecChecksMeter: GasMeter<S::Gas>>(
+    pub fn reserve_gas(
         &self,
         tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
-        mut pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
-    ) -> Result<WorkingSet<S>, ReserveGasError<S, PreExecChecksMeter>> {
+        scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> Result<(), ReserveGasError<S>> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
-        let balance = match self.get_balance_of(
-            &payer.clone(),
-            config_gas_token_id(),
-            &mut pre_exec_working_set,
-        ) {
-            Ok(Some(balance)) => balance,
-            Ok(None) => {
-                return Err(ReserveGasError::<S, PreExecChecksMeter> {
-                    pre_exec_working_set,
-                    reason: ReserveGasErrorReason::AccountDoesNotExist {
-                        account: payer.to_string(),
-                    },
-                })
-            }
-            Err(err) => {
-                return Err(ReserveGasError {
-                    reason: ReserveGasErrorReason::StateAccessError(err),
-                    pre_exec_working_set,
+        let balance = match self
+            .get_balance_of(&payer.clone(), config_gas_token_id(), scratchpad)
+            .unwrap_infallible()
+        {
+            Some(balance) => balance,
+            None => {
+                return Err(ReserveGasError::AccountDoesNotExist {
+                    account: payer.to_string(),
                 })
             }
         };
 
         // the signer must be able to afford the transaction
         if balance < tx.max_fee {
-            return Err(ReserveGasError::<S, PreExecChecksMeter> {
-                pre_exec_working_set,
-                reason: ReserveGasErrorReason::InsufficientBalanceToReserveGas,
-            });
+            return Err(ReserveGasError::InsufficientBalanceToReserveGas);
         }
 
         if tx.max_fee == 0 {
@@ -113,38 +84,19 @@ impl<S: Spec> Bank<S> {
                 amount: tx.max_fee,
                 token_id: config_gas_token_id(),
             },
-            &mut pre_exec_working_set,
+            scratchpad,
         ) {
-            return Err(ReserveGasError {
-                reason: ReserveGasErrorReason::ImpossibleToTransferGas(err.to_string()),
-                pre_exec_working_set,
-            });
+            return Err(ReserveGasError::ImpossibleToTransferGas(err.to_string()));
         }
 
         if let Some(gas_limit) = &tx.gas_limit {
             // We need to check the gas price in case the user has provided a gas limit.
-            if tx.max_fee < gas_limit.value(pre_exec_working_set.gas_price()) {
-                return Err(ReserveGasError::<S, PreExecChecksMeter> {
-                    pre_exec_working_set,
-                    reason: ReserveGasErrorReason::CurrentGasPriceTooHigh,
-                });
+            if tx.max_fee < gas_limit.value(gas_price) {
+                return Err(ReserveGasError::CurrentGasPriceTooHigh);
             }
         }
 
-        pre_exec_working_set
-            .transfer_gas_to_working_set(tx)
-            // TODO: impl From<AuthorizeTransactionError> for ReserveGasError
-            .map_err(
-                |AuthorizeTransactionError {
-                     pre_exec_working_set,
-                     reason,
-                 }| ReserveGasError::<S, PreExecChecksMeter> {
-                    pre_exec_working_set,
-                    reason: ReserveGasErrorReason::InsufficientGasForPreExecutionChecks(
-                        reason.to_string(),
-                    ),
-                },
-            )
+        Ok(())
     }
 
     /// Computes and allocates the gas consumed by the transaction to the base fee and the tip recipients.

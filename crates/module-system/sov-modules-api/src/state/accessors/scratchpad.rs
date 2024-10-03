@@ -41,14 +41,6 @@ impl<S: Storage> StateCheckpoint<S> {
     }
 }
 
-impl<S: Spec, Meter: GasMeter<S::Gas>> From<PreExecWorkingSet<S, Meter>>
-    for TxScratchpad<S::Storage>
-{
-    fn from(value: PreExecWorkingSet<S, Meter>) -> Self {
-        value.inner
-    }
-}
-
 impl<S: Storage> UniversalStateAccessor for TxScratchpad<S> {
     fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         <RevertableWriter<StateCheckpoint<S>> as UniversalStateAccessor>::get(
@@ -131,39 +123,10 @@ pub struct PreExecWorkingSet<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
     gas_meter: PreExecChecksMeter,
 }
 
-/// An error that can be raised when authorizing a transaction.
-pub struct AuthorizeTransactionError<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
-    /// The reason why the transaction was not authorized.
-    pub reason: anyhow::Error,
-    /// An accessor to the current version of the state.
-    pub pre_exec_working_set: PreExecWorkingSet<S, PreExecChecksMeter>,
-}
-
 impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> PreExecWorkingSet<S, PreExecChecksMeter> {
-    /// Builds a [`WorkingSet`] from the this [`PreExecWorkingSet`].
-    /// This method can fail if the transaction has not locked enough gas for the pre-execution checks.
-    pub fn transfer_gas_to_working_set(
-        self,
-        tx: &AuthenticatedTransactionData<S>,
-    ) -> Result<WorkingSet<S>, AuthorizeTransactionError<S, PreExecChecksMeter>> {
-        let max_fee = tx.max_fee;
-
-        let mut gas_meter = tx.gas_meter(self.gas_meter.gas_price());
-
-        if let Err(e) = gas_meter.charge_gas(self.gas_meter.gas_used()) {
-            return Err(AuthorizeTransactionError {
-                reason: e.into(),
-                pre_exec_working_set: self,
-            });
-        }
-
-        Ok(WorkingSet {
-            delta: RevertableWriter::new(self.inner),
-            events: Default::default(),
-            gas_meter,
-            max_fee,
-            max_priority_fee_bips: tx.max_priority_fee_bips,
-        })
+    /// Returns the associated gas meter and the scratchpad.
+    pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S::Storage>, PreExecChecksMeter) {
+        (self.inner, self.gas_meter)
     }
 }
 
@@ -222,6 +185,12 @@ impl<Store: Storage> StateCheckpoint<Store> {
     }
 }
 
+/// Error type that can be raised by the [`WorkingSet::try_create_working_set`] method.
+pub struct NotEnoughGasError<S: Spec> {
+    pub scratchpad: TxScratchpad<S::Storage>,
+    pub reason: String,
+}
+
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
 /// There are two ways to convert it into a StateCheckpoint:
 /// 1. By using the [`WorkingSet::finalize`] method, where all the changes are added to the underlying
@@ -231,13 +200,37 @@ pub struct WorkingSet<S: Spec> {
     pub(super) delta: RevertableWriter<TxScratchpad<S::Storage>>,
     events: Vec<TypedEvent>,
     gas_meter: TxGasMeter<S::Gas>,
-
     // Gas parameters of the transaction associated with the working set
     max_fee: u64,
     max_priority_fee_bips: PriorityFeeBips,
 }
 
 impl<S: Spec> WorkingSet<S> {
+    /// Creates a new [`WorkingSet`] from the provided [`TxScratchpad`] and [`AuthenticatedTransactionData`].
+    /// The working set will allocate gas according to the transaction's data, minus the gas consumed by pre-execution checks.
+    #[allow(clippy::result_large_err)]
+    pub fn try_create_working_set(
+        scratchpad: TxScratchpad<S::Storage>,
+        gas_meter: &dyn GasMeter<S::Gas>,
+        tx: &AuthenticatedTransactionData<S>,
+    ) -> Result<Self, NotEnoughGasError<S>> {
+        let mut working_set_gas_meter = tx.gas_meter(gas_meter.gas_price());
+        if let Err(e) = working_set_gas_meter.charge_gas(gas_meter.gas_used()) {
+            return Err(NotEnoughGasError {
+                scratchpad,
+                reason: e.to_string(),
+            });
+        }
+
+        Ok(Self {
+            delta: RevertableWriter::new(scratchpad),
+            events: Default::default(),
+            gas_meter: working_set_gas_meter,
+            max_fee: tx.max_fee,
+            max_priority_fee_bips: tx.max_priority_fee_bips,
+        })
+    }
+
     /// Builds a [`crate::TransactionConsumption`] from the [`WorkingSet`].
     pub(crate) fn transaction_consumption(&self) -> TransactionConsumption<S::Gas> {
         // The base fee is the amount of gas consumed by the transaction execution.
