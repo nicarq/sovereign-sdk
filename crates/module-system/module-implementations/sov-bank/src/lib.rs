@@ -5,6 +5,7 @@ mod capability;
 #[cfg(feature = "test-utils")]
 mod test_utils;
 
+pub mod derived_holder;
 pub use capability::{ReserveGasError, ReserveGasErrorReason};
 mod genesis;
 #[cfg(feature = "native")]

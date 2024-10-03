@@ -183,7 +183,7 @@ impl<S: Spec> AccountPool<S> {
             .into_iter()
             .filter_map(|token_holder| match token_holder {
                 TokenHolder::User(addr) => Some(addr),
-                TokenHolder::Module(_) => None,
+                TokenHolder::Module(_) | TokenHolder::Derived(_) => None,
             })
             .collect();
 
