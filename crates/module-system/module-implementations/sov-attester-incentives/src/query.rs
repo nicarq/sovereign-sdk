@@ -21,7 +21,6 @@ pub struct BondAmountResponse {
     pub value: u64,
 }
 
-// TODO: implement rpc_gen macro
 impl<S, Da> AttesterIncentives<S, Da>
 where
     S: Spec,
@@ -108,8 +107,8 @@ where
 /// Implementation of the [`BondingProofServiceImpl`] for the [`AttesterIncentives`] module.
 pub struct BondingProofServiceImpl<S, Da, K>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
 {
     attester_address: S::Address,
     attester_incentives: AttesterIncentives<S, Da>,
@@ -119,8 +118,8 @@ where
 
 impl<S, Da, K> BondingProofServiceImpl<S, Da, K>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
     K: KernelWithSlotMapping<S>,
 {
     /// Creates a new `BondingProofServiceImpl` service.
@@ -140,8 +139,8 @@ where
 
 impl<S, Da, K> BondingProofService for BondingProofServiceImpl<S, Da, K>
 where
-    S: sov_modules_api::Spec,
-    Da: sov_modules_api::DaSpec,
+    S: Spec,
+    Da: DaSpec,
     K: KernelWithSlotMapping<S> + Kernel<S::Storage>,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;

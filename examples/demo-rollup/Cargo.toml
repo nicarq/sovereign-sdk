@@ -21,13 +21,12 @@ sov-stf-runner = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
 
 sov-modules-rollup-blueprint = { workspace = true, features = ["native"] }
-sov-kernels = { workspace = true }
+sov-kernels = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 sov-nft = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
-sov-ledger-apis = { workspace = true }
 risc0 = { path = "./provers/risc0" }
 sp1 = { path = "./provers/sp1" }
 borsh = { workspace = true, features = ["bytes"] }
@@ -67,8 +66,6 @@ secp256k1 = { workspace = true }
 sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 sov-test-harness = { workspace = true }
-
-sov-sequencer-json-client = { workspace = true }
 
 [dev-dependencies]
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }

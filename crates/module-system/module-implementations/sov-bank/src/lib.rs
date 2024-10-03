@@ -29,7 +29,7 @@ use utils::TokenHolderRef;
 pub use utils::{get_token_id, IntoPayable, Payable};
 
 /// Event definition from module exported
-/// This can be useful for deserialization from RPC and similar cases
+/// This can be useful for deserialization from API and similar cases
 pub mod event;
 use crate::event::Event;
 

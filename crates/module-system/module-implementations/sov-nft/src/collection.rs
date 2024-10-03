@@ -113,7 +113,7 @@ impl<S: Spec> Collection<S> {
     }
 
     // Allow dead code used to suppress warnings when native feature flag is not used
-    // 1. The getters are primarily used by rpc which is not native
+    // 1. The getters are primarily used by API which is not native
     // 2. The getters can still be used by other modules in the future
 
     #[allow(dead_code)]

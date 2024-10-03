@@ -42,7 +42,7 @@ impl<S: Spec> Module for ExampleModule<S> {
 
     type Config = ExampleModuleConfig;
 
-    type CallMessage = call::CallMessage;
+    type CallMessage = CallMessage;
 
     type Event = Event;
 
@@ -62,9 +62,7 @@ impl<S: Spec> Module for ExampleModule<S> {
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         match msg {
-            call::CallMessage::SetValue(new_value) => {
-                Ok(self.set_value(new_value, context, state)?)
-            }
+            CallMessage::SetValue(new_value) => Ok(self.set_value(new_value, context, state)?),
         }
     }
 }

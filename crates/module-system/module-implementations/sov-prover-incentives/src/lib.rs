@@ -6,14 +6,8 @@ mod event;
 mod genesis;
 mod registration;
 
-#[cfg(feature = "native")]
-mod query;
-
 pub use call::*;
 pub use genesis::*;
-/// The response type used by RPC queries.
-#[cfg(feature = "native")]
-pub use query::*;
 use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;

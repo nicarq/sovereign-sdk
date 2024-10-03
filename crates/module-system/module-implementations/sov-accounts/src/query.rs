@@ -1,6 +1,4 @@
-//! Defines rpc queries exposed by the accounts module, along with the relevant types
-use jsonrpsee::core::RpcResult;
-use sov_modules_api::macros::rpc_gen;
+//! Defines queries exposed by the accounts module, along with the relevant types
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, CredentialId, Spec};
 
@@ -22,20 +20,16 @@ pub enum Response<Addr> {
     AccountEmpty,
 }
 
-#[rpc_gen(client, server, namespace = "accounts")]
 impl<S: Spec> Accounts<S> {
-    #[rpc_method(name = "getAccount")]
     /// Get the account corresponding to the given credential id.
     pub fn get_account(
         &self,
         credential_id: CredentialId,
         state: &mut ApiStateAccessor<S>,
-    ) -> RpcResult<Response<S::Address>> {
-        let response = match self.accounts.get(&credential_id, state).unwrap_infallible() {
+    ) -> Response<S::Address> {
+        match self.accounts.get(&credential_id, state).unwrap_infallible() {
             Some(Account { addr }) => Response::AccountExists { addr },
             None => Response::AccountEmpty,
-        };
-
-        Ok(response)
+        }
     }
 }

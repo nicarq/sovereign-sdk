@@ -2,11 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod call;
 mod capabilities;
-#[cfg(feature = "native")]
-mod query;
 use call::NotInstantiable;
-#[cfg(feature = "native")]
-pub use query::*;
 use sov_modules_api::{
     CallResponse, Context, CredentialId, Error, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateMap, StateReader, TxState,

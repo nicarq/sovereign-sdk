@@ -4781,7 +4781,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "jsonrpsee",
  "schemars",
  "serde",
  "serde_with",
@@ -4813,7 +4812,6 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
- "jsonrpsee",
  "schemars",
  "serde",
  "sov-modules-api",
@@ -4892,7 +4890,6 @@ dependencies = [
  "anyhow",
  "borsh",
  "derivative",
- "jsonrpsee",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -4920,7 +4917,6 @@ dependencies = [
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-sequencer-json-client",
- "tokio",
 ]
 
 [[package]]
@@ -5153,7 +5149,6 @@ dependencies = [
  "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer",
- "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
  "tokio",
@@ -5184,7 +5179,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "jsonrpsee",
  "schemars",
  "serde",
  "sov-modules-api",
@@ -5198,7 +5192,6 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
- "jsonrpsee",
  "schemars",
  "serde",
  "sov-bank",
@@ -5334,7 +5327,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "jsonrpsee",
  "proptest",
  "proptest-derive",
  "schemars",
@@ -5389,7 +5381,6 @@ dependencies = [
  "rockbound",
  "schemars",
  "serde",
- "serde_json",
  "sov-db",
  "sov-metrics",
  "sov-rollup-interface",
@@ -5416,7 +5407,6 @@ dependencies = [
  "ethers-contract",
  "ethers-core",
  "hex",
- "jsonrpsee",
  "reqwest",
  "rockbound",
  "serde",
@@ -5460,7 +5450,6 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
- "sov-state",
  "thiserror",
 ]
 

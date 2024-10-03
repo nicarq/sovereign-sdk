@@ -25,28 +25,28 @@ serde = { workspace = true }
 
 sov-bank = { workspace = true }
 sov-modules-api = { workspace = true }
-sov-state = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 module-template = { path = ".", version = "*", features = ["native"] }
 sov-test-utils = { workspace = true }
+sov-state = { workspace = true, features = ["native"] }
 
 [features]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "module-template/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-state/arbitrary",
-    "sov-test-utils/arbitrary",
+	"dep:arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
+	"module-template/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-test-utils/arbitrary",
+	"sov-state/arbitrary"
 ]
 native = [
-    "module-template/native",
-    "schemars",
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-state/native",
+	"module-template/native",
+	"schemars",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-state/native"
 ]

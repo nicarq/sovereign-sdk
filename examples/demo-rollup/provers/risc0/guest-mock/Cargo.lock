@@ -1074,8 +1074,6 @@ dependencies = [
  "sov-capabilities",
  "sov-chain-state",
  "sov-evm",
- "sov-kernels",
- "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nft",
@@ -1085,7 +1083,6 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-value-setter",
- "tracing",
 ]
 
 [[package]]
@@ -3225,7 +3222,6 @@ dependencies = [
  "borsh",
  "serde",
  "sov-modules-api",
- "sov-state",
  "thiserror",
 ]
 

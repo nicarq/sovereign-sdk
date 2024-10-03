@@ -58,8 +58,8 @@ error[E0277]: the trait bound `for<'de> RuntimeEvent<S>: Deserialize<'de>` is no
   = note: for local types consider adding `#[derive(serde::Deserialize)]` to your `RuntimeEvent<S>` type
   = note: for types from other crates check whether the crate offers a `serde` feature flag
   = help: the following other types implement trait `Deserialize<'de>`:
+            <&'a JsonRawValue as Deserialize<'de>>
             <&'a [u8] as Deserialize<'de>>
-            <&'a sov_modules_api::prelude::serde_json::value::RawValue as Deserialize<'de>>
             <&'a std::path::Path as Deserialize<'de>>
             <&'a str as Deserialize<'de>>
             <() as Deserialize<'de>>

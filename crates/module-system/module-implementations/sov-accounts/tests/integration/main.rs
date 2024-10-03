@@ -57,7 +57,7 @@ fn test_config_account() {
     // The account is registered at genesis.
     runner.query_state(|state| {
         let accounts = Accounts::<S>::default();
-        let response = accounts.get_account(user.credential_id(), state).unwrap();
+        let response = accounts.get_account(user.credential_id(), state);
         assert_eq!(
             response,
             Response::AccountExists {
@@ -90,14 +90,14 @@ fn test_update_account() {
 
             // New account with the new public key and an old address is created.
             assert_eq!(
-                accounts.get_account(new_credential, state).unwrap(),
+                accounts.get_account(new_credential, state),
                 Response::AccountExists {
                     addr: user.address()
                 }
             );
             // Account corresponding to the old credential still exists.
             assert_eq!(
-                accounts.get_account(user.credential_id(), state).unwrap(),
+                accounts.get_account(user.credential_id(), state),
                 Response::AccountExists {
                     addr: user.address()
                 }
@@ -147,9 +147,7 @@ fn test_register_new_account() {
 
     runner.query_state(|state| {
         let accounts = Accounts::<S>::default();
-        let response = accounts
-            .get_account(non_registered_account.credential_id(), state)
-            .unwrap();
+        let response = accounts.get_account(non_registered_account.credential_id(), state);
         assert_eq!(response, Response::AccountEmpty);
     });
 
@@ -167,7 +165,7 @@ fn test_register_new_account() {
 
             // New account with the new public key and an old address is created.
             assert_eq!(
-                accounts.get_account(new_credential, state).unwrap(),
+                accounts.get_account(new_credential, state),
                 Response::AccountExists {
                     addr: non_registered_account.address()
                 }
@@ -175,9 +173,7 @@ fn test_register_new_account() {
 
             // The default credential of the account exists
             assert_eq!(
-                accounts
-                    .get_account(non_registered_account.credential_id(), state)
-                    .unwrap(),
+                accounts.get_account(non_registered_account.credential_id(), state),
                 Response::AccountExists {
                     addr: non_registered_account.address()
                 }

@@ -8,25 +8,19 @@
 mod call;
 mod capabilities;
 mod event;
-mod registration;
-pub use event::Event;
-
 mod genesis;
+mod registration;
 
-use sov_bank::IntoPayable;
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-#[cfg(feature = "native")]
-mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
 pub use capabilities::SequencerStakeMeter;
+pub use event::Event;
 pub use genesis::*;
-#[cfg(feature = "native")]
-pub use query::*;
 use serde::{Deserialize, Serialize};
-use sov_bank::{config_gas_token_id, Amount, Coins};
+use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::capabilities::AllowedSequencer;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
     Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader,
