@@ -19,7 +19,7 @@ pub struct ExampleModuleConfig {}
 
 /// A new module:
 /// - Must derive `ModuleInfo`
-/// - Must contain `[address]` field
+/// - Must contain `[id]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
 /// - Can derive ModuleRestApi to automatically generate Rest API endpoints
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
