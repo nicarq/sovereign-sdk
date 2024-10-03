@@ -7,9 +7,8 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
-    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, GasMeter, InvalidProofError,
-    ModuleInfo, PreExecWorkingSet, SovAttestation, SovStateTransitionPublicData, Spec,
-    TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, InvalidProofError,
+    ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
@@ -107,17 +106,14 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
 
     /// Prevents duplicate transactions from running.
     // TODO(@preston-evans98): Use type system to prevent writing to the `StateCheckpoint` during this check
-    fn check_uniqueness<Meter: GasMeter<S::Gas>>(
+    fn check_uniqueness(
         &self,
         auth_data: &Self::AuthorizationData,
         _context: &Context<S>,
-        pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> anyhow::Result<()> {
-        self.nonces.check_nonce(
-            &auth_data.credential_id,
-            auth_data.nonce,
-            pre_exec_working_set,
-        )
+        self.nonces
+            .check_nonce(&auth_data.credential_id, auth_data.nonce, tx_scratchpad)
     }
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -137,18 +133,18 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
         auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
-        state: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
         let sequencer = self.
-        sequencer_registry.resolve_da_address(sequencer, state)?
+        sequencer_registry.resolve_da_address(sequencer, tx_scratchpad)?
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,
-            state,
+            tx_scratchpad,
         )?;
         Ok(Context::new(
             sender,
@@ -163,13 +159,13 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
         &self,
         auth_data: &Self::AuthorizationData,
         height: u64,
-        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,
-            state,
+            tx_scratchpad,
         )?;
         // The tx sender & sequencer are the same entity
         Ok(Context::new(

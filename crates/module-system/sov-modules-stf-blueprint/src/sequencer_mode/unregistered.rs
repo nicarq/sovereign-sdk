@@ -45,14 +45,12 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
+    let (mut tx_scratchpad, mut gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
     let ctx = match runtime
         .transaction_authorizer()
-        .resolve_unregistered_context(
-            &auth_data,
-            height,
-            &mut pre_exec_working_set,
-            execution_context,
-        ) {
+        .resolve_unregistered_context(&auth_data, height, &mut tx_scratchpad, execution_context)
+    {
         Ok(ctx) => ctx,
         Err(e) => {
             return (
@@ -60,54 +58,52 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                     reason: SkippedReason::CannotResolveContext(e.to_string()),
                     raw_tx_hash,
                 }),
-                pre_exec_working_set.to_scratchpad_and_gas_meter().0,
+                tx_scratchpad,
             );
         }
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(e) = runtime.transaction_authorizer().check_uniqueness(
-        &auth_data,
-        &ctx,
-        &mut pre_exec_working_set,
-    ) {
+    if let Err(e) =
+        runtime
+            .transaction_authorizer()
+            .check_uniqueness(&auth_data, &ctx, &mut tx_scratchpad)
+    {
         return (
             Err(TxProcessingError::Skipped {
                 reason: SkippedReason::IncorrectNonce(e.to_string()),
                 raw_tx_hash,
             }),
-            pre_exec_working_set.to_scratchpad_and_gas_meter().0,
+            tx_scratchpad,
         );
     }
 
-    if let Err(e) = pre_exec_working_set.charge_gas(&S::gas_forced_sequencer_registration_cost()) {
+    if let Err(e) = gas_meter.charge_gas(&S::gas_forced_sequencer_registration_cost()) {
         return (
             Err(TxProcessingError::Skipped {
                 reason: SkippedReason::CannotReserveGas(e.to_string()),
                 raw_tx_hash,
             }),
-            pre_exec_working_set.to_scratchpad_and_gas_meter().0,
+            tx_scratchpad,
         );
     }
-
-    let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     if let Err(TryReserveGasError { reason }) =
         runtime
             .gas_enforcer()
-            .try_reserve_gas(tx, gas_price, ctx.sender(), &mut scratchpad)
+            .try_reserve_gas(tx, gas_price, ctx.sender(), &mut tx_scratchpad)
     {
         return (
             Err(TxProcessingError::Skipped {
                 reason: SkippedReason::CannotReserveGas(reason.to_string()),
                 raw_tx_hash,
             }),
-            scratchpad,
+            tx_scratchpad,
         );
     }
 
     let working_set: WorkingSet<S> =
-        match WorkingSet::try_create_working_set(scratchpad, &gas_meter, tx) {
+        match WorkingSet::try_create_working_set(tx_scratchpad, &gas_meter, tx) {
             Ok(ws) => ws,
             Err(err) => {
                 return (
