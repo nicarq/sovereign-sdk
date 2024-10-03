@@ -13,6 +13,7 @@ members = [
     "examples/const-rollup-config",
     "examples/demo-simple-stf",
     "examples/demo-rollup",
+    "examples/demo-rollup/testing-harness",
     "examples/demo-rollup/stf/demo-stf-json-client",
     "examples/simple-nft-module",
     # Full Node
