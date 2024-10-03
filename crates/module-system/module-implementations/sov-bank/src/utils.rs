@@ -5,6 +5,7 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::{CryptoSpec, ModuleId, Spec};
 use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 
+use crate::derived_holder::DerivedHolder;
 use crate::TokenId;
 
 /// Derives token ID from `token_name` and `originator`
@@ -50,11 +51,19 @@ impl<S: Spec> IntoPayable<S> for ModuleId {
     }
 }
 
+impl<S: Spec> IntoPayable<S> for DerivedHolder {
+    type Output<'a> = TokenHolderRef<'a, S>;
+    fn to_payable(&self) -> TokenHolderRef<'_, S> {
+        TokenHolderRef::Derived(self)
+    }
+}
+
 impl<S: Spec> Payable<S> for TokenHolder<S> {
     fn as_token_holder(&self) -> TokenHolderRef<'_, S> {
         match self {
             Self::User(addr) => TokenHolderRef::User(addr),
             Self::Module(id) => TokenHolderRef::Module(id),
+            Self::Derived(dh) => TokenHolderRef::Derived(dh),
         }
     }
 }
@@ -75,6 +84,8 @@ pub enum TokenHolder<S: Spec> {
     User(S::Address),
     /// A builtin module.
     Module(ModuleId),
+    /// A programmatically generated holder.
+    Derived(DerivedHolder),
 }
 
 impl<Sp: Spec> serde::Serialize for TokenHolder<Sp> {
@@ -102,6 +113,8 @@ pub enum TokenHolderRef<'a, S: Spec> {
     User(&'a S::Address),
     /// A reference to a module's ID
     Module(&'a ModuleId),
+    /// A reference to a programmatically generated holder.
+    Derived(&'a DerivedHolder),
 }
 
 impl<'a, S: Spec> TokenHolderRef<'a, S> {
@@ -110,6 +123,7 @@ impl<'a, S: Spec> TokenHolderRef<'a, S> {
         match self {
             TokenHolderRef::User(addr) => addr.as_ref(),
             TokenHolderRef::Module(id) => id.as_ref(),
+            TokenHolderRef::Derived(dh) => dh.as_ref(),
         }
     }
 }
@@ -119,6 +133,7 @@ impl<'a, S: Spec> From<&TokenHolderRef<'a, S>> for TokenHolder<S> {
         match item {
             TokenHolderRef::User(addr) => TokenHolder::User((*addr).clone()),
             TokenHolderRef::Module(id) => TokenHolder::Module(**id),
+            TokenHolderRef::Derived(dh) => TokenHolder::Derived(**dh),
         }
     }
 }
@@ -140,6 +155,10 @@ impl<'a, S: Spec> Hash for TokenHolderRef<'a, S> {
                 state.write_u8(1);
                 id.hash(state);
             }
+            Self::Derived(dh) => {
+                state.write_u8(2);
+                dh.hash(state);
+            }
         }
     }
 }
@@ -149,6 +168,7 @@ impl<'a, S: Spec> PartialEq for TokenHolderRef<'a, S> {
         match (self, other) {
             (Self::User(a), Self::User(b)) => a == b,
             (Self::Module(a), Self::Module(b)) => a == b,
+            (Self::Derived(a), Self::Derived(b)) => a == b,
             _ => false,
         }
     }
@@ -171,6 +191,7 @@ impl<'a, S: Spec> From<&'a TokenHolder<S>> for TokenHolderRef<'a, S> {
         match item {
             TokenHolder::User(addr) => TokenHolderRef::User(addr),
             TokenHolder::Module(id) => TokenHolderRef::Module(id),
+            TokenHolder::Derived(dh) => TokenHolderRef::Derived(dh),
         }
     }
 }
@@ -186,6 +207,12 @@ impl<'a, S: Spec> From<&&'a S::Address> for TokenHolderRef<'a, S> {
 impl<'a, S: Spec> From<&'a ModuleId> for TokenHolderRef<'a, S> {
     fn from(value: &'a ModuleId) -> Self {
         Self::Module(value)
+    }
+}
+
+impl<'a, S: Spec> From<&'a DerivedHolder> for TokenHolderRef<'a, S> {
+    fn from(value: &'a DerivedHolder) -> Self {
+        Self::Derived(value)
     }
 }
 
@@ -215,6 +242,7 @@ mod tests {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
+    use derive_more::FromStr;
     use sov_modules_api::default_spec::DefaultSpec;
     use sov_modules_api::execution_mode::Native;
     use sov_test_utils::MockZkVerifier;
@@ -245,5 +273,24 @@ mod tests {
             address_hash, module_id_hash,
             "Hashes for module id and address derived from same source should be different"
         );
+    }
+
+    #[test]
+    fn test_derived_holder() {
+        let source: [u8; 32] = [0; 32];
+
+        let original_dh = DerivedHolder::from(source);
+        assert_eq!(
+            original_dh.to_string(),
+            "derived_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgfk7l6"
+        );
+
+        let dh = DerivedHolder::from_str(&original_dh.to_string()).unwrap();
+        assert_eq!(original_dh, dh);
+
+        let token_holder = TokenHolderRef::<S>::from(&original_dh);
+        let payable = original_dh.to_payable();
+
+        assert_eq!(token_holder, payable);
     }
 }

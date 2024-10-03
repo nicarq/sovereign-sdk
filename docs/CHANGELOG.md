@@ -1,7 +1,13 @@
 ## 2024-10-02
+- #1547 Adds support for `DerivedHolder` in the `TokenHolder`. 
+With this change token holder can be generated programmatically.
+
 - #1549 introduces **an optional** `public_address` field to `runner_config`. 
    If this `public_address` is provided, it will be used as the server entry in the OpenAPI specification and UI. 
    This allows for the correct rendering of the server address in the OpenAPI spec when the rollup node is running behind a proxy.
+   
+With this change token holder can be generated programmatically. Example DerivedHolder: "derived_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqgfk7l6"
+
 - #1548 Moves OpenAPI response objects to schemas so it has name and client generators have better output.
   Adds missing 404 case for StateVecElementResponse
 
