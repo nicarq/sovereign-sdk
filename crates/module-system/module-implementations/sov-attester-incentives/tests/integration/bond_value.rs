@@ -128,9 +128,6 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
         }),
     });
 
-    // We advance one slot to reflect the gas update on the state.
-    runner.advance_slots(1);
-
     let new_bond_amount = role.minimal_bond(&runner);
 
     runner.query_state(|state| {

@@ -12,7 +12,6 @@ pub use sov_bank::{
 };
 use sov_blob_storage::PreferredBatchData;
 pub use sov_capabilities::StandardProvenRollupCapabilities;
-use sov_chain_state::ChainState;
 pub use sov_chain_state::ChainStateConfig;
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
@@ -22,7 +21,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, GasSpec, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
+    Error, Gas, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
     RuntimeEventProcessor, Spec, StateCheckpoint, TxEffect,
 };
 use sov_modules_stf_blueprint::{
@@ -195,19 +194,7 @@ where
         let mut state_checkpoint =
             StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
 
-        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): here we have no choice but to manually query the in-progress transition because
-        // the kernel is off by one. Once we refactor the Kernel for the soft-confirmations work we should add
-        // a special method to query the gas from the chain state inside the API.
-        let base_fee_per_gas = {
-            if let Some(transition) = ChainState::<S, MockDaSpec>::default()
-                .get_in_progress_transition(&mut state_checkpoint)
-                .unwrap_infallible()
-            {
-                transition.gas_price().clone()
-            } else {
-                S::initial_base_fee_per_gas()
-            }
-        };
+        let base_fee_per_gas = kernel.base_fee_per_gas(&mut state_checkpoint);
 
         ApiStateAccessor::<S>::new_with_price(
             &state_checkpoint,

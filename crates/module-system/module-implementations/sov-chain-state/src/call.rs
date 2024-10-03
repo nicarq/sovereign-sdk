@@ -37,9 +37,8 @@ where
         &self,
         state: &mut Reader,
     ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, <Reader as StateReader<User>>::Error> {
-        if let Some(in_progress_transition) = self
-            .historical_transitions
-            .get(&(state.rollup_height_to_access()), state)?
+        if let Some(in_progress_transition) =
+            self.slots.get(&(state.rollup_height_to_access()), state)?
         {
             let computed_base_fee =
                 Self::compute_base_fee_per_gas(&in_progress_transition.gas_info);
@@ -57,7 +56,7 @@ where
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> <S::Gas as sov_modules_api::Gas>::Price {
         if let Some(in_progress_transition) = self
-            .historical_transitions
+            .slots
             .get(&(state.virtual_slot_number()), state)
             .unwrap_infallible()
         {
