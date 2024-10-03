@@ -94,6 +94,13 @@
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
+        },
+        "public_address": {
+          "description": "The fully qualified public name of the server, in case the rollup node is running behind a proxy. For instance: ```toml public_address = \"https://rollup.example.com\" ```",
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },

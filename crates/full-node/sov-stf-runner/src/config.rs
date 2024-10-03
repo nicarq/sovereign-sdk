@@ -39,6 +39,24 @@ pub struct HttpServerConfig {
     pub bind_host: String,
     /// Server port.
     pub bind_port: u16,
+    /// The fully qualified public name of the server, in case the rollup node is running behind a proxy.
+    /// For instance:
+    /// ```toml
+    /// public_address = "https://rollup.example.com"
+    /// ```
+    pub public_address: Option<String>,
+}
+
+impl HttpServerConfig {
+    /// Creates an [`HttpServerConfig`] that requests the operating system to bind to any available port.
+    /// Useful for testing as it prevents multiple threads from binding to the same port.
+    pub fn localhost_on_free_port() -> Self {
+        HttpServerConfig {
+            bind_host: "127.0.0.1".to_string(),
+            bind_port: 0,
+            public_address: None,
+        }
+    }
 }
 
 /// Simple storage configuration
@@ -134,6 +152,7 @@ mod tests {
             [runner.axum_config]
             bind_host = "127.0.0.1"
             bind_port = 12346
+            public_address = "https://rollup.sovereign.xyz"
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
@@ -155,10 +174,12 @@ mod tests {
                 rpc_config: HttpServerConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
+                    public_address: None,
                 },
                 axum_config: HttpServerConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12346,
+                    public_address: Some("https://rollup.sovereign.xyz".to_string()),
                 },
                 concurrent_sync_tasks: Some(18),
             },
