@@ -7,6 +7,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     DaSpec, ExecutionContext, FullyBakedTx, Gas, GasMeter, PreExecWorkingSet, Spec, TxScratchpad,
+    WorkingSet,
 };
 
 use crate::sequencer_mode::common::apply_tx;
@@ -48,22 +49,22 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let (tx, auth_data, message) =
         match authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set) {
             Err(AuthenticationError::FatalError(reason)) => {
-                let mut scratchpad = pre_exec_working_set.into();
+                let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
                 runtime
                     .sequencer_remuneration()
-                    .slash_sequencer(sequencer_da_address, &mut scratchpad);
+                    .slash_sequencer(sequencer_da_address, &mut tx_scratchpad);
 
                 // Slashed
                 return (
                     Err(TxProcessingError::InvalidRegisteredTx(
                         AuthenticationError::FatalError(reason),
                     )),
-                    scratchpad,
+                    tx_scratchpad,
                 );
             }
             Err(AuthenticationError::OutOfGas(reason)) => {
                 let remaining_stake = pre_exec_working_set.remaining_funds();
-                let mut tx_scratchpad = pre_exec_working_set.into();
+                let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
                 runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
                     AuthenticationError::OutOfGas(reason.clone()),
@@ -96,7 +97,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         Err(err) => {
             let err_string = err.to_string();
             let remaining_stake = pre_exec_working_set.remaining_funds();
-            let mut tx_scratchpad = pre_exec_working_set.into();
+            let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
             runtime.sequencer_authorization().penalize_sequencer(
@@ -125,7 +126,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         let err_string = err.to_string();
 
         let remaining_stake = pre_exec_working_set.remaining_funds();
-        let mut tx_scratchpad = pre_exec_working_set.into();
+        let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
         runtime.sequencer_authorization().penalize_sequencer(
@@ -144,37 +145,48 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         );
     }
 
-    let working_set =
-        match runtime
+    let (mut tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
+    if let Err(TryReserveGasError { reason }) =
+        runtime
             .gas_enforcer()
-            .try_reserve_gas(tx, ctx.sender(), pre_exec_working_set)
-        {
-            Ok(working_set) => working_set,
-            Err(TryReserveGasError {
-                reason,
-                pre_exec_working_set,
-            }) => {
-                let reason_string = reason.to_string();
-                let remaining_funds = pre_exec_working_set.remaining_funds();
-                let mut tx_scratchpad = pre_exec_working_set.into();
+            .try_reserve_gas(tx, gas_price, ctx.sender(), &mut tx_scratchpad)
+    {
+        runtime.sequencer_authorization().penalize_sequencer(
+            sequencer_da_address,
+            &reason,
+            gas_meter.remaining_funds(),
+            &mut tx_scratchpad,
+        );
 
-                // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-                runtime.sequencer_authorization().penalize_sequencer(
-                    sequencer_da_address,
-                    reason,
-                    remaining_funds,
-                    &mut tx_scratchpad,
-                );
+        return (
+            Err(TxProcessingError::Skipped {
+                reason: SkippedReason::CannotReserveGas(reason.to_string()),
+                raw_tx_hash,
+            }),
+            tx_scratchpad,
+        );
+    }
 
-                return (
-                    Err(TxProcessingError::Skipped {
-                        reason: SkippedReason::CannotReserveGas(reason_string),
-                        raw_tx_hash,
-                    }),
-                    tx_scratchpad,
-                );
-            }
-        };
+    let working_set = match WorkingSet::try_create_working_set(tx_scratchpad, &gas_meter, tx) {
+        Ok(ws) => ws,
+        Err(mut err) => {
+            runtime.sequencer_authorization().penalize_sequencer(
+                sequencer_da_address,
+                &err.reason,
+                gas_meter.remaining_funds(),
+                &mut err.scratchpad,
+            );
+
+            return (
+                Err(TxProcessingError::Skipped {
+                    reason: SkippedReason::OutOfGas(err.reason.to_string()),
+                    raw_tx_hash,
+                }),
+                err.scratchpad,
+            );
+        }
+    };
 
     // If the transaction is valid, execute it and apply the changes to the state.
     let (apply_tx, mut tx_scratchpad) =

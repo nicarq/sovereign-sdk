@@ -81,6 +81,9 @@ pub enum SkippedReason {
     /// Impossible to resolve the context of the transaction.
     #[error("Impossible to resolve the context of the transaction, reason: {0}.")]
     CannotResolveContext(String),
+    /// The transaction ran out of gas
+    #[error("The transaction ran out of gas, reason: {0}.")]
+    OutOfGas(String),
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Error)]

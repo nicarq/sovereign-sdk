@@ -27,7 +27,7 @@ pub use checkpoints::StateCheckpoint;
 pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelStateAccessor};
-pub use scratchpad::{AuthorizeTransactionError, PreExecWorkingSet, TxScratchpad, WorkingSet};
+pub use scratchpad::{PreExecWorkingSet, TxScratchpad, WorkingSet};
 
 use self::seal::CachedAccessor;
 

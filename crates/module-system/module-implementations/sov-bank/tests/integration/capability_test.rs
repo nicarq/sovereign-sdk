@@ -1,4 +1,4 @@
-use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasErrorReason};
+use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasError};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
@@ -239,7 +239,7 @@ fn test_reserve_gas_no_account() {
             if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
-                    ReserveGasErrorReason::<S>::AccountDoesNotExist {
+                    ReserveGasError::<S>::AccountDoesNotExist {
                         account: user_no_account.address().to_string(),
                     }
                     .to_string(),
@@ -304,7 +304,7 @@ fn test_reserve_gas_not_enough_balance() {
             if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
-                    ReserveGasErrorReason::<S>::InsufficientBalanceToReserveGas.to_string(),
+                    ReserveGasError::<S>::InsufficientBalanceToReserveGas.to_string(),
                     "The inner reserve gas error is incorrect"
                 );
             } else {
@@ -348,7 +348,7 @@ fn test_reserve_gas_price_too_high() {
             if let TxEffect::Skipped(SkippedReason::CannotReserveGas(reason)) = result.tx_receipt {
                 assert_eq!(
                     reason,
-                    ReserveGasErrorReason::<S>::CurrentGasPriceTooHigh.to_string(),
+                    ReserveGasError::<S>::CurrentGasPriceTooHigh.to_string(),
                     "The inner reserve gas error is incorrect"
                 );
             } else {

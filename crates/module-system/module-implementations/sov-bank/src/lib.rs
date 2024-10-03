@@ -2,11 +2,11 @@
 #![doc = include_str!("../README.md")]
 mod call;
 mod capability;
+pub mod derived_holder;
 #[cfg(feature = "test-utils")]
 mod test_utils;
 
-pub mod derived_holder;
-pub use capability::{ReserveGasError, ReserveGasErrorReason};
+pub use capability::ReserveGasError;
 mod genesis;
 #[cfg(feature = "native")]
 mod query;

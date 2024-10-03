@@ -55,6 +55,7 @@ where
             // If the sequencer does not have enough funds, then penalize it and return early.
             let mut working_set = match workflow.try_reserve_gas(
                 &sequencer_rollup_address,
+                gas_price,
                 proof_with_details.details.into(),
                 pre_exec_working_set,
             ) {
@@ -231,39 +232,63 @@ where
     fn try_reserve_gas(
         &self,
         sequencer_rollup_address: &S::Address,
+        gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
         pre_exec_working_set: PreExecWorkingSet<
             S,
             <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
         >,
     ) -> WorkflowResult<WorkingSet<S>, S, Da> {
-        match self.runtime.gas_enforcer().try_reserve_gas(
+        let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
+        if let Err(TryReserveGasError { reason }) = self.runtime.gas_enforcer().try_reserve_gas(
             &auth_tx,
+            gas_price,
             sequencer_rollup_address,
-            pre_exec_working_set,
+            &mut scratchpad,
         ) {
-            Ok(working_set) => WorkflowResult::Proceed(working_set),
-            Err(TryReserveGasError {
-                reason,
-                pre_exec_working_set,
-            }) => {
-                let reason_str = reason.to_string();
-                WorkflowResult::EarlyReturn(
-                    ProcessProofOutput {
-                        proof_receipt: invalid_proof_receipt::<S, Da>(
-                            self.blob_hash,
-                            InvalidProofError::PreconditionNotMet(format!(
-                                "Failed to reserve gas: {}",
-                                reason_str
-                            )),
-                        ),
-                        gas_used: S::Gas::zero(),
-                    },
-                    self.penalize_sequencer(reason, pre_exec_working_set)
-                        .commit(),
-                )
-            }
+            return WorkflowResult::EarlyReturn(
+                ProcessProofOutput {
+                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                        self.blob_hash,
+                        InvalidProofError::PreconditionNotMet(format!(
+                            "Failed to reserve gas: {}",
+                            reason
+                        )),
+                    ),
+                    gas_used: S::Gas::zero(),
+                },
+                self.penalize_sequencer(reason, scratchpad, gas_meter.remaining_funds())
+                    .commit(),
+            );
         }
+
+        let working_set: WorkingSet<S> =
+            match WorkingSet::try_create_working_set(scratchpad, &gas_meter, &auth_tx) {
+                Ok(working_set) => working_set,
+                Err(err) => {
+                    return WorkflowResult::EarlyReturn(
+                        ProcessProofOutput {
+                            proof_receipt: invalid_proof_receipt::<S, Da>(
+                                self.blob_hash,
+                                InvalidProofError::PreconditionNotMet(format!(
+                                    "Failed to reserve gas: {}",
+                                    err.reason
+                                )),
+                            ),
+                            gas_used: S::Gas::zero(),
+                        },
+                        self.penalize_sequencer(
+                            err.reason,
+                            err.scratchpad,
+                            gas_meter.remaining_funds(),
+                        )
+                        .commit(),
+                    );
+                }
+            };
+
+        WorkflowResult::Proceed(working_set)
     }
 
     fn slash_for_bad_serialization(
@@ -293,13 +318,9 @@ where
     fn penalize_sequencer(
         &self,
         reason: impl std::fmt::Display,
-        pre_exec_working_set: PreExecWorkingSet<
-            S,
-            <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
-        >,
+        mut tx_scratchpad: TxScratchpad<S::Storage>,
+        remaining_funds: u64,
     ) -> TxScratchpad<S::Storage> {
-        let remaining_funds = pre_exec_working_set.remaining_funds();
-        let mut tx_scratchpad = pre_exec_working_set.into();
         self.runtime.sequencer_authorization().penalize_sequencer(
             self.sequencer_da_address,
             reason,
