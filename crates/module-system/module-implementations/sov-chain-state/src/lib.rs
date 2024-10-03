@@ -13,7 +13,6 @@ use sov_modules_api::{
 };
 
 mod genesis;
-use std::convert::Infallible;
 
 pub use gas::{NonZeroRatio, NonZeroRatioConversionError};
 pub use genesis::*;
@@ -100,15 +99,12 @@ impl<GU: Gas> BlockGasInfo<GU> {
 )]
 /// Structure that contains the information needed to represent a single state transition.
 pub struct StateTransition<S: Spec, Da: DaSpec> {
-    slot_hash: Da::SlotHash,
     post_state_root: <S::Storage as Storage>::Root,
-    validity_condition: Da::ValidityCondition,
-    gas_info: BlockGasInfo<S::Gas>,
+    slot: SlotInformation<S, Da>,
 }
 
 impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
-    /// Creates a new state transition. Only available for testing as we only want to create
-    /// new state transitions from existing [`TransitionInProgress`].
+    /// Creates a new state transition.
     pub fn new(
         slot_hash: Da::SlotHash,
         post_state_root: <S::Storage as Storage>::Root,
@@ -116,10 +112,8 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
-            slot_hash,
+            slot: SlotInformation::new(slot_hash, validity_condition, gas_info),
             post_state_root,
-            validity_condition,
-            gas_info,
         }
     }
 }
@@ -132,7 +126,7 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
         slot_hash: &Da::SlotHash,
         post_state_root: &<S::Storage as Storage>::Root,
     ) -> bool {
-        self.slot_hash == *slot_hash && self.post_state_root == *post_state_root
+        self.slot.hash == *slot_hash && self.post_state_root == *post_state_root
     }
 
     /// Returns the post state root of a state transition
@@ -142,27 +136,27 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
 
     /// Returns the slot hash of a state transition
     pub fn slot_hash(&self) -> &Da::SlotHash {
-        &self.slot_hash
+        &self.slot.hash
     }
 
     /// Returns the total gas used for the block execution
     pub const fn gas_used(&self) -> &S::Gas {
-        &self.gas_info.gas_used
+        &self.slot.gas_info.gas_used
     }
 
     /// Returns the gas price computed for the block execution
     pub const fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        &self.gas_info.base_fee_per_gas
+        &self.slot.gas_info.base_fee_per_gas
     }
 
     /// Returns the gas limit of used for the block execution
     pub const fn gas_limit(&self) -> &S::Gas {
-        &self.gas_info.gas_limit
+        &self.slot.gas_info.gas_limit
     }
 
     /// Returns the validity condition associated with the transition
     pub fn validity_condition(&self) -> &Da::ValidityCondition {
-        &self.validity_condition
+        &self.slot.validity_condition
     }
 
     /// Checks the validity condition of a state transition
@@ -170,19 +164,19 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
         &self,
         checker: &mut Checker,
     ) -> Result<(), <Checker as ValidityConditionChecker<Da::ValidityCondition>>::Error> {
-        checker.check(&self.validity_condition)
+        checker.check(&self.slot.validity_condition)
     }
 }
 
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Represents a transition in progress for the rollup.
-pub struct TransitionInProgress<S: Spec, Da: DaSpec> {
-    slot_hash: Da::SlotHash,
+pub struct SlotInformation<S: Spec, Da: DaSpec> {
+    hash: Da::SlotHash,
     validity_condition: Da::ValidityCondition,
     gas_info: BlockGasInfo<S::Gas>,
 }
 
-impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
+impl<S: Spec, Da: DaSpec> SlotInformation<S, Da> {
     /// Creates a new transition in progress
     pub fn new(
         slot_hash: Da::SlotHash,
@@ -190,7 +184,7 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
-            slot_hash,
+            hash: slot_hash,
             validity_condition,
             gas_info,
         }
@@ -212,8 +206,8 @@ impl<S: Spec, Da: DaSpec> TransitionInProgress<S, Da> {
     }
 
     /// Returns the block hash of the transition in progress
-    pub const fn block_hash(&self) -> &Da::SlotHash {
-        &self.slot_hash
+    pub const fn hash(&self) -> &Da::SlotHash {
+        &self.hash
     }
 }
 
@@ -245,23 +239,24 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     #[state]
     operating_mode: StateValue<OperatingMode>,
 
-    /// A record of all previous state transitions which are available to the VM.
-    /// Currently, this includes *all* historical state transitions, but that may change in the future.
-    /// This state map is delayed by one transition. In other words - the transition that happens in time i
-    /// is stored during transition i+1. This is mainly due to the fact that this structure depends on the
-    /// rollup's root hash which is only stored once the transition has completed.
+    /// A record of all previous slots' information which are available to the VM.
+    /// Currently, this includes *all* slots, but that may change in the future.
+    ///
+    /// ## TODO(@theochap):
+    /// This should be a `VersionedStateVec` <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385`>
     #[state]
-    historical_transitions: StateMap<TransitionHeight, StateTransition<S, Da>, BcsCodec>,
+    slots: StateMap<TransitionHeight, SlotInformation<S, Da>, BcsCodec>,
 
-    /// The transition that is currently processed
+    /// The state root hashes from genesis to the current slot.
+    /// ## Note
+    /// There is a one slot-delay for the update of this state map because we cannot predict what will be the next
+    /// most up to date state root inside the current slot. We have to wait for the next slot to start getting processed and return
+    /// the pre-state root.
+    ///
+    /// ## TODO(@theochap):
+    /// This should be a `VersionedStateVec` <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385`>
     #[state]
-    in_progress_transition: VersionedStateValue<TransitionInProgress<S, Da>, BcsCodec>,
-
-    /// The genesis root hash.
-    /// Set after the first transaction of the rollup is executed, using the [`ChainState::begin_slot_hook`] hook.
-    // TODO: This should be made read-only
-    #[state]
-    genesis_root: StateValue<<S::Storage as Storage>::Root>,
+    state_roots: StateMap<TransitionHeight, <S::Storage as Storage>::Root, BcsCodec>,
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
@@ -370,7 +365,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         &self,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.genesis_root.get(state)
+        self.state_roots.get(&0, state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
@@ -405,22 +400,21 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         self.genesis_da_height.get(state)
     }
 
-    /// Returns the transition in progress of the module.
-    pub fn get_in_progress_transition<Reader: VersionReader>(
+    /// Returns the last slot processed by the module.
+    pub fn get_last_slot<Reader: VersionReader + StateReader<User>>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<TransitionInProgress<S, Da>>, <Reader as StateReader<Kernel>>::Error> {
-        self.in_progress_transition.get_current(state)
+    ) -> Result<Option<SlotInformation<S, Da>>, <Reader as StateReader<User>>::Error> {
+        self.slots.get(&state.rollup_height_to_access(), state)
     }
 
-    /// Returns the transition in progress of the module of the previous slot.
-    pub fn get_in_progress_transition_prev_slot<Reader: VersionReader<Error = Infallible>>(
+    /// Returns the root hash of the state at the provided height.
+    pub fn get_root_at_height<Accessor: StateReader<User>>(
         &self,
-        state: &mut Reader,
-    ) -> Option<TransitionInProgress<S, Da>> {
-        self.in_progress_transition
-            .get(&(state.rollup_height_to_access().saturating_sub(1)), state)
-            .unwrap_infallible()
+        transition_num: TransitionHeight,
+        state: &mut Accessor,
+    ) -> Result<Option<<S::Storage as Storage>::Root>, <Accessor as StateReader<User>>::Error> {
+        self.state_roots.get(&transition_num, state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
@@ -429,7 +423,18 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         transition_num: TransitionHeight,
         state: &mut Accessor,
     ) -> Result<Option<StateTransition<S, Da>>, <Accessor as StateReader<User>>::Error> {
-        self.historical_transitions.get(&transition_num, state)
+        if let Some(root) = self.state_roots.get(&transition_num, state)? {
+            return Ok({
+                let maybe_slot = self.slots.get(&transition_num, state)?;
+
+                maybe_slot.map(|slot| StateTransition {
+                    post_state_root: root,
+                    slot,
+                })
+            });
+        }
+
+        Ok(None)
     }
 
     /// Returns the current operating mode of the rollup.

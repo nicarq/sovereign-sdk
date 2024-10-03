@@ -94,7 +94,7 @@ fn test_chain_state_gas_updates() {
         let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition(kernel)
+            .get_last_slot(kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -156,7 +156,7 @@ fn test_chain_state_historical_transition_update() {
 
     let in_progress_transition = runner.query_kernel_state(|kernel| {
         ChainState::<S, MockDaSpec>::default()
-            .get_in_progress_transition(kernel)
+            .get_last_slot(kernel)
             .unwrap_infallible()
             .unwrap()
     });
@@ -172,7 +172,7 @@ fn test_chain_state_historical_transition_update() {
             .unwrap();
 
         assert_eq!(
-            in_progress_transition.block_hash(),
+            in_progress_transition.hash(),
             first_transition.slot_hash(),
             "The slot hashes of the in progress and the first historical transition should be the same"
         );

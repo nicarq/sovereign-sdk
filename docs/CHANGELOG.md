@@ -1,4 +1,5 @@
 ## 2024-10-02
+- #1557 Simplifies the internal representation of the `ChainState` module and ensures that `gas_price` updates can be immediately accessible through the `Kernel` interface. The gas price accessible from the kernels should now update immediately after a slot is processed. This can potentially break tests that rely on the previous behavior (ie, 1-slot delay for the gas update).
 - #1547 Adds support for `DerivedHolder` in the `TokenHolder`. 
 With this change token holder can be generated programmatically.
 
