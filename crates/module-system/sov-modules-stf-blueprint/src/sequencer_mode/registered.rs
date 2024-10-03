@@ -85,19 +85,20 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
+    let remaining_stake = pre_exec_working_set.remaining_funds();
+    let (mut tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
     let maybe_ctx = runtime.transaction_authorizer().resolve_context(
         &auth_data,
         sequencer_da_address,
         height,
-        &mut pre_exec_working_set,
+        &mut tx_scratchpad,
         execution_context,
     );
     let ctx = match maybe_ctx {
         Ok(ctx) => ctx,
         Err(err) => {
             let err_string = err.to_string();
-            let remaining_stake = pre_exec_working_set.remaining_funds();
-            let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
             // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
             runtime.sequencer_authorization().penalize_sequencer(
@@ -118,15 +119,12 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     };
 
     // Check that the transaction isn't a duplicate
-    if let Err(err) = runtime.transaction_authorizer().check_uniqueness(
-        &auth_data,
-        &ctx,
-        &mut pre_exec_working_set,
-    ) {
+    if let Err(err) =
+        runtime
+            .transaction_authorizer()
+            .check_uniqueness(&auth_data, &ctx, &mut tx_scratchpad)
+    {
         let err_string = err.to_string();
-
-        let remaining_stake = pre_exec_working_set.remaining_funds();
-        let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
         runtime.sequencer_authorization().penalize_sequencer(
@@ -144,8 +142,6 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             tx_scratchpad,
         );
     }
-
-    let (mut tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     if let Err(TryReserveGasError { reason }) =
         runtime

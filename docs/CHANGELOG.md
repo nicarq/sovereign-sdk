@@ -1,4 +1,8 @@
 ## 2024-10-03
+- #1568 `TransactionAuthorizer` capability no longer charges for the gas.
+This is a breaking change for the consumers of the SDK. The capabilities accept 
+`TxScratchpad` instead of `PreExecWorkingSet`.
+
 - #1565 `GasEnforcer::try_reserve_gas` now accepts `TxScratchpad` instead of `PreExecWorkingSet`. This is a breaking change for the consumers of the SDK. 
 
 

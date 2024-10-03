@@ -119,7 +119,7 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
         auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
         height: u64,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        state: &mut TxScratchpad<S::Storage>,
         context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
@@ -128,16 +128,16 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
         &self,
         auth_data: &Self::AuthorizationData,
         height: u64,
-        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        state: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
     /// Prevents duplicate transactions from running.
-    fn check_uniqueness<Meter: GasMeter<S::Gas>>(
+    fn check_uniqueness(
         &self,
         auth_data: &Self::AuthorizationData,
         context: &Context<S>,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Meter>,
+        state: &mut TxScratchpad<S::Storage>,
     ) -> anyhow::Result<()>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -145,7 +145,7 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &Da::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut TxScratchpad<S::Storage>,
     );
 }
 
