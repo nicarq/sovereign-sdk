@@ -43,7 +43,7 @@ pub struct UnbondingInfo {
 
 /// A new module:
 /// - Must derive `ModuleInfo`
-/// - Must contain `[address]` field
+/// - Must contain `[id]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct AttesterIncentives<S, Da>
