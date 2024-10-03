@@ -5,6 +5,7 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::execution_mode::Native;
+use sov_rollup_interface::reexports::anyhow;
 
 pub(crate) type ThisSpec = DefaultSpec<Risc0Verifier, MockZkVerifier, Native>;
 pub(crate) type ThisDaService = CelestiaService;
