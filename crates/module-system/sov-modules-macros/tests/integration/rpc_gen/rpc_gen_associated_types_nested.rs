@@ -86,7 +86,6 @@ pub mod my_module {
 
     pub mod rpc {
         use super::*;
-        use crate::my_module::QueryModule;
 
         #[derive(Debug, Eq, PartialEq, Clone, serde::Serialize, serde::Deserialize)]
         pub struct QueryResponse {
@@ -131,7 +130,8 @@ impl TestSpec for ActualSpec {
     type Message = ActualMessage;
 }
 
-fn main() {
+#[test]
+fn associated_types_nested() {
     type S = ZkTestSpec;
     type RT = Runtime<S, ActualSpec>;
     let storage = ZkStorage::new();

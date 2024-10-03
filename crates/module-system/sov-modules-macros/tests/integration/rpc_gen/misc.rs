@@ -49,17 +49,17 @@ where
 
     fn genesis(
         &self,
-        config: &Self::Config,
-        state: &mut impl sov_modules_api::GenesisState<S>,
+        _config: &Self::Config,
+        _state: &mut impl sov_modules_api::GenesisState<S>,
     ) -> Result<(), sov_modules_api::Error> {
         unimplemented!()
     }
 
     fn call(
         &self,
-        msg: Self::CallMessage,
-        context: &sov_modules_api::Context<Self::Spec>,
-        state: &mut impl sov_modules_api::TxState<S>,
+        _msg: Self::CallMessage,
+        _context: &sov_modules_api::Context<Self::Spec>,
+        _state: &mut impl sov_modules_api::TxState<S>,
     ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
         unimplemented!()
     }
@@ -108,5 +108,3 @@ where
 pub struct TestRuntime<S: Spec> {
     module: MyModule<S, u32>,
 }
-
-fn main() {}
