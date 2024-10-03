@@ -27,11 +27,6 @@ sov-state = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-jsonrpsee = { workspace = true, features = [
-    "macros",
-    "client-core",
-    "server",
-], optional = true }
 sov-cycle-utils = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [
     "std",
@@ -69,10 +64,8 @@ arbitrary = [
 	"sov-mock-da/arbitrary"
 ]
 native = [
-	"jsonrpsee",
 	"sov-cycle-utils?/native",
 	"schemars",
-    # This:
 	"sov-bank/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",

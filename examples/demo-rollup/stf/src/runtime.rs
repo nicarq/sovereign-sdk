@@ -91,8 +91,8 @@ where
         let axum_router = Self::default().rest_api(api_state.clone());
 
         sov_modules_stf_blueprint::RuntimeEndpoints {
-            jsonrpsee_module: get_rpc_methods::<S, Da>(api_state),
             axum_router,
+            jsonrpsee_module: get_rpc_methods::<S, Da>(api_state),
         }
     }
 

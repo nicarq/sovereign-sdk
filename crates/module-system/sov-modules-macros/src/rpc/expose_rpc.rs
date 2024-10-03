@@ -41,11 +41,11 @@ pub fn expose_rpc(
     };
 
     let fn_get_rpc_methods: proc_macro2::TokenStream = quote! {
-        /// Returns a [`jsonrpsee::RpcModule`] with all the RPC methods
+        /// Returns a [`::sov_modules_api::prelude::jsonrpsee::RpcModule`] with all the RPC methods
         /// exposed by the runtime.
         pub fn get_rpc_methods #impl_generics (
             api_state: ::sov_modules_api::rest::ApiState<(), <#runtime_type as sov_modules_api::module::DispatchCall>::Spec>,
-        ) -> ::jsonrpsee::RpcModule<()> #where_clause {
+        ) -> ::sov_modules_api::prelude::jsonrpsee::RpcModule<()> #where_clause {
             // The attributes from merge operations may generate "unused doc
             // comment" warnings. Just to be safe, we ignore absolutely all
             // warnings.
@@ -54,7 +54,7 @@ pub fn expose_rpc(
             use sov_modules_api::__rpc_macros_private::ModuleWithRpcServer;
 
             let runtime = <#runtime_type as ::core::default::Default>::default();
-            let mut rpc_module = ::jsonrpsee::RpcModule::new(());
+            let mut rpc_module = ::sov_modules_api::prelude::jsonrpsee::RpcModule::new(());
 
             #(#merge_operations)*
             rpc_module

@@ -331,7 +331,7 @@ impl<S: Spec> Bank<S> {
         Ok(CallResponse::default())
     }
 
-    /// Helper function used by the rpc method [`balance_of`](Bank::balance_of) to return the balance of the token stored at `token_id`
+    /// Helper function to return the balance of the token stored at `token_id`
     /// for the user having the address `user_address` from the underlying storage. If the token ID doesn't exist, or
     /// if the user doesn't have tokens of that type, return `None`. Otherwise, wrap the resulting balance in `Some`.
     pub fn get_balance_of<Accessor: StateAccessor>(

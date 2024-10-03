@@ -18,10 +18,8 @@ fn chain_state_kernel_genesis() {
         );
 
         assert_eq!(
-            ChainState::<S, MockDaSpec>::default()
-                .get_next_visible_slot_number(kernel)
-                .unwrap(),
             0,
+            ChainState::<S, MockDaSpec>::default().get_next_visible_slot_number(kernel),
             "The kernel virtual slot should be initialized to zero"
         );
     });

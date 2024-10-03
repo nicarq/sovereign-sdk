@@ -1,6 +1,3 @@
-use jsonrpsee::core::RpcResult;
-use jsonrpsee::types::ErrorCode;
-use sov_modules_api::macros::rpc_gen;
 use sov_modules_api::prelude::axum::routing::get;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
@@ -102,42 +99,6 @@ impl<S: Spec> NonFungibleToken<S> {
             owner: nft.get_owner().clone(),
             collection_id: *nft.get_collection_id(),
         }))
-    }
-}
-
-#[rpc_gen(client, server, namespace = "nft")]
-impl<S: Spec> NonFungibleToken<S> {
-    #[rpc_method(name = "getCollection")]
-    /// Get the collection details
-    pub fn get_collection(
-        &self,
-        collection_id: CollectionId,
-        state: &mut ApiStateAccessor<S>,
-    ) -> RpcResult<CollectionDetails<S>> {
-        self.collection(collection_id, state)
-            .unwrap_infallible()
-            .ok_or(ErrorCode::InvalidParams.into())
-    }
-    #[rpc_method(name = "getCollectionId")]
-    /// Get the collection id
-    pub fn get_collection_id(
-        &self,
-        creator: CreatorAddress<S>,
-        collection_name: &str,
-    ) -> RpcResult<CollectionIdDetails> {
-        Ok(self.collection_id(creator, collection_name))
-    }
-    #[rpc_method(name = "getNft")]
-    /// Get the NFT details
-    pub fn get_nft(
-        &self,
-        collection_id: CollectionId,
-        token_id: TokenId,
-        state: &mut ApiStateAccessor<S>,
-    ) -> RpcResult<NftDetails<S>> {
-        self.nft(collection_id, token_id, state)
-            .unwrap_infallible()
-            .ok_or(ErrorCode::InvalidParams.into())
     }
 }
 

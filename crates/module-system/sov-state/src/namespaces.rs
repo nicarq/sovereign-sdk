@@ -26,7 +26,7 @@ pub enum Namespace {
     /// The kernel namespace. Used by the Kernel modules and is synchronised with the true height.
     Kernel,
     /// The accessory namespace. Values in this namespace are writeable but not readable inside the state transition
-    /// function. They are used to provide auxiliary data via RPC.
+    /// function. They are used to provide auxiliary data via API.
     Accessory,
 }
 

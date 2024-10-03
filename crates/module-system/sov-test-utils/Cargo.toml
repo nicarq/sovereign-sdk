@@ -56,7 +56,6 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
-jsonrpsee = { workspace = true }
 rockbound = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 

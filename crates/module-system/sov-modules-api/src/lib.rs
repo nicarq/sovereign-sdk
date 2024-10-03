@@ -106,7 +106,7 @@ pub use sov_rollup_interface::zk::{
     CryptoSpec, StateTransitionPublicData, ValidityCondition, ValidityConditionChecker, Zkvm,
 };
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
-pub use sov_state::Storage;
+pub use sov_state::{CompileTimeNamespace, Storage};
 pub use sov_wallet_format;
 pub use state::*;
 
@@ -172,6 +172,8 @@ pub mod prelude {
     pub extern crate bech32;
     #[cfg(feature = "native")]
     pub extern crate clap;
+    #[cfg(feature = "native")]
+    pub extern crate jsonrpsee;
     #[cfg(feature = "arbitrary")]
     pub extern crate proptest;
     #[cfg(feature = "arbitrary")]

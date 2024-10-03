@@ -20,11 +20,11 @@ tempfile = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
+sov-state = { workspace = true, features = ["native"] }
 
 [dependencies]
 anyhow = { workspace = true }
 sov-modules-api = { workspace = true }
-sov-state = { workspace = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
@@ -33,8 +33,8 @@ borsh = { workspace = true, features = ["rc"] }
 [features]
 default = []
 native = [
-    "schemars",
-    "sov-modules-api/native",
-    "sov-state/native",
-    "sov-value-setter/native",
+	"schemars",
+	"sov-modules-api/native",
+	"sov-value-setter/native",
+	"sov-state/native"
 ]

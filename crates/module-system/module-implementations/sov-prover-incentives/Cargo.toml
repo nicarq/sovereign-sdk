@@ -28,11 +28,6 @@ borsh = { workspace = true, features = ["rc"] }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-jsonrpsee = { workspace = true, features = [
-    "macros",
-    "client-core",
-    "server",
-], optional = true }
 tracing = { workspace = true }
 derive_more = { workspace = true }
 
@@ -44,7 +39,6 @@ sov-chain-state = { workspace = true }
 [features]
 default = []
 native = [
-	"jsonrpsee",
 	"schemars",
 	"sov-bank/native",
 	"sov-chain-state/native",

@@ -98,22 +98,21 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
         let resp = runtime
             .bank
-            .balance_of(
-                None,
-                admin_address,
+            .get_balance_of(
+                &admin_address,
                 get_default_token_id::<TestSpec>(&admin_address),
                 &mut state,
             )
             .unwrap();
 
-        assert_eq!(resp.amount, Some(985));
+        assert_eq!(resp, Some(985));
 
         let resp = runtime
             .sequencer_registry
-            .sequencer_address(MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS), &mut state)
+            .get_sequencer_address(MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS), &mut state)
             .unwrap();
         // Sequencer is not excluded from the list of allowed!
-        assert_eq!(Some(sequencer_rollup_address), resp.address);
+        assert_eq!(Some(sequencer_rollup_address), resp);
 
         let nonce = runtime
             .nonces
@@ -386,9 +385,9 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
         let allowed_sequencer = runtime
             .sequencer_registry
-            .sequencer_address(MockAddress::from(SEQUENCER_DA_ADDRESS), &mut state)
+            .get_sequencer_address(MockAddress::from(SEQUENCER_DA_ADDRESS), &mut state)
             .unwrap();
-        assert!(allowed_sequencer.address.is_none());
+        assert_eq!(None, allowed_sequencer);
 
         // Balance of sequencer is not increased
         let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
