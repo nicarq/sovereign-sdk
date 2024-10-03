@@ -1,0 +1,392 @@
+use sov_modules_api::capabilities::mocks::MockKernel;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::{
+    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Event, ExecutionContext,
+    Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+};
+use sov_state::ZkStorage;
+use sov_test_utils::{TestSpec, ZkTestSpec};
+use third_test_module::ModuleThreeStorable;
+
+pub mod first_test_module {
+    use sov_modules_api::ModuleId;
+
+    use super::*;
+
+    #[derive(ModuleInfo)]
+    pub struct FirstTestStruct<S: Spec> {
+        #[id]
+        pub id: ModuleId,
+
+        #[state]
+        pub state_in_first_struct: StateValue<u8>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
+    }
+
+    impl<S: Spec> FirstTestStruct<S> {
+        pub fn get_state_value(&self, state: &mut WorkingSet<S>) -> Result<u8, Error> {
+            Ok(self
+                .state_in_first_struct
+                .get(state)
+                .map_err(|e| Error::ModuleError(e.into()))?
+                .unwrap())
+        }
+    }
+
+    #[derive(
+        borsh::BorshDeserialize,
+        borsh::BorshSerialize,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Clone,
+    )]
+    pub enum Event {
+        FirstModuleEnum1(u64),
+        FirstModuleEnum2,
+        FirstModuleEnum3(Vec<u8>),
+    }
+
+    impl<S: Spec> Module for FirstTestStruct<S> {
+        type Spec = S;
+        type Config = ();
+        type CallMessage = u8;
+        type Event = Event;
+
+        fn genesis(
+            &self,
+            _config: &Self::Config,
+            state: &mut impl sov_modules_api::GenesisState<S>,
+        ) -> Result<(), Error> {
+            self.state_in_first_struct
+                .set(&1, state)
+                .unwrap_infallible();
+            Ok(())
+        }
+
+        fn call(
+            &self,
+            msg: Self::CallMessage,
+            _context: &Context<Self::Spec>,
+            state: &mut impl TxState<S>,
+        ) -> Result<CallResponse, Error> {
+            self.state_in_first_struct
+                .set(&msg, state)
+                .map_err(|e| Error::ModuleError(e.into()))?;
+            Ok(CallResponse::default())
+        }
+    }
+}
+
+pub mod second_test_module {
+    use sov_modules_api::ModuleId;
+
+    use super::*;
+
+    #[derive(ModuleInfo)]
+    pub struct SecondTestStruct<S: Spec> {
+        #[id]
+        pub id: ModuleId,
+
+        #[state]
+        pub state_in_second_struct: StateValue<u8>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
+    }
+
+    impl<S: Spec> SecondTestStruct<S> {
+        pub fn get_state_value(&self, state: &mut WorkingSet<S>) -> Result<u8, Error> {
+            Ok(self
+                .state_in_second_struct
+                .get(state)
+                .map_err(|e| Error::ModuleError(e.into()))?
+                .unwrap())
+        }
+    }
+
+    #[derive(
+        borsh::BorshDeserialize,
+        borsh::BorshSerialize,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Clone,
+    )]
+    pub enum Event {
+        SecondModuleEnum,
+    }
+
+    impl<S: Spec> Module for SecondTestStruct<S> {
+        type Spec = S;
+        type Config = ();
+        type CallMessage = u8;
+        type Event = Event;
+
+        fn genesis(
+            &self,
+            _config: &Self::Config,
+            state: &mut impl sov_modules_api::GenesisState<S>,
+        ) -> Result<(), Error> {
+            self.state_in_second_struct
+                .set(&2, state)
+                .unwrap_infallible();
+            Ok(())
+        }
+
+        fn call(
+            &self,
+            msg: Self::CallMessage,
+            _context: &Context<Self::Spec>,
+            state: &mut impl TxState<S>,
+        ) -> Result<CallResponse, Error> {
+            self.state_in_second_struct
+                .set(&msg, state)
+                .map_err(|e| Error::ModuleError(e.into()))?;
+            Ok(CallResponse::default())
+        }
+    }
+}
+
+pub mod third_test_module {
+    use sov_modules_api::ModuleId;
+
+    use super::*;
+
+    pub trait ModuleThreeStorable:
+        borsh::BorshSerialize + borsh::BorshDeserialize + core::fmt::Debug + Default + Send + Sync
+    {
+    }
+
+    impl ModuleThreeStorable for u32 {}
+
+    #[derive(ModuleInfo)]
+    pub struct ThirdTestStruct<S: Spec, OtherGeneric: ModuleThreeStorable> {
+        #[id]
+        pub id: ModuleId,
+
+        #[state]
+        pub state_in_third_struct: StateValue<OtherGeneric>,
+
+        #[phantom]
+        phantom: std::marker::PhantomData<S>,
+    }
+
+    impl<S: Spec, OtherGeneric: ModuleThreeStorable> ThirdTestStruct<S, OtherGeneric> {
+        pub fn get_state_value(
+            &self,
+            state: &mut WorkingSet<S>,
+        ) -> Result<Option<OtherGeneric>, Error> {
+            self.state_in_third_struct
+                .get(state)
+                .map_err(|e| Error::ModuleError(e.into()))
+        }
+    }
+
+    #[derive(
+        borsh::BorshDeserialize,
+        borsh::BorshSerialize,
+        serde::Serialize,
+        serde::Deserialize,
+        Debug,
+        PartialEq,
+        Clone,
+    )]
+    pub enum Event {
+        ThirdModuleEnum,
+    }
+
+    impl<S: Spec, OtherGeneric: ModuleThreeStorable> Module for ThirdTestStruct<S, OtherGeneric> {
+        type Spec = S;
+        type Config = ();
+        type CallMessage = OtherGeneric;
+        type Event = Event;
+
+        fn genesis(
+            &self,
+            _config: &Self::Config,
+            state: &mut impl sov_modules_api::GenesisState<S>,
+        ) -> Result<(), Error> {
+            self.state_in_third_struct
+                .set(&Default::default(), state)
+                .unwrap_infallible();
+            Ok(())
+        }
+
+        fn call(
+            &self,
+            msg: Self::CallMessage,
+            _context: &Context<Self::Spec>,
+            state: &mut impl TxState<S>,
+        ) -> Result<CallResponse, Error> {
+            self.state_in_third_struct
+                .set(&msg, state)
+                .map_err(|e| Error::ModuleError(e.into()))?;
+            Ok(CallResponse::default())
+        }
+    }
+}
+
+#[test]
+fn custom_attributes() {
+    #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
+    #[dispatch_call(derive(sov_modules_api::macros::UniversalWallet))]
+    struct Runtime<S: Spec> {
+        pub first: first_test_module::FirstTestStruct<S>,
+        pub second: second_test_module::SecondTestStruct<S>,
+    }
+
+    let _ = CompiledSchema::of::<RuntimeCall<TestSpec>>();
+}
+
+#[test]
+fn derive_event() {
+    #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
+    struct Runtime<S: Spec> {
+        pub first: first_test_module::FirstTestStruct<S>,
+        pub second: second_test_module::SecondTestStruct<S>,
+    }
+
+    // Check to see if the runtime events are getting initialized correctly
+    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum1(10));
+    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum2);
+    let _event =
+        RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum3(vec![1; 3]));
+    let _event = RuntimeEvent::<TestSpec>::Second(second_test_module::Event::SecondModuleEnum);
+}
+
+#[test]
+fn derive_genesis() {
+    #[derive(Default, Genesis, DispatchCall, MessageCodec)]
+    struct Runtime<S, T>
+    where
+        S: Spec,
+        T: ModuleThreeStorable,
+    {
+        pub first: first_test_module::FirstTestStruct<S>,
+        pub second: second_test_module::SecondTestStruct<S>,
+        pub third: third_test_module::ThirdTestStruct<S, T>,
+    }
+
+    let storage = ZkStorage::new();
+    let mut state =
+        sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
+    let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
+    let config = GenesisConfig::new((), (), ());
+    let mut genesis_state =
+        state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+    runtime.genesis(&config, &mut genesis_state).unwrap();
+    let mut working_set = state.to_working_set_unmetered();
+
+    {
+        let response = runtime
+            .first
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
+        assert_eq!(response, 1);
+    }
+
+    {
+        let response = runtime
+            .second
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
+        assert_eq!(response, 2);
+    }
+
+    {
+        let response = runtime
+            .third
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
+        assert_eq!(response, Some(0));
+    }
+}
+
+#[test]
+fn derive_dispatch() {
+    #[derive(Default, Genesis, DispatchCall, MessageCodec)]
+    struct Runtime<S, T>
+    where
+        S: Spec,
+        T: ModuleThreeStorable,
+    {
+        pub first: first_test_module::FirstTestStruct<S>,
+        pub second: second_test_module::SecondTestStruct<S>,
+        pub third: third_test_module::ThirdTestStruct<S, T>,
+    }
+
+    type RT = Runtime<ZkTestSpec, u32>;
+
+    let runtime = &mut RT::default();
+
+    let storage = ZkStorage::new();
+
+    let mut state =
+        sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
+    let config = GenesisConfig::new((), (), ());
+    let mut genesis_state =
+        state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+    runtime.genesis(&config, &mut genesis_state).unwrap();
+    let mut working_set = state.to_working_set_unmetered();
+
+    let sender = Address::try_from([0; 32].as_ref()).unwrap();
+    let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
+    let context: Context<ZkTestSpec> = Context::new(
+        sender,
+        Default::default(),
+        sequencer,
+        1,
+        ExecutionContext::Node,
+    );
+
+    let value = 11;
+    {
+        let message = value;
+        let serialized_message = <RT as EncodeCall<
+            first_test_module::FirstTestStruct<ZkTestSpec>,
+        >>::encode_call(message);
+        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+
+        assert_eq!(runtime.module_id(&module), runtime.first.id());
+        let _ = runtime
+            .dispatch_call(module, &mut working_set, &context)
+            .unwrap();
+    }
+
+    {
+        let response = runtime
+            .first
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
+        assert_eq!(response, value);
+    }
+
+    let value = 22;
+    {
+        let message = value;
+        let serialized_message = <RT as EncodeCall<
+            second_test_module::SecondTestStruct<ZkTestSpec>,
+        >>::encode_call(message);
+        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+
+        assert_eq!(runtime.module_id(&module), runtime.second.id());
+
+        let _ = runtime
+            .dispatch_call(module, &mut working_set, &context)
+            .unwrap();
+    }
+
+    {
+        let response = runtime
+            .second
+            .get_state_value(&mut working_set)
+            .expect("The working set should be unmetered");
+        assert_eq!(response, value);
+    }
+}
