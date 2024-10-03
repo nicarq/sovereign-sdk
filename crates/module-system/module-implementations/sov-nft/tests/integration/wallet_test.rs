@@ -1,21 +1,15 @@
 use std::str::FromStr;
 
 use borsh::BorshDeserialize;
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::Spec;
 use sov_nft::{CallMessage, CollectionId, UserAddress};
 use sov_test_utils::TestSpec;
 
 type S = TestSpec;
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    borsh::BorshSerialize,
-    BorshDeserialize,
-    sov_modules_api::macros::UniversalWallet,
-)]
+#[derive(Debug, Clone, PartialEq, borsh::BorshSerialize, BorshDeserialize, UniversalWallet)]
 pub enum RuntimeCall {
     Nft(CallMessage<S>),
 }
@@ -26,10 +20,10 @@ fn test_display_nft_createl() {
         name: "Cosmic Crabs".to_string(),
         collection_uri: "https://crab.gang".to_string(),
     });
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-        r#"Nft.CreateCollection { name: "Cosmic Crabs", collection_uri: "https://crab.gang"}"#
+        r#"Nft.CreateCollection { name: "Cosmic Crabs", collection_uri: "https://crab.gang" }"#
     );
 }
 
@@ -47,10 +41,10 @@ fn test_display_nft_mint() {
         ),
         frozen: false,
     });
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-        "Nft.MintNft { collection_name: \"Cosmic Crabs\", token_uri: \"https://crab.gang/ferris\", token_id: 1, owner: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr, frozen: false}"
+        "Nft.MintNft { collection_name: \"Cosmic Crabs\", token_uri: \"https://crab.gang/ferris\", token_id: 1, owner: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr, frozen: false }"
     );
 }
 
@@ -66,9 +60,9 @@ fn test_display_nft_transfer() {
             .unwrap(),
         ),
     });
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-		"Nft.TransferNft { collection_id: collection1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs2zt6pr, token_id: 1, to: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr}"
+		"Nft.TransferNft { collection_id: collection1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs2zt6pr, token_id: 1, to: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr }"
     );
 }

@@ -9,7 +9,6 @@ use sha2::Digest;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
-use sov_wallet_format::schema::Schema;
 
 /// Implement type conversions between a `\[u8;32\]` wrapper and a bech32 string representation.
 /// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8; 32]` as
@@ -254,7 +253,7 @@ macro_rules! impl_hash32_type {
 // since we're inside sov_modules_api
 #[doc(hidden)]
 mod sov_modules_api {
-    pub use sov_wallet_format;
+    pub use sov_universal_wallet;
 }
 impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 
@@ -270,15 +269,14 @@ pub struct Address<H> {
 
 // Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
 // to just `sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx`
-impl<H: 'static> sov_wallet_format::traits::SchemaGenerator for Address<H> {
-    fn write_schema(output: &mut Schema) {
-        output.register_proxy::<Self, AddressSchema>();
-    }
+impl<H: 'static> sov_universal_wallet::schema::OverrideSchema for Address<H> {
+    type Output = AddressSchema;
 }
 
 #[derive(crate::macros::UniversalWallet)]
 #[allow(dead_code)]
-struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "sov")))] [u8; 32]);
+#[doc(hidden)]
+pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "sov")))] [u8; 32]);
 
 // We manually implement clone so that we can silence this clippy warning.
 // Derivative has o facility to enable that.
@@ -408,7 +406,7 @@ mod test {
     use sha2::Sha256;
     use sov_risc0_adapter::crypto::Risc0PublicKey;
     use sov_rollup_interface::crypto::PublicKeyHex;
-    use sov_wallet_format::compiled_schema::CompiledSchema;
+    use sov_universal_wallet::schema::Schema;
 
     use super::*;
 
@@ -428,7 +426,7 @@ mod test {
     #[test]
     fn test_address_schema() {
         let address: Address<Sha256> = Address::from([11; 32]);
-        let schema = CompiledSchema::of::<Address<Sha256>>();
+        let schema = Schema::of::<Address<Sha256>>();
         assert_eq!(
             schema.display(&borsh::to_vec(&address).unwrap()).unwrap(),
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"

@@ -8,7 +8,7 @@ use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
-use sov_wallet_format::UniversalWallet;
+use sov_universal_wallet::UniversalWallet;
 
 use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 /// Combined root hash of the user and kernel namespaces. The user root hash is the first 32 bytes, whereas the
@@ -23,7 +23,7 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
     BorshSerialize,
     Serialize,
     Deserialize,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 #[derivative(
     Debug(bound = "S: MerkleProofSpec"),
@@ -121,7 +121,7 @@ pub struct SparseMerkleProof<H: SimpleHasher>(
 // However, since they only appear in the Schema (which isn't Rust code), Rustc doesn't know that.
 #[allow(dead_code)]
 mod wallet_placeholders {
-    use sov_wallet_format::UniversalWallet;
+    use sov_universal_wallet::UniversalWallet;
     #[derive(UniversalWallet)]
     pub struct MerkleDisplayPlaceholder {
         leaf: Option<SparseMerkleLeafNodePlacholder>,

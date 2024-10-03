@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::macros::UniversalWallet;
 use thiserror::Error;
 use tracing::error;
 
@@ -17,7 +18,7 @@ use crate::Amount;
     Serialize,
     Deserialize,
     Clone,
-    sov_modules_api::macros::UniversalWallet,
+    UniversalWallet,
     PartialEq,
     Eq,
 )]

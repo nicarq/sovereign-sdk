@@ -6,7 +6,7 @@ impl_hash32_type!(ModuleId, ModuleIdBech32, "module_");
 // exist.
 #[doc(hidden)]
 mod sov_modules_api {
-    pub use sov_wallet_format;
+    pub use sov_universal_wallet;
 
     pub use crate::macros;
 }

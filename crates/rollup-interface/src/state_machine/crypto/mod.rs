@@ -22,7 +22,7 @@ use crate::common::HexHash;
     Ord,
     Clone,
     Copy,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
     derive_more::Display,
     derive_more::FromStr,
     derive_more::From,

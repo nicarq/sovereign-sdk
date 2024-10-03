@@ -32,7 +32,7 @@ tokio = { workspace = true, optional = true, features = [
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
 sov-rollup-interface = { workspace = true }
-sov-wallet-format = { workspace = true, features = ["macros"] }
+sov-universal-wallet = { workspace = true, features = ["macros"] }
 
 # For storable service
 sea-orm = { version = "0.12", features = [

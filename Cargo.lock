@@ -9309,6 +9309,7 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "sov-test-utils",
+ "sov-universal-wallet",
  "sov-value-setter",
  "sp1",
  "tempfile",
@@ -9496,7 +9497,7 @@ dependencies = [
  "sha2 0.10.8",
  "sov-mock-da",
  "sov-rollup-interface",
- "sov-wallet-format",
+ "sov-universal-wallet",
  "tempfile",
  "testcontainers",
  "testcontainers-modules",
@@ -9586,7 +9587,7 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-test-utils",
- "sov-wallet-format",
+ "sov-universal-wallet",
  "tempfile",
  "thiserror",
  "tokio",
@@ -9622,7 +9623,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
- "sov-wallet-format-macro-helpers",
+ "sov-universal-wallet-macro-helpers",
  "syn 2.0.77",
  "tempfile",
  "toml",
@@ -9821,7 +9822,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-rollup-interface",
- "sov-wallet-format",
+ "sov-universal-wallet",
  "thiserror",
  "tokio",
  "tracing",
@@ -9984,7 +9985,7 @@ dependencies = [
  "sov-cycle-utils",
  "sov-db",
  "sov-rollup-interface",
- "sov-wallet-format",
+ "sov-universal-wallet",
  "tempfile",
  "thiserror",
 ]
@@ -10117,6 +10118,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-universal-wallet"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
+dependencies = [
+ "bech32 0.11.0",
+ "borsh",
+ "serde",
+ "serde_json",
+ "sov-universal-wallet-macros",
+ "thiserror",
+]
+
+[[package]]
+name = "sov-universal-wallet-macro-helpers"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
+dependencies = [
+ "convert_case 0.6.0",
+ "darling",
+ "hex",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.77",
+ "syn_derive",
+]
+
+[[package]]
+name = "sov-universal-wallet-macros"
+version = "0.1.0"
+source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
+dependencies = [
+ "sov-universal-wallet-macro-helpers",
+]
+
+[[package]]
 name = "sov-value-setter"
 version = "0.3.0"
 dependencies = [
@@ -10130,41 +10166,6 @@ dependencies = [
  "sov-value-setter",
  "tempfile",
  "thiserror",
-]
-
-[[package]]
-name = "sov-wallet-format"
-version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
-dependencies = [
- "bech32 0.11.0",
- "hex",
- "serde",
- "serde_json",
- "sov-wallet-format-macros",
- "thiserror",
-]
-
-[[package]]
-name = "sov-wallet-format-macro-helpers"
-version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
-dependencies = [
- "convert_case 0.6.0",
- "darling",
- "hex",
- "proc-macro2",
- "quote",
- "syn 2.0.77",
- "syn_derive",
-]
-
-[[package]]
-name = "sov-wallet-format-macros"
-version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-wallet-format.git?rev=0860de2877084066477d0157a0f5a311bd1be919#0860de2877084066477d0157a0f5a311bd1be919"
-dependencies = [
- "sov-wallet-format-macro-helpers",
 ]
 
 [[package]]

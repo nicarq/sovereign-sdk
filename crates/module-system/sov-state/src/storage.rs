@@ -6,7 +6,7 @@ use std::sync::Arc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use sov_wallet_format::UniversalWallet;
+use sov_universal_wallet::UniversalWallet;
 
 use crate::bytes::Prefix;
 use crate::codec::EncodeLike;

@@ -1,6 +1,8 @@
 use anyhow::{bail, Context as _, Result};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
+#[cfg(feature = "native")]
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     CallResponse, Context, EventEmitter, Spec, StateAccessor, StateReader, TxState,
 };
@@ -14,7 +16,7 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     feature = "native",
     derive(CliWalletArg),
     derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::UniversalWallet),
+    derive(UniversalWallet),
     schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
 )]
 #[derive(

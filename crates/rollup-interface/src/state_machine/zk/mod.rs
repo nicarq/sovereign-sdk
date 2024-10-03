@@ -153,7 +153,7 @@ pub trait ValidityCondition:
     BorshDeserialize,
     PartialEq,
     Eq,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 pub struct StateTransitionPublicData<Address, Da: DaSpec, Root> {
     /// The state of the rollup before the transition
@@ -194,7 +194,7 @@ pub trait ValidityConditionChecker<Condition: ValidityCondition>:
     fn check(&mut self, condition: &Condition) -> Result<(), Self::Error>;
 }
 
-#[derive(Serialize, Deserialize, sov_wallet_format::UniversalWallet)]
+#[derive(Serialize, Deserialize, sov_universal_wallet::UniversalWallet)]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
@@ -214,7 +214,7 @@ pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     pub witness: Witness,
 }
 
-#[derive(Serialize, Deserialize, sov_wallet_format::UniversalWallet)]
+#[derive(Serialize, Deserialize, sov_universal_wallet::UniversalWallet)]
 #[serde(
     bound = "Address: Serialize + DeserializeOwned, StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned"
 )]

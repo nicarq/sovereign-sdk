@@ -1,7 +1,8 @@
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_sequencer_registry::CallMessage;
 
-#[derive(Debug, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet)]
+#[derive(Debug, PartialEq, borsh::BorshSerialize, UniversalWallet)]
 enum RuntimeCall {
     SequencerRegistry(CallMessage),
 }
@@ -13,9 +14,9 @@ fn test_display_sequencer_registry_call() {
         amount: 100,
     });
 
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
-        "SequencerRegistry.Deposit { da_address: 0x01020304, amount: 100}"
+        "SequencerRegistry.Deposit { da_address: 0x01020304, amount: 100 }"
     );
 }

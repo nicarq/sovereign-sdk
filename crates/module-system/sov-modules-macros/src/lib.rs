@@ -250,9 +250,9 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
 pub fn derive_wallet(input: TokenStream) -> TokenStream {
-    sov_wallet_format_macro_helpers::derive_wallet(
+    sov_universal_wallet_macro_helpers::derive_wallet(
         input,
-        Some(sov_wallet_format_macro_helpers::syn::parse_quote!(
+        Some(sov_universal_wallet_macro_helpers::syn::parse_quote!(
             sov_modules_api
         )),
     )

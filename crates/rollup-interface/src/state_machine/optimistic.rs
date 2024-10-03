@@ -17,7 +17,7 @@ use crate::zk::StateTransitionPublicData;
     Default,
     PartialEq,
     Eq,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 pub struct ProofOfBond<StateProof> {
     /// The rollup height for which the proof of bond applies
@@ -46,7 +46,7 @@ pub trait BondingProofService: Send + Sync + 'static {
     Default,
     PartialEq,
     Eq,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 pub struct Attestation<SlotHash, StateRoot, StateProof> {
     /// The alleged state root before applying the contents of the da block
@@ -70,7 +70,7 @@ pub struct Attestation<SlotHash, StateRoot, StateProof> {
     BorshDeserialize,
     Serialize,
     Deserialize,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     /// The rollup address of the originator of this challenge
@@ -91,7 +91,7 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     BorshSerialize,
     Serialize,
     Deserialize,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 /// This struct contains the challenge as a raw blob
 pub struct Challenge<'a>(&'a [u8]);

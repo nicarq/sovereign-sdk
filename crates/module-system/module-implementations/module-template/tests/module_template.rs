@@ -1,5 +1,6 @@
 use module_template::{CallMessage, ExampleModule, ExampleModuleConfig, Response};
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, AsUser, TransactionTestCase};
@@ -48,14 +49,14 @@ fn test_example_module() {
 
 #[test]
 fn test_display_value_setter_call() {
-    #[derive(Debug, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet)]
+    #[derive(Debug, PartialEq, borsh::BorshSerialize, UniversalWallet)]
     enum RuntimeCall {
         ValueSetter(CallMessage),
     }
 
     let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(5));
 
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ValueSetter.SetValue(5)"#
