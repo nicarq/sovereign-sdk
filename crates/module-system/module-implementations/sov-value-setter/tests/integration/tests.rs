@@ -1,4 +1,5 @@
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::Error::ModuleError;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
@@ -80,16 +81,14 @@ fn test_setting_value_not_admin() {
 
 #[test]
 fn test_display_value_setter_call() {
-    #[derive(
-        Debug, Clone, PartialEq, borsh::BorshSerialize, sov_modules_api::macros::UniversalWallet,
-    )]
+    #[derive(Debug, Clone, PartialEq, borsh::BorshSerialize, UniversalWallet)]
     enum RuntimeCall {
         ValueSetter(CallMessage),
     }
 
     let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(92));
 
-    let schema = CompiledSchema::of::<RuntimeCall>();
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ValueSetter.SetValue(92)"#

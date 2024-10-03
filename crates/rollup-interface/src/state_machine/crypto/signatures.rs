@@ -75,7 +75,7 @@ pub trait PrivateKey:
     PartialEq,
     Clone,
     Eq,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
     derive_more::Display,
 )]
 #[serde(try_from = "String", into = "String")]

@@ -278,7 +278,7 @@ impl<T: BlockHeaderTrait> core::fmt::Display for BlockHeaderDisplay<'_, T> {
     BorshDeserialize,
     BorshSerialize,
     Default,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 /// A timestamp, represented as seconds since the unix epoch.
 pub struct Time {

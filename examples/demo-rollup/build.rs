@@ -1,6 +1,17 @@
+use std::fs::File;
+use std::io::{self, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, ExitStatus};
-fn main() {
+
+use demo_stf::runtime::RuntimeCall;
+use sov_mock_da::MockDaSpec;
+use sov_mock_zkvm::MockZkVerifier;
+use sov_modules_api::execution_mode::Native;
+use sov_universal_wallet::schema::{Schema, SchemaGenerator};
+
+type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+
+fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
     println!("cargo::rerun-if-env-changed=SOV_PROVER_MODE");
     println!("cargo::rustc-check-cfg=cfg(skip_guest_build)");
@@ -21,4 +32,16 @@ fn main() {
     if skip_guest_build == "1" {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
+
+    store_schema_as_json::<RuntimeCall<S, MockDaSpec>>("demo-rollup-schema.json")?;
+    Ok(())
+}
+
+fn store_schema_as_json<T: SchemaGenerator>(filename: &str) -> io::Result<()> {
+    let schema = Schema::of::<T>();
+    let schema_string = serde_json::to_string_pretty(&schema)?;
+    let mut file = File::create(filename)?;
+    file.write_all(schema_string.as_bytes())?;
+    file.write_all(b"\n")?;
+    Ok(())
 }

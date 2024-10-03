@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::*;
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::Address;
 
 use crate::query::Response;
@@ -60,10 +60,9 @@ fn test_display_accounts_call() {
 
     let msg = RuntimeCall::Accounts(CallMessage::InsertCredentialId([1; 32].into()));
 
-    let schema = CompiledSchema::of::<RuntimeCall>();
-    // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1303
+    let schema = Schema::of::<RuntimeCall>();
     assert_eq!(
-        r#"Accounts.InsertCredentialId0x0101010101010101010101010101010101010101010101010101010101010101"#,
+        r#"Accounts.InsertCredentialId(0x0101010101010101010101010101010101010101010101010101010101010101)"#,
         schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
     );
 }

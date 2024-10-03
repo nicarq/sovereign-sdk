@@ -104,6 +104,14 @@ prometheus = { workspace = true }
 prettytable-rs = "^0.10"
 criterion = "0.5.1"
 
+[build-dependencies]
+sov-universal-wallet = { workspace = true, features = ["serde"] }
+sov-modules-api = { workspace = true }
+sov-mock-zkvm = { workspace = true, features = ["native"] }
+sov-mock-da = { workspace = true, features = ["native"] }
+serde_json = { workspace = true }
+demo-stf = { workspace = true, features = ["native"] }
+
 [features]
 default = []
 # Used for using different encoding between host and guest

@@ -16,7 +16,7 @@ use sov_rollup_interface::da::{
 #[cfg(feature = "native")]
 use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::Bytes;
-use sov_wallet_format::UniversalWallet;
+use sov_universal_wallet::UniversalWallet;
 
 #[cfg(feature = "native")]
 use crate::storable::service::BlockProducing;

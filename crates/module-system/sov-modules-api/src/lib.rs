@@ -107,7 +107,7 @@ pub use sov_rollup_interface::zk::{
 };
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::{CompileTimeNamespace, Storage};
-pub use sov_wallet_format;
+pub use sov_universal_wallet;
 pub use state::*;
 
 pub use crate::common::ModuleError as Error;
@@ -185,7 +185,7 @@ pub mod prelude {
     pub extern crate serde_yaml;
     #[cfg(feature = "native")]
     pub extern crate sov_rest_utils;
-    pub extern crate sov_wallet_format;
+    pub extern crate sov_universal_wallet;
     #[cfg(feature = "native")]
     pub extern crate tokio;
     pub extern crate toml;

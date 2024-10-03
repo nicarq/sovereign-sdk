@@ -21,7 +21,7 @@ pub type HexHash = HexString<[u8; 32]>;
     Ord,
     Hash,
     derive_more::AsRef,
-    sov_wallet_format::UniversalWallet,
+    sov_universal_wallet::UniversalWallet,
 )]
 #[cfg_attr(
     feature = "arbitrary",

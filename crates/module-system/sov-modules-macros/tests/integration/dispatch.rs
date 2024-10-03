@@ -1,6 +1,7 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::sov_wallet_format::compiled_schema::CompiledSchema;
+use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
     Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Event, ExecutionContext,
     Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
@@ -241,7 +242,7 @@ fn custom_attributes() {
         pub second: second_test_module::SecondTestStruct<S>,
     }
 
-    let _ = CompiledSchema::of::<RuntimeCall<TestSpec>>();
+    let _ = Schema::of::<RuntimeCall<TestSpec>>();
 }
 
 #[test]
