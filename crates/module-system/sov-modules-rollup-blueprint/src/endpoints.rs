@@ -13,6 +13,7 @@ use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig, SequencerDb};
+use sov_stf_runner::RunnerConfig;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
@@ -33,6 +34,7 @@ pub async fn register_endpoints<B, M>(
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
     sequencer_config: &SequencerConfig<B::DaSpec>,
+    runner_config: &RunnerConfig,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
@@ -128,13 +130,7 @@ where
     let rollup_spec = sov_rollup_apis::open_api_v3_spec();
     merge_specs(&mut runtime_spec, rollup_spec, ROLLUP_PATH)?;
 
-    // TODO: Server should come from parameters.
-    let server = openapiv3::Server {
-        url: "http://127.0.0.1:12346".to_string(),
-        description: Some("Localhost".to_string()),
-        ..Default::default()
-    };
-    runtime_spec.servers = vec![server];
+    runtime_spec.servers = vec![server_url_from_runner_config(runner_config)];
 
     endpoints.axum_router = endpoints.axum_router.merge(
         sov_modules_api::prelude::utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
@@ -245,6 +241,25 @@ fn merge_specs(
         }
     }
     Ok(())
+}
+
+fn server_url_from_runner_config(runner_config: &RunnerConfig) -> openapiv3::Server {
+    let server_url = match &runner_config.axum_config.public_address {
+        None => format!(
+            "http://{}:{}",
+            runner_config.axum_config.bind_host, runner_config.axum_config.bind_port
+        ),
+        Some(public_url) => public_url
+            .strip_suffix('/')
+            .unwrap_or(public_url)
+            .to_string(),
+    };
+
+    openapiv3::Server {
+        url: server_url,
+        description: Some("Default".to_string()),
+        ..Default::default()
+    }
 }
 
 #[cfg(test)]
@@ -358,5 +373,42 @@ mod tests {
                 .responses
                 .insert(response.to_string(), ReferenceOr::Item(Default::default()));
         }
+    }
+
+    fn runner_config(
+        bind_host: &str,
+        bind_port: u16,
+        public_address: Option<&str>,
+    ) -> RunnerConfig {
+        RunnerConfig {
+            genesis_height: 0,
+            da_polling_interval_ms: 0,
+            rpc_config: sov_stf_runner::HttpServerConfig::localhost_on_free_port(),
+            axum_config: sov_stf_runner::HttpServerConfig {
+                bind_host: bind_host.to_string(),
+                bind_port,
+                public_address: public_address.map(|s| s.to_string()),
+            },
+            concurrent_sync_tasks: None,
+        }
+    }
+
+    #[test]
+    fn test_server_from_runner_config() {
+        let config_1 = runner_config("192.168.0.201", 35786, None);
+        let server_1 = server_url_from_runner_config(&config_1);
+        assert_eq!("http://192.168.0.201:35786", server_1.url);
+
+        let config_2 = runner_config("192.168.0.202", 35786, Some("https://rollup.sovereign.xyz"));
+        let server_2 = server_url_from_runner_config(&config_2);
+        assert_eq!("https://rollup.sovereign.xyz", server_2.url);
+
+        let config_3 = runner_config(
+            "192.168.0.202",
+            35786,
+            Some("https://rollup.sovereign.xyz/"),
+        );
+        let server_3 = server_url_from_runner_config(&config_3);
+        assert_eq!("https://rollup.sovereign.xyz", server_3.url);
     }
 }

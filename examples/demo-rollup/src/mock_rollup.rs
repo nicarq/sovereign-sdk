@@ -107,6 +107,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             sequencer_db,
             da_service,
             &rollup_config.sequencer,
+            &rollup_config.runner,
         )
         .await?;
 

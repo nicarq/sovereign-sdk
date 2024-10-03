@@ -164,14 +164,8 @@ pub async fn initialize_runner(
         runner: RunnerConfig {
             genesis_height: 0,
             da_polling_interval_ms: 150,
-            rpc_config: HttpServerConfig {
-                bind_host: "127.0.0.1".to_string(),
-                bind_port: 0,
-            },
-            axum_config: HttpServerConfig {
-                bind_host: "127.0.0.1".to_string(),
-                bind_port: 0,
-            },
+            rpc_config: HttpServerConfig::localhost_on_free_port(),
+            axum_config: HttpServerConfig::localhost_on_free_port(),
             concurrent_sync_tasks: Some(1),
         },
         da: MockDaConfig::instant_with_sender(da_service.da_service().sequencer_address()),
