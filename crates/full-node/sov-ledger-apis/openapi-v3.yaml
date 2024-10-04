@@ -407,6 +407,7 @@ components:
     IntOrHash:
       oneOf:
         - type: integer
+          title: Integer
           description: Number
           format: uint64
         - $ref: "#/components/schemas/Hash"
@@ -622,6 +623,7 @@ components:
         - name
     Hash:
       type: string
+      title: Hash
       # Hash prefixed by `0x`, 32 bytes.
       pattern: "^0x[a-fA-F0-9]{64}$"
       description: Hash

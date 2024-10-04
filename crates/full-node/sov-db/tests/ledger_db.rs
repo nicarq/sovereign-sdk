@@ -19,7 +19,7 @@ async fn get_filtered_slot_events() {
     let client = ledger_service.axum_client;
 
     let events = &client
-        .get_slot_filtered_events(&IntOrHash::Variant0(0), None)
+        .get_slot_filtered_events(&IntOrHash::Integer(0), None)
         .await
         .unwrap()
         .data;
@@ -28,7 +28,7 @@ async fn get_filtered_slot_events() {
     assert_eq!(events[0].key, "foo");
 
     let events = &client
-        .get_slot_filtered_events(&IntOrHash::Variant0(0), Some("bar"))
+        .get_slot_filtered_events(&IntOrHash::Integer(0), Some("bar"))
         .await
         .unwrap()
         .data;
@@ -37,7 +37,7 @@ async fn get_filtered_slot_events() {
     assert_eq!(events[0].key, "bar");
 
     let events = &client
-        .get_slot_filtered_events(&IntOrHash::Variant0(0), Some("")) // empty prefix
+        .get_slot_filtered_events(&IntOrHash::Integer(0), Some("")) // empty prefix
         .await
         .unwrap()
         .data;

@@ -158,7 +158,7 @@ pub(crate) async fn assert_slot_finality(
     let slot = client
         .ledger
         .get_slot_by_id(
-            &sov_ledger_json_client::types::IntOrHash::Variant0(slot_number),
+            &sov_ledger_json_client::types::IntOrHash::Integer(slot_number),
             None,
         )
         .await

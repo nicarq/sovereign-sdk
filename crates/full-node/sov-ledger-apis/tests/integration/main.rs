@@ -49,7 +49,7 @@ async fn get_latest_slot() {
         slot,
         ledger_response_body(move |client| async move {
             client
-                .get_slot_by_id(&IntOrHash::Variant0(slot_number), None)
+                .get_slot_by_id(&IntOrHash::Integer(slot_number), None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -62,7 +62,7 @@ async fn get_latest_slot() {
 async fn get_batch() {
     let batch = ledger_response_body(|client| async move {
         client
-            .get_batch_by_id(&IntOrHash::Variant0(0), None)
+            .get_batch_by_id(&IntOrHash::Integer(0), None)
             .await
             .unwrap()
             .into_inner()
@@ -80,7 +80,7 @@ async fn get_batch() {
         batch,
         ledger_response_body(|client| async move {
             client
-                .get_batch_by_id(&IntOrHash::Variant1(hash), None)
+                .get_batch_by_id(&IntOrHash::Hash(hash), None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -93,7 +93,7 @@ async fn get_batch() {
         batch,
         ledger_response_body(|client| async move {
             client
-                .get_batch_by_slot_id_and_offset(&IntOrHash::Variant0(0), 0, None)
+                .get_batch_by_slot_id_and_offset(&IntOrHash::Integer(0), 0, None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -107,7 +107,7 @@ async fn get_batch() {
 async fn get_tx() {
     let tx = ledger_response_body(|client| async move {
         client
-            .get_tx_by_id(&IntOrHash::Variant0(0), None)
+            .get_tx_by_id(&IntOrHash::Integer(0), None)
             .await
             .unwrap()
             .into_inner()
@@ -124,7 +124,7 @@ async fn get_tx() {
         tx,
         ledger_response_body(|client| async move {
             client
-                .get_tx_by_id(&IntOrHash::Variant0(0), None)
+                .get_tx_by_id(&IntOrHash::Integer(0), None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -138,7 +138,7 @@ async fn get_tx() {
         tx,
         ledger_response_body(|client| async move {
             client
-                .get_tx_by_id(&IntOrHash::Variant1(hash), None)
+                .get_tx_by_id(&IntOrHash::Hash(hash), None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -151,7 +151,7 @@ async fn get_tx() {
         tx,
         ledger_response_body(|client| async move {
             client
-                .get_tx_by_slot_id_and_offset(&IntOrHash::Variant0(0), 0, 0, None)
+                .get_tx_by_slot_id_and_offset(&IntOrHash::Integer(0), 0, 0, None)
                 .await
                 .unwrap()
                 .into_inner()
@@ -164,7 +164,7 @@ async fn get_tx() {
         tx,
         ledger_response_body(|client| async move {
             client
-                .get_tx_by_batch_id_and_offset(&IntOrHash::Variant0(0), 0, None)
+                .get_tx_by_batch_id_and_offset(&IntOrHash::Integer(0), 0, None)
                 .await
                 .unwrap()
                 .into_inner()

@@ -1,4 +1,5 @@
 ## 2024-10-03
+- #1525 Adds `title` to `IntOrHash` enum variants in OpenAPI spec for LedgerAPI. This improves generated clients in some cases.
 - #1568 `TransactionAuthorizer` capability no longer charges for the gas.
 This is a breaking change for the consumers of the SDK. The capabilities accept 
 `TxScratchpad` instead of `PreExecWorkingSet`.

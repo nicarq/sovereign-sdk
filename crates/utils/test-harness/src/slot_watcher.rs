@@ -44,7 +44,7 @@ pub(crate) fn start_slot_watcher_task(
 
             let slot_response = ledger_client
                 .get_slot_by_id(
-                    &ledger_api_types::IntOrHash::Variant0(slot_number),
+                    &ledger_api_types::IntOrHash::Integer(slot_number),
                     Some(ledger_api_types::GetSlotByIdChildren::_1),
                 )
                 .await
