@@ -68,6 +68,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         use ::sov_modules_api::rest::__private::openapi::*;
         use ::sov_modules_api::prelude::*;
         use ::sov_modules_api::hooks::TxHooks;
+        use sov_rest_utils::preconfigured_router_layers;
 
         #[automatically_derived]
         impl #impl_generics HasRestApi<<Self as TxHooks>::Spec> for #ident #ty_generics #where_clause {
@@ -83,7 +84,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
                 #(#router_nest_ops)*
 
-                router
+                preconfigured_router_layers(router)
             }
 
             fn openapi_spec(&self) -> Option<::sov_modules_api::prelude::utoipa::openapi::OpenApi> {
