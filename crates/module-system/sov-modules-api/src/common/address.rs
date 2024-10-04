@@ -260,11 +260,20 @@ impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 /// Module ID representation.
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[derive(Derivative, BorshDeserialize, BorshSerialize)]
-#[derivative(Copy, Hash, PartialEq, Eq)]
+#[derivative(Copy, Hash, PartialEq, Eq, Ord)]
 pub struct Address<H> {
     addr: [u8; 32],
-    #[derivative(Hash = "ignore", PartialEq = "ignore")]
+    #[derivative(Hash = "ignore", PartialEq = "ignore", Ord = "ignore")]
     phantom: std::marker::PhantomData<H>,
+}
+
+// Deriving this seems to trigger
+// <https://rust-lang.github.io/rust-clippy/master/index.html#/non_canonical_partial_ord_impl>
+// because of `derivative`, so let's implement it manually.
+impl<H> PartialOrd for Address<H> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 // Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
