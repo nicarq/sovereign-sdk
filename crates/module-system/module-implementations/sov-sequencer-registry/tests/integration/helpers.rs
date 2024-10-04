@@ -73,7 +73,7 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
         assert_eq!(
             TestSequencerRegistry::default().is_sender_allowed(
                 &genesis_sequencer_da_address,
-                &state.gas_price().clone(),
+                &state.gas_info().gas_price,
                 state
             ),
             Ok(AllowedSequencer {

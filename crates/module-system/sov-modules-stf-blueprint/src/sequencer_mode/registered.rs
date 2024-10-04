@@ -63,7 +63,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
                 );
             }
             Err(AuthenticationError::OutOfGas(reason)) => {
-                let remaining_stake = pre_exec_working_set.remaining_funds();
+                let remaining_stake = pre_exec_working_set.gas_info().remaining_funds;
                 let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
                 runtime.sequencer_authorization().penalize_sequencer(
                     sequencer_da_address,
@@ -85,8 +85,8 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     let raw_tx_hash = tx.raw_tx_hash;
     let tx = &tx.authenticated_tx;
 
-    let remaining_stake = pre_exec_working_set.remaining_funds();
     let (mut tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+    let gas_info = gas_meter.gas_info();
 
     let maybe_ctx = runtime.transaction_authorizer().resolve_context(
         &auth_data,
@@ -104,7 +104,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
             runtime.sequencer_authorization().penalize_sequencer(
                 sequencer_da_address,
                 err,
-                remaining_stake,
+                gas_info.remaining_funds,
                 &mut tx_scratchpad,
             );
 
@@ -130,7 +130,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         runtime.sequencer_authorization().penalize_sequencer(
             sequencer_da_address,
             err,
-            remaining_stake,
+            gas_info.remaining_funds,
             &mut tx_scratchpad,
         );
 
@@ -151,7 +151,7 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         runtime.sequencer_authorization().penalize_sequencer(
             sequencer_da_address,
             &reason,
-            gas_meter.remaining_funds(),
+            gas_info.remaining_funds,
             &mut tx_scratchpad,
         );
 
@@ -164,13 +164,13 @@ pub fn process_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         );
     }
 
-    let working_set = match WorkingSet::try_create_working_set(tx_scratchpad, &gas_meter, tx) {
+    let working_set = match WorkingSet::try_create_working_set(tx_scratchpad, &gas_info, tx) {
         Ok(ws) => ws,
         Err(mut err) => {
             runtime.sequencer_authorization().penalize_sequencer(
                 sequencer_da_address,
                 &err.reason,
-                gas_meter.remaining_funds(),
+                gas_info.remaining_funds,
                 &mut err.scratchpad,
             );
 

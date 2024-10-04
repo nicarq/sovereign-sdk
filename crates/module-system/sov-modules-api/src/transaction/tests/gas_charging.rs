@@ -38,13 +38,13 @@ fn try_charge_gas() {
         "It should be possible to charge gas"
     );
     assert_eq!(
-        gas_meter.gas_used(),
-        &GasUnit::from([REMAINING_FUNDS / 2; 2]),
+        gas_meter.gas_info().gas_used,
+        GasUnit::from([REMAINING_FUNDS / 2; 2]),
         "The gas used should be the same as the gas charged"
     );
-    assert_eq!(gas_meter.gas_price(), &gas_price);
+    assert_eq!(gas_meter.gas_info().gas_price, gas_price);
     assert_eq!(
-        gas_meter.remaining_funds(),
+        gas_meter.gas_info().remaining_funds,
         0,
         "There should be no more gas left in the meter"
     );
@@ -68,7 +68,7 @@ fn try_refund_gas() {
         "There should be enough gas left in the meter to charge"
     );
     assert_eq!(
-        gas_meter.remaining_funds(),
+        gas_meter.gas_info().remaining_funds,
         0,
         "There should be no more gas left in the meter"
     );
@@ -81,13 +81,13 @@ fn try_refund_gas() {
     );
 
     assert_eq!(
-        gas_meter.gas_used(),
-        &GasUnit::from([REMAINING_FUNDS / 4; 2],),
+        gas_meter.gas_info().gas_used,
+        GasUnit::from([REMAINING_FUNDS / 4; 2],),
         "The gas used amount should have decreased"
     );
 
     assert_eq!(
-        gas_meter.remaining_funds(),
+        gas_meter.gas_info().remaining_funds,
         REMAINING_FUNDS / 2,
         "Half of the gas should be refunded"
     );

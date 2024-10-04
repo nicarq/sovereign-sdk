@@ -297,7 +297,7 @@ where
                     self.runtime.sequencer_authorization().penalize_sequencer(
                         &self.sequencer_address,
                         err,
-                        gas_meter.remaining_funds(),
+                        gas_meter.gas_info().remaining_funds,
                         &mut tx_scratchpad,
                     );
                     return (
@@ -320,9 +320,10 @@ where
 
             let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
 
+            let gas_info = gas_meter.gas_info();
             let working_set = match WorkingSet::try_create_working_set(
                 tx_scratchpad,
-                &gas_meter,
+                &gas_info,
                 &authenticated_tx.authenticated_tx,
             ) {
                 Ok(working_set) => working_set,
@@ -331,7 +332,7 @@ where
                     self.runtime.sequencer_authorization().penalize_sequencer(
                         &self.sequencer_address,
                         reason.clone(),
-                        gas_meter.remaining_funds(),
+                        gas_info.remaining_funds,
                         &mut err.scratchpad,
                     );
 

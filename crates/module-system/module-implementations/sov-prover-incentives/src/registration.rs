@@ -20,7 +20,7 @@ impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
         state: &mut ST,
     ) -> Result<Option<u64>, <ST as sov_modules_api::StateWriter<User>>::Error> {
         self.minimum_bond.get(state).map(|maybe_minimum_bond| {
-            maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(state.gas_price()))
+            maybe_minimum_bond.map(|minimum_bond| minimum_bond.value(&state.gas_info().gas_price))
         })
     }
 

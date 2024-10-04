@@ -37,7 +37,7 @@ fn test_recovery_mode() {
             assert_eq!(
                 sov_sequencer_registry::SequencerRegistry::<S, Da>::default().is_sender_allowed(
                     &preferred_sequencer.da_address,
-                    &state.gas_price().clone(),
+                    &state.gas_info().gas_price,
                     state
                 ),
                 Err(sov_sequencer_registry::AllowedSequencerError::NotRegistered),

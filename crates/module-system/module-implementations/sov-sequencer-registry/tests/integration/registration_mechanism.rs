@@ -97,7 +97,7 @@ fn test_new_sequencer_registration() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(
                         &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
-                        &state.gas_price().clone(),
+                        &state.gas_info().gas_price,
                         state
                     )
                     .is_ok(),
@@ -250,7 +250,7 @@ fn test_exit_happy_path() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(
                         &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
-                        &state.gas_price().clone(),
+                        &state.gas_info().gas_price,
                         state
                     )
                     .is_ok(),
@@ -277,7 +277,7 @@ fn test_exit_happy_path() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(
                         &MockAddress::new(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
-                        &state.gas_price().clone(),
+                        &state.gas_info().gas_price,
                         state
                     )
                     .is_err(),
@@ -512,7 +512,7 @@ fn test_non_registered_sequencer_is_not_allowed() {
             TestSequencerRegistry::default()
                 .is_sender_allowed(
                     &MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS),
-                    &state.gas_price().clone(),
+                    &state.gas_info().gas_price,
                     state
                 )
                 .is_err(),
@@ -615,7 +615,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
 
     let additional_sequencer_bond = minimal_bond(&runner);
 
-    let initial_gas_price = runner.query_state(|state| state.gas_price().clone());
+    let initial_gas_price = runner.query_state(|state| state.gas_info().gas_price);
 
     let (bank_signed, register_signed) = runner.query_state(|state| {
         let bank_signed = roles
@@ -672,7 +672,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
     let new_bond_amount = minimal_bond(&runner);
 
     runner.query_state(|state| {
-        let new_gas_price = state.gas_price().clone();
+        let new_gas_price = state.gas_info().gas_price;
 
         assert!(
             new_gas_price > initial_gas_price,

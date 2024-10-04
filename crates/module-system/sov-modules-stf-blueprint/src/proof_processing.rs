@@ -241,6 +241,7 @@ where
     ) -> WorkflowResult<WorkingSet<S>, S, Da> {
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
+        let gas_info = gas_meter.gas_info();
         if let Err(TryReserveGasError { reason }) = self.runtime.gas_enforcer().try_reserve_gas(
             &auth_tx,
             gas_price,
@@ -258,13 +259,13 @@ where
                     ),
                     gas_used: S::Gas::zero(),
                 },
-                self.penalize_sequencer(reason, scratchpad, gas_meter.remaining_funds())
+                self.penalize_sequencer(reason, scratchpad, gas_info.remaining_funds)
                     .commit(),
             );
         }
 
         let working_set: WorkingSet<S> =
-            match WorkingSet::try_create_working_set(scratchpad, &gas_meter, &auth_tx) {
+            match WorkingSet::try_create_working_set(scratchpad, &gas_info, &auth_tx) {
                 Ok(working_set) => working_set,
                 Err(err) => {
                     return WorkflowResult::EarlyReturn(
@@ -281,7 +282,7 @@ where
                         self.penalize_sequencer(
                             err.reason,
                             err.scratchpad,
-                            gas_meter.remaining_funds(),
+                            gas_meter.gas_info().remaining_funds,
                         )
                         .commit(),
                     );

@@ -19,7 +19,7 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::UnlimitedGasMeter;
-use crate::{Gas, GasMeter, GasMeteringError};
+use crate::{GasInfo, GasMeter, GasMeteringError};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -108,7 +108,7 @@ impl<Store: Storage> TxScratchpad<Store> {
     /// This is useful for tests that don't need to test failure over gas exhaustion.
     pub fn pre_exec_ws_unmetered_with_price<S: Spec<Storage = Store>>(
         self,
-        gas_price: &<S::Gas as Gas>::Price,
+        gas_price: &<S::Gas as crate::Gas>::Price,
     ) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
         PreExecWorkingSet {
             inner: self,
@@ -131,24 +131,16 @@ impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> PreExecWorkingSet<S, PreExec
 }
 
 impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S, Meter> {
-    fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
-
-    fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
-        self.gas_meter.refund_gas(gas)
-    }
-
-    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
 
-    fn remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
+    fn refund_gas(&mut self, gas: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
+        self.gas_meter.refund_gas(gas)
+    }
+
+    fn gas_info(&self) -> GasInfo<S::Gas> {
+        self.gas_meter.gas_info()
     }
 }
 
@@ -211,11 +203,11 @@ impl<S: Spec> WorkingSet<S> {
     #[allow(clippy::result_large_err)]
     pub fn try_create_working_set(
         scratchpad: TxScratchpad<S::Storage>,
-        gas_meter: &dyn GasMeter<S::Gas>,
+        gas_info: &GasInfo<S::Gas>,
         tx: &AuthenticatedTransactionData<S>,
     ) -> Result<Self, NotEnoughGasError<S>> {
-        let mut working_set_gas_meter = tx.gas_meter(gas_meter.gas_price());
-        if let Err(e) = working_set_gas_meter.charge_gas(gas_meter.gas_used()) {
+        let mut working_set_gas_meter = tx.gas_meter(&gas_info.gas_price);
+        if let Err(e) = working_set_gas_meter.charge_gas(&gas_info.gas_used) {
             return Err(NotEnoughGasError {
                 scratchpad,
                 reason: e.to_string(),
@@ -234,12 +226,12 @@ impl<S: Spec> WorkingSet<S> {
     /// Builds a [`crate::TransactionConsumption`] from the [`WorkingSet`].
     pub(crate) fn transaction_consumption(&self) -> TransactionConsumption<S::Gas> {
         // The base fee is the amount of gas consumed by the transaction execution.
-        let base_fee = self.gas_meter.gas_used();
-        let gas_price = self.gas_meter.gas_price();
+        let base_fee = self.gas_meter.gas_info().gas_used;
+        let gas_price = self.gas_meter.gas_info().gas_price;
 
         transaction_consumption_helper::<S>(
-            base_fee,
-            gas_price,
+            &base_fee,
+            &gas_price,
             self.max_fee,
             self.max_priority_fee_bips,
         )
@@ -287,7 +279,7 @@ impl<S: Spec> WorkingSet<S> {
 
     /// Returns the remaining gas funds.
     pub fn gas_remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
+        self.gas_meter.gas_info().remaining_funds
     }
 
     /// Returns the maximum fee that can be paid for this transaction expressed in gas token amount.
@@ -301,7 +293,7 @@ impl<S: Spec> WorkingSet<S> {
     pub fn new_with_gas_meter(
         inner: S::Storage,
         remaining_funds: u64,
-        price: &<S::Gas as Gas>::Price,
+        price: &<S::Gas as crate::Gas>::Price,
     ) -> Self {
         use crate::capabilities::mocks::MockKernel;
 
@@ -377,16 +369,8 @@ impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
         self.gas_meter.refund_gas(gas)
     }
 
-    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-
-    fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
-
-    fn remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
+    fn gas_info(&self) -> GasInfo<S::Gas> {
+        self.gas_meter.gas_info()
     }
 }
 

@@ -81,7 +81,7 @@ fn test_charge_gas_set_then_retrieve() {
     );
 
     assert_eq!(
-        working_set.remaining_funds(),
+        working_set.gas_info().remaining_funds,
         gas_access_cost.value(&gas_price),
         "The remaining funds should have decreased by the amount of gas to charge for a write"
     );
@@ -96,7 +96,7 @@ fn test_charge_gas_set_then_retrieve() {
     // There should be some funds left in the metered working set because the second operation was a hot read
     let expected_remaining_funds = gas_hot_access_refund.value(&gas_price);
     assert_eq!(
-        working_set.remaining_funds(),
+        working_set.gas_info().remaining_funds,
         expected_remaining_funds,
         "The remaining funds should be equal to the expected value, some gas should have been refunded because of the hot read"
     );

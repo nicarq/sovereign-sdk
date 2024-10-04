@@ -75,7 +75,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
 
     let additional_user_bond = role.minimal_bond(&runner);
 
-    let initial_gas_price = runner.query_state(|state| state.gas_price().clone());
+    let initial_gas_price = runner.query_state(|state| state.gas_info().gas_price);
 
     let (bank_signed, register_signed) = runner.query_state(|state| {
         let bank_signed = user
@@ -131,7 +131,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
     let new_bond_amount = role.minimal_bond(&runner);
 
     runner.query_state(|state| {
-        let new_gas_price = state.gas_price().clone();
+        let new_gas_price = state.gas_info().gas_price;
 
         assert!(
             new_gas_price > initial_gas_price,

@@ -211,7 +211,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(
                         &additional_sequencer_da_address.into(),
-                        &state.gas_price().clone(),
+                        &state.gas_info().gas_price,
                         state
                     )
                     .unwrap(),
@@ -261,7 +261,7 @@ fn slashed_sequencer_should_not_preserve_balance() {
                 TestSequencerRegistry::default()
                     .is_sender_allowed(
                         &additional_sequencer_da_address.into(),
-                        &state.gas_price().clone(),
+                        &state.gas_info().gas_price,
                         state
                     )
                     .unwrap(),

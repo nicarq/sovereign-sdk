@@ -1,6 +1,6 @@
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{Gas, GasMeter, GasMeteringError};
+use crate::{Gas, GasInfo, GasMeter, GasMeteringError};
 
 /// A gas meter for transaction execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -17,11 +17,6 @@ impl<GU> GasMeter<GU> for TxGasMeter<GU>
 where
     GU: Gas,
 {
-    /// Returns the total gas incurred.
-    fn gas_used(&self) -> &GU {
-        &self.gas_used
-    }
-
     fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
         self.gas_used = self.gas_used.checked_sub(gas).ok_or_else(|| {
             GasMeteringError::ImpossibleToRefundGas {
@@ -64,13 +59,12 @@ where
         Ok(())
     }
 
-    /// Returns the gas price.
-    fn gas_price(&self) -> &GU::Price {
-        &self.gas_price
-    }
-
-    fn remaining_funds(&self) -> u64 {
-        self.remaining_funds
+    fn gas_info(&self) -> GasInfo<GU> {
+        GasInfo {
+            gas_used: self.gas_used.clone(),
+            gas_price: self.gas_price.clone(),
+            remaining_funds: self.remaining_funds,
+        }
     }
 }
 
