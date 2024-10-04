@@ -115,16 +115,8 @@ impl<S: Spec> GasMeter<S::Gas> for ApiStateAccessor<S> {
         self.gas_meter.refund_gas(gas)
     }
 
-    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-
-    fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
-
-    fn remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
+    fn gas_info(&self) -> crate::GasInfo<S::Gas> {
+        self.gas_meter.gas_info()
     }
 }
 

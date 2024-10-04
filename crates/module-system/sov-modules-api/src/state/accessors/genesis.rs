@@ -3,7 +3,7 @@ use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, Sl
 use super::checkpoints::StateCheckpoint;
 use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
-use crate::{Gas, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec, UnlimitedGasMeter};
+use crate::{GasMeter, GasMeteringError, Genesis, KernelWriter, Spec, UnlimitedGasMeter};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
@@ -55,14 +55,9 @@ impl<'a, S: Spec> GasMeter<S::Gas> for GenesisStateAccessor<'a, S> {
     fn refund_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.refund_gas(gas)
     }
-    fn gas_price(&self) -> &<S::Gas as Gas>::Price {
-        self.gas_meter.gas_price()
-    }
-    fn gas_used(&self) -> &S::Gas {
-        self.gas_meter.gas_used()
-    }
-    fn remaining_funds(&self) -> u64 {
-        self.gas_meter.remaining_funds()
+
+    fn gas_info(&self) -> crate::GasInfo<S::Gas> {
+        self.gas_meter.gas_info()
     }
 }
 

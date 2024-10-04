@@ -118,8 +118,8 @@ impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
         &self,
         state: &mut State,
     ) -> Result<Option<u64>, <State as StateReader<User>>::Error> {
-        self.proving_penalty
-            .get(state)
-            .map(|maybe_penalty| maybe_penalty.map(|penalty| penalty.value(state.gas_price())))
+        self.proving_penalty.get(state).map(|maybe_penalty| {
+            maybe_penalty.map(|penalty| penalty.value(&state.gas_info().gas_price))
+        })
     }
 }

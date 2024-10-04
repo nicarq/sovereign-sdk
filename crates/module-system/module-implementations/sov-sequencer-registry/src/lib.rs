@@ -172,7 +172,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
             .get(state)?
             .expect("The minimum bond should be set at genesis");
 
-        let amount_value = amount.value(state.gas_price());
+        let amount_value = amount.value(&state.gas_info().gas_price);
 
         Ok(Coins {
             amount: amount_value,

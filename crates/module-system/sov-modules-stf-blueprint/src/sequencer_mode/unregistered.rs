@@ -103,7 +103,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
     }
 
     let working_set: WorkingSet<S> =
-        match WorkingSet::try_create_working_set(tx_scratchpad, &gas_meter, tx) {
+        match WorkingSet::try_create_working_set(tx_scratchpad, &gas_meter.gas_info(), tx) {
             Ok(ws) => ws,
             Err(err) => {
                 return (

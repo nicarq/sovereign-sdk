@@ -397,6 +397,16 @@ pub enum GasMeteringError<GU: Gas> {
     },
 }
 
+/// Contain information about the gas usage of a gas.
+pub struct GasInfo<GU: Gas> {
+    /// The current gas used accumulated by the stake meter.
+    pub gas_used: GU,
+    /// The current gas price
+    pub gas_price: GU::Price,
+    /// The remaining amount of tokens locked in the meter
+    pub remaining_funds: u64,
+}
+
 /// A type-safe trait that should track the gas consumed by a finite ressource over time.
 pub trait GasMeter<GU: Gas> {
     /// Charges some gas in the gas meter.
@@ -412,19 +422,8 @@ pub trait GasMeter<GU: Gas> {
     /// In that case, the gas meter won't be updated and the refund will fail.
     fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>>;
 
-    /// Returns the current gas used accumulated by the stake meter.
-    fn gas_used(&self) -> &GU;
-
-    /// Returns the current gas price.
-    fn gas_price(&self) -> &GU::Price;
-
-    /// Returns the gas used as a token amount.
-    fn gas_used_value(&self) -> u64 {
-        self.gas_used().value(self.gas_price())
-    }
-
-    /// The remaining amount of tokens locked in the meter
-    fn remaining_funds(&self) -> u64;
+    /// Returns gas usage.
+    fn gas_info(&self) -> GasInfo<GU>;
 }
 
 /// An unlimited gas meter. Only tracks the amount of gas consumed.
@@ -476,16 +475,11 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
         Ok(())
     }
 
-    fn gas_used(&self) -> &GU {
-        &self.gas_used
-    }
-
-    /// Returns the gas price.
-    fn gas_price(&self) -> &GU::Price {
-        &self.gas_price
-    }
-
-    fn remaining_funds(&self) -> u64 {
-        u64::MAX
+    fn gas_info(&self) -> GasInfo<GU> {
+        GasInfo {
+            gas_used: self.gas_used.clone(),
+            gas_price: self.gas_price.clone(),
+            remaining_funds: u64::MAX,
+        }
     }
 }

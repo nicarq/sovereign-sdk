@@ -20,7 +20,7 @@ impl<S: Spec, Da: DaSpec> StakeRegistration for SequencerRegistry<S, Da> {
     ) -> Result<Option<u64>, <ST as StateWriter<User>>::Error> {
         self.minimum_bond
             .get(state)
-            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(state.gas_price())))
+            .map(|maybe_bond| maybe_bond.map(|bond| bond.value(&state.gas_info().gas_price)))
     }
 
     fn get_allowed_staker<ST: StateAccessor>(

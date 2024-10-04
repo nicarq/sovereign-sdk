@@ -313,7 +313,7 @@ where
             .map_err(Into::<anyhow::Error>::into)?
             .expect("Should be set at genesis");
 
-        if old_balance < minimum_bond.value(state.gas_price()) {
+        if old_balance < minimum_bond.value(&state.gas_info().gas_price) {
             return Err(ProcessChallengeErrors::ChallengerNotBonded);
         }
 

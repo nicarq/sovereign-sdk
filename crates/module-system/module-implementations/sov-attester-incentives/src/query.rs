@@ -80,7 +80,7 @@ where
             .get(state)
             .unwrap_infallible()
             .expect("The minimum attester bond should be set at genesis")
-            .value(state.gas_price())
+            .value(&state.gas_info().gas_price)
     }
 
     /// Returns the value of the `minimum_challenger_bond` at the current gas price.
@@ -89,7 +89,7 @@ where
             .get(state)
             .unwrap_infallible()
             .expect("The minimum challenger bond should be set at genesis")
-            .value(state.gas_price())
+            .value(&state.gas_info().gas_price)
     }
 
     /// Returns the unbonding amount of the given address.

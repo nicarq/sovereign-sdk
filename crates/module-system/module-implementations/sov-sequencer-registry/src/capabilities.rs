@@ -33,7 +33,7 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
                 remaining_funds: self.remaining_stake,
-                total_gas_consumed: self.gas_used().clone(),
+                total_gas_consumed: self.gas_info().gas_used,
             });
         }
 
@@ -57,16 +57,12 @@ impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
         Ok(())
     }
 
-    fn gas_used(&self) -> &GU {
-        &self.penalty_accumulator
-    }
-
-    fn gas_price(&self) -> &GU::Price {
-        &self.gas_price
-    }
-
-    fn remaining_funds(&self) -> u64 {
-        self.remaining_stake
+    fn gas_info(&self) -> sov_modules_api::GasInfo<GU> {
+        sov_modules_api::GasInfo {
+            gas_used: self.penalty_accumulator.clone(),
+            gas_price: self.gas_price.clone(),
+            remaining_funds: self.remaining_stake,
+        }
     }
 }
 
@@ -199,13 +195,13 @@ mod tests {
             "It should be possible to charge gas"
         );
         assert_eq!(
-            gas_meter.gas_used(),
-            &GasUnit::from([REMAINING_FUNDS / 2; 2]),
+            gas_meter.gas_info().gas_used,
+            GasUnit::from([REMAINING_FUNDS / 2; 2]),
             "The gas used should be the same as the gas charged"
         );
-        assert_eq!(gas_meter.gas_price(), &gas_price);
+        assert_eq!(gas_meter.gas_info().gas_price, gas_price);
         assert_eq!(
-            gas_meter.remaining_funds(),
+            gas_meter.gas_info().remaining_funds,
             0,
             "There should be no more gas left in the meter"
         );
@@ -229,7 +225,7 @@ mod tests {
             "There should be enough gas left in the meter to charge"
         );
         assert_eq!(
-            gas_meter.remaining_funds(),
+            gas_meter.gas_info().remaining_funds,
             0,
             "There should be no more gas left in the meter"
         );
@@ -242,13 +238,13 @@ mod tests {
         );
 
         assert_eq!(
-            gas_meter.gas_used(),
+            &gas_meter.gas_info().gas_used,
             &GasUnit::from([REMAINING_FUNDS / 4; 2],),
             "The gas used amount should have decreased"
         );
 
         assert_eq!(
-            gas_meter.remaining_funds(),
+            gas_meter.gas_info().remaining_funds,
             REMAINING_FUNDS / 2,
             "Half of the gas should be refunded"
         );

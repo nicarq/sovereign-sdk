@@ -39,11 +39,11 @@ fn try_charge_gas() {
         "It should be possible to charge gas"
     );
     assert_eq!(
-        gas_meter.gas_used(),
-        &GasUnit::from([REMAINING_FUNDS / 2; 2]),
+        gas_meter.gas_info().gas_used,
+        GasUnit::from([REMAINING_FUNDS / 2; 2]),
         "The gas used should be the same as the gas charged"
     );
-    assert_eq!(gas_meter.gas_price(), &gas_price);
+    assert_eq!(gas_meter.gas_info().gas_price, gas_price);
 
     assert!(
         gas_meter.charge_gas(&GasUnit::<2>::from([1; 2])).is_ok(),
@@ -72,8 +72,8 @@ fn try_refund_gas() {
     );
 
     assert_eq!(
-        gas_meter.gas_used(),
-        &GasUnit::from([FUNDS_TO_CONSUME / 4; 2],),
+        gas_meter.gas_info().gas_used,
+        GasUnit::from([FUNDS_TO_CONSUME / 4; 2],),
         "The gas used amount should have decreased"
     );
 }
