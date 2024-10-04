@@ -103,8 +103,7 @@ impl<T> MaybeJsonSchema for T {}
 
 /// A marker trait for general addresses.
 pub trait BasicAddress:
-    Eq
-    + PartialEq
+    Ord
     + core::fmt::Debug
     + core::fmt::Display
     + Send

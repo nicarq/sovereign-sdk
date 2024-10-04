@@ -7,8 +7,20 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_rollup_interface::reexports::schemars::{self};
 
-#[derive(Debug, PartialEq, Clone, Eq, Serialize, Deserialize, Hash, derive_more::Display)] // TODO: , BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, derive_more::Display)] // TODO: , BorshDeserialize, BorshSerialize)]
 pub struct CelestiaAddress(AccAddress);
+
+impl PartialOrd for CelestiaAddress {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for CelestiaAddress {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.as_ref().cmp(other.as_ref())
+    }
+}
 
 #[cfg(feature = "native")]
 impl schemars::JsonSchema for CelestiaAddress {
