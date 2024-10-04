@@ -1,4 +1,6 @@
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
+// TODO: Remove
+#![allow(dead_code)]
 #![doc = include_str!("../README.md")]
 
 mod account_pool;
@@ -7,7 +9,7 @@ mod constants;
 mod ctrl_c_handler;
 mod da_blob_sender;
 mod harness_config;
-mod module_message_generators;
+pub mod module_message_generators;
 mod prepared_call_messages;
 mod slot_watcher;
 mod utils;

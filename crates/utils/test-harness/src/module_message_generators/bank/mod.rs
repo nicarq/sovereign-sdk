@@ -1,3 +1,4 @@
+pub mod message_generator;
 mod token_creation_message_generator;
 mod token_transfer_message_generator;
 

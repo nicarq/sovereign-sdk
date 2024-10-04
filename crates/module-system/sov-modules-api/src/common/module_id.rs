@@ -6,6 +6,10 @@ impl_hash32_type!(ModuleId, ModuleIdBech32, "module_");
 // exist.
 #[doc(hidden)]
 mod sov_modules_api {
+    #[cfg(feature = "arbitrary")]
+    pub mod prelude {
+        pub use {arbitrary, proptest_derive};
+    }
     pub use sov_universal_wallet;
 
     pub use crate::macros;

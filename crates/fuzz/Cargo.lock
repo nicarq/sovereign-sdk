@@ -4812,6 +4812,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
+ "proptest",
  "schemars",
  "serde",
  "sov-modules-api",

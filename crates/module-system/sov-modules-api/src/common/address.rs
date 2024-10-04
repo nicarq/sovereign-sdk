@@ -191,7 +191,7 @@ macro_rules! impl_hash32_type {
             feature = "native",
             derive(schemars::JsonSchema),
         )]
-        #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
+        #[cfg_attr(feature = "arbitrary", derive(sov_modules_api::prelude::arbitrary::Arbitrary, sov_modules_api::prelude::proptest_derive::Arbitrary))]
         /// A globally unique identifier.
         pub struct $id(
             #[cfg_attr(feature ="native", sov_wallet(display(bech32m(prefix = $human_readable_prefix))))] [u8; 32],

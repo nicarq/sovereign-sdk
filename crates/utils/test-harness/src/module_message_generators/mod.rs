@@ -1,6 +1,7 @@
-mod bank;
+pub mod bank;
 mod gas_funding;
 mod get_message_senders;
+pub mod interface;
 mod message_sender;
 mod prover_incentives;
 mod utils;
