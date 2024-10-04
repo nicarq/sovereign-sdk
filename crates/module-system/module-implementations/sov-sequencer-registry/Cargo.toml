@@ -29,7 +29,7 @@ serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 sov-cycle-utils = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [
-    "std",
+	"std",
 ], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 tracing = { workspace = true }
@@ -45,12 +45,12 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 
 [features]
 bench = [
-    "sov-cycle-utils",
-    "risc0-zkvm",
-    "risc0-zkvm-platform",
-    "sov-modules-api/bench",
-    "sov-sequencer-registry/bench",
-    "sov-state/bench",
+	"sov-cycle-utils",
+	"risc0-zkvm",
+	"risc0-zkvm-platform",
+	"sov-modules-api/bench",
+	"sov-sequencer-registry/bench",
+	"sov-state/bench",
 ]
 default = []
 arbitrary = [
@@ -61,7 +61,8 @@ arbitrary = [
 	"sov-sequencer-registry/arbitrary",
 	"sov-state/arbitrary",
 	"sov-test-utils/arbitrary",
-	"sov-mock-da/arbitrary"
+	"sov-mock-da/arbitrary",
+	"sov-bank/arbitrary",
 ]
 native = [
 	"sov-cycle-utils?/native",
@@ -72,5 +73,5 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-state/native",
 	"sov-value-setter/native",
-	"sov-chain-state/native"
+	"sov-chain-state/native",
 ]

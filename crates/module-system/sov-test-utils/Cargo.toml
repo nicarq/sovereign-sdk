@@ -32,7 +32,10 @@ ethers-contract = { workspace = true }
 sha2 = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
-sov-modules-stf-blueprint = { workspace = true, features = ["native", "test-utils"] }
+sov-modules-stf-blueprint = { workspace = true, features = [
+	"native",
+	"test-utils",
+] }
 sov-stf-runner = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
 sov-attester-incentives = { workspace = true, features = ["native"] }
@@ -61,6 +64,7 @@ reqwest = { workspace = true, features = ["json"] }
 
 [dev-dependencies]
 proptest = { workspace = true }
+sov-test-utils = { path = ".", features = ["arbitrary"] }
 
 
 [features]
@@ -76,5 +80,7 @@ arbitrary = [
 	"rockbound/arbitrary",
 	"sov-accounts/arbitrary",
 	"sov-nonces/arbitrary",
-	"sov-mock-da/arbitrary"
+	"sov-mock-da/arbitrary",
+	"sov-bank/arbitrary",
+	"sov-test-utils/arbitrary"
 ]

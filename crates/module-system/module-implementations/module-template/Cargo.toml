@@ -40,13 +40,14 @@ arbitrary = [
 	"dep:proptest-derive",
 	"module-template/arbitrary",
 	"sov-modules-api/arbitrary",
+	"sov-state/arbitrary",
 	"sov-test-utils/arbitrary",
-	"sov-state/arbitrary"
+	"sov-bank/arbitrary",
 ]
 native = [
 	"module-template/native",
 	"schemars",
 	"sov-bank/native",
 	"sov-modules-api/native",
-	"sov-state/native"
+	"sov-state/native",
 ]

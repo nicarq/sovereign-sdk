@@ -18,6 +18,7 @@ workspace = true
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 derive_more = { workspace = true, features = ["display"] }
+proptest = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
@@ -34,12 +35,19 @@ sov-test-utils = { workspace = true }
 
 [features]
 default = []
+arbitrary = [
+	"sov-modules-api/arbitrary",
+	"dep:proptest",
+	"sov-bank/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
+]
 native = [
-    "schemars",
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-state/native",
-    "sov-chain-state/native",
+	"schemars",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+	"sov-chain-state/native",
 ]
 cli = ["native"]
 test-utils = []

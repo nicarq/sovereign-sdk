@@ -16,9 +16,9 @@ demo-stf = { path = "../stf" }
 sov-celestia-adapter = { workspace = true, features = ["native"] }
 sov-demo-rollup = { path = ".." }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
-sov-modules-api = { workspace = true, features = ["native"] }
+sov-modules-api = { workspace = true, features = ["native", "arbitrary"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
-sov-risc0-adapter = { workspace = true, features = ["native"] }
+sov-risc0-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-test-harness = { workspace = true }
 
 tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }

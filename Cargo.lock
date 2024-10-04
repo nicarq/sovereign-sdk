@@ -9056,6 +9056,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
+ "proptest",
  "schemars",
  "serde",
  "sov-bank",
@@ -10041,6 +10042,7 @@ name = "sov-test-harness"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "borsh",
  "clap",
@@ -10062,6 +10064,8 @@ dependencies = [
  "sov-prover-incentives",
  "sov-risc0-adapter",
  "sov-rollup-interface",
+ "sov-sp1-adapter",
+ "strum 0.26.3",
  "thiserror",
  "tokio",
  "toml",
@@ -10111,6 +10115,7 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",
+ "sov-test-utils",
  "sov-value-setter",
  "tempfile",
  "tokio",

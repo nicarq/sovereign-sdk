@@ -8,6 +8,8 @@ use std::num::ParseIntError;
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "arbitrary")]
+use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{impl_hash32_type, Spec, StateMap};
 use sov_state::namespaces::User;
@@ -67,6 +69,7 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
     derive(schemars::JsonSchema),
     derive(sov_modules_api::macros::UniversalWallet)
 )]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
