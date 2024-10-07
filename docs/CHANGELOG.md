@@ -1,3 +1,5 @@
+## 2024-10-07
+- #1584 extract transaction authentication to a separate methods.
 ## 2024-10-04
 - #1577 introduces a new `GasMeter::gas_info` method to the `GasMeter`. This is a breaking change for SDK consumers. Any code that previously used `gas_meter.gas_price()` will need to be updated to `gas_meter.gas_info().gas_price`, and similarly for `remaining_funds` and `gas_used`.
 

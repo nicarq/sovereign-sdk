@@ -6,7 +6,7 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasSpec, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{get_gas_used, AsUser, SkippedReason, TransactionTestCase};
+use sov_test_utils::{get_gas_used, AsUser, TransactionTestCase, TxProcessingError};
 
 use super::helpers::S;
 use crate::helpers::{setup, TestRoles, RT};
@@ -179,7 +179,7 @@ fn test_penalize_sequencer() {
         assert: Box::new(move |result, state| {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let SkippedReason::OutOfGas(error_message) = reason {
+                    if let TxProcessingError::OutOfGas(error_message) = reason {
                         assert!(error_message.contains("The gas to charge is greater than the funds available in the meter."), "Error message doesn't contain with the expected phrase. Got: {}", error_message);
                     } else {
                         panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);

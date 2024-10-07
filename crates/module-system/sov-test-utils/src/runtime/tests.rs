@@ -7,7 +7,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{DaSpec, GasUnit};
-use sov_modules_stf_blueprint::SkippedReason;
+use sov_modules_stf_blueprint::TxProcessingError;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -217,7 +217,7 @@ fn test_custom_transaction_details_max_fee() {
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let SkippedReason::OutOfGas(error_message) = reason {
+                    if let TxProcessingError::OutOfGas(error_message) = reason {
                         assert!(
                             error_message.contains("The gas to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",
@@ -274,7 +274,7 @@ fn test_custom_transaction_details_gas_limit() {
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let SkippedReason::CannotReserveGas(error_message) = reason {
+                    if let TxProcessingError::CannotReserveGas(error_message) = reason {
                         assert!(
                             error_message.contains("The current gas price is too high to cover the maximum fee for the transaction"),
                             "Error message doesn't contain with the expected phrase. Got: {}",
