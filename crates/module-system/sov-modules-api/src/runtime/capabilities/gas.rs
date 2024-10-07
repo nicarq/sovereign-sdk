@@ -1,7 +1,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Gas, Spec, TxScratchpad};
+use crate::{Context, Gas, Spec, TxScratchpad};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
 pub struct TryReserveGasError {
@@ -22,6 +22,24 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     /// may change during the transaction execution.
     #[allow(clippy::result_large_err)]
     fn try_reserve_gas(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        ctx: &Context<S>,
+        scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> Result<(), TryReserveGasError>;
+
+    /// Checks that the proof or attestation has enough gas to be processed.
+    ///
+    /// ## Note
+    /// This method has to reserve enough gas to cover the pre-execution checks cost of the transaction.
+    /// If the transaction doesn't have enough gas to cover the pre-execution checks, the method should return an error.
+    ///
+    /// ## Behavior
+    /// This function **should** charge the transaction sender for the gas locked in the transaction because his balance
+    /// may change during the transaction execution.
+    #[allow(clippy::result_large_err)]
+    fn try_reserve_gas_for_proof(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,

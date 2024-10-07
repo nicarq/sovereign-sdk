@@ -242,12 +242,14 @@ where
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         let gas_info = gas_meter.gas_info();
-        if let Err(TryReserveGasError { reason }) = self.runtime.gas_enforcer().try_reserve_gas(
-            &auth_tx,
-            gas_price,
-            sequencer_rollup_address,
-            &mut scratchpad,
-        ) {
+        if let Err(TryReserveGasError { reason }) =
+            self.runtime.gas_enforcer().try_reserve_gas_for_proof(
+                &auth_tx,
+                gas_price,
+                sequencer_rollup_address,
+                &mut scratchpad,
+            )
+        {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
                     proof_receipt: invalid_proof_receipt::<S, Da>(

@@ -59,12 +59,11 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         );
     }
 
-    if let Err(TryReserveGasError { reason }) = runtime.gas_enforcer().try_reserve_gas(
-        tx,
-        &gas_info.gas_price,
-        ctx.sender(),
-        &mut tx_scratchpad,
-    ) {
+    if let Err(TryReserveGasError { reason }) =
+        runtime
+            .gas_enforcer()
+            .try_reserve_gas(tx, &gas_info.gas_price, &ctx, &mut tx_scratchpad)
+    {
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
             tx_scratchpad,
