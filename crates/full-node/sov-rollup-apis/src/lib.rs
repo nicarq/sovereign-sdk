@@ -10,8 +10,9 @@ use sov_modules_api::rest::StorageReceiver;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::{Gas, Spec, TxEffect, TxReceiptContents};
 use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
-use utoipa_swagger_ui::{Config, SwaggerUi};
 
+/// Provides the `dedup` endpoint functionality.
+pub mod dedup;
 mod default_provider;
 
 pub use default_provider::DefaultRollupStateProvider;
@@ -29,16 +30,6 @@ pub struct GasPriceContainer<S: Spec> {
 }
 
 const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
-
-/// This function does a pretty expensive clone of the entire OpenAPI
-/// specification object, so it might be slow.
-pub(crate) fn openapi_spec() -> serde_json::Value {
-    static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
-
-    OPENAPI_SPEC
-        .get_or_init(|| serde_yaml::from_str::<serde_json::Value>(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
 
 /// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
 /// Performs clone of the whole spec, so might be slow.
@@ -90,22 +81,14 @@ where
     T: RollupStateProvider + Clone + Send + Sync + 'static,
 {
     /// Returns an [`axum::Router`] that exposes simulation data.
-    pub fn axum_router(storage: StorageReceiver<T::Spec>, path_prefix: &str) -> axum::Router<()> {
+    pub fn axum_router(storage: StorageReceiver<T::Spec>) -> axum::Router<()> {
         preconfigured_router_layers(
             axum::Router::new()
-                // See:
-                // - https://github.com/juhaku/utoipa/issues/599
-                // - https://github.com/juhaku/utoipa/issues/734
-                .merge(
-                    SwaggerUi::new("/swagger-ui")
-                        .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                        .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
-                )
                 .route(
-                    "/base-fee-per-gas/latest",
+                    "/rollup/base-fee-per-gas/latest",
                     get(Self::get_latest_base_fee_per_gas),
                 )
-                .route("/simulate-execution", post(Self::simulate_execution))
+                .route("/rollup/simulate-execution", post(Self::simulate_execution))
                 .with_state(RollupTxRouter(storage)),
         )
     }

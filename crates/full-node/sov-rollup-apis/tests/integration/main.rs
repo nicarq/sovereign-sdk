@@ -73,7 +73,7 @@ impl TestData {
 
         let axum_router: axum::Router<()> = RollupTxRouter::<
             Arc<DefaultRollupStateProvider<S, Da, K, RT, TxReceiptContents>>,
-        >::axum_router(storage_receiver, "/rollup");
+        >::axum_router(storage_receiver);
 
         let (axum_addr, axum_server) = {
             let handle = axum_server::Handle::new();

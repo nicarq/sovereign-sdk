@@ -208,7 +208,6 @@ where
                 .allow_methods(tower_http::cors::Any) // Allow all methods
                 .allow_headers(tower_http::cors::Any), // Allow all headers
         )
-        .fallback(errors::global_404)
 }
 
 /// A utility function for serving some data inside a [`futures::Stream`] over a

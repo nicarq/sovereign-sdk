@@ -73,6 +73,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 )
                 .with_state(self.clone()),
         )
+        .fallback(errors::global_404)
     }
 
     async fn send_initial_status_to_ws(

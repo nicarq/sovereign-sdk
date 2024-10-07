@@ -1,9 +1,10 @@
 openapi: "3.0.2"
 info:
-  title: Sovereign SDK gas API
+  title: Sovereign SDK rollup API
   version: 0.1.0
   description: |
-    This is the JSON API for the Sovereign SDK gas data.
+    This is the JSON API for the Sovereign SDK rollup functionality.
+    It exists to provide helpful operations to external tooling such as web3 SDKs.
   license:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0.html
@@ -11,12 +12,12 @@ info:
     name: Sovereign Labs
     url: https://github.com/Sovereign-Labs/sovereign-sdk
     email: info@sovereign.xyz
-  x-displayName: gas
+  x-displayName: rollup
 servers:
   - url: http://localhost:12346
     description: Localhost
 paths:
-  /base-fee-per-gas/latest:
+  /rollup/base-fee-per-gas/latest:
     get:
       summary: Retrieve the latest base fee per gas
       operationId: get_latest_base_fee_per_gas
@@ -40,8 +41,60 @@ paths:
                       $ref: "#/components/schemas/Error"
                 required:
                   - meta
+  /rollup/addresses/{address}/dedup:
+    get:
+      summary: Deduplicate an address
+      description: |
+        This endpoint retireves deduplication information needed for building transactions.
+        The exact shape of the data in the response depends on the implementation of the rollup.
+      operationId: address_dedup
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: The address to retrieve deduplication information about
+      tags:
+        - Rollup
+      responses:
+        "200":
+          $ref: "#/components/responses/Dedup"
+        "400":
+          $ref: "#/components/responses/BadRequest"
 
 components:
+  responses:
+    Dedup:
+      description: Successfully calculated dedup details for the provided address.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/RollupAnyJsonValue"
+              meta:
+                $ref: "#/components/schemas/RollupAnyJsonValue"
+            required:
+              - data
+              - meta
+    BadRequest:
+      description: The request sent was invalid.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errors:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Error"
+              meta:
+                $ref: "#/components/schemas/RollupAnyJsonValue"
+            required:
+              - errors
+              - meta
   schemas:
     BaseFeePerGas:
       type: object
@@ -57,7 +110,21 @@ components:
       items:
         type: integer
         format: uint64
-
+    RollupAnyJsonValue:
+      oneOf:
+        - type: string
+          title: "String"
+        - type: number
+          title: "Number"
+        - type: boolean
+          title: "Boolean"
+        - type: array
+          title: "Array"
+          items:
+            x-stainless-any: true
+        - type: object
+          title: "Object"
+          additionalProperties: true
     Error:
       type: object
       properties:
