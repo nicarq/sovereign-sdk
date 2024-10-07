@@ -1,10 +1,8 @@
 mod data;
-mod gas_metering;
 mod rewards;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
-pub(crate) use gas_metering::TxGasMeter;
 pub(crate) use rewards::transaction_consumption_helper;
 pub use rewards::{ProverRewards, RemainingFunds, SequencerReward, TransactionConsumption};
 use serde::{Deserialize, Serialize};

@@ -429,16 +429,16 @@ pub trait GasMeter<GU: Gas> {
 /// A struct that keeps track of the use gas.
 #[derive(Clone)]
 pub struct BasicGasMeter<GU: Gas> {
-    remaining_stake: u64,
+    remaining_funds: u64,
     gas_used: GU,
     gas_price: GU::Price,
 }
 
 impl<GU: Gas> BasicGasMeter<GU> {
     /// Creates a new `BasicGasMeter`
-    pub fn new(remaining_stake: u64, gas_price: GU::Price) -> Self {
+    pub fn new(remaining_funds: u64, gas_price: GU::Price) -> Self {
         Self {
-            remaining_stake,
+            remaining_funds,
             gas_used: Gas::zero(),
             gas_price,
         }
@@ -449,16 +449,16 @@ impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
     fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>> {
         let amount_value = amount.value(&self.gas_price);
 
-        if amount_value > self.remaining_stake {
+        if amount_value > self.remaining_funds {
             return Err(GasMeteringError::OutOfGas {
                 gas_to_charge: amount.clone(),
                 gas_price: self.gas_price.clone(),
-                remaining_funds: self.remaining_stake,
+                remaining_funds: self.remaining_funds,
                 total_gas_consumed: self.gas_info().gas_used,
             });
         }
 
-        self.remaining_stake -= amount_value;
+        self.remaining_funds -= amount_value;
         self.gas_used.combine(amount);
 
         Ok(())
@@ -471,8 +471,8 @@ impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
                 gas_used: self.gas_used.clone(),
             }
         })?;
-        self.remaining_stake = self
-            .remaining_stake
+        self.remaining_funds = self
+            .remaining_funds
             .saturating_add(gas.value(&self.gas_price));
 
         Ok(())
@@ -482,7 +482,7 @@ impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
         GasInfo {
             gas_used: self.gas_used.clone(),
             gas_price: self.gas_price.clone(),
-            remaining_funds: self.remaining_stake,
+            remaining_funds: self.remaining_funds,
         }
     }
 }

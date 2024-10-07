@@ -15,8 +15,10 @@ use crate::module::Spec;
 use crate::state::events::TypedEvent;
 use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
-    TransactionConsumption, TxGasMeter,
+    TransactionConsumption,
 };
+#[cfg(feature = "test-utils")]
+use crate::GasArray;
 use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
@@ -142,7 +144,7 @@ impl<Store: Storage> StateCheckpoint<Store> {
         WorkingSet {
             delta: RevertableWriter::new(stashed_working_set),
             events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
+            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as crate::Gas>::Price::ZEROED),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
@@ -163,7 +165,7 @@ pub struct NotEnoughGasError<S: Spec> {
 pub struct WorkingSet<S: Spec> {
     pub(super) delta: RevertableWriter<TxScratchpad<S::Storage>>,
     events: Vec<TypedEvent>,
-    gas_meter: TxGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S::Gas>,
     // Gas parameters of the transaction associated with the working set
     max_fee: u64,
     max_priority_fee_bips: PriorityFeeBips,
@@ -278,7 +280,7 @@ impl<S: Spec> WorkingSet<S> {
         WorkingSet {
             delta: RevertableWriter::new(tx_scratchpad),
             events: Default::default(),
-            gas_meter: TxGasMeter::new(remaining_funds, price.clone()),
+            gas_meter: BasicGasMeter::new(remaining_funds, price.clone()),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
@@ -305,7 +307,7 @@ impl<S: Spec> WorkingSet<S> {
         WorkingSet {
             delta: RevertableWriter::new(tx_scratchpad),
             events: Default::default(),
-            gas_meter: TxGasMeter::unmetered(),
+            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as crate::Gas>::Price::ZEROED),
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }

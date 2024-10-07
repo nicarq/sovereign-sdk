@@ -4,9 +4,8 @@ use std::rc::Rc;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-use crate::transaction::gas_metering::TxGasMeter;
 use crate::transaction::Transaction;
-use crate::{Gas, Spec};
+use crate::{BasicGasMeter, Gas, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -164,7 +163,7 @@ pub struct AuthenticatedTransactionData<S: Spec> {
 
 impl<S: Spec> AuthenticatedTransactionData<S> {
     /// Creates a new [`TxGasMeter`] from the transaction data.
-    pub(crate) fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> TxGasMeter<S::Gas> {
+    pub(crate) fn gas_meter(&self, gas_price: &<S::Gas as Gas>::Price) -> BasicGasMeter<S::Gas> {
         // We compute the gas amount that the transaction should consume.
         let gas_to_consume = match &self.gas_limit {
             // If the user has provided a gas limit, we use the `gas_limit * gas_price` as the amount to consume (EIP-1559).
@@ -176,10 +175,6 @@ impl<S: Spec> AuthenticatedTransactionData<S> {
             None => self.max_fee,
         };
 
-        TxGasMeter {
-            remaining_funds: gas_to_consume,
-            gas_price: gas_price.clone(),
-            gas_used: S::Gas::zero(),
-        }
+        BasicGasMeter::new(gas_to_consume, gas_price.clone())
     }
 }
