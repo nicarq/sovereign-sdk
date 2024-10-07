@@ -29,6 +29,18 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
+        context: &Context<S>,
+        scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> Result<(), TryReserveGasError> {
+        self.bank
+            .reserve_gas(tx, gas_price, context.sender(), scratchpad)
+            .map_err(Into::into)
+    }
+
+    fn try_reserve_gas_for_proof(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
         scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<(), TryReserveGasError> {

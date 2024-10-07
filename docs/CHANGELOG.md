@@ -1,5 +1,7 @@
 ## 2024-10-07
+- #1588 changes the signature of the `GasEnforcer` capability, adding one new method `try_reserve_gas_for_proof` and altering the signature of `try_reserve_gas` to include the entire `Context` instead of just the sender address. If you're using the standard capabilities, no change is needed. If you implemented your own `GasEnforcer` capability, simply copy-paste your old implementation as `try_reserve_gas_for_proof`, and use `context.sender()` in place of the `sender` argument within `try_reserve_gas`.
 - #1584 extract transaction authentication to a separate methods.
+
 ## 2024-10-04
 - #1577 introduces a new `GasMeter::gas_info` method to the `GasMeter`. This is a breaking change for SDK consumers. Any code that previously used `gas_meter.gas_price()` will need to be updated to `gas_meter.gas_info().gas_price`, and similarly for `remaining_funds` and `gas_used`.
 
@@ -8,9 +10,7 @@
 - #1568 `TransactionAuthorizer` capability no longer charges for the gas.
 This is a breaking change for the consumers of the SDK. The capabilities accept 
 `TxScratchpad` instead of `PreExecWorkingSet`.
-
 - #1565 `GasEnforcer::try_reserve_gas` now accepts `TxScratchpad` instead of `PreExecWorkingSet`. This is a breaking change for the consumers of the SDK. 
-
 
 ## 2024-10-02
 - #1557 Simplifies the internal representation of the `ChainState` module and ensures that `gas_price` updates can be immediately accessible through the `Kernel` interface. The gas price accessible from the kernels should now update immediately after a slot is processed. This can potentially break tests that rely on the previous behavior (ie, 1-slot delay for the gas update).
