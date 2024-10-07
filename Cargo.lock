@@ -9794,6 +9794,7 @@ dependencies = [
  "sov-kernels",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-nonces",
  "sov-rest-utils",
  "sov-rollup-json-client",
  "sov-state",

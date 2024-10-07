@@ -5,5 +5,5 @@ pub extern crate tokio_tungstenite;
 
 progenitor::generate_api!(
     spec = "../sov-rollup-apis/openapi-v3.yaml",
-    derives = [Debug, Clone, PartialEq, Eq],
+    derives = [Debug, Clone, PartialEq],
 );

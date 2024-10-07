@@ -173,6 +173,7 @@ where
                     )),
                 ),
         )
+        .fallback(errors::global_404)
     }
 
     // ROUTERS
