@@ -5294,6 +5294,7 @@ dependencies = [
  "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tracing",

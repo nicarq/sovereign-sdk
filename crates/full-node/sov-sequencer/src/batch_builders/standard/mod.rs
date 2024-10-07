@@ -21,9 +21,11 @@ use sov_modules_api::{
     VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
-    process_tx, ApplyTxResult, TransactionReceipt, TxEffect, TxProcessingError,
+    authenticate_tx, process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
+    TxProcessingError,
 };
 use sov_rollup_interface::da::DaSpec;
+use thiserror::Error;
 use tokio::sync::watch;
 use tracing::error;
 
@@ -66,6 +68,17 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec, K> {
     config: StdBatchBuilderConfig,
 }
 
+/// An error that indicates that the transaction could not be added to the batch.
+#[derive(Debug, Error)]
+enum AddTxToBatchError {
+    /// Error occurred during transaction processing.
+    #[error("Error occurred during transaction processing")]
+    TxProcessing(#[source] TxProcessingError),
+    /// Error occurred during pre-execution checks.
+    #[error("Error occurred during pre-execution checks")]
+    PreExecCheck(#[source] PreExecError),
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 struct TxInfo<BlobHash> {
     id: TxHash,
@@ -88,7 +101,7 @@ where
         mut ctx: BatchConstructionContext<Z::Spec>,
     ) -> (
         BatchConstructionContext<Z::Spec>,
-        Result<Option<TransactionReceipt<Z::Spec>>, TxProcessingError>,
+        Result<Option<TransactionReceipt<Z::Spec>>, AddTxToBatchError>,
     ) {
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
@@ -98,13 +111,31 @@ where
         }
 
         let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
-        let (res, tx_scratchpad) = process_tx(
+
+        let auth = authenticate_tx(
             &self.runtime,
+            &ctx.gas_price,
+            &self.sequencer_address,
             &FullyBakedTx {
                 data: seqdb_tx.tx_bytes.data.clone(),
             },
+            tx_scratchpad,
+        );
+
+        let (auth_output, gas_info, tx_scratchpad) = match auth {
+            (Ok((aut_output, gas_info)), tx_scratchpad) => (aut_output, gas_info, tx_scratchpad),
+
+            (Err(err), tx_scratchpad) => {
+                ctx.state_checkpoint = tx_scratchpad.revert();
+                return (ctx, Err(AddTxToBatchError::PreExecCheck(err)));
+            }
+        };
+
+        let (res, tx_scratchpad) = process_tx(
+            &self.runtime,
+            auth_output,
+            gas_info,
             &self.sequencer_address,
-            &ctx.gas_price,
             ctx.visible_height,
             tx_scratchpad,
             ExecutionContext::Sequencer,
@@ -115,7 +146,7 @@ where
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = tx_scratchpad.revert();
 
-                (ctx, Err(reason))
+                (ctx, Err(AddTxToBatchError::TxProcessing(reason)))
             }
             Ok(ApplyTxResult {
                 receipt,
@@ -414,26 +445,25 @@ where
 
                 let tx_receipt = match tx_receipt {
                     Ok(txr) => txr,
-                    Err(e) => match e {
-                        // If authentication is fatally broken or the tx is for an unregistered sequencer, we can
-                        // never submit it succesfully so drop it from the mempool
-                        TxProcessingError::InvalidUnregisteredTx(_)
-                        | TxProcessingError::InvalidRegisteredTx(
-                            AuthenticationError::FatalError(_),
-                        ) => {
-                            tracing::info!(hash= %mempool_tx.hash, error = %e, "Invalid tx detected in mempool; dropping tx",);
-                            self.mempool
-                                .drop(&mempool_tx.hash, "Transaction is invalid".to_string());
-                            continue;
-                        }
-                        // Otherwise, the issue has to do with the current state of the rollup, which could change at any point.
-                        // We won't add the invalid tx to the batch, but we don't drop it either since it may become valid soon.
-                        TxProcessingError::SequencerUnauthorized(_)
-                        | TxProcessingError::InvalidRegisteredTx(AuthenticationError::OutOfGas(
-                            _,
-                        ))
-                        | TxProcessingError::Skipped { .. } => {
-                            tracing::info!(hash= %mempool_tx.hash, reason = %e, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
+                    Err(add_tx_error) => match add_tx_error {
+                        AddTxToBatchError::PreExecCheck(pre_exec_error) => match pre_exec_error {
+                            // If authentication is fatally broken or the tx is for an unregistered sequencer, we can
+                            // never submit it succesfully so drop it from the mempool
+                            PreExecError::UnregisteredAuthError(_)
+                            | PreExecError::AuthError(AuthenticationError::FatalError(_)) => {
+                                tracing::info!(hash= %mempool_tx.hash, error = %pre_exec_error, "Invalid tx detected in mempool; dropping tx",);
+                                self.mempool
+                                    .drop(&mempool_tx.hash, "Transaction is invalid".to_string());
+                                continue;
+                            }
+                            PreExecError::SequencerError(_)
+                            | PreExecError::AuthError(AuthenticationError::OutOfGas(_)) => {
+                                tracing::info!(hash= %mempool_tx.hash, reason = %pre_exec_error, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
+                                continue;
+                            }
+                        },
+                        AddTxToBatchError::TxProcessing(tx_processing_error) => {
+                            tracing::info!(hash= %mempool_tx.hash, reason = %tx_processing_error, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
                             continue;
                         }
                     },

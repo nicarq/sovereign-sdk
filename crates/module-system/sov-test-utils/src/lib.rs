@@ -19,7 +19,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 pub use sov_modules_api::EncodeCall;
 use sov_modules_api::{CryptoSpec, Spec};
-pub use sov_modules_stf_blueprint::{get_gas_used, SkippedReason};
+pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;

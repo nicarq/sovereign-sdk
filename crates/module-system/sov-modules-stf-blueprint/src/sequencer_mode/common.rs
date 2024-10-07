@@ -1,5 +1,8 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
+use sov_modules_api::capabilities::{
+    AuthenticationError, AuthenticationOutput, UnregisteredAuthenticationError,
+};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{Context, DaSpec, DispatchCall, Error, Spec, TxScratchpad, WorkingSet};
 use sov_rollup_interface::TxHash;
@@ -7,7 +10,8 @@ use tracing::info;
 
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
-    ApplyTxResult, RevertedTxContents, Runtime, SuccessfulTxContents, TransactionReceipt, TxEffect,
+    ApplyTxResult, RevertedTxContents, Runtime, SuccessfulTxContents, TransactionAuthenticator,
+    TransactionReceipt, TxEffect,
 };
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
@@ -97,3 +101,23 @@ fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
 
     Ok(())
 }
+
+/// Error during the pre-flight checks before the transaction is executed.
+#[derive(Debug, thiserror::Error)]
+pub enum PreExecError {
+    /// Sequencer error.
+    #[error("Sequencer error")]
+    SequencerError(#[source] anyhow::Error),
+    /// Invalid transaction from registered sequencer.
+    #[error("Invalid transaction from registered sequencer")]
+    AuthError(#[source] AuthenticationError),
+    /// Invalid transaction from unregistered sequencer.
+    #[error("Invalid transaction from unregistered sequencer")]
+    UnregisteredAuthError(#[source] UnregisteredAuthenticationError),
+}
+
+pub type AuthTxOutput<S, R> = AuthenticationOutput<
+    S,
+    <R as TransactionAuthenticator<S>>::Decodable,
+    <R as TransactionAuthenticator<S>>::AuthorizationData,
+>;

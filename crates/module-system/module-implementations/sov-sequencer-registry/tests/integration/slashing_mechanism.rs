@@ -4,8 +4,8 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::GasMeter;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    AsUser, AtomicNumber, BatchTestCase, SkippedReason, TestUser, TransactionTestCase,
-    TransactionType,
+    AsUser, AtomicNumber, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
+    TxProcessingError,
 };
 
 use crate::helpers::{
@@ -150,7 +150,7 @@ fn test_sequencer_without_enough_stake() {
 
             match &tx_receipt.receipt {
                 sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let SkippedReason::OutOfGas(error_message) = reason {
+                    if let TxProcessingError::OutOfGas(error_message) = reason {
                         assert!(
                             error_message.contains("The gas to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",

@@ -9,13 +9,10 @@ mod sequencer_mode;
 #[cfg(feature = "test-utils")]
 mod utils;
 pub use batch_processing::{get_gas_used, BatchReceipt, TransactionReceipt};
-pub use sequencer_mode::registered::process_tx;
+pub use sequencer_mode::registered::{authenticate_tx, process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
-use sov_modules_api::capabilities::{
-    AuthenticationError, BlobOrigin, HasCapabilities, TransactionAuthenticator,
-    UnregisteredAuthenticationError,
-};
+use sov_modules_api::capabilities::{BlobOrigin, HasCapabilities, TransactionAuthenticator};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
@@ -26,7 +23,6 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
-use sov_rollup_interface::TxHash;
 use sov_state::storage::StateUpdate;
 use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
@@ -68,10 +64,10 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
 }
 
-/// The reasons for which a transaction can be skipped
+/// The transaction processing error.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Error)]
 #[serde(rename_all = "snake_case")]
-pub enum SkippedReason {
+pub enum TxProcessingError {
     /// The transaction had an invalid nonce.
     #[error("The transaction had an invalid nonce, reason: {0}.")]
     IncorrectNonce(String),
@@ -124,7 +120,7 @@ pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
 
 impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents<S> {
     type Reverted = RevertedTxContents<S>;
-    type Skipped = SkippedReason;
+    type Skipped = TxProcessingError;
     type Successful = SuccessfulTxContents<S>;
 }
 
@@ -136,30 +132,6 @@ pub struct ApplyTxResult<S: Spec> {
     pub transaction_consumption: TransactionConsumption<S::Gas>,
     /// The transaction receipt.
     pub receipt: TransactionReceipt<S>,
-}
-
-/// The different errors that can be raised after transaction processing
-#[derive(Error, Debug)]
-pub enum TxProcessingError {
-    /// The sequencer is not authorized to execute the transaction
-    #[error("The sequencer is not authorized to execute the transaction, error {0}")]
-    SequencerUnauthorized(String),
-    /// The transaction from a registered sequencer was not correctly authenticated.
-    #[error("The transaction was not correctly authenticated {0}")]
-    InvalidRegisteredTx(AuthenticationError),
-    /// Transaction from unregistered sequencer was rejected.
-    /// These transactions can be processed in the case of direct sequencer registration.
-    #[error("The unregistered senders transaction was rejected from processing, reason: {0}")]
-    InvalidUnregisteredTx(UnregisteredAuthenticationError),
-
-    /// The transactions was skipped.
-    #[error("The transaction was skipped, reason: {reason}")]
-    Skipped {
-        /// Skip reason
-        reason: SkippedReason,
-        /// Hash of the transaction.
-        raw_tx_hash: TxHash,
-    },
 }
 
 /// Genesis parameters for a blueprint

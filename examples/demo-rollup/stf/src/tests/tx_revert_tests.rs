@@ -7,7 +7,7 @@ use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, PrivateKey, PublicKey, Spec,
 };
-use sov_modules_stf_blueprint::{SkippedReason, StfBlueprint, TxEffect};
+use sov_modules_stf_blueprint::{StfBlueprint, TxEffect, TxProcessingError};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_test_utils::generators::bank::get_default_token_id;
@@ -270,7 +270,7 @@ fn test_tx_bad_nonce() {
         // Bad nonce means that the transaction has to be reverted
         assert_eq!(
             tx_receipts[0].receipt,
-            TxEffect::Skipped(SkippedReason::IncorrectNonce(
+            TxEffect::Skipped(TxProcessingError::IncorrectNonce(
                 "Tx bad nonce for credential id: 0xfea6ac5b8751120fb62fff67b54d2eac66aef307c7dde1d394dea1e09e43dd44, expected: 0, but found: 18446744073709551615".to_string()
             ))
         );

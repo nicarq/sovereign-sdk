@@ -6,8 +6,8 @@ use sov_nonces::Nonces;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
 use sov_test_utils::{
-    generate_optimistic_runtime, MockDaSpec, SkippedReason, TestUser, TransactionTestCase,
-    TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    generate_optimistic_runtime, MockDaSpec, TestUser, TransactionTestCase, TransactionType,
+    TxProcessingError, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -108,7 +108,7 @@ fn send_tx_bad_nonce() {
         assert: Box::new(move |ctx, _state| {
             assert!(matches!(
                 ctx.tx_receipt,
-                TxEffect::Skipped(SkippedReason::IncorrectNonce(..))
+                TxEffect::Skipped(TxProcessingError::IncorrectNonce(..))
             ));
         }),
     });

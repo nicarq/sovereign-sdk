@@ -10,11 +10,9 @@ use sov_modules_api::{
 use sov_rollup_interface::TxHash;
 use tracing::{debug, error, warn};
 
-use crate::sequencer_mode::unregistered::process_unauthorized_tx;
-use crate::{
-    process_tx, ApplyTxResult, Runtime, SkippedReason, TxEffect, TxProcessingError,
-    TxReceiptContents,
-};
+use crate::sequencer_mode::registered::{authenticate_tx, PreExecError};
+use crate::sequencer_mode::unregistered::{authenticate_unregistered_tx, process_unauthorized_tx};
+use crate::{process_tx, ApplyTxResult, Runtime, TxEffect, TxProcessingError, TxReceiptContents};
 
 /// The receipt type for a transacition using the STF blueprint.
 pub type TransactionReceipt<S> =
@@ -92,93 +90,72 @@ where
 
     for (idx, raw_tx) in raw_txs.iter().enumerate() {
         let tx_scratchpad = checkpoint.to_tx_scratchpad();
-        let process_tx_result = if is_registered_sequencer {
-            process_tx(
+
+        let authentication_result = if is_registered_sequencer {
+            authenticate_tx(
                 runtime,
-                raw_tx,
-                &sequencer_da_address,
                 gas_price,
-                height,
+                &sequencer_da_address,
+                raw_tx,
                 tx_scratchpad,
-                execution_context,
             )
         } else {
-            process_unauthorized_tx(
-                runtime,
-                raw_tx,
-                &sequencer_da_address,
-                gas_price,
-                height,
-                tx_scratchpad,
-                execution_context,
-            )
+            authenticate_unregistered_tx(runtime, gas_price, raw_tx, tx_scratchpad)
         };
 
-        let (tx_result, tx_scratchpad) = process_tx_result;
-        checkpoint = tx_scratchpad.commit();
-        match tx_result {
-            Err(reason) => {
-                match reason {
-                    TxProcessingError::SequencerUnauthorized(reason) => {
-                        let remaining = raw_txs.len() - idx - 1;
-                        error!(
-                            reason = %reason,
-                            sequencer_da_address = %sequencer_da_address,
-                            tx_idx = %idx,
-                            remaining = remaining,
-                            "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
-                        );
+        let (auth_output, gas_info, tx_scratchpad) = match authentication_result {
+            (Ok((auth_output, gas_info)), tx_scratchpad) => (auth_output, gas_info, tx_scratchpad),
+            (Err(pre_exec_error), scratchpad) => match pre_exec_error {
+                PreExecError::SequencerError(error) => {
+                    let remaining = raw_txs.len() - idx - 1;
+                    error!(
+                        reason = %error,
+                        sequencer_da_address = %sequencer_da_address,
+                        tx_idx = %idx,
+                        remaining = remaining,
+                        "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
+                    );
 
-                        return (
-                            BatchReceipt {
-                                batch_hash: batch_with_id.id,
-                                tx_receipts,
-                                inner: BatchSequencerReceipt {
-                                    da_address: sequencer_da_address,
-                                    outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
-                                },
-                                gas_price: gas_price.clone(),
+                    return (
+                        BatchReceipt {
+                            batch_hash: batch_with_id.id,
+                            tx_receipts,
+                            inner: BatchSequencerReceipt {
+                                da_address: sequencer_da_address,
+                                outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
                             },
-                            checkpoint,
-                            gas_used,
-                        );
-                    }
+                            gas_price: gas_price.clone(),
+                        },
+                        scratchpad.commit(),
+                        gas_used,
+                    );
+                }
+                PreExecError::UnregisteredAuthError(e) => {
+                    warn!(
+                        sequencer_da_address = %sequencer_da_address,
+                        reason = %e,
+                        "Processing of unregistered sequencer transaction raised error, skipping"
+                    );
 
-                    TxProcessingError::InvalidUnregisteredTx(reason) => {
-                        warn!(
-                            sequencer_da_address = %sequencer_da_address,
-                            reason = %reason,
-                            "Processing of unregistered sequencer transaction raised error, skipping"
-                        );
-
-                        return (
-                            BatchReceipt {
-                                batch_hash: batch_with_id.id,
-                                tx_receipts: Vec::new(),
-                                inner: BatchSequencerReceipt {
-                                    da_address: sequencer_da_address,
-                                    outcome: BatchSequencerOutcome::Ignored(reason.to_string()),
-                                },
-                                gas_price: gas_price.clone(),
+                    return (
+                        BatchReceipt {
+                            batch_hash: batch_with_id.id,
+                            tx_receipts: Vec::new(),
+                            inner: BatchSequencerReceipt {
+                                da_address: sequencer_da_address,
+                                outcome: BatchSequencerOutcome::Ignored(e.to_string()),
                             },
-                            checkpoint,
-                            gas_used,
-                        );
-                    }
-
-                    err @ TxProcessingError::InvalidRegisteredTx(AuthenticationError::OutOfGas(
-                        _,
-                    )) => {
-                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
-                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
-                    }
-                    // If the sequencer raised a fatal error then he needs to get slashed and we stop applying the batch
-                    TxProcessingError::InvalidRegisteredTx(AuthenticationError::FatalError(
-                        err,
-                    )) => {
+                            gas_price: gas_price.clone(),
+                        },
+                        scratchpad.commit(),
+                        gas_used,
+                    );
+                }
+                PreExecError::AuthError(e) => match e {
+                    AuthenticationError::FatalError(err) => {
                         error!(
-                                sequencer_da_address = %sequencer_da_address,
-                                err=%err, "Tx authentication raised a fatal error, sequencer slashed");
+                            sequencer_da_address = %sequencer_da_address,
+                            err=%err, "Tx authentication raised a fatal error, sequencer slashed");
 
                         return (
                             BatchReceipt {
@@ -190,19 +167,50 @@ where
                                 },
                                 gas_price: gas_price.clone(),
                             },
-                            checkpoint,
+                            scratchpad.commit(),
                             gas_used,
                         );
                     }
-
-                    TxProcessingError::Skipped {
-                        reason,
-                        raw_tx_hash,
-                    } => {
-                        let tx_receipt = create_tx_receipt(reason, raw_tx_hash, idx);
-                        tx_receipts.push(tx_receipt);
+                    AuthenticationError::OutOfGas(err) => {
+                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
+                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
+                        checkpoint = scratchpad.commit();
+                        continue;
                     }
-                }
+                },
+            },
+        };
+
+        let raw_tx_hash = auth_output.0.raw_tx_hash;
+
+        let process_tx_result = if is_registered_sequencer {
+            process_tx(
+                runtime,
+                auth_output,
+                gas_info,
+                &sequencer_da_address,
+                height,
+                tx_scratchpad,
+                execution_context,
+            )
+        } else {
+            process_unauthorized_tx(
+                runtime,
+                auth_output,
+                gas_info,
+                &sequencer_da_address,
+                height,
+                tx_scratchpad,
+                execution_context,
+            )
+        };
+
+        let (tx_result, tx_scratchpad) = process_tx_result;
+        checkpoint = tx_scratchpad.commit();
+        match tx_result {
+            Err(reason) => {
+                let tx_receipt = create_tx_receipt(reason, raw_tx_hash, idx);
+                tx_receipts.push(tx_receipt);
             }
             Ok(ApplyTxResult {
                 transaction_consumption,
@@ -242,7 +250,7 @@ pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
 }
 
 fn create_tx_receipt<S: Spec>(
-    reason: SkippedReason,
+    reason: TxProcessingError,
     raw_tx_hash: TxHash,
     idx: usize,
 ) -> TransactionReceipt<S> {
