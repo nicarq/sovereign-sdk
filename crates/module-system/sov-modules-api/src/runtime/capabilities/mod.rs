@@ -19,7 +19,7 @@ use sov_rollup_interface::da::DaSpec;
 mod sequencer;
 pub use sequencer::*;
 
-use crate::{GasMeter, Spec};
+use crate::Spec;
 
 /// Wrapper around an inner type that prevents accessing it.
 pub struct Guard<T> {
@@ -37,23 +37,12 @@ impl<T> Guard<T> {
 pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// The concrete implementation of the capabilities.
     type Capabilities<'a>: GasEnforcer<S, Da>
-        + SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter>
-        + TransactionAuthorizer<
-            S,
-            Da,
-            SequencerStakeMeter = Self::SequencerStakeMeter,
-            AuthorizationData = Self::AuthorizationData,
-        > + ProofProcessor<S, Da>
+        + SequencerAuthorization<S, Da>
+        + TransactionAuthorizer<S, Da, AuthorizationData = Self::AuthorizationData>
+        + ProofProcessor<S, Da>
         + SequencerRemuneration<S, Da>
     where
         Self: 'a;
-
-    /// The type used to meter gas for operations invoked by the sequencer
-    /// (e.g. transaction deserialization, failing nonce checks)
-    // Note: We require an extra associated type here because `Capabilities` has
-    // a lifetime and rustc isn't smart enough to know that he lifetime of `SequencerAuthorization::SequencerStakeMeter`
-    // doesn't depend on the lifetime of capabilities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
 
     /// The type that is passed to the authorizer.
     type AuthorizationData;
@@ -83,9 +72,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// Returns the [`SequencerAuthorization`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn sequencer_authorization(
-        &self,
-    ) -> impl SequencerAuthorization<S, Da, SequencerStakeMeter = Self::SequencerStakeMeter> {
+    fn sequencer_authorization(&self) -> impl SequencerAuthorization<S, Da> {
         self.capabilities().inner
     }
 
@@ -94,12 +81,7 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// This method can be overriden to provide a custom implementation.
     fn transaction_authorizer(
         &self,
-    ) -> impl TransactionAuthorizer<
-        S,
-        Da,
-        SequencerStakeMeter = Self::SequencerStakeMeter,
-        AuthorizationData = Self::AuthorizationData,
-    > {
+    ) -> impl TransactionAuthorizer<S, Da, AuthorizationData = Self::AuthorizationData> {
         self.capabilities().inner
     }
 

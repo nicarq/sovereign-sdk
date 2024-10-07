@@ -43,7 +43,6 @@ use crate::transaction::{
 use crate::{
     Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter,
     MeteredBorshDeserialize, MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad,
-    UnlimitedGasMeter,
 };
 
 /// The chain ID of the rollup.
@@ -60,8 +59,7 @@ pub fn config_chain_id() -> u64 {
 pub trait TransactionAuthenticator<S: Spec> {
     /// The "message" that is extracted from the transaction and passed to the runtime for execution.
     type Decodable;
-    /// A struct that tracks the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
+
     /// The type that is passed to the authorizer.
     type AuthorizationData;
 
@@ -73,7 +71,7 @@ pub trait TransactionAuthenticator<S: Spec> {
     fn authenticate(
         &self,
         tx: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        pre_exec_ws: &mut PreExecWorkingSet<S>,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
@@ -84,7 +82,7 @@ pub trait TransactionAuthenticator<S: Spec> {
     fn authenticate_unregistered(
         &self,
         tx: &Self::Input,
-        state: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        state: &mut PreExecWorkingSet<S>,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
@@ -106,9 +104,6 @@ pub trait TransactionAuthenticator<S: Spec> {
 
 /// Authorizes transactions to be executed.
 pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
-    /// A type-safe struct that should be used to track the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
-
     /// The type used for authorization.
     type AuthorizationData;
 
@@ -285,13 +280,13 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 }
 
 /// Authenticate raw sov-transaction.
-pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>, Meter: GasMeter<S::Gas>>(
+pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
-    state: &mut PreExecWorkingSet<S, Meter>,
+    state: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     let raw_tx_hash = MeteredHasher::<
         _,
-        PreExecWorkingSet<S, Meter>,
+        PreExecWorkingSet<S>,
         <S::CryptoSpec as CryptoSpec>::Hasher,
     >::digest::<S>(raw_tx, state)
     .map(TxHash::new)

@@ -3,14 +3,16 @@ use sov_state::{CompileTimeNamespace, EventContainer, IsValueCached, SlotKey, Sl
 use super::checkpoints::StateCheckpoint;
 use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
-use crate::{GasMeter, GasMeteringError, Genesis, KernelWriter, Spec, UnlimitedGasMeter};
+use crate::{
+    BasicGasMeter, Gas, GasArray, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec,
+};
 
 /// A special state accessor which can only be used at genesis.
 /// Since genesis is unproven, this state accessor may read and write to every namespace, and it is not metered.
 pub struct GenesisStateAccessor<'a, S: Spec> {
     checkpoint: &'a mut StateCheckpoint<S::Storage>,
     pub(super) events: Vec<TypedEvent>,
-    gas_meter: UnlimitedGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S::Gas>,
 }
 
 impl<Store: Storage> StateCheckpoint<Store> {
@@ -22,7 +24,7 @@ impl<Store: Storage> StateCheckpoint<Store> {
     ) -> GenesisStateAccessor<S> {
         GenesisStateAccessor {
             checkpoint: self,
-            gas_meter: UnlimitedGasMeter::new(),
+            gas_meter: BasicGasMeter::new(u64::MAX, <S::Gas as Gas>::Price::ZEROED),
             events: Default::default(),
         }
     }

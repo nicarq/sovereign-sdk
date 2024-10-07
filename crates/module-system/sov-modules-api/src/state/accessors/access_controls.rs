@@ -17,8 +17,8 @@ use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableSt
 #[cfg(feature = "native")]
 use crate::AccessoryStateCheckpoint;
 use crate::{
-    AccessoryDelta, AccessoryStateReader, GasMeter, PreExecWorkingSet, Spec, StateCheckpoint,
-    StateReader, StateWriter, TxScratchpad, WorkingSet,
+    AccessoryDelta, AccessoryStateReader, PreExecWorkingSet, Spec, StateCheckpoint, StateReader,
+    StateWriter, TxScratchpad, WorkingSet,
 };
 
 macro_rules! inner_impl_unmetered_state_reader {
@@ -204,14 +204,10 @@ impl<S: Storage> StateWriter<User> for TxScratchpad<S> {
     inner_impl_unmetered_state_writer!(User);
 }
 
-impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateReader<User>
-    for PreExecWorkingSet<S, PreExecChecksMeter>
-{
+impl<S: Spec> ProvableStateReader<User> for PreExecWorkingSet<S> {
     type Spec = S;
 }
-impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> ProvableStateWriter<User>
-    for PreExecWorkingSet<S, PreExecChecksMeter>
-{
+impl<S: Spec> ProvableStateWriter<User> for PreExecWorkingSet<S> {
     type Spec = S;
 }
 

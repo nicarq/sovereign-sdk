@@ -18,7 +18,7 @@ pub use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 pub use sov_modules_api::EncodeCall;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{BasicGasMeter, CryptoSpec, Gas, GasArray, Spec};
 pub use sov_modules_stf_blueprint::{get_gas_used, TxProcessingError};
 use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::execution_mode::{Native, Zk};
@@ -189,4 +189,14 @@ impl AtomicNumber {
         self.num
             .fetch_sub(value, std::sync::atomic::Ordering::SeqCst);
     }
+}
+
+/// BasicGasMeter for tests.
+pub fn new_test_gas_meter<GU: Gas>() -> BasicGasMeter<GU> {
+    BasicGasMeter::new(u64::MAX, GU::Price::ZEROED)
+}
+
+/// BasicGasMeter for tests.
+pub fn new_test_gas_meter_with_price<GU: Gas>(gas_price: GU::Price) -> BasicGasMeter<GU> {
+    BasicGasMeter::new(u64::MAX, gas_price)
 }

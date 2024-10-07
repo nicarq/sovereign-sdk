@@ -50,8 +50,6 @@ where
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type SequencerStakeMeter = sov_test_utils::runtime::SequencerStakeMeter<S::Gas>;
-
     type AuthorizationData = AuthorizationData<S>;
 
     type Input = AuthenticatorInput;
@@ -59,7 +57,7 @@ where
     fn authenticate(
         &self,
         tx: &AuthenticatorInput,
-        pre_exec_ws: &mut sov_modules_api::PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        pre_exec_ws: &mut sov_modules_api::PreExecWorkingSet<S>,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<
             S,
@@ -68,11 +66,8 @@ where
         >,
         sov_modules_api::capabilities::AuthenticationError,
     > {
-        let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
-            _,
-            _,
-            EthereumToRollupAddressConverter,
-        >(&tx.0.data, pre_exec_ws)?;
+        let (tx_and_raw_hash, auth_data, runtime_call) =
+            sov_evm::authenticate::<_, EthereumToRollupAddressConverter>(&tx.0.data, pre_exec_ws)?;
         let call = TestRuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))
@@ -81,10 +76,7 @@ where
     fn authenticate_unregistered(
         &self,
         _tx: &AuthenticatorInput,
-        _state: &mut sov_modules_api::PreExecWorkingSet<
-            S,
-            sov_modules_api::UnlimitedGasMeter<<S as Spec>::Gas>,
-        >,
+        _state: &mut sov_modules_api::PreExecWorkingSet<S>,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<
             S,

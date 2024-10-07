@@ -128,8 +128,6 @@ macro_rules! generate_bare_runtime {
         {
             type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S, Da>;
 
-            type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
-
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
 
             fn capabilities(&self) -> ::sov_modules_api::capabilities::Guard<Self::Capabilities<'_>> {
@@ -182,7 +180,6 @@ macro_rules! impl_standard_runtime_authenticator {
             Da: ::sov_modules_api::DaSpec,
         {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
-            type SequencerStakeMeter = $crate::runtime::SequencerStakeMeter<S::Gas>;
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
             type Input = AuthenticatorInput;
 
@@ -191,7 +188,6 @@ macro_rules! impl_standard_runtime_authenticator {
                 tx: &AuthenticatorInput,
                 pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
                     S,
-                    Self::SequencerStakeMeter,
                 >,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
@@ -201,7 +197,7 @@ macro_rules! impl_standard_runtime_authenticator {
                 >,
                 ::sov_modules_api::capabilities::AuthenticationError,
             > {
-                ::sov_modules_api::capabilities::authenticate::<S, Self, Self::SequencerStakeMeter>(
+                ::sov_modules_api::capabilities::authenticate::<S, Self>(
                     &tx.0.data,
                     pre_exec_ws,
                 )
@@ -212,7 +208,6 @@ macro_rules! impl_standard_runtime_authenticator {
                 tx: &AuthenticatorInput,
                 pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
                     S,
-                    ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
                 >,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
@@ -224,8 +219,7 @@ macro_rules! impl_standard_runtime_authenticator {
             > {
                 ::sov_modules_api::capabilities::authenticate::<
                     S,
-                    Self,
-                    ::sov_modules_api::UnlimitedGasMeter<S::Gas>,
+                    Self
                 >(&tx.0.data, pre_exec_ws) .map_err(|e| match e {
                     ::sov_modules_api::capabilities::AuthenticationError::FatalError(err) => {
                         ::sov_modules_api::capabilities::UnregisteredAuthenticationError::FatalError(err)

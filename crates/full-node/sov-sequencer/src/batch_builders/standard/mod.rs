@@ -17,8 +17,8 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec, StateCheckpoint,
-    VersionReader, WorkingSet,
+    BasicGasMeter, Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
+    StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     authenticate_tx, process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
@@ -298,12 +298,12 @@ where
             let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
             let mut tx_scratchpad = checkpoint.to_tx_scratchpad();
 
-            let (_, seq_stake_meter) = match self
-                .runtime
-                .sequencer_authorization()
-                .authorize_sequencer(&self.sequencer_address, &gas_price, &mut tx_scratchpad)
-            {
-                Ok(ok) => ok,
+            let gas_meter = match self.runtime.sequencer_authorization().authorize_sequencer(
+                &self.sequencer_address,
+                &gas_price,
+                &mut tx_scratchpad,
+            ) {
+                Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
                 Err(AuthorizeSequencerError { reason }) => {
                     error!(%reason, "Sequencer authorization failed");
 
@@ -318,7 +318,7 @@ where
                 }
             };
 
-            let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(seq_stake_meter);
+            let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
             let auth_res = match self.runtime.authenticate(&authenticated, &mut pre_exec_ws) {
                 Ok(ok) => ok,

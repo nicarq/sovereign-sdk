@@ -6,8 +6,7 @@ use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationOutput, AuthorizationData, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
-use sov_modules_api::{DaSpec, DispatchCall, PreExecWorkingSet, RawTx, Spec, UnlimitedGasMeter};
-use sov_sequencer_registry::SequencerStakeMeter;
+use sov_modules_api::{DaSpec, DispatchCall, PreExecWorkingSet, RawTx, Spec};
 
 use crate::runtime::{Runtime, RuntimeCall};
 
@@ -17,8 +16,6 @@ where
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
-    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
-
     type AuthorizationData = AuthorizationData<S>;
 
     type Input = Auth;
@@ -26,23 +23,18 @@ where
     fn authenticate(
         &self,
         input: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S, Self::SequencerStakeMeter>,
+        pre_exec_ws: &mut PreExecWorkingSet<S>,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
     > {
         match input {
-            Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<
-                S,
-                Self,
-                Self::SequencerStakeMeter,
-            >(tx, pre_exec_ws),
+            Auth::Mod(tx) => {
+                sov_modules_api::capabilities::authenticate::<S, Self>(tx, pre_exec_ws)
+            }
             Auth::Evm(tx) => {
-                let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
-                    S,
-                    Self::SequencerStakeMeter,
-                    EthereumToRollupAddressConverter,
-                >(tx, pre_exec_ws)?;
+                let (tx_and_raw_hash, auth_data, runtime_call) =
+                    sov_evm::authenticate::<S, EthereumToRollupAddressConverter>(tx, pre_exec_ws)?;
                 let call = RuntimeCall::Evm(runtime_call);
 
                 Ok((tx_and_raw_hash, auth_data, call))
@@ -53,7 +45,7 @@ where
     fn authenticate_unregistered(
         &self,
         raw_tx: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+        pre_exec_ws: &mut PreExecWorkingSet<S>,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
@@ -64,19 +56,15 @@ where
             return Err(UnregisteredAuthenticationError::InvalidAuthenticator)?;
         };
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_modules_api::capabilities::authenticate::<
-                S,
-                Runtime<S, Da>,
-                UnlimitedGasMeter<S::Gas>,
-            >(contents, pre_exec_ws)
-            .map_err(|e| match e {
-                AuthenticationError::FatalError(err) => {
-                    UnregisteredAuthenticationError::FatalError(err)
-                }
-                AuthenticationError::OutOfGas(err) => {
-                    UnregisteredAuthenticationError::OutOfGas(err)
-                }
-            })?;
+            sov_modules_api::capabilities::authenticate::<S, Runtime<S, Da>>(contents, pre_exec_ws)
+                .map_err(|e| match e {
+                    AuthenticationError::FatalError(err) => {
+                        UnregisteredAuthenticationError::FatalError(err)
+                    }
+                    AuthenticationError::OutOfGas(err) => {
+                        UnregisteredAuthenticationError::OutOfGas(err)
+                    }
+                })?;
 
         match &runtime_call {
             RuntimeCall::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {

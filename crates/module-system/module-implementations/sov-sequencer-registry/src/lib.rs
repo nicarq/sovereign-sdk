@@ -13,7 +13,6 @@ mod registration;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use call::*;
-pub use capabilities::SequencerStakeMeter;
 pub use event::Event;
 pub use genesis::*;
 use serde::{Deserialize, Serialize};

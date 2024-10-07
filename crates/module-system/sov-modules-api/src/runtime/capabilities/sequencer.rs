@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
-use crate::{Gas, GasMeter, Spec, TxScratchpad};
+use crate::{Gas, Spec, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError {
@@ -32,26 +32,15 @@ pub struct AllowedSequencer<S: Spec> {
     pub balance: u64,
 }
 
-/// The result of the [`SequencerAuthorization::authorize_sequencer`] capability.
-pub type AuthorizationResult<S, SequencerStakeMeter> =
-    Result<(AllowedSequencer<S>, SequencerStakeMeter), AuthorizeSequencerError>;
-
 /// Authorizes the sequencer to submit and process batches.
 pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
-    /// A type-safe struct that should track the staked amount of the sequencer and the eventual execution penalities.
-    type SequencerStakeMeter: GasMeter<S::Gas>;
-
     /// Checks if the sequencer has staked the minimum bond to attest transactions.
-    ///
-    /// ## Returns
-    /// Returns a [`AuthorizeSequencerError`] error if the sequencer is not registered or does not have enough staked amount.
-    /// Returns a `Self::SequencerStakeMeter` if the sequencer is registered and has enough staked amount.
     fn authorize_sequencer(
         &self,
         sequencer: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
-    ) -> AuthorizationResult<S, Self::SequencerStakeMeter>;
+    ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
 
     /// Penalizes the sequencer without slashing his account.
     /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.

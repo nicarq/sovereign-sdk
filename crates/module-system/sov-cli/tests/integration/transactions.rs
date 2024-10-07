@@ -8,11 +8,13 @@ use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec, UnlimitedGasMeter};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_utils::runtime::{
     RuntimeSubcommand as TestRuntimeSubcommand, TestOptimisticRuntime, TestOptimisticRuntimeCall,
 };
-use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{
+    new_test_gas_meter, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 
 type Da = MockDaSpec;
 type Runtime = TestOptimisticRuntime<TestSpec, Da>;
@@ -100,7 +102,7 @@ fn transaction_is_serialized_correctly() {
             ),
         );
 
-        tx.verify(&mut UnlimitedGasMeter::new())
+        tx.verify(&mut new_test_gas_meter())
             .expect("the computed signature is incorrect");
 
         assert_eq!(
@@ -186,7 +188,7 @@ fn transaction_signed_properly_from_file() {
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
 
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
+    signed_tx.verify(&mut new_test_gas_meter()).unwrap();
 
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
@@ -229,7 +231,7 @@ fn transaction_signed_properly_from_json_string() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
+    signed_tx.verify(&mut new_test_gas_meter()).unwrap();
     assert_eq!(&runtime_call_bytes, &signed_tx.runtime_msg);
 }
 
@@ -284,7 +286,7 @@ fn transaction_signed_by_account_nickname() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
+    signed_tx.verify(&mut new_test_gas_meter()).unwrap();
 
     // the key
     let key2 = wallet_state
@@ -330,7 +332,7 @@ fn transaction_outputs_json() {
     };
     let raw_signed_tx = hex::decode(&hex_tx[2..]).unwrap();
     let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
-    signed_tx.verify(&mut UnlimitedGasMeter::new()).unwrap();
+    signed_tx.verify(&mut new_test_gas_meter()).unwrap();
 }
 
 fn make_test_path<P: AsRef<Path>>(path: P) -> PathBuf {
