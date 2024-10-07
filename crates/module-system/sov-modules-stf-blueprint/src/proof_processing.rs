@@ -2,14 +2,14 @@ use std::marker::PhantomData;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::capabilities::{
-    AuthorizeSequencerError, GasEnforcer, HasCapabilities, ProofProcessor, SequencerAuthorization,
+    AuthorizeSequencerError, GasEnforcer, ProofProcessor, SequencerAuthorization,
     SequencerRemuneration, TryReserveGasError,
 };
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    DaSpec, Gas, GasMeter, InvalidProofError, PreExecWorkingSet, ProofOutcome, ProofReceipt,
-    ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
+    BasicGasMeter, DaSpec, Gas, GasMeter, InvalidProofError, PreExecWorkingSet, ProofOutcome,
+    ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -203,14 +203,17 @@ where
         &self,
         gas_price: &<S::Gas as Gas>::Price,
         mut tx_scratchpad: TxScratchpad<S::Storage>,
-    ) -> PreExecWorkingSetResult<S, Da, RT> {
+    ) -> PreExecWorkingSetResult<S, Da> {
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             gas_price,
             &mut tx_scratchpad,
         ) {
-            Ok((allowed_sequencer, seq_stake_meter)) => {
-                let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(seq_stake_meter);
+            Ok(allowed_sequencer) => {
+                let gas_meter =
+                    BasicGasMeter::<S::Gas>::new(allowed_sequencer.balance, gas_price.clone());
+                let pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(gas_meter);
+
                 WorkflowResult::Proceed((allowed_sequencer.address, pre_exec_working_set))
             }
             Err(AuthorizeSequencerError { reason }) => WorkflowResult::EarlyReturn(
@@ -234,10 +237,7 @@ where
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
-        pre_exec_working_set: PreExecWorkingSet<
-            S,
-            <RT as HasCapabilities<S, Da>>::SequencerStakeMeter,
-        >,
+        pre_exec_working_set: PreExecWorkingSet<S>,
     ) -> WorkflowResult<WorkingSet<S>, S, Da> {
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
@@ -350,11 +350,5 @@ fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     }
 }
 
-type PreExecWorkingSetResult<S, Da, RT> = WorkflowResult<
-    (
-        <S as Spec>::Address,
-        PreExecWorkingSet<S, <RT as HasCapabilities<S, Da>>::SequencerStakeMeter>,
-    ),
-    S,
-    Da,
->;
+type PreExecWorkingSetResult<S, Da> =
+    WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S>), S, Da>;

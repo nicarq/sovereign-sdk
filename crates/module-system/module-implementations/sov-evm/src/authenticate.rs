@@ -42,11 +42,10 @@ pub fn tx_hash<S: Spec, Meter: GasMeter<S::Gas>>(
 /// collision resistant. You don't want someone to be able to pick a rollup address that someone else is already using!
 pub fn authenticate<
     S: Spec,
-    Meter: GasMeter<S::Gas>,
     EvmToRollupAddressConverter: From<reth_primitives::Address> + TryInto<S::Address>,
 >(
     raw_tx: &[u8],
-    _pre_exec_working_set: &mut PreExecWorkingSet<S, Meter>,
+    _pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 

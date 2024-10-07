@@ -10,7 +10,7 @@ use super::seal::CachedAccessor;
 use super::StateCheckpoint;
 use crate::capabilities::{Kernel, KernelWithSlotMapping};
 use crate::gas::GasArray;
-use crate::{Gas, GasMeter, GasMeteringError, Spec, TypedEvent, UnlimitedGasMeter};
+use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent};
 
 impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
@@ -78,7 +78,7 @@ pub struct ApiStateAccessor<S: Spec> {
     storage: S::Storage,
     witness: <<S as Spec>::Storage as Storage>::Witness,
     events: Vec<TypedEvent>,
-    gas_meter: UnlimitedGasMeter<S::Gas>,
+    gas_meter: BasicGasMeter<S::Gas>,
     kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
@@ -153,7 +153,8 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Self {
             storage: delta.inner.clone(),
             witness: Default::default(),
-            gas_meter: UnlimitedGasMeter::new_with_price(gas_price),
+            // TODO: #1490. Remove u64::MAX
+            gas_meter: BasicGasMeter::new(u64::MAX, gas_price),
             events: Vec::new(),
             kernel_cache: delta.kernel_cache.clone(),
             user_cache: delta.user_cache.clone(),

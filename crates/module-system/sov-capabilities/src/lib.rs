@@ -1,7 +1,7 @@
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
-    AuthorizationData, AuthorizationResult, GasEnforcer, ProofProcessor, SequencerAuthorization,
-    SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
+    AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
+    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
@@ -11,7 +11,7 @@ use sov_modules_api::{
     ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_sequencer_registry::{SequencerRegistry, SequencerStakeMeter};
+use sov_sequencer_registry::SequencerRegistry;
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
 pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
@@ -74,14 +74,12 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
 impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
     for StandardProvenRollupCapabilities<'a, S, Da>
 {
-    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
-
     fn authorize_sequencer(
         &self,
         sequencer: &<Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
-    ) -> AuthorizationResult<S, Self::SequencerStakeMeter> {
+    ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
             .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
     }
@@ -101,7 +99,6 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
 impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
     for StandardProvenRollupCapabilities<'a, S, Da>
 {
-    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
     type AuthorizationData = AuthorizationData<S>;
 
     /// Prevents duplicate transactions from running.

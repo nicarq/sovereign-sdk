@@ -2,12 +2,12 @@
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationOutput, AuthorizeSequencerError, FatalError, GasEnforcer,
-    HasCapabilities, SequencerAuthorization, SequencerRemuneration, TransactionAuthenticator,
-    TransactionAuthorizer, TryReserveGasError,
+    SequencerAuthorization, SequencerRemuneration, TransactionAuthenticator, TransactionAuthorizer,
+    TryReserveGasError,
 };
 use sov_modules_api::{
-    DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter, PreExecWorkingSet, Spec,
-    TxScratchpad, WorkingSet,
+    BasicGasMeter, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter,
+    PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
 };
 
 use crate::sequencer_mode::common::apply_tx;
@@ -169,18 +169,18 @@ pub fn authenticate_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
 ) {
     // Checks the sequencer balance before the transaction is executed.
     // If the sequencer balance is not high enough, the transaction is rejected.
-    let (_, seq_stake_meter) = match runtime.sequencer_authorization().authorize_sequencer(
+    let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_da_address,
         gas_price,
         &mut scratchpad,
     ) {
-        Ok(seq_stake_meter) => seq_stake_meter,
+        Ok(allowed_seqiencer) => BasicGasMeter::new(allowed_seqiencer.balance, gas_price.clone()),
         Err(AuthorizeSequencerError { reason }) => {
             return (Err(PreExecError::SequencerError(reason)), scratchpad);
         }
     };
 
-    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(seq_stake_meter);
+    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(gas_meter);
     let res = authenticate_with_cycle_count(runtime, tx, &mut pre_exec_working_set);
 
     let gas_info = pre_exec_working_set.gas_info();
@@ -212,10 +212,7 @@ pub fn authenticate_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
 fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
     tx: &FullyBakedTx,
-    pre_exec_working_set: &mut PreExecWorkingSet<
-        S,
-        <R as HasCapabilities<S, Da>>::SequencerStakeMeter,
-    >,
+    pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))

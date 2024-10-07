@@ -1,111 +1,26 @@
-use sov_bank::Amount;
-use sov_modules_api::capabilities::{AuthorizationResult, AuthorizeSequencerError};
+use sov_modules_api::capabilities::AuthorizeSequencerError;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, Gas, GasMeter, GasMeteringError, Spec, TxScratchpad};
+use sov_modules_api::{DaSpec, Gas, Spec, TxScratchpad};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
-/// A struct that keeps track of the staked amount of a sequencer and the accumulated penalty amount.
-/// The sequencer may get penalized for submitting invalid transactions, the penalties are accumulated
-/// during execution in that struct. The remaining stake amount decreases as the penalties are accumulated.
-///
-/// The current amount staked by the sequencer is the sum of the
-/// remaining stake amount and the accumulated penalty amount.
-///
-/// # Type-safety invariant
-/// This struct should always ensure that the penalty amount is always below the total amount staked
-/// for type safety purposes.
-///
-/// # Constructor
-/// This struct can only be constructed by the [`SequencerRegistry::authorize_sequencer`] method.
-pub struct SequencerStakeMeter<GU: Gas> {
-    remaining_stake: Amount,
-    penalty_accumulator: GU,
-    gas_price: GU::Price,
-}
-
-impl<GU: Gas> GasMeter<GU> for SequencerStakeMeter<GU> {
-    fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>> {
-        let amount_value = amount.value(&self.gas_price);
-
-        if amount_value > self.remaining_stake {
-            return Err(GasMeteringError::OutOfGas {
-                gas_to_charge: amount.clone(),
-                gas_price: self.gas_price.clone(),
-                remaining_funds: self.remaining_stake,
-                total_gas_consumed: self.gas_info().gas_used,
-            });
-        }
-
-        self.remaining_stake -= amount_value;
-        self.penalty_accumulator.combine(amount);
-
-        Ok(())
-    }
-
-    fn refund_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
-        self.penalty_accumulator = self.penalty_accumulator.checked_sub(gas).ok_or_else(|| {
-            GasMeteringError::ImpossibleToRefundGas {
-                gas_to_refund: gas.clone(),
-                gas_used: self.penalty_accumulator.clone(),
-            }
-        })?;
-        self.remaining_stake = self
-            .remaining_stake
-            .saturating_add(gas.value(&self.gas_price));
-
-        Ok(())
-    }
-
-    fn gas_info(&self) -> sov_modules_api::GasInfo<GU> {
-        sov_modules_api::GasInfo {
-            gas_used: self.penalty_accumulator.clone(),
-            gas_price: self.gas_price.clone(),
-            remaining_funds: self.remaining_stake,
-        }
-    }
-}
-
 impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
-    /// If so, returns a [`SequencerStakeMeter`] which tracks the sequencer stake. Otherwise, returns a [`AuthorizeSequencerError`].
     pub fn authorize_sequencer(
         &self,
         sender: &Da::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         scratchpad: &mut TxScratchpad<S::Storage>,
-    ) -> AuthorizationResult<S, SequencerStakeMeter<S::Gas>> {
+    ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         let allowed_sequencer = match self.is_sender_allowed(sender, base_fee_per_gas, scratchpad) {
             Ok(seq) => seq,
             Err(e) => return Err(AuthorizeSequencerError { reason: e.into() }),
         };
 
-        let seq_meter = SequencerStakeMeter::<S::Gas> {
-            remaining_stake: allowed_sequencer.balance,
-            penalty_accumulator: S::Gas::zero(),
-            gas_price: base_fee_per_gas.clone(),
-        };
-
-        Ok((allowed_sequencer, seq_meter))
+        Ok(allowed_sequencer)
     }
 
-    /// Refunds some of the sequencer's staked amount.
-    /// Only modifies the `remaining_stake` field of the [`SequencerStakeMeter`] to increase the remaining staked amount.
-    /// The `gas_used` field of the [`SequencerStakeMeter`] is not modified.
-    ///
-    /// # Note
-    /// Saturates if the sum of the refunded amount and remaining stake overflows.
-    pub fn refund_sequencer(
-        &self,
-        sequencer_stake_meter: &mut SequencerStakeMeter<S::Gas>,
-        refund_amount: u64,
-    ) {
-        sequencer_stake_meter.remaining_stake = sequencer_stake_meter
-            .remaining_stake
-            .saturating_add(refund_amount);
-    }
-
-    /// Penalizes the sequencer. In practice, sets its stake to the remaining stake tracked by the [`SequencerStakeMeter`].
+    /// Penalizes the sequencer.
     pub fn penalize_sequencer(
         &self,
         sender: &Da::Address,
@@ -144,25 +59,13 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
 
 #[cfg(test)]
 mod tests {
-    use sov_modules_api::{Gas, GasMeter, GasPrice, GasUnit};
-
-    use crate::{Amount, SequencerStakeMeter};
-
-    impl<GU: Gas> SequencerStakeMeter<GU> {
-        fn new(remaining_stake: Amount, gas_price: GU::Price) -> Self {
-            Self {
-                remaining_stake,
-                penalty_accumulator: GU::ZEROED,
-                gas_price,
-            }
-        }
-    }
+    use sov_modules_api::{BasicGasMeter, GasMeter, GasPrice, GasUnit};
 
     #[test]
     fn charge_gas_should_fail_if_not_enough_funds() {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = SequencerStakeMeter::new(0, gas_price.clone());
+        let mut gas_meter = BasicGasMeter::new(0, gas_price.clone());
 
         assert!(
             gas_meter.charge_gas(&GasUnit::<2>::from([100; 2])).is_err(),
@@ -174,7 +77,7 @@ mod tests {
     fn refund_gas_should_fail_if_not_enough_funds_consumed() {
         let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = SequencerStakeMeter::new(100, gas_price.clone());
+        let mut gas_meter = BasicGasMeter::new(100, gas_price.clone());
 
         assert!(
             gas_meter.refund_gas(&GasUnit::<2>::from([100; 2])).is_err(),
@@ -187,7 +90,7 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
         let gas_price = GasPrice::<2>::from([1; 2]);
 
-        let mut gas_meter = SequencerStakeMeter::new(REMAINING_FUNDS, gas_price.clone());
+        let mut gas_meter = BasicGasMeter::new(REMAINING_FUNDS, gas_price.clone());
         assert!(
             gas_meter
                 .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
@@ -217,7 +120,7 @@ mod tests {
         const REMAINING_FUNDS: u64 = 100;
         let gas_price = GasPrice::from([1; 2]);
 
-        let mut gas_meter = SequencerStakeMeter::new(REMAINING_FUNDS, gas_price);
+        let mut gas_meter = BasicGasMeter::new(REMAINING_FUNDS, gas_price);
         assert!(
             gas_meter
                 .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))

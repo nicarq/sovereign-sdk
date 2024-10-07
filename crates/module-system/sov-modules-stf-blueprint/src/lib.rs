@@ -38,7 +38,6 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
     + TransactionAuthenticator<
         S,
         Decodable = <Self as DispatchCall>::Decodable,
-        SequencerStakeMeter = <Self as HasCapabilities<S, Da>>::SequencerStakeMeter,
         AuthorizationData = <Self as HasCapabilities<S, Da>>::AuthorizationData,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S, TxState = WorkingSet<S>>

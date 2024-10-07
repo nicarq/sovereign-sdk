@@ -32,7 +32,7 @@ pub use sov_nonces::Nonces;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry, SequencerStakeMeter};
+pub use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 pub use sov_value_setter::{ValueSetter, ValueSetterConfig};
 pub use tokio::sync::watch::Receiver;

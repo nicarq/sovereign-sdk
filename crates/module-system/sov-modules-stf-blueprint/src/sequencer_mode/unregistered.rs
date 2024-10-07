@@ -5,8 +5,8 @@ use sov_modules_api::capabilities::{
     TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
-    DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter, PreExecWorkingSet, Spec,
-    TxScratchpad, UnlimitedGasMeter, WorkingSet,
+    BasicGasMeter, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter,
+    PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
 };
 
 use super::registered::{AuthTxOutput, PreExecError};
@@ -125,8 +125,9 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da
     Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), PreExecError>,
     TxScratchpad<S::Storage>,
 ) {
-    let mut pre_exec_working_set =
-        tx_scratchpad.to_pre_exec_working_set(UnlimitedGasMeter::new_with_price(gas_price.clone()));
+    // TODO #1490: Remove u64::MAX
+    let meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
+    let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(meter);
 
     let res = authenticate_unregistered_with_cycle_count(runtime, tx, &mut pre_exec_working_set);
     let (tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
@@ -142,7 +143,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da
 fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
     runtime: &R,
     tx: &FullyBakedTx,
-    pre_exec_working_set: &mut PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>>,
+    pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
         UnregisteredAuthenticationError::FatalError(FatalError::DeserializationFailed(

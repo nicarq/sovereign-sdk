@@ -39,7 +39,6 @@ use sov_modules_api::macros::{expose_rpc, CliWallet, UniversalWallet};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 use sov_rollup_interface::da::DaSpec;
-use sov_sequencer_registry::SequencerStakeMeter;
 
 pub use crate::authentication::EthereumToRollupAddressConverter;
 #[cfg(feature = "native")]
@@ -104,7 +103,6 @@ where
 
 impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
     type Capabilities<'a> = StandardCapabilities<'a, S, Da>;
-    type SequencerStakeMeter = SequencerStakeMeter<S::Gas>;
     type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
         Guard::new(StandardCapabilities {

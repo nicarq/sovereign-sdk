@@ -1,10 +1,10 @@
-use crate::{GasMeter, GasPrice, GasUnit, UnlimitedGasMeter};
+use crate::{BasicGasMeter, GasMeter, GasPrice, GasUnit};
 
 #[test]
 fn charge_gas_should_always_succeed() {
     let gas_price = GasPrice::<2>::from([1; 2]);
 
-    let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+    let mut gas_meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
 
     assert!(
         gas_meter
@@ -18,7 +18,7 @@ fn charge_gas_should_always_succeed() {
 fn refund_gas_should_fail_if_not_enough_funds_consumed() {
     let gas_price = GasPrice::<2>::from([1; 2]);
 
-    let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+    let mut gas_meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
 
     assert!(
         gas_meter.refund_gas(&GasUnit::<2>::from([100; 2])).is_err(),
@@ -31,7 +31,7 @@ fn try_charge_gas() {
     const REMAINING_FUNDS: u64 = 100;
     let gas_price = GasPrice::<2>::from([1; 2]);
 
-    let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price.clone());
+    let mut gas_meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
     assert!(
         gas_meter
             .charge_gas(&GasUnit::<2>::from([REMAINING_FUNDS / 2; 2]))
@@ -56,7 +56,7 @@ fn try_refund_gas() {
     const FUNDS_TO_CONSUME: u64 = 100;
     let gas_price = GasPrice::from([1; 2]);
 
-    let mut gas_meter = UnlimitedGasMeter::new_with_price(gas_price);
+    let mut gas_meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
     assert!(
         gas_meter
             .charge_gas(&GasUnit::<2>::from([FUNDS_TO_CONSUME / 2; 2]))

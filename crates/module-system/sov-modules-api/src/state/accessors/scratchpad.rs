@@ -17,9 +17,7 @@ use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption, TxGasMeter,
 };
-#[cfg(feature = "test-utils")]
-use crate::UnlimitedGasMeter;
-use crate::{GasInfo, GasMeter, GasMeteringError};
+use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -80,10 +78,10 @@ impl<S: Storage> TxScratchpad<S> {
     }
 
     /// Converts this [`TxScratchpad`] into a [`PreExecWorkingSet`].
-    pub fn to_pre_exec_working_set<Sp: Spec<Storage = S>, Meter: GasMeter<Sp::Gas>>(
+    pub fn to_pre_exec_working_set<Sp: Spec<Storage = S>>(
         self,
-        gas_meter: Meter,
-    ) -> PreExecWorkingSet<Sp, Meter> {
+        gas_meter: BasicGasMeter<<Sp as Spec>::Gas>,
+    ) -> PreExecWorkingSet<Sp> {
         PreExecWorkingSet {
             inner: self,
             gas_meter,
@@ -91,46 +89,20 @@ impl<S: Storage> TxScratchpad<S> {
     }
 }
 
-#[cfg(feature = "test-utils")]
-impl<Store: Storage> TxScratchpad<Store> {
-    /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`].
-    /// This is useful for tests that don't need to track gas consumption.
-    pub fn pre_exec_ws_unmetered<S: Spec<Storage = Store>>(
-        self,
-    ) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
-        PreExecWorkingSet {
-            inner: self,
-            gas_meter: UnlimitedGasMeter::new(),
-        }
-    }
-
-    /// Produces an unmetered [`PreExecWorkingSet`] from this [`StateCheckpoint`] for a given price.
-    /// This is useful for tests that don't need to test failure over gas exhaustion.
-    pub fn pre_exec_ws_unmetered_with_price<S: Spec<Storage = Store>>(
-        self,
-        gas_price: &<S::Gas as crate::Gas>::Price,
-    ) -> PreExecWorkingSet<S, UnlimitedGasMeter<S::Gas>> {
-        PreExecWorkingSet {
-            inner: self,
-            gas_meter: UnlimitedGasMeter::new_with_price(gas_price.clone()),
-        }
-    }
-}
-
 /// A working set that can be used to charge gas for pre transaction execution checks.
-pub struct PreExecWorkingSet<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> {
+pub struct PreExecWorkingSet<S: Spec> {
     inner: TxScratchpad<S::Storage>,
-    gas_meter: PreExecChecksMeter,
+    gas_meter: BasicGasMeter<S::Gas>,
 }
 
-impl<S: Spec, PreExecChecksMeter: GasMeter<S::Gas>> PreExecWorkingSet<S, PreExecChecksMeter> {
+impl<S: Spec> PreExecWorkingSet<S> {
     /// Returns the associated gas meter and the scratchpad.
-    pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S::Storage>, PreExecChecksMeter) {
+    pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S::Storage>, BasicGasMeter<S::Gas>) {
         (self.inner, self.gas_meter)
     }
 }
 
-impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S, Meter> {
+impl<S: Spec> GasMeter<S::Gas> for PreExecWorkingSet<S> {
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
@@ -144,7 +116,7 @@ impl<S: Spec, Meter: GasMeter<S::Gas>> GasMeter<S::Gas> for PreExecWorkingSet<S,
     }
 }
 
-impl<S: Spec, Meter: GasMeter<S::Gas>> CachedAccessor<User> for PreExecWorkingSet<S, Meter> {
+impl<S: Spec> CachedAccessor<User> for PreExecWorkingSet<S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
         <TxScratchpad<S::Storage> as CachedAccessor<User>>::get_cached(&mut self.inner, key)
     }

@@ -426,41 +426,41 @@ pub trait GasMeter<GU: Gas> {
     fn gas_info(&self) -> GasInfo<GU>;
 }
 
-/// An unlimited gas meter. Only tracks the amount of gas consumed.
-/// The [`UnlimitedGasMeter::charge_gas`] method will always succeed.
-/// Only use this if you are certain that the gas meter will never run out of funds.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct UnlimitedGasMeter<GU: Gas> {
+/// A struct that keeps track of the use gas.
+#[derive(Clone)]
+pub struct BasicGasMeter<GU: Gas> {
+    remaining_stake: u64,
     gas_used: GU,
     gas_price: GU::Price,
 }
 
-impl<GU: Gas> Default for UnlimitedGasMeter<GU> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<GU: Gas> UnlimitedGasMeter<GU> {
-    /// Creates a new unlimited gas meter with the provided gas price.
-    pub const fn new_with_price(gas_price: GU::Price) -> Self {
+impl<GU: Gas> BasicGasMeter<GU> {
+    /// Creates a new `BasicGasMeter`
+    pub fn new(remaining_stake: u64, gas_price: GU::Price) -> Self {
         Self {
-            gas_used: GU::ZEROED,
+            remaining_stake,
+            gas_used: Gas::zero(),
             gas_price,
         }
     }
-    /// Creates a new unlimited gas meter with a zeroed price.
-    pub const fn new() -> Self {
-        Self {
-            gas_used: GU::ZEROED,
-            gas_price: GU::Price::ZEROED,
-        }
-    }
 }
 
-impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
-    fn charge_gas(&mut self, gas: &GU) -> Result<(), GasMeteringError<GU>> {
-        self.gas_used.combine(gas);
+impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
+    fn charge_gas(&mut self, amount: &GU) -> Result<(), GasMeteringError<GU>> {
+        let amount_value = amount.value(&self.gas_price);
+
+        if amount_value > self.remaining_stake {
+            return Err(GasMeteringError::OutOfGas {
+                gas_to_charge: amount.clone(),
+                gas_price: self.gas_price.clone(),
+                remaining_funds: self.remaining_stake,
+                total_gas_consumed: self.gas_info().gas_used,
+            });
+        }
+
+        self.remaining_stake -= amount_value;
+        self.gas_used.combine(amount);
+
         Ok(())
     }
 
@@ -471,6 +471,9 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
                 gas_used: self.gas_used.clone(),
             }
         })?;
+        self.remaining_stake = self
+            .remaining_stake
+            .saturating_add(gas.value(&self.gas_price));
 
         Ok(())
     }
@@ -479,7 +482,7 @@ impl<GU: Gas> GasMeter<GU> for UnlimitedGasMeter<GU> {
         GasInfo {
             gas_used: self.gas_used.clone(),
             gas_price: self.gas_price.clone(),
-            remaining_funds: u64::MAX,
+            remaining_funds: self.remaining_stake,
         }
     }
 }
