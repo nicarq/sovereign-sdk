@@ -90,7 +90,7 @@ targets:
     production_repo: Sovereign-Labs/sovereign-sdk-client-js
     package_name: "@sovereign-sdk/client"
     publish:
-      npm: false
+      npm: true
     options:
       browser:
         state: allow
