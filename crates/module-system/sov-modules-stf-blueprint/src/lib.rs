@@ -58,7 +58,7 @@ pub trait Runtime<S: Spec, Da: DaSpec>:
 
     /// Default RPC methods and Axum router.
     #[cfg(feature = "native")]
-    fn endpoints(storage: sov_modules_api::rest::ApiState<(), S>) -> RuntimeEndpoints;
+    fn endpoints(storage: sov_modules_api::rest::ApiState<S>) -> RuntimeEndpoints;
 
     /// Reads genesis configs.
     #[cfg(feature = "native")]

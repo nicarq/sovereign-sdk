@@ -64,7 +64,7 @@ pub extern crate sov_rest_utils as utils;
 ///   [`StateVec`](crate::containers::StateVec).
 pub trait HasRestApi<S: Spec> {
     /// Returns an [`axum::Router`] on the provided [`StorageReceiver`] instance for the REST API.
-    fn rest_api(&self, _state: ApiState<(), S>) -> axum::Router<()>;
+    fn rest_api(&self, _state: ApiState<S>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasRestApi::rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
@@ -75,7 +75,7 @@ pub trait HasRestApi<S: Spec> {
 
 /// Makes deriving [`HasRestApi`] for modules optional, with the autoref trick.
 impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
-    fn rest_api(&self, _state: ApiState<(), M::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<M::Spec>) -> axum::Router<()> {
         axum::Router::new()
     }
 
@@ -109,7 +109,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// impl<S: Spec> HasCustomRestApi for MyModule<S> {
 ///     type Spec = S;
 ///
-///     fn custom_rest_api(&self, state: ApiState<(), S>) -> axum::Router<()> {
+///     fn custom_rest_api(&self, state: ApiState<S>) -> axum::Router<()> {
 ///         use axum::routing::get;
 ///
 ///         axum::Router::new()
@@ -148,7 +148,7 @@ pub trait HasCustomRestApi: Sized + Clone {
     type Spec: Spec;
 
     /// Returns an [`axum::Router`] on the provided [`ApiState`] instance for the REST API.
-    fn custom_rest_api(&self, state: ApiState<(), Self::Spec>) -> axum::Router<()>;
+    fn custom_rest_api(&self, state: ApiState<Self::Spec>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasCustomRestApi::custom_rest_api`].
     /// [`None`] means there is no known OpenAPI spec for the API.
@@ -164,7 +164,7 @@ pub trait HasCustomRestApi: Sized + Clone {
 impl<T: ModuleInfo> HasCustomRestApi for &T {
     type Spec = T::Spec;
 
-    fn custom_rest_api(&self, _state: ApiState<(), Self::Spec>) -> axum::Router<()> {
+    fn custom_rest_api(&self, _state: ApiState<Self::Spec>) -> axum::Router<()> {
         tracing::trace!(module = std::any::type_name::<T>(), id = %self.id(), "No `HasCustomRestApi` implementation found for module");
         axum::Router::new()
     }
@@ -174,7 +174,7 @@ impl<T: ModuleInfo> HasCustomRestApi for &T {
 /// type of module and runtime [`axum::Router`]s.
 #[derive(derive_more::Deref, derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
-pub struct ApiState<T, S: Spec> {
+pub struct ApiState<S: Spec, T = ()> {
     #[deref]
     inner: Arc<T>,
     checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
@@ -183,7 +183,7 @@ pub struct ApiState<T, S: Spec> {
     requested_height: Option<u64>,
 }
 
-impl<T, S: Spec> ApiState<T, S> {
+impl<S: Spec, T> ApiState<S, T> {
     /// Creates an [`ApiState`] backed by a Tokio [`watch`] channel of
     /// [`StateCheckpoint`]s.
     pub fn build(
@@ -201,7 +201,7 @@ impl<T, S: Spec> ApiState<T, S> {
     }
 
     /// Replaces the inner data with a new value.
-    pub fn with<T1>(self, inner: T1) -> ApiState<T1, S> {
+    pub fn with<T1>(self, inner: T1) -> ApiState<S, T1> {
         ApiState {
             inner: Arc::new(inner),
             checkpoint_receiver: self.checkpoint_receiver,
@@ -234,16 +234,16 @@ impl<T, S: Spec> ApiState<T, S> {
 }
 
 #[axum::async_trait]
-impl<T, S> FromRequestParts<ApiState<T, S>> for ApiState<T, S>
+impl<S, T> FromRequestParts<ApiState<S, T>> for ApiState<S, T>
 where
-    T: Send + Sync,
     S: Spec,
+    T: Send + Sync,
 {
     type Rejection = utils::ErrorObject;
 
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
-        state: &ApiState<T, S>,
+        state: &ApiState<S, T>,
     ) -> Result<Self, Self::Rejection> {
         let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
             .await
@@ -256,16 +256,16 @@ where
 }
 
 #[axum::async_trait]
-impl<T, S> FromRequestParts<ApiState<T, S>> for ApiStateAccessor<S>
+impl<S, T> FromRequestParts<ApiState<S, T>> for ApiStateAccessor<S>
 where
-    S: Spec,
     T: Send + Sync,
+    S: Spec,
 {
     type Rejection = utils::ErrorObject;
 
     async fn from_request_parts(
         parts: &mut axum::http::request::Parts,
-        state: &ApiState<T, S>,
+        state: &ApiState<S, T>,
     ) -> Result<Self, Self::Rejection> {
         let rollup_height = Query::<RollupHeightQueryParam>::from_request_parts(parts, state)
             .await

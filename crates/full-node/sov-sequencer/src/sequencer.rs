@@ -30,7 +30,7 @@ pub struct Inner<Ss: SequencerSpec> {
     // The sequencer's copy of the batch-builder's API state. This is
     // automatically updated by the batch-builder with the latest state.
     // We simply cache a copy so that we don't need to lock the builder to retrieve it.
-    api_state: ApiState<(), <Ss::BatchBuilder as BatchBuilder>::Spec>,
+    api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
     sequencer_db: SequencerDb,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
@@ -75,7 +75,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// Get the latest API state from the batch builder
-    pub fn api_state(&self) -> ApiState<(), <Ss::BatchBuilder as BatchBuilder>::Spec> {
+    pub fn api_state(&self) -> ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec> {
         self.api_state.clone()
     }
 

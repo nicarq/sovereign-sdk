@@ -44,7 +44,7 @@ pub fn expose_rpc(
         /// Returns a [`::sov_modules_api::prelude::jsonrpsee::RpcModule`] with all the RPC methods
         /// exposed by the runtime.
         pub fn get_rpc_methods #impl_generics (
-            api_state: ::sov_modules_api::rest::ApiState<(), <#runtime_type as sov_modules_api::module::DispatchCall>::Spec>,
+            api_state: ::sov_modules_api::rest::ApiState<<#runtime_type as sov_modules_api::module::DispatchCall>::Spec>,
         ) -> ::sov_modules_api::prelude::jsonrpsee::RpcModule<()> #where_clause {
             // The attributes from merge operations may generate "unused doc
             // comment" warnings. Just to be safe, we ignore absolutely all

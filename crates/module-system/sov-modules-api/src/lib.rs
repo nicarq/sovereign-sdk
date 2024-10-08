@@ -346,7 +346,7 @@ pub mod __rpc_macros_private {
     pub trait ModuleWithRpcServer {
         type Spec: Spec;
 
-        fn rpc_methods(&self, state: ApiState<(), Self::Spec>) -> jsonrpsee::RpcModule<()>;
+        fn rpc_methods(&self, state: ApiState<Self::Spec>) -> jsonrpsee::RpcModule<()>;
     }
 
     // Auto-ref trick so that implementing JSON-RPC for modules is effectively
@@ -357,7 +357,7 @@ pub mod __rpc_macros_private {
     {
         type Spec = M::Spec;
 
-        fn rpc_methods(&self, _state: ApiState<(), Self::Spec>) -> jsonrpsee::RpcModule<()> {
+        fn rpc_methods(&self, _state: ApiState<Self::Spec>) -> jsonrpsee::RpcModule<()> {
             jsonrpsee::RpcModule::new(())
         }
     }

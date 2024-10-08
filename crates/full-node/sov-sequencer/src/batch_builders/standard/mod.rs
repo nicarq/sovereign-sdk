@@ -61,7 +61,7 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec, K> {
     mempool: Mempool<Z::Da>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
-    api_state: ApiState<(), Z::Spec>,
+    api_state: ApiState<Z::Spec>,
     storage_recv: StorageReceiver<Z::Spec>,
     tx_hashes_of_last_batch: Vec<TxHash>,
     sequencer_address: <Z::Da as DaSpec>::Address,
@@ -247,7 +247,7 @@ where
         self.txsm.clone()
     }
 
-    fn api_state(&self) -> ApiState<(), Self::Spec> {
+    fn api_state(&self) -> ApiState<Self::Spec> {
         self.api_state.clone()
     }
 

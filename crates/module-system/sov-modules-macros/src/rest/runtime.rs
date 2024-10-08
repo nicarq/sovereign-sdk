@@ -72,7 +72,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
 
         #[automatically_derived]
         impl #impl_generics HasRestApi<<Self as TxHooks>::Spec> for #ident #ty_generics #where_clause {
-            fn rest_api(&self, api_state: ApiState<(), <Self as TxHooks>::Spec>) -> axum::Router<()> {
+            fn rest_api(&self, api_state: ApiState<<Self as TxHooks>::Spec>) -> axum::Router<()> {
                 let base_impl = RuntimeRestApiBaseImpl {
                     // At the time of writing, runtimes are not guaranteed to be
                     // `Clone` but they are `Default`, so we create a new

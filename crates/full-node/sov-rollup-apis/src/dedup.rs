@@ -64,7 +64,7 @@ pub trait DeDupEndpoint<S: Spec>: Clone + Send + Sync + 'static {
 /// `nonces` module.
 #[derive(Clone)]
 pub struct NonceDeDupEndpoint<S: Spec> {
-    state: ApiState<(), S>,
+    state: ApiState<S>,
 }
 
 /// The response of the nonce module implementation.

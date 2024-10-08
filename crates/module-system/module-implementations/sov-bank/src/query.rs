@@ -62,7 +62,7 @@ impl<S: Spec> Bank<S> {
 /// Axum routes.
 impl<S: Spec> Bank<S> {
     async fn route_balance(
-        state: ApiState<Self, S>,
+        state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path((token_id, user_address)): Path<(TokenId, S::Address)>,
     ) -> ApiResult<Coins> {
@@ -75,7 +75,7 @@ impl<S: Spec> Bank<S> {
     }
 
     async fn route_total_supply(
-        state: ApiState<Self, S>,
+        state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
     ) -> ApiResult<Coins> {
@@ -95,7 +95,7 @@ impl<S: Spec> Bank<S> {
     }
 
     async fn route_authorized_minters(
-        state: ApiState<Self, S>,
+        state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
     ) -> ApiResult<types::AuthorizedMintersResponse<S>> {
@@ -112,7 +112,7 @@ impl<S: Spec> Bank<S> {
 impl<S: Spec> HasCustomRestApi for Bank<S> {
     type Spec = S;
 
-    fn custom_rest_api(&self, state: ApiState<(), S>) -> axum::Router<()> {
+    fn custom_rest_api(&self, state: ApiState<S>) -> axum::Router<()> {
         axum::Router::new()
             .route(
                 "/tokens/:tokenId/balances/:address",
