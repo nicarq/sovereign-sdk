@@ -1,3 +1,3 @@
-mod common;
+pub(crate) mod common;
 pub mod registered;
 pub(crate) mod unregistered;

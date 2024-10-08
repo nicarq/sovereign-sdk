@@ -1,14 +1,14 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
+use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{Batch, BatchSequencerReceipt, VersionReader};
-mod batch_processing;
+use sov_modules_api::{BatchSequencerReceipt, VersionReader};
 mod proof_processing;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
 mod utils;
-pub use batch_processing::{get_gas_used, BatchReceipt, TransactionReceipt};
+pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt};
 pub use sequencer_mode::registered::{authenticate_tx, process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
@@ -28,6 +28,8 @@ use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
+
+use crate::unregistered::BatchWithSingleTx;
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
@@ -331,41 +333,42 @@ where
 
         let mut total_gas = S::Gas::zero();
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
-            let mut apply_batch = |batch, sender, is_registered, state| {
-                let batch_with_id = BatchWithId { batch, id: blob.id };
-
-                let (next_checkpoint, batch_receipt, gas_used) = self.process_batch(
-                    batch_with_id,
-                    state,
-                    blob_idx,
-                    sender,
-                    &gas_price,
-                    visible_height,
-                    is_registered,
-                    execution_context,
-                );
-
-                batch_receipts.push(batch_receipt);
-                total_gas.combine(&gas_used);
-                next_checkpoint
-            };
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let next_checkpoint = apply_batch(batch, sender, true, state);
+                    let (batch_receipt, next_checkpoint, gas_used) =
+                        registered::apply_batch::<S, Da, RT, K>(
+                            &self.runtime,
+                            state,
+                            BatchWithId { batch, id: blob.id },
+                            blob_idx,
+                            sender,
+                            &gas_price,
+                            visible_height,
+                            execution_context,
+                        );
+
+                    batch_receipts.push(batch_receipt);
+                    total_gas.combine(&gas_used);
                     state = next_checkpoint;
                 }
                 BlobData::EmergencyRegistration(tx) => {
-                    let next_checkpoint = apply_batch(
-                        Batch {
-                            // We wrap the inbound transaction in the `Authenticator` here so that we can reuse the
-                            // batch structure even though we don't force the EmergencyRegistration transaction to
-                            // use the authenticator information
-                            txs: vec![RT::encode_with_standard_auth(tx)],
-                        },
-                        sender,
-                        false,
-                        state,
-                    );
+                    let (batch_receipt, next_checkpoint, gas_used) =
+                        unregistered::apply_batch::<S, Da, RT, K>(
+                            &self.runtime,
+                            state,
+                            BatchWithSingleTx {
+                                fully_baked_tx: RT::encode_with_standard_auth(tx),
+                                id: blob.id,
+                            },
+                            blob_idx,
+                            sender,
+                            &gas_price,
+                            visible_height,
+                            execution_context,
+                        );
+
+                    batch_receipts.push(batch_receipt);
+                    total_gas.combine(&gas_used);
                     state = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {

@@ -4,14 +4,20 @@ use sov_modules_api::capabilities::{
     AuthenticationOutput, FatalError, GasEnforcer, SequencerRemuneration, TransactionAuthenticator,
     TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
 };
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter,
-    PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
+    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
+    FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Spec, TxScratchpad,
+    WorkingSet,
 };
+use tracing::{debug, error, warn};
 
-use super::registered::{AuthTxOutput, PreExecError};
-use crate::sequencer_mode::common::apply_tx;
-use crate::{ApplyTxResult, Runtime, TxProcessingError};
+use crate::sequencer_mode::common::{
+    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
+};
+use crate::{
+    ApplyTxResult, AuthTxOutput, KernelSlotHooks, Runtime, StateCheckpoint, TxProcessingError,
+};
 
 #[allow(clippy::result_large_err)]
 pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
@@ -121,7 +127,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da
     tx: &FullyBakedTx,
     tx_scratchpad: TxScratchpad<S::Storage>,
 ) -> (
-    Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), PreExecError>,
+    Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
     TxScratchpad<S::Storage>,
 ) {
     // TODO #1490: Remove u64::MAX
@@ -132,8 +138,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da
     let (tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     match res {
-        Err(e) => (Err(PreExecError::UnregisteredAuthError(e)), tx_scratchpad),
-
+        Err(e) => (Err(e), tx_scratchpad),
         Ok(ok) => (Ok((ok, gas_meter.gas_info())), tx_scratchpad),
     }
 }
@@ -150,4 +155,145 @@ fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S,
         ))
     })?;
     runtime.authenticate_unregistered(&auth_input, pre_exec_working_set)
+}
+
+pub(crate) struct BatchWithSingleTx {
+    pub(crate) fully_baked_tx: FullyBakedTx,
+    pub(crate) id: [u8; 32],
+}
+
+#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+pub(crate) fn apply_batch<S, Da, RT, K>(
+    runtime: &RT,
+    mut checkpoint: StateCheckpoint<S::Storage>,
+    batch: BatchWithSingleTx,
+    blob_idx: usize,
+    sequencer_da_address: Da::Address,
+    gas_price: &<S::Gas as Gas>::Price,
+    height: u64,
+    execution_context: ExecutionContext,
+) -> (BatchReceipt<S, Da>, StateCheckpoint<S::Storage>, S::Gas)
+where
+    S: Spec,
+    Da: DaSpec,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da>,
+{
+    debug!(
+        batch_id = hex::encode(batch.id),
+        sequencer_da_address = %sequencer_da_address,
+        ?gas_price,
+        "Applying a batch"
+    );
+
+    // ApplyBlobHook: begin
+    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut checkpoint) {
+        error!(
+            error = %e,
+            batch_id = hex::encode(batch.id),
+            BEGIN_BATCH_HOOK_ERR,
+        );
+
+        return (
+            BatchReceipt {
+                batch_hash: batch.id,
+                tx_receipts: Vec::new(),
+                inner: BatchSequencerReceipt {
+                    da_address: sequencer_da_address,
+                    outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
+                },
+                gas_price: gas_price.clone(),
+            },
+            checkpoint,
+            S::Gas::zero(),
+        );
+    }
+
+    let mut tx_receipts = Vec::new();
+    let mut gas_used = S::Gas::zero();
+    let mut accumulated_reward = SequencerReward::ZERO;
+
+    debug!(
+        batch_id = hex::encode(batch.id),
+        "Verifying & executing transactions"
+    );
+
+    let tx_scratchpad = checkpoint.to_tx_scratchpad();
+
+    let authentication_result =
+        authenticate_unregistered_tx(runtime, gas_price, &batch.fully_baked_tx, tx_scratchpad);
+
+    let (auth_output, gas_info, tx_scratchpad) = match authentication_result {
+        (Ok((auth_output, gas_info)), tx_scratchpad) => (auth_output, gas_info, tx_scratchpad),
+        (Err(err), scratchpad) => {
+            warn!(
+                sequencer_da_address = %sequencer_da_address,
+                reason = %err,
+                "Processing of unregistered sequencer transaction raised error, skipping"
+            );
+
+            return (
+                BatchReceipt {
+                    batch_hash: batch.id,
+                    tx_receipts: Vec::new(),
+                    inner: BatchSequencerReceipt {
+                        da_address: sequencer_da_address,
+                        outcome: BatchSequencerOutcome::Ignored(err.to_string()),
+                    },
+                    gas_price: gas_price.clone(),
+                },
+                scratchpad.commit(),
+                gas_used,
+            );
+        }
+    };
+
+    let raw_tx_hash = auth_output.0.raw_tx_hash;
+
+    let process_tx_result = process_unauthorized_tx(
+        runtime,
+        auth_output,
+        gas_info,
+        &sequencer_da_address,
+        height,
+        tx_scratchpad,
+        execution_context,
+    );
+
+    let (tx_result, tx_scratchpad) = process_tx_result;
+    checkpoint = tx_scratchpad.commit();
+    match tx_result {
+        Err(reason) => {
+            let tx_receipt = create_tx_receipt(reason, raw_tx_hash, 0);
+            tx_receipts.push(tx_receipt);
+        }
+        Ok(ApplyTxResult {
+            transaction_consumption,
+            receipt,
+        }) => {
+            gas_used.combine(&get_gas_used(&receipt));
+            tx_receipts.push(receipt);
+
+            let sequencer_reward = transaction_consumption.priority_fee();
+            accumulated_reward.accumulate(sequencer_reward);
+        }
+    }
+
+    let batch_receipt = BatchReceipt {
+        batch_hash: batch.id,
+        tx_receipts,
+        inner: BatchSequencerReceipt {
+            da_address: sequencer_da_address,
+            outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+        },
+        gas_price: gas_price.clone(),
+    };
+
+    runtime.end_batch_hook(&batch_receipt.inner, &mut checkpoint);
+
+    apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
+
+    (batch_receipt, checkpoint, gas_used)
 }

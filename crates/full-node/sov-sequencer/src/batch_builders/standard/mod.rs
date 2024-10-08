@@ -447,10 +447,9 @@ where
                     Ok(txr) => txr,
                     Err(add_tx_error) => match add_tx_error {
                         AddTxToBatchError::PreExecCheck(pre_exec_error) => match pre_exec_error {
-                            // If authentication is fatally broken or the tx is for an unregistered sequencer, we can
+                            // If authentication is fatally broken, we can
                             // never submit it succesfully so drop it from the mempool
-                            PreExecError::UnregisteredAuthError(_)
-                            | PreExecError::AuthError(AuthenticationError::FatalError(_)) => {
+                            PreExecError::AuthError(AuthenticationError::FatalError(_)) => {
                                 tracing::info!(hash= %mempool_tx.hash, error = %pre_exec_error, "Invalid tx detected in mempool; dropping tx",);
                                 self.mempool
                                     .drop(&mempool_tx.hash, "Transaction is invalid".to_string());
