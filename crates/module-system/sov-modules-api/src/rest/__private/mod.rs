@@ -81,7 +81,7 @@ impl<R> HasRestApi<R::Spec> for RuntimeRestApiBaseImpl<R>
 where
     R: TxHooks + Send + Sync + 'static,
 {
-    fn rest_api(&self, _state: ApiState<(), R::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<R::Spec>) -> axum::Router<()> {
         axum::Router::new()
             .route("/modules", get(Self::root_handler))
             .with_state(self.clone())
@@ -104,7 +104,7 @@ impl<M> HasRestApi<<M as Module>::Spec> for ModuleRestApiBaseImpl<M>
 where
     M: ModuleSendSync + ModuleInfo + Clone,
 {
-    fn rest_api(&self, _state: ApiState<(), <M as Module>::Spec>) -> axum::Router<()> {
+    fn rest_api(&self, _state: ApiState<<M as Module>::Spec>) -> axum::Router<()> {
         axum::Router::new()
             .route("/", get(Self::root_route))
             .with_state(self.clone())

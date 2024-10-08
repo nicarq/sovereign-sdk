@@ -33,6 +33,8 @@ type GenesisParams<ST, InnerVm, OuterVm, Da> =
 
 type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
 
+type NextDaHeightToProcess = u64;
+
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
 #[allow(clippy::type_complexity)]
 pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
@@ -401,200 +403,207 @@ where
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
         loop {
-            let loop_start = std::time::Instant::now();
-            let prev_state_root = self.get_state_root().clone();
-            debug!(
-                next_da_height,
-                current_state_root = hex::encode(prev_state_root.as_ref()),
-                "Requesting DA block"
-            );
-            sov_metrics::update_metrics(|metrics| {
-                metrics.current_da_height.set(next_da_height as i64);
-            });
-
-            let mut transaction_count = 0;
-            let mut batch_count = 0;
-            let get_block_start = std::time::Instant::now();
-            let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
-            let get_block_time = get_block_start.elapsed();
-            debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
-
-            let (stf_pre_state, filtered_block) = self
-                .state_manager
-                .prepare_storage(filtered_block, &self.da_service)
-                .await?;
-
-            let filtered_block_header = filtered_block.header().clone();
-            if next_da_height != filtered_block_header.height() {
-                debug!(
-                    existing_next_da_height = next_da_height,
-                    new_next_da_height = filtered_block_header.height(),
-                    "Updating next_da_height after storage_manager "
-                );
-                next_da_height = filtered_block_header.height();
-            }
-
-            // STF execution
-            let stf_execution_start = std::time::Instant::now();
-            let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
-            let batch_blobs = &mut relevant_blobs.batch_blobs;
-            let proof_blobs = &relevant_blobs.proof_blobs;
-            info!(
-                batch_blobs_count = batch_blobs.len(),
-                next_da_height,
-                current_state_root = hex::encode(prev_state_root.as_ref()),
-                batch_blobs = ?batch_blobs
-                    .iter()
-                    .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}",
-                        b.sender(),
-                        hex::encode(b.hash())
-                    ))
-                    .collect::<Vec<_>>(),
-                proof_blobs = ?proof_blobs
-                    .iter()
-                    .map(|b| format!(
-                        "sequencer={} blob_hash=0x{}, len={}",
-                        b.sender(),
-                        hex::encode(b.hash()),
-                        b.total_len()
-                    ))
-                    .collect::<Vec<_>>(),
-                "Extracted relevant blobs"
-            );
-            let da_extraction_time = stf_execution_start.elapsed();
-
-            let apply_slot_start = std::time::Instant::now();
-            let slot_result = self.stf.apply_slot(
-                self.state_manager.get_state_root(),
-                stf_pre_state,
-                Default::default(),
-                &filtered_block_header,
-                &filtered_block.validity_condition(),
-                relevant_blobs.as_iters(),
-                ExecutionContext::Node,
-            );
-            let apply_slot_time = apply_slot_start.elapsed();
-
-            // --- Before destructuring the receipt, extract some data for metrics ---
-            let batch_bytes_processed: u64 = relevant_blobs
-                .batch_blobs
-                .iter()
-                .map(|b| b.verified_data().len() as u64)
-                .sum();
-            let proof_bytes_processed: u64 = relevant_blobs
-                .batch_blobs
-                .iter()
-                .map(|b| b.verified_data().len() as u64)
-                .sum();
-            let proof_blobs_processed = slot_result.proof_receipts.len();
-            // --- End metric extraction ---
-
-            let get_relevant_proofs_start = std::time::Instant::now();
-            // Get merkle proofs for the relevant blobs
-            let relevant_proofs = self
-                .da_service
-                .get_extraction_proof(&filtered_block, &relevant_blobs)
-                .await;
-            let get_relevant_proofs_time = get_relevant_proofs_start.elapsed();
-            // Handling executed data
-            let mut data_to_commit = SlotCommit::new(filtered_block);
-            for receipt in slot_result.batch_receipts {
-                batch_count += 1;
-                transaction_count += receipt.tx_receipts.len();
-                data_to_commit.add_batch(receipt);
-            }
-
-            let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
-                StateTransitionWitness {
-                    initial_state_root: self.get_state_root().clone(),
-                    final_state_root: slot_result.state_root.clone(),
-                    da_block_header: filtered_block_header.clone(),
-                    relevant_proofs,
-                    relevant_blobs,
-                    witness: slot_result.witness,
-                };
-
-            let aggregated_proofs =
-                Self::collect_aggregated_proofs(slot_result.proof_receipts.into_iter());
-
-            // Processing finalized headers.
-            let last_finalized = self.da_service.get_last_finalized_block_header().await?;
-            debug!(header = %last_finalized.display(), "Got last finalized header");
-            let last_finalized_height = last_finalized.height();
-
-            self.state_manager
-                .process_stf_changes(
-                    last_finalized_height,
-                    slot_result.change_set,
-                    transition_data,
-                    data_to_commit,
-                    aggregated_proofs,
-                )
-                .await?;
-
-            // Updating counters and metrics
-            self.sync_state
-                .synced_da_height
-                .store(next_da_height, std::sync::atomic::Ordering::Release);
-            debug!(
-                height = next_da_height,
-                prev_state_root = hex::encode(prev_state_root.as_ref()),
-                new_state_root = hex::encode(self.get_state_root().as_ref()),
-                time = ?loop_start.elapsed(),
-                "Execution of block is completed"
-            );
-            next_da_height += 1;
-
-            sov_metrics::update_metrics(|metrics| {
-                metrics.da_blocks_processed.inc();
-                metrics.rollup_batches_processed.inc_by(batch_count);
-                metrics.batch_bytes_processed.inc_by(batch_bytes_processed);
-                metrics.proof_bytes_processed.inc_by(proof_bytes_processed);
-                metrics
-                    .proof_blobs_processed
-                    .inc_by(proof_blobs_processed as _);
-                metrics.rollup_txns_processed.inc_by(transaction_count as _);
-                let synced_da_height = self
-                    .sync_state
-                    .synced_da_height
-                    .load(std::sync::atomic::Ordering::Acquire);
-                let target_da_height = self
-                    .sync_state
-                    .target_da_height
-                    .load(std::sync::atomic::Ordering::Acquire);
-
-                let distance = target_da_height as i64 - synced_da_height as i64;
-                metrics.sync_distance.set(distance);
-
-                metrics
-                    .process_slot_sec
-                    .observe(loop_start.elapsed().as_secs_f64());
-                metrics
-                    .stf_transition_sec
-                    .observe(stf_execution_start.elapsed().as_secs_f64());
-                metrics.get_block_sec.observe(get_block_time.as_secs_f64());
-
-                metrics
-                    .process_slot_ms_by_slot
-                    .set(loop_start.elapsed().as_millis() as i64);
-                metrics
-                    .stf_transition_with_commit_ms_by_slot
-                    .set(apply_slot_start.elapsed().as_millis() as i64);
-                metrics
-                    .apply_slot_ms_by_slot
-                    .set(apply_slot_time.as_millis() as i64);
-                metrics
-                    .extract_blobs_ms_by_slot
-                    .set(da_extraction_time.as_millis() as i64);
-                metrics
-                    .get_blob_extraction_proof_ms_by_slot
-                    .set(get_relevant_proofs_time.as_millis() as i64);
-                metrics
-                    .get_block_ms_by_slot
-                    .set(get_block_time.as_millis() as i64);
-            });
+            next_da_height = self.process_next_slot(next_da_height).await?;
         }
+    }
+
+    async fn process_next_slot(
+        &mut self,
+        mut next_da_height: NextDaHeightToProcess,
+    ) -> anyhow::Result<NextDaHeightToProcess> {
+        let loop_start = std::time::Instant::now();
+        let prev_state_root = self.get_state_root().clone();
+        debug!(
+            next_da_height,
+            current_state_root = hex::encode(prev_state_root.as_ref()),
+            "Requesting DA block"
+        );
+        sov_metrics::update_metrics(|metrics| {
+            metrics.current_da_height.set(next_da_height as i64);
+        });
+
+        let mut transaction_count = 0;
+        let mut batch_count = 0;
+        let get_block_start = std::time::Instant::now();
+        let filtered_block = self.sync_fetcher.get_block_at(next_da_height).await?;
+        let get_block_time = get_block_start.elapsed();
+        debug!(header = %filtered_block.header().display(), request_time = ?get_block_start.elapsed(), "Fetched block header");
+
+        let (stf_pre_state, filtered_block) = self
+            .state_manager
+            .prepare_storage(filtered_block, &self.da_service)
+            .await?;
+
+        let filtered_block_header = filtered_block.header().clone();
+        if next_da_height != filtered_block_header.height() {
+            debug!(
+                existing_next_da_height = next_da_height,
+                new_next_da_height = filtered_block_header.height(),
+                "Updating next_da_height after storage_manager "
+            );
+            next_da_height = filtered_block_header.height();
+        }
+
+        // STF execution
+        let stf_execution_start = std::time::Instant::now();
+        let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
+        let batch_blobs = &mut relevant_blobs.batch_blobs;
+        let proof_blobs = &relevant_blobs.proof_blobs;
+        info!(
+            batch_blobs_count = batch_blobs.len(),
+            next_da_height,
+            current_state_root = hex::encode(prev_state_root.as_ref()),
+            batch_blobs = ?batch_blobs
+                .iter()
+                .map(|b| format!(
+                    "sequencer={} blob_hash=0x{}",
+                    b.sender(),
+                    hex::encode(b.hash())
+                ))
+                .collect::<Vec<_>>(),
+            proof_blobs = ?proof_blobs
+                .iter()
+                .map(|b| format!(
+                    "sequencer={} blob_hash=0x{}, len={}",
+                    b.sender(),
+                    hex::encode(b.hash()),
+                    b.total_len()
+                ))
+                .collect::<Vec<_>>(),
+            "Extracted relevant blobs"
+        );
+        let da_extraction_time = stf_execution_start.elapsed();
+
+        let apply_slot_start = std::time::Instant::now();
+        let slot_result = self.stf.apply_slot(
+            self.state_manager.get_state_root(),
+            stf_pre_state,
+            Default::default(),
+            &filtered_block_header,
+            &filtered_block.validity_condition(),
+            relevant_blobs.as_iters(),
+            ExecutionContext::Node,
+        );
+        let apply_slot_time = apply_slot_start.elapsed();
+
+        // --- Before destructuring the receipt, extract some data for metrics ---
+        let batch_bytes_processed: u64 = relevant_blobs
+            .batch_blobs
+            .iter()
+            .map(|b| b.verified_data().len() as u64)
+            .sum();
+        let proof_bytes_processed: u64 = relevant_blobs
+            .batch_blobs
+            .iter()
+            .map(|b| b.verified_data().len() as u64)
+            .sum();
+        let proof_blobs_processed = slot_result.proof_receipts.len();
+        // --- End metric extraction ---
+
+        let get_relevant_proofs_start = std::time::Instant::now();
+        // Get merkle proofs for the relevant blobs
+        let relevant_proofs = self
+            .da_service
+            .get_extraction_proof(&filtered_block, &relevant_blobs)
+            .await;
+        let get_relevant_proofs_time = get_relevant_proofs_start.elapsed();
+        // Handling executed data
+        let mut data_to_commit = SlotCommit::new(filtered_block);
+        for receipt in slot_result.batch_receipts {
+            batch_count += 1;
+            transaction_count += receipt.tx_receipts.len();
+            data_to_commit.add_batch(receipt);
+        }
+
+        let transition_data: StateTransitionWitness<Stf::StateRoot, Stf::Witness, Da::Spec> =
+            StateTransitionWitness {
+                initial_state_root: self.get_state_root().clone(),
+                final_state_root: slot_result.state_root.clone(),
+                da_block_header: filtered_block_header.clone(),
+                relevant_proofs,
+                relevant_blobs,
+                witness: slot_result.witness,
+            };
+
+        let aggregated_proofs =
+            Self::collect_aggregated_proofs(slot_result.proof_receipts.into_iter());
+
+        // Processing finalized headers.
+        let last_finalized = self.da_service.get_last_finalized_block_header().await?;
+        debug!(header = %last_finalized.display(), "Got last finalized header");
+        let last_finalized_height = last_finalized.height();
+
+        self.state_manager
+            .process_stf_changes(
+                last_finalized_height,
+                slot_result.change_set,
+                transition_data,
+                data_to_commit,
+                aggregated_proofs,
+            )
+            .await?;
+
+        // Updating counters and metrics
+        self.sync_state
+            .synced_da_height
+            .store(next_da_height, std::sync::atomic::Ordering::Release);
+        debug!(
+            height = next_da_height,
+            prev_state_root = hex::encode(prev_state_root.as_ref()),
+            new_state_root = hex::encode(self.get_state_root().as_ref()),
+            time = ?loop_start.elapsed(),
+            "Execution of block is completed"
+        );
+        sov_metrics::update_metrics(|metrics| {
+            metrics.da_blocks_processed.inc();
+            metrics.rollup_batches_processed.inc_by(batch_count);
+            metrics.batch_bytes_processed.inc_by(batch_bytes_processed);
+            metrics.proof_bytes_processed.inc_by(proof_bytes_processed);
+            metrics
+                .proof_blobs_processed
+                .inc_by(proof_blobs_processed as _);
+            metrics.rollup_txns_processed.inc_by(transaction_count as _);
+            let synced_da_height = self
+                .sync_state
+                .synced_da_height
+                .load(std::sync::atomic::Ordering::Acquire);
+            let target_da_height = self
+                .sync_state
+                .target_da_height
+                .load(std::sync::atomic::Ordering::Acquire);
+
+            let distance = target_da_height as i64 - synced_da_height as i64;
+            metrics.sync_distance.set(distance);
+
+            metrics
+                .process_slot_sec
+                .observe(loop_start.elapsed().as_secs_f64());
+            metrics
+                .stf_transition_sec
+                .observe(stf_execution_start.elapsed().as_secs_f64());
+            metrics.get_block_sec.observe(get_block_time.as_secs_f64());
+
+            metrics
+                .process_slot_ms_by_slot
+                .set(loop_start.elapsed().as_millis() as i64);
+            metrics
+                .stf_transition_with_commit_ms_by_slot
+                .set(apply_slot_start.elapsed().as_millis() as i64);
+            metrics
+                .apply_slot_ms_by_slot
+                .set(apply_slot_time.as_millis() as i64);
+            metrics
+                .extract_blobs_ms_by_slot
+                .set(da_extraction_time.as_millis() as i64);
+            metrics
+                .get_blob_extraction_proof_ms_by_slot
+                .set(get_relevant_proofs_time.as_millis() as i64);
+            metrics
+                .get_block_ms_by_slot
+                .set(get_block_time.as_millis() as i64);
+        });
+
+        Ok(next_da_height + 1)
     }
 
     /// Allows reading current state root

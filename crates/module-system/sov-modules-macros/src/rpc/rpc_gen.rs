@@ -217,7 +217,7 @@ fn inner_rpc_gen(
             }
         }
 
-        impl #impl_generics #rpc_server_trait_name #ty_generics for sov_modules_api::rest::ApiState<#module_type, <#module_type as ::sov_modules_api::ModuleInfo>::Spec> #where_clause {
+        impl #impl_generics #rpc_server_trait_name #ty_generics for sov_modules_api::rest::ApiState<<#module_type as ::sov_modules_api::ModuleInfo>::Spec, #module_type> #where_clause {
             #(#rpc_server_trait_items)*
         }
 
@@ -226,7 +226,7 @@ fn inner_rpc_gen(
 
             fn rpc_methods(
                 &self,
-                api_state: sov_modules_api::rest::ApiState<(), Self::Spec>,
+                api_state: sov_modules_api::rest::ApiState<Self::Spec>,
             ) -> jsonrpsee::RpcModule<()> {
                 api_state.with::<Self>(self.clone()).into_rpc().remove_context()
             }

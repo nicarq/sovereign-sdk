@@ -40,7 +40,7 @@ pub enum StateItemKind {
 #[derive(derivative::Derivative)]
 #[derivative(Clone(bound = ""))]
 pub struct StateItemRestApiImpl<M: Module, T> {
-    pub api_state: ApiState<(), M::Spec>,
+    pub api_state: ApiState<M::Spec>,
     pub state_item_info: StateItemInfo,
     pub phantom: PhantomData<T>,
 }

@@ -1,3 +1,7 @@
+## 2024-10-08
+
+- The two type generics of `ApiState` have been inverted, e.g. `ApiState<Bank<S>, S>` is now `ApiState<S, Bank<S>>`, and the second generic defaults to `()`.
+
 ## 2024-10-07
 - #1588 changes the signature of the `GasEnforcer` capability, adding one new method `try_reserve_gas_for_proof` and altering the signature of `try_reserve_gas` to include the entire `Context` instead of just the sender address. If you're using the standard capabilities, no change is needed. If you implemented your own `GasEnforcer` capability, simply copy-paste your old implementation as `try_reserve_gas_for_proof`, and use `context.sender()` in place of the `sender` argument within `try_reserve_gas`.
 - #1584 extract transaction authentication to a separate methods.

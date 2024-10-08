@@ -113,7 +113,7 @@ macro_rules! generate_bare_runtime {
 
             type GenesisPaths = ();
 
-            fn endpoints(_api_state: sov_modules_api::rest::ApiState<(), S>) -> $crate::runtime::RuntimeEndpoints {
+            fn endpoints(_api_state: sov_modules_api::rest::ApiState<S>) -> $crate::runtime::RuntimeEndpoints {
                 unimplemented!()
             }
 

@@ -59,7 +59,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     fn storage_receiver(&self) -> StorageReceiver<Self::Spec>;
 
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
-    fn api_state(&self) -> ApiState<(), Self::Spec>;
+    fn api_state(&self) -> ApiState<Self::Spec>;
 
     /// Returns true if and only if the sequencer is ready to accept transactions.
     fn is_ready(&self) -> bool;

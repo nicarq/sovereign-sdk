@@ -83,7 +83,7 @@ where
 
     #[cfg(feature = "native")]
     fn endpoints(
-        api_state: sov_modules_api::rest::ApiState<(), S>,
+        api_state: sov_modules_api::rest::ApiState<S>,
     ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
         use ::sov_modules_api::rest::HasRestApi;
 
