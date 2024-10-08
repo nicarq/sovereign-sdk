@@ -23,10 +23,11 @@ prepend_to_paths() {
 
 prepend_to_paths "../sov-ledger-apis/openapi-v3.yaml" "./build/ledger.yaml" "/ledger"
 prepend_to_paths "../sov-sequencer/openapi-v3.yaml" "./build/sequencer.yaml" "/sequencer"
+cp "../sov-rollup-apis/openapi-v3.yaml" "./build/rollup.yaml"
 
 output_spec="./build/openapi.yaml"
 
-redocly join ./build/ledger.yaml ./build/sequencer.yaml --prefix-components-with-info-prop x-displayName -o "$output_spec"
+redocly join ./build/ledger.yaml ./build/sequencer.yaml ./build/rollup.yaml --prefix-components-with-info-prop x-displayName -o "$output_spec"
 
 yq -i '
   .info.title = "Sovereign Full Node API" |
