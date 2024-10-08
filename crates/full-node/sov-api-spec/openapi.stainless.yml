@@ -73,6 +73,18 @@ resources:
           retrieve: get /sequencer/txs/{txHash}
         models:
           txInfo: sequencer_TxInfo
+  rollup:
+    subresources:
+      base_fee_per_gas:
+        methods:
+          retrieve_latest: get /rollup/base-fee-per-gas/latest
+        models:
+          rollup_BaseFeePerGas: rollup_BaseFeePerGas
+      addresses:
+        subresources:
+          dedup:
+            methods:
+              retrieve: get /rollup/addresses/{address}/dedup
 targets:
   node:
     production_repo: Sovereign-Labs/sovereign-sdk-client-js
