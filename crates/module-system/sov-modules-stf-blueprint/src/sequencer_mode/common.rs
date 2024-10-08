@@ -1,18 +1,23 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
-use sov_modules_api::capabilities::{
-    AuthenticationError, AuthenticationOutput, UnregisteredAuthenticationError,
-};
+use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
-use sov_modules_api::{Context, DaSpec, DispatchCall, Error, Spec, TxScratchpad, WorkingSet};
+use sov_modules_api::{
+    BatchSequencerReceipt, Context, DaSpec, DispatchCall, Error, Gas, Spec, TxScratchpad,
+    WorkingSet,
+};
 use sov_rollup_interface::TxHash;
-use tracing::info;
+use tracing::{debug, info, warn};
 
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
     ApplyTxResult, RevertedTxContents, Runtime, SuccessfulTxContents, TransactionAuthenticator,
-    TransactionReceipt, TxEffect,
+    TxEffect, TxProcessingError, TxReceiptContents,
 };
+
+/// The receipt type for a transacition using the STF blueprint.
+pub type TransactionReceipt<S> =
+    sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
 
 /// Applies a single transaction to the current state. In normal execution, we commit twice times execution:
 /// 1. After the pre-dispatch hook. This ensures that the gas charges are paid even if the transaction fails later during execution
@@ -111,13 +116,80 @@ pub enum PreExecError {
     /// Invalid transaction from registered sequencer.
     #[error("Invalid transaction from registered sequencer")]
     AuthError(#[source] AuthenticationError),
-    /// Invalid transaction from unregistered sequencer.
-    #[error("Invalid transaction from unregistered sequencer")]
-    UnregisteredAuthError(#[source] UnregisteredAuthenticationError),
 }
 
+/// Alias for `AuthenticationOutput`.
 pub type AuthTxOutput<S, R> = AuthenticationOutput<
     S,
     <R as TransactionAuthenticator<S>>::Decodable,
     <R as TransactionAuthenticator<S>>::AuthorizationData,
 >;
+
+/// The receipt for a batch using the STF blueprint.
+pub type BatchReceipt<S, Da> = sov_rollup_interface::stf::BatchReceipt<
+    BatchSequencerReceipt<Da>,
+    TxReceiptContents<S>,
+    <<S as Spec>::Gas as Gas>::Price,
+>;
+
+pub(crate) const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
+
+/// Returns the gas used by a transaction from its receipt.
+pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
+    match receipt.receipt {
+        TxEffect::Successful(ref successful) => successful.gas_used.clone(),
+        TxEffect::Reverted(ref reverted) => reverted.gas_used.clone(),
+        TxEffect::Skipped(_) => S::Gas::zero(),
+    }
+}
+
+pub(crate) fn create_tx_receipt<S: Spec>(
+    reason: TxProcessingError,
+    raw_tx_hash: TxHash,
+    idx: usize,
+) -> TransactionReceipt<S> {
+    warn!(
+        error = %reason,
+        raw_tx_hash = %raw_tx_hash,
+        tx_idx = %idx,
+        "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
+    );
+
+    TransactionReceipt {
+        tx_hash: raw_tx_hash,
+        body_to_save: None,
+        events: Vec::new(),
+        receipt: TxEffect::Skipped(reason),
+    }
+}
+
+pub(crate) fn apply_batch_logs<S: Spec, Da: DaSpec>(
+    batch_receipt: &BatchReceipt<S, Da>,
+    gas_used: &S::Gas,
+    blob_idx: usize,
+) {
+    let batch_sequencer_receipt = &batch_receipt.inner;
+
+    info!(
+        blob_idx,
+        blob_hash = hex::encode(batch_receipt.batch_hash),
+        sequencer_da_address = %batch_sequencer_receipt.da_address,
+        num_txs = batch_receipt.tx_receipts.len(),
+        sequencer_outcome = ?batch_receipt.inner,
+        ?gas_used,
+        "Applied blob and got the sequencer outcome"
+    );
+
+    info!(sequencer_da_address =
+        ?batch_sequencer_receipt.da_address, ?batch_sequencer_receipt.outcome, "BatchSequencerOutcome ");
+
+    for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
+        debug!(
+            tx_idx = i,
+            tx_hash = hex::encode(tx_receipt.tx_hash),
+            receipt = ?tx_receipt.receipt,
+            gas_used = ?get_gas_used(tx_receipt),
+            "Tx receipt"
+        );
+    }
+}

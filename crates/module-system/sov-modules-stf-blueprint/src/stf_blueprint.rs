@@ -1,15 +1,10 @@
 use std::marker::PhantomData;
 
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
-use sov_modules_api::{
-    BatchSequencerOutcome, BatchWithId, DaSpec, ExecutionContext, Gas, ProofReceipt, Spec,
-    StateCheckpoint, Storage,
-};
+use sov_modules_api::{DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
-use tracing::{debug, info};
 
-use crate::batch_processing::{apply_batch, get_gas_used, BatchReceipt};
 use crate::proof_processing::process_proof;
 use crate::Runtime;
 /// An implementation of the
@@ -59,64 +54,6 @@ where
             runtime,
             ..Default::default()
         }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn process_batch(
-        &self,
-        batch: BatchWithId,
-        checkpoint: StateCheckpoint<S::Storage>,
-        blob_idx: usize,
-        sequencer_da_address: Da::Address,
-        gas_price: &<S::Gas as Gas>::Price,
-        visible_height: u64,
-        is_registered_sequencer: bool,
-        execution_context: ExecutionContext,
-    ) -> (StateCheckpoint<S::Storage>, BatchReceipt<S, Da>, S::Gas) {
-        let (batch_receipt, mut next_checkpoint, gas_used) = apply_batch::<_, _, _, K>(
-            &self.runtime,
-            checkpoint,
-            batch,
-            sequencer_da_address,
-            gas_price,
-            visible_height,
-            is_registered_sequencer,
-            execution_context,
-        );
-
-        let batch_sequencer_receipt = &batch_receipt.inner;
-
-        info!(
-            blob_idx,
-            blob_hash = hex::encode(batch_receipt.batch_hash),
-            sequencer_da_address = %batch_sequencer_receipt.da_address,
-            num_txs = batch_receipt.tx_receipts.len(),
-            sequencer_outcome = ?batch_receipt.inner,
-            ?gas_used,
-            "Applied blob and got the sequencer outcome"
-        );
-
-        self.runtime
-            .end_batch_hook(batch_sequencer_receipt, &mut next_checkpoint);
-
-        info!(sequencer_da_address =
-            ?batch_sequencer_receipt.da_address, ?batch_sequencer_receipt.outcome, "BatchSequencerOutcome ");
-
-        if let BatchSequencerOutcome::Slashed(reason) = &batch_sequencer_receipt.outcome {
-            info!(sequencer_da_address =
-                %batch_sequencer_receipt.da_address, ?reason, "Slashing sequencer");
-        }
-
-        for (i, tx_receipt) in batch_receipt.tx_receipts.iter().enumerate() {
-            debug!(
-                tx_idx = i,
-                tx_hash = hex::encode(tx_receipt.tx_hash),
-                receipt = ?tx_receipt.receipt,
-                gas_used = ?get_gas_used(tx_receipt),
-                "Tx receipt"
-            );
-        }
-        (next_checkpoint, batch_receipt, gas_used)
     }
 
     #[allow(clippy::type_complexity)]

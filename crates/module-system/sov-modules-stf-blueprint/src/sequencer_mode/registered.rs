@@ -5,14 +5,20 @@ use sov_modules_api::capabilities::{
     SequencerAuthorization, SequencerRemuneration, TransactionAuthenticator, TransactionAuthorizer,
     TryReserveGasError,
 };
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, ExecutionContext, FullyBakedTx, Gas, GasInfo, GasMeter,
-    PreExecWorkingSet, Spec, TxScratchpad, WorkingSet,
+    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Spec,
+    StateCheckpoint, TxScratchpad, WorkingSet,
 };
+use tracing::{debug, error, warn};
 
-use crate::sequencer_mode::common::apply_tx;
-pub use crate::sequencer_mode::common::{AuthTxOutput, PreExecError};
-use crate::{ApplyTxResult, Runtime, TxProcessingError};
+pub use crate::sequencer_mode::common::PreExecError;
+use crate::sequencer_mode::common::{
+    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
+};
+use crate::{ApplyTxResult, AuthTxOutput, Runtime, TxProcessingError};
 
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err)]
@@ -217,4 +223,182 @@ fn authenticate_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
         AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
     })?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
+}
+
+#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+#[allow(clippy::too_many_arguments)]
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+pub(crate) fn apply_batch<S, Da, RT, K>(
+    runtime: &RT,
+    mut checkpoint: StateCheckpoint<S::Storage>,
+    batch_with_id: BatchWithId,
+    blob_idx: usize,
+    sequencer_da_address: Da::Address,
+    gas_price: &<S::Gas as Gas>::Price,
+    height: u64,
+    execution_context: ExecutionContext,
+) -> (BatchReceipt<S, Da>, StateCheckpoint<S::Storage>, S::Gas)
+where
+    S: Spec,
+    Da: DaSpec,
+    RT: Runtime<S, Da>,
+    K: KernelSlotHooks<S, Da>,
+{
+    debug!(
+        batch_id = hex::encode(batch_with_id.id),
+        sequencer_da_address = %sequencer_da_address,
+        ?gas_price,
+        "Applying a batch"
+    );
+
+    // ApplyBlobHook: begin
+    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut checkpoint) {
+        error!(
+            error = %e,
+            batch_id = hex::encode(batch_with_id.id),
+            BEGIN_BATCH_HOOK_ERR,
+        );
+
+        return (
+            BatchReceipt {
+                batch_hash: batch_with_id.id,
+                tx_receipts: Vec::new(),
+                inner: BatchSequencerReceipt {
+                    da_address: sequencer_da_address,
+                    outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
+                },
+                gas_price: gas_price.clone(),
+            },
+            checkpoint,
+            S::Gas::zero(),
+        );
+    }
+
+    let raw_txs = batch_with_id.batch.txs;
+
+    let mut tx_receipts = Vec::with_capacity(raw_txs.len());
+    let mut gas_used = S::Gas::zero();
+    let mut accumulated_reward = SequencerReward::ZERO;
+
+    debug!(
+        batch_id = hex::encode(batch_with_id.id),
+        txs_num = raw_txs.len(),
+        "Verifying & executing transactions"
+    );
+
+    for (idx, raw_tx) in raw_txs.iter().enumerate() {
+        let tx_scratchpad = checkpoint.to_tx_scratchpad();
+
+        let authentication_result = authenticate_tx(
+            runtime,
+            gas_price,
+            &sequencer_da_address,
+            raw_tx,
+            tx_scratchpad,
+        );
+
+        let (auth_output, gas_info, tx_scratchpad) = match authentication_result {
+            (Ok((auth_output, gas_info)), tx_scratchpad) => (auth_output, gas_info, tx_scratchpad),
+            (Err(pre_exec_error), scratchpad) => match pre_exec_error {
+                PreExecError::SequencerError(error) => {
+                    let remaining = raw_txs.len() - idx - 1;
+                    error!(
+                        reason = %error,
+                        sequencer_da_address = %sequencer_da_address,
+                        tx_idx = %idx,
+                        remaining = remaining,
+                        "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
+                    );
+
+                    return (
+                        BatchReceipt {
+                            batch_hash: batch_with_id.id,
+                            tx_receipts,
+                            inner: BatchSequencerReceipt {
+                                da_address: sequencer_da_address,
+                                outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+                            },
+                            gas_price: gas_price.clone(),
+                        },
+                        scratchpad.commit(),
+                        gas_used,
+                    );
+                }
+                PreExecError::AuthError(e) => match e {
+                    AuthenticationError::FatalError(err) => {
+                        error!(
+                            sequencer_da_address = %sequencer_da_address,
+                            err=%err, "Tx authentication raised a fatal error, sequencer slashed");
+
+                        return (
+                            BatchReceipt {
+                                batch_hash: batch_with_id.id,
+                                tx_receipts,
+                                inner: BatchSequencerReceipt {
+                                    da_address: sequencer_da_address,
+                                    outcome: BatchSequencerOutcome::Slashed(err),
+                                },
+                                gas_price: gas_price.clone(),
+                            },
+                            scratchpad.commit(),
+                            gas_used,
+                        );
+                    }
+                    AuthenticationError::OutOfGas(err) => {
+                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
+                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
+                        checkpoint = scratchpad.commit();
+                        continue;
+                    }
+                },
+            },
+        };
+
+        let raw_tx_hash = auth_output.0.raw_tx_hash;
+
+        let process_tx_result = process_tx(
+            runtime,
+            auth_output,
+            gas_info,
+            &sequencer_da_address,
+            height,
+            tx_scratchpad,
+            execution_context,
+        );
+
+        let (tx_result, tx_scratchpad) = process_tx_result;
+        checkpoint = tx_scratchpad.commit();
+        match tx_result {
+            Err(reason) => {
+                let tx_receipt = create_tx_receipt(reason, raw_tx_hash, idx);
+                tx_receipts.push(tx_receipt);
+            }
+            Ok(ApplyTxResult {
+                transaction_consumption,
+                receipt,
+            }) => {
+                gas_used.combine(&get_gas_used(&receipt));
+                tx_receipts.push(receipt);
+
+                let sequencer_reward = transaction_consumption.priority_fee();
+                accumulated_reward.accumulate(sequencer_reward);
+            }
+        }
+    }
+
+    let batch_receipt = BatchReceipt {
+        batch_hash: batch_with_id.id,
+        tx_receipts,
+        inner: BatchSequencerReceipt {
+            da_address: sequencer_da_address,
+            outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+        },
+        gas_price: gas_price.clone(),
+    };
+
+    runtime.end_batch_hook(&batch_receipt.inner, &mut checkpoint);
+
+    apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
+
+    (batch_receipt, checkpoint, gas_used)
 }
