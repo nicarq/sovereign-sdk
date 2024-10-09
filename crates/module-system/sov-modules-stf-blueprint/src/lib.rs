@@ -322,11 +322,13 @@ where
 
         let visible_height = state.rollup_height_to_access();
 
-        info!(
-            blob_count = selected_blobs.len(),
-            virtual_slot = visible_height,
-            "Selected batch(es) for execution in current slot"
-        );
+        if !selected_blobs.is_empty() {
+            info!(
+                blob_count = selected_blobs.len(),
+                virtual_slot = visible_height,
+                "Selected batch(es) for execution in current slot"
+            );
+        }
 
         let mut proof_receipts = Vec::new();
         let mut batch_receipts = vec![];
