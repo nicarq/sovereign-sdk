@@ -1,9 +1,14 @@
 use sov_bank::{config_gas_token_id, Bank};
-use sov_modules_api::prelude::tokio;
-use sov_modules_api::{Gas, GasSpec, Spec};
-use sov_test_utils::{AsUser, TransactionTestCase};
+use sov_modules_api::capabilities::config_chain_id;
+use sov_modules_api::prelude::tokio::{self};
+use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
+use sov_modules_api::{Gas, GasSpec, PrivateKey, Spec};
+use sov_modules_stf_blueprint::TxEffect;
+use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
+use sov_rollup_json_client::types;
+use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
 
-use crate::{TestData, S};
+use crate::{Da, TestData, RT, S};
 
 /// Tests that getting the latest base fee per gas returns the initial base fee per gas after genesis.
 #[tokio::test(flavor = "multi_thread")]
@@ -97,5 +102,84 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
     assert_eq!(
         api_current_gas_price, current_gas_price,
         "The api gas price should be the same as the current gas price"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_simulation() {
+    let mut data = TestData::setup().await;
+
+    let partial_tx: types::PartialTransaction = PartialTransaction::<S, Da> {
+        sender_pub_key: data.user.private_key().pub_key(),
+        details: TxDetails {
+            max_priority_fee_bips: PriorityFeeBips::ZERO,
+            max_fee: TEST_DEFAULT_MAX_FEE,
+            gas_limit: None,
+            chain_id: config_chain_id(),
+        },
+        encoded_call_message: <RT as EncodeCall<Bank<S>>>::encode_call(
+            sov_bank::CallMessage::Burn {
+                coins: sov_bank::Coins {
+                    amount: 1000,
+                    token_id: config_gas_token_id(),
+                },
+            },
+        ),
+        nonce: 0,
+        gas_price: None,
+        sequencer: None,
+    }
+    .try_into()
+    .unwrap();
+
+    let simulation_result = data
+        .client()
+        .simulate(&types::SimulateBody { body: partial_tx })
+        .await
+        .unwrap()
+        .data
+        .clone()
+        .unwrap();
+
+    let simulation_result_parsed: SimulateExecutionContainer<S> =
+        simulation_result.try_into().unwrap();
+
+    let query_apply_tx_receipt = simulation_result_parsed.apply_tx_result.receipt;
+
+    let result = data
+        .runner
+        .execute(
+            data.user
+                .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
+                    coins: sov_bank::Coins {
+                        amount: 1000,
+                        token_id: config_gas_token_id(),
+                    },
+                }),
+        );
+
+    let tx_receipt = result
+        .batch_receipts
+        .last()
+        .unwrap()
+        .tx_receipts
+        .last()
+        .unwrap();
+
+    assert_eq!(query_apply_tx_receipt.events.len(), tx_receipt.events.len());
+
+    for (simulation_event, tx_event) in query_apply_tx_receipt
+        .events
+        .iter()
+        .zip(tx_receipt.events.iter())
+    {
+        assert_eq!(simulation_event.key(), tx_event.key());
+        assert_eq!(simulation_event.value(), tx_event.value());
+    }
+
+    assert!(
+        matches!(query_apply_tx_receipt.receipt, TxEffect::Successful(..)),
+        "The queries receipt isn't successful. Instead, the receipt is {:?}",
+        query_apply_tx_receipt.receipt
     );
 }

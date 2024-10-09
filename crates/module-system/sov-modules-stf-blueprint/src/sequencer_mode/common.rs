@@ -24,7 +24,7 @@ pub type TransactionReceipt<S> =
 /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn apply_tx<S, RT, Da>(
+pub fn apply_tx<S, RT, Da>(
     runtime: &RT,
     ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,

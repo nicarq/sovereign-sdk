@@ -1,13 +1,12 @@
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
+use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::{HasRestApi, StorageReceiver};
-use sov_modules_api::{RuntimeEventProcessor, Spec, StateTransitionFunction};
-use sov_modules_stf_blueprint::{
-    Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
-};
+use sov_modules_api::{RuntimeEventProcessor, Spec};
+use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
@@ -16,12 +15,6 @@ use sov_sequencer::{BatchBuilderConfig, SequencerConfig, SequencerDb};
 use sov_stf_runner::RunnerConfig;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
-
-type Receipt<S, Da, RT, K> = <StfBlueprint<S, Da, RT, K> as StateTransitionFunction<
-    <S as Spec>::InnerZkvm,
-    <S as Spec>::OuterZkvm,
-    Da,
->>::TxReceiptContents;
 
 const LEDGER_PATH: &str = "/ledger";
 const SEQUENCER_PATH: &str = "/sequencer";
@@ -38,7 +31,9 @@ pub async fn register_endpoints<B, M>(
 where
     B: FullNodeBlueprint<M> + 'static,
     M: ExecutionMode + 'static,
-    B::Runtime: RuntimeEventProcessor + HasRestApi<B::Spec>,
+    B::Runtime: RuntimeEventProcessor
+        + HasRestApi<B::Spec>
+        + HasCapabilities<B::Spec, B::DaSpec, AuthorizationData = AuthorizationData<B::Spec>>,
     <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
@@ -97,18 +92,10 @@ where
 
     // Rollup endpoint
     {
-        let gas_router = RollupTxRouter::<
-            std::sync::Arc<
-                DefaultRollupStateProvider<
-                    B::Spec,
-                    B::DaSpec,
-                    B::Kernel,
-                    B::Runtime,
-                    Receipt<B::Spec, B::DaSpec, B::Runtime, B::Kernel>,
-                >,
-            >,
-        >::axum_router(storage);
-        endpoints.axum_router = endpoints.axum_router.merge(gas_router);
+        let rollup_router = RollupTxRouter::<
+            std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::DaSpec, B::Kernel, B::Runtime>>,
+        >::axum_router(storage, sequencer_config.da_address.clone());
+        endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }
 
     // Even if runtime does not have Open API spec, we still want to plug in Sequencer and Ledger.

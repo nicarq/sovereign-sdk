@@ -5229,17 +5229,21 @@ name = "sov-rollup-apis"
 version = "0.3.0"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "borsh",
  "derivative",
  "derive_more 1.0.0",
  "openapiv3",
  "serde",
  "serde_json",
+ "serde_with",
  "serde_yaml",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nonces",
  "sov-rest-utils",
+ "sov-rollup-interface",
+ "sov-rollup-json-client",
  "utoipa-swagger-ui",
 ]
 
@@ -5266,6 +5270,21 @@ dependencies = [
  "sov-universal-wallet",
  "thiserror",
  "tracing",
+]
+
+[[package]]
+name = "sov-rollup-json-client"
+version = "0.3.0"
+dependencies = [
+ "chrono",
+ "futures",
+ "progenitor",
+ "regress 0.4.1",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
 ]
 
 [[package]]
