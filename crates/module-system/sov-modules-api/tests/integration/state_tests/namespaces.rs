@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
-    KernelStateValue, Spec, StateCheckpoint, StateMap, StateValue, VersionedStateValue, WorkingSet,
+    KernelStateValue, Spec, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
 };
 use sov_state::{Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
@@ -25,19 +25,22 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let mut state: StateCheckpoint<<S as Spec>::Storage> =
         StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &mut state)?;
-    let _ = state_value.get(&mut state);
-    state_value.set(&22, &mut state)?;
-
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
-    // In the first version the user and the kernel root hashes are the same
+    // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
     let user_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::User, 0)
         .unwrap();
-    assert_eq!(kernel_root_hash, user_root_hash);
+    assert_ne!(kernel_root_hash, user_root_hash);
+
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
+    let _ = state_value.get(&mut state);
+    state_value.set(&22, &mut state)?;
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
@@ -66,24 +69,28 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
     // Native execution
     let mut state: StateCheckpoint<<S as Spec>::Storage> =
         StateCheckpoint::new(storage.clone(), &kernel);
-
     let mut kernel_working_set = kernel.accessor(&mut state);
     state_value.set(&11, &mut kernel_working_set)?;
-    let _ = state_value.get(&mut kernel_working_set);
-    state_value.set(&22, &mut kernel_working_set)?;
 
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
-    // In the first version the user and the kernel root hashes are the same
+    // In the first version the user and the kernel root hashes are different
     let kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
     let user_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::User, 0)
         .unwrap();
-    assert_eq!(kernel_root_hash, user_root_hash);
+    assert_ne!(kernel_root_hash, user_root_hash);
 
-    // Then the kernel is the same but the user root hash changes
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
+    let mut kernel_working_set = kernel.accessor(&mut state);
+    let _ = state_value.get(&mut kernel_working_set);
+    state_value.set(&22, &mut kernel_working_set)?;
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
+
+    // Then the kernel is the same, but the user root hash changes
     let new_kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 1)
         .unwrap();
@@ -104,26 +111,32 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let storage = storage_manager.create_storage();
 
     let state_value = StateMap::new(Prefix::new(vec![0]));
-
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
     let mut state: StateCheckpoint<<S as Spec>::Storage> =
         StateCheckpoint::new(storage.clone(), &kernel);
     state_value.set(&11, &0, &mut state)?;
-    let _ = state_value.get(&0, &mut state);
-    state_value.set(&22, &0, &mut state)?;
 
+    // Committing data at height 0
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
-    // In the first version the user and the kernel root hashes are the same
     let kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
     let user_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::User, 0)
         .unwrap();
-    assert_eq!(kernel_root_hash, user_root_hash);
+    // In the first version the user and the kernel root hashes are different
+    assert_ne!(kernel_root_hash, user_root_hash);
+
+    let mut state: StateCheckpoint<<S as Spec>::Storage> =
+        StateCheckpoint::new(storage.clone(), &kernel);
+    state_value.set(&11, &0, &mut state)?;
+    let _ = state_value.get(&0, &mut state);
+    state_value.set(&22, &0, &mut state)?;
+    // Committing at height = 1
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash: sov_state::jmt::RootHash = storage
@@ -133,7 +146,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
         .get_root_hash_namespace(ProvableNamespace::User, 1)
         .unwrap();
     assert_eq!(kernel_root_hash, new_kernel_root_hash);
-    assert_ne!(new_kernel_root_hash, new_user_root_hash);
+    assert_ne!(user_root_hash, new_user_root_hash);
 
     Ok(())
 }
@@ -150,24 +163,26 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
-    let working_set: WorkingSet<S> = WorkingSet::new_deprecated(storage.clone(), &kernel);
-
-    let mut state = working_set.checkpoint().0;
+    let mut state = StateCheckpoint::new(storage.clone(), &kernel);
     let mut kernel_working_set = kernel.accessor(&mut state);
     state_value.set_true_current(&11, &mut kernel_working_set);
-    let _ = state_value.get_current(&mut kernel_working_set);
-    state_value.set_true_current(&22, &mut kernel_working_set);
 
     let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
-    // In the first version the user and the kernel root hashes are the same
+    // In the first version the user and the kernel root hashes are different from one another
     let kernel_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::Kernel, 0)
         .unwrap();
     let user_root_hash = storage
         .get_root_hash_namespace(ProvableNamespace::User, 0)
         .unwrap();
-    assert_eq!(kernel_root_hash, user_root_hash);
+    assert_ne!(kernel_root_hash, user_root_hash);
+
+    let mut state = StateCheckpoint::new(storage.clone(), &kernel);
+    let mut kernel_working_set = kernel.accessor(&mut state);
+    let _ = state_value.get_current(&mut kernel_working_set);
+    state_value.set_true_current(&22, &mut kernel_working_set);
+    let storage = commit_to_storage(state, storage, &mut kernel, &mut storage_manager);
 
     // Then the kernel is the same but the user root hash changes
     let new_kernel_root_hash = storage
@@ -180,12 +195,20 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     assert_ne!(new_kernel_root_hash, new_user_root_hash);
 
     // Check that we can get the current value with a standard working set
-    let mut state = StateCheckpoint::new(storage.clone(), &MockKernel::<S>::default());
-    let val = state_value
+    let mut kernel_reset = MockKernel::<S>::default();
+    let mut state = StateCheckpoint::new(storage.clone(), &kernel_reset);
+    let val_0 = state_value
         .get_current(&mut state)?
         .expect("We should be able to retrieve the state value");
+    assert_eq!(val_0, 11);
 
-    assert_eq!(val, 22);
+    kernel_reset.increase_heights();
+
+    let mut state = StateCheckpoint::new(storage.clone(), &kernel_reset);
+    let val_0 = state_value
+        .get_current(&mut state)?
+        .expect("We should be able to retrieve the state value");
+    assert_eq!(val_0, 22);
 
     Ok(())
 }

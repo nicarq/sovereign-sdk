@@ -14,7 +14,8 @@ async fn test_evm_account_abstraction() {
     let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;
     let rollup_prover_config = get_appropriate_rollup_prover_config();
-    let (rollup_task, rpc_port, rest_port) =
+    // tempdir is held here so it is not removed during test run
+    let (rollup_task, rpc_port, rest_port, _temp_dir) =
         evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, from_addr) = evm_test_helper::create_test_client(

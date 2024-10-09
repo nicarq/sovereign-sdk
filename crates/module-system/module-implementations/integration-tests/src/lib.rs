@@ -9,3 +9,6 @@ mod stf_blueprint;
 
 #[cfg(test)]
 mod visible_hash;
+
+#[cfg(test)]
+mod concurrent_prover_storages;

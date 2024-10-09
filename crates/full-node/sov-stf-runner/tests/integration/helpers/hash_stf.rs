@@ -104,7 +104,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
         // Note: Uses native code, so won't work in ZK
-        let storage_root_hash = pre_state.get_root_hash(slot_header.height()).unwrap();
+        let storage_root_hash = pre_state.get_root_hash(slot_header.height() - 1).unwrap();
 
         tracing::debug!(
             header = %slot_header.display(),

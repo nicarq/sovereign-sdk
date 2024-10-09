@@ -71,7 +71,9 @@ mod blueprint {
     use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
-    use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
+    use sov_stf_runner::processes::{
+        ProverService, RawGenesisStateRoot, RollupProverConfig, WorkflowProcessManager,
+    };
     use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
     use tokio::sync::oneshot;
 
@@ -193,7 +195,7 @@ mod blueprint {
             rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<Self::StorageManager>;
 
-        /// Creates instance of a LedgerDb.
+        /// Creates an instance of a LedgerDb.
         fn create_ledger_db(
             &self,
             ledger_state: <Self::StorageManager as HierarchicalStorageManager<Self::DaSpec>>::LedgerState,
@@ -216,43 +218,77 @@ mod blueprint {
             <Self::Spec as Spec>::Storage: NativeStorage,
         {
             let operating_mode = Self::get_operating_mode(&kernel_genesis_config);
-            let genesis_config = self.create_genesis_config(
-                runtime_genesis_paths,
-                kernel_genesis_config,
-                &rollup_config,
-            )?;
-
-            let mut storage_manager = self.create_storage_manager(&rollup_config)?;
-            let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
-            let mut ledger_db = self.create_ledger_db(ledger_state)?;
+            tracing::debug!(?operating_mode, "Creating new rollup");
 
             let da_service = Arc::new(self.create_da_service(&rollup_config).await);
-            let relative_da_genesis_block = da_service
-                .get_block_at(rollup_config.runner.genesis_height)
-                .await?;
+            let mut storage_manager = self.create_storage_manager(&rollup_config)?;
 
-            let sequencer_db = SequencerDb::new(
-                &rollup_config.storage.path,
-                Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
-            )?;
+            let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+            let mut ledger_db = self.create_ledger_db(ledger_state)?;
 
             let prev_root = ledger_db
                 .get_head_slot()?
                 .map(|(number, _)| prover_storage.get_root_hash(number.0))
                 .transpose()?;
 
+            let is_genesis = prev_root.is_none();
             let init_variant: InitVariant<_, _, _, Self::DaService> = match prev_root {
-                Some(root_hash) => InitVariant::Initialized(root_hash),
-                None => InitVariant::Genesis {
-                    block: relative_da_genesis_block,
-                    genesis_params: genesis_config,
-                },
+                Some(prev_state_root) => InitVariant::Initialized(prev_state_root),
+                None => {
+                    tracing::info!(
+                        rollup_genesis_height = rollup_config.runner.genesis_height,
+                        "Rollup state is empty, performing genesis initialization. Requesting genesis DA block");
+                    let rollup_genesis_block = da_service
+                        .get_block_at(rollup_config.runner.genesis_height)
+                        .await?;
+                    let genesis_params = self.create_genesis_config(
+                        runtime_genesis_paths,
+                        kernel_genesis_config,
+                        &rollup_config,
+                    )?;
+                    InitVariant::Genesis {
+                        block: rollup_genesis_block,
+                        genesis_params,
+                    }
+                }
             };
+            let native_stf = StfBlueprint::new();
+            let (prev_state_root, genesis_state_root): (
+                <<Self::Spec as Spec>::Storage as Storage>::Root,
+                RawGenesisStateRoot,
+            ) = init_variant
+                .initialize(&mut ledger_db, &native_stf, &mut storage_manager)
+                .await?;
 
+            let prover_storage = if is_genesis {
+                // Re-create bootstrap storage, so it fetches the latest version after initialization.
+                // And can see latest changes. Otherwise Sequencer won't be able to process any batches,
+                // because genesis data won't be visible to it.
+                let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
+                ledger_db.replace_reader(ledger_state);
+
+                // Clearing notifications that has been produced during genesis.
+                // Rollup is not running yet, so there are no subscribers.
+                ledger_db.send_notifications();
+                prover_storage
+            } else {
+                // Just using previously created bootstrap storage, because it is initialized
+                prover_storage
+            };
             let (api_storage_sender, api_storage_receiver) =
                 tokio::sync::watch::channel(prover_storage);
+            tracing::debug!(
+                prev_root_hash = hex::encode(prev_state_root.as_ref()),
+                raw_genesis_state_root = hex::encode(&genesis_state_root.0),
+                "Rollup state initialization is completed"
+            );
+
+            let sequencer_db = SequencerDb::new(
+                &rollup_config.storage.path,
+                Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
+            )?;
             // We pass "bootstrap" storage here,
-            // as it will be replaced with the latest on after first processed block.
+            // as it will be replaced with the latest on after the first processed block.
             let endpoints = self
                 .create_endpoints(
                     api_storage_receiver,
@@ -261,12 +297,6 @@ mod blueprint {
                     &da_service,
                     &rollup_config,
                 )
-                .await?;
-
-            let native_stf = StfBlueprint::new();
-
-            let (prev_state_root, genesis_state_root) = init_variant
-                .calculate_initial_state_roots(&mut ledger_db, &native_stf, &mut storage_manager)
                 .await?;
 
             let st_info_sender = match prover_config {

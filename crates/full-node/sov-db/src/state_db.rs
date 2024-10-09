@@ -57,12 +57,12 @@ impl StateDb {
             user_largest_version
         );
 
-        let next_version = user_largest_version
-            .unwrap_or_default()
-            .checked_add(1)
-            .expect("JMT Version overflow. Is is over");
-
-        Ok(next_version)
+        Ok(match user_largest_version {
+            None => 0,
+            Some(existing_version) => existing_version
+                .checked_add(1)
+                .expect("JMT Version overflow. Is is over"),
+        })
     }
 
     /// [`DbOptions`] for [`StateDb`].
@@ -358,8 +358,7 @@ mod state_db_tests {
         );
         let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
         let state_db = StateDb::with_delta_reader(reader).unwrap();
-        let latest_version = state_db.get_next_version() - 1;
-        assert_eq!(0, latest_version);
+        assert_eq!(0, state_db.get_next_version());
 
         let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
         check_root_hash_at_init_handler(&user_state_db_handler);

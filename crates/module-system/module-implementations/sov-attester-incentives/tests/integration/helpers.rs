@@ -134,7 +134,12 @@ pub(crate) fn build_proof(
         chain_state.get_genesis_hash(state)?
     } else {
         chain_state
-            .get_historical_transitions(rollup_height_to_attest - 1, state)?
+            .get_historical_transitions(
+                rollup_height_to_attest
+                    .checked_sub(1)
+                    .expect("Genesis rollup height is not supported by this function"),
+                state,
+            )?
             .map(|t| *t.post_state_root())
     }
     .unwrap();

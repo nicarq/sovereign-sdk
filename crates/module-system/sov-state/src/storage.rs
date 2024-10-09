@@ -338,14 +338,16 @@ impl From<&str> for SlotValue {
 /// A [`Storage`] that is suitable for use in native execution environments
 /// (outside of the zkVM).
 pub trait NativeStorage: Storage {
-    /// Returns the value corresponding to the key or None if key is absent and a proof to
+    /// Returns the value corresponding to the key or None if the key is absent and a proof to
     /// get the value.
+    /// Returns an error if storage is empty or the passed version is not yet available.
     fn get_with_proof<N: ProvableCompileTimeNamespace>(
         &self,
         key: SlotKey,
         version: Option<u64>,
-    ) -> StorageProof<Self::Proof>;
+    ) -> anyhow::Result<StorageProof<Self::Proof>>;
 
-    /// Get the *global* root hash of the tree at the requested version
+    /// Get the *global* root hash of the tree at the requested version.
+    /// Returns an error if storage is empty or the requests version is not yet available.
     fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root>;
 }

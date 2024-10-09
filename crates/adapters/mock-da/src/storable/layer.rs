@@ -139,8 +139,17 @@ impl StorableMockDaLayer {
                 height = last_finalized_height,
                 "Submitting finalized header at"
             );
-            let finalized_header = self.get_header_at(last_finalized_height).await.unwrap();
-            self.finalized_header_sender.send(finalized_header).unwrap();
+            let finalized_header = self.get_header_at(last_finalized_height).await?;
+            match self.finalized_header_sender.send(finalized_header) {
+                Ok(received_count) => {
+                    tracing::trace!(receivers = received_count, "Finalized header sent");
+                }
+                Err(_) => {
+                    tracing::info!(
+                        "Failed to send finalized header notifications because no more listeners available."
+                    );
+                }
+            };
         }
         Ok(())
     }

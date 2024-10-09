@@ -65,11 +65,6 @@ impl DbGroup {
         Ok(())
     }
 
-    pub(crate) fn get_finalized_state_db(&self) -> anyhow::Result<StateDb> {
-        let state_reader = DeltaReader::new(self.state.clone(), Vec::new());
-        StateDb::with_delta_reader(state_reader)
-    }
-
     pub(crate) fn create_storage<S: InitializableNativeStorage>(
         &self,
         rev_snapshots: Vec<SnapshotGroup>,

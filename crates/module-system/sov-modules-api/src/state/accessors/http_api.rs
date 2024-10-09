@@ -101,7 +101,9 @@ const _: () = {
         type Proof = <<S as Spec>::Storage as Storage>::Proof;
 
         fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof> {
-            self.storage.get_with_proof::<N>(key, self.storage_version)
+            self.storage
+                .get_with_proof::<N>(key, self.storage_version)
+                .expect("Storage version is off")
         }
     }
 };

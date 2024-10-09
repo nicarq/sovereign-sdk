@@ -54,10 +54,13 @@ where
         >,
         state: &mut ST,
     ) -> anyhow::Result<CheckInitialHashStatus, ST::Error> {
+        let previous_height = claimed_rollup_height
+            .checked_sub(1)
+            .expect("Claimed transition height must be > 0");
         // Normal state
         if let Some(transition) = self
             .chain_state
-            .get_historical_transitions(claimed_rollup_height.saturating_sub(1), state)?
+            .get_historical_transitions(previous_height, state)?
         {
             if transition.post_state_root() != &attestation.initial_state_root {
                 // The initial root hashes don't match, just slash the attester
@@ -71,10 +74,7 @@ where
 
             // We add a check here that the claimed transition height is the same as the genesis height.
             let genesis_height = 0;
-            let previous = claimed_rollup_height
-                .checked_sub(1)
-                .expect("Transition height must be > 0");
-            if genesis_height != previous {
+            if genesis_height != previous_height {
                 return Ok(CheckInitialHashStatus::Slash);
             }
 
@@ -164,15 +164,14 @@ where
         >,
         state: &mut ST,
     ) -> Result<(), ProcessAttestationErrors> {
+        if attestation.proof_of_bond.claimed_rollup_height == 0 {
+            debug!("Cannot claim attestation for genesis");
+            return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
+        }
         let bonding_root = {
             // If we cannot get the transition before the current one, it means that we are trying
             // to get the genesis state root
-            let rollup_height = attestation
-                .proof_of_bond
-                .claimed_rollup_height
-                .checked_sub(1)
-                .expect("The transition height should be greater than 1");
-
+            let rollup_height = attestation.proof_of_bond.claimed_rollup_height;
             if let Some(transition) = self
                 .chain_state
                 .get_historical_transitions(rollup_height, state)
@@ -194,7 +193,10 @@ where
                 attestation.proof_of_bond.proof.clone(),
                 sender,
             )
-            .map_err(|_err| ProcessAttestationErrors::InvalidBondingProof)?;
+            .map_err(|err| {
+                debug!(error = ?err, "Error during verifying bonding proof");
+                ProcessAttestationErrors::InvalidBondingProof
+            })?;
 
         let bond = bond_opt.ok_or(ProcessAttestationErrors::AttesterNotBonded)?;
         let bond: u64 = BorshDeserialize::deserialize(&mut bond.value())

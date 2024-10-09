@@ -1,3 +1,4 @@
+use anyhow::Context;
 use demo_stf::runtime::RuntimeCall;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
@@ -107,8 +108,21 @@ pub(crate) async fn assert_balance(
 ) -> anyhow::Result<()> {
     let actual_amount = client
         .get_balance::<TestSpec>(&user_address, &token_id, rollup_height)
-        .await?;
-    assert_eq!(assert_amount, actual_amount);
+        .await
+        .with_context(|| {
+            format!(
+                "Failed to assert balance at rollup_height {:?} for user {} and token {}",
+                rollup_height, user_address, token_id
+            )
+        })?;
+    if assert_amount != actual_amount {
+        anyhow::bail!(
+            "Unexpected amount at rollup_height {:?}. expected={} actual={}",
+            rollup_height,
+            assert_amount,
+            actual_amount,
+        )
+    }
     Ok(())
 }
 
@@ -139,15 +153,6 @@ pub(crate) async fn assert_aggregated_proof(
     assert!(final_slot <= proof_data_info_response.data.public_data.final_slot_number);
 
     Ok(())
-}
-
-pub(crate) fn assert_aggregated_proof_public_data(
-    expected_initial_slot_number: u64,
-    expected_final_slot_number: u64,
-    pub_data: &sov_ledger_json_client::types::AggregatedProofPublicData,
-) {
-    assert_eq!(expected_initial_slot_number, pub_data.initial_slot_number);
-    assert_eq!(expected_final_slot_number, pub_data.final_slot_number);
 }
 
 pub(crate) async fn assert_slot_finality(

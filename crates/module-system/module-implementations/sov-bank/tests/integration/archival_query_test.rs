@@ -22,7 +22,7 @@ fn transfer_token_and_query_old_balances() {
 
     const AMOUNT_PER_TRANSFER: u64 = 10;
 
-    for i in 1..10 {
+    for height in 1..10 {
         runner.execute(sender.create_plain_message::<sov_bank::Bank<TestSpec>>(
             sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
@@ -39,35 +39,33 @@ fn transfer_token_and_query_old_balances() {
                 Bank::<TestSpec>::default()
                     .get_balance_of(&receiver.address(), token_id, state)
                     .unwrap_infallible(),
-                Some(AMOUNT_PER_TRANSFER * i)
+                Some(AMOUNT_PER_TRANSFER * height)
             );
         });
 
-        for j in 1..i {
+        for height_to_query in 0..height {
             runner.query_state(|state| {
-                let archival_state = &mut state.get_archival_at(j);
+                let archival_state = &mut state.get_archival_at(height_to_query);
+
+                // Sender query deducted at every height
                 assert_eq!(
                     Bank::<TestSpec>::default()
                         .get_balance_of(&sender.address(), token_id, archival_state)
                         .unwrap_infallible(),
-                    Some(sender_initial_token_balance - AMOUNT_PER_TRANSFER * (j - 1))
+                    Some(sender_initial_token_balance - AMOUNT_PER_TRANSFER * height_to_query)
                 );
 
-                if j > 1 {
-                    assert_eq!(
-                        Bank::<TestSpec>::default()
-                            .get_balance_of(&receiver.address(), token_id, archival_state)
-                            .unwrap_infallible(),
-                        Some(AMOUNT_PER_TRANSFER * (j - 1))
-                    );
+                let expected_receiver_balance = if height_to_query == 0 {
+                    None
                 } else {
-                    assert_eq!(
-                        Bank::<TestSpec>::default()
-                            .get_balance_of(&receiver.address(), token_id, archival_state)
-                            .unwrap_infallible(),
-                        None
-                    );
-                }
+                    Some(AMOUNT_PER_TRANSFER * height_to_query)
+                };
+                assert_eq!(
+                    Bank::<TestSpec>::default()
+                        .get_balance_of(&receiver.address(), token_id, archival_state)
+                        .unwrap_infallible(),
+                    expected_receiver_balance
+                );
             });
         }
     }

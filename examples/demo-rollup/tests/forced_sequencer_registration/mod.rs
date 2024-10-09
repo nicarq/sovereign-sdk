@@ -22,9 +22,11 @@ const MINIMUM_BOND: u64 = 100_000_000;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
+    let temp_dir = tempfile::tempdir()?;
     let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
     let rollup = construct_rollup(
+        temp_dir.path(),
         GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
         BasicKernelGenesisPaths {
             chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),

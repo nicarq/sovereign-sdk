@@ -21,7 +21,8 @@ async fn evm_tx_test(
     rollup_prover_config: RollupProverConfig,
 ) -> anyhow::Result<()> {
     let chain_id = config_value!("CHAIN_ID");
-    let (rollup_task, rpc_port, rest_port) =
+    // temp_dir is hold here os it is not removed during test run
+    let (rollup_task, rpc_port, rest_port, _temp_dir) =
         evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, _) = evm_test_helper::create_test_client(
