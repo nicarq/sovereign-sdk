@@ -19,7 +19,7 @@ use crate::transaction::{
 };
 #[cfg(feature = "test-utils")]
 use crate::GasArray;
-use crate::{BasicGasMeter, GasInfo, GasMeter, GasMeteringError};
+use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -151,12 +151,6 @@ impl<Store: Storage> StateCheckpoint<Store> {
     }
 }
 
-/// Error type that can be raised by the [`WorkingSet::try_create_working_set`] method.
-pub struct NotEnoughGasError<S: Spec> {
-    pub scratchpad: TxScratchpad<S::Storage>,
-    pub reason: String,
-}
-
 /// This structure contains the read-write set and the events collected during the execution of a transaction.
 /// There are two ways to convert it into a StateCheckpoint:
 /// 1. By using the [`WorkingSet::finalize`] method, where all the changes are added to the underlying
@@ -173,28 +167,21 @@ pub struct WorkingSet<S: Spec> {
 
 impl<S: Spec> WorkingSet<S> {
     /// Creates a new [`WorkingSet`] from the provided [`TxScratchpad`] and [`AuthenticatedTransactionData`].
-    /// The working set will allocate gas according to the transaction's data, minus the gas consumed by pre-execution checks.
     #[allow(clippy::result_large_err)]
-    pub fn try_create_working_set(
+    pub fn create_working_set(
         scratchpad: TxScratchpad<S::Storage>,
-        gas_info: &GasInfo<S::Gas>,
+        gas_price: &<S::Gas as Gas>::Price,
         tx: &AuthenticatedTransactionData<S>,
-    ) -> Result<Self, NotEnoughGasError<S>> {
-        let mut working_set_gas_meter = tx.gas_meter(&gas_info.gas_price);
-        if let Err(e) = working_set_gas_meter.charge_gas(&gas_info.gas_used) {
-            return Err(NotEnoughGasError {
-                scratchpad,
-                reason: e.to_string(),
-            });
-        }
+    ) -> Self {
+        let working_set_gas_meter = tx.gas_meter(gas_price);
 
-        Ok(Self {
+        Self {
             delta: RevertableWriter::new(scratchpad),
             events: Default::default(),
             gas_meter: working_set_gas_meter,
             max_fee: tx.max_fee,
             max_priority_fee_bips: tx.max_priority_fee_bips,
-        })
+        }
     }
 
     /// Builds a [`crate::TransactionConsumption`] from the [`WorkingSet`].

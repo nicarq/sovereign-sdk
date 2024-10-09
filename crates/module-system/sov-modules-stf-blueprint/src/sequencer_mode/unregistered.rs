@@ -76,16 +76,15 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         );
     }
 
-    let working_set: WorkingSet<S> =
-        match WorkingSet::try_create_working_set(tx_scratchpad, &gas_info, tx) {
-            Ok(ws) => ws,
-            Err(err) => {
-                return (
-                    Err(TxProcessingError::OutOfGas(err.reason.to_string())),
-                    err.scratchpad,
-                );
-            }
-        };
+    let mut working_set = WorkingSet::create_working_set(tx_scratchpad, &gas_info.gas_price, tx);
+
+    if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
+        let (scratchpad, _) = working_set.revert();
+        return (
+            Err(TxProcessingError::OutOfGas(err.to_string())),
+            scratchpad,
+        );
+    }
 
     // If the transaction is valid, execute it and apply the changes to the state.
     let (apply_tx, mut tx_scratchpad) =

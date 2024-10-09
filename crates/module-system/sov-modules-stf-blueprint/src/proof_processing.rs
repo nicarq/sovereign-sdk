@@ -266,30 +266,31 @@ where
             );
         }
 
-        let working_set: WorkingSet<S> =
-            match WorkingSet::try_create_working_set(scratchpad, &gas_info, &auth_tx) {
-                Ok(working_set) => working_set,
-                Err(err) => {
-                    return WorkflowResult::EarlyReturn(
-                        ProcessProofOutput {
-                            proof_receipt: invalid_proof_receipt::<S, Da>(
-                                self.blob_hash,
-                                InvalidProofError::PreconditionNotMet(format!(
-                                    "Failed to reserve gas: {}",
-                                    err.reason
-                                )),
-                            ),
-                            gas_used: S::Gas::zero(),
-                        },
-                        self.penalize_sequencer(
-                            err.reason,
-                            err.scratchpad,
-                            gas_meter.gas_info().remaining_funds,
-                        )
-                        .commit(),
-                    );
-                }
-            };
+        let mut working_set =
+            WorkingSet::create_working_set(scratchpad, &gas_info.gas_price, &auth_tx);
+
+        if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
+            let (scratchpad, transaction_consumption) = working_set.revert();
+
+            return WorkflowResult::EarlyReturn(
+                ProcessProofOutput {
+                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                        self.blob_hash,
+                        InvalidProofError::PreconditionNotMet(format!(
+                            "Failed to reserve gas: {}",
+                            err
+                        )),
+                    ),
+                    gas_used: S::Gas::zero(),
+                },
+                self.penalize_sequencer(
+                    err,
+                    scratchpad,
+                    transaction_consumption.remaining_funds().0,
+                )
+                .commit(),
+            );
+        }
 
         WorkflowResult::Proceed(working_set)
     }
