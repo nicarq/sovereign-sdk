@@ -6,10 +6,16 @@ use std::sync::OnceLock;
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::Json;
+use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::rest::StorageReceiver;
-use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::{Gas, Spec, TxEffect, TxReceiptContents};
+use sov_modules_api::transaction::{Credentials, TxDetails};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec};
+pub use sov_modules_stf_blueprint::ApplyTxResult;
+use sov_modules_stf_blueprint::Runtime;
 use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
+use sov_rollup_json_client::types::{self, SimulateExecutionResponse};
+
+mod client_interface;
 
 /// Provides the `dedup` endpoint functionality.
 pub mod dedup;
@@ -20,13 +26,24 @@ pub use default_provider::DefaultRollupStateProvider;
 /// Use [`RollupTxRouter::axum_router`] to instantiate an [`axum::Router`] for
 /// a specific [`RollupStateProvider`].
 #[derive(Clone)]
-pub struct RollupTxRouter<T: RollupStateProvider>(StorageReceiver<T::Spec>);
+pub struct RollupTxRouter<T: RollupStateProvider> {
+    storage: StorageReceiver<T::Spec>,
+    default_sequencer: <T::Da as DaSpec>::Address,
+}
 
 /// The object returned by the `/base-fee-per-gas/latest` endpoint.
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S: Spec")]
 pub struct GasPriceContainer<S: Spec> {
     base_fee_per_gas: <S::Gas as Gas>::Price,
+}
+
+/// The object returned by the `/rollup/simulate` endpoint.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound = "S: Spec")]
+pub struct SimulateExecutionContainer<S: Spec> {
+    /// The result of the simulation returned by the `apply_tx` method.
+    pub apply_tx_result: ApplyTxResult<S>,
 }
 
 const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
@@ -42,15 +59,39 @@ pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
 
 /// A partial transaction type that can be used to easily simulate the execution of a transaction.
 /// This type is `partial` in the sense that it does not contain the full transaction details.
-#[derive(Debug, serde::Deserialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 #[serde(bound = "S: Spec")]
-pub struct PartialTransaction<S: Spec> {
-    /// The rollup address of the transaction sender.
-    pub sender: S::Address,
+pub struct PartialTransaction<S: Spec, Da: DaSpec> {
+    /// The public key of the transaction sender.
+    pub sender_pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     /// Call message encoded by a given runtime.
     pub encoded_call_message: Vec<u8>,
     /// The details of the transaction.
     pub details: TxDetails<S>,
+    /// The nonce of the transaction.
+    pub nonce: u64,
+    /// An optional gas price for the transaction.
+    /// If not provided, the current gas price will be used.
+    pub gas_price: Option<<S::Gas as Gas>::Price>,
+    /// The sequencer address of the transaction. If not provided, default sequencer address will be used.
+    pub sequencer: Option<Da::Address>,
+}
+
+impl<S: Spec, Da: DaSpec> From<PartialTransaction<S, Da>> for AuthorizationData<S> {
+    fn from(value: PartialTransaction<S, Da>) -> AuthorizationData<S> {
+        let pub_key = value.sender_pub_key.clone();
+        let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
+        let nonce = value.nonce;
+        let default_address = Some((&pub_key).into());
+        let credentials = Credentials::new(pub_key);
+
+        AuthorizationData {
+            nonce,
+            credential_id,
+            credentials,
+            default_address,
+        }
+    }
 }
 
 /// A [`RollupStateProvider`] provides a way to query the state for information about gas.
@@ -58,11 +99,14 @@ pub trait RollupStateProvider: Clone + Send + Sync {
     /// The error type for fallible methods on this trait.
     type Error: ToString + Send + Sync + 'static;
 
-    /// The spec associated with the rollup state provider.
+    /// The [`Spec`] associated with the rollup state provider.
     type Spec: sov_modules_api::Spec;
 
-    /// The type of receipt that the rollup state provider returns.
-    type Receipt: TxReceiptContents;
+    /// The [`DaSpec`] associated with the rollup state provider.
+    type Da: DaSpec;
+
+    /// The [`Runtime`] associated with the rollup state provider.
+    type Runtime: Runtime<Self::Spec, Self::Da>;
 
     /// Get the latest base fee per gas in the storage.
     fn get_latest_base_fee_per_gas(
@@ -72,32 +116,40 @@ pub trait RollupStateProvider: Clone + Send + Sync {
     /// Simulates the execution of a transaction.
     fn simulate_execution(
         storage: &StorageReceiver<Self::Spec>,
-        transaction: PartialTransaction<Self::Spec>,
-    ) -> Result<TxEffect<Self::Receipt>, Self::Error>;
+        default_sequencer: <Self::Da as DaSpec>::Address,
+        transaction: PartialTransaction<Self::Spec, Self::Da>,
+    ) -> Result<ApplyTxResult<Self::Spec>, Self::Error>;
 }
 
 impl<T> RollupTxRouter<T>
 where
     T: RollupStateProvider + Clone + Send + Sync + 'static,
+    T::Runtime: HasCapabilities<T::Spec, T::Da, AuthorizationData = AuthorizationData<T::Spec>>,
 {
     /// Returns an [`axum::Router`] that exposes simulation data.
-    pub fn axum_router(storage: StorageReceiver<T::Spec>) -> axum::Router<()> {
+    pub fn axum_router(
+        storage: StorageReceiver<T::Spec>,
+        default_sequencer: <T::Da as DaSpec>::Address,
+    ) -> axum::Router<()> {
         preconfigured_router_layers(
             axum::Router::new()
                 .route(
                     "/rollup/base-fee-per-gas/latest",
                     get(Self::get_latest_base_fee_per_gas),
                 )
-                .route("/rollup/simulate-execution", post(Self::simulate_execution))
-                .with_state(RollupTxRouter(storage)),
+                .route("/rollup/simulate", post(Self::simulate))
+                .with_state(RollupTxRouter {
+                    storage,
+                    default_sequencer,
+                }),
         )
     }
 
     /// Get the latest base fee per gas in the storage.
     async fn get_latest_base_fee_per_gas(
-        State(RollupTxRouter(state_recv)): State<Self>,
+        State(RollupTxRouter { storage, .. }): State<Self>,
     ) -> ApiResult<GasPriceContainer<T::Spec>> {
-        match T::get_latest_base_fee_per_gas(&state_recv) {
+        match T::get_latest_base_fee_per_gas(&storage) {
             Ok(base_fee_per_gas) => {
                 Ok(ResponseObject::from(GasPriceContainer { base_fee_per_gas }))
             }
@@ -105,14 +157,34 @@ where
         }
     }
 
-    /// Simulates the execution of a transaction.
-    async fn simulate_execution(
-        State(RollupTxRouter(state_recv)): State<Self>,
-        Json(transaction): Json<PartialTransaction<T::Spec>>,
-    ) -> ApiResult<TxEffect<T::Receipt>> {
-        match T::simulate_execution(&state_recv, transaction) {
-            Ok(tx_effect) => Ok(ResponseObject::from(tx_effect)),
-            Err(err) => Err(errors::database_error_response_500(err)),
+    /// Simulates the execution of a transaction
+    async fn simulate(
+        State(RollupTxRouter {
+            storage,
+            default_sequencer,
+        }): State<Self>,
+        Json(req): Json<types::SimulateBody>,
+    ) -> ApiResult<SimulateExecutionResponse> {
+        let transaction: PartialTransaction<T::Spec, T::Da> = req
+            .body
+            .try_into()
+            .map_err(|err| errors::bad_request_400("Malformatted partial transaction", err))?;
+
+        match T::simulate_execution(&storage, default_sequencer, transaction) {
+            Ok(apply_tx_result) =>
+            {
+                let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
+                    .map_err(|err| errors::internal_server_error_response_500(format!("Internal server error: Failed to serialize response. Error {err}")))?;
+
+                let response = ResponseObject::from(simulate_execution_response);
+
+                Ok(response)
+            }
+
+            Err(err) => Err(errors::bad_request_400(
+                "The transaction simulation failed before the execution. Please check that the provided transaction details are correct",
+                err,
+            )),
         }
     }
 }

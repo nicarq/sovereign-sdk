@@ -1,6 +1,7 @@
 use std::cmp::min;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 
 use super::data::PriorityFeeBips;
 use crate::{Gas, GasArray, Spec};
@@ -10,8 +11,9 @@ use crate::{Gas, GasArray, Spec};
 ///
 /// ## Type safety
 /// To build this data structure outside of `sov-modules-api`, one would need to call [`crate::WorkingSet::finalize`] or [`crate::WorkingSet::checkpoint`]
-#[derive(PartialEq, Eq, Debug, derive_more::Display)]
+#[derive(PartialEq, Eq, Debug, derive_more::Display, Serialize, Deserialize)]
 #[display("{:?}", self)]
+#[serde(bound = "GU: Serialize + serde::de::DeserializeOwned")]
 pub struct TransactionConsumption<GU: Gas> {
     /// The amount of funds locked in the transaction that remains after transaction is executed and tip is processed.
     /// This amount includes the `base_fee` and the `priority_fee` gas token consumption
@@ -33,9 +35,29 @@ impl<GU: Gas> TransactionConsumption<GU> {
         gas_price: GU::Price::ZEROED,
     };
 
+    /// Creates a new [`TransactionConsumption`] instance.
+    pub fn new(
+        remaining_funds: u64,
+        base_fee: GU,
+        priority_fee: u64,
+        gas_price: GU::Price,
+    ) -> Self {
+        Self {
+            remaining_funds,
+            base_fee,
+            priority_fee,
+            gas_price,
+        }
+    }
+
     /// The base fee reward of the transaction expressed in multidimensional gas units.
     pub const fn base_fee(&self) -> &GU {
         &self.base_fee
+    }
+
+    /// The gas price used during the transaction.
+    pub fn gas_price(&self) -> &GU::Price {
+        &self.gas_price
     }
 
     /// The base fee reward of the transaction expressed as a gas token amount.

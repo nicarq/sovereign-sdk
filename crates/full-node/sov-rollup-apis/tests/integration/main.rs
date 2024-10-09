@@ -2,8 +2,6 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use sov_modules_api::prelude::tokio::sync::watch;
-use sov_modules_api::StateTransitionFunction;
-use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_json_client::Client;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
@@ -16,12 +14,6 @@ use sov_test_utils::runtime::TestRunner;
 type S = sov_test_utils::TestSpec;
 type Da = sov_test_utils::MockDaSpec;
 type K = sov_kernels::basic::BasicKernel<S, Da>;
-type Stf = StfBlueprint<S, Da, RT, K>;
-type TxReceiptContents = <Stf as StateTransitionFunction<
-    <S as Spec>::InnerZkvm,
-    <S as Spec>::OuterZkvm,
-    Da,
->>::TxReceiptContents;
 
 generate_optimistic_runtime!(TestRuntime <= );
 
@@ -58,6 +50,8 @@ impl TestData {
         let genesis_config =
             HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
+        let sequencer_da_address = genesis_config.initial_sequencer.da_address;
+
         let user = genesis_config.additional_accounts[0].clone();
 
         let runtime = RT::default();
@@ -72,8 +66,10 @@ impl TestData {
         let (storage_sender, storage_receiver) = watch::channel(storage);
 
         let axum_router: axum::Router<()> = RollupTxRouter::<
-            Arc<DefaultRollupStateProvider<S, Da, K, RT, TxReceiptContents>>,
-        >::axum_router(storage_receiver);
+            Arc<DefaultRollupStateProvider<S, Da, K, RT>>,
+        >::axum_router(
+            storage_receiver, sequencer_da_address
+        );
 
         let (axum_addr, axum_server) = {
             let handle = axum_server::Handle::new();

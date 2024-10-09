@@ -8,6 +8,8 @@ mod proof_processing;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
 mod utils;
+/// We export the `apply_tx` function to use inside the simulation endpoints.
+pub use sequencer_mode::apply_tx;
 pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt};
 pub use sequencer_mode::registered::{authenticate_tx, process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
@@ -128,6 +130,8 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
 /// The result of applying a transaction to the state.
 /// This is the value returned when [`process_tx`] succeeds.
 /// It contains the new transaction checkpoint, transaction receipt and the amount of gas tokens that the sequencer should be rewarded.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[serde(bound = "S: Spec")]
 pub struct ApplyTxResult<S: Spec> {
     /// Gas consumption.
     pub transaction_consumption: TransactionConsumption<S::Gas>,
