@@ -56,30 +56,30 @@ resources:
         methods:
           retrieve_latest: get /ledger/aggregated-proofs/latest
     models:
-      jsonValue: ledger_AnyJsonValue
-      Tx: ledger_Tx
-      Event: ledger_Event
-      Batch: ledger_Batch
+      jsonValue: Ledger_AnyJsonValue
+      Tx: Ledger_Tx
+      Event: Ledger_Event
+      Batch: Ledger_Batch
   sequencer:
     subresources:
       batches:
         methods:
           create: post /sequencer/batches
         models:
-          submittedBatchInfo: sequencer_SubmittedBatchInfo
+          submittedBatchInfo: Sequencer_SubmittedBatchInfo
       txs:
         methods:
           create: post /sequencer/txs
           retrieve: get /sequencer/txs/{txHash}
         models:
-          txInfo: sequencer_TxInfo
+          txInfo: Sequencer_TxInfo
   rollup:
     subresources:
       base_fee_per_gas:
         methods:
           retrieve_latest: get /rollup/base-fee-per-gas/latest
         models:
-          rollup_BaseFeePerGas: rollup_BaseFeePerGas
+          BaseFeePerGas: rollup_BaseFeePerGas
       addresses:
         subresources:
           dedup:
