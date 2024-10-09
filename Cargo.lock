@@ -9872,6 +9872,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "sov-blob-storage",
  "sov-db",
  "sov-kernels",
  "sov-mock-da",
