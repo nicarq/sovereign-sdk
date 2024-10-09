@@ -352,31 +352,24 @@ where
             let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
 
             let gas_info = gas_meter.gas_info();
-            let working_set = match WorkingSet::try_create_working_set(
+            let mut working_set = WorkingSet::create_working_set(
                 tx_scratchpad,
-                &gas_info,
+                &gas_info.gas_price,
                 &authenticated_tx.authenticated_tx,
-            ) {
-                Ok(working_set) => working_set,
-                Err(mut err) => {
-                    let reason = err.reason;
-                    self.runtime.sequencer_authorization().penalize_sequencer(
-                        &self.sequencer_address,
-                        reason.clone(),
-                        gas_info.remaining_funds,
-                        &mut err.scratchpad,
-                    );
+            );
 
-                    return (
-                        err.scratchpad.revert(),
-                        Err(AcceptTxError {
-                            // Not enough gas, so 403 seems appropriate.
-                            http_status: StatusCode::FORBIDDEN.as_u16(),
-                            title: "Not enough gas for pre-execution checks".to_string(),
-                            details: reason,
-                        }),
-                    );
-                }
+            if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
+                let (scratchpad, _) = working_set.revert();
+
+                return (
+                    scratchpad.revert(),
+                    Err(AcceptTxError {
+                        // Not enough gas, so 403 seems appropriate.
+                        http_status: StatusCode::FORBIDDEN.as_u16(),
+                        title: "Not enough gas for pre-execution checks".to_string(),
+                        details: err.to_string(),
+                    }),
+                );
             };
 
             {
