@@ -449,7 +449,7 @@ where
         let mut relevant_blobs = self.da_service.extract_relevant_blobs(&filtered_block);
         let batch_blobs = &mut relevant_blobs.batch_blobs;
         let proof_blobs = &relevant_blobs.proof_blobs;
-        info!(
+        debug!(
             batch_blobs_count = batch_blobs.len(),
             next_da_height,
             current_state_root = hex::encode(prev_state_root.as_ref()),
