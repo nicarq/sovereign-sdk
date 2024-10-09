@@ -10,15 +10,14 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthorizeSequencerError, HasCapabilities, KernelSlotHooks,
-    KernelWithSlotMapping, SequencerAuthorization, TransactionAuthenticator,
+    AuthenticationError, KernelSlotHooks, KernelWithSlotMapping, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    BasicGasMeter, Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
-    StateCheckpoint, VersionReader, WorkingSet,
+    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec, StateCheckpoint,
+    VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     authenticate_tx, process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
@@ -32,7 +31,7 @@ use tracing::error;
 use self::mempool::{Mempool, MempoolCursor};
 use super::RtAwareBatchBuilderSpec;
 use crate::batch_builders::{
-    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
+    tx_auth, AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
 use crate::db::SeqDbTx;
 use crate::{TxHash, TxStatus, TxStatusManager};
@@ -296,66 +295,29 @@ where
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
             let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
-            let mut tx_scratchpad = checkpoint.to_tx_scratchpad();
 
-            let gas_meter = match self.runtime.sequencer_authorization().authorize_sequencer(
+            let (tx_scratchpad, output_res) = tx_auth(
+                &self.runtime,
+                checkpoint.to_tx_scratchpad(),
+                gas_price,
                 &self.sequencer_address,
-                &gas_price,
-                &mut tx_scratchpad,
-            ) {
-                Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
-                Err(AuthorizeSequencerError { reason }) => {
-                    error!(%reason, "Sequencer authorization failed");
+                authenticated,
+            );
 
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(AcceptTxError {
-                            http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-                            title: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
-                            details: reason.to_string(),
-                        }),
-                    );
-                }
-            };
-
-            let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
-
-            let auth_res = match self.runtime.authenticate(&authenticated, &mut pre_exec_ws) {
+            let (auth_output, gas_meter) = match output_res {
                 Ok(ok) => ok,
-                Err(err) => {
-                    let details = err.to_string();
-                    let (mut tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
-                    self.runtime.sequencer_authorization().penalize_sequencer(
-                        &self.sequencer_address,
-                        err,
-                        gas_meter.gas_info().remaining_funds,
-                        &mut tx_scratchpad,
-                    );
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(AcceptTxError {
-                            // For certain kinds of authentication errors, 401
-                            // or 403 would be more appropriate. But we'd have
-                            // to inspect the error contents to determine the
-                            // most appropriate status code... so 400 will do.
-                            http_status: StatusCode::BAD_REQUEST.as_u16(),
-                            title: "The transaction is invalid".to_string(),
-                            details,
-                        }),
-                    );
+                Err(error) => {
+                    return (tx_scratchpad.revert(), Err(error));
                 }
             };
 
-            let tx_hash = auth_res.0.raw_tx_hash;
-            let authenticated_tx = auth_res.0;
-
-            let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
+            let tx_hash = auth_output.0.raw_tx_hash;
 
             let gas_info = gas_meter.gas_info();
             let mut working_set = WorkingSet::create_working_set(
                 tx_scratchpad,
                 &gas_info.gas_price,
-                &authenticated_tx.authenticated_tx,
+                &auth_output.0.authenticated_tx,
             );
 
             if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {

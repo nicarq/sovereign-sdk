@@ -50,7 +50,8 @@ impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
-    pub(crate) fn from_checkpoint<K: Kernel<S>>(
+    /// Instantiates a new [`KernelStateAccessor`].
+    pub fn from_checkpoint<K: Kernel<S>>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {

@@ -1,0 +1,263 @@
+use std::sync::Arc;
+
+use async_trait::async_trait;
+use axum::http::StatusCode;
+use serde_with::serde_as;
+use sov_blob_storage::PreferredBatchData;
+use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
+use sov_modules_api::capabilities::{KernelSlotHooks, TransactionAuthenticator};
+use sov_modules_api::rest::{ApiState, StorageReceiver};
+use sov_modules_api::{
+    Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, RawTx,
+    RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
+};
+use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, TransactionReceipt, TxEffect};
+use sov_rollup_interface::TxHash;
+use tokio::sync::watch;
+
+use super::{tx_auth, RtAwareBatchBuilderSpec};
+use crate::batch_builders::{
+    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
+};
+use crate::{SeqDbTx, TxStatusManager};
+
+#[serde_with::serde_as]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct Confirmation<Z: RtAwareBatchBuilderSpec> {
+    tx_hash: TxHash,
+    tx: Option<TxBody>,
+    events: Vec<RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
+    receipt: TxEffect<Z::Spec>,
+}
+
+impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confirmation<Z> {
+    type Error = anyhow::Error;
+
+    fn try_from(value: TransactionReceipt<Z::Spec>) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tx_hash: value.tx_hash,
+            tx: value.body_to_save.map(TxBody),
+            events: value
+                .events
+                .into_iter()
+                .enumerate()
+                .map(|(idx, event)| <RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((idx as u64, event)))
+                .collect::<anyhow::Result<Vec<_>>>()?,
+            receipt: value.receipt,
+        })
+    }
+}
+
+pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
+    runtime: Z::Rt,
+    kernel: Arc<SoftConfirmationsKernel<Z::Spec, Z::Da>>,
+    storage: StorageReceiver<Z::Spec>,
+    sequencer_address: <Z::Da as DaSpec>::Address,
+    checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
+    checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
+    api_state: ApiState<Z::Spec>,
+    last_da_height: u64,
+    txs_in_next_batch: Vec<TxWithHash>,
+}
+
+#[async_trait]
+impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
+    type Confirmation = Confirmation<Z>;
+    type Batch = PreferredBatchData;
+    type Config = ();
+    type Da = Z::Da;
+    type Spec = Z::Spec;
+
+    async fn create(
+        storage: StorageReceiver<Z::Spec>,
+        sequencer_address: <Self::Da as DaSpec>::Address,
+        _seq_db_txs: Vec<SeqDbTx>,
+        _config: &Self::Config,
+    ) -> anyhow::Result<Self> {
+        let kernel = Arc::new(SoftConfirmationsKernel::default());
+
+        let (checkpoint_sender, checkpoint_receiver) =
+            watch::channel(StateCheckpoint::new(storage.borrow().clone(), &*kernel));
+        let api_state = ApiState::build(Arc::new(()), checkpoint_receiver, kernel.clone(), None);
+
+        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &*kernel);
+
+        Ok(Self {
+            runtime: Default::default(),
+            storage,
+            kernel,
+            sequencer_address,
+            checkpoint: Some(initial_checkpoint),
+            checkpoint_sender,
+            api_state,
+            last_da_height: 0, // TODO
+            txs_in_next_batch: vec![],
+        })
+    }
+
+    fn is_ready(&self) -> bool {
+        // TODO(@neysofu): the preferred sequencer should only ever accept transactions
+        // if it's close enough to the chain head.
+        true
+    }
+
+    fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
+        self.storage.clone()
+    }
+
+    fn api_state(&self) -> ApiState<Self::Spec> {
+        self.api_state.clone()
+    }
+
+    fn tx_status_manager(&self) -> TxStatusManager<Self::Da> {
+        TxStatusManager::default()
+    }
+
+    async fn set_state(&mut self, _da_height: u64, _stf_state: <Z::Spec as Spec>::Storage) {
+        // FIXME: don't ignore rollup state. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1390>.
+
+        //let checkpoint = StateCheckpoint::new(stf_state, &*self.kernel);
+        //self.checkpoint_sender
+        //    .send(checkpoint.clone_with_empty_witness())
+        //    .ok();
+        //self.checkpoint = Some(checkpoint);
+    }
+
+    async fn accept_tx(
+        &mut self,
+        raw_tx_bytes: RawTx,
+    ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
+        let state_checkpoint = self
+            .checkpoint
+            .take()
+            .expect("Absent checkpoint; this is a bug, please report it");
+
+        // This closure helps us make sure that we always put the
+        // `StateCheckpoint` back into `self` at the end of the function.
+        let (new_checkpoint, response) = (|mut checkpoint| {
+            let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
+
+            let kernel_ws = KernelStateAccessor::from_checkpoint(&*self.kernel, &mut checkpoint);
+            let visible_height = kernel_ws.virtual_slot_number();
+            let tx_scratchpad = checkpoint.to_tx_scratchpad();
+
+            let auth_input = Z::Rt::add_standard_auth(raw_tx_bytes.clone());
+            let baked_tx = FullyBakedTx {
+                data: borsh::to_vec(&auth_input).expect(
+                    "Failed to borsh-serialize transaction; this is a bug, please report it",
+                ),
+            };
+
+            let (tx_scratchpad, output_res) = tx_auth(
+                &self.runtime,
+                tx_scratchpad,
+                gas_price,
+                &self.sequencer_address,
+                auth_input,
+            );
+
+            let (auth_output, gas_meter) = match output_res {
+                Ok(ok) => ok,
+                Err(error) => {
+                    return (tx_scratchpad.revert(), Err(error));
+                }
+            };
+
+            let gas_info = gas_meter.gas_info();
+
+            let (res, tx_scratchpad) = process_tx(
+                &self.runtime,
+                auth_output,
+                gas_info,
+                &self.sequencer_address,
+                visible_height,
+                tx_scratchpad,
+                ExecutionContext::Sequencer,
+            );
+
+            let ApplyTxResult { receipt, .. } = match res {
+                Ok(x) => x,
+                Err(reason) => {
+                    return (
+                        tx_scratchpad.revert(),
+                        Err(AcceptTxError {
+                            http_status: StatusCode::BAD_REQUEST.as_u16(),
+                            title: "The transaction is invalid".to_string(),
+                            details: format!("{:?}", reason),
+                        }),
+                    );
+                }
+            };
+
+            match receipt.receipt {
+                TxEffect::Successful(_) => {}
+                TxEffect::Skipped(_) | TxEffect::Reverted(_) => {
+                    return (
+                        tx_scratchpad.revert(),
+                        Err(AcceptTxError {
+                            http_status: StatusCode::BAD_REQUEST.as_u16(),
+                            title: "The transaction is invalid".to_string(),
+                            details: format!("{:?}", receipt.receipt),
+                        }),
+                    );
+                }
+            }
+
+            let tx_hash = receipt.tx_hash;
+            self.txs_in_next_batch.push(TxWithHash {
+                fully_baked_tx: baked_tx.clone(),
+                hash: tx_hash,
+            });
+
+            (
+                tx_scratchpad.commit(),
+                Ok(AcceptedTx {
+                    tx: baked_tx,
+                    tx_hash,
+                    confirmation: receipt,
+                }),
+            )
+        })(state_checkpoint);
+
+        self.checkpoint_sender
+            .send(new_checkpoint.clone_with_empty_witness())
+            .ok();
+        self.checkpoint = Some(new_checkpoint);
+
+        response.map(|response| {
+            response.map_confirmation(|confirmation| confirmation.try_into().unwrap())
+        })
+    }
+
+    async fn build_next_batch(&mut self, height: u64) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
+        let (txs, hashes) = self
+            .txs_in_next_batch
+            .iter()
+            .map(|tx| (tx.fully_baked_tx.clone(), tx.hash))
+            .unzip();
+
+        let batch = FreshlyBuiltBatch {
+            inner: PreferredBatchData {
+                data: Batch { txs },
+                virtual_slots_to_advance: height
+                    .saturating_sub(self.last_da_height)
+                    .min(1)
+                    .try_into()
+                    .unwrap_or(u8::MAX),
+                sequence_number: 0,
+            },
+            hashes,
+        };
+
+        self.last_da_height = height;
+        Ok(batch)
+    }
+
+    async fn clear_batch(&mut self) -> anyhow::Result<()> {
+        self.txs_in_next_batch.clear();
+        Ok(())
+    }
+}

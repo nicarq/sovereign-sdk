@@ -4,13 +4,22 @@
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use axum::http::StatusCode;
 use borsh::BorshSerialize;
+use sov_modules_api::capabilities::{
+    AuthenticationOutput, AuthorizeSequencerError, SequencerAuthorization, TransactionAuthenticator,
+};
 use sov_modules_api::rest::{ApiState, StorageReceiver};
-use sov_modules_api::{DaSpec, FullyBakedTx, RawTx, Spec};
+use sov_modules_api::{
+    BasicGasMeter, DaSpec, DispatchCall, FullyBakedTx, Gas, RawTx, Spec, TxScratchpad,
+};
 use sov_modules_stf_blueprint::Runtime;
+use tracing::error;
 
 use crate::{SeqDbTx, TxHash, TxStatusManager};
 
+// It's a private module because the preferred sequencer is not intended for use yet.
+mod preferred;
 pub mod standard;
 
 /// An aggregator of types for [`Runtime`]-aware
@@ -154,4 +163,77 @@ pub struct FreshlyBuiltBatch<B: BatchBuilder> {
     /// Metadata about the transactions contained in the batch. This data is
     /// *not* part of the batch itself nor will it be posted onto the DA layer.
     pub hashes: Vec<TxHash>,
+}
+
+type AuthRes<S, Rt> = (
+    TxScratchpad<<S as Spec>::Storage>,
+    Result<
+        (
+            AuthenticationOutput<
+                S,
+                <Rt as DispatchCall>::Decodable,
+                <Rt as TransactionAuthenticator<S>>::AuthorizationData,
+            >,
+            BasicGasMeter<<S as Spec>::Gas>,
+        ),
+        AcceptTxError,
+    >,
+);
+
+fn tx_auth<S, Da, Rt>(
+    runtime: &Rt,
+    mut tx_scratchpad: TxScratchpad<S::Storage>,
+    gas_price: <S::Gas as Gas>::Price,
+    sequencer_address: &Da::Address,
+    input: <Rt as TransactionAuthenticator<S>>::Input,
+) -> AuthRes<S, Rt>
+where
+    S: Spec,
+    Da: DaSpec,
+    Rt: Runtime<S, Da>,
+{
+    let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
+        sequencer_address,
+        &gas_price,
+        &mut tx_scratchpad,
+    ) {
+        Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
+        Err(AuthorizeSequencerError { reason }) => {
+            error!(%reason, "Sequencer authorization failed");
+            return (
+                        tx_scratchpad,
+                        Err(AcceptTxError {
+                            http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+                            title: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
+                            details: reason.to_string(),
+                        }),
+                    );
+        }
+    };
+
+    let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
+
+    let auth_res = match runtime.authenticate(&input, &mut pre_exec_ws) {
+        Ok(ok) => ok,
+        Err(err) => {
+            let details = err.to_string();
+            let tx_scratchpad = pre_exec_ws.to_scratchpad_and_gas_meter().0;
+            return (
+                tx_scratchpad,
+                Err(AcceptTxError {
+                    // For certain kinds of authentication errors, 401
+                    // or 403 would be more appropriate. But we'd have
+                    // to inspect the error contents to determine the
+                    // most appropriate status code... so 400 will do.
+                    http_status: StatusCode::BAD_REQUEST.as_u16(),
+                    title: "The transaction is invalid".to_string(),
+                    details,
+                }),
+            );
+        }
+    };
+
+    let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
+
+    (tx_scratchpad, Ok((auth_res, gas_meter)))
 }
