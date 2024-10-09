@@ -34,6 +34,8 @@ openapiv3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
+tracing = { workspace = true, optional = true }
+hex = { workspace = true, optional = true }
 
 [features]
 default = ["native"]
@@ -52,4 +54,6 @@ native = [
     "sov-state/native",
     "sov-stf-runner",
     "tokio",
+    "tracing",
+    "hex",
 ]

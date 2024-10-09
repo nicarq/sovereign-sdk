@@ -193,7 +193,7 @@ fn test_archival_proof_gen() {
     let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
     let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
     for iter in 0..10 {
-        let mut archival_accessor = api_state_accessor.get_archival_at(iter + 1); // Versions are 1-indexed
+        let mut archival_accessor = api_state_accessor.get_archival_at(iter);
         let proof = state_val.get_with_proof(&mut archival_accessor);
         let value = state_val
             .verify_proof::<S>(roots[iter as usize], proof)

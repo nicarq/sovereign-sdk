@@ -20,25 +20,14 @@ pub struct SimpleStorageManager<S: MerkleProofSpec> {
 impl<S: MerkleProofSpec> SimpleStorageManager<S> {
     /// Initialize new instance in given path.
     pub fn new(path: impl AsRef<std::path::Path>) -> Self {
-        let state_rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(path.as_ref())
-                .unwrap(),
-        );
+        let state_rocksdb = StateDb::get_rockbound_options()
+            .default_setup_db_in_path(path.as_ref())
+            .unwrap();
         let accessory_rocksdb = AccessoryDb::get_rockbound_options()
             .default_setup_db_in_path(path.as_ref())
             .unwrap();
-
-        let state_reader = DeltaReader::new(state_rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(state_reader).unwrap();
-        if let Some(jmt_init) = ProverStorage::<S>::should_init_db(&state_db) {
-            state_rocksdb
-                .write_schemas(&jmt_init.state_change_set)
-                .unwrap();
-        }
-
         Self {
-            state: state_rocksdb,
+            state: Arc::new(state_rocksdb),
             accessory: Arc::new(accessory_rocksdb),
             phantom_mp_spec: Default::default(),
         }

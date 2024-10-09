@@ -18,11 +18,13 @@ fn increase_value_and_commit(
     let mut state: StateCheckpoint<<S as Spec>::Storage> =
         StateCheckpoint::new(storage.clone(), kernel);
 
-    let value = state_value.get(&mut state).unwrap_infallible().unwrap_or(0);
+    // Setting value, starting from 0
+    let value = match state_value.get(&mut state).unwrap_infallible() {
+        None => 0,
+        Some(past) => past + 1,
+    };
 
-    state_value
-        .set(&(value + 1), &mut state)
-        .unwrap_infallible();
+    state_value.set(&value, &mut state).unwrap_infallible();
 
     commit_to_storage(state, storage, kernel, storage_manager)
 }
@@ -32,32 +34,33 @@ fn increase_value_and_commit(
 fn archival_state_updates_correctly() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
-    let mut storage = storage_manager.create_storage();
     let mut kernel = MockKernel::default();
-
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
-    for i in 1..100 {
+    for current_height in 0..100 {
+        let storage = storage_manager.create_storage();
         let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()), None);
 
-        for j in 1..(i - 1) {
-            let mut archival_api_accessor = api_accessor.get_archival_at(j);
+        for past_height in 0..current_height {
+            let mut archival_api_accessor = api_accessor.get_archival_at(past_height);
 
             let value = state_value.get(&mut archival_api_accessor)?;
 
-            assert_eq!(value, Some(j as u32));
+            assert_eq!(value, Some(past_height as u32));
         }
 
-        storage =
+        let storage =
             increase_value_and_commit(&state_value, storage, &mut kernel, &mut storage_manager);
+        let state_checkpoint = StateCheckpoint::new(storage, &kernel);
+        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()), None);
 
-        for j in 1..i {
-            let mut archival_api_accessor = api_accessor.get_archival_at(j);
+        for another_past_height in 0..=current_height {
+            let mut archival_api_accessor = api_accessor.get_archival_at(another_past_height);
 
             let value = state_value.get(&mut archival_api_accessor)?;
 
-            assert_eq!(value, Some(j as u32));
+            assert_eq!(value, Some(another_past_height as u32));
         }
     }
 

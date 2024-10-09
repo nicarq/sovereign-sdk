@@ -23,7 +23,7 @@ impl Client {
     pub async fn publish_batch_with_serialized_txs<Tx: BorshSerialize>(
         &self,
         txs: &[Tx],
-    ) -> Result<(), Error<types::PublishBatchResponse>> {
+    ) -> Result<types::SubmittedBatchInfo, Error<types::PublishBatchResponse>> {
         for tx in txs {
             let tx_bytes =
                 borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
@@ -34,12 +34,16 @@ impl Client {
                 .map_err(|err| Error::PreHookError(err.to_string()))?;
         }
 
-        self.publish_batch(&types::PublishBatchBody {
-            transactions: vec![],
-        })
-        .await?;
+        let publish_batch_response = self
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await?;
 
-        Ok(())
+        match publish_batch_response.data.clone() {
+            None => Err(Error::ErrorResponse(publish_batch_response)),
+            Some(submitted_batch_info) => Ok(submitted_batch_info),
+        }
     }
 
     pub async fn subscribe_to_tx_status_updates(

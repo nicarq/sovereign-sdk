@@ -142,7 +142,10 @@ where
             error!(error = ?e, "Unable to deserialize the attestation.");
             ProcessAttestationErrors::InvalidAttestationFormat
         })?;
-
+        if attestation.proof_of_bond.claimed_rollup_height == 0 {
+            tracing::debug!("Cannot claim attestation for genesis");
+            return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
+        }
         // We first need to check that the attester is still in the bonding set
         if self
             .bonded_attesters

@@ -20,13 +20,14 @@ use crate::test_helpers::start_rollup_in_background;
 pub(crate) async fn start_node(
     rollup_prover_config: RollupProverConfig,
     finalization_blocks: u32,
-) -> (JoinHandle<()>, SocketAddr, SocketAddr) {
+) -> (JoinHandle<()>, SocketAddr, SocketAddr, tempfile::TempDir) {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
-    let (rollup_task, _da_service) =
+    let (rollup_task, _da_service, storage_dir) =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup_in_background(
+
             rpc_port_tx,
             rest_port_tx,
             GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
@@ -50,7 +51,7 @@ pub(crate) async fn start_node(
     let rpc_port = rpc_port_rx.await.unwrap();
     let rest_port = rest_port_rx.await.unwrap();
 
-    (rollup_task, rpc_port, rest_port)
+    (rollup_task, rpc_port, rest_port, storage_dir)
 }
 
 /// Creates a test client to communicate with the rollup node.

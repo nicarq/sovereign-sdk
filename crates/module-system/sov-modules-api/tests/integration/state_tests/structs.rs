@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use capabilities::mocks::MockKernel;
 use sov_modules_api::*;
-use sov_state::{ArrayWitness, Prefix, ProverStorage, Storage, ZkStorage};
+use sov_state::{ArrayWitness, Prefix, ProverStorage, StateAccesses, Storage, ZkStorage};
 use sov_test_utils::storage::new_finalized_storage;
 use unwrap_infallible::UnwrapInfallible;
 
@@ -217,11 +217,30 @@ fn test_witness_round_trip() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
     let state_value = StateValue::new(Prefix::new(vec![0]));
 
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tempdir.path());
+
     // Native execution
     let witness: ArrayWitness = {
-        let storage = new_finalized_storage::<StorageSpec>(tempdir.path());
+        // Simulate genesis.
+        // First native call to `validate_and_materialize` is during genesis,
+        // when witness is not populated.
+        let storage = storage_manager.create_storage();
+        let (_, genesis_change_set) = storage
+            .validate_and_materialize(
+                StateAccesses {
+                    user: Default::default(),
+                    kernel: Default::default(),
+                },
+                &ArrayWitness::default(),
+            )
+            .expect("Native jmt validation should succeed");
+        storage_manager.commit(genesis_change_set);
+        // Actual
+        let mut mock_kernel = MockKernel::<S>::default();
+        mock_kernel.increase_heights();
+        let storage = storage_manager.create_storage();
         let mut state: StateCheckpoint<<S as Spec>::Storage> =
-            StateCheckpoint::new(storage.clone(), &MockKernel::<S>::default());
+            StateCheckpoint::new(storage.clone(), &mock_kernel);
         state_value.set(&11, &mut state)?;
         let _ = state_value.get(&mut state);
         state_value.set(&22, &mut state)?;

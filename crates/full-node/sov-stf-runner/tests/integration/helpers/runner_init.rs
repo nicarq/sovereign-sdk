@@ -202,7 +202,7 @@ pub async fn initialize_runner(
     let verifier = MockDaVerifier::default();
 
     let (prev_state_root, genesis_state_root) = init_variant
-        .calculate_initial_state_roots(&mut ledger_db, &stf, &mut storage_manager)
+        .initialize(&mut ledger_db, &stf, &mut storage_manager)
         .await
         .unwrap();
 

@@ -9639,6 +9639,7 @@ dependencies = [
  "async-trait",
  "borsh",
  "derivative",
+ "hex",
  "openapiv3",
  "serde",
  "serde_json",
@@ -9653,6 +9654,7 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

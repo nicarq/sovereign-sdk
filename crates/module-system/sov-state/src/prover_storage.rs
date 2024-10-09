@@ -4,10 +4,7 @@ use jmt::storage::NodeBatch;
 use jmt::{JellyfishMerkleTree, KeyHash, Version};
 use sov_db::accessory_db::AccessoryDb;
 use sov_db::namespaces;
-use sov_db::namespaces::{
-    KernelNamespace as DBKernelNamespace, KernelNamespace, UserNamespace as DBUserNamespace,
-    UserNamespace,
-};
+use sov_db::namespaces::{KernelNamespace as DBKernelNamespace, UserNamespace as DBUserNamespace};
 use sov_db::state_db::{JmtHandler, StateDb};
 use sov_db::storage_manager::{InitializableNativeStorage, NativeChangeSet, StfStorageHandlers};
 
@@ -47,10 +44,6 @@ impl<S: MerkleProofSpec> InitializableNativeStorage for ProverStorage<S> {
             _phantom_hasher: Default::default(),
         }
     }
-
-    fn init_db(db: &StateDb) -> NativeChangeSet {
-        ProverStorage::<S>::should_init_db(db).unwrap_or_default()
-    }
 }
 
 impl<S: MerkleProofSpec> ProverStorage<S> {
@@ -63,55 +56,12 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
-    /// Indicates if caller should initialize underlying database with some data.
-    pub fn should_init_db(db: &StateDb) -> Option<NativeChangeSet> {
-        let kernel_init = Self::get_init::<KernelNamespace>(db);
-        let user_init = Self::get_init::<UserNamespace>(db);
-
-        match (kernel_init, user_init) {
-            (Some(kernel_init), Some(user_init)) => {
-                let state_change_set = db
-                    .materialize_node_batches(&kernel_init, &user_init, None)
-                    .expect("Collecting initialization batches must succeed");
-
-                Some(NativeChangeSet {
-                    state_change_set,
-                    accessory_change_set: Default::default(),
-                })
-            }
-            (None, None) => None,
-            _ => panic!("Discrepancy between kernel and user JMTs, probably a bug"),
-        }
-    }
-
-    fn get_init<N: namespaces::Namespace>(db: &StateDb) -> Option<NodeBatch> {
-        let jmt_handler: JmtHandler<N> = db.get_jmt_handler();
-        let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
-        let latest_version = db.get_next_version() - 1;
-
-        // Handle empty jmt
-        if jmt.get_root_hash_option(latest_version).unwrap().is_none() {
-            assert_eq!(latest_version, 0);
-            let empty_batch = Vec::default().into_iter();
-            let (_, tree_update) = jmt
-                .put_value_set(empty_batch, latest_version)
-                .expect("JMT update must succeed");
-            return Some(tree_update.node_batch);
-        }
-        None
-    }
-
     fn read_value_namespace<N: namespaces::Namespace>(
         &self,
         key: &SlotKey,
-        version: Option<Version>,
+        version: Version,
     ) -> Option<SlotValue> {
-        let version_to_use = version.unwrap_or_else(|| self.db.get_next_version());
-
-        match self
-            .db
-            .get_value_option_by_key::<N>(version_to_use, key.as_ref())
-        {
+        match self.db.get_value_option_by_key::<N>(version, key.as_ref()) {
             Ok(value) => value.map(Into::into),
             // It is ok to panic here, we assume the db is available and consistent.
             Err(e) => panic!("Unable to read value from db: {e}"),
@@ -123,12 +73,24 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         key: &SlotKey,
         version: Option<Version>,
     ) -> Option<SlotValue> {
+        if self.is_empty() {
+            return None;
+        }
+        let version_to_use = version.unwrap_or_else(|| {
+            self.db
+                .get_next_version()
+                .checked_sub(1)
+                .expect("If storage is not `is_empty` it should have next version to be above 0")
+        });
+
         match N::NAMESPACE {
-            Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version),
-            Namespace::Kernel => self.read_value_namespace::<DBKernelNamespace>(key, version),
+            Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version_to_use),
+            Namespace::Kernel => {
+                self.read_value_namespace::<DBKernelNamespace>(key, version_to_use)
+            }
             Namespace::Accessory => self
                 .accessory_db
-                .get_value_option(key.as_ref(), version.unwrap_or(u64::MAX))
+                .get_value_option(key.as_ref(), version_to_use)
                 .expect("Unable to read from AccessoryDb")
                 .map(Into::into),
         }
@@ -166,23 +128,28 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     ) -> anyhow::Result<(jmt::RootHash, ProverStateUpdate)> {
         let jmt_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let jmt = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&jmt_handler);
-        let latest_version = self.db.get_next_version() - 1;
 
-        let prev_root = jmt
-            .get_root_hash(latest_version)
-            .expect("Previous root hash was not populated");
-        witness.add_hint(prev_root.0);
-
-        // For each value that's been read from the tree, read it from the logged JMT to populate hints
-        for (key, read_value) in &state_accesses.ordered_reads {
-            let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
-            // TODO: Switch to the batch read API once it becomes available
-            let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
-            if result != read_value.as_ref().map(|f| f.value().to_vec()) {
-                anyhow::bail!("Bug! Incorrect value read from jmt");
+        match self.db.get_next_version().checked_sub(1) {
+            // If next_version is zero it means genesis
+            None => (),
+            // Previous root and reads are not witnessed during genesis.
+            Some(latest_version) => {
+                let root_hash = jmt
+                    .get_root_hash(latest_version)
+                    .expect("Previous root hash was not populated");
+                witness.add_hint(root_hash.0);
+                // For each value that's been read from the tree, read it from the logged JMT to populate hints
+                for (key, read_value) in &state_accesses.ordered_reads {
+                    let key_hash = KeyHash::with::<S::Hasher>(key.key().as_ref());
+                    // TODO: Switch to the batch read API once it becomes available
+                    let (result, proof) = jmt.get_with_proof(key_hash, latest_version)?;
+                    if result != read_value.as_ref().map(|f| f.value().to_vec()) {
+                        anyhow::bail!("Bug! Incorrect value read from jmt");
+                    }
+                    witness.add_hint(proof);
+                }
             }
-            witness.add_hint(proof);
-        }
+        };
 
         let mut key_preimages = Vec::with_capacity(state_accesses.ordered_writes.len());
 
@@ -217,13 +184,13 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         &self,
         accessory_writes: &OrderedReadsAndWrites,
     ) -> sov_db::schema::SchemaBatch {
-        let latest_version = self.db.get_next_version() - 1;
+        let next_version = self.db.get_next_version();
         AccessoryDb::materialize_values(
             accessory_writes
                 .ordered_writes
                 .iter()
                 .map(|(k, v_opt)| (k.key().to_vec(), v_opt.as_ref().map(|v| v.value().to_vec()))),
-            latest_version,
+            next_version,
         )
         .expect("accessory db write must succeed")
     }
@@ -234,14 +201,18 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         key: SlotKey,
         version: Option<u64>,
     ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
+        let version_to_use = version.unwrap_or_else(|| {
+            self.db
+                .get_next_version()
+                .checked_sub(1)
+                .expect("If storage is not `is_empty` it should have next version to be above 0")
+        });
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
+        // We should've checked all input before this point, so any error means a bug.
         let (val_opt, proof) = merkle
-            .get_with_proof(
-                KeyHash::with::<S::Hasher>(key.as_ref()),
-                version.unwrap_or_else(|| self.db.get_next_version() - 1),
-            )
-            .unwrap();
+            .get_with_proof(KeyHash::with::<S::Hasher>(key.as_ref()), version_to_use)
+            .expect("Corrupted JMT state");
         StorageProof {
             key,
             value: val_opt.map(SlotValue::from),
@@ -253,7 +224,7 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
     /// Utility method for checking if storage is empty.
     /// Does not guarantee 100% that it actually is.
     pub fn is_empty(&self) -> bool {
-        self.db.get_next_version() <= 1
+        self.db.get_next_version() == 0
     }
 }
 
@@ -390,19 +361,25 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         &self,
         key: SlotKey,
         version: Option<u64>,
-    ) -> StorageProof<Self::Proof> {
+    ) -> anyhow::Result<StorageProof<Self::Proof>> {
+        if self.is_empty() {
+            anyhow::bail!("Empty storage, no proofs available yet");
+        }
         let namespace = N::PROVABLE_NAMESPACE;
-        match namespace {
+        Ok(match namespace {
             ProvableNamespace::User => {
                 self.get_with_proof_namespace::<DBUserNamespace>(namespace, key, version)
             }
             ProvableNamespace::Kernel => {
                 self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key, version)
             }
-        }
+        })
     }
 
     fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root> {
+        if self.is_empty() {
+            anyhow::bail!("Empty storage does not have root hash");
+        }
         let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version)?;
         let kernel_root = self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)?;
 

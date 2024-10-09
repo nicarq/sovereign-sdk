@@ -110,6 +110,10 @@ async fn send_test_bank_txs(
     tx_sender: impl TxSender,
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
+    let genesis_gas_balance = client
+        .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(0))
+        .await?;
+
     let token_id_response = client
         .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
@@ -130,13 +134,21 @@ async fn send_test_bank_txs(
     let slot_number = tx_sender.send_txs(client, &[tx]).await?;
     assert_eq!(1, slot_number);
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
-
+    let gas_balance_height_1 = client
+        .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(1))
+        .await?;
+    // Spent some gas!
+    assert!(gas_balance_height_1 < genesis_gas_balance);
     assert_balance(client, 1000, token_id, user_address, None).await?;
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
     let slot_number = tx_sender.send_txs(client, &[tx]).await?;
     assert_eq!(2, slot_number);
+    let gas_balance_height_2 = client
+        .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(2))
+        .await?;
+    assert!(gas_balance_height_2 < gas_balance_height_1);
     assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
 
     if test_case.wait_for_aggregated_proof {
@@ -152,14 +164,14 @@ async fn send_test_bank_txs(
 
     assert_balance(client, 700, token_id, user_address, None).await?;
 
+    // assert sender balance at height 1.
+    assert_balance(client, 1000, token_id, user_address, Some(1)).await?;
+
     // assert sender balance at height 2.
-    assert_balance(client, 1000, token_id, user_address, Some(2)).await?;
+    assert_balance(client, 900, token_id, user_address, Some(2)).await?;
 
     // assert sender balance at height 3.
-    assert_balance(client, 900, token_id, user_address, Some(3)).await?;
-
-    // assert sender balance at height 4.
-    assert_balance(client, 700, token_id, user_address, Some(4)).await?;
+    assert_balance(client, 700, token_id, user_address, Some(3)).await?;
 
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
@@ -212,7 +224,9 @@ async fn send_test_bank_txs(
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
         let pub_data = aggregated_proof_resp.public_data;
-        assert_aggregated_proof_public_data(1, 1, &pub_data);
+        // Because da blocks produced only on submit to DA layer, we can guarantee those slot numbers:
+        assert_eq!(1, pub_data.initial_slot_number);
+        assert_eq!(1, pub_data.final_slot_number);
         assert_aggregated_proof(1, 1, client).await?;
     }
 

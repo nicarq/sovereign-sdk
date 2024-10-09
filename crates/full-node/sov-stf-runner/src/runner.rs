@@ -155,6 +155,56 @@ impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
     }
 }
 
+/// Initializes rollup genesis.
+/// Gets proper DA block and finalizes storage.
+/// Returns root hashes.
+async fn initialize_state<Stf, InnerVm, OuterVm, Da, Sm>(
+    stf: &Stf,
+    storage_manager: &mut Sm,
+    ledger_db: &LedgerDb,
+    genesis_block: Da::FilteredBlock,
+    genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
+) -> anyhow::Result<(Stf::StateRoot, RawGenesisStateRoot)>
+where
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Da: DaService,
+    Sm: HierarchicalStorageManager<
+        Da::Spec,
+        LedgerChangeSet = SchemaBatch,
+        LedgerState = DeltaReader,
+        StfState = Stf::PreState,
+        StfChangeSet = Stf::ChangeSet,
+    >,
+{
+    let block_header = genesis_block.header().clone();
+    info!(
+        header = %block_header.display(),
+        "No history detected. Initializing chain on the block header..."
+    );
+    // Ledger state is not used, as we know it should be empty
+    let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_header)?;
+
+    let (genesis_state_root, initialized_storage) = stf.init_chain(stf_state, genesis_params);
+    let data_to_commit: SlotCommit<
+        _,
+        Stf::BatchReceiptContents,
+        Stf::TxReceiptContents,
+        Stf::GasPrice,
+    > = SlotCommit::new(genesis_block);
+    let mut ledger_change_set =
+        ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
+
+    let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
+
+    ledger_change_set.merge(finalized_slot_changes);
+    storage_manager.save_change_set(&block_header, initialized_storage, ledger_change_set)?;
+    storage_manager.finalize(&block_header)?;
+    let raw_genesis_state_root = RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
+    Ok((genesis_state_root, raw_genesis_state_root))
+}
+
 impl<
         Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
         InnerVm: Zkvm,
@@ -162,8 +212,8 @@ impl<
         Da: DaService,
     > InitVariant<Stf, InnerVm, OuterVm, Da>
 {
-    /// Initializes the rollup and calculates initial state roots for the rollup.
-    pub async fn calculate_initial_state_roots<Sm>(
+    /// Initializes the rollup state and calculates initial state roots for the rollup.
+    pub async fn initialize<Sm>(
         self,
         ledger_db: &mut LedgerDb,
         stf: &Stf,
@@ -180,6 +230,7 @@ impl<
     {
         let (prev_state_root, raw_genesis_state_root) = match self {
             InitVariant::Initialized(prev_state_root) => {
+                //
                 debug!("Chain is already initialized; skipping initialization");
                 // Since we're just getting the state root, we don't care about fetching the events.
                 // QueryModeCompact prevents us from actually fetching them, but we still need to provide a value for
@@ -192,44 +243,20 @@ impl<
                     .await?
                     .expect("Rollup was already initialized. Slot 0 should exist")
                     .state_root;
-
                 (prev_state_root, RawGenesisStateRoot(raw_genesis_state_root))
             }
             InitVariant::Genesis {
                 block,
                 genesis_params: params,
             } => {
-                let block_header = block.header().clone();
-                info!(
-                    header = %block_header.display(),
-                    "No history detected. Initializing chain on the block header..."
-                );
-                let (stf_state, ledger_state) = storage_manager.create_state_for(&block_header)?;
-                ledger_db.replace_reader(ledger_state);
-                let (genesis_state_root, initialized_storage) = stf.init_chain(stf_state, params);
-                let data_to_commit: SlotCommit<
-                    _,
-                    Stf::BatchReceiptContents,
-                    Stf::TxReceiptContents,
-                    Stf::GasPrice,
-                > = SlotCommit::new(block);
-                let mut ledger_change_set =
-                    ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
-
-                let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
-                ledger_change_set.merge(finalized_slot_changes);
-                storage_manager.save_change_set(
-                    &block_header,
-                    initialized_storage,
-                    ledger_change_set,
-                )?;
-
-                storage_manager.finalize(&block_header)?;
-                ledger_db.send_notifications();
-
-                let raw_genesis_state_root =
-                    RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
-                (genesis_state_root, raw_genesis_state_root)
+                initialize_state::<Stf, InnerVm, OuterVm, Da, Sm>(
+                    stf,
+                    storage_manager,
+                    ledger_db,
+                    block,
+                    params,
+                )
+                .await?
             }
         };
 

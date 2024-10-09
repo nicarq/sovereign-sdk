@@ -30,10 +30,6 @@ pub struct StfStorageHandlers {
 pub trait InitializableNativeStorage: Sized + Send + Sync {
     #[allow(missing_docs)]
     fn new(db: StateDb, accessory_db: AccessoryDb) -> Self;
-    /// What changes needs to be written to newly created `StateDb` to be operated successfully.
-    fn init_db(_db: &StateDb) -> NativeChangeSet {
-        NativeChangeSet::default()
-    }
 }
 
 /// Change produced in native execution.
@@ -63,16 +59,7 @@ pub struct NativeStorageManager<Da: DaSpec, S: InitializableNativeStorage> {
 impl<Da: DaSpec, S: InitializableNativeStorage> NativeStorageManager<Da, S> {
     /// Create new [`NativeStorageManager`] in a given path.
     pub fn new(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let mut db_group = DbGroup::new_write(path.as_ref().to_path_buf())?;
-
-        let init_changes = S::init_db(&db_group.get_finalized_state_db()?);
-        let snapshot_group = SnapshotGroup::new(
-            init_changes.state_change_set,
-            init_changes.accessory_change_set,
-            SchemaBatch::new(),
-        );
-        db_group.commit(snapshot_group)?;
-
+        let db_group = DbGroup::new_write(path.as_ref().to_path_buf())?;
         Ok(Self {
             chain_forks: Default::default(),
             blocks_to_parent: Default::default(),

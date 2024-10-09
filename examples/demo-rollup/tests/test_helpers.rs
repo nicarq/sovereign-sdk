@@ -47,19 +47,17 @@ pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
 }
 
 pub async fn construct_rollup(
+    storage_path: impl AsRef<Path>,
     rt_genesis_paths: GenesisPaths,
     kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
 ) -> Rollup<MockDemoRollup<Native>, Native> {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let temp_path = temp_dir.path();
-
     let sequencer_address = da_config.sender_address;
 
     let rollup_config = RollupConfig {
         storage: StorageConfig {
-            path: temp_path.to_path_buf(),
+            path: storage_path.as_ref().to_path_buf(),
         },
         runner: RunnerConfig {
             genesis_height: 0,
@@ -112,8 +110,11 @@ pub async fn start_rollup_in_background(
 ) -> (
     JoinHandle<()>,
     Arc<<MockDemoRollup<Native> as FullNodeBlueprint<Native>>::DaService>,
+    tempfile::TempDir,
 ) {
+    let temp_dir = tempfile::tempdir().unwrap();
     let rollup: Rollup<MockDemoRollup<Native>, Native> = construct_rollup(
+        temp_dir.path(),
         rt_genesis_paths,
         kernel_genesis_paths,
         rollup_prover_config,
@@ -130,6 +131,7 @@ pub async fn start_rollup_in_background(
                 .unwrap();
         }),
         da_service,
+        temp_dir,
     )
 }
 
@@ -146,6 +148,9 @@ pub struct TestRollup {
     pub rollup_task: JoinHandle<()>,
     pub client: NodeClient,
     pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+    // We just hold it together with test rollup, so it is not removed earlier than rollup stopped.
+    #[allow(dead_code)]
+    storage_dir: tempfile::TempDir,
 }
 
 impl TestRollup {
@@ -162,7 +167,7 @@ impl TestRollup {
         // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
         // Otherwise batches are going to be rejected
         let sequencer_address = MockAddress::new([0; 32]);
-        let block_time_ms = 10_000;
+        let block_time_ms = 100;
         let storable_mock_da_connection_string = "sqlite::memory:".to_string();
 
         let mock_da_config = MockDaConfig {
@@ -173,7 +178,7 @@ impl TestRollup {
             block_time_ms,
         };
 
-        let (rollup_task, da_service) = start_rollup_in_background(
+        let (rollup_task, da_service, storage_dir) = start_rollup_in_background(
             rpc_port_tx,
             rest_port_tx,
             rt_genesis_paths,
@@ -190,6 +195,7 @@ impl TestRollup {
             rollup_task,
             client,
             da_service,
+            storage_dir,
         })
     }
 }

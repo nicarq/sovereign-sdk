@@ -500,17 +500,19 @@ mod tests {
 
         let mut state_roots = Vec::with_capacity(last_block as usize);
 
-        for height in 1..=last_block {
+        for rollup_height in 0..=last_block {
+            // Not used anywhere, `process_normal_transition` relies on da header to produce changes.
+            let blob_data = [rollup_height as u8; 10];
             da_service
-                .send_transaction(&[height as u8; 10], MockFee::zero())
+                .send_transaction(&blob_data, MockFee::zero())
                 .await?;
-            let filtered_block = da_service.get_block_at(height).await?;
-            if height < last_block {
+            let filtered_block = da_service.get_block_at(rollup_height).await?;
+            if rollup_height < last_block {
                 process_normal_transition(&mut state_manager, filtered_block, 0, &da_service)
                     .await?;
                 let current_state_root = state_manager.get_state_root().clone();
                 let received_storage = storage_receiver.borrow().clone();
-                let received_storage_root = received_storage.get_root_hash(height)?;
+                let received_storage_root = received_storage.get_root_hash(rollup_height)?;
                 assert_eq!(
                     current_state_root,
                     received_storage_root.root_hash().0.to_vec()
@@ -522,9 +524,10 @@ mod tests {
                     .await?;
 
                 assert_ne!(filtered_block, returned_block);
+                // Because we get filtered block via submission, first height we get is 1, thus rollup height > da_height by 1.
                 assert_eq!(fork_point + 1, returned_block.header().height());
 
-                let expected_state_root = &state_roots[fork_point as usize - 1];
+                let expected_state_root = &state_roots[fork_point as usize];
                 assert_eq!(expected_state_root, state_manager.get_state_root());
 
                 let returned_storage_root = prover_storage.get_root_hash(fork_point)?;

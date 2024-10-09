@@ -368,16 +368,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              errors:
-                type: array
-                items:
-                  $ref: "#/components/schemas/LedgerError"
-            required:
-              - errors
-            items:
-              $ref: "#/components/schemas/LedgerError"
+            $ref: "#/components/schemas/LedgerErrorsContainer"
   schemas:
     AnyJsonValue:
       oneOf:
@@ -647,3 +638,12 @@ components:
       required:
         - status
         - title
+    LedgerErrorsContainer:
+      type: object
+      properties:
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerError"
+      required:
+        - errors
