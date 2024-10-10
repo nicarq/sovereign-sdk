@@ -71,4 +71,23 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
+
+    /// The sequencer refunds the prover for the authentication of the transactions.
+    /// The caller should ensure that the prover is sufficiently staked; otherwise, the call will panic.
+    fn transfer_authentication_cost_from_sequencer_to_prover(
+        &self,
+        amount: u64,
+        sequencer: &Da::Address,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+    );
+
+    /// The user refunds the sequencer for the authentication of its transaction.
+    /// The caller should ensure that the user's balance will cover the cost; otherwise, the call will panic.
+    fn transfer_authentication_cost_from_user_to_sequencer(
+        &self,
+        amount: u64,
+        user: &S::Address,
+        sequencer: &Da::Address,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+    );
 }

@@ -104,7 +104,6 @@ impl<S: Spec> Bank<S> {
         &self,
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,
-
         base_fee: &ProverRewards,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
