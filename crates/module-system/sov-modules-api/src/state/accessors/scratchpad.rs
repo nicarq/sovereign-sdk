@@ -17,9 +17,7 @@ use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption,
 };
-#[cfg(feature = "test-utils")]
-use crate::GasArray;
-use crate::{BasicGasMeter, Gas, GasInfo, GasMeter, GasMeteringError};
+use crate::{BasicGasMeter, Gas, GasArray, GasInfo, GasMeter, GasMeteringError};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -84,7 +82,9 @@ impl<S: Storage> TxScratchpad<S> {
         self,
         gas_meter: BasicGasMeter<<Sp as Spec>::Gas>,
     ) -> PreExecWorkingSet<Sp> {
+        let gas_info = gas_meter.gas_info();
         PreExecWorkingSet {
+            starting_gas: gas_info.gas_used.clone(),
             inner: self,
             gas_meter,
         }
@@ -95,12 +95,28 @@ impl<S: Storage> TxScratchpad<S> {
 pub struct PreExecWorkingSet<S: Spec> {
     inner: TxScratchpad<S::Storage>,
     gas_meter: BasicGasMeter<S::Gas>,
+    starting_gas: S::Gas,
 }
 
 impl<S: Spec> PreExecWorkingSet<S> {
     /// Returns the associated gas meter and the scratchpad.
     pub fn to_scratchpad_and_gas_meter(self) -> (TxScratchpad<S::Storage>, BasicGasMeter<S::Gas>) {
         (self.inner, self.gas_meter)
+    }
+
+    /// Starts recording the gas usage.
+    pub fn start_recording_gas_usage(&mut self) {
+        let gas_info = self.gas_meter.gas_info();
+        self.starting_gas = gas_info.gas_used;
+    }
+
+    /// Gets the gas usage.
+    pub fn get_recorded_gas_usage(&self) -> S::Gas {
+        let gas_info = self.gas_meter.gas_info();
+        let end_gas = &gas_info.gas_used;
+        end_gas.checked_sub(&self.starting_gas).expect(
+            "Gas used should be greater than starting gas, PreExecWorkingSet never refunds gas.",
+        )
     }
 }
 
@@ -351,5 +367,53 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for WorkingSet<S> {
 impl<S: Spec> EventContainer for WorkingSet<S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
         self.events.push(TypedEvent::new(event_key, event));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_test_utils::storage::new_finalized_storage;
+    use sov_test_utils::MockZkVerifier;
+
+    use super::*;
+    use crate::execution_mode::Native;
+    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+
+    use crate::capabilities::mocks::MockKernel;
+    use crate::{PreExecWorkingSet, Spec};
+
+    #[test]
+    fn test_gas_recording() {
+        let tmpdir = tempfile::tempdir().unwrap();
+        let storage = new_finalized_storage(tmpdir.path());
+        let kernel = MockKernel::<TestSpec>::default();
+        let state: StateCheckpoint<<TestSpec as Spec>::Storage> =
+            StateCheckpoint::new(storage, &kernel);
+
+        let state = state.to_tx_scratchpad();
+
+        let gas_price = <<TestSpec as Spec>::Gas as Gas>::Price::from([4; 2]);
+        let starting_funds = 10000;
+        let mut pre_exec_ws = PreExecWorkingSet::<TestSpec> {
+            inner: state,
+            starting_gas: <TestSpec as Spec>::Gas::ZEROED,
+            gas_meter: BasicGasMeter::new(starting_funds, gas_price.clone()),
+        };
+
+        let mut total_cost = 0;
+        for _ in 0..10 {
+            pre_exec_ws.start_recording_gas_usage();
+            charge_gas(&mut pre_exec_ws);
+            let gas_used = pre_exec_ws.get_recorded_gas_usage();
+            total_cost += gas_used.value(&gas_price);
+        }
+
+        let gas_info = pre_exec_ws.gas_meter.gas_info();
+        assert_eq!(gas_info.remaining_funds, starting_funds - total_cost);
+    }
+
+    fn charge_gas(pre_exec_ws: &mut PreExecWorkingSet<TestSpec>) {
+        let gas = <TestSpec as Spec>::Gas::from([5; 2]);
+        pre_exec_ws.charge_gas(&gas).unwrap();
     }
 }
