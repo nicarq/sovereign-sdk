@@ -1,3 +1,4 @@
+use sov_bank::utils::TokenHolderRef;
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{
     AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
@@ -21,6 +22,29 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
     pub nonces: &'a sov_nonces::Nonces<S>,
     pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S, Da>,
     pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S, Da>,
+}
+
+impl<'a, S: Spec, Da: DaSpec> StandardProvenRollupCapabilities<'a, S, Da> {
+    fn get_prover_token_holder(
+        &self,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+    ) -> TokenHolderRef<'a, S> {
+        let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
+        let reward_attester_incentives = self.attester_incentives.should_reward_fees(tx_scratchpad);
+
+        assert!(
+            reward_prover_incentives ^ reward_attester_incentives,
+            "Exactly one of prover or attester incentives should be rewarded"
+        );
+
+        let rewarded_module = if reward_prover_incentives {
+            self.prover_incentives.id().to_payable()
+        } else {
+            self.attester_incentives.id().to_payable()
+        };
+
+        rewarded_module
+    }
 }
 
 impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
@@ -54,19 +78,7 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         prover_rewards: &ProverRewards,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
-        let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
-        let reward_attester_incentives = self.attester_incentives.should_reward_fees(tx_scratchpad);
-
-        assert!(
-            reward_prover_incentives ^ reward_attester_incentives,
-            "Exactly one of prover or attester incentives should be rewarded"
-        );
-
-        let rewarded_module = if reward_prover_incentives {
-            self.prover_incentives.id().to_payable()
-        } else {
-            self.attester_incentives.id().to_payable()
-        };
+        let rewarded_module = self.get_prover_token_holder(tx_scratchpad);
 
         self.bank
             .reward_prover(&rewarded_module, prover_rewards, tx_scratchpad);
@@ -80,6 +92,30 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
     ) {
         self.bank
             .refund_remaining_gas(sender, remaining_funds, tx_scratchpad);
+    }
+
+    fn transfer_authentication_cost_from_sequencer_to_prover(
+        &self,
+        amount: u64,
+        sequencer: &Da::Address,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+    ) {
+        let rewarded_prover_module = self.get_prover_token_holder(tx_scratchpad);
+        self.sequencer_registry
+            .remove_part_of_the_stake(sequencer, rewarded_prover_module, amount, tx_scratchpad)
+            .unwrap_or_else(|e| panic!("Unable to remove the sequencer's stake: {}", e));
+    }
+
+    fn transfer_authentication_cost_from_user_to_sequencer(
+        &self,
+        amount: u64,
+        user: &S::Address,
+        sequencer: &Da::Address,
+        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+    ) {
+        self.sequencer_registry
+            .add_to_stake(user, sequencer, amount, tx_scratchpad)
+            .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
     }
 }
 
