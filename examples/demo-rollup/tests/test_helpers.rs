@@ -8,11 +8,10 @@ use sha2::Sha256;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
-use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{Address, Spec};
+use sov_modules_api::{Address, OperatingMode, Spec};
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
@@ -49,7 +48,6 @@ pub fn read_private_keys<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
 pub async fn construct_rollup(
     storage_path: impl AsRef<Path>,
     rt_genesis_paths: GenesisPaths,
-    kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
 ) -> Rollup<MockDemoRollup<Native>, Native> {
@@ -86,16 +84,8 @@ pub async fn construct_rollup(
 
     let mock_demo_rollup = MockDemoRollup::<Native>::default();
 
-    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)
-        .expect("Failed to parse chain_state genesis config");
-
     mock_demo_rollup
-        .create_new_rollup(
-            &rt_genesis_paths,
-            kernel_genesis,
-            rollup_config,
-            Some(rollup_prover_config),
-        )
+        .create_new_rollup(&rt_genesis_paths, rollup_config, Some(rollup_prover_config))
         .await
         .unwrap()
 }
@@ -104,7 +94,6 @@ pub async fn start_rollup_in_background(
     rpc_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
     rest_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
-    kernel_genesis_paths: BasicKernelGenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
 ) -> (
@@ -116,13 +105,13 @@ pub async fn start_rollup_in_background(
     let rollup: Rollup<MockDemoRollup<Native>, Native> = construct_rollup(
         temp_dir.path(),
         rt_genesis_paths,
-        kernel_genesis_paths,
         rollup_prover_config,
         da_config,
     )
     .await;
 
     let da_service = rollup.runner.da_service();
+
     (
         tokio::spawn(async move {
             rollup
@@ -144,6 +133,26 @@ pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {
     }
 }
 
+pub fn test_genesis_paths(operating_mode: OperatingMode) -> GenesisPaths {
+    let dir: &dyn AsRef<Path> = &"../test-data/genesis/integration-tests/";
+    GenesisPaths {
+        bank_genesis_path: dir.as_ref().join("bank.json"),
+        sequencer_genesis_path: dir.as_ref().join("sequencer_registry.json"),
+        value_setter_genesis_path: dir.as_ref().join("value_setter.json"),
+        accounts_genesis_path: dir.as_ref().join("accounts.json"),
+        prover_incentives_genesis_path: dir.as_ref().join("prover_incentives.json"),
+        attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
+        nft_path: dir.as_ref().join("nft.json"),
+        evm_genesis_path: dir.as_ref().join("evm.json"),
+        chain_state_genesis_path: {
+            match operating_mode {
+                OperatingMode::Zk => dir.as_ref().join("chain_state_zk.json"),
+                OperatingMode::Optimistic => dir.as_ref().join("chain_state_op.json"),
+            }
+        },
+    }
+}
+
 pub struct TestRollup {
     pub rollup_task: JoinHandle<()>,
     pub client: NodeClient,
@@ -158,8 +167,7 @@ impl TestRollup {
         rollup_prover_config: RollupProverConfig,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
-        rt_genesis_paths: GenesisPaths,
-        kernel_genesis_paths: BasicKernelGenesisPaths,
+        operating_mode: OperatingMode,
     ) -> anyhow::Result<TestRollup> {
         let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
@@ -178,11 +186,12 @@ impl TestRollup {
             block_time_ms,
         };
 
+        let rt_genesis_paths = test_genesis_paths(operating_mode);
+
         let (rollup_task, da_service, storage_dir) = start_rollup_in_background(
             rpc_port_tx,
             rest_port_tx,
             rt_genesis_paths,
-            kernel_genesis_paths,
             rollup_prover_config,
             mock_da_config,
         )

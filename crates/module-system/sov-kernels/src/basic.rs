@@ -1,8 +1,5 @@
 //! The basic kernel provides censorship resistance by processing all blobs immediately in the order they appear on DA
-use std::path::PathBuf;
 
-#[cfg(feature = "native")]
-use anyhow::Context;
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
@@ -11,7 +8,7 @@ use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelStateAccessor, Spec,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec,
 };
 use sov_state::Storage;
 
@@ -43,22 +40,7 @@ impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S::Storage> for BasicKernel<S, Da> {
-    type GenesisConfig = BasicKernelGenesisConfig<S, Da>;
-
-    #[cfg(feature = "native")]
-    type GenesisPaths = BasicKernelGenesisPaths;
-
-    fn genesis(
-        &self,
-        config: &Self::GenesisConfig,
-        state: &mut KernelStateAccessor<<S as Spec>::Storage>,
-    ) -> anyhow::Result<()> {
-        self.chain_state
-            .genesis_unchecked(&config.chain_state, state)?;
-        self.blob_storage.genesis_unchecked(&(), state)?;
-        Ok(())
-    }
+impl<S: Spec, Da: DaSpec> Kernel<S> for BasicKernel<S, Da> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
@@ -123,31 +105,5 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
         state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) -> <<S as Spec>::Gas as Gas>::Price {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
-    }
-}
-
-/// Path information required to initialize a basic kernel from files
-pub struct BasicKernelGenesisPaths {
-    /// The path to the chain_state genesis config
-    pub chain_state: PathBuf,
-}
-
-/// The genesis configuration for the basic kernel
-pub struct BasicKernelGenesisConfig<S: Spec, Da: DaSpec> {
-    /// The chain state genesis config
-    pub chain_state: <ChainState<S, Da> as KernelModule>::Config,
-}
-
-#[cfg(feature = "native")]
-impl<S: Spec, Da: DaSpec> BasicKernelGenesisConfig<S, Da> {
-    pub fn from_path(path: impl AsRef<std::path::Path>) -> anyhow::Result<Self> {
-        let path = path.as_ref();
-        Ok(BasicKernelGenesisConfig {
-            chain_state: serde_json::from_str(
-                &std::fs::read_to_string(path).with_context(|| {
-                    format!("Failed to read chain state from {}", path.display())
-                })?,
-            )?,
-        })
     }
 }

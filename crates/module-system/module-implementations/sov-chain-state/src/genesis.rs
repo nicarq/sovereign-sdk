@@ -1,7 +1,7 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{DaSpec, KernelModule, KernelStateAccessor, OperatingMode, Spec, Zkvm};
+use sov_modules_api::{DaSpec, GenesisState, Module, OperatingMode, Spec, Zkvm};
 
 use crate::{ChainState, TransitionHeight};
 
@@ -30,8 +30,8 @@ pub struct ChainStateConfig<S: Spec> {
 impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     pub(crate) fn init_module(
         &self,
-        config: &<Self as KernelModule>::Config,
-        state: &mut KernelStateAccessor<S::Storage>,
+        config: &<Self as Module>::Config,
+        state: &mut impl GenesisState<S>,
     ) -> Result<()> {
         tracing::info!(
             current_time = ?config.current_time,

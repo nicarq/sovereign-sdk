@@ -57,7 +57,7 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
     pub(crate) bank: sov_bank::Bank<S>,
 
     /// Reference to the Chain state module. Used to check the proof inputs
-    #[kernel_module]
+    #[module]
     pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
 }
 

@@ -3,7 +3,7 @@ use sov_evm::Evm;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DaSpec, DispatchCall, OperatingMode, RawTx, Spec};
+use sov_modules_api::{DaSpec, DispatchCall, RawTx, Spec};
 use sov_state::Storage;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 

@@ -16,7 +16,7 @@ fn config_chain_id() -> u64 {
 
 pub(crate) fn register_signer_rpc_methods<
     S: sov_modules_api::Spec,
-    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+    K: Kernel<S> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(

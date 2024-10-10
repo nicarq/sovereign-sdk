@@ -301,7 +301,7 @@ impl<S: Spec> WorkingSet<S> {
     /// - the testing framework,
     /// - or [`crate::ApiStateAccessor::new`]
     /// - or [`StateCheckpoint::new`]
-    pub fn new_deprecated<K: Kernel<S::Storage>>(inner: S::Storage, kernel: &K) -> Self {
+    pub fn new_deprecated<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
         let state_checkpoint: StateCheckpoint<S::Storage> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),

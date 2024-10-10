@@ -2,13 +2,15 @@ use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Genesis, Spec};
+use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
 
 use crate::interface::AsUser;
-use crate::runtime::{BankConfig, ProverIncentivesConfig, SequencerConfig};
+use crate::runtime::{
+    BankConfig, BlobStorage, ChainState, ChainStateConfig, ProverIncentivesConfig, SequencerConfig,
+};
 use crate::{
     TestProver, TestSequencer, TestSpec, TestUser, TEST_DEFAULT_USER_BALANCE,
     TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
@@ -28,6 +30,10 @@ pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
     pub accounts: <Accounts<S> as Genesis>::Config,
     /// The nonces config.
     pub nonces: <Nonces<S> as Genesis>::Config,
+    /// The chain state config.
+    pub chain_state: <ChainState<S, Da> as Genesis>::Config,
+    /// The blob storage config.
+    pub blob_storage: <BlobStorage<S, Da> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of a ZK genesis config.
@@ -41,6 +47,10 @@ pub struct HighLevelZkGenesisConfig<S: Spec, Da: DaSpec> {
     pub additional_accounts: Vec<TestUser<S>>,
     /// The name of the gas token
     pub gas_token_name: String,
+    /// The inner code commitment.
+    pub inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+    /// The outer code commitment.
+    pub outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
 }
 
 impl<S: Spec, Da: DaSpec> HighLevelZkGenesisConfig<S, Da> {
@@ -50,12 +60,16 @@ impl<S: Spec, Da: DaSpec> HighLevelZkGenesisConfig<S, Da> {
         initial_prover: TestProver<S>,
         initial_sequencer: TestSequencer<S, Da>,
         additional_accounts: Vec<TestUser<S>>,
+        inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+        outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
     ) -> Self {
         Self {
             initial_prover,
             initial_sequencer,
             additional_accounts,
             gas_token_name: TEST_GAS_TOKEN_NAME.to_string(),
+            inner_code_commitment,
+            outer_code_commitment,
         }
     }
 }
@@ -94,7 +108,13 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
             additional_accounts.push(TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
         }
 
-        Self::with_defaults(prover, sequencer, additional_accounts)
+        Self::with_defaults(
+            prover,
+            sequencer,
+            additional_accounts,
+            Default::default(),
+            Default::default(),
+        )
     }
 }
 
@@ -105,6 +125,8 @@ impl<S: Spec, Da: DaSpec> From<HighLevelZkGenesisConfig<S, Da>> for MinimalZkGen
             high_level.initial_sequencer,
             high_level.additional_accounts.as_slice(),
             high_level.gas_token_name,
+            high_level.inner_code_commitment,
+            high_level.outer_code_commitment,
         )
     }
 }
@@ -116,6 +138,8 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
         initial_sequencer: TestSequencer<S, Da>,
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
+        inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+        outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
     ) -> Self {
         let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         let default_user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);
@@ -198,6 +222,14 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
             },
             accounts: AccountConfig { accounts: vec![] },
             nonces: (),
+            blob_storage: (),
+            chain_state: ChainStateConfig {
+                current_time: Default::default(),
+                genesis_da_height: 0,
+                operating_mode: sov_modules_api::OperatingMode::Zk,
+                inner_code_commitment,
+                outer_code_commitment,
+            },
         }
     }
 }

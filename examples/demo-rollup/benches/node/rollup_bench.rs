@@ -10,11 +10,12 @@ use sov_db::storage_manager::NativeChangeSet;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
     Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, Gas, GasSpec,
-    GasUnit, OperatingMode, RawTx, Spec,
+    GasUnit, RawTx, Spec,
 };
 use sov_modules_macros::config_value;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
@@ -23,7 +24,6 @@ use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_state::{ProverStorage, StorageRoot};
-use sov_test_utils::runtime::genesis::default_basic_kernel_genesis;
 use sov_test_utils::runtime::genesis::zk::MinimalZkGenesisConfig;
 use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{
@@ -133,6 +133,8 @@ fn initialize_rollup(
         bank,
         accounts,
         nonces,
+        chain_state,
+        blob_storage,
     } = minimal_config;
 
     let rt_genesis = GenesisConfig::new(
@@ -147,12 +149,12 @@ fn initialize_rollup(
         accounts,
         nonces,
         NonFungibleTokenConfig {},
+        chain_state,
+        blob_storage,
         EvmConfig::default(),
     );
-    let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Zk);
     let genesis_config = GenesisParams {
         runtime: rt_genesis,
-        kernel: kernel_genesis,
     };
 
     stf.init_chain(stf_state, genesis_config)
@@ -283,6 +285,8 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
         },
         &senders,
         "sov-test-gas-token".to_string(),
+        MockCodeCommitment::default(),
+        MockCodeCommitment::default(),
     );
 
     let (current_root, stf_change_set) =

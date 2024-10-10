@@ -1,6 +1,7 @@
 ## 2024-10-05
 - #1581 Fixes misalignment of rollup_height and JMT version. Genesis data is available at `rollup_height=0` via REST API.
 ## 2024-10-08
+- #1599 removes the kernel macros and moves the Kernel modules inside the runtime. This may be a breaking change if users have implemented their own Kernels (we have removed the `Genesis` configuration from the `Kernel` trait) or if they have used the `Kernel` macro inside their modules (`KernelModule` derive macro, `kernel_module` attribute).
 
 - The two type generics of `ApiState` have been inverted, e.g. `ApiState<Bank<S>, S>` is now `ApiState<S, Bank<S>>`, and the second generic defaults to `()`.
 

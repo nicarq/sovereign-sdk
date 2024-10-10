@@ -11,7 +11,7 @@ use sov_rollup_interface::node::da::DaService;
 // register ethereum methods.
 pub(crate) fn register_ethereum<
     S: Spec,
-    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+    K: Kernel<S> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(

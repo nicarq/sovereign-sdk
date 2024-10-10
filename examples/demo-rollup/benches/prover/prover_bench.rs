@@ -6,13 +6,12 @@ extern crate prettytable;
 
 use std::collections::HashMap;
 use std::env;
-use std::path::Path;
 
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use prettytable::Table;
 use sov_db::storage_manager::NativeChangeSet;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::WitnessGeneration;
@@ -193,7 +192,7 @@ where
     OuterVm,
     MockDaSpec,
     ChangeSet = NativeChangeSet,
-    GenesisParams = GenesisParams<GenesisConfig<DefaultSpec<InnerVm, OuterVm, WitnessGeneration>, MockDaSpec>, BasicKernelGenesisConfig<DefaultSpec<InnerVm, OuterVm, WitnessGeneration>, MockDaSpec>>,
+    GenesisParams = GenesisParams<GenesisConfig<DefaultSpec<InnerVm, OuterVm, WitnessGeneration>, MockDaSpec>>,
     PreState = <DefaultSpec<InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage,
     StateRoot = <<DefaultSpec<InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage as Storage>::Root,
 >,
@@ -220,13 +219,7 @@ where
             &GenesisPaths::from_dir(genesis_conf_dir.as_str()),
         )?;
 
-        let kernel_params = BasicKernelGenesisConfig::from_path(
-            Path::new(genesis_conf_dir.as_str()).join("chain_state_zk.json"),
-        )?;
-        GenesisParams {
-            runtime: rt_params,
-            kernel: kernel_params,
-        }
+        GenesisParams { runtime: rt_params }
     };
 
     println!("Starting from empty storage, initializing chain");

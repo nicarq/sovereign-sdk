@@ -1,9 +1,5 @@
 use sha2::Digest;
-use sov_chain_state::ChainStateConfig;
-use sov_kernels::basic::BasicKernelGenesisConfig;
-use sov_mock_zkvm::MockCodeCommitment;
-use sov_modules_api::{CryptoSpec, OperatingMode, Spec};
-use sov_rollup_interface::da::DaSpec;
+use sov_modules_api::{CryptoSpec, Spec};
 
 use crate::runtime::TokenId;
 use crate::TestSpec;
@@ -35,21 +31,6 @@ impl TestTokenName {
                 .as_slice(),
         )
         .unwrap()
-    }
-}
-
-/// Short function to generate default kernel genesis config
-pub fn default_basic_kernel_genesis<Da: DaSpec>(
-    operating_mode: OperatingMode,
-) -> BasicKernelGenesisConfig<TestSpec, Da> {
-    BasicKernelGenesisConfig::<TestSpec, Da> {
-        chain_state: ChainStateConfig {
-            current_time: Default::default(),
-            operating_mode,
-            inner_code_commitment: MockCodeCommitment::default(),
-            outer_code_commitment: MockCodeCommitment::default(),
-            genesis_da_height: 0,
-        },
     }
 }
 

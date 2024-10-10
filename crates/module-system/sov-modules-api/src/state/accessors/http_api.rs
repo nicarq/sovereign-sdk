@@ -167,7 +167,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     }
 
     /// Creates a new [`ApiStateAccessor`] from the provided Storage with a gas price of zero.
-    pub fn from_storage<K: Kernel<S::Storage> + KernelWithSlotMapping<S>>(
+    pub fn from_storage<K: Kernel<S> + KernelWithSlotMapping<S>>(
         storage: S::Storage,
         kernel: K,
     ) -> Self {

@@ -22,36 +22,23 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Storage>: Default {
-    /// GenesisConfig type.
-    type GenesisConfig: Send + Sync;
-
-    #[cfg(feature = "native")]
-    /// GenesisPaths type.
-    type GenesisPaths: Send + Sync;
-
-    /// Initialize the kernel at genesis
-    fn genesis(
-        &self,
-        config: &Self::GenesisConfig,
-        state: &mut KernelStateAccessor<S>,
-    ) -> anyhow::Result<()>;
-
+pub trait Kernel<S: Spec>: Default {
     /// Returns a [`KernelStateAccessor`] for the given [`StateCheckpoint`].
-    fn accessor<'a>(&self, state: &'a mut StateCheckpoint<S>) -> KernelStateAccessor<'a, S> {
+    fn accessor<'a>(
+        &self,
+        state: &'a mut StateCheckpoint<S::Storage>,
+    ) -> KernelStateAccessor<'a, S::Storage> {
         KernelStateAccessor::from_checkpoint(self, state)
     }
 
     /// Return the current slot number
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
     /// Return the next value of the slot number at which transactions currently *appear* to be executing.
-    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S>) -> u64;
+    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
-pub trait KernelSlotHooks<S: Spec, Da: DaSpec>:
-    BlobSelector<Da, Spec = S> + Kernel<S::Storage>
-{
+pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Kernel<S> {
     /// Called at the beginning of a slot. Computes the gas price for the slot
     /// Returns the visible root hash accessible at the current *virtual* rollup height
     fn begin_slot_hook(

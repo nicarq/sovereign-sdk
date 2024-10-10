@@ -271,6 +271,8 @@ Commands:
   accounts             A subcommand for the `Accounts` module
   nonces               A subcommand for the `Nonces` module
   nft                  A subcommand for the `Nft` module
+  chain-state          A subcommand for the `ChainState` module
+  blob-storage         A subcommand for the `BlobStorage` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:

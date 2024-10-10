@@ -9,7 +9,7 @@ use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelModule, KernelStateAccessor, Spec,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Module, Spec,
 };
 use sov_state::Storage;
 
@@ -28,7 +28,7 @@ pub struct SoftConfirmationsKernelGenesisPaths {
 
 pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
     /// The chain state genesis config
-    pub chain_state: <ChainState<S, Da> as KernelModule>::Config,
+    pub chain_state: <ChainState<S, Da> as Module>::Config,
 }
 
 #[cfg(feature = "native")]
@@ -44,27 +44,12 @@ impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for SoftConfirmationsKernel<S
     }
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S::Storage> for SoftConfirmationsKernel<S, Da> {
-    type GenesisConfig = SoftConfirmationsKernelGenesisConfig<S, Da>;
-
-    #[cfg(feature = "native")]
-    type GenesisPaths = SoftConfirmationsKernelGenesisPaths;
-
+impl<S: Spec, Da: DaSpec> Kernel<S> for SoftConfirmationsKernel<S, Da> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
     fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.next_visible_slot_number(state)
-    }
-
-    fn genesis(
-        &self,
-        config: &Self::GenesisConfig,
-        state: &mut KernelStateAccessor<S::Storage>,
-    ) -> anyhow::Result<()> {
-        Ok(self
-            .chain_state
-            .genesis_unchecked(&config.chain_state, state)?)
     }
 }
 

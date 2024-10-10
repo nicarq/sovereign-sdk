@@ -3,7 +3,7 @@ use sov_state::{IsValueCached, Namespace, SlotKey, SlotValue, StateAccesses, Sto
 use super::internals::{AccessoryDelta, Delta};
 use super::{BootstrapWorkingSet, UniversalStateAccessor};
 use crate::capabilities::Kernel;
-use crate::VersionReader;
+use crate::{Spec, VersionReader};
 
 /// This structure is responsible for storing the `read-write` set.
 ///
@@ -33,13 +33,17 @@ impl<S: Storage> StateCheckpoint<S> {
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`].
-    pub fn new<K: Kernel<S>>(inner: S, kernel: &K) -> Self {
+    pub fn new<Sp: Spec<Storage = S>, K: Kernel<Sp>>(inner: S, kernel: &K) -> Self {
         Self::with_witness(inner, Default::default(), kernel)
     }
 
     /// Creates a new [`StateCheckpoint`] instance without any changes, backed
     /// by the given [`Storage`] and witness.
-    pub fn with_witness<K: Kernel<S>>(inner: S, witness: S::Witness, kernel: &K) -> Self {
+    pub fn with_witness<Sp: Spec<Storage = S>, K: Kernel<Sp>>(
+        inner: S,
+        witness: S::Witness,
+        kernel: &K,
+    ) -> Self {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 

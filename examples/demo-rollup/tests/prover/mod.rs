@@ -1,15 +1,13 @@
-use std::path::Path;
-
-use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
+use demo_stf::genesis_config::create_genesis_config;
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::WitnessGeneration;
-use sov_modules_api::SlotData;
+use sov_modules_api::{OperatingMode, SlotData};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
@@ -25,6 +23,7 @@ use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
 use crate::prover::datagen::get_blocks_from_da;
+use crate::test_helpers::test_genesis_paths;
 
 type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
     sov_risc0_adapter::Risc0Verifier,
@@ -33,8 +32,6 @@ type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
 >;
 
 mod datagen;
-
-const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/integration-tests";
 
 type TestSTF<'a> = StfBlueprint<
     DefaultSpec,
@@ -48,7 +45,6 @@ type TestSTF<'a> = StfBlueprint<
 #[cfg_attr(skip_guest_build, ignore)]
 async fn test_proof_generation() {
     sov_test_utils::logging::initialize_logging();
-    let genesis_conf_dir = String::from(DEFAULT_GENESIS_CONFIG_DIR);
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     tracing::info!("Creating temp dir at {}", temp_dir.path().display());
@@ -60,19 +56,11 @@ async fn test_proof_generation() {
     let stf = TestSTF::new();
 
     let genesis_config = {
-        let rt_params = create_genesis_config::<DefaultSpec, _>(&GenesisPaths::from_dir(
-            genesis_conf_dir.as_str(),
-        ))
-        .unwrap();
+        let rt_params =
+            create_genesis_config::<DefaultSpec, _>(&test_genesis_paths(OperatingMode::Zk))
+                .unwrap();
 
-        let kernel_params = BasicKernelGenesisConfig::from_path(
-            Path::new(genesis_conf_dir.as_str()).join("chain_state_zk.json"),
-        )
-        .unwrap();
-        GenesisParams {
-            runtime: rt_params,
-            kernel: kernel_params,
-        }
+        GenesisParams { runtime: rt_params }
     };
 
     tracing::info!("Starting from empty storage, initialization chain");

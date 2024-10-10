@@ -10,11 +10,12 @@ pub use sov_bank::{
     config_gas_token_id, Bank, BankConfig, CallMessage as BankCallMessage, Coins, IntoPayable,
     Payable, TokenConfig, TokenId,
 };
+pub use sov_blob_storage::BlobStorage;
 use sov_blob_storage::PreferredBatchData;
 pub use sov_capabilities::StandardProvenRollupCapabilities;
-pub use sov_chain_state::ChainStateConfig;
+pub use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_db::storage_manager::NativeChangeSet;
-pub use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+pub use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::da::Time;
@@ -253,7 +254,7 @@ where
 
     /// Builds a new test runner and runs genesis.
     pub fn new_with_genesis(
-        genesis_config: GenesisParams<<RT as Genesis>::Config, K::GenesisConfig>,
+        genesis_config: GenesisParams<<RT as Genesis>::Config>,
         runtime: RT,
     ) -> Self {
         // Use the runtime to create an STF blueprint

@@ -94,16 +94,19 @@ impl<S: Spec, T> TxState<S> for T where
 pub trait GenesisState<S: Spec>:
     StateReader<User, Error = Infallible>
     + StateWriter<User, Error = Infallible>
-    // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
+    + StateReader<Kernel, Error = Infallible>
+    + KernelWriter
     + AccessoryStateWriter
     + EventContainer
     + GasMeter<S::Gas>
-{}
+{
+}
 
 impl<S: Spec, T> GenesisState<S> for T where
     T: StateReader<User, Error = Infallible>
         + StateWriter<User, Error = Infallible>
-        // + StateReaderAndWriter<sov_state::Kernel>
+        + StateReader<Kernel, Error = Infallible>
+        + KernelWriter
         + AccessoryStateWriter
         + EventContainer
         + GasMeter<S::Gas>

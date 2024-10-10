@@ -15,7 +15,7 @@ use prettytable::Table;
 use sov_bank::{Bank, Coins};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
@@ -211,13 +211,7 @@ fn setup(
                 .push((*addr, gas_per_sender));
         }
 
-        let kernel_params =
-            BasicKernelGenesisConfig::from_path(stf_tests_conf_dir.join("chain_state_zk.json"))
-                .unwrap();
-        GenesisParams {
-            runtime: rt_params,
-            kernel: kernel_params,
-        }
+        GenesisParams { runtime: rt_params }
     };
     let genesis_block_header = MockBlockHeader::from_height(0);
     let (stf_state, ledger_state) = storage_manager

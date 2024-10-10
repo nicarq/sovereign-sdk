@@ -1,8 +1,6 @@
-use sov_chain_state::{ChainState, ChainStateConfig};
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
-use sov_kernels::soft_confirmations::{
-    SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
-};
+use sov_chain_state::ChainState;
+use sov_kernels::basic::BasicKernel;
+use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{Kernel, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
@@ -118,10 +116,10 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestVisibleHashRuntime<S, Da> {
     }
 }
 
-fn setup<K>(kernel_config: K::GenesisConfig) -> (TestUser<S>, TestRunnerWithKernel<K>)
+fn setup<K>() -> (TestUser<S>, TestRunnerWithKernel<K>)
 where
     K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
-        + Kernel<<S as Spec>::Storage>
+        + Kernel<S>
         + KernelWithSlotMapping<S>,
 {
     let genesis_config =
@@ -132,7 +130,7 @@ where
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ());
 
     let runner = TestRunnerWithKernel::<K>::new_with_genesis(
-        genesis.into_genesis_params_with_kernel(kernel_config),
+        genesis.into_genesis_params(),
         TestVisibleHashRuntime::default(),
     );
 
@@ -154,7 +152,7 @@ fn last_state_root_closure<K>(
     num_slots: u64,
 ) where
     K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
-        + Kernel<<S as Spec>::Storage>
+        + Kernel<S>
         + KernelWithSlotMapping<S>,
 {
     let module = TestVisibleHashModule::<S>::default();
@@ -206,15 +204,7 @@ fn last_state_root_closure<K>(
 /// Tests that the visible kernel hash updates for each slot for the basic Kernel
 #[test]
 fn visible_hash_basic_kernel() {
-    let (_, mut runner) = setup::<BasicKernel<S, MockDaSpec>>(BasicKernelGenesisConfig {
-        chain_state: ChainStateConfig {
-            genesis_da_height: 0,
-            current_time: Default::default(),
-            operating_mode: sov_modules_api::OperatingMode::Optimistic,
-            inner_code_commitment: Default::default(),
-            outer_code_commitment: Default::default(),
-        },
-    });
+    let (_, mut runner) = setup::<BasicKernel<S, MockDaSpec>>();
 
     const NUM_SLOTS: u64 = 10;
 
@@ -249,16 +239,7 @@ fn visible_hash_basic_kernel() {
 /// The finalize hook hash should always match the most recent slot hash.
 #[test]
 fn visible_hash_soft_confirmations_kernel() {
-    let (_, mut runner) =
-        setup::<SoftConfirmationsKernel<S, MockDaSpec>>(SoftConfirmationsKernelGenesisConfig {
-            chain_state: ChainStateConfig {
-                genesis_da_height: 0,
-                current_time: Default::default(),
-                operating_mode: sov_modules_api::OperatingMode::Optimistic,
-                inner_code_commitment: Default::default(),
-                outer_code_commitment: Default::default(),
-            },
-        });
+    let (_, mut runner) = setup::<SoftConfirmationsKernel<S, MockDaSpec>>();
 
     let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
 

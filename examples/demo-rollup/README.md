@@ -290,6 +290,8 @@ Commands:
   accounts             A subcommand for the `Accounts` module
   nonces               A subcommand for the `Nonces` module
   nft                  A subcommand for the `Nft` module
+  chain-state          A subcommand for the `ChainState` module
+  blob-storage         A subcommand for the `BlobStorage` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:
@@ -351,12 +353,6 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg87
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.public_data.initial_slot_number >= 1 then true else false end'
 true
-```
-
-You can also run `sov-nft-script` to generate some random NFT collections in the sov-nft module.
-
-```bash
-$ ../../target/debug/sov-nft-script --private-keys-dir ../test-data/keys
 ```
 
 ## Disclaimer
