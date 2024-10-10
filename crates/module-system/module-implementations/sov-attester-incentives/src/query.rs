@@ -141,7 +141,7 @@ impl<S, Da, K> BondingProofService for BondingProofServiceImpl<S, Da, K>
 where
     S: Spec,
     Da: DaSpec,
-    K: KernelWithSlotMapping<S> + Kernel<S::Storage>,
+    K: KernelWithSlotMapping<S> + Kernel<S>,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;
 

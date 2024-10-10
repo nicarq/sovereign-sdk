@@ -8,8 +8,8 @@ mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    BootstrapWorkingSet, KernelStateAccessor, ModuleId, Spec, StateAccessor, StateReader,
-    StateReaderAndWriter, Zkvm,
+    BootstrapWorkingSet, GenesisState, KernelStateAccessor, ModuleError, ModuleId, ModuleInfo,
+    Spec, StateAccessor, StateReader, StateReaderAndWriter, Zkvm,
 };
 
 mod genesis;
@@ -31,8 +31,8 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelModule, KernelModuleInfo, KernelStateValue, StateMap, StateValue,
-    ValidityConditionChecker, VersionReader, VersionedStateValue,
+    DaSpec, Error, Gas, KernelStateValue, Module, StateMap, StateValue, ValidityConditionChecker,
+    VersionReader, VersionedStateValue,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
@@ -212,7 +212,7 @@ impl<S: Spec, Da: DaSpec> SlotInformation<S, Da> {
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
-#[derive(Clone, KernelModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 pub struct ChainState<S: Spec, Da: DaSpec> {
     /// The ID of the module.
     #[id]
@@ -449,17 +449,31 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> KernelModule for ChainState<S, Da> {
+impl<S: Spec, Da: DaSpec> Module for ChainState<S, Da> {
     type Spec = S;
+
+    type CallMessage = call::NotInstantiable;
 
     type Config = ChainStateConfig<S>;
 
-    fn genesis_unchecked(
+    type Event = ();
+
+    /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
+    fn genesis(
         &self,
         config: &Self::Config,
-        state: &mut KernelStateAccessor<S::Storage>,
-    ) -> Result<(), Error> {
+        state: &mut impl GenesisState<Self::Spec>,
+    ) -> Result<(), ModuleError> {
         // The initialization logic
         Ok(self.init_module(config, state)?)
+    }
+
+    fn call(
+        &self,
+        _message: Self::CallMessage,
+        _context: &sov_modules_api::Context<Self::Spec>,
+        _state: &mut impl sov_modules_api::TxState<Self::Spec>,
+    ) -> Result<sov_modules_api::CallResponse, Error> {
+        Ok(Default::default())
     }
 }

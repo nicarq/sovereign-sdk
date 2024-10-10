@@ -9,11 +9,10 @@ use sov_kernels::basic::BasicKernel;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
-use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlueprint};
-use sov_modules_stf_blueprint::{RuntimeEndpoints, StfBlueprint};
+use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
@@ -77,7 +76,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec, Self::Kernel>;
 
     fn get_operating_mode(
-        genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
+        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
     ) -> OperatingMode {
         genesis.chain_state.operating_mode
     }

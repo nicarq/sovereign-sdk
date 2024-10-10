@@ -20,6 +20,7 @@ borsh = { workspace = true }
 derive_more = { workspace = true }
 tracing = { workspace = true }
 hex = { workspace = true }
+schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 
 sov-modules-api = { workspace = true }
@@ -51,5 +52,6 @@ native = [
 	"sov-state/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-rollup-interface/native",
-	"sov-value-setter/native"
+	"sov-value-setter/native",
+	"schemars"
 ]

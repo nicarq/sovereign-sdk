@@ -62,10 +62,24 @@
             }
           },
           {
+            "name": "ChainState",
+            "serde_name": "chain_state",
+            "value": {
+              "ByIndex": 49
+            }
+          },
+          {
+            "name": "BlobStorage",
+            "serde_name": "blob_storage",
+            "value": {
+              "ByIndex": 51
+            }
+          },
+          {
             "name": "Evm",
             "serde_name": "evm",
             "value": {
-              "ByIndex": 49
+              "ByIndex": 53
             }
           }
         ]
@@ -1194,6 +1208,46 @@
       }
     },
     {
+      "Enum": {
+        "type_name": "NotInstantiable",
+        "serde_type_name": "NotInstantiable",
+        "variants": []
+      }
+    },
+    {
+      "Tuple": {
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 52
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "NotInstantiable",
+        "serde_type_name": "NotInstantiable",
+        "variants": []
+      }
+    },
+    {
+      "Tuple": {
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 54
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
       "Struct": {
         "type_name": "CallMessage",
         "serde_type_name": "CallMessage",
@@ -1203,7 +1257,7 @@
             "serde_display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 51
+              "ByIndex": 55
             },
             "doc": ""
           }

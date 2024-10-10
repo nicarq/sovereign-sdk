@@ -115,7 +115,7 @@ where
     pub(crate) bank: sov_bank::Bank<S>,
 
     /// Reference to the chain state module, used to check the initial hashes of the state transition.
-    #[kernel_module]
+    #[module]
     pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
 }
 

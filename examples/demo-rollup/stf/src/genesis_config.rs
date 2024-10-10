@@ -24,6 +24,7 @@ use crate::runtime::Runtime;
 use crate::runtime::{EthereumToRollupAddressConverter, GenesisConfig};
 
 /// Paths pointing to genesis files.
+#[derive(Debug)]
 pub struct GenesisPaths {
     /// Bank genesis path.
     pub bank_genesis_path: PathBuf,
@@ -41,6 +42,8 @@ pub struct GenesisPaths {
     pub nft_path: PathBuf,
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
+    /// Chain State genesis path.
+    pub chain_state_genesis_path: PathBuf,
 }
 
 impl GenesisPaths {
@@ -59,6 +62,7 @@ impl GenesisPaths {
             attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
             nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
+            chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
         }
     }
 }
@@ -94,6 +98,11 @@ where
 
     let evm_config: EvmConfig = read_genesis_json(&genesis_paths.evm_genesis_path)?;
 
+    let chain_state_config: ChainStateConfig<S> =
+        read_genesis_json(&genesis_paths.chain_state_genesis_path)?;
+
+    let blob_storage_config = ();
+
     Ok(GenesisConfig::new(
         bank_config,
         sequencer_registry_config,
@@ -103,6 +112,8 @@ where
         accounts_config,
         nonces_config,
         nft_config,
+        chain_state_config,
+        blob_storage_config,
         evm_config,
     ))
 }

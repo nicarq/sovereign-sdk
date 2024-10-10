@@ -7,7 +7,6 @@ use demo_stf::genesis_config::GenesisPaths;
 use sha2::Sha256;
 use sov_celestia_adapter::CelestiaService;
 use sov_demo_rollup::{initialize_logging, CelestiaDemoRollup, MockDemoRollup};
-use sov_kernels::basic::{BasicKernelGenesisConfig, BasicKernelGenesisPaths};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Address;
@@ -73,12 +72,8 @@ async fn run() -> anyhow::Result<()> {
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
-            let chain_state_config = args.genesis_config_dir.join("chain_state_zk.json");
             let rollup = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
-                &BasicKernelGenesisPaths {
-                    chain_state: chain_state_config,
-                },
                 rollup_config_path,
                 prover_config,
             )
@@ -87,12 +82,8 @@ async fn run() -> anyhow::Result<()> {
             rollup.run().await
         }
         SupportedDaLayer::Celestia => {
-            let chain_state_config = args.genesis_config_dir.join("chain_state_zk.json");
             let rollup = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
-                &BasicKernelGenesisPaths {
-                    chain_state: chain_state_config,
-                },
                 rollup_config_path,
                 prover_config,
             )
@@ -123,7 +114,6 @@ fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
 
 async fn new_rollup_with_celestia_da(
     rt_genesis_paths: &GenesisPaths,
-    kernel_genesis_paths: &BasicKernelGenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
 ) -> anyhow::Result<Rollup<CelestiaDemoRollup<Native>, Native>> {
@@ -137,22 +127,14 @@ async fn new_rollup_with_celestia_da(
             )
         })?;
 
-    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)?;
-
     let celestia_rollup = CelestiaDemoRollup::<Native>::default();
     celestia_rollup
-        .create_new_rollup(
-            rt_genesis_paths,
-            kernel_genesis,
-            rollup_config,
-            prover_config,
-        )
+        .create_new_rollup(rt_genesis_paths, rollup_config, prover_config)
         .await
 }
 
 async fn new_rollup_with_mock_da(
     rt_genesis_paths: &GenesisPaths,
-    kernel_genesis_paths: &BasicKernelGenesisPaths,
     rollup_config_path: &str,
     prover_config: Option<RollupProverConfig>,
 ) -> anyhow::Result<Rollup<MockDemoRollup<Native>, Native>> {
@@ -169,15 +151,8 @@ async fn new_rollup_with_mock_da(
             )
         })?;
 
-    let kernel_genesis = BasicKernelGenesisConfig::from_path(&kernel_genesis_paths.chain_state)?;
-
     let mock_rollup = MockDemoRollup::<Native>::default();
     mock_rollup
-        .create_new_rollup(
-            rt_genesis_paths,
-            kernel_genesis,
-            rollup_config,
-            prover_config,
-        )
+        .create_new_rollup(rt_genesis_paths, rollup_config, prover_config)
         .await
 }

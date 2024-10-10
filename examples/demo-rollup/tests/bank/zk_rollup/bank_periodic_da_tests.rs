@@ -1,9 +1,8 @@
 use anyhow::Context;
-use demo_stf::genesis_config::GenesisPaths;
 use futures::StreamExt;
 use sov_cli::NodeClient;
-use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::BlockProducingConfig;
+use sov_modules_api::OperatingMode;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -21,10 +20,7 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
-        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-        BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
-        },
+        OperatingMode::Zk,
     )
     .await?;
 

@@ -3,7 +3,7 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, OperatingMode, PrivateKey, Spec};
+use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec, Zkvm};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
@@ -11,8 +11,10 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use crate::runtime::genesis::{default_basic_kernel_genesis, TestTokenName};
-use crate::runtime::{config_gas_token_id, Coins, TestOptimisticRuntime, TestRunner};
+use crate::runtime::genesis::TestTokenName;
+use crate::runtime::{
+    config_gas_token_id, ChainStateConfig, Coins, TestOptimisticRuntime, TestRunner,
+};
 use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
     TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo,
@@ -85,11 +87,11 @@ fn run_value_setter_txs_with_assertions(
             .value(&TestSpec::initial_base_fee_per_gas()),
         "SovereignToken".to_string(),
         TEST_DEFAULT_USER_BALANCE,
+        Default::default(),
+        Default::default(),
     );
-    let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Optimistic);
     let params = GenesisParams {
         runtime: genesis_config,
-        kernel: kernel_genesis,
     };
     let mut runner: TestRunner<TestOptimisticRuntime<TestSpec, MockDaSpec>, TestSpec> =
         TestRunner::new_with_genesis(params, Default::default());
@@ -119,6 +121,8 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
     seq_bond: u64,
     token_name: String,
     init_balance: u64,
+    inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+    outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
 ) -> crate::runtime::GenesisConfig<S, Da> {
     let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
@@ -168,6 +172,16 @@ fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
                 authorized_minters: vec![admin.clone()],
             },
             tokens: vec![],
+        },
+
+        blob_storage: (),
+
+        chain_state: ChainStateConfig {
+            current_time: Default::default(),
+            genesis_da_height: 0,
+            operating_mode: sov_modules_api::OperatingMode::Optimistic,
+            inner_code_commitment,
+            outer_code_commitment,
         },
 
         accounts: AccountConfig { accounts: vec![] },

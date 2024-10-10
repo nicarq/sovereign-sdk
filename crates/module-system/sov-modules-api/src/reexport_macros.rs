@@ -140,8 +140,6 @@ pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 pub use sov_modules_macros::Genesis;
-/// Derives the [`ModuleInfo`] trait for the underlying `struct`, giving full access to kernel functionality
-pub use sov_modules_macros::KernelModuleInfo;
 pub use sov_modules_macros::MessageCodec;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`.
 ///

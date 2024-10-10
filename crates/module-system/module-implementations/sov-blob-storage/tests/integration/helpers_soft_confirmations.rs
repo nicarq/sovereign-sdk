@@ -1,10 +1,7 @@
-use sov_chain_state::ChainStateConfig;
-use sov_kernels::soft_confirmations::{
-    SoftConfirmationsKernel, SoftConfirmationsKernelGenesisConfig,
-};
+use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CryptoSpec, Gas, GasSpec, OperatingMode, Spec};
+use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -49,15 +46,7 @@ pub fn setup_soft_confirmation_kernel() -> (
     );
 
     let runner = TestRunner::<SoftConfirmationsKernel<S, MockDaSpec>>::new_with_genesis(
-        genesis.into_genesis_params_with_kernel(SoftConfirmationsKernelGenesisConfig {
-            chain_state: ChainStateConfig {
-                current_time: Default::default(),
-                operating_mode: OperatingMode::Zk,
-                genesis_da_height: 0,
-                inner_code_commitment: Default::default(),
-                outer_code_commitment: Default::default(),
-            },
-        }),
+        genesis.into_genesis_params(),
         TestBlobStorageRuntime::default(),
     );
 

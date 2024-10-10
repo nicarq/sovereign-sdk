@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_kernels::basic::{BasicKernel, BasicKernelGenesisConfig};
+use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::{Batch, DaSpec, RawTx, Spec};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, StfBlueprint};
@@ -23,20 +23,12 @@ pub(crate) struct TestPrivateKeys<S: Spec> {
     pub tx_signer: PrivateKeyAndAddress<S>,
 }
 
-pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>(
-) -> GenesisParams<GenesisConfig<S, Da>, BasicKernelGenesisConfig<S, Da>> {
+pub(crate) fn create_genesis_config_for_tests<Da: DaSpec>() -> GenesisParams<GenesisConfig<S, Da>> {
     let integ_test_conf_dir: &Path = "../../test-data/genesis/stf-tests".as_ref();
     let rt_params =
         create_genesis_config::<S, Da>(&GenesisPaths::from_dir(integ_test_conf_dir)).unwrap();
 
-    let kernel_params = BasicKernelGenesisConfig::from_path(
-        Path::new(integ_test_conf_dir).join("chain_state_zk.json"),
-    )
-    .unwrap();
-    GenesisParams {
-        runtime: rt_params,
-        kernel: kernel_params,
-    }
+    GenesisParams { runtime: rt_params }
 }
 
 const PRIVATE_KEYS_DIR: &str = "../../test-data/keys";

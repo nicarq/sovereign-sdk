@@ -7,20 +7,11 @@ use self::parsing::{ModuleField, ModuleFieldAttribute, StructDef};
 use crate::common::get_generics_type_param;
 use crate::manifest::Manifest;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum ModuleType {
-    Standard,
-    Kernel,
-}
-
-pub(crate) fn derive_module_info(
-    input: DeriveInput,
-    variant: ModuleType,
-) -> syn::Result<proc_macro::TokenStream> {
+pub(crate) fn derive_module_info(input: DeriveInput) -> syn::Result<proc_macro::TokenStream> {
     let struct_def = StructDef::parse(&input)?;
 
     let impl_prefix_functions = impl_prefix_functions(&struct_def)?;
-    let impl_new = impl_module_info(&struct_def, variant)?;
+    let impl_new = impl_module_info(&struct_def)?;
 
     Ok(quote::quote! {
         #impl_prefix_functions
@@ -55,10 +46,7 @@ fn impl_prefix_functions(struct_def: &StructDef) -> syn::Result<proc_macro2::Tok
 }
 
 // Implements the `ModuleInfo` trait.
-fn impl_module_info(
-    struct_def: &StructDef,
-    _variant: ModuleType,
-) -> syn::Result<proc_macro2::TokenStream> {
+fn impl_module_info(struct_def: &StructDef) -> syn::Result<proc_macro2::TokenStream> {
     let module_id = struct_def.module_id();
 
     let StructDef {
@@ -87,15 +75,9 @@ fn impl_module_info(
                 impl_self_body.push(&field.ident);
             }
             ModuleFieldAttribute::Module => {
-                impl_self_init.push(make_init_module(field, ModuleType::Standard)?);
+                impl_self_init.push(make_init_module(field)?);
                 impl_self_body.push(&field.ident);
                 modules.push(&field.ident);
-            }
-            ModuleFieldAttribute::KernelModule => {
-                impl_self_init.push(make_init_module(field, ModuleType::Kernel)?);
-                impl_self_body.push(&field.ident);
-                // Notice that we don't add the item to the modules list if it's a kernel module.
-                // This excludes the module from the dependency sorting that runs at genesis.
             }
             ModuleFieldAttribute::Address => {
                 impl_self_init.push(make_init_id(field, ident, generic_param)?);
@@ -226,20 +208,10 @@ fn make_init_state(
     })
 }
 
-fn make_init_module(
-    field: &ModuleField,
-    variant: ModuleType,
-) -> syn::Result<proc_macro2::TokenStream> {
+fn make_init_module(field: &ModuleField) -> syn::Result<proc_macro2::TokenStream> {
     let field_ident = &field.ident;
     let ty = &field.ty;
-    let trait_assertion = match variant {
-        ModuleType::Standard => {
-            quote::quote! { let _: <#ty as ::sov_modules_api::Module>::Spec; }
-        }
-        ModuleType::Kernel => {
-            quote::quote! { let _ = <#ty as ::sov_modules_api::KernelModule>::genesis_unchecked; }
-        }
-    };
+    let trait_assertion = quote::quote! { let _: <#ty as ::sov_modules_api::Module>::Spec; };
 
     Ok(quote::quote! {
         // Ensure that the type implements "Module" or "KernelModule" at compile time
@@ -354,7 +326,6 @@ pub mod parsing {
     #[derive(Clone)]
     pub enum ModuleFieldAttribute {
         Module,
-        KernelModule,
         State { codec_builder: Option<syn::Path> },
         Address,
         Gas,
@@ -371,13 +342,12 @@ pub mod parsing {
                 .ident
                 .to_string();
             match attr_name.as_str() {
-                "module" | "kernel_module" | "id" | "gas" | "phantom" => {
+                "module" | "id" | "gas" | "phantom" => {
                     match &attr.meta {
                         syn::Meta::Path(_) => {
                             // This is the case for attributes without arguments
                             Ok(match attr_name.as_str() {
                                 "module" => Self::Module,
-                                "kernel_module" => Self::KernelModule,
                                 "id" => Self::Address,
                                 "gas" => Self::Gas,
                                 "phantom" => Self::Phantom,

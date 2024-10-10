@@ -1,9 +1,7 @@
 //! Module system runtime types and traits
 pub mod capabilities;
-pub mod kernel_module;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-pub use kernel_module::KernelModule;
 use serde::{Deserialize, Serialize};
 
 /// Flag indicating what mode the rollup is operating in.

@@ -21,6 +21,7 @@ sov-attester-incentives = { workspace = true }
 sov-bank = { workspace = true }
 sov-capabilities = { workspace = true }
 sov-chain-state = { workspace = true }
+sov-blob-storage = { workspace = true }
 sov-evm = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true }
@@ -66,4 +67,5 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-state/native",
 	"sov-value-setter/native",
+	"sov-blob-storage/native"
 ]

@@ -179,9 +179,7 @@ where
 impl<Z, K> BatchBuilder for StdBatchBuilder<Z, K>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: Kernel<<Z::Spec as Spec>::Storage>
-        + KernelWithSlotMapping<Z::Spec>
-        + KernelSlotHooks<Z::Spec, Z::Da>,
+    K: Kernel<Z::Spec> + KernelWithSlotMapping<Z::Spec> + KernelSlotHooks<Z::Spec, Z::Da>,
 {
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return

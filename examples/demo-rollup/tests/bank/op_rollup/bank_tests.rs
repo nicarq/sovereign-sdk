@@ -1,9 +1,8 @@
-use demo_stf::genesis_config::GenesisPaths;
 use serde::Deserialize;
 use sov_cli::NodeClient;
-use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::rest::utils::ResponseObject;
+use sov_modules_api::OperatingMode;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -23,10 +22,7 @@ async fn bank_tx_tests() -> anyhow::Result<()> {
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
-        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-        BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state_op.json".into(),
-        },
+        OperatingMode::Optimistic,
     )
     .await?;
 

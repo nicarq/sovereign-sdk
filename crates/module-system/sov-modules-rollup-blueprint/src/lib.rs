@@ -9,6 +9,7 @@ use pluggable_traits::PluggableSpec;
 use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BlobDataWithId, DaSpec, Spec};
+
 #[cfg(feature = "native")]
 mod endpoints;
 
@@ -56,7 +57,6 @@ mod blueprint {
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::rest::StorageReceiver;
-    use sov_modules_api::runtime::capabilities::Kernel;
     use sov_modules_api::{
         OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec, Zkvm,
     };
@@ -122,7 +122,7 @@ mod blueprint {
 
         /// Gets the operating mode of the rollup (Zk or Optimistic).
         fn get_operating_mode(
-            genesis: &<Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
+            genesis: &<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
         ) -> OperatingMode;
 
         /// Creates a new [`BondingProofService`] service.
@@ -155,13 +155,9 @@ mod blueprint {
                 Self::Spec,
                 Self::DaSpec,
             >>::GenesisPaths,
-            kernel_genesis: <Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
             _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<
-            GenesisParams<
-                <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
-                <Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
-            >,
+            GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig>,
         > {
             let rt_genesis =
                 <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::genesis_config(
@@ -170,7 +166,6 @@ mod blueprint {
 
             Ok(GenesisParams {
                 runtime: rt_genesis,
-                kernel: kernel_genesis,
             })
         }
 
@@ -210,14 +205,15 @@ mod blueprint {
                 Self::Spec ,
                 Self::DaSpec,
             >>::GenesisPaths,
-            kernel_genesis_config: <Self::Kernel as Kernel<<Self::Spec as Spec>::Storage>>::GenesisConfig,
             rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
             prover_config: Option<RollupProverConfig>,
         ) -> anyhow::Result<Rollup<Self, M>>
         where
             <Self::Spec as Spec>::Storage: NativeStorage,
         {
-            let operating_mode = Self::get_operating_mode(&kernel_genesis_config);
+            let genesis_params =
+                self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
+            let operating_mode = Self::get_operating_mode(&genesis_params.runtime);
             tracing::debug!(?operating_mode, "Creating new rollup");
 
             let da_service = Arc::new(self.create_da_service(&rollup_config).await);
@@ -241,11 +237,6 @@ mod blueprint {
                     let rollup_genesis_block = da_service
                         .get_block_at(rollup_config.runner.genesis_height)
                         .await?;
-                    let genesis_params = self.create_genesis_config(
-                        runtime_genesis_paths,
-                        kernel_genesis_config,
-                        &rollup_config,
-                    )?;
                     InitVariant::Genesis {
                         block: rollup_genesis_block,
                         genesis_params,

@@ -1,20 +1,18 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use futures::StreamExt;
 use sov_cli::NodeClient;
-use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::RawTx;
+use sov_modules_api::{OperatingMode, RawTx};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-use crate::test_helpers::{construct_rollup, read_private_keys};
+use crate::test_helpers::{construct_rollup, read_private_keys, test_genesis_paths};
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
@@ -26,11 +24,8 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
     let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
     let rollup = construct_rollup(
-        temp_dir.path(),
-        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-        BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
-        },
+        temp_dir,
+        test_genesis_paths(OperatingMode::Zk),
         RollupProverConfig::Skip,
         MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),
     )

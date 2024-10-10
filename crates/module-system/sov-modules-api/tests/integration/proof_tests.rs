@@ -33,7 +33,7 @@ fn make_user_map_proof(
     storage_manager.commit(change_set);
     let storage = storage_manager.create_storage();
 
-    let state_checkpoint = StateCheckpoint::new::<MockKernel<S>>(storage.clone(), &kernel);
+    let state_checkpoint = StateCheckpoint::new::<S, MockKernel<S>>(storage.clone(), &kernel);
     let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
 
     let proof = map.get_with_proof(&1, &mut state);

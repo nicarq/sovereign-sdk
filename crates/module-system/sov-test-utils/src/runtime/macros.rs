@@ -32,6 +32,10 @@ macro_rules! generate_bare_runtime {
             pub nonces: $crate::runtime::Nonces<S>,
             /// The attester incentives module.
             pub attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            /// The chain state module.
+            pub chain_state: $crate::runtime::ChainState<S, Da>,
+            /// The blob storage module.
+            pub blob_storage: $crate::runtime::BlobStorage<S, Da>,
             /// The prover incentives module.
             pub prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
             $(
@@ -58,6 +62,8 @@ macro_rules! generate_bare_runtime {
                     bank: minimal_config.bank,
                     accounts: minimal_config.accounts,
                     nonces: minimal_config.nonces,
+                    chain_state: minimal_config.chain_state,
+                    blob_storage: minimal_config.blob_storage,
                     prover_incentives: minimal_config.prover_incentives,
                     attester_incentives: minimal_config.attester_incentives,
                     $(
@@ -72,30 +78,9 @@ macro_rules! generate_bare_runtime {
          <S::OuterZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,{
             #[allow(unused)]
             /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`].
-            pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self, $crate::runtime::BasicKernelGenesisConfig<S, Da>> {
+            pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self> {
                 $crate::runtime::GenesisParams {
                     runtime: self,
-                    kernel: $crate::runtime::BasicKernelGenesisConfig {
-                        chain_state: $crate::runtime::ChainStateConfig {
-                            current_time: Default::default(),
-                            operating_mode: $operating_mode,
-                            inner_code_commitment: Default::default(),
-                            outer_code_commitment: Default::default(),
-                            genesis_da_height: 0,
-                        }
-                    }
-                }
-            }
-
-            #[allow(unused)]
-            /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`] with a custom kernel config.
-            pub fn into_genesis_params_with_kernel<GenesisKernelConfig> (
-                self,
-                kernel_config: GenesisKernelConfig,
-            ) -> $crate::runtime::GenesisParams<Self, GenesisKernelConfig>{
-                $crate::runtime::GenesisParams {
-                    runtime: self,
-                    kernel: kernel_config,
                 }
             }
         }

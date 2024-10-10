@@ -36,7 +36,7 @@ pub struct EthRpcConfig {
 
 pub fn get_ethereum_rpc<
     S: sov_modules_api::Spec,
-    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+    K: Kernel<S> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(
@@ -79,7 +79,7 @@ pub struct Ethereum<S: sov_modules_api::Spec, K, Da: DaService, RT: EthereumAuth
 
 impl<
         S: sov_modules_api::Spec,
-        K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+        K: Kernel<S> + KernelWithSlotMapping<S>,
         Da: DaService,
         RT: EthereumAuthenticator<S>,
     > Ethereum<S, K, Da, RT>
@@ -107,17 +107,13 @@ impl<
     #[cfg(feature = "local")]
     fn api_state_accessor(&self) -> ApiStateAccessor<S> {
         let kernel = K::default();
-        let empty_checkpoint = StateCheckpoint::new(self.storage.borrow().clone(), &kernel);
+        let empty_checkpoint = StateCheckpoint::new::<S, _>(self.storage.borrow().clone(), &kernel);
         ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None)
     }
 }
 
-impl<
-        S: sov_modules_api::Spec,
-        K: Kernel<S::Storage>,
-        Da: DaService,
-        RT: EthereumAuthenticator<S>,
-    > Ethereum<S, K, Da, RT>
+impl<S: sov_modules_api::Spec, K: Kernel<S>, Da: DaService, RT: EthereumAuthenticator<S>>
+    Ethereum<S, K, Da, RT>
 {
     fn make_raw_tx(&self, raw_tx: RlpEvmTransaction) -> Result<(B256, Vec<u8>), ErrorObjectOwned> {
         let signed_transaction =
@@ -200,7 +196,7 @@ impl<
 
 fn register_rpc_methods<
     S: sov_modules_api::Spec,
-    K: Kernel<S::Storage> + KernelWithSlotMapping<S>,
+    K: Kernel<S> + KernelWithSlotMapping<S>,
     Da: DaService,
     RT: EthereumAuthenticator<S> + Send + Sync + 'static,
 >(
@@ -209,7 +205,8 @@ fn register_rpc_methods<
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
             let kernel = K::default();
-            let empty_checkpoint = StateCheckpoint::new(ethereum.storage.borrow().clone(), &kernel);
+            let empty_checkpoint =
+                StateCheckpoint::new::<S, _>(ethereum.storage.borrow().clone(), &kernel);
             let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
 
             let suggested_tip = ethereum

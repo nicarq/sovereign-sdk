@@ -1761,6 +1761,7 @@ dependencies = [
  "sov-accounts",
  "sov-attester-incentives",
  "sov-bank",
+ "sov-blob-storage",
  "sov-capabilities",
  "sov-chain-state",
  "sov-evm",

@@ -65,6 +65,10 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     pub nonces: sov_nonces::Nonces<S>,
     /// The NFT module.
     pub nft: sov_nft::NonFungibleToken<S>,
+    /// The Chain state module.
+    pub chain_state: sov_chain_state::ChainState<S, Da>,
+    /// The Blob storage module.
+    pub blob_storage: sov_blob_storage::BlobStorage<S, Da>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S>,

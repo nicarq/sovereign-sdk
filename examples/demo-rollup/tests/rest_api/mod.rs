@@ -1,16 +1,15 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use demo_stf::genesis_config::GenesisPaths;
 use demo_stf::runtime::RuntimeCall;
 use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
 use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_kernels::basic::BasicKernelGenesisPaths;
 use sov_mock_da::{BlockProducingConfig, MockDaSpec};
 use sov_modules_api::rest::utils::ResponseObject;
+use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
 use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
@@ -27,10 +26,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::OnSubmit,
         0,
-        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-        BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
-        },
+        OperatingMode::Zk,
     )
     .await?;
 
@@ -65,10 +61,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::OnSubmit,
         0,
-        GenesisPaths::from_dir("../test-data/genesis/integration-tests"),
-        BasicKernelGenesisPaths {
-            chain_state: "../test-data/genesis/integration-tests/chain_state_zk.json".into(),
-        },
+        OperatingMode::Zk,
     )
     .await?;
 

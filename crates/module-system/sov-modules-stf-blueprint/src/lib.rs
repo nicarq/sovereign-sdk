@@ -16,7 +16,7 @@ pub use sequencer_mode::registered::{authenticate_tx, process_tx, PreExecError};
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{BlobOrigin, HasCapabilities, TransactionAuthenticator};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::runtime::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
@@ -140,11 +140,9 @@ pub struct ApplyTxResult<S: Spec> {
 }
 
 /// Genesis parameters for a blueprint
-pub struct GenesisParams<RuntimeConfig, KernelConfig> {
+pub struct GenesisParams<RuntimeConfig> {
     /// The runtime genesis parameters
     pub runtime: RuntimeConfig,
-    /// The kernel's genesis parameters
-    pub kernel: KernelConfig,
 }
 
 impl<S, RT, Da, K> StfBlueprint<S, Da, RT, K>
@@ -214,8 +212,7 @@ where
 
     type GasPrice = <S::Gas as Gas>::Price;
 
-    type GenesisParams =
-        GenesisParams<<RT as Genesis>::Config, <K as Kernel<S::Storage>>::GenesisConfig>;
+    type GenesisParams = GenesisParams<<RT as Genesis>::Config>;
     type PreState = S::Storage;
     type ChangeSet = <S::Storage as Storage>::ChangeSet;
 
@@ -236,15 +233,7 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
         let mut state_checkpoint =
-            StateCheckpoint::new::<K>(pre_state.clone(), &Default::default());
-
-        let mut kernel_accessor = K::default().accessor(&mut state_checkpoint);
-
-        // Important! The kernel *must* be initialized before the runtime, since runtime
-        // module authors are allowed to depend on the kernel.
-        self.kernel
-            .genesis(&params.kernel, &mut kernel_accessor)
-            .expect("Kernel initialization must succeed");
+            StateCheckpoint::new::<S, K>(pre_state.clone(), &Default::default());
 
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);

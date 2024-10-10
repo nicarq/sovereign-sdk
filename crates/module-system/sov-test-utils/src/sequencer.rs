@@ -7,7 +7,7 @@ use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
-use sov_modules_api::{OperatingMode, RuntimeEventProcessor, RuntimeEventResponse, SlotData};
+use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, SlotData};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -20,7 +20,6 @@ use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 use tokio::sync::watch;
 
-use crate::runtime::genesis::default_basic_kernel_genesis;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
 use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
@@ -106,10 +105,8 @@ where
         let genesis_config =
             GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
 
-        let kernel_genesis = default_basic_kernel_genesis(OperatingMode::Optimistic);
         let params = GenesisParams {
             runtime: genesis_config,
-            kernel: kernel_genesis,
         };
 
         let stf = TestStfBlueprint::with_runtime(runtime.clone());

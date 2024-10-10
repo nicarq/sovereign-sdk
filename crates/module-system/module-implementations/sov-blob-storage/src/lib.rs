@@ -4,11 +4,11 @@ mod capabilities;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
-use sov_modules_api::macros::config_value;
+use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Batch, BlobDataWithId, DaSpec, InfallibleStateAccessor, KernelModule, KernelModuleInfo,
-    KernelStateAccessor, KernelStateValue, ModuleId, Spec, StateMap,
+    Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleStateAccessor, KernelStateValue, Module,
+    ModuleId, ModuleInfo, Spec, StateMap,
 };
 use sov_state::codec::BcsCodec;
 
@@ -24,11 +24,39 @@ pub fn config_unregistered_blobs_per_slot() -> u64 {
     config_value!("UNREGISTERED_BLOBS_PER_SLOT")
 }
 
+/// The Chain State module does not support calls so we use [`NotInstantiable`] type here.
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    derive(sov_modules_api::macros::CliWalletArg)
+)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, UniversalWallet)]
+pub enum NotInstantiable {}
+
+impl borsh::BorshDeserialize for NotInstantiable {
+    // It is impossible to deserialize to NotInstantiable.
+    fn deserialize_reader<R: std::io::prelude::Read>(
+        _reader: &mut R,
+    ) -> Result<Self, std::io::Error> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "NotInstantiable is not instantiable",
+        ))
+    }
+}
+
+impl borsh::BorshSerialize for NotInstantiable {
+    // Since it impossible to have a value of NotInstantiable this code is unreachable.
+    fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> Result<(), std::io::Error> {
+        unreachable!()
+    }
+}
+
 /// The sequence number for a batch from the preferred sequencer.   
 pub type SequenceNumber = u64;
 
 /// Blob storage contains only address and vector of blobs
-#[derive(Clone, KernelModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 pub struct BlobStorage<S: Spec, Da: DaSpec> {
     /// The ID of blob storage module
     #[id]
@@ -52,7 +80,7 @@ pub struct BlobStorage<S: Spec, Da: DaSpec> {
     #[module]
     pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
 
-    #[kernel_module]
+    #[module]
     chain_state: sov_chain_state::ChainState<S, Da>,
 }
 
@@ -94,16 +122,27 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
 }
 
 /// Empty module implementation
-impl<S: Spec, Da: DaSpec> KernelModule for BlobStorage<S, Da> {
+impl<S: Spec, Da: DaSpec> Module for BlobStorage<S, Da> {
     type Spec = S;
     type Config = ();
+    type CallMessage = NotInstantiable;
+    type Event = ();
 
-    fn genesis_unchecked(
+    fn genesis(
         &self,
         _config: &Self::Config,
-        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+        _state: &mut impl GenesisState<S>,
     ) -> Result<(), sov_modules_api::Error> {
         Ok(())
+    }
+
+    fn call(
+        &self,
+        _message: Self::CallMessage,
+        _context: &sov_modules_api::Context<Self::Spec>,
+        _state: &mut impl sov_modules_api::TxState<Self::Spec>,
+    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+        Ok(Default::default())
     }
 }
 

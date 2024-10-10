@@ -144,7 +144,6 @@ use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
-use module_info::ModuleType;
 use new_types::address_type_helper;
 use offchain::offchain_generator;
 use proc_macro::TokenStream;
@@ -174,23 +173,7 @@ macro_rules! fn_name {
 pub fn module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 
-    handle_macro_error_and_expand(
-        fn_name!(),
-        module_info::derive_module_info(input, ModuleType::Standard),
-    )
-}
-
-#[proc_macro_derive(
-    KernelModuleInfo,
-    attributes(state, module, kernel_module, id, gas, phantom)
-)]
-pub fn kernel_module_info(input: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(input);
-
-    handle_macro_error_and_expand(
-        fn_name!(),
-        module_info::derive_module_info(input, ModuleType::Kernel),
-    )
+    handle_macro_error_and_expand(fn_name!(), module_info::derive_module_info(input))
 }
 
 #[proc_macro_derive(Genesis)]

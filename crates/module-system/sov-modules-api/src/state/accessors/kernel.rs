@@ -6,6 +6,7 @@ use self::checkpoints::StateCheckpoint;
 use super::*;
 use crate::capabilities::Kernel;
 use crate::state::traits::{KernelWriter, VersionReader};
+use crate::Spec;
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
 pub struct BootstrapWorkingSet<'a, S: Storage> {
@@ -51,7 +52,7 @@ impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     /// Instantiates a new [`KernelStateAccessor`].
-    pub fn from_checkpoint<K: Kernel<S>>(
+    pub fn from_checkpoint<Sp: Spec<Storage = S>, K: Kernel<Sp>>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {

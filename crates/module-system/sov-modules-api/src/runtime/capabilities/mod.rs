@@ -107,7 +107,7 @@ pub mod mocks {
     #[cfg(feature = "native")]
     use super::KernelWithSlotMapping;
     use super::{Kernel, Spec};
-    use crate::{BootstrapWorkingSet, KernelStateAccessor};
+    use crate::BootstrapWorkingSet;
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -147,25 +147,12 @@ pub mod mocks {
         }
     }
 
-    impl<S: Spec> Kernel<S::Storage> for MockKernel<S> {
+    impl<S: Spec> Kernel<S> for MockKernel<S> {
         fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_slot_number
         }
         fn next_visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.visible_slot_number
-        }
-
-        type GenesisConfig = ();
-
-        #[cfg(feature = "native")]
-        type GenesisPaths = ();
-
-        fn genesis(
-            &self,
-            _config: &Self::GenesisConfig,
-            _state: &mut KernelStateAccessor<S::Storage>,
-        ) -> anyhow::Result<()> {
-            Ok(())
         }
     }
 }
