@@ -1,3 +1,6 @@
+# See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1196>.
+build.incremental = false
+
 # SP1 (and Plonky3) need to be optimized during compilation for fast prover setup. This is necessary
 # for all operations involving executing or proving in SP1. This is necessary to avoid needing to
 # run tests in release mode.
