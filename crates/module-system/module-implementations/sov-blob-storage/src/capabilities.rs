@@ -61,6 +61,8 @@ impl<S: Spec> BlobStorage<S> {
 
         self.set_next_visible_slot_number(state.rollup_height_to_access(), state);
 
+        state.update_virtual_slot_number(state.rollup_height_to_access());
+
         self.select_blobs_da_ordering(current_blobs, state)
     }
 
@@ -267,6 +269,10 @@ impl<S: Spec> BlobStorage<S> {
             _ => {
                 let new_batches = self.select_blobs_da_ordering(current_blobs, state);
                 self.store_batches(state.rollup_height_to_access(), &new_batches, state);
+                self.set_next_visible_slot_number(
+                    state.virtual_slot_number().saturating_add(2),
+                    state,
+                );
                 2
             }
         };
@@ -276,13 +282,6 @@ impl<S: Spec> BlobStorage<S> {
             let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
-
-        self.set_next_visible_slot_number(
-            state
-                .virtual_slot_number()
-                .saturating_add(batches_needed_from_this_slot),
-            state,
-        );
 
         batches_to_process
     }
