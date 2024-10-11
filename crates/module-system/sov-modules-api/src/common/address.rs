@@ -185,8 +185,8 @@ macro_rules! impl_hash32_type {
     ($id:ident, $bech32_version:ident, $human_readable_prefix:expr) => {
         #[derive(
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
-            sov_modules_api::macros::UniversalWallet
         )]
+        #[cfg_attr(feature = "native", derive(sov_modules_api::macros::UniversalWallet))]
         #[cfg_attr(
             feature = "native",
             derive(schemars::JsonSchema),
@@ -249,12 +249,6 @@ macro_rules! impl_hash32_type {
     };
 }
 
-// A hack to ensure that the path to `sov_modules_api::macros` is valid
-// since we're inside sov_modules_api
-#[doc(hidden)]
-mod sov_modules_api {
-    pub use sov_universal_wallet;
-}
 impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
 
 /// Module ID representation.
@@ -278,14 +272,20 @@ impl<H> PartialOrd for Address<H> {
 
 // Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
 // to just `sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx`
-impl<H: 'static> sov_universal_wallet::schema::OverrideSchema for Address<H> {
+#[cfg(feature = "native")]
+impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for Address<H> {
     type Output = AddressSchema;
 }
 
-#[derive(crate::macros::UniversalWallet)]
+#[cfg_attr(
+    feature = "native",
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 #[allow(dead_code)]
 #[doc(hidden)]
-pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "sov")))] [u8; 32]);
+pub struct AddressSchema(
+    #[cfg_attr(feature = "native", sov_wallet(display(bech32m(prefix = "sov"))))] [u8; 32],
+);
 
 // We manually implement clone so that we can silence this clippy warning.
 // Derivative has o facility to enable that.

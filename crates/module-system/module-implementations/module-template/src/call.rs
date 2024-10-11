@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
+#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
 
@@ -11,7 +12,7 @@ use crate::ExampleModule;
 /// the `ExampleModule` module.
 /// The `derive` for [`schemars::JsonSchema`] is a requirement of
 /// [`sov_modules_api::ModuleCallJsonSchema`].
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+#[cfg_attr(feature = "native", derive(schemars::JsonSchema, UniversalWallet))]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
@@ -21,7 +22,6 @@ use crate::ExampleModule;
     borsh::BorshSerialize,
     Debug,
     PartialEq,
-    UniversalWallet,
     Clone,
     serde::Serialize,
     serde::Deserialize,

@@ -2,6 +2,7 @@ use reth_primitives::revm_primitives::{
     Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
 };
 use reth_primitives::{Log as RethLog, TransactionSigned};
+#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
@@ -21,8 +22,8 @@ use crate::{Evm, PendingTransaction, SpecId};
     Debug,
     PartialEq,
     Clone,
-    UniversalWallet,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct CallMessage {
     /// RLP encoded transaction.
     pub rlp: RlpEvmTransaction,

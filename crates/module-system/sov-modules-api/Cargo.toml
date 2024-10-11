@@ -29,7 +29,7 @@ sov-rest-utils = { workspace = true, optional = true }
 sov-state = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-macros = { workspace = true }
-sov-universal-wallet = { workspace = true }
+sov-universal-wallet = { workspace = true, features = [] }
 sov-db = { workspace = true, optional = true }
 sov-cycle-utils = { workspace = true, optional = true }
 serde = { workspace = true }

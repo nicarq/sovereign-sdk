@@ -7,7 +7,11 @@ use std::fmt::Display;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_universal_wallet::UniversalWallet;
 
+#[cfg(feature = "native")]
+use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 use crate::zk::ValidityCondition;
 #[cfg(feature = "native")]
 use crate::zk::ValidityConditionChecker;
@@ -269,17 +273,9 @@ impl<T: BlockHeaderTrait> core::fmt::Display for BlockHeaderDisplay<'_, T> {
 }
 
 #[derive(
-    Serialize,
-    Deserialize,
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    BorshDeserialize,
-    BorshSerialize,
-    Default,
-    sov_universal_wallet::UniversalWallet,
+    Serialize, Deserialize, Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Default,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 /// A timestamp, represented as seconds since the unix epoch.
 pub struct Time {
     /// The number of seconds since the unix epoch

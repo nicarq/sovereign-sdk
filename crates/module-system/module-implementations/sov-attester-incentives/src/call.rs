@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use thiserror::Error;
 use tracing::error;
@@ -12,16 +13,9 @@ use crate::Amount;
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
 #[derive(
-    Derivative,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    Clone,
-    UniversalWallet,
-    PartialEq,
-    Eq,
+    Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Register an attester, the parameter is the bond amount

@@ -14,7 +14,11 @@ use digest::typenum::U32;
 use digest::Digest;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_universal_wallet::UniversalWallet;
 
+#[cfg(feature = "native")]
+use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 use crate::crypto::{PublicKey, Signature};
 use crate::da::{DaSpec, RelevantBlobs, RelevantProofs};
 
@@ -144,17 +148,8 @@ pub trait ValidityCondition:
 /// if and only if the condition `validity_condition` is satisfied.
 ///
 /// The period of time covered by a state transition proof may be a single slot, or a range of slots on the DA layer.
-#[derive(
-    Clone,
-    Debug,
-    Serialize,
-    Deserialize,
-    BorshSerialize,
-    BorshDeserialize,
-    PartialEq,
-    Eq,
-    sov_universal_wallet::UniversalWallet,
-)]
+#[derive(Clone, Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct StateTransitionPublicData<Address, Da: DaSpec, Root> {
     /// The state of the rollup before the transition
     #[borsh(bound(
@@ -194,7 +189,8 @@ pub trait ValidityConditionChecker<Condition: ValidityCondition>:
     fn check(&mut self, condition: &Condition) -> Result<(), Self::Error>;
 }
 
-#[derive(Serialize, Deserialize, sov_universal_wallet::UniversalWallet)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 // Prevent serde from generating spurious trait bounds. The correct serde bounds are already enforced by the
 // StateTransitionFunction, DA, and Zkvm traits.
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
@@ -214,7 +210,8 @@ pub struct StateTransitionWitness<StateRoot, Witness, Da: DaSpec> {
     pub witness: Witness,
 }
 
-#[derive(Serialize, Deserialize, sov_universal_wallet::UniversalWallet)]
+#[derive(Serialize, Deserialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(
     bound = "Address: Serialize + DeserializeOwned, StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned"
 )]

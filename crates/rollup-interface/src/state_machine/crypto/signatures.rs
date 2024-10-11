@@ -7,8 +7,12 @@ use std::hash;
 use digest::typenum::U32;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_universal_wallet::UniversalWallet;
 
 use super::CredentialId;
+#[cfg(feature = "native")]
+use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 
 /// Representation of a signature verification error.
 #[derive(Debug, thiserror::Error)]
@@ -75,9 +79,9 @@ pub trait PrivateKey:
     PartialEq,
     Clone,
     Eq,
-    sov_universal_wallet::UniversalWallet,
     derive_more::Display,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(try_from = "String", into = "String")]
 pub struct PublicKeyHex {
     /// The public key in hexadecimal format.

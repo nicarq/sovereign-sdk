@@ -1,16 +1,4 @@
+#[cfg(any(feature = "native", feature = "arbitrary"))]
+use crate as sov_modules_api;
 use crate::impl_hash32_type;
-
 impl_hash32_type!(ModuleId, ModuleIdBech32, "module_");
-
-// A hack to ensure that paths relative to sov_modules_api` needed by the macro
-// exist.
-#[doc(hidden)]
-mod sov_modules_api {
-    #[cfg(feature = "arbitrary")]
-    pub mod prelude {
-        pub use {arbitrary, proptest_derive};
-    }
-    pub use sov_universal_wallet;
-
-    pub use crate::macros;
-}

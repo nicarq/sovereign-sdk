@@ -19,11 +19,10 @@ pub fn address_type_helper(input: DeriveInput) -> syn::Result<TokenStream> {
             borsh::BorshSerialize,
             serde::Serialize,
             serde::Deserialize,
-            sov_modules_api::macros::UniversalWallet,
         )]
         #[cfg_attr(
             feature = "native",
-            derive(schemars::JsonSchema),
+            derive(schemars::JsonSchema, sov_modules_api::macros::UniversalWallet),
             schemars(bound = "S::Address: ::schemars::JsonSchema", rename = #name_str),
         )]
         #(#attrs)*

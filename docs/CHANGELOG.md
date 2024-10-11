@@ -4,6 +4,15 @@
 - #1599 removes the kernel macros and moves the Kernel modules inside the runtime. This may be a breaking change if users have implemented their own Kernels (we have removed the `Genesis` configuration from the `Kernel` trait) or if they have used the `Kernel` macro inside their modules (`KernelModule` derive macro, `kernel_module` attribute).
 
 - The two type generics of `ApiState` have been inverted, e.g. `ApiState<Bank<S>, S>` is now `ApiState<S, Bank<S>>`, and the second generic defaults to `()`.
+## 2024-10-08
+- #1589 Revamp universal wallet generation code
+This fully integrates the new `UniversalWallet` macro, which was previously present as beta versions. This macro should be derived on any types which may be part of the `RuntimeCall` or transaction types of a rollup; once derived, a schema for those types can be generated and used in rollup-agnostic wallets. The derivation should be gated by `#[cfg(feature = "native)]`.
+
+For module authors, the `UniversalWallet` macro should be derived on the `CallMessage` type of your module(s), and subsequently any types used in the `CallMessage` (the compiler will enforce this). Any modules that already derived the previous implementation of the macro should double-check the import path: it is available at `sov_modules_api::macros::UniversalWallet`; the derivation and import must also be `"native"` feature-gated as above.
+
+The underlying traits that the macro implements are also available to be used as members of the `sov_modules_api::sov_universal_wallet::*` module. The `SchemaGenerator` trait can be implemented manually as an alternative to deriving the macro, and the `OverrideSchema` trait can be used to manually designated a different type's implementation to be used for a given type - provided their `borsh` encodings are identical.
+
+The macro is additionally available in `sov_rollup_interface` at the path `sov_rollup_interface::sov_universal_wallet::UniversalWallet`.
 
 ## 2024-10-07
 - #1588 changes the signature of the `GasEnforcer` capability, adding one new method `try_reserve_gas_for_proof` and altering the signature of `try_reserve_gas` to include the entire `Context` instead of just the sender address. If you're using the standard capabilities, no change is needed. If you implemented your own `GasEnforcer` capability, simply copy-paste your old implementation as `try_reserve_gas_for_proof`, and use `context.sender()` in place of the `sender` argument within `try_reserve_gas`.

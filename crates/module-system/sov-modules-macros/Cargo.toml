@@ -36,7 +36,7 @@ quote = "1.0"
 serde = { workspace = true }
 syn = { version = "2.0", features = ["full"] }
 toml = { workspace = true }
-sov-universal-wallet-macro-helpers = { git = "ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git", rev = "38ec0fbf9980dafb3b7a981326182359c070f64d" }
+sov-universal-wallet-macro-helpers = { workspace = true }
 
 
 [dev-dependencies]

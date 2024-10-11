@@ -1,4 +1,7 @@
 - sov-rollup-interface
+- sov-universal-wallet
+- sov-universal-wallet-macros
+- sov-universal-wallet-macro-helpers
 - sov-mock-da
 - sov-mock-zkvm
 - sov-rest-utils

@@ -4,7 +4,11 @@ mod simple_hasher;
 pub use simple_hasher::NoOpHasher;
 mod signatures;
 pub use signatures::*;
+#[cfg(feature = "native")]
+use sov_universal_wallet::UniversalWallet;
 
+#[cfg(feature = "native")]
+use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 use crate::common::HexHash;
 
 /// Type that represents an identifier for an authorizer of the transaction.
@@ -22,11 +26,11 @@ use crate::common::HexHash;
     Ord,
     Clone,
     Copy,
-    sov_universal_wallet::UniversalWallet,
     derive_more::Display,
     derive_more::FromStr,
     derive_more::From,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet,))]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)

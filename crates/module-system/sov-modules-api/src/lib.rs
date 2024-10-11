@@ -107,6 +107,7 @@ pub use sov_rollup_interface::zk::{
 };
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::{CompileTimeNamespace, Storage};
+#[cfg(feature = "native")]
 pub use sov_universal_wallet;
 pub use state::*;
 
@@ -185,6 +186,7 @@ pub mod prelude {
     pub extern crate serde_yaml;
     #[cfg(feature = "native")]
     pub extern crate sov_rest_utils;
+    #[cfg(feature = "native")]
     pub extern crate sov_universal_wallet;
     #[cfg(feature = "native")]
     pub extern crate tokio;
