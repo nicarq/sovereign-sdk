@@ -93,16 +93,21 @@ pub extern crate bech32;
 /// Specifies the encoding to use when displaying a byte sequence or integer. The encoding can be one of the following:
 /// - hex: displays the type as a hexadecimal string with the prefix "0x"
 /// - decimal: displays the type as a decimal number (integer only) or a list of decimal numbers in square brackets (byte sequence)
-/// - bech32(prefix = "my_prefix"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
-/// - bech32m(prefix = "my_prefix"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
+/// - bech32(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
+/// - bech32m(prefix = "my_prefix_expr"): displays the type as a bech32-encoded string with the specified human-readable part. (byte sequence only)
 ///
 /// This annotation may only be applied to fields, not items. The field must have type integer, `[u8;N]`, or `Vec<u8>` to use this attribute.
 ///
 /// ```rust
 /// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};
+///
+/// fn prefix() -> &'static str {
+///   "celestia"
+/// }
+///
 /// #[derive(UniversalWallet, borsh::BorshSerialize)]
 /// pub struct CelestiaAddress(
-///   #[sov_wallet(display(bech32(prefix = "celestia")))]
+///   #[sov_wallet(display(bech32(prefix = "prefix()")))]
 ///   [u8;32],
 /// );
 /// let serialized = borsh::to_vec(&CelestiaAddress([1; 32])).unwrap();

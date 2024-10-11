@@ -6,6 +6,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use derivative::Derivative;
 use sha2::digest::typenum::U32;
 use sha2::Digest;
+use sov_modules_macros::config_value_private;
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
@@ -34,12 +35,14 @@ macro_rules! impl_bech32_conversion {
             String,
         );
 
-        const __BECH32_HRP: &str = $human_readable_prefix;
+        const fn __bech32_hrp() -> &'static str {
+            $human_readable_prefix
+        }
 
         mod __bech32_conversion_impls {
             use super:: $id;
             use super:: $bech32_version;
-            use super:: __BECH32_HRP;
+            use super:: __bech32_hrp;
             use std::fmt;
             use std::str::FromStr;
             use $crate::prelude::{bech32, serde, anyhow};
@@ -75,7 +78,7 @@ macro_rules! impl_bech32_conversion {
                 fn from_str(s: &str) -> Result<Self, $crate::common::Bech32ParseError> {
                     let hrp_string = CheckedHrpstring::new::<Bech32m>(s)?;
 
-                    if hrp_string.hrp().as_str() != __BECH32_HRP {
+                    if hrp_string.hrp().as_str() != __bech32_hrp() {
                         return Err($crate::common::Bech32ParseError::WrongHRP(hrp_string.hrp().to_string()));
                     }
 
@@ -146,13 +149,13 @@ macro_rules! impl_bech32_conversion {
 
                 /// Returns the human readable prefix for the bech32 representation
                 pub fn human_readable_prefix() -> &'static str {
-                    __BECH32_HRP
+                    __bech32_hrp()
                 }
             }
 
             impl $(< $generic > )? From<$id $(< $generic > )?> for $bech32_version {
                 fn from(addr: $id $(< $generic > )?) -> Self {
-                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__BECH32_HRP), addr.as_ref()).expect("Encoding to string is infallible");
+                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__bech32_hrp()), addr.as_ref()).expect("Encoding to string is infallible");
                     $bech32_version(string)
                 }
             }
@@ -160,7 +163,7 @@ macro_rules! impl_bech32_conversion {
 
             impl $(< $generic > )? From<& $id $(< $generic > )?> for $bech32_version {
                 fn from(addr: & $id $(< $generic > )?) -> Self {
-                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__BECH32_HRP), addr.as_ref()).expect("Encoding to string is infallible");
+                    let string = bech32::encode::<Bech32m>(Hrp::parse_unchecked(__bech32_hrp()), addr.as_ref()).expect("Encoding to string is infallible");
                     $bech32_version(string)
                 }
             }
@@ -187,15 +190,26 @@ macro_rules! impl_hash32_type {
             Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
         )]
         #[cfg_attr(feature = "native", derive(sov_modules_api::macros::UniversalWallet))]
+        #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
         #[cfg_attr(
-            feature = "native",
-            derive(schemars::JsonSchema),
+            feature = "arbitrary",
+            derive(
+                sov_modules_api::prelude::arbitrary::Arbitrary,
+                sov_modules_api::prelude::proptest_derive::Arbitrary
+            )
         )]
-        #[cfg_attr(feature = "arbitrary", derive(sov_modules_api::prelude::arbitrary::Arbitrary, sov_modules_api::prelude::proptest_derive::Arbitrary))]
         /// A globally unique identifier.
         pub struct $id(
-            #[cfg_attr(feature ="native", sov_wallet(display(bech32m(prefix = $human_readable_prefix))))] [u8; 32],
+            #[cfg_attr(
+                feature = "native",
+                sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))
+            )]
+            [u8; 32],
         );
+
+        const fn __impl_hash32_type_prefix() -> &'static str {
+            $human_readable_prefix
+        }
 
         impl From<[u8; 32]> for $id {
             fn from(inner: [u8; 32]) -> Self {
@@ -235,7 +249,7 @@ macro_rules! impl_hash32_type {
 
             /// Returns the human readable prefix for the bech32 representation
             pub const fn bech32_prefix() -> &'static str {
-                $human_readable_prefix
+                __impl_hash32_type_prefix()
             }
 
             /// Creates a new $id containing the given bytes. This function is needed in addition
@@ -249,7 +263,7 @@ macro_rules! impl_hash32_type {
     };
 }
 
-impl_bech32_conversion!(Address<H>, AddressBech32, ADDRESS_PREFIX);
+impl_bech32_conversion!(Address<H>, AddressBech32, address_prefix());
 
 /// Module ID representation.
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
@@ -277,6 +291,10 @@ impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSch
     type Output = AddressSchema;
 }
 
+const fn address_prefix() -> &'static str {
+    config_value_private!("ADDRESS_PREFIX")
+}
+
 #[cfg_attr(
     feature = "native",
     derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
@@ -284,7 +302,11 @@ impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSch
 #[allow(dead_code)]
 #[doc(hidden)]
 pub struct AddressSchema(
-    #[cfg_attr(feature = "native", sov_wallet(display(bech32m(prefix = "sov"))))] [u8; 32],
+    #[cfg_attr(
+        feature = "native",
+        sov_wallet(display(bech32m(prefix = "address_prefix()")))
+    )]
+    [u8; 32],
 );
 
 // We manually implement clone so that we can silence this clippy warning.
@@ -401,11 +423,6 @@ impl<'a, H> Arbitrary<'a> for Address<H> {
 
 impl<H: Send + Sync + 'static> BasicAddress for Address<H> {}
 impl<H: Send + Sync + 'static> RollupAddress for Address<H> {}
-
-// TODO(@preston-evans98): unify core and modules, then
-// enable sov-modules-macros and do this
-// #[sov_modules_macros::config_constant]
-const ADDRESS_PREFIX: &str = "sov";
 
 #[cfg(test)]
 mod test {

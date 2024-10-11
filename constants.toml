@@ -29,6 +29,8 @@ GAS_DIMENSIONS = { const = 2 }
 GAS_FORCED_SEQUENCER_REGISTRATION_COST = [100000, 100000]
 # The ID of the "native token" of the rollup, which is used to pay gas fees.
 GAS_TOKEN_ID = { bech32 = "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7", type = "TokenId" }
+# The HRP prefix that appears in all rollup addresses.
+ADDRESS_PREFIX = { const = "sov" }
 # --- Gas parameters to charge for state accesses ---
 # The cost of a storage access operation.
 GAS_TO_CHARGE_FOR_ACCESS = [5, 5]
@@ -70,4 +72,3 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
-

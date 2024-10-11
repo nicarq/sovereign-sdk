@@ -228,14 +228,17 @@ fn test_medium_struct_schema_recursive_nongeneric() {
     encode_decode_tests!(schema, my_call, "Withdraw(43)");
 }
 
+const PREFIX_SOV: &str = "sov";
+const PREFIX_CELESTIA: &str = "celestia";
+
 #[derive(Debug, PartialEq, Serialize, Eq, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct Complex {
-    #[cfg_attr(test, sov_wallet(display(bech32(prefix = "sov"))))]
+    #[cfg_attr(test, sov_wallet(display(bech32(prefix = "PREFIX_SOV"))))]
     rollup_address: [u8; 32],
     #[cfg_attr(
         test,
-        sov_wallet(display(bech32m(prefix = "celestia"))),
+        sov_wallet(display(bech32m(prefix = "PREFIX_CELESTIA"))),
         serde(with = "serde_arrays")
     )]
     da_address: [u8; 64],
@@ -274,7 +277,7 @@ pub struct NestedGeneric<T> {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct AThirdComplexType {
-    #[cfg_attr(test, sov_wallet(display(bech32(prefix = "celestia"))))]
+    #[cfg_attr(test, sov_wallet(display(bech32(prefix = "PREFIX_CELESTIA"))))]
     address: [u8; 32],
     #[cfg_attr(test, sov_wallet(display(decimal)))]
     extra_bytes: Vec<u8>,

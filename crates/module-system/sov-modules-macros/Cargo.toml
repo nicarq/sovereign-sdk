@@ -27,7 +27,7 @@ anyhow = { workspace = true }
 bech32 = { workspace = true }
 blake2 = "0.10"
 convert_case = "0.6.0"
-darling = "0.20"
+darling = { workspace = true }
 derive_more = { workspace = true, features = ["deref"] }
 hex = { workspace = true }
 prettier-please = { version = "0.3", default-features = false }
