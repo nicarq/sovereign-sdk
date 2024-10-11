@@ -213,7 +213,7 @@ fn test_cannot_attest_genesis_height() {
 
     let attestation_proof = runner.query_state(|state| {
         let genesis_height = 0;
-        let chain_state = sov_chain_state::ChainState::<S, sov_mock_da::MockDaSpec>::default();
+        let chain_state = sov_chain_state::ChainState::<S>::default();
         let genesis_root_hash = chain_state.get_genesis_hash(state).unwrap().unwrap();
 
         let mut archival_state = state.get_archival_at(genesis_height);

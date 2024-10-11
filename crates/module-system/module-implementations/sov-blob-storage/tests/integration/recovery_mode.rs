@@ -1,6 +1,5 @@
 use sov_blob_storage::config_deferred_slots_count;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::GasMeter;
 use sov_test_utils::{BatchTestCase, BatchType, SequencerInfo};
 
@@ -8,7 +7,7 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
     setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel,
 };
-use crate::{assert_blobs_are_correctly_received_helper, Da, HashMap, TestData, TestRunner, S};
+use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestRunner, S};
 
 /// Test that when the preferred sequencer is slashed, the virtual slot number increases by two until
 /// it catches up. For this test to work [`DEFERRED_SLOTS_COUNT`] must be greater than 2.
@@ -35,7 +34,7 @@ fn test_recovery_mode() {
         assert: Box::new(move |_ctx, state| {
             // We check that the sequencer is not allowed to ensure he has been slashed
             assert_eq!(
-                sov_sequencer_registry::SequencerRegistry::<S, Da>::default().is_sender_allowed(
+                sov_sequencer_registry::SequencerRegistry::<S>::default().is_sender_allowed(
                     &preferred_sequencer.da_address,
                     &state.gas_info().gas_price,
                     state
@@ -101,7 +100,7 @@ fn test_recovery_mode_with_deferred_blobs() {
         .collect::<Vec<_>>();
 
     let slashing_slot = runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S, MockDaSpec>>::batches_to_blobs::<sov_bank::Bank<S>>(
+        TestRunner::<SoftConfirmationsKernel<S>>::batches_to_blobs::<sov_bank::Bank<S>>(
             vec![(BatchType(vec![]), preferred_sequencer.da_address)],
             &mut nonces,
             state,

@@ -8,7 +8,7 @@ use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
 use sov_rollup_json_client::types;
 use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
 
-use crate::{Da, TestData, RT, S};
+use crate::{TestData, RT, S};
 
 /// Tests that getting the latest base fee per gas returns the initial base fee per gas after genesis.
 #[tokio::test(flavor = "multi_thread")]
@@ -109,7 +109,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
 async fn test_simulation() {
     let mut data = TestData::setup().await;
 
-    let partial_tx: types::PartialTransaction = PartialTransaction::<S, Da> {
+    let partial_tx: types::PartialTransaction = PartialTransaction::<S> {
         sender_pub_key: data.user.private_key().pub_key(),
         details: TxDetails {
             max_priority_fee_bips: PriorityFeeBips::ZERO,

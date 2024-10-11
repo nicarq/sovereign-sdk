@@ -3,7 +3,7 @@ use std::cmp::max;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, DaSpec, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
+    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec,
     StateReader, TxState, Zkvm,
 };
 use sov_state::User;
@@ -66,7 +66,7 @@ enum Paycheck {
     Rewarded(u64),
 }
 
-impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec> ProverIncentives<S> {
     /// Try to process a zk proof, if the prover is bonded.
     pub fn process_proof(
         &self,

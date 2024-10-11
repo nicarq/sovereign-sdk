@@ -7,7 +7,7 @@ use sov_state::ProverStorage;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{assert_tx_reverted_with_reason, TestRunner};
 use sov_test_utils::{
-    generate_optimistic_runtime, AsUser, MockDaSpec, TestStorageSpec, TestUser, TransactionTestCase,
+    generate_optimistic_runtime, AsUser, TestStorageSpec, TestUser, TransactionTestCase,
 };
 
 pub type S = sov_test_utils::TestSpec;
@@ -28,10 +28,7 @@ pub struct TestRoles<S: Spec> {
 }
 
 /// Sets up the test runtime by generating a genesis config with a single nft that has
-fn setup() -> (
-    TestRoles<S>,
-    TestRunner<TestNftModuleRuntime<S, MockDaSpec>, S>,
-) {
+fn setup() -> (TestRoles<S>, TestRunner<TestNftModuleRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(4);
 

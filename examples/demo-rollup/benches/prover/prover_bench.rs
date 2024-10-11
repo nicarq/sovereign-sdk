@@ -79,23 +79,14 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
     table.printstd();
 }
 
-type BenchRisc0Spec = DefaultSpec<Risc0Verifier, Risc0Verifier, WitnessGeneration>;
+type BenchRisc0Spec = DefaultSpec<MockDaSpec, Risc0Verifier, Risc0Verifier, WitnessGeneration>;
 
-type BenchRisc0STF = StfBlueprint<
-    BenchRisc0Spec,
-    MockDaSpec,
-    Runtime<BenchRisc0Spec, MockDaSpec>,
-    BasicKernel<BenchRisc0Spec, MockDaSpec>,
->;
+type BenchRisc0STF =
+    StfBlueprint<BenchRisc0Spec, Runtime<BenchRisc0Spec>, BasicKernel<BenchRisc0Spec>>;
 
-type BenchSP1Spec = DefaultSpec<SP1Verifier, SP1Verifier, WitnessGeneration>;
+type BenchSP1Spec = DefaultSpec<MockDaSpec, SP1Verifier, SP1Verifier, WitnessGeneration>;
 
-type BenchSP1STF = StfBlueprint<
-    BenchSP1Spec,
-    MockDaSpec,
-    Runtime<BenchSP1Spec, MockDaSpec>,
-    BasicKernel<BenchSP1Spec, MockDaSpec>,
->;
+type BenchSP1STF = StfBlueprint<BenchSP1Spec, Runtime<BenchSP1Spec>, BasicKernel<BenchSP1Spec>>;
 
 /// Simple enum to select the test mode.
 enum BenchMode {
@@ -192,9 +183,9 @@ where
     OuterVm,
     MockDaSpec,
     ChangeSet = NativeChangeSet,
-    GenesisParams = GenesisParams<GenesisConfig<DefaultSpec<InnerVm, OuterVm, WitnessGeneration>, MockDaSpec>>,
-    PreState = <DefaultSpec<InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage,
-    StateRoot = <<DefaultSpec<InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage as Storage>::Root,
+    GenesisParams = GenesisParams<GenesisConfig<DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration>, >>,
+    PreState = <DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage,
+    StateRoot = <<DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage as Storage>::Root,
 >,
 {
     let genesis_conf_dir = env::var("GENESIS_CONFIG_DIR").unwrap_or_else(|_| {
@@ -215,9 +206,9 @@ where
     generate_genesis_config(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params = create_genesis_config::<DefaultSpec<InnerVm, OuterVm, WitnessGeneration>, _>(
-            &GenesisPaths::from_dir(genesis_conf_dir.as_str()),
-        )?;
+        let rt_params = create_genesis_config::<
+            DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration>,
+        >(&GenesisPaths::from_dir(genesis_conf_dir.as_str()))?;
 
         GenesisParams { runtime: rt_params }
     };

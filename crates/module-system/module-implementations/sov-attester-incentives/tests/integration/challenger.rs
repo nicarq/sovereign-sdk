@@ -2,7 +2,7 @@ use std::convert::Infallible;
 
 use sov_attester_incentives::{AttesterIncentives, CallMessage, SlashingReason};
 use sov_bank::Amount;
-use sov_mock_da::{MockDaSpec, MockHash};
+use sov_mock_da::MockHash;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome};
 use sov_state::jmt::RootHash;
@@ -108,7 +108,7 @@ fn setup_with_wrong_attestation() -> (
                 // Check that the transition was added to the challengeable set
                 // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
                 assert_eq!(
-                    AttesterIncentives::<S, MockDaSpec>::default()
+                    AttesterIncentives::<S>::default()
                         .bad_transition_pool
                         .get(&1, state)
                         .unwrap_infallible(),

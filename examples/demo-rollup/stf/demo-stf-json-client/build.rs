@@ -3,11 +3,12 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::HasRestApi;
-type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S =
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
 fn main() {
     println!("cargo:rerun-if-changed=../../../../crates/module-system/sov-modules-api");
-    let runtime = Runtime::<S, MockDaSpec>::default();
+    let runtime = Runtime::<S>::default();
 
     let spec = runtime.openapi_spec().unwrap();
     let serialized = serde_json::to_string_pretty(&spec).unwrap();

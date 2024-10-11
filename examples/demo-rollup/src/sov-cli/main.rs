@@ -6,8 +6,8 @@ use sov_modules_rollup_blueprint::WalletBlueprint;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     CelestiaDemoRollup::run_wallet::<
-        RuntimeSubcommand<FileNameArg, _, _>,
-        RuntimeSubcommand<JsonStringArg, _, _>,
+        RuntimeSubcommand<FileNameArg, _>,
+        RuntimeSubcommand<JsonStringArg, _>,
     >()
     .await
 }

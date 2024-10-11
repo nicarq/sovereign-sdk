@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use sov_attester_incentives::{AttesterIncentives, CallMessage};
 use sov_bank::{config_gas_token_id, Bank};
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Gas, GasArray, GasMeter, Spec, TxEffect};
@@ -28,11 +27,11 @@ impl TestRole {
 
     fn user_bond(&self, user: &TestUser<S>, state: &mut ApiStateAccessor<S>) -> Option<u64> {
         match self {
-            TestRole::Attester => AttesterIncentives::<S, MockDaSpec>::default()
+            TestRole::Attester => AttesterIncentives::<S>::default()
                 .bonded_attesters
                 .get(&user.address(), state)
                 .unwrap_infallible(),
-            TestRole::Challenger => AttesterIncentives::<S, MockDaSpec>::default()
+            TestRole::Challenger => AttesterIncentives::<S>::default()
                 .bonded_challengers
                 .get(&user.address(), state)
                 .unwrap_infallible(),
@@ -89,7 +88,7 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
 
         let register_signed = user
-            .create_plain_message::<AttesterIncentives<S, MockDaSpec>>({
+            .create_plain_message::<AttesterIncentives<S>>({
                 role.create_call_message(additional_user_bond)
             })
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
@@ -100,10 +99,8 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
     // We execute a batch of two transactions, check that the total gas used is higher than the target.
     runner.execute_batch(BatchTestCase {
         input: BatchType(vec![
-            TransactionType::<AttesterIncentives<S, MockDaSpec>, S>::PreAuthenticated(bank_signed),
-            TransactionType::<AttesterIncentives<S, MockDaSpec>, S>::PreAuthenticated(
-                register_signed,
-            ),
+            TransactionType::<AttesterIncentives<S>, S>::PreAuthenticated(bank_signed),
+            TransactionType::<AttesterIncentives<S>, S>::PreAuthenticated(register_signed),
         ]),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);

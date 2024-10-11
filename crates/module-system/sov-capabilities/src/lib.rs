@@ -15,16 +15,16 @@ use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::SequencerRegistry;
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
-pub struct StandardProvenRollupCapabilities<'a, S: Spec, Da: DaSpec> {
+pub struct StandardProvenRollupCapabilities<'a, S: Spec> {
     pub bank: &'a sov_bank::Bank<S>,
-    pub sequencer_registry: &'a SequencerRegistry<S, Da>,
+    pub sequencer_registry: &'a SequencerRegistry<S>,
     pub accounts: &'a sov_accounts::Accounts<S>,
     pub nonces: &'a sov_nonces::Nonces<S>,
-    pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S, Da>,
-    pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S, Da>,
+    pub prover_incentives: &'a sov_prover_incentives::ProverIncentives<S>,
+    pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S>,
 }
 
-impl<'a, S: Spec, Da: DaSpec> StandardProvenRollupCapabilities<'a, S, Da> {
+impl<'a, S: Spec> StandardProvenRollupCapabilities<'a, S> {
     fn get_prover_token_holder(
         &self,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
@@ -47,7 +47,7 @@ impl<'a, S: Spec, Da: DaSpec> StandardProvenRollupCapabilities<'a, S, Da> {
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabilities<'a, S, Da> {
+impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
     /// Reserves enough gas for the transaction to be processed, if possible.
     fn try_reserve_gas(
         &self,
@@ -97,7 +97,7 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
     fn transfer_authentication_cost_from_sequencer_to_prover(
         &self,
         amount: u64,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         let rewarded_prover_module = self.get_prover_token_holder(tx_scratchpad);
@@ -110,7 +110,7 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
         &self,
         amount: u64,
         user: &S::Address,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.sequencer_registry
@@ -119,12 +119,10 @@ impl<'a, S: Spec, Da: DaSpec> GasEnforcer<S, Da> for StandardProvenRollupCapabil
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
-    for StandardProvenRollupCapabilities<'a, S, Da>
-{
+impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'a, S> {
     fn authorize_sequencer(
         &self,
-        sequencer: &<Da as DaSpec>::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
@@ -134,7 +132,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
 
     fn penalize_sequencer(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         reason: impl std::fmt::Display,
         remaining_stake: u64,
         state: &mut TxScratchpad<S::Storage>,
@@ -144,9 +142,7 @@ impl<'a, S: Spec, Da: DaSpec> SequencerAuthorization<S, Da>
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
-    for StandardProvenRollupCapabilities<'a, S, Da>
-{
+impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S> {
     type AuthorizationData = AuthorizationData<S>;
 
     /// Prevents duplicate transactions from running.
@@ -165,7 +161,7 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
     fn mark_tx_attempted(
         &self,
         auth_data: &Self::AuthorizationData,
-        _sequencer: &Da::Address,
+        _sequencer: &<S::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.nonces
@@ -176,7 +172,7 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
     fn resolve_context(
         &self,
         auth_data: &Self::AuthorizationData,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         height: u64,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
@@ -223,9 +219,7 @@ impl<'a, S: Spec, Da: DaSpec> TransactionAuthorizer<S, Da>
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
-    for StandardProvenRollupCapabilities<'a, S, Da>
-{
+impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> {
     fn process_aggregated_proof(
         &self,
         proof: SerializedAggregatedProof,
@@ -244,7 +238,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> Result<SovAttestation<S, Da>, InvalidProofError> {
+    ) -> Result<SovAttestation<S>, InvalidProofError> {
         let result = self
             .attester_incentives
             .process_attestation(prover_address, proof, state)?;
@@ -258,7 +252,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
         rollup_height: u64,
         prover_address: &<S as Spec>::Address,
         state: &mut WorkingSet<S>,
-    ) -> Result<SovStateTransitionPublicData<S, Da>, InvalidProofError> {
+    ) -> Result<SovStateTransitionPublicData<S>, InvalidProofError> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
             &proof,
@@ -270,9 +264,7 @@ impl<'a, S: Spec, Da: DaSpec> ProofProcessor<S, Da>
     }
 }
 
-impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
-    for StandardProvenRollupCapabilities<'a, S, Da>
-{
+impl<'a, S: Spec> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S> {
     fn reward_sequencer(
         &self,
         sender: &S::Address,
@@ -283,7 +275,11 @@ impl<'a, S: Spec, Da: DaSpec> SequencerRemuneration<S, Da>
             .reward_sequencer(sender, reward.into(), state);
     }
 
-    fn slash_sequencer(&self, sender: &Da::Address, state: &mut TxScratchpad<S::Storage>) {
+    fn slash_sequencer(
+        &self,
+        sender: &<S::Da as DaSpec>::Address,
+        state: &mut TxScratchpad<S::Storage>,
+    ) {
         self.sequencer_registry.slash_sequencer(sender, state);
     }
 }

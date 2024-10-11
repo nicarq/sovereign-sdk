@@ -1,5 +1,5 @@
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -12,7 +12,7 @@ use crate::{
 };
 
 /// Sets up a test runtime and returns a [`TestData`] struct.
-pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpec>>) {
+pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S>>) {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
@@ -39,7 +39,7 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpe
         },
     );
 
-    let runner = TestRunner::<BasicKernel<S, MockDaSpec>>::new_with_genesis(
+    let runner = TestRunner::<BasicKernel<S>>::new_with_genesis(
         genesis.into_genesis_params(),
         TestBlobStorageRuntime::default(),
     );
@@ -58,9 +58,9 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S, MockDaSpe
 /// This struct populates the batches with simple [`ValueSetter`] messages. One
 /// can specify special sequencer addresses for each batch.
 pub fn build_basic_blobs(
-    slots_info: &SlotConfigInfo<TestSequencer<S, MockDaSpec>>,
+    slots_info: &SlotConfigInfo<TestSequencer<S>>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<BasicKernel<S, MockDaSpec>>,
+    runner: &mut TestRunner<BasicKernel<S>>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
     for sequencer in slots_info {
@@ -68,9 +68,7 @@ pub fn build_basic_blobs(
     }
 
     runner.query_state(|state| {
-        TestRunner::<BasicKernel<S, MockDaSpec>>::batches_to_blobs::<ValueSetter<S>>(
-            batches, nonces, state,
-        )
+        TestRunner::<BasicKernel<S>>::batches_to_blobs::<ValueSetter<S>>(batches, nonces, state)
     })
 }
 
@@ -90,10 +88,10 @@ pub fn build_basic_blobs(
 /// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
 /// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_basic_kernel(
-    sending_order: Vec<Vec<TestSequencer<S, MockDaSpec>>>,
+    sending_order: Vec<Vec<TestSequencer<S>>>,
     receive_order: Vec<Vec<usize>>,
     virtual_slot_heights_increases: Vec<u64>,
-    runner: &mut TestRunner<BasicKernel<S, MockDaSpec>>,
+    runner: &mut TestRunner<BasicKernel<S>>,
 ) {
     let mut nonces = HashMap::new();
 

@@ -7,9 +7,9 @@ use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::execution_mode::Native;
 use sov_rollup_interface::reexports::anyhow;
 
-pub(crate) type ThisSpec = DefaultSpec<Risc0Verifier, MockZkVerifier, Native>;
+pub(crate) type ThisSpec = DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, Native>;
 pub(crate) type ThisDaService = CelestiaService;
-pub(crate) type ThisRuntime = demo_stf::runtime::Runtime<ThisSpec, CelestiaSpec>;
+pub(crate) type ThisRuntime = demo_stf::runtime::Runtime<ThisSpec>;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {

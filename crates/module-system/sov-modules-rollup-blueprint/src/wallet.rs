@@ -43,7 +43,8 @@ where
 
     <Self as RollupBlueprint<M>>::Runtime: CliWallet,
 
-    <Self as RollupBlueprint<M>>::DaSpec: serde::Serialize + serde::de::DeserializeOwned,
+    <<Self as RollupBlueprint<M>>::Spec as Spec>::Da:
+        serde::Serialize + serde::de::DeserializeOwned,
 
     <<Self as RollupBlueprint<M>>::Runtime as DispatchCall>::Decodable:
         serde::Serialize + serde::de::DeserializeOwned + BorshSerialize + Send + Sync,

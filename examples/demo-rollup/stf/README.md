@@ -57,7 +57,6 @@ module to your app, just add an additional field to the runtime.
 ```rust
 use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Spec};
 use sov_modules_api::macros::expose_rpc;
-use sov_rollup_interface::da::DaSpec;
 
 
 #[cfg_attr(
@@ -65,9 +64,9 @@ use sov_rollup_interface::da::DaSpec;
     expose_rpc(DefaultContext)
 )]
 #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-pub struct MyRuntime<S: Spec, Da: DaSpec> {
+pub struct MyRuntime<S: Spec> {
     #[allow(unused)]
-    sequencer: sov_sequencer_registry::SequencerRegistry<S, Da>,
+    sequencer: sov_sequencer_registry::SequencerRegistry<S>,
 
     #[allow(unused)]
     bank: sov_bank::Bank<S>,

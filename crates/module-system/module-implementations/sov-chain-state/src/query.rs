@@ -1,9 +1,9 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, KernelStateAccessor, Spec};
+use sov_modules_api::{KernelStateAccessor, Spec};
 
 use crate::{ChainState, TransitionHeight};
 
-impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
+impl<S: Spec> ChainState<S> {
     /// Get the visible height of the next slot.
     /// Panics if the slot number is not set
     pub fn get_next_visible_slot_number(

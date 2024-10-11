@@ -8,8 +8,7 @@ pub use endpoints::*;
 use pluggable_traits::PluggableSpec;
 use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::{BlobDataWithId, DaSpec, Spec};
-
+use sov_modules_api::{BlobDataWithId, Spec};
 #[cfg(feature = "native")]
 mod endpoints;
 
@@ -26,14 +25,11 @@ pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync {
     /// The types provided by the rollup
     type Spec: PluggableSpec + Spec;
 
-    /// A specification for the types used by a DA layer.
-    type DaSpec: DaSpec + Send + Sync + 'static;
-
     /// The runtime for the rollup.
-    type Runtime: Runtime<Self::Spec, Self::DaSpec> + Send + Sync + 'static;
+    type Runtime: Runtime<Self::Spec> + Send + Sync + 'static;
 
     /// The kernel for the rollup.
-    type Kernel: KernelSlotHooks<Self::Spec, Self::DaSpec, BlobType = BlobDataWithId>
+    type Kernel: KernelSlotHooks<Self::Spec, BlobType = BlobDataWithId>
         + KernelWithSlotMapping<Self::Spec>
         + Send
         + Sync
@@ -90,7 +86,7 @@ mod blueprint {
             ZkvmGuest<Verifier = <<Self as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
     {
         /// Data Availability service.
-        type DaService: DaService<Spec = Self::DaSpec, Error = anyhow::Error> + Clone;
+        type DaService: DaService<Spec = <Self::Spec as Spec>::Da, Error = anyhow::Error> + Clone;
 
         /// Host of the inner zkVM program.
         type InnerZkvmHost: ZkvmHost + Send;
@@ -100,7 +96,7 @@ mod blueprint {
 
         /// Manager for the native storage lifecycle.
         type StorageManager: HierarchicalStorageManager<
-            Self::DaSpec,
+            <Self::Spec as Spec>::Da,
             StfState = <Self::Spec as Spec>::Storage,
             StfChangeSet = <<Self::Spec as Spec>::Storage as Storage>::ChangeSet,
             LedgerState = DeltaReader,
@@ -122,7 +118,7 @@ mod blueprint {
 
         /// Gets the operating mode of the rollup (Zk or Optimistic).
         fn get_operating_mode(
-            genesis: &<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
+            genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
         ) -> OperatingMode;
 
         /// Creates a new [`BondingProofService`] service.
@@ -151,18 +147,12 @@ mod blueprint {
         #[allow(clippy::type_complexity)]
         fn create_genesis_config(
             &self,
-            rt_genesis_paths: &<Self::Runtime as RuntimeTrait<
-                Self::Spec,
-                Self::DaSpec,
-            >>::GenesisPaths,
+            rt_genesis_paths: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisPaths,
             _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        ) -> anyhow::Result<
-            GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig>,
-        > {
+        ) -> anyhow::Result<GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>>
+        {
             let rt_genesis =
-                <Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::genesis_config(
-                    rt_genesis_paths,
-                )?;
+                <Self::Runtime as RuntimeTrait<Self::Spec>>::genesis_config(rt_genesis_paths)?;
 
             Ok(GenesisParams {
                 runtime: rt_genesis,
@@ -193,7 +183,9 @@ mod blueprint {
         /// Creates an instance of a LedgerDb.
         fn create_ledger_db(
             &self,
-            ledger_state: <Self::StorageManager as HierarchicalStorageManager<Self::DaSpec>>::LedgerState,
+            ledger_state: <Self::StorageManager as HierarchicalStorageManager<
+                <Self::Spec as Spec>::Da,
+            >>::LedgerState,
         ) -> anyhow::Result<LedgerDb> {
             LedgerDb::with_reader(ledger_state)
         }
@@ -201,10 +193,7 @@ mod blueprint {
         /// Creates a new rollup.
         async fn create_new_rollup(
             &self,
-            runtime_genesis_paths: &<Self::Runtime as RuntimeTrait<
-                Self::Spec ,
-                Self::DaSpec,
-            >>::GenesisPaths,
+            runtime_genesis_paths: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisPaths,
             rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
             prover_config: Option<RollupProverConfig>,
         ) -> anyhow::Result<Rollup<Self, M>>
@@ -360,7 +349,7 @@ mod blueprint {
         /// The State Transition Runner.
         #[allow(clippy::type_complexity)]
         pub runner: StateTransitionRunner<
-            StfBlueprint<S::Spec, S::DaSpec, S::Runtime, S::Kernel>,
+            StfBlueprint<S::Spec, S::Runtime, S::Kernel>,
             S::StorageManager,
             S::DaService,
             S::InnerZkvmHost,
@@ -435,9 +424,9 @@ mod blueprint {
         <B::OuterZkvmHost as ZkvmHost>::Guest:
             ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
     {
-        type BatchBuilder = StdBatchBuilder<(B::Spec, B::DaSpec, B::Runtime), B::Kernel>;
+        type BatchBuilder = StdBatchBuilder<(B::Spec, B::Runtime), B::Kernel>;
         type Da = B::DaService;
-        type BatchReceipt = <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult;
+        type BatchReceipt = <B::Runtime as ApplyBatchHooks>::BatchResult;
         type TxReceipt = TxReceiptContents<B::Spec>;
         type Event = RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>;
     }

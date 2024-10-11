@@ -1,6 +1,5 @@
 use demo_stf::runtime::RuntimeCall;
 use ethers_core::abi::Address;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
 use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
@@ -51,9 +50,9 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     let mut credentials = [0; 32];
     credentials[12..].copy_from_slice(&from_addr.to_fixed_bytes());
 
-    let msg = RuntimeCall::<TestSpec, MockDaSpec>::Accounts(
-        sov_accounts::CallMessage::InsertCredentialId(credentials.into()),
-    );
+    let msg = RuntimeCall::<TestSpec>::Accounts(sov_accounts::CallMessage::InsertCredentialId(
+        credentials.into(),
+    ));
 
     let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
     let max_fee = TEST_DEFAULT_MAX_FEE;

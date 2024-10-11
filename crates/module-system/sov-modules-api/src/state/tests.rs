@@ -3,12 +3,13 @@ use sov_modules_macros::config_value;
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::{SlotKey, SlotValue, User};
 use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::MockDaSpec;
 
 use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
 use crate::{Gas, GasMeter, Spec, WorkingSet};
 
-type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
 fn create_working_set(
     remaining_funds: u64,

@@ -133,13 +133,15 @@ mod tests {
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::Prefix;
     use sov_test_utils::storage::new_finalized_storage;
+    use sov_test_utils::MockDaSpec;
     use unwrap_infallible::UnwrapInfallible;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::runtime::capabilities::Kernel as _;
     use crate::{StateCheckpoint, VersionedStateValue};
 
-    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec =
+        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
     #[test]
     fn test_kernel_state_value_as_value() {

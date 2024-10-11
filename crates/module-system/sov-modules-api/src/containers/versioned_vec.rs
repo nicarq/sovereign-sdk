@@ -319,6 +319,7 @@ mod test {
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
     use sov_test_utils::storage::new_finalized_storage;
+    use sov_test_utils::MockDaSpec;
     use unwrap_infallible::UnwrapInfallible;
 
     use super::*;
@@ -326,7 +327,8 @@ mod test {
     use crate::capabilities::Kernel as _;
     use crate::{Spec, StateCheckpoint};
 
-    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec =
+        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
     #[test]
     fn test_state_vec() {

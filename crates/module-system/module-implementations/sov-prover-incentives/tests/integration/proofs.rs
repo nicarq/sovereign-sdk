@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::{Gas, InvalidProofError, ProofOutcome, Spec};
 use sov_prover_incentives::ProverIncentives;
 use sov_test_utils::runtime::TestRunner;
@@ -51,7 +50,7 @@ fn test_valid_proof() {
             assert_eq!(
                 TestRunner::<RT, S>::bank_gas_balance(&prover_address, state).unwrap(),
                 initial_balance - result.gas_value_used
-                    + ProverIncentives::<S, MockDaSpec>::default()
+                    + ProverIncentives::<S>::default()
                         .burn_rate()
                         .apply(reward.get())
             );

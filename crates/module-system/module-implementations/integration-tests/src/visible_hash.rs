@@ -1,14 +1,13 @@
 use sov_chain_state::ChainState;
 use sov_kernels::basic::BasicKernel;
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{Kernel, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, CallResponse, Context,
-    DaSpec, GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
+    GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
     StateVec, TxState,
 };
 use sov_state::{ProvableNamespace, StateRoot, Storage};
@@ -17,7 +16,7 @@ use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator,
 
 type S = sov_test_utils::TestSpec;
 type TestRunnerWithKernel<K> =
-    sov_test_utils::runtime::TestRunnerWithKernel<TestVisibleHashRuntime<S, MockDaSpec>, K, S>;
+    sov_test_utils::runtime::TestRunnerWithKernel<TestVisibleHashRuntime<S>, K, S>;
 
 #[derive(ModuleInfo, Clone)]
 pub struct TestVisibleHashModule<S: Spec> {
@@ -84,14 +83,14 @@ generate_bare_runtime! {
     name: TestVisibleHashRuntime,
     modules: [visible_hash_module: TestVisibleHashModule<S>],
     operating_mode: sov_modules_api::OperatingMode::Optimistic,
-    minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
+    minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: []
 }
 
-impl_standard_runtime_authenticator!(TestVisibleHashRuntime<S, Da>);
+impl_standard_runtime_authenticator!(TestVisibleHashRuntime<S>);
 
-impl<S: Spec, Da: DaSpec> SlotHooks for TestVisibleHashRuntime<S, Da> {
+impl<S: Spec> SlotHooks for TestVisibleHashRuntime<S> {
     type Spec = S;
 
     fn begin_slot_hook(
@@ -104,7 +103,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestVisibleHashRuntime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> FinalizeHook for TestVisibleHashRuntime<S, Da> {
+impl<S: Spec> FinalizeHook for TestVisibleHashRuntime<S> {
     type Spec = S;
 
     fn finalize_hook(
@@ -118,9 +117,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestVisibleHashRuntime<S, Da> {
 
 fn setup<K>() -> (TestUser<S>, TestRunnerWithKernel<K>)
 where
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
-        + Kernel<S>
-        + KernelWithSlotMapping<S>,
+    K: KernelSlotHooks<S, BlobType = BlobDataWithId> + Kernel<S> + KernelWithSlotMapping<S>,
 {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -151,9 +148,7 @@ fn last_state_root_closure<K>(
     runner: &mut TestRunnerWithKernel<K>,
     num_slots: u64,
 ) where
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId>
-        + Kernel<S>
-        + KernelWithSlotMapping<S>,
+    K: KernelSlotHooks<S, BlobType = BlobDataWithId> + Kernel<S> + KernelWithSlotMapping<S>,
 {
     let module = TestVisibleHashModule::<S>::default();
 
@@ -204,7 +199,7 @@ fn last_state_root_closure<K>(
 /// Tests that the visible kernel hash updates for each slot for the basic Kernel
 #[test]
 fn visible_hash_basic_kernel() {
-    let (_, mut runner) = setup::<BasicKernel<S, MockDaSpec>>();
+    let (_, mut runner) = setup::<BasicKernel<S>>();
 
     const NUM_SLOTS: u64 = 10;
 
@@ -239,7 +234,7 @@ fn visible_hash_basic_kernel() {
 /// The finalize hook hash should always match the most recent slot hash.
 #[test]
 fn visible_hash_soft_confirmations_kernel() {
-    let (_, mut runner) = setup::<SoftConfirmationsKernel<S, MockDaSpec>>();
+    let (_, mut runner) = setup::<SoftConfirmationsKernel<S>>();
 
     let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
 
@@ -278,7 +273,7 @@ fn visible_hash_soft_confirmations_kernel() {
 
     // We expect that the new kernel root matches the one after the first transition (deferred update).
     let expected_visible_hash = runner.query_state(|state| {
-        ChainState::<S, MockDaSpec>::default()
+        ChainState::<S>::default()
             .get_historical_transitions(1, state)
             .unwrap_infallible()
             .unwrap()

@@ -6,8 +6,8 @@ use sov_nonces::Nonces;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
 use sov_test_utils::{
-    generate_optimistic_runtime, MockDaSpec, TestUser, TransactionTestCase, TransactionType,
-    TxProcessingError, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    generate_optimistic_runtime, TestUser, TransactionTestCase, TransactionType, TxProcessingError,
+    TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
 type S = sov_test_utils::TestSpec;
@@ -15,7 +15,7 @@ type S = sov_test_utils::TestSpec;
 generate_optimistic_runtime!(TestNonceRuntime <= value_setter: ValueSetter<S>);
 
 fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<ValueSetter<S>, S> {
-    let runtime_msg = <TestNonceRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(
+    let runtime_msg = <TestNonceRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
         sov_value_setter::CallMessage::SetValue(10),
     );
 
@@ -31,7 +31,7 @@ fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<Value
     TransactionType::pre_signed(transaction, admin.private_key())
 }
 
-fn setup() -> (TestUser<S>, TestRunner<TestNonceRuntime<S, MockDaSpec>, S>) {
+fn setup() -> (TestUser<S>, TestRunner<TestNonceRuntime<S>, S>) {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
     let genesis_config =

@@ -1,7 +1,6 @@
 use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec, Zkvm};
 use sov_modules_stf_blueprint::GenesisParams;
@@ -28,7 +27,7 @@ const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 // Tests the test setup by running the value setter module and checking if the value was set correctly
 fn test_value_setter_tx_success() {
     let value_to_set = 18;
-    let assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec, MockDaSpec>> =
+    let assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>> =
         Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
@@ -49,18 +48,16 @@ fn test_value_setter_tx_success() {
 // failed to handle panics.
 fn test_value_setter_tx_bad_assertion() {
     let value_to_set = 18;
-    let bad_assertion: TransactionTestAssert<
-        TestSpec,
-        TestOptimisticRuntime<TestSpec, MockDaSpec>,
-    > = Box::new(move |_result, state| {
-        let value_setter = ValueSetter::<TestSpec>::default();
-        let value = value_setter
-            .value
-            .get(state)
-            .unwrap_infallible()
-            .expect("We should be able to get a value from the state");
-        assert_eq!(value, value_to_set + 1); // This will fail!
-    });
+    let bad_assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>> =
+        Box::new(move |_result, state| {
+            let value_setter = ValueSetter::<TestSpec>::default();
+            let value = value_setter
+                .value
+                .get(state)
+                .unwrap_infallible()
+                .expect("We should be able to get a value from the state");
+            assert_eq!(value, value_to_set + 1); // This will fail!
+        });
 
     run_value_setter_txs_with_assertions(vec![
         (value_to_set, bad_assertion),
@@ -72,7 +69,7 @@ fn test_value_setter_tx_bad_assertion() {
 fn run_value_setter_txs_with_assertions(
     values_and_assertions: Vec<(
         u32,
-        TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec, MockDaSpec>>,
+        TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>>,
     )>,
 ) {
     let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
@@ -93,7 +90,7 @@ fn run_value_setter_txs_with_assertions(
     let params = GenesisParams {
         runtime: genesis_config,
     };
-    let mut runner: TestRunner<TestOptimisticRuntime<TestSpec, MockDaSpec>, TestSpec> =
+    let mut runner: TestRunner<TestOptimisticRuntime<TestSpec>, TestSpec> =
         TestRunner::new_with_genesis(params, Default::default());
 
     for (value, assert) in values_and_assertions {
@@ -113,17 +110,17 @@ fn run_value_setter_txs_with_assertions(
 // This function should also take fewer arguments and generate data more aggressively.
 // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/682>
 #[allow(clippy::too_many_arguments)]
-fn create_test_rt_genesis_config<S: Spec, Da: DaSpec>(
+fn create_test_rt_genesis_config<S: Spec>(
     admin: S::Address,
     additional_accounts: &[(S::Address, u64)],
     seq_rollup_address: S::Address,
-    seq_da_address: Da::Address,
+    seq_da_address: <S::Da as DaSpec>::Address,
     seq_bond: u64,
     token_name: String,
     init_balance: u64,
     inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
     outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
-) -> crate::runtime::GenesisConfig<S, Da> {
+) -> crate::runtime::GenesisConfig<S> {
     let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     crate::runtime::GenesisConfig {
@@ -294,7 +291,7 @@ fn test_define_token_with_state() {
 
     let runner = TestRunner::new_with_genesis(
         genesis_config.into_genesis_params(),
-        TestOptimisticRuntime::<TestSpec, MockDaSpec>::default(),
+        TestOptimisticRuntime::<TestSpec>::default(),
     );
 
     runner.query_state(|state| {
@@ -389,7 +386,7 @@ fn test_define_token_with_mint() {
 
     let mut runner = TestRunner::new_with_genesis(
         genesis_config.into_genesis_params(),
-        TestOptimisticRuntime::<TestSpec, MockDaSpec>::default(),
+        TestOptimisticRuntime::<TestSpec>::default(),
     );
 
     runner.execute_transaction(TransactionTestCase {

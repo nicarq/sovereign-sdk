@@ -3,15 +3,14 @@ use sov_modules_api::{Error, PrivateKey, PublicKey, Spec, TxEffect};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    generate_optimistic_runtime, AsUser, MockDaSpec, TestHasher, TestPrivateKey, TestUser,
-    TransactionTestCase,
+    generate_optimistic_runtime, AsUser, TestHasher, TestPrivateKey, TestUser, TransactionTestCase,
 };
 
 type S = sov_test_utils::TestSpec;
 
 generate_optimistic_runtime!(TestAccountsRuntime <=);
 
-type RT = TestAccountsRuntime<S, MockDaSpec>;
+type RT = TestAccountsRuntime<S>;
 
 struct TestData<S: Spec> {
     account_1: TestUser<S>,

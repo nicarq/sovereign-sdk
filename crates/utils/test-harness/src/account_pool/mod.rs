@@ -272,7 +272,7 @@ impl<S: Spec> AccountPool<S> {
     ///    where
     ///     S: sov_modules_api::Spec,
     ///     Da: sov_modules_api::DaSpec,
-    ///     R: sov_modules_stf_blueprint::Runtime<S, Da> + sov_modules_api::EncodeCall<sov_bank::Bank<S>>,
+    ///     R: sov_modules_stf_blueprint::Runtime<S> + sov_modules_api::EncodeCall<sov_bank::Bank<S>>,
     /// {
     ///     // First you need an account pool.
     ///     let num_accounts_to_generate = 10;
@@ -307,7 +307,7 @@ impl<S: Spec> AccountPool<S> {
     where
         M: Module<Spec = S>,
         Da: DaSpec,
-        R: Runtime<S, Da> + EncodeCall<M>,
+        R: Runtime<S> + EncodeCall<M>,
     {
         let max_fee = *prepared_call_message.max_fee();
         let account_pool_index = *prepared_call_message.account_pool_index();

@@ -133,7 +133,7 @@ pub async fn get_gas_funding_message_sender<S, Da, R>(
 where
     S: Spec,
     Da: DaSpec,
-    R: Runtime<S, Da> + sov_modules_api::EncodeCall<Bank<S>> + 'static,
+    R: Runtime<S> + sov_modules_api::EncodeCall<Bank<S>> + 'static,
 {
     let gas_funding_txs = get_gas_funding_txs(node_url, &account_pool).await?;
     tracing::debug!(

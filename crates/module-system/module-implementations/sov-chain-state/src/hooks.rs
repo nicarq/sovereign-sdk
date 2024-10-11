@@ -5,7 +5,7 @@ use sov_state::{StateRoot, Storage};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation};
 
-impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
+impl<S: Spec> ChainState<S> {
     /// Computes the current root hash available at the current *virtual* slot number.
     /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
     fn current_visible_hash(
@@ -33,8 +33,8 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     /// Update the chain state at the beginning of the slot. Compute the next gas price
     pub fn begin_slot_hook(
         &self,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
+        slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> <S::Storage as Storage>::Root {

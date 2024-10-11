@@ -21,7 +21,7 @@ pub trait MessageSenderT {
 /// The [`MessageSender`] structure holds all that is required to create [`crate::PreparedCallMessage`]s,
 /// serialize them, and send those [`crate::SerializedPreparedCallMessage`]s on to whomever is in charge
 /// of signging ready for broadcasting to the rollup via the sequencer or directly to the DA layer.
-pub struct MessageSender<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> {
+pub struct MessageSender<R: Runtime<S>, Da: DaSpec, S: Spec, M: Module<Spec = S>> {
     /// The name of this message sender.
     name: String,
 
@@ -38,7 +38,7 @@ pub struct MessageSender<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec 
     _phantom: PhantomData<(R, Da)>,
 }
 
-impl<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> MessageSender<R, Da, S, M> {
+impl<R: Runtime<S>, Da: DaSpec, S: Spec, M: Module<Spec = S>> MessageSender<R, Da, S, M> {
     /// Creates a new [`MessageSender`].
     pub fn new(
         name: &str,
@@ -58,7 +58,7 @@ impl<R: Runtime<S, Da>, Da: DaSpec, S: Spec, M: Module<Spec = S>> MessageSender<
 
 #[async_trait]
 impl<
-        R: Runtime<S, Da> + EncodeCall<M>,
+        R: Runtime<S> + EncodeCall<M>,
         Da: DaSpec,
         S: Spec,
         M: Module<Spec = S> + Send + Sync + 'static,

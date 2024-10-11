@@ -3,8 +3,8 @@ use std::collections::HashSet;
 use sov_accounts::{AccountConfig, AccountData, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
+use sov_mock_da::MockAddress;
+use sov_modules_api::{Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
 use sov_nonces::Nonces;
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -19,13 +19,13 @@ use crate::{
 };
 
 /// A genesis config for a minimal optimsitic runtime
-pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
+pub struct MinimalOptimisticGenesisConfig<S: Spec> {
     /// The sequencer registry config.
-    pub sequencer_registry: <SequencerRegistry<S, Da> as Genesis>::Config,
+    pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
     /// The attester incentives config.
-    pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
+    pub attester_incentives: <AttesterIncentives<S> as Genesis>::Config,
     /// The prover incentives config.
-    pub prover_incentives: <ProverIncentives<S, Da> as Genesis>::Config,
+    pub prover_incentives: <ProverIncentives<S> as Genesis>::Config,
     /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
@@ -33,9 +33,9 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
     /// The nonces config.
     pub nonces: <Nonces<S> as Genesis>::Config,
     /// The chain state config.
-    pub chain_state: <ChainState<S, Da> as Genesis>::Config,
+    pub chain_state: <ChainState<S> as Genesis>::Config,
     /// The blob storage config.
-    pub blob_storage: <BlobStorage<S, Da> as Genesis>::Config,
+    pub blob_storage: <BlobStorage<S> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of an optimistic genesis config. This config
@@ -45,13 +45,13 @@ pub struct MinimalOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
 /// This type can be converted into a low-level [`MinimalOptimisticGenesisConfig`] using
 /// the [`From`] trait.
 #[derive(Debug, Clone)]
-pub struct HighLevelOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
+pub struct HighLevelOptimisticGenesisConfig<S: Spec> {
     /// The initial attester.
     pub initial_attester: TestAttester<S>,
     /// The initial challenger.
     pub initial_challenger: TestChallenger<S>,
     /// The initial sequencer.
-    pub initial_sequencer: TestSequencer<S, Da>,
+    pub initial_sequencer: TestSequencer<S>,
     /// Additional accounts to be added to the genesis state.
     pub additional_accounts: Vec<TestUser<S>>,
     /// The name of the gas token.
@@ -62,13 +62,13 @@ pub struct HighLevelOptimisticGenesisConfig<S: Spec, Da: DaSpec> {
     pub outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
 }
 
-impl<S: Spec, Da: DaSpec> HighLevelOptimisticGenesisConfig<S, Da> {
+impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
     /// Creates a new high-level genesis config with the given initial attester and sequencer using
     /// the default gas token name.
     pub fn with_defaults(
         initial_attester: TestAttester<S>,
         initial_challenger: TestChallenger<S>,
-        initial_sequencer: TestSequencer<S, Da>,
+        initial_sequencer: TestSequencer<S>,
         additional_accounts: Vec<TestUser<S>>,
         inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
         outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
@@ -108,7 +108,7 @@ impl<S: Spec, Da: DaSpec> HighLevelOptimisticGenesisConfig<S, Da> {
     }
 }
 
-impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
+impl HighLevelOptimisticGenesisConfig<TestSpec> {
     /// The sequencer address used by [`HighLevelOptimisticGenesisConfig::generate`].
     pub const SEQUENCER_DA_ADDR: MockAddress = MockAddress::new([172; 32]);
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
@@ -212,10 +212,8 @@ impl HighLevelOptimisticGenesisConfig<TestSpec, MockDaSpec> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> From<HighLevelOptimisticGenesisConfig<S, Da>>
-    for MinimalOptimisticGenesisConfig<S, Da>
-{
-    fn from(high_level: HighLevelOptimisticGenesisConfig<S, Da>) -> Self {
+impl<S: Spec> From<HighLevelOptimisticGenesisConfig<S>> for MinimalOptimisticGenesisConfig<S> {
+    fn from(high_level: HighLevelOptimisticGenesisConfig<S>) -> Self {
         Self::from_args(
             high_level.initial_attester,
             high_level.initial_challenger,
@@ -228,7 +226,7 @@ impl<S: Spec, Da: DaSpec> From<HighLevelOptimisticGenesisConfig<S, Da>>
     }
 }
 
-impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
+impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
     /// Helper function that parses the token configs from the list of test users.
     fn parse_token_configs(test_users: &[TestUser<S>]) -> Vec<TokenConfig<S>> {
         let mut token_configs = Vec::<TokenConfig<S>>::new();
@@ -274,7 +272,7 @@ impl<S: Spec, Da: DaSpec> MinimalOptimisticGenesisConfig<S, Da> {
     pub fn from_args(
         initial_attester: TestAttester<S>,
         initial_challenger: TestChallenger<S>,
-        initial_sequencer: TestSequencer<S, Da>,
+        initial_sequencer: TestSequencer<S>,
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
         inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,

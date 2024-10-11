@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_test_utils::TestSpec;
 
 use crate::ChainState;
@@ -15,12 +14,11 @@ fn assert_correct_gas_update(
     expected_base_fee_per_gas: u64,
     assert_error_message: &str,
 ) {
-    let computed_base_fee_per_gas =
-        ChainState::<TestSpec, MockDaSpec>::compute_base_fee_per_gas_unidimensional(
-            prev_block_gas_info.gas_limit,
-            prev_block_gas_info.gas_used,
-            prev_block_gas_info.base_fee_per_gas,
-        );
+    let computed_base_fee_per_gas = ChainState::<TestSpec>::compute_base_fee_per_gas_unidimensional(
+        prev_block_gas_info.gas_limit,
+        prev_block_gas_info.gas_used,
+        prev_block_gas_info.base_fee_per_gas,
+    );
     assert_eq!(
         expected_base_fee_per_gas,
         computed_base_fee_per_gas,
@@ -51,7 +49,7 @@ fn test_zero_base_fee_gas_below_target() {
 fn test_zero_base_fee_gas_above_target() {
     const GAS_LIMIT: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -70,7 +68,7 @@ fn test_base_fee_target_reached() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
     const GAS_LIMIT: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(GAS_LIMIT);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -89,12 +87,12 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 100;
 
     let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
-        + ChainState::<TestSpec, MockDaSpec>::config_base_fee_change_denominator()
+        + ChainState::<TestSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS);
 
     let gas_limit: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(gas_limit);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -109,7 +107,7 @@ fn test_base_fee_increases_if_gas_used_is_twice_target() {
     // The new value of the base fee should not depend on the value of the gas used, as long as it is twice as much as the target
     let new_gas_limit: u64 = 100 * gas_limit;
     let new_gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -128,13 +126,13 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
     const INITIAL_BASE_FEE_PER_GAS: u64 = 10000;
 
     let expected_base_fee_per_gas: u64 = INITIAL_BASE_FEE_PER_GAS
-        - ChainState::<TestSpec, MockDaSpec>::config_base_fee_change_denominator()
+        - ChainState::<TestSpec>::config_base_fee_change_denominator()
             .apply_div(INITIAL_BASE_FEE_PER_GAS)
             / 2;
 
     let gas_limit: u64 = 100;
     let gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(gas_limit);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {
@@ -149,7 +147,7 @@ fn base_fee_decreases_if_gas_used_is_half_target() {
     // The new value of the base fee should not depend on the value of the gas used, as long as it is half of the target
     let new_gas_limit: u64 = 100 * gas_limit;
     let new_gas_target: u64 =
-        ChainState::<TestSpec, MockDaSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
+        ChainState::<TestSpec>::config_elasticity_multiplier().apply_div(new_gas_limit);
 
     assert_correct_gas_update(
         BaseFeeUpdateConfig {

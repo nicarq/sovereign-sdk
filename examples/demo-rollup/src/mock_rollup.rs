@@ -31,14 +31,13 @@ pub struct MockDemoRollup<M> {
 
 impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
 where
-    DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+    DefaultSpec<MockDaSpec, Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
     EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
+        TryInto<<DefaultSpec<MockDaSpec, Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
 {
-    type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
-    type DaSpec = MockDaSpec;
-    type Runtime = Runtime<Self::Spec, Self::DaSpec>;
-    type Kernel = BasicKernel<Self::Spec, Self::DaSpec>;
+    type Spec = DefaultSpec<MockDaSpec, Risc0Verifier, MockZkVerifier, M>;
+    type Runtime = Runtime<Self::Spec>;
+    type Kernel = BasicKernel<Self::Spec>;
 }
 
 #[async_trait]
@@ -61,7 +60,6 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         Self::OuterZkvmHost,
         StfBlueprint<
             <Self::Spec as Generic>::With<Zk>,
-            Self::DaSpec,
             <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
             <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Kernel,
         >,
@@ -69,19 +67,19 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec, Self::Kernel>;
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Kernel>;
 
     fn create_bonding_proof_service(
         &self,
         attester_address: <Self::Spec as Spec>::Address,
         storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
     ) -> Self::BondingProofService {
-        let runtime = Runtime::<Self::Spec, Self::DaSpec>::default();
+        let runtime = Runtime::<Self::Spec>::default();
         BondingProofServiceImpl::new(attester_address, runtime.attester_incentives, storage)
     }
 
     fn get_operating_mode(
-        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
+        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
     ) -> OperatingMode {
         genesis.chain_state.operating_mode
     }

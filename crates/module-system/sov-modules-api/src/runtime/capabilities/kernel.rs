@@ -38,13 +38,13 @@ pub trait Kernel<S: Spec>: Default {
 }
 
 /// Hooks allowing the kernel to get access to the DA layer state
-pub trait KernelSlotHooks<S: Spec, Da: DaSpec>: BlobSelector<Da, Spec = S> + Kernel<S> {
+pub trait KernelSlotHooks<S: Spec>: BlobSelector<Spec = S> + Kernel<S> {
     /// Called at the beginning of a slot. Computes the gas price for the slot
     /// Returns the visible root hash accessible at the current *virtual* rollup height
     fn begin_slot_hook(
         &self,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
+        slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
     ) -> <S::Storage as Storage>::Root;

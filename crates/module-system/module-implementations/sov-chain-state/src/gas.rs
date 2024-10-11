@@ -2,7 +2,7 @@ use std::cmp::max;
 
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Spec};
+use sov_modules_api::{Gas, GasArray, GasSpec, Spec};
 use thiserror::Error;
 
 use crate::{BlockGasInfo, ChainState};
@@ -62,7 +62,7 @@ impl From<NonZeroRatio> for u8 {
 }
 
 /// Defines constants used by the chain state module for gas price computation
-impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
+impl<S: Spec> ChainState<S> {
     /// Configuration value used to control the variations of the base fee updates.
     ///
     /// This is sourced from the `constants.toml` file and then converted into a
@@ -94,7 +94,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
+impl<S: Spec> ChainState<S> {
     /// Computes the updated gas price following a block execution for a single dimension.
     /// This reproduces the logic of the EIP-1559 specification to compute the updated `base_fee_per_gas` (`<https://eips.ethereum.org/EIPS/eip-1559>`).
     /// Note that here we drop the `parent` prefix and call the state variables `gas_limit`, `gas_used` and `base_fee_per_gas`.

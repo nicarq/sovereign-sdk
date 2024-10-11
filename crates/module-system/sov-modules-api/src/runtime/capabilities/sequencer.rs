@@ -33,11 +33,11 @@ pub struct AllowedSequencer<S: Spec> {
 }
 
 /// Authorizes the sequencer to submit and process batches.
-pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
+pub trait SequencerAuthorization<S: Spec> {
     /// Checks if the sequencer has staked the minimum bond to attest transactions.
     fn authorize_sequencer(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
@@ -49,7 +49,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
     /// It should only be called once the sequencer cannot be penalized anymore.
     fn penalize_sequencer(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         reason: impl std::fmt::Display,
         penalty: u64,
         state: &mut TxScratchpad<S::Storage>,
@@ -57,7 +57,7 @@ pub trait SequencerAuthorization<S: Spec, Da: DaSpec> {
 }
 
 /// Functionality related to the rewarding and slashing of the sequencer.
-pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
+pub trait SequencerRemuneration<S: Spec> {
     /// Reward the sequencer for correctly processing the transaction batch.
     fn reward_sequencer(
         &self,
@@ -67,5 +67,9 @@ pub trait SequencerRemuneration<S: Spec, Da: DaSpec> {
     );
 
     /// Slash the sequencer for malicious behavior.
-    fn slash_sequencer(&self, sender: &Da::Address, state: &mut TxScratchpad<S::Storage>);
+    fn slash_sequencer(
+        &self,
+        sender: &<<S as Spec>::Da as DaSpec>::Address,
+        state: &mut TxScratchpad<S::Storage>,
+    );
 }

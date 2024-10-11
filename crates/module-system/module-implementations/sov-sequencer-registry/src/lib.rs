@@ -62,7 +62,7 @@ pub enum SlashingReason {
 
 /// The `sov-sequencer-registry` module `struct`.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct SequencerRegistry<S: Spec, Da: DaSpec> {
+pub struct SequencerRegistry<S: Spec> {
     /// The ID of the `sov_sequencer_registry` module.
     #[id]
     pub(crate) id: ModuleId,
@@ -82,13 +82,14 @@ pub struct SequencerRegistry<S: Spec, Da: DaSpec> {
     /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
     /// through the DA layer.
     #[state]
-    pub(crate) allowed_sequencers: StateMap<Da::Address, AllowedSequencer<S>, BcsCodec>,
+    pub(crate) allowed_sequencers:
+        StateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>, BcsCodec>,
 
     /// Optional preferred sequencer.
     /// If set, batches from this sequencer will be processed first in block,
     /// So this sequencer can guarantee soft confirmation time for transactions
     #[state]
-    pub(crate) preferred_sequencer: StateValue<Da::Address, BcsCodec>,
+    pub(crate) preferred_sequencer: StateValue<<S::Da as DaSpec>::Address, BcsCodec>,
 }
 
 /// A special error type that can be raised when calling a method from the sequencer registry
@@ -110,17 +111,17 @@ pub enum CustomError<RollupAddress: BasicAddress, DaAddress: BasicAddress> {
 
 /// The different errors that can be raised by the sequencer registry
 #[allow(type_alias_bounds)]
-pub type SequencerRegistryError<S: Spec, Da: DaSpec, ST: StateAccessor> = RegistrationError<
+pub type SequencerRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
     S::Address,
-    Da::Address,
+    <S::Da as DaSpec>::Address,
     <ST as StateReader<User>>::Error,
-    CustomError<S::Address, Da::Address>,
+    CustomError<S::Address, <S::Da as DaSpec>::Address>,
 >;
 
-impl<S: Spec, Da: DaSpec> Module for SequencerRegistry<S, Da> {
+impl<S: Spec> Module for SequencerRegistry<S> {
     type Spec = S;
 
-    type Config = SequencerConfig<S, Da>;
+    type Config = SequencerConfig<S>;
 
     type CallMessage = CallMessage;
 
@@ -142,17 +143,17 @@ impl<S: Spec, Da: DaSpec> Module for SequencerRegistry<S, Da> {
     ) -> Result<CallResponse, Error> {
         Ok(match message {
             CallMessage::Register { da_address, amount } => {
-                let da_address = Da::Address::try_from(&da_address)?;
+                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
                 self.register(&da_address, amount, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Deposit { da_address, amount } => {
-                let da_address = Da::Address::try_from(&da_address)?;
+                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
                 self.deposit(&da_address, amount, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
             CallMessage::Exit { da_address } => {
-                let da_address = Da::Address::try_from(&da_address)?;
+                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
                 self.exit(&da_address, context, state)
                     .map_err(|e| Error::ModuleError(e.into()))?
             }
@@ -160,7 +161,7 @@ impl<S: Spec, Da: DaSpec> Module for SequencerRegistry<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec> SequencerRegistry<S> {
     /// Returns the minimum amount of tokens that the sequencer must lock.
     pub fn get_coins_to_lock<Reader: TxState<S>>(
         &self,
@@ -186,14 +187,14 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     pub fn get_preferred_sequencer<Reader: StateReader<User>>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<Da::Address>, Reader::Error> {
+    ) -> Result<Option<<S::Da as DaSpec>::Address>, Reader::Error> {
         self.preferred_sequencer.get(state)
     }
 
     /// Resolve a DA address to a rollup address.
     pub fn resolve_da_address<Reader: StateReader<User>>(
         &self,
-        address: &Da::Address,
+        address: &<S::Da as DaSpec>::Address,
         state: &mut Reader,
     ) -> Result<Option<S::Address>, Reader::Error> {
         self.allowed_sequencers
@@ -225,7 +226,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Otherwise, returns a [`AllowedSequencerError`].
     pub fn is_sender_allowed(
         &self,
-        sender: &Da::Address,
+        sender: &<S::Da as DaSpec>::Address,
         gas_price: &<S::Gas as Gas>::Price,
         state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AllowedSequencerError> {
@@ -258,7 +259,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Returns the balance of the provided sender, if present.
     pub fn get_sender_balance<Reader: StateReader<User>>(
         &self,
-        sender: &Da::Address,
+        sender: &<S::Da as DaSpec>::Address,
         state: &mut Reader,
     ) -> Result<Option<Amount>, Reader::Error> {
         Ok(self
@@ -270,7 +271,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Returns the rollup address of the sequencer with the given DA address.
     pub fn get_sequencer_address<Reader: StateReader<User>>(
         &self,
-        da_address: Da::Address,
+        da_address: <S::Da as DaSpec>::Address,
         state_accessor: &mut Reader,
     ) -> Result<Option<S::Address>, Reader::Error> {
         Ok(self
@@ -282,7 +283,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Slash the sequencer with the given address.
     pub fn slash_sequencer(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         state: &mut impl InfallibleStateAccessor,
     ) {
         self.delete_allowed_staker(da_address, state)
@@ -292,7 +293,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Check if the provided `Da::Address` belongs to a registered sequencer.
     pub fn is_registered_sequencer<Reader: StateReader<User>>(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         state: &mut Reader,
     ) -> Result<bool, Reader::Error> {
         Ok(self.allowed_sequencers.get(da_address, state)?.is_some())

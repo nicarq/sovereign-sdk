@@ -25,7 +25,7 @@ pub async fn register_endpoints<B, M>(
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
-    sequencer_config: &SequencerConfig<B::DaSpec>,
+    sequencer_config: &SequencerConfig<<B::Spec as Spec>::Da>,
     runner_config: &RunnerConfig,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
@@ -33,21 +33,20 @@ where
     M: ExecutionMode + 'static,
     B::Runtime: RuntimeEventProcessor
         + HasRestApi<B::Spec>
-        + HasCapabilities<B::Spec, B::DaSpec, AuthorizationData = AuthorizationData<B::Spec>>,
+        + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
     <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
     let da_address = sequencer_config.da_address.clone();
     let (api_state, sequencer_router) = match &sequencer_config.batch_builder {
         BatchBuilderConfig::Standard(bb_config) => {
-            let batch_builder =
-                StdBatchBuilder::<(B::Spec, B::DaSpec, B::Runtime), B::Kernel>::create(
-                    storage.clone(),
-                    da_address,
-                    sequencer_db.read_all()?,
-                    bb_config,
-                )
-                .await?;
+            let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime), B::Kernel>::create(
+                storage.clone(),
+                da_address,
+                sequencer_db.read_all()?,
+                bb_config,
+            )
+            .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
             let sequencer = SequencerBlueprint::<B, M>::new(
                 batch_builder,
@@ -80,7 +79,7 @@ where
             // BatchSequencerReceipt<B::DaSpec>,
             // or use some associated type.
             // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
-            <B::Runtime as ApplyBatchHooks<B::DaSpec>>::BatchResult,
+            <B::Runtime as ApplyBatchHooks>::BatchResult,
             TxReceiptContents<B::Spec>,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone(), LEDGER_PATH);
@@ -93,7 +92,7 @@ where
     // Rollup endpoint
     {
         let rollup_router = RollupTxRouter::<
-            std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::DaSpec, B::Kernel, B::Runtime>>,
+            std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Kernel, B::Runtime>>,
         >::axum_router(storage, sequencer_config.da_address.clone());
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }

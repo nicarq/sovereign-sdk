@@ -12,12 +12,11 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::TestRunner;
 
 type S = sov_test_utils::TestSpec;
-type Da = sov_test_utils::MockDaSpec;
-type K = sov_kernels::basic::BasicKernel<S, Da>;
+type K = sov_kernels::basic::BasicKernel<S>;
 
 generate_optimistic_runtime!(TestRuntime <= );
 
-type RT = TestRuntime<S, Da>;
+type RT = TestRuntime<S>;
 
 struct TestData {
     /// Remove the dead code warning once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1552> is fixed.
@@ -66,7 +65,7 @@ impl TestData {
         let (storage_sender, storage_receiver) = watch::channel(storage);
 
         let axum_router: axum::Router<()> = RollupTxRouter::<
-            Arc<DefaultRollupStateProvider<S, Da, K, RT>>,
+            Arc<DefaultRollupStateProvider<S, K, RT>>,
         >::axum_router(
             storage_receiver, sequencer_da_address
         );

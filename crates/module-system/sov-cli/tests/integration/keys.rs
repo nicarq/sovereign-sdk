@@ -3,13 +3,11 @@ use std::path::Path;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_cli::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 use sov_test_utils::runtime::TestOptimisticRuntimeCall;
 use sov_test_utils::TestSpec;
 
-type Da = MockDaSpec;
-type RuntimeCall = TestOptimisticRuntimeCall<TestSpec, Da>;
+type RuntimeCall = TestOptimisticRuntimeCall<TestSpec>;
 
 #[test]
 fn test_key_gen() {

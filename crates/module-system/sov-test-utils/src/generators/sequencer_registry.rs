@@ -1,8 +1,6 @@
-use std::marker::PhantomData;
-
 use sov_bank::Amount;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{CryptoSpec, DaSpec, Spec};
+use sov_modules_api::{CryptoSpec, Spec};
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
 use crate::generators::{Message, MessageGenerator};
@@ -22,13 +20,12 @@ pub struct DepositData<S: Spec> {
 }
 
 /// Defines a message generator for the sequencer registry module.
-pub struct SequencerRegistryMessageGenerator<S: Spec, Da: DaSpec> {
+pub struct SequencerRegistryMessageGenerator<S: Spec> {
     register_txs: Vec<RegisterData<S>>,
     deposit_txs: Vec<DepositData<S>>,
-    _phantom: PhantomData<Da>,
 }
 
-impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
+impl<S: Spec> SequencerRegistryMessageGenerator<S> {
     /// Generates a new [`SequencerRegistryMessageGenerator`] that will register a sequencer with the given DA address and amount.
     pub fn generate_sequencer_registration(
         da_address: Vec<u8>,
@@ -36,7 +33,6 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
         private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
         Self {
-            _phantom: PhantomData,
             deposit_txs: vec![],
             register_txs: vec![RegisterData {
                 da_address,
@@ -60,7 +56,6 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
             })
             .collect();
         Self {
-            _phantom: PhantomData,
             deposit_txs: vec![],
             register_txs: msgs,
         }
@@ -75,7 +70,6 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
         private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     ) -> Self {
         Self {
-            _phantom: PhantomData,
             deposit_txs: vec![DepositData {
                 da_address: da_address.clone(),
                 amount: deposit,
@@ -90,8 +84,8 @@ impl<S: Spec, Da: DaSpec> SequencerRegistryMessageGenerator<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> MessageGenerator for SequencerRegistryMessageGenerator<S, Da> {
-    type Module = SequencerRegistry<S, Da>;
+impl<S: Spec> MessageGenerator for SequencerRegistryMessageGenerator<S> {
+    type Module = SequencerRegistry<S>;
     type Spec = S;
 
     fn create_messages(
@@ -101,7 +95,7 @@ impl<S: Spec, Da: DaSpec> MessageGenerator for SequencerRegistryMessageGenerator
         max_fee: u64,
         estimated_gas_usage: Option<<Self::Spec as Spec>::Gas>,
     ) -> Vec<crate::generators::Message<Self::Spec, Self::Module>> {
-        let mut messages = Vec::<Message<S, SequencerRegistry<S, Da>>>::new();
+        let mut messages = Vec::<Message<S, SequencerRegistry<S>>>::new();
         let mut nonce = 0;
 
         // need the sender

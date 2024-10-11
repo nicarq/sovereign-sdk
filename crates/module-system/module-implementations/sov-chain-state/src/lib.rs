@@ -93,22 +93,19 @@ impl<GU: Gas> BlockGasInfo<GU> {
 
 #[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
 // We need to use derivative here because `Storage` doesn't implement `Eq` and `PartialEq`
-#[derivative(
-    PartialEq(bound = "S: Spec, Da: DaSpec"),
-    Eq(bound = "S: Spec, Da: DaSpec")
-)]
+#[derivative(PartialEq(bound = "S: Spec"), Eq(bound = "S: Spec"))]
 /// Structure that contains the information needed to represent a single state transition.
-pub struct StateTransition<S: Spec, Da: DaSpec> {
+pub struct StateTransition<S: Spec> {
     post_state_root: <S::Storage as Storage>::Root,
-    slot: SlotInformation<S, Da>,
+    slot: SlotInformation<S>,
 }
 
-impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
+impl<S: Spec> StateTransition<S> {
     /// Creates a new state transition.
     pub fn new(
-        slot_hash: Da::SlotHash,
+        slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
         post_state_root: <S::Storage as Storage>::Root,
-        validity_condition: Da::ValidityCondition,
+        validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
@@ -118,12 +115,12 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
+impl<S: Spec> StateTransition<S> {
     /// Compare the transition block hash and state root with the provided input couple. If
     /// the pairs are equal, return [`true`].
     pub fn compare_hashes(
         &self,
-        slot_hash: &Da::SlotHash,
+        slot_hash: &<<S as Spec>::Da as DaSpec>::SlotHash,
         post_state_root: &<S::Storage as Storage>::Root,
     ) -> bool {
         self.slot.hash == *slot_hash && self.post_state_root == *post_state_root
@@ -135,7 +132,7 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
     }
 
     /// Returns the slot hash of a state transition
-    pub fn slot_hash(&self) -> &Da::SlotHash {
+    pub fn slot_hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
         &self.slot.hash
     }
 
@@ -155,32 +152,33 @@ impl<S: Spec, Da: DaSpec> StateTransition<S, Da> {
     }
 
     /// Returns the validity condition associated with the transition
-    pub fn validity_condition(&self) -> &Da::ValidityCondition {
+    pub fn validity_condition(&self) -> &<<S as Spec>::Da as DaSpec>::ValidityCondition {
         &self.slot.validity_condition
     }
 
     /// Checks the validity condition of a state transition
-    pub fn validity_condition_check<Checker: ValidityConditionChecker<Da::ValidityCondition>>(
+    pub fn validity_condition_check<Checker: ValidityConditionChecker<<<S as Spec>::Da as DaSpec>::ValidityCondition>>(
         &self,
         checker: &mut Checker,
-    ) -> Result<(), <Checker as ValidityConditionChecker<Da::ValidityCondition>>::Error> {
+    ) -> Result<(), <Checker as ValidityConditionChecker<<<S as Spec>::Da as DaSpec>::ValidityCondition>>::Error>{
         checker.check(&self.slot.validity_condition)
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 /// Represents a transition in progress for the rollup.
-pub struct SlotInformation<S: Spec, Da: DaSpec> {
-    hash: Da::SlotHash,
-    validity_condition: Da::ValidityCondition,
+#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[serde(bound = "S: Spec")]
+pub struct SlotInformation<S: Spec> {
+    hash: <<S as Spec>::Da as DaSpec>::SlotHash,
+    validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
     gas_info: BlockGasInfo<S::Gas>,
 }
 
-impl<S: Spec, Da: DaSpec> SlotInformation<S, Da> {
+impl<S: Spec> SlotInformation<S> {
     /// Creates a new transition in progress
     pub fn new(
-        slot_hash: Da::SlotHash,
-        validity_condition: Da::ValidityCondition,
+        slot_hash: <<S as Spec>::Da as DaSpec>::SlotHash,
+        validity_condition: <<S as Spec>::Da as DaSpec>::ValidityCondition,
         gas_info: BlockGasInfo<S::Gas>,
     ) -> Self {
         Self {
@@ -206,14 +204,14 @@ impl<S: Spec, Da: DaSpec> SlotInformation<S, Da> {
     }
 
     /// Returns the block hash of the transition in progress
-    pub const fn hash(&self) -> &Da::SlotHash {
+    pub const fn hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
         &self.hash
     }
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
 #[derive(Clone, ModuleInfo)]
-pub struct ChainState<S: Spec, Da: DaSpec> {
+pub struct ChainState<S: Spec> {
     /// The ID of the module.
     #[id]
     id: ModuleId,
@@ -245,7 +243,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     /// ## TODO(@theochap):
     /// This should be a `VersionedStateVec` <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385`>
     #[state]
-    slots: StateMap<TransitionHeight, SlotInformation<S, Da>, BcsCodec>,
+    slots: StateMap<TransitionHeight, SlotInformation<S>, BcsCodec>,
 
     /// The state root hashes from genesis to the current slot.
     /// ## Note
@@ -281,7 +279,7 @@ pub struct ChainState<S: Spec, Da: DaSpec> {
     outer_code_commitment: StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
 }
 
-impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
+impl<S: Spec> ChainState<S> {
     /// Returns transition height in the current slot
     pub fn true_slot_number<T>(
         &self,
@@ -404,7 +402,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     pub fn get_last_slot<Reader: VersionReader + StateReader<User>>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<SlotInformation<S, Da>>, <Reader as StateReader<User>>::Error> {
+    ) -> Result<Option<SlotInformation<S>>, <Reader as StateReader<User>>::Error> {
         self.slots.get(&state.rollup_height_to_access(), state)
     }
 
@@ -422,7 +420,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
         &self,
         transition_num: TransitionHeight,
         state: &mut Accessor,
-    ) -> Result<Option<StateTransition<S, Da>>, <Accessor as StateReader<User>>::Error> {
+    ) -> Result<Option<StateTransition<S>>, <Accessor as StateReader<User>>::Error> {
         if let Some(root) = self.state_roots.get(&transition_num, state)? {
             return Ok({
                 let maybe_slot = self.slots.get(&transition_num, state)?;
@@ -449,7 +447,7 @@ impl<S: Spec, Da: DaSpec> ChainState<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> Module for ChainState<S, Da> {
+impl<S: Spec> Module for ChainState<S> {
     type Spec = S;
 
     type CallMessage = call::NotInstantiable;

@@ -13,10 +13,9 @@ use tracing::debug;
 
 use crate::{AttesterIncentives, ProcessAttestationErrors, SlashingReason};
 
-impl<S, Da> AttesterIncentives<S, Da>
+impl<S> AttesterIncentives<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     /// Returns the burn rate for the reward
     pub fn burn_rate(&self) -> BurnRate {
@@ -48,7 +47,7 @@ where
         &self,
         claimed_rollup_height: TransitionHeight,
         attestation: &Attestation<
-            Da::SlotHash,
+            <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
@@ -158,7 +157,7 @@ where
         &self,
         sender: &S::Address,
         attestation: &Attestation<
-            Da::SlotHash,
+            <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
@@ -221,7 +220,7 @@ where
         &self,
         claimed_rollup_height: u64,
         attestation: &Attestation<
-            Da::SlotHash,
+            <S::Da as DaSpec>::SlotHash,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
@@ -255,7 +254,11 @@ where
 
     pub(crate) fn check_challenge_outputs_against_transition<ST: StateReader<User>>(
         &self,
-        public_outputs: &StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
+        public_outputs: &StateTransitionPublicData<
+            S::Address,
+            S::Da,
+            <S::Storage as Storage>::Root,
+        >,
         height: TransitionHeight,
         state: &mut ST,
     ) -> anyhow::Result<Option<SlashingReason>, ST::Error> {

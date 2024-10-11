@@ -3,14 +3,14 @@ use sov_blob_storage::BlobStorage;
 use crate::helpers_basic_kernel::{
     assert_blobs_are_correctly_received_basic_kernel, setup_basic_kernel,
 };
-use crate::{Da, TestData, S};
+use crate::{TestData, S};
 
 #[test]
 fn empty_test() {
     let (_, runner) = setup_basic_kernel();
 
     runner.query_state(|state| {
-        assert!(BlobStorage::<S, Da>::default()
+        assert!(BlobStorage::<S>::default()
             .take_blobs_for_slot_number(1, state)
             .is_empty());
     });
@@ -30,7 +30,7 @@ fn store_and_retrieve_standard_basic_kernel() {
     ) = setup_basic_kernel();
 
     runner.query_state(|state| {
-        let blob_storage = BlobStorage::<S, Da>::default();
+        let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage.take_blobs_for_slot_number(1, state).is_empty());
         assert!(blob_storage.take_blobs_for_slot_number(2, state).is_empty());

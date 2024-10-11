@@ -103,7 +103,7 @@ pub trait TransactionAuthenticator<S: Spec> {
 }
 
 /// Authorizes transactions to be executed.
-pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
+pub trait TransactionAuthorizer<S: Spec> {
     /// The type used for authorization.
     type AuthorizationData;
 
@@ -112,7 +112,7 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
     fn resolve_context(
         &self,
         auth_data: &Self::AuthorizationData,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
         state: &mut TxScratchpad<S::Storage>,
         context: ExecutionContext,
@@ -139,7 +139,7 @@ pub trait TransactionAuthorizer<S: Spec, Da: DaSpec> {
     fn mark_tx_attempted(
         &self,
         auth_data: &Self::AuthorizationData,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut TxScratchpad<S::Storage>,
     );
 }

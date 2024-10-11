@@ -28,7 +28,7 @@ pub use default_provider::DefaultRollupStateProvider;
 #[derive(Clone)]
 pub struct RollupTxRouter<T: RollupStateProvider> {
     storage: StorageReceiver<T::Spec>,
-    default_sequencer: <T::Da as DaSpec>::Address,
+    default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
 }
 
 /// The object returned by the `/base-fee-per-gas/latest` endpoint.
@@ -61,7 +61,7 @@ pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
 /// This type is `partial` in the sense that it does not contain the full transaction details.
 #[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
 #[serde(bound = "S: Spec")]
-pub struct PartialTransaction<S: Spec, Da: DaSpec> {
+pub struct PartialTransaction<S: Spec> {
     /// The public key of the transaction sender.
     pub sender_pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     /// Call message encoded by a given runtime.
@@ -74,11 +74,11 @@ pub struct PartialTransaction<S: Spec, Da: DaSpec> {
     /// If not provided, the current gas price will be used.
     pub gas_price: Option<<S::Gas as Gas>::Price>,
     /// The sequencer address of the transaction. If not provided, default sequencer address will be used.
-    pub sequencer: Option<Da::Address>,
+    pub sequencer: Option<<S::Da as DaSpec>::Address>,
 }
 
-impl<S: Spec, Da: DaSpec> From<PartialTransaction<S, Da>> for AuthorizationData<S> {
-    fn from(value: PartialTransaction<S, Da>) -> AuthorizationData<S> {
+impl<S: Spec> From<PartialTransaction<S>> for AuthorizationData<S> {
+    fn from(value: PartialTransaction<S>) -> AuthorizationData<S> {
         let pub_key = value.sender_pub_key.clone();
         let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         let nonce = value.nonce;
@@ -102,11 +102,8 @@ pub trait RollupStateProvider: Clone + Send + Sync {
     /// The [`Spec`] associated with the rollup state provider.
     type Spec: sov_modules_api::Spec;
 
-    /// The [`DaSpec`] associated with the rollup state provider.
-    type Da: DaSpec;
-
     /// The [`Runtime`] associated with the rollup state provider.
-    type Runtime: Runtime<Self::Spec, Self::Da>;
+    type Runtime: Runtime<Self::Spec>;
 
     /// Get the latest base fee per gas in the storage.
     fn get_latest_base_fee_per_gas(
@@ -116,20 +113,20 @@ pub trait RollupStateProvider: Clone + Send + Sync {
     /// Simulates the execution of a transaction.
     fn simulate_execution(
         storage: &StorageReceiver<Self::Spec>,
-        default_sequencer: <Self::Da as DaSpec>::Address,
-        transaction: PartialTransaction<Self::Spec, Self::Da>,
+        default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
+        transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<Self::Spec>, Self::Error>;
 }
 
 impl<T> RollupTxRouter<T>
 where
     T: RollupStateProvider + Clone + Send + Sync + 'static,
-    T::Runtime: HasCapabilities<T::Spec, T::Da, AuthorizationData = AuthorizationData<T::Spec>>,
+    T::Runtime: HasCapabilities<T::Spec, AuthorizationData = AuthorizationData<T::Spec>>,
 {
     /// Returns an [`axum::Router`] that exposes simulation data.
     pub fn axum_router(
         storage: StorageReceiver<T::Spec>,
-        default_sequencer: <T::Da as DaSpec>::Address,
+        default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
     ) -> axum::Router<()> {
         preconfigured_router_layers(
             axum::Router::new()
@@ -165,7 +162,7 @@ where
         }): State<Self>,
         Json(req): Json<types::SimulateBody>,
     ) -> ApiResult<SimulateExecutionResponse> {
-        let transaction: PartialTransaction<T::Spec, T::Da> = req
+        let transaction: PartialTransaction<T::Spec> = req
             .body
             .try_into()
             .map_err(|err| errors::bad_request_400("Malformatted partial transaction", err))?;

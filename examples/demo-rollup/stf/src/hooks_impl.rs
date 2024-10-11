@@ -7,18 +7,18 @@ use sov_state::Storage;
 
 use crate::runtime::Runtime;
 
-impl<S: Spec, Da: DaSpec> TxHooks for Runtime<S, Da> {
+impl<S: Spec> TxHooks for Runtime<S> {
     type Spec = S;
     type TxState = WorkingSet<S>;
 }
 
-impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
+impl<S: Spec> ApplyBatchHooks for Runtime<S> {
     type Spec = S;
-    type BatchResult = BatchSequencerReceipt<Da>;
+    type BatchResult = BatchSequencerReceipt<S::Da>;
 
     fn begin_batch_hook(
         &self,
-        _sender: &Da::Address,
+        _sender: &<S::Da as DaSpec>::Address,
         _state: &mut StateCheckpoint<S::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())
@@ -32,7 +32,7 @@ impl<S: Spec, Da: DaSpec> ApplyBatchHooks<Da> for Runtime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
+impl<S: Spec> SlotHooks for Runtime<S> {
     type Spec = S;
 
     fn begin_slot_hook(
@@ -49,7 +49,7 @@ impl<S: Spec, Da: DaSpec> SlotHooks for Runtime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: sov_modules_api::DaSpec> FinalizeHook for Runtime<S, Da> {
+impl<S: Spec> FinalizeHook for Runtime<S> {
     type Spec = S;
 
     fn finalize_hook(

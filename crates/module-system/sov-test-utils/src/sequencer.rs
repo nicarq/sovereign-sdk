@@ -27,11 +27,9 @@ use crate::{TestHasher, TestPrivateKey, TestSpec, TestStfBlueprint};
 type TestSequencerSpec<B> = GenericSequencerSpec<
     B,
     MockDaService,
-    BatchReceipt<TestSpec, MockDaSpec>,
+    BatchReceipt<TestSpec>,
     TxReceiptContents<TestSpec>,
-    RuntimeEventResponse<
-        <TestOptimisticRuntime<TestSpec, MockDaSpec> as RuntimeEventProcessor>::RuntimeEvent,
-    >,
+    RuntimeEventResponse<<TestOptimisticRuntime<TestSpec> as RuntimeEventProcessor>::RuntimeEvent>,
 >;
 
 /// The default test sequencer type. A [`Sequencer`] with a [`MockDaService`] for DA interactions.
@@ -41,14 +39,8 @@ pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 /// An alias for a [`StdBatchBuilder`] with a [`TestSpec`],
 /// a [`MockDaService`] for DA interactions,
 /// a [`TestOptimisticRuntime`] and a [`BasicKernel`].
-pub type TestStdBatchBuilder = StdBatchBuilder<
-    (
-        TestSpec,
-        MockDaSpec,
-        TestOptimisticRuntime<TestSpec, MockDaSpec>,
-    ),
-    BasicKernel<TestSpec, MockDaSpec>,
->;
+pub type TestStdBatchBuilder =
+    StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>), BasicKernel<TestSpec>>;
 
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
@@ -75,7 +67,7 @@ impl<B: BatchBuilder> Drop for TestSequencerSetup<B> {
 
 impl<B> TestSequencerSetup<B>
 where
-    B: BatchBuilder<Spec = TestSpec, Da = MockDaSpec>,
+    B: BatchBuilder<Spec = TestSpec>,
 {
     /// Like [`TestSequencerSetup::new`], but with a custom [`NativeStorageManager`].
     pub async fn with_storage_manager(
@@ -99,7 +91,7 @@ where
             admin: admin.address(),
         };
 
-        let runtime = TestOptimisticRuntime::<TestSpec, MockDaSpec>::default();
+        let runtime = TestOptimisticRuntime::<TestSpec>::default();
 
         // Run genesis registering the attester and sequencer we've generated.
         let genesis_config =

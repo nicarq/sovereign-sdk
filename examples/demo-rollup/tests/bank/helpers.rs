@@ -3,7 +3,6 @@ use demo_stf::runtime::RuntimeCall;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
-use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PrivateKey, Spec};
@@ -56,13 +55,12 @@ pub(crate) fn build_create_token_tx(
     initial_balance: u64,
 ) -> Transaction<TestSpec> {
     let user_address: <TestSpec as Spec>::Address = key.to_address();
-    let msg =
-        RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
-            token_name: TOKEN_NAME.to_string(),
-            initial_balance,
-            mint_to_address: user_address,
-            authorized_minters: vec![],
-        });
+    let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
+        token_name: TOKEN_NAME.to_string(),
+        initial_balance,
+        mint_to_address: user_address,
+        authorized_minters: vec![],
+    });
     default_test_signed_transaction(key, &msg, nonce)
 }
 
@@ -73,11 +71,10 @@ pub(crate) fn build_transfer_token_tx(
     amount: u64,
     nonce: u64,
 ) -> Transaction<TestSpec> {
-    let msg =
-        RuntimeCall::<TestSpec, MockDaSpec>::Bank(sov_bank::CallMessage::<TestSpec>::Transfer {
-            to: recipient,
-            coins: Coins { amount, token_id },
-        });
+    let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::Transfer {
+        to: recipient,
+        coins: Coins { amount, token_id },
+    });
     default_test_signed_transaction(key, &msg, nonce)
 }
 

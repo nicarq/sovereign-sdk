@@ -3,7 +3,7 @@ use base64::Engine;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::prelude::anyhow::Context;
 use sov_modules_api::transaction::{PriorityFeeBips, TransactionConsumption, TxDetails};
-use sov_modules_api::{DaSpec, Gas, Spec, StoredEvent, TxEffect};
+use sov_modules_api::{Gas, Spec, StoredEvent, TxEffect};
 use sov_modules_stf_blueprint::{
     ApplyTxResult, RevertedTxContents, SuccessfulTxContents, TransactionReceipt, TxProcessingError,
 };
@@ -152,7 +152,7 @@ impl<S: Spec> TryInto<types::SimulateExecutionResponse> for SimulateExecutionCon
     }
 }
 
-impl<S: Spec, Da: DaSpec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S, Da> {
+impl<S: Spec> TryInto<types::PartialTransaction> for crate::PartialTransaction<S> {
     type Error = anyhow::Error;
 
     fn try_into(self) -> Result<types::PartialTransaction, Self::Error> {
@@ -188,7 +188,7 @@ impl<S: Spec, Da: DaSpec> TryInto<types::PartialTransaction> for crate::PartialT
     }
 }
 
-impl<S: Spec, Da: DaSpec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S, Da> {
+impl<S: Spec> TryFrom<types::PartialTransaction> for crate::PartialTransaction<S> {
     type Error = anyhow::Error;
 
     fn try_from(value: types::PartialTransaction) -> Result<Self, Self::Error> {

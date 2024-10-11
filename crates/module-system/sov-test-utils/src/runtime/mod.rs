@@ -48,7 +48,7 @@ use crate::{
 pub(crate) mod macros;
 
 /// A [`TestRunner`] with a [`BasicKernel`].
-pub type TestRunner<RT, S> = TestRunnerWithKernel<RT, BasicKernel<S, MockDaSpec>, S>;
+pub type TestRunner<RT, S> = TestRunnerWithKernel<RT, BasicKernel<S>, S>;
 
 generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>);
 
@@ -69,13 +69,13 @@ type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as C
 type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
 
 /// Defines a slot receipt. A slot receipt is a list of [`BatchReceipt`]s and a block header.
-pub struct SlotReceipt<S: Spec, Da: DaSpec> {
-    batch_receipts: Vec<BatchReceipt<S, Da>>,
+pub struct SlotReceipt<S: Spec> {
+    batch_receipts: Vec<BatchReceipt<S>>,
 }
 
-impl<S: Spec, Da: DaSpec> SlotReceipt<S, Da> {
+impl<S: Spec> SlotReceipt<S> {
     /// Returns the last batch receipt in the slot receipt.
-    pub fn last_batch_receipt(&self) -> &BatchReceipt<S, Da> {
+    pub fn last_batch_receipt(&self) -> &BatchReceipt<S> {
         self.batch_receipts.last().unwrap()
     }
 
@@ -85,7 +85,7 @@ impl<S: Spec, Da: DaSpec> SlotReceipt<S, Da> {
     }
 
     /// Returns the batch receipts contained in the slot receipt.
-    pub fn batch_receipts(&self) -> &[BatchReceipt<S, Da>] {
+    pub fn batch_receipts(&self) -> &[BatchReceipt<S>] {
         &self.batch_receipts
     }
 }
@@ -100,35 +100,30 @@ pub struct RunnerConfig<Da: DaSpec> {
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
-pub struct TestRunnerWithKernel<
-    RT: Runtime<S, MockDaSpec>,
-    K: KernelSlotHooks<S, MockDaSpec>,
-    S: Spec,
-> {
-    stf: StfBlueprint<S, MockDaSpec, RT, K>,
+pub struct TestRunnerWithKernel<RT: Runtime<S>, K: KernelSlotHooks<S>, S: Spec> {
+    stf: StfBlueprint<S, RT, K>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    slot_receipts: Vec<SlotReceipt<S, MockDaSpec>>,
+    slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     /// Test runner configuration.
-    pub config: RunnerConfig<MockDaSpec>,
+    pub config: RunnerConfig<S::Da>,
 }
 
 /// The output of the runner
-pub type TestApplySlotOutput<RT, S> =
-    TestApplySlotOutputWithKernel<RT, BasicKernel<S, MockDaSpec>, S>;
+pub type TestApplySlotOutput<RT, S> = TestApplySlotOutputWithKernel<RT, BasicKernel<S>, S>;
 
 type TestApplySlotOutputWithKernel<RT, K, S> = ApplySlotOutput<
     <S as Spec>::InnerZkvm,
     <S as Spec>::OuterZkvm,
-    MockDaSpec,
+    <S as Spec>::Da,
     TestStfBlueprintWithKernel<RT, K, S>,
 >;
 
 /// The output of the runner
 pub struct RunnerOutput<S: Spec> {
     /// The slot receipt emitted at the end of the slot execution
-    pub receipt: SlotReceipt<S, MockDaSpec>,
+    pub receipt: SlotReceipt<S>,
     /// The change set containing the delta of the state after the slot execution
     pub change_set: NativeChangeSet,
     /// The root of the state after the slot execution
@@ -137,9 +132,9 @@ pub struct RunnerOutput<S: Spec> {
 
 impl<RT, K, S> TestRunnerWithKernel<RT, K, S>
 where
-    RT: Runtime<S, MockDaSpec> + MinimalGenesis<S, Da = MockDaSpec>,
-    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    K: KernelSlotHooks<S, MockDaSpec, BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
+    RT: Runtime<S> + MinimalGenesis<S>,
+    S: Spec<Da = MockDaSpec, Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
+    K: KernelSlotHooks<S, BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {
@@ -179,7 +174,7 @@ where
     }
 
     /// Returns the slot receipts accumulated by the state runner
-    pub fn receipts(&self) -> &Vec<SlotReceipt<S, MockDaSpec>> {
+    pub fn receipts(&self) -> &Vec<SlotReceipt<S>> {
         &self.slot_receipts
     }
 
@@ -258,7 +253,7 @@ where
         runtime: RT,
     ) -> Self {
         // Use the runtime to create an STF blueprint
-        let stf = StfBlueprint::<S, MockDaSpec, RT, K>::with_runtime(runtime);
+        let stf = StfBlueprint::<S, RT, K>::with_runtime(runtime);
 
         // ----- Setup and run genesis ---------
         let temp_dir = tempfile::tempdir().unwrap();
@@ -520,10 +515,7 @@ where
     /// Execute a BatchTestCase against the current state of the runtime.
     ///
     /// Under the hood this will execute a slot with the provided batch.
-    pub fn execute_batch<M: Module>(
-        &mut self,
-        batch_test: BatchTestCase<S, MockDaSpec, M>,
-    ) -> &mut Self
+    pub fn execute_batch<M: Module>(&mut self, batch_test: BatchTestCase<S, M>) -> &mut Self
     where
         RT: EncodeCall<M>,
     {
@@ -539,10 +531,7 @@ where
     /// Execute a ProofTestCase against the current state of the runtime.
     ///
     /// This will submit a slot containing a single proof blob.
-    pub fn execute_proof<M: Module>(
-        &mut self,
-        proof_test: ProofTestCase<S, MockDaSpec>,
-    ) -> &mut Self
+    pub fn execute_proof<M: Module>(&mut self, proof_test: ProofTestCase<S>) -> &mut Self
     where
         RT: EncodeCall<M>,
     {

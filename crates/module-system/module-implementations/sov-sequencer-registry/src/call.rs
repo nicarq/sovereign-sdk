@@ -52,7 +52,7 @@ pub enum CallMessage {
     },
 }
 
-impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec> SequencerRegistry<S> {
     /// Tries to register a sequencer by staking the provided amount of gas tokens.
     /// This method uses the context's sender as the sequencer's address.
     ///
@@ -65,11 +65,11 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// - If the sequencer is already registered.
     pub(crate) fn register<ST: TxState<S>>(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         amount: Amount,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
         let sequencer = context.sender();
         self.register_staker(da_address, sequencer, amount, state)?;
 
@@ -86,11 +86,11 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
 
     pub(crate) fn deposit<ST: TxState<S>>(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         amount: u64,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
         let sender = context.sender();
         self.validate_sender(da_address, sender, state)?;
 
@@ -119,10 +119,10 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// - If the module balance is not high enough to refund the sequencer's staked amount (this is a bug).
     pub(crate) fn exit<ST: TxState<S>>(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, Da, ST>> {
+    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
         let sender = context.sender();
         self.validate_sender(da_address, sender, state)?;
 
@@ -146,10 +146,10 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
 
     fn validate_sender<ST: TxState<S>>(
         &self,
-        da_address: &Da::Address,
+        da_address: &<S::Da as DaSpec>::Address,
         sender: &S::Address,
         state: &mut ST,
-    ) -> Result<(), SequencerRegistryError<S, Da, ST>> {
+    ) -> Result<(), SequencerRegistryError<S, ST>> {
         let belongs_to = self
             .allowed_sequencers
             .get_or_err(da_address, state)?

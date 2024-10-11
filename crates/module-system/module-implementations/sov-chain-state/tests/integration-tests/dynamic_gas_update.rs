@@ -2,7 +2,6 @@
 //! is above/below the gas target.
 
 use sov_bank::Coins;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{Gas, GasArray, GasSpec, Spec};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -25,10 +24,7 @@ struct TestData<S: Spec> {
 /// The mint and burn calls are used to test the dynamic gas
 /// price update. The mint call charges a very high gas amount (above the gas target) and
 /// the burn call charges a very low gas amount (below the gas target).
-fn setup_dynamic_gas_update_tests() -> (
-    TestData<S>,
-    TestRunner<TestChainStateRuntime<S, sov_mock_da::MockDaSpec>, S>,
-) {
+fn setup_dynamic_gas_update_tests() -> (TestData<S>, TestRunner<TestChainStateRuntime<S>, S>) {
     let token_name = TestTokenName::new("TestToken".to_string());
 
     let genesis_config =
@@ -55,7 +51,7 @@ fn setup_dynamic_gas_update_tests() -> (
 
     let zero_gas = <S as Spec>::Gas::zero();
 
-    let mut runtime = TestChainStateRuntime::<S, MockDaSpec>::default();
+    let mut runtime = TestChainStateRuntime::<S>::default();
 
     runtime
         .bank

@@ -36,6 +36,9 @@ pub trait Spec:
     + Generic
     + 'static
 {
+    /// The DA specification used by the rollup.
+    type Da: DaSpec;
+
     /// Gas unit for the gas price computation.
     type Gas: Gas;
 
@@ -212,15 +215,18 @@ impl<S: Spec> Context<S> {
 }
 
 /// Simplified type alias for Attestation
-pub type SovAttestation<S, Da> = Attestation<
-    <Da as DaSpec>::SlotHash,
+pub type SovAttestation<S> = Attestation<
+    <<S as Spec>::Da as DaSpec>::SlotHash,
     <<S as Spec>::Storage as Storage>::Root,
     StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
 >;
 
 /// Simplified type alias for StateTransitionPublicData
-pub type SovStateTransitionPublicData<S, Da> =
-    StateTransitionPublicData<<S as Spec>::Address, Da, <<S as Spec>::Storage as Storage>::Root>;
+pub type SovStateTransitionPublicData<S> = StateTransitionPublicData<
+    <S as Spec>::Address,
+    <S as Spec>::Da,
+    <<S as Spec>::Storage as Storage>::Root,
+>;
 
 #[cfg(feature = "arbitrary")]
 mod arbitrary {

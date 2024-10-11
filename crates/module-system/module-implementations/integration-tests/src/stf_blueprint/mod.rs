@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::UnsignedTransaction;
@@ -31,12 +30,10 @@ fn test_enforces_chain_id() {
         },
     );
 
-    let mut runner: TestRunner<IntegTestRuntime<S, MockDaSpec>, S> =
+    let mut runner: TestRunner<IntegTestRuntime<S>, S> =
         TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default());
     let encoded_message =
-        <IntegTestRuntime<S, MockDaSpec> as EncodeCall<ValueSetter<S>>>::encode_call(
-            CallMessage::SetValue(8),
-        );
+        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8));
 
     let real_chain_id = config_value!("CHAIN_ID");
 

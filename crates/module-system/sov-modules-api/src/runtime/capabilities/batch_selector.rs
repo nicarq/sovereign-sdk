@@ -12,7 +12,7 @@ pub enum BlobOrigin<'a, T> {
 }
 
 /// BlobSelector decides which blobs to process in a current slot.
-pub trait BlobSelector<Da: DaSpec> {
+pub trait BlobSelector {
     /// Spec type
     type Spec: Spec;
 
@@ -20,11 +20,19 @@ pub trait BlobSelector<Da: DaSpec> {
     type BlobType;
 
     /// Returns a vector of blobs that should be processed in the current slot.
+    #[allow(clippy::type_complexity)]
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
+    ) -> anyhow::Result<
+        Vec<(
+            Self::BlobType,
+            <<Self::Spec as Spec>::Da as DaSpec>::Address,
+        )>,
+    >
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>;
+        I: IntoIterator<
+            Item = BlobOrigin<'a, <<Self::Spec as Spec>::Da as DaSpec>::BlobTransaction>,
+        >;
 }

@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
@@ -13,10 +12,7 @@ generate_optimistic_runtime!(TestChainStateRuntime <= value_setter: ValueSetter<
 
 type S = sov_test_utils::TestSpec;
 
-fn setup() -> (
-    TestUser<S>,
-    TestRunner<TestChainStateRuntime<S, MockDaSpec>, S>,
-) {
+fn setup() -> (TestUser<S>, TestRunner<TestChainStateRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 

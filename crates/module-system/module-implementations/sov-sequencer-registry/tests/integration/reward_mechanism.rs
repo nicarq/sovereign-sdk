@@ -1,6 +1,5 @@
 use sov_bank::utils::TokenHolder;
 use sov_bank::{config_gas_token_id, Bank};
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasSpec, ModuleInfo};
@@ -125,7 +124,7 @@ fn test_reward_sequencer_registry_balance_does_not_change() {
 
     let sequencer_registry_balance = |runner: &TestRunner<RT, S>| {
         runner.query_state(|state| {
-            let sequencer_id = *SequencerRegistry::<S, MockDaSpec>::default().id();
+            let sequencer_id = *SequencerRegistry::<S>::default().id();
 
             Bank::<S>::default()
                 .get_balance_of(
@@ -188,7 +187,7 @@ fn test_penalize_sequencer() {
                 unexpected => panic!("Expected transaction to be skipped, but got: {:?}", unexpected),
             }
 
-            let current_stake = sov_sequencer_registry::SequencerRegistry::<S, MockDaSpec>::default()
+            let current_stake = sov_sequencer_registry::SequencerRegistry::<S>::default()
                 .get_sender_balance(&default_sequencer_da_address, state)
                 .unwrap_infallible().unwrap();
             let genesis_stake = default_sequencer_stake;

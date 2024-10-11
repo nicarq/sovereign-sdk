@@ -53,9 +53,9 @@ impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confir
 
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
-    kernel: Arc<SoftConfirmationsKernel<Z::Spec, Z::Da>>,
+    kernel: Arc<SoftConfirmationsKernel<Z::Spec>>,
     storage: StorageReceiver<Z::Spec>,
-    sequencer_address: <Z::Da as DaSpec>::Address,
+    sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
@@ -68,12 +68,11 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type Confirmation = Confirmation<Z>;
     type Batch = PreferredBatchData;
     type Config = ();
-    type Da = Z::Da;
     type Spec = Z::Spec;
 
     async fn create(
         storage: StorageReceiver<Z::Spec>,
-        sequencer_address: <Self::Da as DaSpec>::Address,
+        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         _seq_db_txs: Vec<SeqDbTx>,
         _config: &Self::Config,
     ) -> anyhow::Result<Self> {
@@ -112,7 +111,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         self.api_state.clone()
     }
 
-    fn tx_status_manager(&self) -> TxStatusManager<Self::Da> {
+    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
         TxStatusManager::default()
     }
 

@@ -19,9 +19,9 @@ use sov_test_utils::{
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
-pub(crate) type TestAttesterIncentives = AttesterIncentives<S, MockDaSpec>;
+pub(crate) type TestAttesterIncentives = AttesterIncentives<S>;
 
-pub(crate) type RT = TestRuntime<S, MockDaSpec>;
+pub(crate) type RT = TestRuntime<S>;
 
 generate_optimistic_runtime!(TestRuntime <= );
 
@@ -33,20 +33,20 @@ pub type SetupParams = (
 );
 
 /// Returns the minimal bond required to register an attester at the current slot.
-pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
     runner.query_state(|state| {
         TestAttesterIncentives::default().get_minimal_attester_bond_value(state)
     })
 }
 
 /// Returns the minimal bond required to register a challenger at the current slot.
-pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
     runner.query_state(|state| {
         TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
     })
 }
 
-pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S, MockDaSpec>) -> SetupParams {
+pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S>) -> SetupParams {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
     let genesis_config =
@@ -123,7 +123,7 @@ pub(crate) fn build_proof(
     >,
     Infallible,
 > {
-    let chain_state = ChainState::<S, MockDaSpec>::default();
+    let chain_state = ChainState::<S>::default();
 
     // Get the values for the transition being attested
     let current_transition = chain_state
@@ -181,7 +181,7 @@ pub(crate) fn create_test_case(
     serialized_attestation: Vec<u8>,
     initial_balance: u64,
     reward: AtomicNumber,
-) -> ProofTestCase<S, MockDaSpec> {
+) -> ProofTestCase<S> {
     let attester_address = genesis_attester.user_info.address();
 
     ProofTestCase {
@@ -225,7 +225,7 @@ pub(crate) fn build_challenge(
     >,
     Infallible,
 > {
-    let chain_state = ChainState::<S, MockDaSpec>::default();
+    let chain_state = ChainState::<S>::default();
     // Get the values for the transition being attested
     let current_transition = chain_state
         .get_historical_transitions(challenge_slot, state)?

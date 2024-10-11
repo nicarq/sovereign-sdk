@@ -3,9 +3,7 @@ use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::Error::ModuleError;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter};
-use sov_test_utils::{
-    generate_zk_runtime, AsUser, MockDaSpec, TestSpec, TestUser, TransactionTestCase,
-};
+use sov_test_utils::{generate_zk_runtime, AsUser, TestSpec, TestUser, TransactionTestCase};
 use sov_value_setter::{CallMessage, Event, SetValueError};
 
 generate_zk_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
@@ -13,11 +11,7 @@ generate_zk_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 type S = TestSpec;
 
 #[allow(clippy::type_complexity)]
-fn setup() -> (
-    TestRunner<TestRuntime<S, MockDaSpec>, S>,
-    TestUser<S>,
-    TestUser<S>,
-) {
+fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
 
     let admin_account = genesis_config.additional_accounts[0].clone();

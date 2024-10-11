@@ -6,6 +6,7 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::execution_mode::Native;
 use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::MockDaSpec;
 
 use crate::default_spec::DefaultSpec;
 use crate::gas::GasArray;
@@ -13,7 +14,7 @@ use crate::{
     Gas, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
     MeteredSigVerificationError, MeteredSignature, Spec, WorkingSet,
 };
-type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
 fn create_working_set(
     remaining_funds: u64,

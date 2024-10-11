@@ -34,14 +34,13 @@ pub struct CelestiaDemoRollup<M> {
 
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
-    DefaultSpec<Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+    DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
     EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
+        TryInto<<DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
 {
-    type Spec = DefaultSpec<Risc0Verifier, MockZkVerifier, M>;
-    type DaSpec = CelestiaSpec;
-    type Runtime = Runtime<Self::Spec, Self::DaSpec>;
-    type Kernel = BasicKernel<Self::Spec, Self::DaSpec>;
+    type Spec = DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M>;
+    type Runtime = Runtime<Self::Spec>;
+    type Kernel = BasicKernel<Self::Spec>;
 }
 
 #[async_trait]
@@ -65,7 +64,6 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         Self::OuterZkvmHost,
         StfBlueprint<
             <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Spec,
-            Self::DaSpec,
             <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
             <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Kernel,
         >,
@@ -73,10 +71,10 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::DaSpec, Self::Kernel>;
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Kernel>;
 
     fn get_operating_mode(
-        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec, Self::DaSpec>>::GenesisConfig,
+        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
     ) -> OperatingMode {
         genesis.chain_state.operating_mode
     }
@@ -86,7 +84,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         attester_address: <Self::Spec as Spec>::Address,
         storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
     ) -> Self::BondingProofService {
-        let runtime = Runtime::<Self::Spec, Self::DaSpec>::default();
+        let runtime = Runtime::<Self::Spec>::default();
         BondingProofServiceImpl::new(attester_address, runtime.attester_incentives, storage)
     }
 

@@ -80,12 +80,11 @@ async fn forced_sequencer_registration_test_case(
 }
 
 fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
-    let msg = RuntimeCall::<TestSpec, MockDaSpec>::SequencerRegistry(
-        sov_sequencer_registry::CallMessage::Register {
+    let msg =
+        RuntimeCall::<TestSpec>::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {
             da_address: UNREGISTERED_SENDER.as_ref().to_vec(),
             amount: MINIMUM_BOND,
-        },
-    );
+        });
     let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;

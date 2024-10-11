@@ -373,11 +373,12 @@ impl<S: Spec> EventContainer for WorkingSet<S> {
 #[cfg(test)]
 mod tests {
     use sov_test_utils::storage::new_finalized_storage;
-    use sov_test_utils::MockZkVerifier;
+    use sov_test_utils::{MockDaSpec, MockZkVerifier};
 
     use super::*;
     use crate::execution_mode::Native;
-    type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec =
+        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::{PreExecWorkingSet, Spec};

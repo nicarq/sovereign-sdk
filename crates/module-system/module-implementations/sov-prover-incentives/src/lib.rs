@@ -12,8 +12,8 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, StateReader, StateValue, TxState,
+    CallResponse, Context, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -24,7 +24,7 @@ pub use crate::event::Event;
 /// - Must contain `[id]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct ProverIncentives<S: Spec, Da: DaSpec> {
+pub struct ProverIncentives<S: Spec> {
     /// Id of the module.
     #[id]
     pub id: ModuleId,
@@ -58,10 +58,10 @@ pub struct ProverIncentives<S: Spec, Da: DaSpec> {
 
     /// Reference to the Chain state module. Used to check the proof inputs
     #[module]
-    pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
+    pub(crate) chain_state: sov_chain_state::ChainState<S>,
 }
 
-impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
+impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
     type Spec = S;
 
     type Config = ProverIncentivesConfig<S>;
@@ -104,7 +104,7 @@ impl<S: Spec, Da: DaSpec> sov_modules_api::Module for ProverIncentives<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec> ProverIncentives<S> {
     /// Returns a bool indicating if the [`ProverIncentives`] module should be paid fees.
     pub fn should_reward_fees<Accessor: StateReader<User>>(&self, state: &mut Accessor) -> bool {
         self.chain_state

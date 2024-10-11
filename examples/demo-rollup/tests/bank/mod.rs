@@ -10,7 +10,6 @@ use reqwest::StatusCode;
 use sov_cli::NodeClient;
 use sov_ledger_json_client::types::{IntOrHash, Slot};
 use sov_mock_da::storable::service::StorableMockDaService;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Batch, RawTx};
@@ -47,7 +46,7 @@ impl TxSender for DaLayerTxSender {
         let authenticated_txs = transactions
             .iter()
             .map(|signed_tx| {
-                Runtime::<TestSpec, MockDaSpec>::encode_with_standard_auth(RawTx::new(
+                Runtime::<TestSpec>::encode_with_standard_auth(RawTx::new(
                     borsh::to_vec(&signed_tx).unwrap(),
                 ))
             })

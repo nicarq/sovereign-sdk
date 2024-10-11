@@ -2,10 +2,9 @@
 #[macro_export]
 macro_rules! impl_runtime_hook {
     ($runtime:ty, SlotHooks) => {
-        impl<S, Da> ::sov_modules_api::hooks::SlotHooks for $runtime
+        impl<S> ::sov_modules_api::hooks::SlotHooks for $runtime
         where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
             type Spec = S;
 
@@ -20,10 +19,9 @@ macro_rules! impl_runtime_hook {
         }
     };
     ($runtime:ty, FinalizeHook) => {
-        impl<S, Da> ::sov_modules_api::hooks::FinalizeHook for $runtime
+        impl<S> ::sov_modules_api::hooks::FinalizeHook for $runtime
         where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
             type Spec = S;
 
@@ -38,17 +36,16 @@ macro_rules! impl_runtime_hook {
         }
     };
     ($runtime:ty, ApplyBatchHooks) => {
-        impl<S, Da> ::sov_modules_api::hooks::ApplyBatchHooks<Da> for $runtime
+        impl<S> ::sov_modules_api::hooks::ApplyBatchHooks for $runtime
         where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
             type Spec = S;
-            type BatchResult = ::sov_modules_api::BatchSequencerReceipt<Da>;
+            type BatchResult = ::sov_modules_api::BatchSequencerReceipt<S::Da>;
 
             fn begin_batch_hook(
                 &self,
-                _sender: &Da::Address,
+                _sender: &<<S as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::Address,
                 _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
             ) -> anyhow::Result<()> {
                 Ok(())
@@ -63,10 +60,9 @@ macro_rules! impl_runtime_hook {
         }
     };
     ($runtime:ty, TxHooks) => {
-        impl<S, Da> ::sov_modules_api::hooks::TxHooks for $runtime
+        impl<S> ::sov_modules_api::hooks::TxHooks for $runtime
         where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
             type Spec = S;
             type TxState = ::sov_modules_api::WorkingSet<S>;

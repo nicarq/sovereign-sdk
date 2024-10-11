@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::{MockAddress, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
+use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
@@ -92,8 +92,8 @@ fn test_tx_revert() -> Result<(), Infallible> {
 
     // Checks on storage after execution
     {
-        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec>::default();
+        let kernel = BasicKernel::<TestSpec>::default();
         let mut state = ApiStateAccessor::from_storage(storage, kernel);
 
         let resp = runtime
@@ -190,8 +190,8 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
     };
 
     {
-        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec>::default();
+        let kernel = BasicKernel::<TestSpec>::default();
         let mut state = ApiStateAccessor::from_storage(storage, kernel);
 
         let nonce = runtime
@@ -214,7 +214,7 @@ fn get_attester_stake_for_block(
 ) -> Result<u64, Infallible> {
     let stf_state = storage_manager.create_storage();
 
-    let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+    let kernel = BasicKernel::<TestSpec>::default();
     let mut state = ApiStateAccessor::from_storage(stf_state, kernel);
 
     Ok(stf
@@ -324,7 +324,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let balance = {
             let stf_state = storage_manager.create_storage();
             let runtime: RuntimeTest = Runtime::default();
-            let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+            let kernel = BasicKernel::<TestSpec>::default();
             let mut state = ApiStateAccessor::from_storage(stf_state.clone(), kernel);
 
             let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
@@ -377,8 +377,8 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
     };
 
     {
-        let runtime = &mut Runtime::<TestSpec, MockDaSpec>::default();
-        let kernel = BasicKernel::<TestSpec, MockDaSpec>::default();
+        let runtime = &mut Runtime::<TestSpec>::default();
+        let kernel = BasicKernel::<TestSpec>::default();
         let mut state = ApiStateAccessor::from_storage(storage, kernel);
 
         // Sequencer is not in the list of allowed sequencers

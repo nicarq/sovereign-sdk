@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::reexports::digest::Digest;
@@ -19,7 +18,7 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<(TxHash, Transacti
 
     let mut txs = Vec::default();
     for message in messages_iter {
-        let tx = message.to_tx::<TestOptimisticRuntime<TestSpec, MockDaSpec>>();
+        let tx = message.to_tx::<TestOptimisticRuntime<TestSpec>>();
         let tx_hash = TxHash::new(
             <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(
                 borsh::to_vec(&tx).unwrap(),

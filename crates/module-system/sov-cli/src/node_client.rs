@@ -37,8 +37,8 @@ struct AuthorizedMintersResponse<S: sov_modules_api::Spec> {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-struct AllowedSequencerResponse<S: sov_modules_api::Spec, Da: DaSpec> {
-    key: Da::Address,
+struct AllowedSequencerResponse<S: sov_modules_api::Spec> {
+    key: <S::Da as DaSpec>::Address,
     value: AllowedSequencer<S>,
 }
 
@@ -296,7 +296,7 @@ impl NodeClient {
 
         let response = self.http_client.get(url).send().await?;
         let response = match response
-            .json::<ResponseObject<AllowedSequencerResponse<S, Da>>>()
+            .json::<ResponseObject<AllowedSequencerResponse<S>>>()
             .await
         {
             Ok(r) => r,

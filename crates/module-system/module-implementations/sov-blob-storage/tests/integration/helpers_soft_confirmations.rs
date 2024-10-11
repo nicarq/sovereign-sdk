@@ -1,5 +1,5 @@
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
-use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -17,10 +17,7 @@ use crate::{
 };
 
 /// Sets up a test runtime and returns a [`TestData`] struct. Does not register the regular sequencer.
-pub fn setup_soft_confirmation_kernel() -> (
-    TestData<S>,
-    TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
-) {
+pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfirmationsKernel<S>>) {
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
     let preferred_sequencer = genesis_config.initial_sequencer.clone();
     let user_account = genesis_config.additional_accounts.first().unwrap().clone();
@@ -45,7 +42,7 @@ pub fn setup_soft_confirmation_kernel() -> (
         },
     );
 
-    let runner = TestRunner::<SoftConfirmationsKernel<S, MockDaSpec>>::new_with_genesis(
+    let runner = TestRunner::<SoftConfirmationsKernel<S>>::new_with_genesis(
         genesis.into_genesis_params(),
         TestBlobStorageRuntime::default(),
     );
@@ -63,17 +60,15 @@ pub fn setup_soft_confirmation_kernel() -> (
 /// Sets up a test runtime and returns a [`TestData`] struct. Registers the regular sequencer
 /// Note: with this setup, the first available sequence number is 1. This is because the
 /// sequencer number 0 is used to register the non-preferred sequencer.
-pub fn setup_with_registration_soft_confirmation_kernel() -> (
-    TestData<S>,
-    TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
-) {
+pub fn setup_with_registration_soft_confirmation_kernel(
+) -> (TestData<S>, TestRunner<SoftConfirmationsKernel<S>>) {
     let (test_data, mut runner) = setup_soft_confirmation_kernel();
 
     let regular_sequencer = &test_data.regular_sequencer;
     let regular_sequencer_da_address = regular_sequencer.da_address;
 
     let user_stake_value = runner.query_state(|state| {
-        SequencerRegistry::<S, MockDaSpec>::default()
+        SequencerRegistry::<S>::default()
             .get_coins_to_lock(state)
             .unwrap_infallible()
             .amount
@@ -83,12 +78,12 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
     // There is an issue to fix that: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1330`
     let mut nonces = runner.nonces().clone();
     let blob = runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S, MockDaSpec>>::soft_confirmation_batches_to_blobs::<
-            SequencerRegistry<S, MockDaSpec>,
+        TestRunner::<SoftConfirmationsKernel<S>>::soft_confirmation_batches_to_blobs::<
+            SequencerRegistry<S>,
         >(
             vec![SoftConfirmationBlobInfo {
                 batch_type: BatchType(vec![regular_sequencer
-                    .create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
+                    .create_plain_message::<SequencerRegistry<S>>(
                         sov_sequencer_registry::CallMessage::Register {
                             da_address: regular_sequencer_da_address.as_ref().to_vec(),
                             amount: user_stake_value,
@@ -105,7 +100,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
         )
     });
 
-    runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S, MockDaSpec>>(blob);
+    runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S>>(blob);
 
     (test_data, runner)
 }
@@ -114,9 +109,9 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (
 /// This struct populates the batches with simple [`ValueSetter`] messages. One
 /// can specify special sequencer addresses for each batch.
 pub fn build_soft_confirmation_blobs(
-    slot_info: &SlotConfigInfo<(TestSequencer<S, MockDaSpec>, SequencerInfo)>,
+    slot_info: &SlotConfigInfo<(TestSequencer<S>, SequencerInfo)>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
+    runner: &mut TestRunner<SoftConfirmationsKernel<S>>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
 
@@ -129,7 +124,7 @@ pub fn build_soft_confirmation_blobs(
     }
 
     runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S, MockDaSpec>>::soft_confirmation_batches_to_blobs::<
+        TestRunner::<SoftConfirmationsKernel<S>>::soft_confirmation_batches_to_blobs::<
             ValueSetter<S>,
         >(batches, nonces, state)
     })
@@ -151,10 +146,10 @@ pub fn build_soft_confirmation_blobs(
 /// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
 /// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_soft_confirmation(
-    sending_order: Vec<Vec<(TestSequencer<S, MockDaSpec>, SequencerInfo)>>,
+    sending_order: Vec<Vec<(TestSequencer<S>, SequencerInfo)>>,
     receive_order: Vec<Vec<usize>>,
     virtual_slot_heights_increases: Vec<u64>,
-    runner: &mut TestRunner<SoftConfirmationsKernel<S, MockDaSpec>>,
+    runner: &mut TestRunner<SoftConfirmationsKernel<S>>,
 ) {
     let mut nonces = HashMap::new();
 

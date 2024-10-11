@@ -4,7 +4,7 @@ use std::time::Duration;
 use base64::prelude::*;
 use borsh::BorshDeserialize;
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::{MockDaService, MockDaSpec};
+use sov_mock_da::MockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
@@ -21,14 +21,8 @@ use sov_test_utils::{
 };
 use sov_value_setter::ValueSetter;
 
-pub type MyBatchBuilder = StdBatchBuilder<
-    (
-        TestSpec,
-        MockDaSpec,
-        TestOptimisticRuntime<TestSpec, MockDaSpec>,
-    ),
-    BasicKernel<TestSpec, MockDaSpec>,
->;
+pub type MyBatchBuilder =
+    StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>), BasicKernel<TestSpec>>;
 
 async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();
@@ -70,7 +64,7 @@ fn valid_tx_bytes(
     nonce: u64,
     value_to_set: u32,
 ) -> RawTx {
-    let msg = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
+    let msg = <TestOptimisticRuntime<TestSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
         sov_value_setter::CallMessage::SetValue(value_to_set),
     );
 
@@ -78,7 +72,7 @@ fn valid_tx_bytes(
 }
 
 fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
-    TestOptimisticRuntime::<TestSpec, MockDaSpec>::encode_with_standard_auth(raw_tx)
+    TestOptimisticRuntime::<TestSpec>::encode_with_standard_auth(raw_tx)
 }
 
 // This test has to be single-threaded because logs from other threads don't
@@ -198,7 +192,7 @@ async fn test_batch_building_with_out_of_gas_error() {
             token_id: config_gas_token_id(),
         },
     };
-    let drain_wallet_msg: Vec<u8> = <TestOptimisticRuntime<TestSpec, MockDaSpec> as EncodeCall<
+    let drain_wallet_msg: Vec<u8> = <TestOptimisticRuntime<TestSpec> as EncodeCall<
         Bank<TestSpec>,
     >>::encode_call(drain_wallet_msg);
     // --  END tx construction --
