@@ -275,9 +275,15 @@ where
 
         let mut kernel_accessor = self.kernel.accessor(&mut state);
 
+        // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
+        //
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
-        // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
+        //
+        // WARNING: The true slot height gets updated in the `ChainState`'s `begin_slot_hook` method.
+        // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
+        // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
+        // `Runtime`'s slot hooks.
         let visible_state_root = self.kernel.begin_slot_hook(
             slot_header,
             validity_condition,

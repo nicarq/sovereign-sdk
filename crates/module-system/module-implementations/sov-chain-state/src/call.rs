@@ -68,9 +68,7 @@ where
         if let Some(in_progress_transition) =
             self.slots.get(&(state.rollup_height_to_access()), state)?
         {
-            let computed_base_fee =
-                Self::compute_base_fee_per_gas(&in_progress_transition.gas_info);
-            Ok(computed_base_fee)
+            Ok(in_progress_transition.gas_info.base_fee_per_gas)
         } else {
             Ok(<S as GasSpec>::initial_base_fee_per_gas())
         }

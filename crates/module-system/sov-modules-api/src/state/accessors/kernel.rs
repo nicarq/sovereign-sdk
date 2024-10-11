@@ -79,6 +79,11 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     pub fn update_true_slot_number(&mut self, true_slot_num: u64) {
         self.true_slot_num = true_slot_num;
     }
+
+    /// Updates the virtual slot number contained in the accessor
+    pub fn update_virtual_slot_number(&mut self, virtual_slot_num: u64) {
+        self.checkpoint.virtual_slot_num = virtual_slot_num;
+    }
 }
 
 impl<S: Storage> UniversalStateAccessor for KernelStateAccessor<'_, S> {

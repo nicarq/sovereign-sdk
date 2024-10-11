@@ -669,6 +669,9 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
         }),
     });
 
+    // We need to advance by one slot to update the gas price
+    runner.advance_slots(1);
+
     let new_bond_amount = minimal_bond(&runner);
 
     runner.query_state(|state| {
