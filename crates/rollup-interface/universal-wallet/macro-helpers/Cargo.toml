@@ -10,6 +10,6 @@ syn_derive = "0.1.6"
 proc-macro2 = "1"
 quote = "1"
 convert_case = { workspace = true }
-darling = "0.20"
+darling = { workspace = true }
 hex = { workspace = true }
 borsh = { workspace = true }

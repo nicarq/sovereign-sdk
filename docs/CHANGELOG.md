@@ -1,5 +1,12 @@
-## 2024-10-05
-- #1581 Fixes misalignment of rollup_height and JMT version. Genesis data is available at `rollup_height=0` via REST API.
+## 2024-10-11
+
+- #1630 allows customization of rollup address prefixes (also known as "HRP") by setting the `ADDRESS_PREFIX` constant in `constants.toml`. E.g.:
+  
+  ```toml
+  [constants]
+  ADDRESS_PREFIX = { const = "myrollup" }
+  ```
+
 ## 2024-10-08
 - #1599 removes the kernel macros and moves the Kernel modules inside the runtime. This may be a breaking change if users have implemented their own Kernels (we have removed the `Genesis` configuration from the `Kernel` trait) or if they have used the `Kernel` macro inside their modules (`KernelModule` derive macro, `kernel_module` attribute).
 
@@ -17,6 +24,9 @@ The macro is additionally available in `sov_rollup_interface` at the path `sov_r
 ## 2024-10-07
 - #1588 changes the signature of the `GasEnforcer` capability, adding one new method `try_reserve_gas_for_proof` and altering the signature of `try_reserve_gas` to include the entire `Context` instead of just the sender address. If you're using the standard capabilities, no change is needed. If you implemented your own `GasEnforcer` capability, simply copy-paste your old implementation as `try_reserve_gas_for_proof`, and use `context.sender()` in place of the `sender` argument within `try_reserve_gas`.
 - #1584 extract transaction authentication to a separate methods.
+
+## 2024-10-05
+- #1581 Fixes misalignment of rollup_height and JMT version. Genesis data is available at `rollup_height=0` via REST API.
 
 ## 2024-10-04
 - #1577 introduces a new `GasMeter::gas_info` method to the `GasMeter`. This is a breaking change for SDK consumers. Any code that previously used `gas_meter.gas_price()` will need to be updated to `gas_meter.gas_info().gas_price`, and similarly for `remaining_funds` and `gas_used`.

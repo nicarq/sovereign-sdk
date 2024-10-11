@@ -155,6 +155,7 @@ byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.7.1", default-features = false }
 convert_case = { version = "0.6", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["now"] }
+darling = "0.20"
 derivative = { version = "2.2", features = ["use_core"] }
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive-getters = { version = "0.5.0" }

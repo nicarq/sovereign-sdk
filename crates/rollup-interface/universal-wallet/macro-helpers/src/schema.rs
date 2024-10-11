@@ -19,10 +19,12 @@ pub enum DisplayType {
     Hex,
     Decimal,
     Bech32 {
-        prefix: String,
+        #[darling(with = "darling::util::parse_expr::parse_str_literal")]
+        prefix: syn::Expr,
     },
     Bech32m {
-        prefix: String,
+        #[darling(with = "darling::util::parse_expr::parse_str_literal")]
+        prefix: syn::Expr,
     },
 }
 
