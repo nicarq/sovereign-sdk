@@ -194,12 +194,23 @@ impl<'a> StructDef<'a> {
         extra_attributes: &[TokenStream],
     ) -> TokenStream {
         let enum_ident = self.enum_ident(postfix);
+        let enum_discriminants_ident =
+            &format_ident!("{}Discriminants", &enum_ident, span = Span::call_site());
         let impl_generics = &self.impl_generics;
         let where_clause = &self.where_clause;
+        let type_generics = &self.type_generics;
         quote::quote! {
             #(#extra_attributes)*
             pub enum #enum_ident #impl_generics #where_clause {
                 #(#enum_legs)*
+            }
+
+            impl #impl_generics ::sov_modules_api::EnumUtils for #enum_ident #type_generics #where_clause {
+                type Discriminants = #enum_discriminants_ident;
+
+                fn discriminant(&self) -> Self::Discriminants {
+                    self.into()
+                }
             }
         }
     }

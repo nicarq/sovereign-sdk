@@ -2308,6 +2308,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
 ]
 
@@ -4255,6 +4256,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "tracing",
 ]
@@ -4995,6 +4997,7 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
 ]
 
@@ -8923,6 +8926,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
 ]
 
@@ -9033,6 +9037,7 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
 ]
 
@@ -9053,6 +9058,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tokio",
@@ -9074,6 +9080,7 @@ dependencies = [
  "sov-modules-api",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tracing",
@@ -9101,6 +9108,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "tracing",
 ]
@@ -9175,6 +9183,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tracing",
@@ -9408,6 +9417,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tokio",
@@ -9600,6 +9610,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-universal-wallet",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tokio",
@@ -9636,6 +9647,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-universal-wallet-macro-helpers",
+ "strum 0.26.3",
  "syn 2.0.77",
  "tempfile",
  "toml",
@@ -9702,6 +9714,7 @@ dependencies = [
  "sov-nft",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "tokio",
  "tracing",
@@ -9720,6 +9733,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
 ]
 
@@ -9740,6 +9754,7 @@ dependencies = [
  "sov-prover-incentives",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tracing",
@@ -9815,6 +9830,7 @@ dependencies = [
  "sov-rollup-json-client",
  "sov-state",
  "sov-test-utils",
+ "strum 0.26.3",
  "tempfile",
  "utoipa-swagger-ui",
 ]
@@ -9901,6 +9917,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tokio",
@@ -9952,6 +9969,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tracing",
@@ -10135,6 +10153,7 @@ dependencies = [
  "sov-stf-runner",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "tokio",
  "tracing-subscriber 0.3.18",
@@ -10190,6 +10209,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
 ]

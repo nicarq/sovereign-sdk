@@ -57,6 +57,7 @@ sov-db = { workspace = true }
 sov-state = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
+strum = { workspace = true }
 tempfile = { workspace = true }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 rockbound = { workspace = true }
@@ -82,5 +83,5 @@ arbitrary = [
 	"sov-nonces/arbitrary",
 	"sov-mock-da/arbitrary",
 	"sov-bank/arbitrary",
-	"sov-test-utils/arbitrary"
+	"sov-test-utils/arbitrary",
 ]

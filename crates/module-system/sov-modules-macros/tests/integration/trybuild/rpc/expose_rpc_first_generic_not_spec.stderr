@@ -48,34 +48,6 @@ help: consider further restricting this bound
     |                            +++++++++++++++++++++++
 
 error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
-   --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:16
-    |
-109 | struct Runtime<T: TestSpec, S: Spec> {
-    |                ^ the trait `sov_modules_api::Spec` is not implemented for `T`
-    |
-note: required by a bound in `sov_modules_api::DispatchCall::Spec`
-   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
-    |
-    |     type Spec: Spec;
-    |                ^^^^ required by this bound in `DispatchCall::Spec`
-help: consider further restricting this bound
-    |
-109 | struct Runtime<T: TestSpec + sov_modules_api::Spec, S: Spec> {
-    |                            +++++++++++++++++++++++
-
-error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
-   --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:108:28
-    |
-108 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
-    |                            ^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `T`
-    |
-    = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
-help: consider further restricting this bound
-    |
-109 | struct Runtime<T: TestSpec + sov_modules_api::Spec, S: Spec> {
-    |                            +++++++++++++++++++++++
-
-error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:107:1
     |
 107 | #[expose_rpc]
@@ -110,6 +82,34 @@ help: consider annotating `ActualSpec` with `#[derive(Debug)]`
 114 + #[derive(Debug)]
 115 | struct ActualSpec;
     |
+
+error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
+   --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:16
+    |
+109 | struct Runtime<T: TestSpec, S: Spec> {
+    |                ^ the trait `sov_modules_api::Spec` is not implemented for `T`
+    |
+note: required by a bound in `sov_modules_api::DispatchCall::Spec`
+   --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/dispatch.rs
+    |
+    |     type Spec: Spec;
+    |                ^^^^ required by this bound in `DispatchCall::Spec`
+help: consider further restricting this bound
+    |
+109 | struct Runtime<T: TestSpec + sov_modules_api::Spec, S: Spec> {
+    |                            +++++++++++++++++++++++
+
+error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
+   --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:108:28
+    |
+108 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
+    |                            ^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `T`
+    |
+    = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider further restricting this bound
+    |
+109 | struct Runtime<T: TestSpec + sov_modules_api::Spec, S: Spec> {
+    |                            +++++++++++++++++++++++
 
 error[E0277]: the trait bound `T: sov_modules_api::Spec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:108:28
@@ -223,6 +223,23 @@ note: method defined here
     |
     |     fn call(
     |        ^^^^
+    = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0271]: type mismatch resolving `<QueryModule<S, <T as TestSpec>::Data> as ModuleInfo>::Spec == T`
+   --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:108:28
+    |
+108 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
+    |                            ^^^^^^^^^^^^ expected type parameter `T`, found type parameter `S`
+109 | struct Runtime<T: TestSpec, S: Spec> {
+    |                -            - found type parameter
+    |                |
+    |                expected type parameter
+    |
+    = note: expected type parameter `T`
+               found type parameter `S`
+    = note: a type parameter was expected, but a different one was found; you might be missing a type parameter or trait bound
+    = note: for more information, visit https://doc.rust-lang.org/book/ch10-02-traits.html#traits-as-parameters
+    = note: required for the cast from `&QueryModule<S, <T as TestSpec>::Data>` to `&dyn sov_modules_api::ModuleInfo<Spec = T>`
     = note: this error originates in the derive macro `DispatchCall` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: the trait bound `<T as TestSpec>::Data: std::default::Default` is not satisfied

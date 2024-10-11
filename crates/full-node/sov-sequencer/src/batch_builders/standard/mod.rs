@@ -16,8 +16,8 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec, StateCheckpoint,
-    VersionReader, WorkingSet,
+    Batch, DispatchCall, EnumUtils, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
+    StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     authenticate_tx, process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
@@ -76,6 +76,9 @@ enum AddTxToBatchError {
     /// Error occurred during pre-execution checks.
     #[error("Error occurred during pre-execution checks")]
     PreExecCheck(#[source] PreExecError),
+    /// The transaction was rejected because it is not sequencer safe.
+    #[error("The transaction was rejected because the it invokes the `{0}` module which may modify sequencer configurations. You need admin permissions on the sequencer to call this method.")]
+    PermissionDenied(&'static str),
 }
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -129,6 +132,24 @@ where
                 return (ctx, Err(AddTxToBatchError::PreExecCheck(err)));
             }
         };
+
+        let (_, _, message) = &auth_output;
+        let destination_module =
+            <Z::Rt as DispatchCall>::module_info(&self.runtime, message.discriminant());
+
+        // TODO: Add an admin permission to call methods that would otherwise be rejected
+        // TODO: Move this check before we authenticate the tx. This requires a separate method
+        // to decode the transaction without checking its signature.
+        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1618>
+        if !destination_module.is_sequencer_safe() {
+            ctx.state_checkpoint = tx_scratchpad.revert();
+            return (
+                ctx,
+                Err(AddTxToBatchError::PermissionDenied(
+                    message.discriminant().into(),
+                )),
+            );
+        }
 
         let (res, tx_scratchpad) = process_tx(
             &self.runtime,
@@ -415,6 +436,12 @@ where
                         },
                         AddTxToBatchError::TxProcessing(tx_processing_error) => {
                             tracing::info!(hash= %mempool_tx.hash, reason = %tx_processing_error, "The current state of the rollup didn't allow tx inclusion; ignoring tx",);
+                            continue;
+                        }
+                        AddTxToBatchError::PermissionDenied(module) => {
+                            self.mempool
+                                .drop(&mempool_tx.hash, add_tx_error.to_string());
+                            tracing::info!(hash= %mempool_tx.hash, target_module = %module, "Tx attempted to invoke a sequencer-unsafe module without appropriate permissions; dropping tx");
                             continue;
                         }
                     },

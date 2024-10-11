@@ -54,7 +54,7 @@ In the remainder of this section, we'll walk you through implementing each of th
 The final piece of the puzzle is your app's runtime. A runtime is just a list of modules - really, that's it! To add a new
 module to your app, just add an additional field to the runtime.
 
-```rust
+```rust,no_run
 use sov_modules_api::{Genesis, DispatchCall, MessageCodec, Spec};
 use sov_modules_api::macros::expose_rpc;
 
@@ -74,6 +74,8 @@ pub struct MyRuntime<S: Spec> {
     #[allow(unused)]
     accounts: sov_accounts::Accounts<S>,
 }
+
+fn main() {}
 ```
 
 As you can see in the above snippet, we derive four macros on the runtime. The `Genesis` macro generates
@@ -103,7 +105,7 @@ In this demo, we only rely on a single modules which need access to the hooks - 
 
 The implementation for `MyRuntime` is straightforward because we can leverage the existing hooks provided by `sov-accounts` and `sequencer-registry` and reuse them in our implementation.
 
-```Rust
+```Rust,no_run
 impl<S: Spec> TxHooks for Runtime<S> {
     type Spec = S;
 

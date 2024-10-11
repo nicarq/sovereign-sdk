@@ -1,7 +1,7 @@
 /// Derives the [`DispatchCall`] trait for the underlying
 /// type.
 ///
-/// ```rust
+/// ```rust,no_run
 /// use sov_modules_api::{DaSpec, DispatchCall, Module, Spec};
 /// use sov_bank::Bank;
 /// use sov_sequencer_registry::SequencerRegistry;
@@ -14,11 +14,34 @@
 /// // Applying #[derive(DispatchCall)] to MyRuntime generates the following code:
 /// #[allow(non_camel_case_types)]
 /// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// #[derive(
+///    sov_modules_api::prelude::strum::EnumDiscriminants,
+///    sov_modules_api::prelude::strum::VariantNames,
+///    sov_modules_api::prelude::strum::EnumTryAs,
+///    sov_modules_api::prelude::strum::IntoStaticStr,
+///    sov_modules_api::prelude::strum::AsRefStr,
+/// )]
+/// #[strum_discriminants(derive(
+///    sov_modules_api::prelude::strum::VariantNames,
+///    sov_modules_api::prelude::strum::VariantArray,
+///    sov_modules_api::prelude::strum::EnumString,
+///    sov_modules_api::prelude::strum::IntoStaticStr,
+///    sov_modules_api::prelude::strum::AsRefStr,
+/// ))]
 /// #[serde(rename_all = "snake_case")]
 /// pub enum RuntimeCall<S: Spec> {
 ///   bank(<Bank::<S> as Module>::CallMessage),
 ///   sequencer_registry(<SequencerRegistry::<S> as Module>::CallMessage),
 /// }
+///
+///
+/// impl<S: Spec> sov_modules_api::EnumUtils for RuntimeCall<S> {
+///     type Discriminants = RuntimeCallDiscriminants;
+///  
+///     fn discriminant(&self) -> Self::Discriminants {
+///         self.into()
+///     }
+///  }
 ///
 /// impl<S: Spec> DispatchCall for MyRuntime<S> {
 ///   type Spec = S;
@@ -48,12 +71,19 @@
 /// # ) -> Result<sov_modules_api::CallResponse, sov_modules_api::ModuleError> {
 /// #   Ok(Default::default())
 /// # }
-/// ///Returns the ID of the dispatched module.
+/// //Returns the ID of the dispatched module.
 /// # fn module_id(&self, _message: &Self::Decodable) -> &sov_modules_api::ModuleId {
 /// #   use sov_modules_api::ModuleInfo;
 /// #   self.bank.id()
 /// # }
+/// # fn module_info(
+/// #     &self,
+/// #     discriminant: <Self::Decodable as ::sov_modules_api::EnumUtils>::Discriminants,
+/// # ) -> &dyn ::sov_modules_api::ModuleInfo<Spec = Self::Spec> {
+/// #     todo!()
+/// # }
 /// }
+/// # fn main() {}
 /// ```
 ///
 /// ## Attribute: `#[dispatch_call(no_default_attrs)]`
@@ -64,6 +94,8 @@
 /// The current set of default attributes is:
 ///
 /// `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+/// `#[derive(sov_modules_api::prelude::strum::EnumDiscriminants, sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::EnumTryAs, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr)]`
+/// `#[strum_discriminants(derive(sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::VariantArray, sov_modules_api::prelude::strum::EnumString, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr))]`
 /// `#[serde(rename_all = "snake_case")]`
 ///
 ///
@@ -83,7 +115,7 @@
 ///   pub bank: Bank<S>,
 ///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
-///
+/// # fn main() {}
 /// ```
 pub use sov_modules_macros::DispatchCall;
 /// Derives the <runtime_name>Event enum for a given runtime.
@@ -116,6 +148,8 @@ pub use sov_modules_macros::DispatchCall;
 /// The current default attributes are:
 ///
 /// - `#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]`
+/// - `#[derive(sov_modules_api::prelude::strum::EnumDiscriminants, sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::EnumTryAs, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr)]`
+/// - `#[strum_discriminants(derive(sov_modules_api::prelude::strum::VariantNames, sov_modules_api::prelude::strum::VariantArray, sov_modules_api::prelude::strum::EnumString, sov_modules_api::prelude::strum::IntoStaticStr, sov_modules_api::prelude::strum::AsRefStr))]`
 /// - `#[serde(untagged, bound = "", rename_all="snake_case")]`
 ///
 ///
@@ -134,7 +168,7 @@ pub use sov_modules_macros::DispatchCall;
 ///   pub bank: Bank<S>,
 ///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
-///
+/// # fn main() {}
 /// ```
 pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime

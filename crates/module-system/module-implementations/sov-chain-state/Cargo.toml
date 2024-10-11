@@ -30,6 +30,7 @@ sov-state = { workspace = true }
 sov-value-setter = { workspace = true, features = ["native"] }
 sov-chain-state = { path = ".", features = ["native", "test-utils"] }
 tempfile = { workspace = true }
+strum = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-mock-da = { workspace = true }
 sov-mock-zkvm = { workspace = true }
@@ -47,5 +48,5 @@ native = [
 	"sov-state/native",
 	"sov-value-setter/native",
 	"sov-bank/native",
-	"schemars"
+	"schemars",
 ]

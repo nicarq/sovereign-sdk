@@ -24,6 +24,7 @@ impl<'a> StructDef<'a> {
 
     fn create_call_dispatch(&self) -> proc_macro2::TokenStream {
         let enum_ident = self.enum_ident(CALL);
+        let discriminant_enum_ident = quote::format_ident!("{}Discriminants", enum_ident);
         let type_generics = &self.type_generics;
 
         let match_legs = self.fields.iter().map(|field| {
@@ -45,6 +46,17 @@ impl<'a> StructDef<'a> {
             quote::quote!(
                 #enum_ident::#variant_ident(message)=>{
                    <#ty as ::sov_modules_api::ModuleInfo>::id(&self.#field_ident)
+                },
+            )
+        });
+
+        let match_legs_info = self.fields.iter().map(|field| {
+            let variant_ident = pascal_case_ident(&field.ident);
+            let field_ident = &field.ident;
+
+            quote::quote!(
+                #discriminant_enum_ident::#variant_ident =>{
+                   &self.#field_ident
                 },
             )
         });
@@ -96,6 +108,15 @@ impl<'a> StructDef<'a> {
                     }
                 }
 
+                fn module_info(
+                    &self,
+                    discriminant: <Self::Decodable as ::sov_modules_api::EnumUtils>::Discriminants,
+                ) -> &dyn ::sov_modules_api::ModuleInfo<Spec = Self::Spec> {
+                    match discriminant {
+                        #(#match_legs_info)*
+                    }
+                }
+
             }
         }
     }
@@ -127,11 +148,25 @@ impl DispatchCallMacro {
                         Clone,
                         Debug,
                         PartialEq,
+                        sov_modules_api::prelude::strum::EnumDiscriminants,
+                        sov_modules_api::prelude::strum::VariantNames,
+                        sov_modules_api::prelude::strum::EnumTryAs,
+                        sov_modules_api::prelude::strum::IntoStaticStr,
+                        sov_modules_api::prelude::strum::AsRefStr,
                     )
                 ]
             },
             quote::quote! {
                 #[serde(rename_all = "snake_case")]
+            },
+            quote::quote! {
+                #[strum_discriminants(derive(
+                    sov_modules_api::prelude::strum::VariantNames,
+                    sov_modules_api::prelude::strum::VariantArray,
+                    sov_modules_api::prelude::strum::EnumString,
+                    sov_modules_api::prelude::strum::IntoStaticStr,
+                    sov_modules_api::prelude::strum::AsRefStr,
+                ))]
             },
         ];
 
@@ -163,10 +198,17 @@ impl DispatchCallMacro {
         let create_dispatch_impl = struct_def.create_call_dispatch();
 
         Ok(quote::quote! {
-            #[doc="This enum is generated from the underlying Runtime, the variants correspond to call messages from the relevant modules"]
-            #call_enum
+            mod __generated_dispatch_call_impl {
+                #![allow(missing_docs)]
+                use super::*;
 
-            #create_dispatch_impl
+                #[doc="This enum is generated from the underlying Runtime, the variants correspond to call messages from the relevant modules"]
+                #call_enum
+
+                #create_dispatch_impl
+            }
+            pub use __generated_dispatch_call_impl::*;
+
         }
         .into())
     }
