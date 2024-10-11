@@ -81,9 +81,11 @@ async fn send_test_bank_txs(
     while verified_attested_height <= batch_1_slot_number {
         let slot = slots_subscription.next().await.unwrap()?;
         assert!(slot.number >= rollup_height);
+
         let max_attested_height = get_max_attested_height(client, Some(rollup_height)).await?;
-        if max_attested_height == verified_attested_height {
-            verified_attested_height += 1;
+        if max_attested_height >= verified_attested_height {
+            // We can have several attestations in the same DA block, so we need to set `verified_attested_height` to the `max_attested_height`.
+            verified_attested_height = max_attested_height;
         }
         rollup_height += 1;
         if rollup_height > (batch_1_slot_number + attestation_publish_threshold) {
