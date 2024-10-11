@@ -1,8 +1,20 @@
 //! Runtime call message definitions.
 
+use strum::{VariantArray, VariantNames};
+
+use super::ModuleInfo;
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
 use crate::{GasMeter, MeteredBorshDeserializeError, ModuleId, WorkingSet};
+
+/// A helper trait for working with enums.
+pub trait EnumUtils: VariantNames + AsRef<str> {
+    /// An enum that consists of just the discriminant of the call message with no data.
+    type Discriminants: VariantNames + VariantArray + Into<&'static str> + AsRef<str> + Clone + Copy;
+
+    /// Returns the discriminant of the call message.
+    fn discriminant(&self) -> Self::Discriminants;
+}
 
 /// A trait that needs to be implemented for any call message.
 pub trait DispatchCall: Send + Sync {
@@ -10,7 +22,7 @@ pub trait DispatchCall: Send + Sync {
     type Spec: Spec;
 
     /// The concrete type that will decode into the call message of the module.
-    type Decodable: Send + Sync;
+    type Decodable: Send + Sync + EnumUtils;
 
     /// Decodes serialized call message
     fn decode_call(
@@ -28,4 +40,10 @@ pub trait DispatchCall: Send + Sync {
 
     /// Returns the ID of the dispatched module.
     fn module_id(&self, message: &Self::Decodable) -> &ModuleId;
+
+    /// Returns the ID of the dispatched module.
+    fn module_info(
+        &self,
+        discriminant: <Self::Decodable as EnumUtils>::Discriminants,
+    ) -> &dyn ModuleInfo<Spec = Self::Spec>;
 }

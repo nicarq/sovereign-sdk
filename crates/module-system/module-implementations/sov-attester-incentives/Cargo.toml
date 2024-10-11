@@ -17,6 +17,7 @@ workspace = true
 
 [dev-dependencies]
 tempfile = { workspace = true }
+strum = { workspace = true }
 sov-attester-incentives = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }

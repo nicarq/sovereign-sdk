@@ -232,36 +232,52 @@ pub mod third_test_module {
     }
 }
 
-#[test]
-fn custom_attributes() {
+// Wrap the test in a module rather than declaring the struct inside of the function
+// to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
+mod custom_attributes {
+    use super::*;
     #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
     #[dispatch_call(derive(sov_modules_api::macros::UniversalWallet))]
     struct Runtime<S: Spec> {
         pub first: first_test_module::FirstTestStruct<S>,
         pub second: second_test_module::SecondTestStruct<S>,
     }
-
-    let _ = Schema::of::<RuntimeCall<TestSpec>>();
+    #[test]
+    fn custom_attributes() {
+        let _ = Schema::of::<RuntimeCall<TestSpec>>();
+    }
 }
 
-#[test]
-fn derive_event() {
+// Wrap the test in a module rather than declaring the struct inside of the function
+// to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
+mod derive_event {
+    use sov_modules_api::EnumUtils;
+
+    use super::*;
     #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
     struct Runtime<S: Spec> {
         pub first: first_test_module::FirstTestStruct<S>,
         pub second: second_test_module::SecondTestStruct<S>,
     }
 
-    // Check to see if the runtime events are getting initialized correctly
-    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum1(10));
-    let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum2);
-    let _event =
-        RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum3(vec![1; 3]));
-    let _event = RuntimeEvent::<TestSpec>::Second(second_test_module::Event::SecondModuleEnum);
+    #[test]
+    fn derive_event() {
+        // Check to see if the runtime events are getting initialized correctly
+        let _event =
+            RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum1(10));
+        let _event = RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum2);
+        let _event =
+            RuntimeEvent::<TestSpec>::First(first_test_module::Event::FirstModuleEnum3(vec![1; 3]));
+        let event = RuntimeEvent::<TestSpec>::Second(second_test_module::Event::SecondModuleEnum);
+        let discriminant: &'static str = event.discriminant().into();
+        assert_eq!(discriminant, "Second");
+    }
 }
 
-#[test]
-fn derive_genesis() {
+// Wrap the test in a module rather than declaring the struct inside of the function
+// to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
+mod derive_genesis {
+    use super::*;
     #[derive(Default, Genesis, DispatchCall, MessageCodec)]
     struct Runtime<S, T>
     where
@@ -273,43 +289,50 @@ fn derive_genesis() {
         pub third: third_test_module::ThirdTestStruct<S, T>,
     }
 
-    let storage = ZkStorage::new();
-    let mut state =
-        sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
-    let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
-    let config = GenesisConfig::new((), (), ());
-    let mut genesis_state =
-        state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
-    runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = state.to_working_set_unmetered();
+    #[test]
+    fn derive_genesis() {
+        let storage = ZkStorage::new();
+        let mut state =
+            sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
+        let runtime = &mut Runtime::<ZkTestSpec, u32>::default();
+        let config = GenesisConfig::new((), (), ());
+        let mut genesis_state =
+            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+        runtime.genesis(&config, &mut genesis_state).unwrap();
+        let mut working_set = state.to_working_set_unmetered();
 
-    {
-        let response = runtime
-            .first
-            .get_state_value(&mut working_set)
-            .expect("The working set should be unmetered");
-        assert_eq!(response, 1);
-    }
+        {
+            let response = runtime
+                .first
+                .get_state_value(&mut working_set)
+                .expect("The working set should be unmetered");
+            assert_eq!(response, 1);
+        }
 
-    {
-        let response = runtime
-            .second
-            .get_state_value(&mut working_set)
-            .expect("The working set should be unmetered");
-        assert_eq!(response, 2);
-    }
+        {
+            let response = runtime
+                .second
+                .get_state_value(&mut working_set)
+                .expect("The working set should be unmetered");
+            assert_eq!(response, 2);
+        }
 
-    {
-        let response = runtime
-            .third
-            .get_state_value(&mut working_set)
-            .expect("The working set should be unmetered");
-        assert_eq!(response, Some(0));
+        {
+            let response = runtime
+                .third
+                .get_state_value(&mut working_set)
+                .expect("The working set should be unmetered");
+            assert_eq!(response, Some(0));
+        }
     }
 }
 
-#[test]
-fn derive_dispatch() {
+// Wrap the test in a module rather than declaring the struct inside of the function
+// to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
+mod derive_dispatch {
+    use sov_modules_api::EnumUtils;
+
+    use super::*;
     #[derive(Default, Genesis, DispatchCall, MessageCodec)]
     struct Runtime<S, T>
     where
@@ -321,72 +344,87 @@ fn derive_dispatch() {
         pub third: third_test_module::ThirdTestStruct<S, T>,
     }
 
-    type RT = Runtime<ZkTestSpec, u32>;
+    #[test]
+    fn derive_dispatch() {
+        type RT = Runtime<ZkTestSpec, u32>;
+        type Call = RuntimeCall<ZkTestSpec, u32>;
 
-    let runtime = &mut RT::default();
+        let runtime = &mut RT::default();
 
-    let storage = ZkStorage::new();
+        let storage = ZkStorage::new();
 
-    let mut state =
-        sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
-    let config = GenesisConfig::new((), (), ());
-    let mut genesis_state =
-        state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
-    runtime.genesis(&config, &mut genesis_state).unwrap();
-    let mut working_set = state.to_working_set_unmetered();
+        let mut state =
+            sov_modules_api::StateCheckpoint::new(storage, &MockKernel::<ZkTestSpec>::default());
+        let config = GenesisConfig::new((), (), ());
+        let mut genesis_state =
+            state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
+        runtime.genesis(&config, &mut genesis_state).unwrap();
+        let mut working_set = state.to_working_set_unmetered();
 
-    let sender = Address::try_from([0; 32].as_ref()).unwrap();
-    let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
-    let context: Context<ZkTestSpec> = Context::new(
-        sender,
-        Default::default(),
-        sequencer,
-        1,
-        ExecutionContext::Node,
-    );
+        let sender = Address::try_from([0; 32].as_ref()).unwrap();
+        let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
+        let context: Context<ZkTestSpec> = Context::new(
+            sender,
+            Default::default(),
+            sequencer,
+            1,
+            ExecutionContext::Node,
+        );
 
-    let value = 11;
-    {
-        let message = value;
-        let serialized_message = <RT as EncodeCall<
-            first_test_module::FirstTestStruct<ZkTestSpec>,
-        >>::encode_call(message);
-        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+        let value = 11;
+        {
+            let message = value;
+            let serialized_message = <RT as EncodeCall<
+                first_test_module::FirstTestStruct<ZkTestSpec>,
+            >>::encode_call(message);
+            let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
 
-        assert_eq!(runtime.module_id(&module), runtime.first.id());
-        let _ = runtime
-            .dispatch_call(module, &mut working_set, &context)
-            .unwrap();
-    }
+            assert_eq!(runtime.module_id(&module), runtime.first.id());
+            let _ = runtime
+                .dispatch_call(module, &mut working_set, &context)
+                .unwrap();
+        }
 
-    {
-        let response = runtime
-            .first
-            .get_state_value(&mut working_set)
-            .expect("The working set should be unmetered");
-        assert_eq!(response, value);
-    }
+        {
+            let response = runtime
+                .first
+                .get_state_value(&mut working_set)
+                .expect("The working set should be unmetered");
+            assert_eq!(response, value);
+        }
 
-    let value = 22;
-    {
-        let message = value;
-        let serialized_message = <RT as EncodeCall<
-            second_test_module::SecondTestStruct<ZkTestSpec>,
-        >>::encode_call(message);
-        let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+        let value = 22;
+        {
+            let message = value;
+            let serialized_message = <RT as EncodeCall<
+                second_test_module::SecondTestStruct<ZkTestSpec>,
+            >>::encode_call(message);
+            let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
 
-        assert_eq!(runtime.module_id(&module), runtime.second.id());
+            assert_eq!(runtime.module_id(&module), runtime.second.id());
 
-        let _ = runtime
-            .dispatch_call(module, &mut working_set, &context)
-            .unwrap();
-    }
+            let _ = runtime
+                .dispatch_call(module, &mut working_set, &context)
+                .unwrap();
+        }
 
-    {
-        let response = runtime
-            .second
-            .get_state_value(&mut working_set)
-            .expect("The working set should be unmetered");
-        assert_eq!(response, value);
+        {
+            let response = runtime
+                .second
+                .get_state_value(&mut working_set)
+                .expect("The working set should be unmetered");
+            assert_eq!(response, value);
+        }
+
+        {
+            let call = Call::Second(12);
+            // Check that we can retrieve the module info from the discriminant of a callmessage.
+            assert_eq!(
+                runtime.module_info(call.discriminant()).id(),
+                runtime.second.id()
+            );
+            let discriminant: &'static str = call.discriminant().into();
+            assert_eq!(discriminant, "Second");
+        }
     }
 }

@@ -188,6 +188,7 @@ pub mod prelude {
     pub extern crate sov_rest_utils;
     #[cfg(feature = "native")]
     pub extern crate sov_universal_wallet;
+    pub extern crate strum;
     #[cfg(feature = "native")]
     pub extern crate tokio;
     pub extern crate toml;

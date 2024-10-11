@@ -23,6 +23,7 @@ sov-state = { workspace = true }
 [dev-dependencies]
 sov-nonces = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
+strum = { workspace = true }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-test-utils = { workspace = true }
 sov-value-setter = { workspace = true }
@@ -30,15 +31,15 @@ sov-value-setter = { workspace = true }
 [features]
 default = []
 arbitrary = [
-    "sov-modules-api/arbitrary",
-    "sov-nonces/arbitrary",
-    "sov-state/arbitrary",
-    "sov-test-utils/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-nonces/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
 ]
 native = [
 	"schemars",
 	"sov-modules-api/native",
 	"sov-nonces/native",
 	"sov-state/native",
-	"sov-value-setter/native"
+	"sov-value-setter/native",
 ]

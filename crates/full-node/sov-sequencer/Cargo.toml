@@ -42,6 +42,7 @@ sov-modules-api = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-state = { workspace = true }
 sov-db = { workspace = true }
+strum = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync", "rt"] }
 tokio-stream = { workspace = true }

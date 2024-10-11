@@ -108,6 +108,12 @@ pub trait ModuleInfo {
 
     /// Returns addresses of all the other modules this module is dependent on
     fn dependencies(&self) -> Vec<&ModuleId>;
+
+    /// Returns true if all calls to this module are safe to submit on behalf of an untrusted
+    /// third party.
+    fn is_sequencer_safe(&self) -> bool {
+        true
+    }
 }
 
 /// Event Emitter trait for a blanket implementation

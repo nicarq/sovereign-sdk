@@ -1,3 +1,5 @@
+## 2024-10-10
+- #1610 requires a *direct* dependency on the `strum` crate for any packages that define a `Runtime` struct, or a dev-dependency on `strum` if the package uses `sov-test-utils` to generate a test runtime.
 ## 2024-10-05
 - #1624 Adds `DaSpec` as an associated type of `Spec` and removes it from every other type inside the module system. See the changes to the demo-rollup here for an example migration: https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1624/files#diff-d9126f60816d820a29c0bf89e154c54c031f9fec4490301d08c3a3f2b39310e2
 

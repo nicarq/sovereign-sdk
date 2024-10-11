@@ -39,10 +39,10 @@ sov-nonces = { workspace = true }
 tempfile = { workspace = true }
 axum-server = { workspace = true }
 anyhow = { workspace = true }
+strum = { workspace = true }
 
 # Sovereign dependencies
 sov-bank = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-kernels = { workspace = true }
 sov-state = { workspace = true }
-

@@ -30,6 +30,7 @@ sov-chain-state = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+strum = { workspace = true }
 sov-blob-storage = { path = ".", features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
@@ -53,5 +54,5 @@ native = [
 	"sov-modules-stf-blueprint/native",
 	"sov-rollup-interface/native",
 	"sov-value-setter/native",
-	"schemars"
+	"schemars",
 ]

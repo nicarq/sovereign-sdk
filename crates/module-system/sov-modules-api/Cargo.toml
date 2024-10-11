@@ -17,13 +17,17 @@ workspace = true
 [dependencies]
 jsonrpsee = { workspace = true, features = [
     "macros",
-    "server"
+    "server",
 ], optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
-derive_more = { workspace = true, default-features = true, features = ["deref", "display", "into"] }
+derive_more = { workspace = true, default-features = true, features = [
+    "deref",
+    "display",
+    "into",
+] }
 serde_yaml = { workspace = true, optional = true }
 sov-rest-utils = { workspace = true, optional = true }
 sov-state = { workspace = true }
@@ -44,6 +48,7 @@ toml = { workspace = true }
 tracing = { workspace = true }
 tracing-test = { workspace = true, optional = true }
 sha2 = { workspace = true }
+strum = { workspace = true }
 bech32 = { workspace = true }
 serde_json = { workspace = true, optional = true }
 hex = { workspace = true }
@@ -76,21 +81,21 @@ openapiv3 = "2.0.0"
 
 [features]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"proptest/default",
-	"sov-db?/arbitrary",
-	"sov-mock-zkvm/arbitrary",
-	"sov-modules-api/arbitrary",
-	"sov-rest-utils/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-state/arbitrary",
-	"sov-sequencer-registry/arbitrary",
-	"sov-test-utils/arbitrary",
-	"sov-risc0-adapter/arbitrary",
-	"sov-mock-da/arbitrary",
-	"sov-bank/arbitrary"
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "proptest/default",
+    "sov-db?/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rest-utils/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-state/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-test-utils/arbitrary",
+    "sov-risc0-adapter/arbitrary",
+    "sov-mock-da/arbitrary",
+    "sov-bank/arbitrary",
 ]
 bench = [
     "sov-cycle-utils",

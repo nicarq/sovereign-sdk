@@ -1610,7 +1610,7 @@ dependencies = [
  "rlp",
  "serde",
  "serde_json",
- "strum 0.26.2",
+ "strum 0.26.3",
  "tempfile",
  "thiserror",
  "tiny-keccak",
@@ -5102,6 +5102,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-universal-wallet",
+ "strum 0.26.3",
  "thiserror",
  "tokio",
  "toml 0.8.19",
@@ -5319,6 +5320,7 @@ dependencies = [
  "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
+ "strum 0.26.3",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -5411,7 +5413,7 @@ dependencies = [
  "sov-metrics",
  "sov-rollup-interface",
  "sov-sequencer",
- "strum 0.26.2",
+ "strum 0.26.3",
  "thiserror",
  "tokio",
  "toml 0.8.19",
@@ -5462,6 +5464,7 @@ dependencies = [
  "sov-state",
  "sov-stf-runner",
  "sov-value-setter",
+ "strum 0.26.3",
  "tempfile",
  "tokio",
  "tracing-subscriber",
@@ -5801,9 +5804,9 @@ checksum = "290d54ea6f91c969195bdbcd7442c8c2a2ba87da8bf60a7ee86a235d4bc1e125"
 
 [[package]]
 name = "strum"
-version = "0.26.2"
+version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d8cec3501a5194c432b2b7976db6b7d10ec95c253208b45f83f7136aa985e29"
+checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
  "strum_macros",
 ]

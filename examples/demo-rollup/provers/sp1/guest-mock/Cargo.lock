@@ -1588,6 +1588,7 @@ dependencies = [
  "sov-sequencer-registry",
  "sov-state",
  "sov-value-setter",
+ "strum",
 ]
 
 [[package]]
@@ -5841,6 +5842,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-state",
  "sov-universal-wallet",
+ "strum",
  "thiserror",
  "toml",
  "tracing",

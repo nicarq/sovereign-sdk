@@ -51,11 +51,25 @@ impl EventMacro {
                         Clone,
                         Debug,
                         PartialEq,
+                        sov_modules_api::prelude::strum::EnumDiscriminants,
+                        sov_modules_api::prelude::strum::VariantNames,
+                        sov_modules_api::prelude::strum::EnumTryAs,
+                        sov_modules_api::prelude::strum::IntoStaticStr,
+                        sov_modules_api::prelude::strum::AsRefStr,
                     )
                 ]
             },
             quote::quote! {
                 #[serde(untagged, bound = "", rename_all = "snake_case")]
+            },
+            quote::quote! {
+                #[strum_discriminants(derive(
+                    sov_modules_api::prelude::strum::VariantNames,
+                    sov_modules_api::prelude::strum::VariantArray,
+                    sov_modules_api::prelude::strum::EnumString,
+                    sov_modules_api::prelude::strum::IntoStaticStr,
+                    sov_modules_api::prelude::strum::AsRefStr,
+                ))]
             },
         ];
         let enum_attributes = get_derived_enum_attrs("event", &input, default_event_attrs)?;
@@ -137,13 +151,21 @@ impl EventMacro {
             }
         };
 
-        Ok(quote::quote! {
-            #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
-            #event_enum
+        Ok(
+            quote::quote! {
 
-            #impl_runtime_event_processor
+            mod __generated_event_impl {
+                #![allow(missing_docs)]
+                use super::*;
 
-            #impl_runtime_event_module_name
+                #[doc="This enum is generated from the underlying Runtime, the variants correspond to events from the relevant modules"]
+                #event_enum
+
+                #impl_runtime_event_processor
+
+                #impl_runtime_event_module_name
+            }
+            pub use __generated_event_impl::*;
         }.into())
     }
 }
