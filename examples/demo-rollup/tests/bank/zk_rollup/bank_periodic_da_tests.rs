@@ -3,6 +3,7 @@ use futures::StreamExt;
 use sov_cli::NodeClient;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::OperatingMode;
+use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -17,7 +18,7 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     };
 
     let test_rollup = TestRollup::create_test_rollup(
-        get_appropriate_rollup_prover_config(),
+        RollupProverConfig::Skip,
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
         OperatingMode::Zk,
