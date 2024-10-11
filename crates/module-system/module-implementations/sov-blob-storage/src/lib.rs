@@ -4,7 +4,7 @@ mod capabilities;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
-use sov_modules_api::macros::{config_value, UniversalWallet};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleStateAccessor, KernelStateValue, Module,
@@ -28,9 +28,10 @@ pub fn config_unregistered_blobs_per_slot() -> u64 {
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::CliWalletArg)
+    derive(sov_modules_api::macros::CliWalletArg),
+    derive(sov_modules_api::macros::UniversalWallet)
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, UniversalWallet)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {
