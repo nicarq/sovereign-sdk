@@ -25,7 +25,6 @@ pub(crate) async fn start_node(
     let (rollup_task, _da_service, storage_dir) =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup_in_background(
-
             rpc_port_tx,
             rest_port_tx,
             test_genesis_paths(sov_modules_api::OperatingMode::Zk),
@@ -37,8 +36,7 @@ pub(crate) async fn start_node(
                 sender_address: MockAddress::new([0; 32]),
                 finalization_blocks,
                 block_producing: BlockProducingConfig::OnSubmit,
-                // This parameter is important!
-                block_time_ms: 30_000,
+                block_time_ms: 1_000,
             },
         )
         .await;
@@ -186,20 +184,32 @@ pub(crate) async fn gas_check(
     // get initial gas price
     let initial_base_fee_per_gas = client.eth_gas_price().await;
 
-    // send 10 "set" transactions with high gas fee in 2 batches to increase gas price
-    for _ in 0..2 {
-        let values: Vec<u32> = (0..5).collect();
-        let _requests = client
-            .set_values(contract_address, values, Some(20u64), Some(21u64))
+    let mut last_slot_number = u64::MAX;
+    // send 10 "set" transactions with high gas fee in 5 batches to increase gas price
+    for _ in 0..5 {
+        let values: Vec<u32> = (0..10).collect();
+        let requests = client
+            .set_values(contract_address, values, Some(200u64), Some(210u64))
             .await;
         client.send_publish_batch_request().await;
-        slot_subscription.next().await;
+        let slot = slot_subscription.next().await.transpose()?.unwrap();
+        last_slot_number = std::cmp::min(last_slot_number, slot);
+        let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
+        assert!(receipts
+            .into_iter()
+            .all(|x| x.is_ok() && x.unwrap().is_some()));
     }
     // get gas price
     let latest_gas_price = client.eth_gas_price().await;
 
     // assert gas price is higher
     // TODO: emulate gas price oracle here to have exact value
-    assert!(latest_gas_price > initial_base_fee_per_gas);
+    assert!(
+        latest_gas_price > initial_base_fee_per_gas,
+        "Failed gas check initial={:?} latest={:?} after slots={}",
+        initial_base_fee_per_gas,
+        latest_gas_price,
+        last_slot_number
+    );
     Ok(())
 }
