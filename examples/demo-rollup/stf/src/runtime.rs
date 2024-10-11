@@ -45,9 +45,13 @@ pub use crate::authentication::EthereumToRollupAddressConverter;
 use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
-#[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 #[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
-#[dispatch_call(derive(UniversalWallet))]
+#[cfg_attr(
+    feature = "native",
+    derive(CliWallet),
+    expose_rpc,
+    dispatch_call(derive(UniversalWallet))
+)]
 pub struct Runtime<S: Spec, Da: DaSpec> {
     /// The Bank module.
     pub bank: sov_bank::Bank<S>,

@@ -200,6 +200,18 @@ pub fn event(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), event_macro.derive_event_enum(input))
 }
 
+#[cfg(feature = "native")]
+#[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
+pub fn derive_wallet(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let result = sov_universal_wallet_macro_helpers::schema::derive(
+        input,
+        Some(syn::parse_quote! { sov_modules_api }),
+        syn::parse_quote! { sov_modules_api::macros::UniversalWallet },
+    );
+    handle_macro_error_and_expand(fn_name!(), result.map(Into::into))
+}
+
 /// Adds encoding functionality to the underlying type.
 #[proc_macro_derive(MessageCodec)]
 pub fn codec(input: TokenStream) -> TokenStream {
@@ -229,16 +241,6 @@ pub fn config_value_private(item: TokenStream) -> TokenStream {
         .map(Into::into);
 
     handle_macro_error_and_expand(fn_name!(), tokens)
-}
-
-#[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
-pub fn derive_wallet(input: TokenStream) -> TokenStream {
-    sov_universal_wallet_macro_helpers::derive_wallet(
-        input,
-        Some(sov_universal_wallet_macro_helpers::syn::parse_quote!(
-            sov_modules_api
-        )),
-    )
 }
 
 #[cfg(feature = "native")]

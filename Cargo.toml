@@ -55,6 +55,9 @@ members = [
     "crates/module-system/module-implementations/integration-tests",
     "crates/module-system/sov-capabilities",
     "crates/module-system/module-implementations/sov-nonces",
+    "crates/rollup-interface/universal-wallet/schema",
+    "crates/rollup-interface/universal-wallet/macros",
+    "crates/rollup-interface/universal-wallet/macro-helpers",
 ]
 
 [workspace.package]
@@ -132,7 +135,9 @@ sov-test-harness = { path = "crates/utils/test-harness" }
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6209abff72929f5ba41614f5cea3e4a748428c3" }
 rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "4ff4c7c6b302107c3189a0438c14d481c0134b96" }
-sov-universal-wallet = { git = "ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git", rev="38ec0fbf9980dafb3b7a981326182359c070f64d" }
+sov-universal-wallet = { path = "crates/rollup-interface/universal-wallet/schema" }
+sov-universal-wallet-macros = { path = "crates/rollup-interface/universal-wallet/macros" }
+sov-universal-wallet-macro-helpers = { path = "crates/rollup-interface/universal-wallet/macro-helpers" }
 # External dependencies
 async-trait = "0.1.81"
 anyhow = { version = "1.0.86" }
@@ -148,6 +153,7 @@ bincode = "1.3.3"
 bcs = "0.1.6"
 byteorder = { version = "1.5.0", default-features = false }
 bytes = { version = "1.7.1", default-features = false }
+convert_case = { version = "0.6", default-features = false }
 chrono = { version = "0.4", default-features = false, features = ["now"] }
 derivative = { version = "2.2", features = ["use_core"] }
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
@@ -168,6 +174,7 @@ serde = { version = "1.0.208", default-features = false, features = [
     "alloc",
     "derive",
 ] }
+serde_arrays = "0.1"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_yaml = { version = "0.9", default-features = false }
 serde_with = { version = "3.9", features = ["schemars_0_8"] }

@@ -8,7 +8,8 @@ use jmt::SimpleHasher;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use sha2::Digest;
-use sov_universal_wallet::UniversalWallet;
+#[cfg(feature = "native")]
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 /// Combined root hash of the user and kernel namespaces. The user root hash is the first 32 bytes, whereas the
@@ -17,14 +18,8 @@ use crate::{MerkleProofSpec, ProvableNamespace, StateRoot};
 /// correct hash.
 /// We use the generic `S: MerkleProofSpec` to specify the hash function used to compute the global root hash.
 /// The global root hash is computed by hashing the user hash and the kernel hash together.
-#[derive(
-    Derivative,
-    BorshDeserialize,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    sov_universal_wallet::UniversalWallet,
-)]
+#[derive(Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[derivative(
     Debug(bound = "S: MerkleProofSpec"),
     Eq(bound = "S: MerkleProofSpec"),
@@ -103,7 +98,8 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 }
 
 /// A storage proof that is used to verify the existence of a key in the storage.
-#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize, UniversalWallet)]
+#[derive(Derivative, Serialize, Deserialize, BorshDeserialize, BorshSerialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[derivative(
     PartialEq(bound = "H: SimpleHasher"),
     Eq(bound = "H: SimpleHasher"),
@@ -113,15 +109,19 @@ impl<S: MerkleProofSpec> StorageRoot<S> {
 pub struct SparseMerkleProof<H: SimpleHasher>(
     #[serde(bound(serialize = "", deserialize = ""))]
     #[borsh(bound(serialize = "", deserialize = ""))]
-    #[sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")]
+    #[cfg_attr(
+        feature = "native",
+        sov_wallet(as_ty = "wallet_placeholders::MerkleDisplayPlaceholder")
+    )]
     jmt::proof::SparseMerkleProof<H>,
 );
 
 // The types in this module aren't actually dead code, they are used as placeholders in the wallet
 // However, since they only appear in the Schema (which isn't Rust code), Rustc doesn't know that.
 #[allow(dead_code)]
+#[cfg(feature = "native")]
 mod wallet_placeholders {
-    use sov_universal_wallet::UniversalWallet;
+    use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
     #[derive(UniversalWallet)]
     pub struct MerkleDisplayPlaceholder {
         leaf: Option<SparseMerkleLeafNodePlacholder>,

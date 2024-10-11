@@ -1,4 +1,5 @@
 use anyhow::Result;
+#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, Spec, TxState};
 
@@ -9,7 +10,7 @@ use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, Toke
 /// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
 #[cfg_attr(
     feature = "native",
-    derive(schemars::JsonSchema),
+    derive(schemars::JsonSchema, UniversalWallet),
     schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
 )]
 #[derive(
@@ -20,7 +21,6 @@ use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, Toke
     Debug,
     PartialEq,
     Clone,
-    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {

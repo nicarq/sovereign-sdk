@@ -30,7 +30,6 @@ hex = { workspace = true }
 jmt = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
-sov-universal-wallet = { workspace = true, features = ["macros"] }
 
 sov-cycle-utils = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, default-features = false, features = [

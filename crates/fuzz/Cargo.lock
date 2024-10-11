@@ -5049,7 +5049,6 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-rollup-interface",
- "sov-universal-wallet",
  "tokio",
  "tracing",
 ]
@@ -5386,7 +5385,6 @@ dependencies = [
  "sov-cycle-utils",
  "sov-db",
  "sov-rollup-interface",
- "sov-universal-wallet",
  "thiserror",
 ]
 
@@ -5472,12 +5470,9 @@ dependencies = [
 [[package]]
 name = "sov-universal-wallet"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
 dependencies = [
  "bech32",
  "borsh",
- "serde",
- "serde_json",
  "sov-universal-wallet-macros",
  "thiserror",
 ]
@@ -5485,8 +5480,8 @@ dependencies = [
 [[package]]
 name = "sov-universal-wallet-macro-helpers"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
 dependencies = [
+ "borsh",
  "convert_case",
  "darling",
  "hex",
@@ -5499,9 +5494,10 @@ dependencies = [
 [[package]]
 name = "sov-universal-wallet-macros"
 version = "0.1.0"
-source = "git+ssh://git@github.com/Sovereign-Labs/sov-universal-wallet.git?rev=38ec0fbf9980dafb3b7a981326182359c070f64d#38ec0fbf9980dafb3b7a981326182359c070f64d"
 dependencies = [
+ "proc-macro2",
  "sov-universal-wallet-macro-helpers",
+ "syn 2.0.77",
 ]
 
 [[package]]

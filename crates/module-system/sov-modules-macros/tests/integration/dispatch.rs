@@ -1,5 +1,4 @@
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{

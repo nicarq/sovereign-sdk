@@ -1,29 +1,25 @@
 //! Utilities for building an optimistic state machine
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "native")]
+use sov_universal_wallet::UniversalWallet;
 
+#[cfg(feature = "native")]
+use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 use crate::da::DaSpec;
 use crate::zk::StateTransitionPublicData;
 
 /// A proof that the attester was bonded at the `rollup_height`.
 /// For rollups using the `jmt`, this will be a `jmt::SparseMerkleProof`
 #[derive(
-    Debug,
-    Clone,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    PartialEq,
-    Eq,
-    sov_universal_wallet::UniversalWallet,
+    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct ProofOfBond<StateProof> {
     /// The rollup height for which the proof of bond applies
     pub claimed_rollup_height: u64,
     /// The actual state proof that the attester was bonded
-    #[sov_wallet(hidden)]
+    #[cfg_attr(feature = "native", sov_wallet(hidden))]
     pub proof: StateProof,
 }
 
@@ -37,17 +33,9 @@ pub trait BondingProofService: Send + Sync + 'static {
 
 /// An attestation that a particular DA layer block transitioned the rollup state to some value
 #[derive(
-    Debug,
-    Clone,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-    Default,
-    PartialEq,
-    Eq,
-    sov_universal_wallet::UniversalWallet,
+    Debug, Clone, BorshSerialize, BorshDeserialize, Serialize, Deserialize, Default, PartialEq, Eq,
 )]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct Attestation<SlotHash, StateRoot, StateProof> {
     /// The alleged state root before applying the contents of the da block
     pub initial_state_root: StateRoot,
@@ -61,17 +49,8 @@ pub struct Attestation<SlotHash, StateRoot, StateProof> {
 
 /// The contents of a challenge to an attestation, which are contained as a public output of the proof
 /// Generic over an address type and a validity condition
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    BorshSerialize,
-    BorshDeserialize,
-    Serialize,
-    Deserialize,
-    sov_universal_wallet::UniversalWallet,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     /// The rollup address of the originator of this challenge
     pub challenger_address: Address,
@@ -83,16 +62,8 @@ pub struct ChallengeContents<Address, Da: DaSpec, Root> {
     pub state_transition: StateTransitionPublicData<Address, Da, Root>,
 }
 
-#[derive(
-    Debug,
-    Clone,
-    PartialEq,
-    Eq,
-    BorshSerialize,
-    Serialize,
-    Deserialize,
-    sov_universal_wallet::UniversalWallet,
-)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, Serialize, Deserialize)]
+#[cfg_attr(feature = "native", derive(UniversalWallet))]
 /// This struct contains the challenge as a raw blob
 pub struct Challenge<'a>(&'a [u8]);
 

@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Result};
-use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
 
@@ -9,7 +8,8 @@ use crate::{Account, Accounts};
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::CliWalletArg)
+    derive(sov_modules_api::macros::CliWalletArg),
+    derive(sov_modules_api::macros::UniversalWallet)
 )]
 #[derive(
     borsh::BorshDeserialize,
@@ -19,7 +19,6 @@ use crate::{Account, Accounts};
     Debug,
     PartialEq,
     Clone,
-    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {
