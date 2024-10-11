@@ -282,6 +282,7 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
       SP1_PROVER: "mock"
+      RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -303,6 +304,7 @@ jobs:
     env:
       RISC0_DEV_MODE: "true"
       SP1_PROVER: "mock"
+      RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
@@ -349,6 +351,7 @@ jobs:
     env:
       SKIP_GUEST_BUILD: "1"
       SP1_SKIP_PROGRAM_BUILD: "true"
+      RUST_BACKTRACE: 1
     steps:
       - uses: actions/checkout@v4
       - uses: namespacelabs/nscloud-cache-action@v1
