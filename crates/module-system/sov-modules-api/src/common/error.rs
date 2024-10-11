@@ -87,7 +87,8 @@ mod test {
         let error = ModuleError::ModuleError(anyhow::Error::msg("test"));
         let serialized = serde_json::to_string(&error).unwrap();
         let deserialized: ModuleError = serde_json::from_str(&serialized).unwrap();
-        assert_eq!("test", deserialized.to_string());
+        // We can only asserts start, because RUST_BACKTRACE can alter full output
+        assert!(deserialized.to_string().starts_with("test"));
     }
 
     /// Tests that the inner error context gets correctly propagated when copying an error.
