@@ -21,9 +21,9 @@ macro_rules! generate_bare_runtime {
             ::sov_modules_api::MessageCodec,
             ::sov_modules_api::macros::CliWallet
         )]
-        pub struct $id<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> {
+        pub struct $id<S: ::sov_modules_api::Spec> {
             /// The sequencer registry module.
-            pub sequencer_registry: $crate::runtime::SequencerRegistry<S, Da>,
+            pub sequencer_registry: $crate::runtime::SequencerRegistry<S>,
             /// The bank module.
             pub bank: $crate::runtime::Bank<S>,
             /// The accounts module
@@ -31,27 +31,26 @@ macro_rules! generate_bare_runtime {
             /// The nonces module
             pub nonces: $crate::runtime::Nonces<S>,
             /// The attester incentives module.
-            pub attester_incentives: $crate::runtime::AttesterIncentives<S, Da>,
+            pub attester_incentives: $crate::runtime::AttesterIncentives<S>,
             /// The chain state module.
-            pub chain_state: $crate::runtime::ChainState<S, Da>,
+            pub chain_state: $crate::runtime::ChainState<S>,
             /// The blob storage module.
-            pub blob_storage: $crate::runtime::BlobStorage<S, Da>,
+            pub blob_storage: $crate::runtime::BlobStorage<S>,
             /// The prover incentives module.
-            pub prover_incentives: $crate::runtime::ProverIncentives<S, Da>,
+            pub prover_incentives: $crate::runtime::ProverIncentives<S>,
             $(
                 /// An external module [`$module_ty`] of the generated runtime.
                 pub $module_name: $module_ty
             ),*
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> $crate::runtime::traits::MinimalGenesis<S> for $id<S, Da> {
-            type Da = Da;
-            fn sequencer_registry_config(config: &GenesisConfig<S, Da>) -> &<$crate::runtime::SequencerRegistry<S, Self::Da> as ::sov_modules_api::Genesis>::Config {
+        impl<S: ::sov_modules_api::Spec> $crate::runtime::traits::MinimalGenesis<S> for $id<S> {
+            fn sequencer_registry_config(config: &GenesisConfig<S>) -> &<$crate::runtime::SequencerRegistry<S> as ::sov_modules_api::Genesis>::Config {
                 &config.sequencer_registry
             }
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da> {
+        impl<S: ::sov_modules_api::Spec> GenesisConfig<S> {
             #[allow(unused)]
             /// Creates a new [`GenesisConfig`] from a minimal genesis config [`::sov_modules_api::Genesis::Config`].
             pub fn from_minimal_config(minimal_config: $minimal_genesis_config_ty,
@@ -73,7 +72,7 @@ macro_rules! generate_bare_runtime {
             }
         }
 
-        impl<S: ::sov_modules_api::Spec, Da: ::sov_modules_api::DaSpec> GenesisConfig<S, Da>
+        impl<S: ::sov_modules_api::Spec> GenesisConfig<S>
         where <S::InnerZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,
          <S::OuterZkvm as ::sov_modules_api::Zkvm>::CodeCommitment: Default,{
             #[allow(unused)]
@@ -86,12 +85,11 @@ macro_rules! generate_bare_runtime {
         }
 
         $(
-            $crate::impl_runtime_hook!($id<S, Da>, $hook);
+            $crate::impl_runtime_hook!($id<S>, $hook);
         )*
 
-        impl<S, Da> $crate::runtime::Runtime<S, Da> for $id<S, Da> where
+        impl<S> $crate::runtime::Runtime<S> for $id<S> where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
             $($runtime_trait_impl_bounds)*
         {
             type GenesisConfig = <Self as ::sov_modules_api::Genesis>::Config;
@@ -107,11 +105,10 @@ macro_rules! generate_bare_runtime {
             }
         }
 
-        impl<S, Da> ::sov_modules_api::capabilities::HasCapabilities<S, Da> for $id<S, Da> where
+        impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
-            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S, Da>;
+            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S>;
 
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
 
@@ -147,7 +144,7 @@ macro_rules! generate_runtime {
             $($rest)*
         }
 
-        $crate::impl_standard_runtime_authenticator!($id<S, Da>);
+        $crate::impl_standard_runtime_authenticator!($id<S>);
     };
 }
 
@@ -159,10 +156,9 @@ macro_rules! impl_standard_runtime_authenticator {
         #[derive(std::fmt::Debug, Clone, ::borsh::BorshDeserialize, ::borsh::BorshSerialize)]
         pub struct AuthenticatorInput(::sov_modules_api::RawTx);
 
-        impl<S, Da> ::sov_modules_api::capabilities::TransactionAuthenticator<S> for $runtime
+        impl<S> ::sov_modules_api::capabilities::TransactionAuthenticator<S> for $runtime
         where
             S: ::sov_modules_api::Spec,
-            Da: ::sov_modules_api::DaSpec,
         {
             type Decodable = <$runtime as ::sov_modules_api::DispatchCall>::Decodable;
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
@@ -231,7 +227,7 @@ macro_rules! generate_optimistic_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
-            minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S, Da>,
+            minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
         }
@@ -247,7 +243,7 @@ macro_rules! generate_zk_runtime {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
-            minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S, Da>,
+            minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: []
         }

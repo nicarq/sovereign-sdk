@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use sov_bank::{config_gas_token_id, Bank};
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
@@ -190,7 +189,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
 
         let register_signed = unbonded_user
-            .create_plain_message::<ProverIncentives<S, MockDaSpec>>(CallMessage::Register(
+            .create_plain_message::<ProverIncentives<S>>(CallMessage::Register(
                 additional_prover_bond,
             ))
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
@@ -201,10 +200,8 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
     // We execute a batch of two transactions, check that the total gas used is higher than the target.
     runner.execute_batch(BatchTestCase {
         input: BatchType(vec![
-            TransactionType::<ProverIncentives<S, MockDaSpec>, S>::PreAuthenticated(bank_signed),
-            TransactionType::<ProverIncentives<S, MockDaSpec>, S>::PreAuthenticated(
-                register_signed,
-            ),
+            TransactionType::<ProverIncentives<S>, S>::PreAuthenticated(bank_signed),
+            TransactionType::<ProverIncentives<S>, S>::PreAuthenticated(register_signed),
         ]),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);
@@ -244,7 +241,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
             "The new bond amount {new_bond_amount} should be higher than the initial additional prover bond {additional_prover_bond}."
         );
 
-        let prover = ProverIncentives::<S, MockDaSpec>::default().get_allowed_staker(&unbonded_user.address(), state).unwrap_infallible();
+        let prover = ProverIncentives::<S>::default().get_allowed_staker(&unbonded_user.address(), state).unwrap_infallible();
 
         // The prover should be registered
         assert!(

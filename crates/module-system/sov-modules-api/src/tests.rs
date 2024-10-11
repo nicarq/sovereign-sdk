@@ -4,11 +4,13 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_rollup_interface::crypto::{PrivateKey, Signature};
 use sov_rollup_interface::execution_mode::Native;
 use sov_rollup_interface::zk::CryptoSpec;
+use sov_test_utils::MockDaSpec;
 
 use crate::capabilities::config_chain_id;
 use crate::{ModuleId, ModuleInfo, Spec};
 
-type TestSpec = crate::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type TestSpec =
+    crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 type TestPublicKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PublicKey;
 type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;

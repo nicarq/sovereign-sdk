@@ -1,8 +1,8 @@
 use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_modules_api::{DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
+use sov_mock_da::MockAddress;
+use sov_modules_api::{Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
@@ -17,13 +17,13 @@ use crate::{
 };
 
 /// Minimal genesis configuration for the zk runtime.
-pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
+pub struct MinimalZkGenesisConfig<S: Spec> {
     /// The sequencer registry config.
-    pub sequencer_registry: <SequencerRegistry<S, Da> as Genesis>::Config,
+    pub sequencer_registry: <SequencerRegistry<S> as Genesis>::Config,
     /// The prover incentives config.
-    pub prover_incentives: <ProverIncentives<S, Da> as Genesis>::Config,
+    pub prover_incentives: <ProverIncentives<S> as Genesis>::Config,
     /// The attester incentives config.
-    pub attester_incentives: <AttesterIncentives<S, Da> as Genesis>::Config,
+    pub attester_incentives: <AttesterIncentives<S> as Genesis>::Config,
     /// The bank config.
     pub bank: <Bank<S> as Genesis>::Config,
     /// The accounts config.
@@ -31,18 +31,18 @@ pub struct MinimalZkGenesisConfig<S: Spec, Da: DaSpec> {
     /// The nonces config.
     pub nonces: <Nonces<S> as Genesis>::Config,
     /// The chain state config.
-    pub chain_state: <ChainState<S, Da> as Genesis>::Config,
+    pub chain_state: <ChainState<S> as Genesis>::Config,
     /// The blob storage config.
-    pub blob_storage: <BlobStorage<S, Da> as Genesis>::Config,
+    pub blob_storage: <BlobStorage<S> as Genesis>::Config,
 }
 
 /// A convenient high-level representation of a ZK genesis config.
 #[derive(Debug, Clone)]
-pub struct HighLevelZkGenesisConfig<S: Spec, Da: DaSpec> {
+pub struct HighLevelZkGenesisConfig<S: Spec> {
     /// The initial prover.
     pub initial_prover: TestProver<S>,
     /// The initial sequencer.
-    pub initial_sequencer: TestSequencer<S, Da>,
+    pub initial_sequencer: TestSequencer<S>,
     /// Additional accounts to be added to the genesis state.
     pub additional_accounts: Vec<TestUser<S>>,
     /// The name of the gas token
@@ -53,12 +53,12 @@ pub struct HighLevelZkGenesisConfig<S: Spec, Da: DaSpec> {
     pub outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
 }
 
-impl<S: Spec, Da: DaSpec> HighLevelZkGenesisConfig<S, Da> {
+impl<S: Spec> HighLevelZkGenesisConfig<S> {
     /// Creates a new high-level genesis config with the given initial prover and sequencer using
     /// the default gas token name.
     pub fn with_defaults(
         initial_prover: TestProver<S>,
-        initial_sequencer: TestSequencer<S, Da>,
+        initial_sequencer: TestSequencer<S>,
         additional_accounts: Vec<TestUser<S>>,
         inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
         outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
@@ -74,7 +74,7 @@ impl<S: Spec, Da: DaSpec> HighLevelZkGenesisConfig<S, Da> {
     }
 }
 
-impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
+impl HighLevelZkGenesisConfig<TestSpec> {
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
@@ -118,8 +118,8 @@ impl HighLevelZkGenesisConfig<TestSpec, MockDaSpec> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> From<HighLevelZkGenesisConfig<S, Da>> for MinimalZkGenesisConfig<S, Da> {
-    fn from(high_level: HighLevelZkGenesisConfig<S, Da>) -> Self {
+impl<S: Spec> From<HighLevelZkGenesisConfig<S>> for MinimalZkGenesisConfig<S> {
+    fn from(high_level: HighLevelZkGenesisConfig<S>) -> Self {
         Self::from_args(
             high_level.initial_prover,
             high_level.initial_sequencer,
@@ -131,11 +131,11 @@ impl<S: Spec, Da: DaSpec> From<HighLevelZkGenesisConfig<S, Da>> for MinimalZkGen
     }
 }
 
-impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
+impl<S: Spec> MinimalZkGenesisConfig<S> {
     /// Creates a new [`MinimalZkGenesisConfig`] from the given arguments.
     pub fn from_args(
         initial_prover: TestProver<S>,
-        initial_sequencer: TestSequencer<S, Da>,
+        initial_sequencer: TestSequencer<S>,
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
         inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
@@ -237,7 +237,6 @@ impl<S: Spec, Da: DaSpec> MinimalZkGenesisConfig<S, Da> {
 #[cfg(test)]
 mod tests {
     use sov_bank::config_gas_token_id;
-    use sov_mock_da::MockDaSpec;
 
     use super::HighLevelZkGenesisConfig;
     use crate::runtime::TestRunner;
@@ -272,7 +271,7 @@ mod tests {
                 Some(sequencer.user_info.balance()),
             );
 
-            let prover_incentives = crate::runtime::ProverIncentives::<S, MockDaSpec>::default();
+            let prover_incentives = crate::runtime::ProverIncentives::<S>::default();
 
             assert_eq!(
                 prover_incentives
@@ -283,7 +282,7 @@ mod tests {
                 "Should be bonded prover"
             );
 
-            let sequencer_registry = crate::runtime::SequencerRegistry::<S, MockDaSpec>::default();
+            let sequencer_registry = crate::runtime::SequencerRegistry::<S>::default();
 
             assert_eq!(
                 sequencer_registry

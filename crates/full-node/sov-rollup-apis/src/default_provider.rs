@@ -16,23 +16,16 @@ use sov_rollup_interface::common::HexString;
 use crate::{PartialTransaction, RollupStateProvider};
 
 /// The default rollup state provider. Uses the kernel and a runtime to simulate transaction execution and compute the gas price.
-pub struct DefaultRollupStateProvider<
-    S: Spec,
-    Da: DaSpec,
-    K: KernelSlotHooks<S, Da>,
-    RT: Runtime<S, Da>,
-> {
-    phantom: PhantomData<(S, Da, K, RT)>,
+pub struct DefaultRollupStateProvider<S: Spec, K: KernelSlotHooks<S>, RT: Runtime<S>> {
+    phantom: PhantomData<(S, K, RT)>,
 }
 
-impl<S: Spec, Da: DaSpec, K: KernelSlotHooks<S, Da> + Send + Sync, RT: Runtime<S, Da>>
-    RollupStateProvider for Arc<DefaultRollupStateProvider<S, Da, K, RT>>
+impl<S: Spec, K: KernelSlotHooks<S> + Send + Sync, RT: Runtime<S>> RollupStateProvider
+    for Arc<DefaultRollupStateProvider<S, K, RT>>
 where
-    RT: HasCapabilities<S, Da, AuthorizationData = AuthorizationData<S>>,
+    RT: HasCapabilities<S, AuthorizationData = AuthorizationData<S>>,
 {
     type Spec = S;
-
-    type Da = Da;
 
     type Runtime = RT;
 
@@ -50,12 +43,13 @@ where
 
     fn simulate_execution(
         storage: &StorageReceiver<Self::Spec>,
-        default_sequencer: <Self::Da as DaSpec>::Address,
-        transaction: PartialTransaction<Self::Spec, Self::Da>,
+        default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
+        transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<S>, Self::Error> {
-        let auth_data = <<RT as HasCapabilities<S, Da>>::AuthorizationData>::from(
-            <PartialTransaction<S, Da> as Into<AuthorizationData<S>>>::into(transaction.clone()),
-        );
+        let auth_data =
+            <<RT as HasCapabilities<S>>::AuthorizationData>::from(
+                <PartialTransaction<S> as Into<AuthorizationData<S>>>::into(transaction.clone()),
+            );
 
         let mut state = StateCheckpoint::new(storage.borrow().clone(), &K::default());
 

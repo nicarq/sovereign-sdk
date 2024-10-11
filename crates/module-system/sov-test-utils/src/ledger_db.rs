@@ -9,7 +9,7 @@ use sov_bank::{Coins, TokenId};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::SchemaBatch;
 use sov_ledger_apis::LedgerRoutes;
-use sov_mock_da::{MockBlock, MockBlockHeader, MockDaSpec, MockHash};
+use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::da::Time;
 use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
@@ -20,7 +20,7 @@ use tempfile::{tempdir, TempDir};
 use crate::storage::SimpleLedgerStorageManager;
 use crate::{TestSpec, TestTxReceiptContents};
 
-type TestEvent = crate::runtime::TestOptimisticRuntimeEvent<TestSpec, MockDaSpec>;
+type TestEvent = crate::runtime::TestOptimisticRuntimeEvent<TestSpec>;
 
 pub extern crate sov_ledger_json_client;
 
@@ -265,7 +265,6 @@ impl LedgerTestService {
 
 #[cfg(test)]
 mod tests {
-    use sov_mock_da::MockDaSpec;
 
     use super::*;
     use crate::TestSpec;
@@ -274,7 +273,7 @@ mod tests {
     fn events_deserialize_correctly() {
         let events = events();
         for event in events {
-            <crate::runtime::TestOptimisticRuntimeEvent<TestSpec, MockDaSpec> as borsh::BorshDeserialize>::deserialize(
+            <crate::runtime::TestOptimisticRuntimeEvent<TestSpec > as borsh::BorshDeserialize>::deserialize(
                 &mut &event.value().inner()[..]).unwrap();
         }
     }

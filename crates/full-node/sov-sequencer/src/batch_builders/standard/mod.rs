@@ -56,14 +56,14 @@ pub struct StdBatchBuilderConfig {
 pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec, K> {
     runtime: Z::Rt,
     kernel: Arc<K>,
-    txsm: TxStatusManager<Z::Da>,
-    mempool: Mempool<Z::Da>,
+    txsm: TxStatusManager<<Z::Spec as Spec>::Da>,
+    mempool: Mempool<<Z::Spec as Spec>::Da>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
     storage_recv: StorageReceiver<Z::Spec>,
     tx_hashes_of_last_batch: Vec<TxHash>,
-    sequencer_address: <Z::Da as DaSpec>::Address,
+    sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
     config: StdBatchBuilderConfig,
 }
 
@@ -88,7 +88,7 @@ struct TxInfo<BlobHash> {
 impl<Z, K> StdBatchBuilder<Z, K>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: KernelSlotHooks<Z::Spec, Z::Da> + Send + Sync + 'static,
+    K: KernelSlotHooks<Z::Spec> + Send + Sync + 'static,
 {
     const DEFAULT_MAX_BATCH_SIZE_BYTES: usize = 1024 * 1024;
 
@@ -179,7 +179,7 @@ where
 impl<Z, K> BatchBuilder for StdBatchBuilder<Z, K>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: Kernel<Z::Spec> + KernelWithSlotMapping<Z::Spec> + KernelSlotHooks<Z::Spec, Z::Da>,
+    K: Kernel<Z::Spec> + KernelWithSlotMapping<Z::Spec> + KernelSlotHooks<Z::Spec>,
 {
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
@@ -187,12 +187,11 @@ where
     type Confirmation = ();
     type Batch = Batch;
     type Config = StdBatchBuilderConfig;
-    type Da = Z::Da;
     type Spec = Z::Spec;
 
     async fn create(
         storage_recv: StorageReceiver<Z::Spec>,
-        sequencer_address: <Z::Da as DaSpec>::Address,
+        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
         config: &StdBatchBuilderConfig,
     ) -> anyhow::Result<Self> {
@@ -240,7 +239,7 @@ where
         self.storage_recv.clone()
     }
 
-    fn tx_status_manager(&self) -> TxStatusManager<Self::Da> {
+    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
         self.txsm.clone()
     }
 

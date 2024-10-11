@@ -2,7 +2,7 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::{
-    DaSpec, Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
+    Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
     SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, Zkvm,
 };
 use sov_state::storage::Storage;
@@ -119,10 +119,9 @@ impl From<ProcessChallengeErrors> for InvalidProofError {
     }
 }
 
-impl<S, Da> AttesterIncentives<S, Da>
+impl<S> AttesterIncentives<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     /// Try to process an attestation if the attester is bonded.
     /// This function returns an error (hence ignores the transaction) when the attester is not bonded
@@ -133,7 +132,7 @@ where
         sender: &S::Address,
         serialized_attestation: SerializedAttestation,
         state: &mut State,
-    ) -> anyhow::Result<SovAttestation<S, Da>, ProcessAttestationErrors> {
+    ) -> anyhow::Result<SovAttestation<S>, ProcessAttestationErrors> {
         if !self.should_reward_fees(state) {
             return Err(ProcessAttestationErrors::InvalidOperatingMode);
         }
@@ -295,7 +294,7 @@ where
         serialized_challenge: &SerializedChallenge,
         rollup_height: u64,
         state: &mut State,
-    ) -> anyhow::Result<SovStateTransitionPublicData<S, Da>, ProcessChallengeErrors> {
+    ) -> anyhow::Result<SovStateTransitionPublicData<S>, ProcessChallengeErrors> {
         if !self.should_reward_fees(state) {
             return Err(ProcessChallengeErrors::InvalidOperatingMode);
         }
@@ -345,7 +344,7 @@ where
         };
 
         let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
-            StateTransitionPublicData<S::Address, Da, <S::Storage as Storage>::Root>,
+            StateTransitionPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
         >(proof, &code_commitment)
         .map_err(|e| anyhow::format_err!("{:?}", e));
 

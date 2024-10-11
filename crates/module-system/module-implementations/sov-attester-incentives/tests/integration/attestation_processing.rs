@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InvalidProofError, ProofOutcome, SovAttestation};
 use sov_state::jmt::RootHash;
@@ -153,7 +152,7 @@ fn test_burn_on_invalid_attestation() {
     {
         let rebond_attester = {
             TransactionTestCase {
-                input: genesis_attester.create_plain_message::<AttesterIncentives<S, MockDaSpec>>(
+                input: genesis_attester.create_plain_message::<AttesterIncentives<S>>(
                     CallMessage::RegisterAttester(attester_bond),
                 ),
                 assert: Box::new(move |result, state| {
@@ -162,7 +161,7 @@ fn test_burn_on_invalid_attestation() {
                         TestRuntimeEvent::AttesterIncentives(Event::RegisteredAttester { .. })
                     )));
                     assert_eq!(
-                        AttesterIncentives::<S, MockDaSpec>::default()
+                        AttesterIncentives::<S>::default()
                             .get_attester_bond_amount(&attester_address, state)
                             .unwrap_infallible()
                             .value,
@@ -201,8 +200,8 @@ fn test_burn_on_invalid_attestation() {
 fn invalid_bond_proof_no_slash(
     attester: &TestAttester<S>,
     initial_balance: u64,
-    attestation_proof: SovAttestation<S, MockDaSpec>,
-) -> ProofTestCase<S, MockDaSpec> {
+    attestation_proof: SovAttestation<S>,
+) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
 
@@ -237,8 +236,8 @@ fn invalid_bond_proof_no_slash(
 fn invalid_initial_state_slashed(
     attester: &TestAttester<S>,
     initial_balance: u64,
-    attestation_proof: SovAttestation<S, MockDaSpec>,
-) -> ProofTestCase<S, MockDaSpec> {
+    attestation_proof: SovAttestation<S>,
+) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
     ProofTestCase {
         input: ProofInput(make_attestation_blob(attestation_proof)),
@@ -257,7 +256,7 @@ fn invalid_initial_state_slashed(
             // Check that the invalid attestation is not part of the challengeable set.
             // (Since it has the wrong pre-state, no one will be fooled by it so we don't reward challengers)
             assert!(
-                AttesterIncentives::<S, MockDaSpec>::default()
+                AttesterIncentives::<S>::default()
                     .bad_transition_pool
                     .get(&2, state)
                     .unwrap_infallible()
@@ -277,8 +276,8 @@ fn invalid_initial_state_slashed(
 fn invalid_post_state_root_is_challengeable(
     attester: &TestAttester<S>,
     initial_balance: u64,
-    attestation_proof: SovAttestation<S, MockDaSpec>,
-) -> ProofTestCase<S, MockDaSpec> {
+    attestation_proof: SovAttestation<S>,
+) -> ProofTestCase<S> {
     let attester_address = attester.user_info.address();
     let attester_bond = attester.bond;
     ProofTestCase {
@@ -297,7 +296,7 @@ fn invalid_post_state_root_is_challengeable(
 
             // The attestation should be part of the challengeable set and its associated value should be the BOND_AMOUNT
             assert_eq!(
-                AttesterIncentives::<S, MockDaSpec>::default()
+                AttesterIncentives::<S>::default()
                     .bad_transition_pool
                     .get(&2, state)
                     .unwrap_infallible(),

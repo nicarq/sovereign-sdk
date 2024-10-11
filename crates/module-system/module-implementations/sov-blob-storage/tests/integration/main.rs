@@ -23,20 +23,18 @@ pub type SlotConfigInfo<SequencerInfo> = Vec<SequencerInfo>;
 
 pub struct TestData<S: Spec> {
     pub user: TestUser<S>,
-    pub preferred_sequencer: TestSequencer<S, MockDaSpec>,
-    pub regular_sequencer: TestSequencer<S, MockDaSpec>,
+    pub preferred_sequencer: TestSequencer<S>,
+    pub regular_sequencer: TestSequencer<S>,
 }
 
 pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
-pub type RT = TestBlobStorageRuntime<S, MockDaSpec>;
+pub type RT = TestBlobStorageRuntime<S>;
 
 generate_zk_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
 /// Returns the current virtual slot number in the runner.
 pub fn virtual_slot<
-    K: KernelSlotHooks<S, Da>
-        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
-        + KernelWithSlotMapping<S>,
+    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
 >(
     runner: &TestRunner<K>,
 ) -> u64 {
@@ -45,13 +43,11 @@ pub fn virtual_slot<
 
 /// Returns the last `k` slot receipts
 pub fn last_slot_receipts<
-    K: KernelSlotHooks<S, Da>
-        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
-        + KernelWithSlotMapping<S>,
+    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
 >(
     runner: &TestRunner<K>,
     k: usize,
-) -> &[SlotReceipt<S, MockDaSpec>] {
+) -> &[SlotReceipt<S>] {
     assert!(
         k <= runner.receipts().len(),
         "k must be less than or equal to the number of slots. k={}, number of slots={}",
@@ -63,7 +59,7 @@ pub fn last_slot_receipts<
 
 /// Formats a batch receipt into a tuple of (batch_hash, sender) used for testing the blob storage.
 fn format_batch_receipts(
-    batch_receipts: &[BatchReceipt<S, MockDaSpec>],
+    batch_receipts: &[BatchReceipt<S>],
 ) -> Vec<([u8; 32], <MockDaSpec as DaSpec>::Address)> {
     batch_receipts
         .iter()
@@ -94,9 +90,7 @@ fn check_virtual_slot_height(
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
 fn assert_blobs_are_correctly_received_helper<
-    K: KernelSlotHooks<S, MockDaSpec>
-        + BlobSelector<MockDaSpec, BlobType = BlobDataWithId>
-        + KernelWithSlotMapping<S>,
+    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<usize>>,

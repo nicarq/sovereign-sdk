@@ -1,4 +1,4 @@
-use sov_mock_da::{MockDaSpec, MockValidityCond};
+use sov_mock_da::MockValidityCond;
 use sov_modules_api::{
     AggregatedProofPublicData, ApiStateAccessor, InvalidProofError, ProofOutcome,
 };
@@ -14,7 +14,7 @@ use crate::helpers::{
 type S = TestSpec;
 
 fn assert_slashed(
-    context: ProofAssertContext<S, MockDaSpec>,
+    context: ProofAssertContext<S>,
     state: &mut ApiStateAccessor<S>,
     prover: &TestUser<S>,
     slash_reason: &str,

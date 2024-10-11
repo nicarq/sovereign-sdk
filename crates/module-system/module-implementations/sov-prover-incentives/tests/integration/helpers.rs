@@ -3,7 +3,7 @@ use std::convert::Infallible;
 use serde::Serialize;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
-use sov_mock_da::{MockDaSpec, MockValidityCond};
+use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
@@ -19,14 +19,14 @@ use sov_test_utils::{
 };
 
 pub(crate) type S = sov_test_utils::TestSpec;
-pub(crate) type TestProverIncentives = ProverIncentives<S, MockDaSpec>;
-pub(crate) type RT = TestRuntime<S, MockDaSpec>;
+pub(crate) type TestProverIncentives = ProverIncentives<S>;
+pub(crate) type RT = TestRuntime<S>;
 pub(crate) const MOCK_CODE_COMMITMENT: MockCodeCommitment = MockCodeCommitment([0u8; 32]);
 
 generate_zk_runtime!(TestRuntime <= );
 
 /// Returns the minimal bond required to register a prover at the current slot.
-pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
+pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
     runner.query_state(|state| {
         TestProverIncentives::default()
             .get_minimum_bond(state)
@@ -36,7 +36,7 @@ pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, MockDaSpec>, S>) -> u64 {
 }
 
 pub(crate) fn setup_with_custom_runtime(
-    runtime: TestRuntime<S, MockDaSpec>,
+    runtime: TestRuntime<S>,
 ) -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) {
     let minimal_genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(1);
     let unbonded_user = minimal_genesis_config
@@ -62,7 +62,7 @@ pub(crate) fn build_proof(
     end_slot: u64,
     prover_address: <S as Spec>::Address,
 ) -> Result<AggregatedProofPublicData, Infallible> {
-    let chain_state = ChainState::<S, MockDaSpec>::default();
+    let chain_state = ChainState::<S>::default();
     let genesis_hash = chain_state
         .get_genesis_hash(state)
         .unwrap()

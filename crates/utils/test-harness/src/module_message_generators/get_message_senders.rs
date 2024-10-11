@@ -24,9 +24,9 @@ pub fn get_message_senders<S, Da, R>(
 where
     S: Spec,
     Da: DaSpec,
-    R: Runtime<S, Da>
+    R: Runtime<S>
         + sov_modules_api::EncodeCall<Bank<S>>
-        + sov_modules_api::EncodeCall<ProverIncentives<S, Da>>
+        + sov_modules_api::EncodeCall<ProverIncentives<S>>
         + 'static,
 {
     Ok(vec![
@@ -47,7 +47,7 @@ where
             )?),
             serialized_messages_tx.clone(),
         )),
-        Box::new(MessageSender::<R, Da, S, ProverIncentives<S, Da>>::new(
+        Box::new(MessageSender::<R, Da, S, ProverIncentives<S>>::new(
             "prover incentives",
             should_stop.clone(),
             Box::new(ProverIncentivesMessageGenerator::new_from_account_pool(

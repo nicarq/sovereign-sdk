@@ -48,7 +48,7 @@ pub trait TxHooks {
 /// Hooks related to the Sequencer functionality.
 /// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
 /// and is rewarded once a blob of transactions is processed.
-pub trait ApplyBatchHooks<Da: DaSpec> {
+pub trait ApplyBatchHooks {
     /// The runtime spec.
     type Spec: Spec;
     /// The result of applying a batch.
@@ -58,7 +58,7 @@ pub trait ApplyBatchHooks<Da: DaSpec> {
     /// If this hook returns Err, batch is not applied
     fn begin_batch_hook(
         &self,
-        _sender: &Da::Address,
+        _sender: &<<Self::Spec as Spec>::Da as DaSpec>::Address,
         _state_checkpoint: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())

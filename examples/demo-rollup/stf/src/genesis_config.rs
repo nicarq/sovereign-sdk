@@ -69,15 +69,15 @@ impl GenesisPaths {
 
 /// Creates a new [`RuntimeTrait::GenesisConfig`] from the files contained in
 /// the given directory.
-pub fn create_genesis_config<S: Spec, Da: DaSpec>(
+pub fn create_genesis_config<S: Spec>(
     genesis_paths: &GenesisPaths,
-) -> anyhow::Result<<Runtime<S, Da> as RuntimeTrait<S, Da>>::GenesisConfig>
+) -> anyhow::Result<<Runtime<S> as RuntimeTrait<S>>::GenesisConfig>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
     let bank_config: BankConfig<S> = read_genesis_json(&genesis_paths.bank_genesis_path)?;
 
-    let sequencer_registry_config: SequencerConfig<S, Da> =
+    let sequencer_registry_config: SequencerConfig<S> =
         read_genesis_json(&genesis_paths.sequencer_genesis_path)?;
 
     let value_setter_config: ValueSetterConfig<S> =

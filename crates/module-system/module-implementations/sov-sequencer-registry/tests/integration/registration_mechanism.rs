@@ -15,7 +15,7 @@ use sov_test_utils::{
 };
 
 use crate::helpers::{
-    minimal_bond, setup, setup_with_custom_runtime, Da, TestRoles, TestRuntimeEvent,
+    minimal_bond, setup, setup_with_custom_runtime, TestRoles, TestRuntimeEvent,
     TestSequencerRegistry, TestSequencerRegistryError, ANOTHER_SEQUENCER_DA_ADDRESS,
     NON_DEFAULT_SEQUENCER_DA_ADDRESS, RT,
 };
@@ -631,7 +631,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
 
         let register_signed = roles
             .additional_sequencer
-            .create_plain_message::<SequencerRegistry<S, Da>>(CallMessage::Register {
+            .create_plain_message::<SequencerRegistry<S>>(CallMessage::Register {
                 da_address: additional_sequencer_da_address.as_ref().to_vec(),
                 amount: additional_sequencer_bond,
             })
@@ -643,8 +643,8 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
     // We execute a batch of two transactions, check that the total gas used is higher than the target.
     runner.execute_batch(BatchTestCase {
         input: BatchType(vec![
-            TransactionType::<SequencerRegistry<S, Da>, S>::PreAuthenticated(bank_signed),
-            TransactionType::<SequencerRegistry<S, Da>, S>::PreAuthenticated(register_signed),
+            TransactionType::<SequencerRegistry<S>, S>::PreAuthenticated(bank_signed),
+            TransactionType::<SequencerRegistry<S>, S>::PreAuthenticated(register_signed),
         ]),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);
@@ -686,7 +686,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
 
         // The sequencer should be registered
         assert!(
-            SequencerRegistry::<S, Da>::default()
+            SequencerRegistry::<S>::default()
                 .is_registered_sequencer(&additional_sequencer_da_address, state)
                 .unwrap_infallible(),
             "The additional sequencer should be registered"
@@ -694,7 +694,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
 
         // But he should not be allowed to send transactions because he doesn't have enough stake.
         assert_eq!(
-            SequencerRegistry::<S, Da>::default().is_sender_allowed(
+            SequencerRegistry::<S>::default().is_sender_allowed(
                 &additional_sequencer_da_address,
                 &new_gas_price,
                 state

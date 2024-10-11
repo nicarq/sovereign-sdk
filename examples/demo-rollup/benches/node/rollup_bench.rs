@@ -34,12 +34,7 @@ use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 
 type BenchSpec = sov_test_utils::TestSpec;
-type Stf = StfBlueprint<
-    BenchSpec,
-    MockDaSpec,
-    Runtime<BenchSpec, MockDaSpec>,
-    BasicKernel<BenchSpec, MockDaSpec>,
->;
+type Stf = StfBlueprint<BenchSpec, Runtime<BenchSpec>, BasicKernel<BenchSpec>>;
 
 type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
     BatchSequencerReceipt<MockDaSpec>,
@@ -58,7 +53,7 @@ fn bake_bank_tx(
     pk: &Ed25519PrivateKey,
     nonce: u64,
 ) -> FullyBakedTx {
-    let enc_msg = <Runtime<BenchSpec, MockDaSpec> as EncodeCall<Bank<BenchSpec>>>::encode_call(msg);
+    let enc_msg = <Runtime<BenchSpec> as EncodeCall<Bank<BenchSpec>>>::encode_call(msg);
 
     let tx = Transaction::<BenchSpec>::new_signed_tx(
         pk,
@@ -71,7 +66,7 @@ fn bake_bank_tx(
             DEFAULT_ESTIMATED_GAS_USAGE,
         ),
     );
-    <Runtime<BenchSpec, MockDaSpec> as TransactionAuthenticator<BenchSpec>>::encode_with_standard_auth(
+    <Runtime<BenchSpec> as TransactionAuthenticator<BenchSpec>>::encode_with_standard_auth(
         RawTx::new(borsh::to_vec(&tx).unwrap()),
     )
 }
@@ -122,7 +117,7 @@ fn assert_batch_receipts<S: Spec>(batch_receipts: &[BatchReceipt<S>]) {
 }
 
 fn initialize_rollup(
-    minimal_config: MinimalZkGenesisConfig<BenchSpec, MockDaSpec>,
+    minimal_config: MinimalZkGenesisConfig<BenchSpec>,
     stf: &Stf,
     stf_state: ProverStorage<TestStorageSpec>,
 ) -> (sov_state::StorageRoot<TestStorageSpec>, NativeChangeSet) {
@@ -273,7 +268,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
     let user_stake = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let user_stake_value = user_stake.value(&TestSpec::initial_base_fee_per_gas());
 
-    let minimal_config = MinimalZkGenesisConfig::<BenchSpec, MockDaSpec>::from_args(
+    let minimal_config = MinimalZkGenesisConfig::<BenchSpec>::from_args(
         TestProver {
             user_info: rollup_mega_admin.clone(),
             bond: user_stake_value,

@@ -79,9 +79,9 @@ pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
 }
 
 /// Context that is passed to [`BatchTestCase::assert`] to check the outcome of a test.
-pub struct BatchAssertContext<S: Spec, Da: DaSpec> {
+pub struct BatchAssertContext<S: Spec> {
     /// The DA address of the sender of the batch.
-    pub sender_da_address: Da::Address,
+    pub sender_da_address: <S::Da as DaSpec>::Address,
     /// The outcome of the batch submission
     ///
     /// This can be [`None`] if the batch was dropped before it was executed,
@@ -90,18 +90,18 @@ pub struct BatchAssertContext<S: Spec, Da: DaSpec> {
 }
 
 /// A closure used to assert the outcome of a [`BatchTestCase`].
-pub type BatchTestAssert<S, Da> = TestAssertion<BatchAssertContext<S, Da>, S>;
+pub type BatchTestAssert<S> = TestAssertion<BatchAssertContext<S>, S>;
 
 /// A test case that applies the provided batch input and asserts the result.
-pub struct BatchTestCase<S: Spec, Da: DaSpec, M: Module> {
+pub struct BatchTestCase<S: Spec, M: Module> {
     /// Input to execute as part of the batch.
     pub input: BatchType<M, S>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
-    pub assert: BatchTestAssert<S, Da>,
+    pub assert: BatchTestAssert<S>,
 }
 
 /// Context that is passed to [`ProofTestCase::assert`] to check the outcome of a test.
-pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
+pub struct ProofAssertContext<S: Spec> {
     /// The outcome of the proof submission.
     ///
     /// This can be [`None`] if the proof was dropped before it was executed,
@@ -111,7 +111,7 @@ pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
     pub proof_receipt: Option<
         ProofReceipt<
             <S as Spec>::Address,
-            Da,
+            S::Da,
             <<S as Spec>::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
@@ -122,12 +122,12 @@ pub struct ProofAssertContext<S: Spec, Da: DaSpec> {
 }
 
 /// A closure used to assert the outcome of a [`ProofTestCase`].
-pub type ProofTestAssert<S, Da> = TestAssertion<ProofAssertContext<S, Da>, S>;
+pub type ProofTestAssert<S> = TestAssertion<ProofAssertContext<S>, S>;
 
 /// A test case that applies the provided proof input and asserts the result.
-pub struct ProofTestCase<S: Spec, Da: DaSpec> {
+pub struct ProofTestCase<S: Spec> {
     /// Input for the test case.
     pub input: ProofInput,
     /// Assertion for the test case.
-    pub assert: ProofTestAssert<S, Da>,
+    pub assert: ProofTestAssert<S>,
 }

@@ -51,10 +51,10 @@ pub mod interface;
 /// The default test spec. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 /// The default test spec for ZK. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
 pub type ZkTestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Zk>;
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Zk>;
 /// The default address type. This is the [`sov_modules_api::RollupAddress`] type defined by the [`TestSpec`].
 pub type TestAddress = <TestSpec as Spec>::Address;
 /// The default test crypto spec type. This is the [`CryptoSpec`] type defined by the [`TestSpec`].
@@ -72,9 +72,9 @@ pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
 /// The default storage spec type. Uses a [`TestHasher`] for hashing.
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
 /// The default STF blueprint type. Uses [`MockDaSpec`] for DA and custom kernel.
-pub type TestStfBlueprintWithKernel<RT, K, S> = StfBlueprint<S, MockDaSpec, RT, K>;
+pub type TestStfBlueprintWithKernel<RT, K, S> = StfBlueprint<S, RT, K>;
 /// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`BasicKernel`] for kernel.
-pub type TestStfBlueprint<RT, S> = StfBlueprint<S, MockDaSpec, RT, BasicKernel<S, MockDaSpec>>;
+pub type TestStfBlueprint<RT, S> = StfBlueprint<S, RT, BasicKernel<S>>;
 /// The default [`sov_db::storage_manager::NativeStorageManager`], that can be used with [`ProverStorage`] and [`TestStorageSpec`].
 pub type TestStorageManager =
     sov_db::storage_manager::NativeStorageManager<MockDaSpec, ProverStorage<TestStorageSpec>>;

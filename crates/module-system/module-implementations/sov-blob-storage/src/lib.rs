@@ -58,7 +58,7 @@ pub type SequenceNumber = u64;
 
 /// Blob storage contains only address and vector of blobs
 #[derive(Clone, ModuleInfo)]
-pub struct BlobStorage<S: Spec, Da: DaSpec> {
+pub struct BlobStorage<S: Spec> {
     /// The ID of blob storage module
     #[id]
     pub(crate) id: ModuleId,
@@ -67,7 +67,9 @@ pub struct BlobStorage<S: Spec, Da: DaSpec> {
     /// DA block number => vector of blobs
     /// Caller controls the order of blobs in the vector
     #[state]
-    pub(crate) deferred_blobs: StateMap<u64, Vec<(BlobDataWithId, Da::Address)>, BcsCodec>,
+    #[allow(clippy::type_complexity)]
+    pub(crate) deferred_blobs:
+        StateMap<u64, Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>, BcsCodec>,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
@@ -79,19 +81,19 @@ pub struct BlobStorage<S: Spec, Da: DaSpec> {
     next_sequence_number: KernelStateValue<SequenceNumber>,
 
     #[module]
-    pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
+    pub(crate) sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
 
     #[module]
-    chain_state: sov_chain_state::ChainState<S, Da>,
+    chain_state: sov_chain_state::ChainState<S>,
 }
 
 /// Non standard methods for blob storage
-impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
+impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
         slot_number: TransitionHeight,
-        batches: &[(BlobDataWithId, Da::Address)],
+        batches: &[(BlobDataWithId, <S::Da as DaSpec>::Address)],
         state: &mut impl InfallibleStateAccessor,
     ) {
         self.deferred_blobs
@@ -105,7 +107,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         slot_height: TransitionHeight,
         state: &mut impl InfallibleStateAccessor,
-    ) -> Vec<(BlobDataWithId, Da::Address)> {
+    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)> {
         self.deferred_blobs
             .remove(&slot_height, state)
             .unwrap_infallible()
@@ -115,7 +117,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     pub(crate) fn get_preferred_sequencer(
         &self,
         state: &mut impl InfallibleStateAccessor,
-    ) -> Option<Da::Address> {
+    ) -> Option<<S::Da as DaSpec>::Address> {
         self.sequencer_registry
             .get_preferred_sequencer(state)
             .unwrap_infallible()
@@ -123,7 +125,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
 }
 
 /// Empty module implementation
-impl<S: Spec, Da: DaSpec> Module for BlobStorage<S, Da> {
+impl<S: Spec> Module for BlobStorage<S> {
     type Spec = S;
     type Config = ();
     type CallMessage = NotInstantiable;

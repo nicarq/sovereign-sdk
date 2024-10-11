@@ -7,7 +7,7 @@ use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_mock_da::{BlockProducingConfig, MockDaSpec};
+use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
@@ -67,9 +67,10 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
 
     // Based on an assumption that this key is admin in sov-value-setter
     let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
-    let msg = RuntimeCall::<TestSpec, MockDaSpec>::ValueSetter(
-        sov_value_setter::CallMessage::SetManyValues(vec![1, 2, 3, 4, 5, 6, 7, 8]),
-    );
+    let msg =
+        RuntimeCall::<TestSpec>::ValueSetter(sov_value_setter::CallMessage::SetManyValues(vec![
+            1, 2, 3, 4, 5, 6, 7, 8,
+        ]));
 
     let tx = default_test_signed_transaction(&key_and_address.private_key, &msg, 0);
     let mut slot_subscription = test_rollup.client.ledger.subscribe_slots().await?;

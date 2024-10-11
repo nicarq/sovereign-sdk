@@ -15,9 +15,9 @@ use sov_state::Storage;
 
 /// A kernel supporting based sequencing with soft confirmations
 #[derive(Default)]
-pub struct SoftConfirmationsKernel<S: Spec, Da: DaSpec> {
-    chain_state: ChainState<S, Da>,
-    blob_storage: BlobStorage<S, Da>,
+pub struct SoftConfirmationsKernel<S: Spec> {
+    chain_state: ChainState<S>,
+    blob_storage: BlobStorage<S>,
 }
 
 /// Path information required to initialize a basic kernel from files
@@ -26,13 +26,13 @@ pub struct SoftConfirmationsKernelGenesisPaths {
     pub chain_state: PathBuf,
 }
 
-pub struct SoftConfirmationsKernelGenesisConfig<S: Spec, Da: DaSpec> {
+pub struct SoftConfirmationsKernelGenesisConfig<S: Spec> {
     /// The chain state genesis config
-    pub chain_state: <ChainState<S, Da> as Module>::Config,
+    pub chain_state: <ChainState<S> as Module>::Config,
 }
 
 #[cfg(feature = "native")]
-impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec> KernelWithSlotMapping<S> for SoftConfirmationsKernel<S> {
     fn visible_slot_number_at(
         &self,
         true_slot_number: u64,
@@ -44,7 +44,7 @@ impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for SoftConfirmationsKernel<S
     }
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec> Kernel<S> for SoftConfirmationsKernel<S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
@@ -53,7 +53,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S> for SoftConfirmationsKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec> BlobSelector for SoftConfirmationsKernel<S> {
     type Spec = S;
     type BlobType = BlobDataWithId;
 
@@ -61,20 +61,20 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for SoftConfirmationsKernel<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, <S::Da as DaSpec>::Address)>>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         self.blob_storage
             .get_blobs_for_this_slot(current_blobs, state)
     }
 }
 
-impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, Da> {
+impl<S: Spec> KernelSlotHooks<S> for SoftConfirmationsKernel<S> {
     fn begin_slot_hook(
         &self,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        validity_condition: &<Da as DaSpec>::ValidityCondition,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
     ) -> <S::Storage as Storage>::Root {
@@ -101,14 +101,14 @@ impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for SoftConfirmationsKernel<S, 
 /// These methods are used in the tests to access the internal state of the kernel.
 /// Normally these should not be used, because everything happens inside the stf.
 #[cfg(feature = "test-utils")]
-impl<S: Spec, Da: DaSpec> SoftConfirmationsKernel<S, Da> {
+impl<S: Spec> SoftConfirmationsKernel<S> {
     /// Gets a reference to the kernel's ChainState module.
-    pub fn get_chain_state(&self) -> &sov_chain_state::ChainState<S, Da> {
+    pub fn get_chain_state(&self) -> &sov_chain_state::ChainState<S> {
         &self.chain_state
     }
 
     /// Gets a reference to the kernel's BlobStorage module.
-    pub fn get_blob_storage(&self) -> &sov_blob_storage::BlobStorage<S, Da> {
+    pub fn get_blob_storage(&self) -> &sov_blob_storage::BlobStorage<S> {
         &self.blob_storage
     }
 }

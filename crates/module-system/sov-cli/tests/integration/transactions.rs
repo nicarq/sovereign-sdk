@@ -5,7 +5,6 @@ use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
@@ -16,10 +15,9 @@ use sov_test_utils::{
     new_test_gas_meter, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
-type Da = MockDaSpec;
-type Runtime = TestOptimisticRuntime<TestSpec, Da>;
-type RuntimeCall = TestOptimisticRuntimeCall<TestSpec, Da>;
-type RuntimeSubcommand<A> = TestRuntimeSubcommand<A, TestSpec, Da>;
+type Runtime = TestOptimisticRuntime<TestSpec>;
+type RuntimeCall = TestOptimisticRuntimeCall<TestSpec>;
+type RuntimeSubcommand<A> = TestRuntimeSubcommand<A, TestSpec>;
 
 #[test]
 fn test_import_transaction_from_string() {

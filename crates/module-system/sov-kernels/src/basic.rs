@@ -14,24 +14,24 @@ use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
 #[derive(Clone)]
-pub struct BasicKernel<S: Spec, Da: DaSpec> {
-    pub(crate) chain_state: ChainState<S, Da>,
-    pub(crate) blob_storage: BlobStorage<S, Da>,
+pub struct BasicKernel<S: Spec> {
+    pub(crate) chain_state: ChainState<S>,
+    pub(crate) blob_storage: BlobStorage<S>,
 }
 
-impl<S: Spec, Da: DaSpec> BasicKernel<S, Da> {
+impl<S: Spec> BasicKernel<S> {
     /// Gets a reference to the kernel's ChainState module.
-    pub fn chain_state(&self) -> &ChainState<S, Da> {
+    pub fn chain_state(&self) -> &ChainState<S> {
         &self.chain_state
     }
 
     /// Gets a reference to the kernel's BlobStorage module.
-    pub fn blob_storage(&self) -> &BlobStorage<S, Da> {
+    pub fn blob_storage(&self) -> &BlobStorage<S> {
         &self.blob_storage
     }
 }
 
-impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
+impl<S: Spec> Default for BasicKernel<S> {
     fn default() -> Self {
         Self {
             chain_state: Default::default(),
@@ -40,7 +40,7 @@ impl<S: Spec, Da: DaSpec> Default for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> Kernel<S> for BasicKernel<S, Da> {
+impl<S: Spec> Kernel<S> for BasicKernel<S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
@@ -50,7 +50,7 @@ impl<S: Spec, Da: DaSpec> Kernel<S> for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BasicKernel<S, Da> {
+impl<S: Spec> BlobSelector for BasicKernel<S> {
     type Spec = S;
 
     type BlobType = BlobDataWithId;
@@ -59,9 +59,9 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BasicKernel<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, <S::Da as DaSpec>::Address)>>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         Ok(self
             .blob_storage
@@ -70,7 +70,7 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BasicKernel<S, Da> {
 }
 
 #[cfg(feature = "native")]
-impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for BasicKernel<S, Da> {
+impl<S: Spec> KernelWithSlotMapping<S> for BasicKernel<S> {
     fn visible_slot_number_at(
         &self,
         true_slot_number: u64,
@@ -80,11 +80,11 @@ impl<S: Spec, Da: DaSpec> KernelWithSlotMapping<S> for BasicKernel<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> KernelSlotHooks<S, Da> for BasicKernel<S, Da> {
+impl<S: Spec> KernelSlotHooks<S> for BasicKernel<S> {
     fn begin_slot_hook(
         &self,
-        slot_header: &<Da as DaSpec>::BlockHeader,
-        validity_condition: &<Da as DaSpec>::ValidityCondition,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
     ) -> <S::Storage as Storage>::Root {

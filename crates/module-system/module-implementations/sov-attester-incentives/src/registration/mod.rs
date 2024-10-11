@@ -1,13 +1,11 @@
 pub(crate) mod attester;
 pub(crate) mod challenger;
 use core::result::Result::Ok;
-use std::marker::PhantomData;
 
 use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
-    BasicAddress, DaSpec, Gas, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue,
-    TxState,
+    BasicAddress, Gas, ModuleId, Spec, StateAccessor, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 use thiserror::Error;
@@ -38,40 +36,36 @@ type AttesterRegistryError<S: Spec, ST: StateAccessor> = RegistrationError<
     CustomError<S::Address>,
 >;
 
-struct Staker<'a, S: Spec, Da: DaSpec> {
+struct Staker<'a, S: Spec> {
     bonded_stakers: &'a StateMap<S::Address, Amount>,
     minimum_bond: &'a StateValue<S::Gas>,
     bank: &'a sov_bank::Bank<S>,
     id: &'a ModuleId,
-    _phantom: PhantomData<Da>,
 }
 
-impl<'a, S: Spec, Da: DaSpec> Staker<'a, S, Da> {
-    fn new_challenger(attester_incentives: &'a AttesterIncentives<S, Da>) -> Self {
+impl<'a, S: Spec> Staker<'a, S> {
+    fn new_challenger(attester_incentives: &'a AttesterIncentives<S>) -> Self {
         Self {
             bonded_stakers: &attester_incentives.bonded_challengers,
             minimum_bond: &attester_incentives.minimum_challenger_bond,
             bank: &attester_incentives.bank,
             id: &attester_incentives.id,
-            _phantom: PhantomData,
         }
     }
 
-    fn new_attester(attester_incentives: &'a AttesterIncentives<S, Da>) -> Self {
+    fn new_attester(attester_incentives: &'a AttesterIncentives<S>) -> Self {
         Self {
             bonded_stakers: &attester_incentives.bonded_attesters,
             minimum_bond: &attester_incentives.minimum_attester_bond,
             bank: &attester_incentives.bank,
             id: &attester_incentives.id,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<'a, S, Da> StakeRegistration for Staker<'a, S, Da>
+impl<'a, S> StakeRegistration for Staker<'a, S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     type PrimaryAddress = S::Address;
 

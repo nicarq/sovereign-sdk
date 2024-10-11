@@ -36,18 +36,18 @@ use crate::unregistered::BatchWithSingleTx;
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
 /// to be executed.
-pub trait Runtime<S: Spec, Da: DaSpec>:
+pub trait Runtime<S: Spec>:
     DispatchCall<Spec = S>
-    + HasCapabilities<S, Da>
+    + HasCapabilities<S>
     + TransactionAuthenticator<
         S,
         Decodable = <Self as DispatchCall>::Decodable,
-        AuthorizationData = <Self as HasCapabilities<S, Da>>::AuthorizationData,
+        AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S, TxState = WorkingSet<S>>
     + SlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Da, Spec = S, BatchResult = BatchSequencerReceipt<Da>>
+    + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<<S as Spec>::Da>>
     + Default
     + RuntimeEventProcessor
 {
@@ -145,19 +145,18 @@ pub struct GenesisParams<RuntimeConfig> {
     pub runtime: RuntimeConfig,
 }
 
-impl<S, RT, Da, K> StfBlueprint<S, Da, RT, K>
+impl<S, RT, K> StfBlueprint<S, RT, K>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da>,
+    RT: Runtime<S>,
+    K: KernelSlotHooks<S>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
         &self,
         state: &mut StateCheckpoint<S::Storage>,
-        _slot_header: &Da::BlockHeader,
-        _validity_condition: &Da::ValidityCondition,
+        _slot_header: &<S::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         visible_hash: &<<S as Spec>::Storage as Storage>::Root,
     ) {
         self.runtime.begin_slot_hook(visible_hash, state);
@@ -199,12 +198,12 @@ where
 }
 
 impl<S, RT, Da, K> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, Da>
-    for StfBlueprint<S, Da, RT, K>
+    for StfBlueprint<S, RT, K>
 where
-    S: Spec,
+    S: Spec<Da = Da>,
     Da: DaSpec,
-    RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da, BlobType = BlobDataWithId>,
+    RT: Runtime<S>,
+    K: KernelSlotHooks<S, BlobType = BlobDataWithId>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -331,7 +330,7 @@ where
             match blob.data {
                 BlobData::Batch(batch) => {
                     let (batch_receipt, next_checkpoint, gas_used) =
-                        registered::apply_batch::<S, Da, RT, K>(
+                        registered::apply_batch::<S, RT, K>(
                             &self.runtime,
                             state,
                             BatchWithId { batch, id: blob.id },
@@ -348,7 +347,7 @@ where
                 }
                 BlobData::EmergencyRegistration(tx) => {
                     let (batch_receipt, next_checkpoint, gas_used) =
-                        unregistered::apply_batch::<S, Da, RT, K>(
+                        unregistered::apply_batch::<S, RT, K>(
                             &self.runtime,
                             state,
                             BatchWithSingleTx {

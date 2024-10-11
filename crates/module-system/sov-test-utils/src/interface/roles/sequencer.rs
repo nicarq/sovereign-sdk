@@ -1,20 +1,19 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::{DaSpec, Spec};
 
 use super::{AsUser, TestUser};
 
 /// A representation of a sequencer at genesis.
 #[derive(Debug, Clone)]
-pub struct TestSequencer<S: Spec, Da: DaSpec> {
+pub struct TestSequencer<S: Spec> {
     /// The common user information.
     pub user_info: TestUser<S>,
     /// The DA address of the sequencer.
-    pub da_address: Da::Address,
+    pub da_address: <S::Da as DaSpec>::Address,
     /// The amount of tokens to bond at genesis. These tokens will be minted by the bank.
     pub bond: u64,
 }
 
-impl<S: Spec, Da: DaSpec> AsUser<S> for TestSequencer<S, Da> {
+impl<S: Spec> AsUser<S> for TestSequencer<S> {
     fn as_user(&self) -> &TestUser<S> {
         &self.user_info
     }
@@ -34,9 +33,9 @@ pub struct TestSequencerConfig<Da: DaSpec> {
     pub da_address: Da::Address,
 }
 
-impl<S: Spec> TestSequencer<S, MockDaSpec> {
+impl<S: Spec> TestSequencer<S> {
     /// Generates a new [`TestSequencer`] with the given configuration.
-    pub fn generate(config: TestSequencerConfig<MockDaSpec>) -> Self {
+    pub fn generate(config: TestSequencerConfig<S::Da>) -> Self {
         Self {
             user_info: TestUser::generate(config.additional_balance),
             da_address: config.da_address,

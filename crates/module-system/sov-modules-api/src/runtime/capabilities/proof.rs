@@ -1,4 +1,3 @@
-use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::stf::InvalidProofError;
 use sov_rollup_interface::zk::aggregated_proof::{
@@ -9,7 +8,7 @@ use crate::{SovAttestation, SovStateTransitionPublicData, Spec, WorkingSet};
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
-pub trait ProofProcessor<S: Spec, Da: DaSpec> {
+pub trait ProofProcessor<S: Spec> {
     /// Called by the stf once the zk-proof is received.
     fn process_aggregated_proof(
         &self,
@@ -24,7 +23,7 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         proof: SerializedAttestation,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> Result<SovAttestation<S, Da>, InvalidProofError>;
+    ) -> Result<SovAttestation<S>, InvalidProofError>;
 
     /// Called by the stf once the challenge is received.
     fn process_challenge(
@@ -33,5 +32,5 @@ pub trait ProofProcessor<S: Spec, Da: DaSpec> {
         rollup_height: u64,
         prover_address: &S::Address,
         state: &mut WorkingSet<S>,
-    ) -> anyhow::Result<SovStateTransitionPublicData<S, Da>, InvalidProofError>;
+    ) -> anyhow::Result<SovStateTransitionPublicData<S>, InvalidProofError>;
 }

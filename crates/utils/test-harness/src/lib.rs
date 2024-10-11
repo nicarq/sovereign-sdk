@@ -42,11 +42,11 @@ pub use utils::*;
 /// Starting the actual harness.
 pub async fn start<S, Da, R>() -> anyhow::Result<()>
 where
-    S: Spec,
+    S: Spec<Da = Da::Spec>,
     Da: DaService,
-    R: Runtime<S, Da::Spec>
+    R: Runtime<S>
         + sov_modules_api::EncodeCall<Bank<S>>
-        + sov_modules_api::EncodeCall<ProverIncentives<S, Da::Spec>>
+        + sov_modules_api::EncodeCall<ProverIncentives<S>>
         + 'static,
 {
     let config = Args::parse();

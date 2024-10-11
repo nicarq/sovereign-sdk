@@ -6,11 +6,11 @@ use sov_modules_api::capabilities::{
     AuthenticationError, AuthenticationOutput, AuthorizationData, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
-use sov_modules_api::{DaSpec, DispatchCall, PreExecWorkingSet, RawTx, Spec};
+use sov_modules_api::{DispatchCall, PreExecWorkingSet, RawTx, Spec};
 
 use crate::runtime::{Runtime, RuntimeCall};
 
-impl<S: Spec, Da: DaSpec> TransactionAuthenticator<S> for Runtime<S, Da>
+impl<S: Spec> TransactionAuthenticator<S> for Runtime<S>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
@@ -56,7 +56,7 @@ where
             return Err(UnregisteredAuthenticationError::InvalidAuthenticator)?;
         };
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_modules_api::capabilities::authenticate::<S, Runtime<S, Da>>(contents, pre_exec_ws)
+            sov_modules_api::capabilities::authenticate::<S, Runtime<S>>(contents, pre_exec_ws)
                 .map_err(|e| match e {
                     AuthenticationError::FatalError(err) => {
                         UnregisteredAuthenticationError::FatalError(err)
@@ -91,7 +91,7 @@ pub enum Auth {
     Mod(Vec<u8>),
 }
 
-impl<S: Spec, Da: DaSpec> EthereumAuthenticator<S> for Runtime<S, Da>
+impl<S: Spec> EthereumAuthenticator<S> for Runtime<S>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {

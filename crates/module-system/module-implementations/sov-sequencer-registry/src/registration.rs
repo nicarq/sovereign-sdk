@@ -5,10 +5,10 @@ use sov_state::User;
 
 use crate::{AllowedSequencer, CustomError, SequencerRegistry};
 
-impl<S: Spec, Da: DaSpec> StakeRegistration for SequencerRegistry<S, Da> {
+impl<S: Spec> StakeRegistration for SequencerRegistry<S> {
     type Spec = S;
 
-    type PrimaryAddress = Da::Address;
+    type PrimaryAddress = <S::Da as DaSpec>::Address;
 
     type RollupAddress = S::Address;
 

@@ -5,9 +5,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{Kernel, KernelWithSlotMapping};
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{
-    ApiStateAccessor, DaSpec, Gas, GasMeter, Spec, StateCheckpoint, StateReader,
-};
+use sov_modules_api::{ApiStateAccessor, Gas, GasMeter, Spec, StateCheckpoint, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
 
@@ -21,10 +19,9 @@ pub struct BondAmountResponse {
     pub value: u64,
 }
 
-impl<S, Da> AttesterIncentives<S, Da>
+impl<S> AttesterIncentives<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     /// Queries the state of the module.
     pub fn get_attester_bond_amount<Reader: StateReader<User>>(
@@ -105,27 +102,25 @@ where
 }
 
 /// Implementation of the [`BondingProofServiceImpl`] for the [`AttesterIncentives`] module.
-pub struct BondingProofServiceImpl<S, Da, K>
+pub struct BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    Da: DaSpec,
 {
     attester_address: S::Address,
-    attester_incentives: AttesterIncentives<S, Da>,
+    attester_incentives: AttesterIncentives<S>,
     storage: tokio::sync::watch::Receiver<S::Storage>,
     phantom: std::marker::PhantomData<K>,
 }
 
-impl<S, Da, K> BondingProofServiceImpl<S, Da, K>
+impl<S, K> BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    Da: DaSpec,
     K: KernelWithSlotMapping<S>,
 {
     /// Creates a new `BondingProofServiceImpl` service.
     pub fn new(
         attester_address: S::Address,
-        attester_incentives: AttesterIncentives<S, Da>,
+        attester_incentives: AttesterIncentives<S>,
         storage: tokio::sync::watch::Receiver<S::Storage>,
     ) -> Self {
         Self {
@@ -137,10 +132,9 @@ where
     }
 }
 
-impl<S, Da, K> BondingProofService for BondingProofServiceImpl<S, Da, K>
+impl<S, K> BondingProofService for BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    Da: DaSpec,
     K: KernelWithSlotMapping<S> + Kernel<S>,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;

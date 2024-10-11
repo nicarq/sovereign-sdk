@@ -8,9 +8,7 @@ use sov_modules_api::macros::config_value;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{
-    CallResponse, DaSpec, EventEmitter, Spec, StateAccessor, StateReader, TxState,
-};
+use sov_modules_api::{CallResponse, EventEmitter, Spec, StateAccessor, StateReader, TxState};
 use sov_state::User;
 use thiserror::Error;
 
@@ -40,7 +38,7 @@ pub enum CustomError {}
 type ProverRegistryError<S: Spec, ST: StateAccessor> =
     RegistrationError<S::Address, S::Address, <ST as StateReader<User>>::Error, CustomError>;
 
-impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec> ProverIncentives<S> {
     /// The burn rate of the reward price for the provers.
     /// The burn rate is a percentage of the base fee that is burned - this prevents provers from proving empty blocks.
     pub fn burn_rate(&self) -> BurnRate {

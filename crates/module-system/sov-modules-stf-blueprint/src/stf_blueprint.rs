@@ -10,37 +10,33 @@ use crate::Runtime;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<S: Spec, Da: DaSpec, RT: Runtime<S, Da>, K: KernelSlotHooks<S, Da>> {
+pub struct StfBlueprint<S: Spec, RT: Runtime<S>, K: KernelSlotHooks<S>> {
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
     pub(crate) kernel: K,
     phantom_context: PhantomData<S>,
-    phantom_da: PhantomData<Da>,
 }
 
-impl<S, Da, RT, K> Default for StfBlueprint<S, Da, RT, K>
+impl<S, RT, K> Default for StfBlueprint<S, RT, K>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da>,
+    RT: Runtime<S>,
+    K: KernelSlotHooks<S>,
 {
     fn default() -> Self {
         Self {
             runtime: RT::default(),
             kernel: K::default(),
             phantom_context: PhantomData,
-            phantom_da: PhantomData,
         }
     }
 }
 
-impl<S, Da, RT, K> StfBlueprint<S, Da, RT, K>
+impl<S, RT, K> StfBlueprint<S, RT, K>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da>,
+    RT: Runtime<S>,
+    K: KernelSlotHooks<S>,
 {
     /// [`StfBlueprint`] constructor with the default [`Runtime`] value. Same as
     /// [`Default::default`].
@@ -60,14 +56,14 @@ where
     pub(crate) fn process_proof(
         &self,
         blob_hash: [u8; 32],
-        sender: Da::Address,
+        sender: <S::Da as DaSpec>::Address,
         gas_price: &<S::Gas as Gas>::Price,
         raw_proof: Vec<u8>,
         checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         ProofReceipt<
             S::Address,
-            Da,
+            S::Da,
             <S::Storage as Storage>::Root,
             StorageProof<<S::Storage as Storage>::Proof>,
         >,
@@ -88,13 +84,12 @@ where
 }
 
 #[cfg(feature = "native")]
-pub(crate) fn convert_to_runtime_events<S, RT, Da>(
+pub(crate) fn convert_to_runtime_events<S, RT>(
     events: Vec<sov_modules_api::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
+    RT: Runtime<S>,
 {
     events
         .into_iter()
@@ -120,13 +115,12 @@ where
 }
 
 #[cfg(not(feature = "native"))]
-pub(crate) fn convert_to_runtime_events<S, RT, Da>(
+pub(crate) fn convert_to_runtime_events<S, RT>(
     _events: Vec<sov_modules_api::TypedEvent>,
 ) -> Vec<StoredEvent>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
+    RT: Runtime<S>,
 {
     Vec::new() // Return an empty vector
 }

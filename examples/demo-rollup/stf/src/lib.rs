@@ -10,13 +10,8 @@ pub mod runtime;
 mod tests;
 
 use sov_modules_stf_blueprint::StfBlueprint;
-use sov_rollup_interface::da::DaVerifier;
 use sov_rollup_interface::stf::StateTransitionVerifier;
 
 /// Alias for StateTransitionVerifier.
-pub type StfVerifier<DA, ZkSpec, RT, K, InnerVm, OuterVm> = StateTransitionVerifier<
-    StfBlueprint<ZkSpec, <DA as DaVerifier>::Spec, RT, K>,
-    DA,
-    InnerVm,
-    OuterVm,
->;
+pub type StfVerifier<DA, ZkSpec, RT, K, InnerVm, OuterVm> =
+    StateTransitionVerifier<StfBlueprint<ZkSpec, RT, K>, DA, InnerVm, OuterVm>;

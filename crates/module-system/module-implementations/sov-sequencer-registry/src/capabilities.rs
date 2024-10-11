@@ -5,11 +5,11 @@ use sov_modules_api::{DaSpec, Gas, Spec, TxScratchpad};
 
 use crate::{AllowedSequencer, SequencerRegistry};
 
-impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec> SequencerRegistry<S> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
     pub fn authorize_sequencer(
         &self,
-        sender: &Da::Address,
+        sender: &<S::Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
         scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
@@ -24,7 +24,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Penalizes the sequencer.
     pub fn penalize_sequencer(
         &self,
-        sender: &Da::Address,
+        sender: &<S::Da as DaSpec>::Address,
         reason: impl std::fmt::Display,
         remaining_stake: u64,
         state: &mut TxScratchpad<S::Storage>,
@@ -60,7 +60,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     /// Transfers a portion of the sequencer's stake to the beneficiary and decreases the staked balance.
     pub fn remove_part_of_the_stake(
         &self,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         beneficiary: impl Payable<S>,
         amount: u64,
         state: &mut TxScratchpad<S::Storage>,
@@ -108,7 +108,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
     pub fn add_to_stake(
         &self,
         user: &S::Address,
-        sequencer: &Da::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         amount: u64,
         state: &mut TxScratchpad<S::Storage>,
     ) -> Result<(), anyhow::Error> {

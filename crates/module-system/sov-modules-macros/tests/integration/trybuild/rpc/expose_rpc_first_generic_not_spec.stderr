@@ -258,7 +258,7 @@ help: consider restricting the type parameter to satisfy the trait bound
 107 | #[expose_rpc] where T: sov_modules_api::Spec
     |               ++++++++++++++++++++++++++++++
 
-error[E0599]: the function or associated item `default` exists for struct `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, Zk>, ActualSpec>`, but its trait bounds were not satisfied
+error[E0599]: the function or associated item `default` exists for struct `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Zk>, ActualSpec>`, but its trait bounds were not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:125:50
     |
 109 | struct Runtime<T: TestSpec, S: Spec> {
@@ -272,12 +272,12 @@ error[E0599]: the function or associated item `default` exists for struct `Runti
     |
    ::: $WORKSPACE/crates/module-system/sov-modules-api/src/default_spec.rs
     |
-    | pub struct DefaultSpec<InnerZkvm, OuterZkvm, Mode>(
-    | -------------------------------------------------- doesn't satisfy `_: TestSpec`
+    | pub struct DefaultSpec<Da, InnerZkvm, OuterZkvm, Mode>(
+    | ------------------------------------------------------ doesn't satisfy `_: TestSpec`
     |
 note: the following trait bounds were not satisfied:
       `ActualSpec: sov_modules_api::Spec`
-      `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec`
+      `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:108:10
     |
 108 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
@@ -299,11 +299,11 @@ note: the trait `sov_modules_api::Spec` must be implemented
             candidate #2: `std::default::Default`
             candidate #3: `tinyvec::array::Array`
 
-error[E0277]: the trait bound `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
+error[E0277]: the trait bound `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:125:24
     |
 125 |     let runtime = &mut Runtime::<S, ActualSpec>::default();
-    |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
     |
     = help: the trait `TestSpec` is implemented for `ActualSpec`
 note: required by a bound in `Runtime`
@@ -319,28 +319,28 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:32
     |
 109 | struct Runtime<T: TestSpec, S: Spec> {
     |                                ^^^^ required by this bound in `Runtime`
 
-error[E0277]: the trait bound `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>: Genesis` is not satisfied
+error[E0277]: the trait bound `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>: Genesis` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:127:35
     |
 127 |     let mut genesis_state = state.to_genesis_state_accessor::<RT, S>(&config);
-    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Genesis` is not implemented for `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>`
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^ the trait `Genesis` is not implemented for `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>`
     |
     = help: the trait `Genesis` is implemented for `Runtime<T, S>`
 
-error[E0277]: the trait bound `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
+error[E0277]: the trait bound `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:127:63
     |
 127 |     let mut genesis_state = state.to_genesis_state_accessor::<RT, S>(&config);
-    |                                                               ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
+    |                                                               ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
     |
     = help: the trait `TestSpec` is implemented for `ActualSpec`
 note: required by a bound in `Runtime`
@@ -356,28 +356,28 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                                                               ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:32
     |
 109 | struct Runtime<T: TestSpec, S: Spec> {
     |                                ^^^^ required by this bound in `Runtime`
 
-error[E0277]: the trait bound `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>: EncodeCall<QueryModule<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, u32>>` is not satisfied
+error[E0277]: the trait bound `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>: EncodeCall<QueryModule<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, u32>>` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:133:10
     |
 133 |         <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
-    |          ^^ the trait `EncodeCall<QueryModule<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, u32>>` is not implemented for `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>`
+    |          ^^ the trait `EncodeCall<QueryModule<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, u32>>` is not implemented for `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>, ActualSpec>`
     |
     = help: the trait `EncodeCall<QueryModule<S, <T as TestSpec>::Data>>` is implemented for `Runtime<T, S>`
 
-error[E0277]: the trait bound `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
+error[E0277]: the trait bound `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:133:10
     |
 133 |         <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
-    |          ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
+    |          ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
     |
     = help: the trait `TestSpec` is implemented for `ActualSpec`
 note: required by a bound in `Runtime`
@@ -393,16 +393,16 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |          ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:32
     |
 109 | struct Runtime<T: TestSpec, S: Spec> {
     |                                ^^^^ required by this bound in `Runtime`
 
-error[E0599]: the function or associated item `decode_call` exists for struct `Runtime<DefaultSpec<MockZkVerifier, MockZkVerifier, Zk>, ActualSpec>`, but its trait bounds were not satisfied
+error[E0599]: the function or associated item `decode_call` exists for struct `Runtime<DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Zk>, ActualSpec>`, but its trait bounds were not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:134:22
     |
 109 | struct Runtime<T: TestSpec, S: Spec> {
@@ -416,12 +416,12 @@ error[E0599]: the function or associated item `decode_call` exists for struct `R
     |
    ::: $WORKSPACE/crates/module-system/sov-modules-api/src/default_spec.rs
     |
-    | pub struct DefaultSpec<InnerZkvm, OuterZkvm, Mode>(
-    | -------------------------------------------------- doesn't satisfy `_: TestSpec`
+    | pub struct DefaultSpec<Da, InnerZkvm, OuterZkvm, Mode>(
+    | ------------------------------------------------------ doesn't satisfy `_: TestSpec`
     |
     = note: the following trait bounds were not satisfied:
             `ActualSpec: sov_modules_api::Spec`
-            `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec`
+            `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec`
 note: the trait `sov_modules_api::Spec` must be implemented
    --> $WORKSPACE/crates/module-system/sov-modules-api/src/module/spec.rs
     |
@@ -437,11 +437,11 @@ note: the trait `sov_modules_api::Spec` must be implemented
     = note: the following trait defines an item `decode_call`, perhaps you need to implement it:
             candidate #1: `sov_modules_api::DispatchCall`
 
-error[E0277]: the trait bound `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
+error[E0277]: the trait bound `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>: TestSpec` is not satisfied
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:134:18
     |
 134 |     let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
-    |                  ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
+    |                  ^^ the trait `TestSpec` is not implemented for `DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, sov_modules_api::execution_mode::Zk>`
     |
     = help: the trait `TestSpec` is implemented for `ActualSpec`
 note: required by a bound in `Runtime`
@@ -457,9 +457,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                  ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
-              DefaultSpec<InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
+              DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
 note: required by a bound in `Runtime`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:109:32
     |

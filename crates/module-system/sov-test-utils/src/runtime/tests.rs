@@ -23,10 +23,7 @@ use crate::{
 type S = crate::TestSpec;
 
 /// Sets up a test runner with the [`ValueSetter`] with a single additional admin account.
-fn setup() -> (
-    TestUser<S>,
-    TestRunner<TestOptimisticRuntime<S, MockDaSpec>, S>,
-) {
+fn setup() -> (TestUser<S>, TestRunner<TestOptimisticRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
@@ -130,27 +127,25 @@ fn test_register_sequencer() {
     let new_sequencer_address = MockAddress::from([42; 32]);
 
     let user_stake_value = runner.query_state(|state| {
-        SequencerRegistry::<S, MockDaSpec>::default()
+        SequencerRegistry::<S>::default()
             .get_coins_to_lock(state)
             .unwrap_infallible()
             .amount
     });
 
-    let new_sequencer = TestSequencer::<S, MockDaSpec> {
+    let new_sequencer = TestSequencer::<S> {
         user_info: additional_user,
         da_address: new_sequencer_address,
         bond: user_stake_value,
     };
 
     // We first bond the sequencer
-    runner.execute(
-        new_sequencer.create_plain_message::<SequencerRegistry<S, MockDaSpec>>(
-            sov_sequencer_registry::CallMessage::Register {
-                da_address: new_sequencer.da_address.as_ref().to_vec(),
-                amount: new_sequencer.bond,
-            },
-        ),
-    );
+    runner.execute(new_sequencer.create_plain_message::<SequencerRegistry<S>>(
+        sov_sequencer_registry::CallMessage::Register {
+            da_address: new_sequencer.da_address.as_ref().to_vec(),
+            amount: new_sequencer.bond,
+        },
+    ));
 
     runner.config.sequencer_da_address = new_sequencer.da_address;
 
@@ -455,7 +450,7 @@ fn test_custom_transaction_format_2() {
 #[test]
 fn test_freeze_time() {
     let (_, mut runner) = setup();
-    let chain_state = ChainState::<S, MockDaSpec>::default();
+    let chain_state = ChainState::<S>::default();
 
     runner.config.freeze_time = Some(Time::from_secs(200));
     let time = runner.query_kernel_state(|state| chain_state.get_time(state).unwrap_infallible());

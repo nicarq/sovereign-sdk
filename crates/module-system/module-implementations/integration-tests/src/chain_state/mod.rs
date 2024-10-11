@@ -1,5 +1,4 @@
 use sov_chain_state::ChainState;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::VersionReader;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -11,10 +10,7 @@ type S = sov_test_utils::TestSpec;
 
 generate_optimistic_runtime!(TestKernelUpdatesRuntime <= value_setter: ValueSetter<S>);
 
-fn setup() -> (
-    TestUser<S>,
-    TestRunner<TestKernelUpdatesRuntime<S, MockDaSpec>, S>,
-) {
+fn setup() -> (TestUser<S>, TestRunner<TestKernelUpdatesRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
@@ -84,16 +80,14 @@ fn test_chain_state_gas_updates() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            ChainState::<S, MockDaSpec>::default()
-                .get_genesis_hash(kernel)
-                .unwrap(),
+            ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
             "The genesis hash should be set"
         );
 
         let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
-        let in_progress_transition = ChainState::<S, MockDaSpec>::default()
+        let in_progress_transition = ChainState::<S>::default()
             .get_last_slot(kernel)
             .unwrap_infallible()
             .unwrap();
@@ -120,9 +114,7 @@ fn test_chain_state_root_updates() {
 
     runner.query_kernel_state(|kernel| {
         assert_eq!(
-            ChainState::<S, MockDaSpec>::default()
-                .get_genesis_hash(kernel)
-                .unwrap(),
+            ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
             "The genesis hash should be set"
         );
@@ -133,7 +125,7 @@ fn test_chain_state_root_updates() {
     );
 
     runner.query_kernel_state(|kernel| {
-        let first_transition = ChainState::<S, MockDaSpec>::default()
+        let first_transition = ChainState::<S>::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()
             .unwrap();
@@ -155,7 +147,7 @@ fn test_chain_state_historical_transition_update() {
     );
 
     let in_progress_transition = runner.query_kernel_state(|kernel| {
-        ChainState::<S, MockDaSpec>::default()
+        ChainState::<S>::default()
             .get_last_slot(kernel)
             .unwrap_infallible()
             .unwrap()
@@ -166,7 +158,7 @@ fn test_chain_state_historical_transition_update() {
     );
 
     runner.query_kernel_state(|kernel| {
-        let first_transition = ChainState::<S, MockDaSpec>::default()
+        let first_transition = ChainState::<S, >::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()
             .unwrap();

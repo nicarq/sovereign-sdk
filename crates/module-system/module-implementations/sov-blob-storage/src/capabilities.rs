@@ -38,7 +38,7 @@ enum ValidateBlobOutcome {
     Accept(SequencerStatus),
 }
 
-impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
+impl<S: Spec> BlobStorage<S> {
     fn set_next_visible_slot_number(
         &self,
         value: u64,
@@ -53,9 +53,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         tracing::trace!("On based sequencer path");
 
@@ -68,9 +68,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         let mut batches = Vec::new();
         let mut unregistered_blobs = 0;
@@ -155,7 +155,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
 
     fn validate_blob_and_sender(
         &self,
-        blob: &Da::BlobTransaction,
+        blob: &<S::Da as DaSpec>::BlobTransaction,
         unregistered_blobs_processed: u64,
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> ValidateBlobOutcome {
@@ -180,7 +180,11 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         }
     }
 
-    fn log_discarded_blob(&self, blob: &Da::BlobTransaction, reason: BlobDiscardReason) {
+    fn log_discarded_blob(
+        &self,
+        blob: &<S::Da as DaSpec>::BlobTransaction,
+        reason: BlobDiscardReason,
+    ) {
         info!(
             blob_hash = hex::encode(blob.hash()),
             sender = hex::encode(blob.sender()),
@@ -195,7 +199,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         preferred_blob: T,
         next_sequence_number: SequenceNumber,
-        blob: &Da::BlobTransaction,
+        blob: &<S::Da as DaSpec>::BlobTransaction,
         state: &mut impl InfallibleStateAccessor,
         needs_blob: bool,
     ) -> Option<T> {
@@ -238,9 +242,9 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, Da::Address)>
+    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         tracing::trace!("On recovery mode path");
         let mut batches_to_process = Vec::new();
@@ -303,10 +307,10 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-        preferred_sender: &Da::Address,
-    ) -> Vec<(BlobDataWithId, Da::Address)>
+        preferred_sender: &<S::Da as DaSpec>::Address,
+    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         tracing::trace!("On preferred sequencer path");
         let mut unregistered_blobs = 0;
@@ -551,7 +555,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     /// sequencer - in the case of direct sequencer registration via DA.
     fn deserialize_or_try_slash_sender<B: BorshDeserialize>(
         &self,
-        blob: &mut Da::BlobTransaction,
+        blob: &mut <S::Da as DaSpec>::BlobTransaction,
         registered_sender: bool,
         state: &mut impl InfallibleStateAccessor,
     ) -> Option<B> {
@@ -587,7 +591,7 @@ impl<S: Spec, Da: DaSpec> BlobStorage<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
+impl<S: Spec> BlobSelector for BlobStorage<S> {
     type Spec = S;
 
     type BlobType = BlobDataWithId;
@@ -600,9 +604,9 @@ impl<S: Spec, Da: DaSpec> BlobSelector<Da> for BlobStorage<S, Da> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, Da::Address)>>
+    ) -> anyhow::Result<Vec<(Self::BlobType, <S::Da as DaSpec>::Address)>>
     where
-        I: IntoIterator<Item = BlobOrigin<'a, Da::BlobTransaction>>,
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer

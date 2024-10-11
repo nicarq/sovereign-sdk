@@ -30,20 +30,16 @@ pub mod standard;
 pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
     /// The `Spec` defines the rollup's types.
     type Spec: Spec;
-    /// The `DaSpec` for the rollup.
-    type Da: DaSpec;
     /// The runtime of the rollup.
-    type Rt: Runtime<Self::Spec, Self::Da>;
+    type Rt: Runtime<Self::Spec>;
 }
 
-impl<S, Da, Rt> RtAwareBatchBuilderSpec for (S, Da, Rt)
+impl<S, Rt> RtAwareBatchBuilderSpec for (S, Rt)
 where
     S: Spec,
-    Da: DaSpec,
-    Rt: Runtime<S, Da> + 'static,
+    Rt: Runtime<S> + 'static,
 {
     type Spec = S;
-    type Da = Da;
     type Rt = Rt;
 }
 
@@ -59,8 +55,6 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     type Config: Clone + Debug + Send + Sync + 'static;
     /// The rollup spec.
     type Spec: Spec;
-    /// The DA spec.
-    type Da: DaSpec;
 
     /// A [`StorageReceiver`] which is notified each time the rollup's head storage changes.
     /// This happens when DA layer reorgs or a new block is successfully processed on top of
@@ -76,14 +70,14 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// Creates a new [`BatchBuilder`].
     async fn create(
         storage: StorageReceiver<Self::Spec>,
-        sequencer_address: <Self::Da as DaSpec>::Address,
+        sequencer_address: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
         config: &Self::Config,
     ) -> anyhow::Result<Self>;
 
     /// Returns a copy of the [`TxStatusManager`] that the [`BatchBuilder`] uses
     /// to notify about dropped transactions.
-    fn tx_status_manager(&self) -> TxStatusManager<Self::Da>;
+    fn tx_status_manager(&self) -> TxStatusManager<<Self::Spec as Spec>::Da>;
 
     /// Informs the [`BatchBuilder`] that the DA layer has progressed to a new
     /// slot.
@@ -180,17 +174,16 @@ type AuthRes<S, Rt> = (
     >,
 );
 
-fn tx_auth<S, Da, Rt>(
+fn tx_auth<S, Rt>(
     runtime: &Rt,
     mut tx_scratchpad: TxScratchpad<S::Storage>,
     gas_price: <S::Gas as Gas>::Price,
-    sequencer_address: &Da::Address,
+    sequencer_address: &<S::Da as DaSpec>::Address,
     input: <Rt as TransactionAuthenticator<S>>::Input,
 ) -> AuthRes<S, Rt>
 where
     S: Spec,
-    Da: DaSpec,
-    Rt: Runtime<S, Da>,
+    Rt: Runtime<S>,
 {
     let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_address,

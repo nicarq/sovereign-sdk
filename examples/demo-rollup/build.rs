@@ -9,7 +9,8 @@ use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::Native;
 use sov_universal_wallet::schema::{Schema, SchemaGenerator};
 
-type S = sov_modules_api::default_spec::DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S =
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
 fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
@@ -33,7 +34,7 @@ fn main() -> io::Result<()> {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
 
-    store_schema_as_json::<RuntimeCall<S, MockDaSpec>>("demo-rollup-schema.json")?;
+    store_schema_as_json::<RuntimeCall<S>>("demo-rollup-schema.json")?;
     Ok(())
 }
 

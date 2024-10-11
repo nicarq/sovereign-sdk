@@ -1,12 +1,12 @@
 use anyhow::Result;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, Gas, ModuleInfo, Spec, StateAccessor, TxState};
+use sov_modules_api::{Gas, ModuleInfo, Spec, StateAccessor, TxState};
 use sov_state::User;
 
 use crate::{CustomError, ProverIncentives};
 
-impl<S: Spec, Da: DaSpec> StakeRegistration for ProverIncentives<S, Da> {
+impl<S: Spec> StakeRegistration for ProverIncentives<S> {
     type Spec = S;
 
     type PrimaryAddress = S::Address;

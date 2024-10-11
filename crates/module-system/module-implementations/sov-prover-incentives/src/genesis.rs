@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{DaSpec, GenesisState, Module, Spec};
+use sov_modules_api::{GenesisState, Module, Spec};
 
 use crate::ProverIncentives;
 
@@ -28,7 +28,7 @@ pub struct ProverIncentivesConfig<S: Spec> {
     pub initial_provers: Vec<(S::Address, u64)>,
 }
 
-impl<S: Spec, Da: DaSpec> ProverIncentives<S, Da> {
+impl<S: Spec> ProverIncentives<S> {
     /// Init the [`ProverIncentives`] module using the provided `config`.
     /// Sets the minimum amount necessary to bond, the commitment to the verifier circuit
     /// the bonding token ID and builds the set of initial provers.

@@ -10,7 +10,7 @@ pub struct TryReserveGasError {
 }
 
 /// Enforces gas limits and penalties for transactions.
-pub trait GasEnforcer<S: Spec, Da: DaSpec> {
+pub trait GasEnforcer<S: Spec> {
     /// Checks that the transaction has enough gas to be processed.
     ///
     /// ## Note
@@ -77,7 +77,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
     fn transfer_authentication_cost_from_sequencer_to_prover(
         &self,
         amount: u64,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 
@@ -87,7 +87,7 @@ pub trait GasEnforcer<S: Spec, Da: DaSpec> {
         &self,
         amount: u64,
         user: &S::Address,
-        sequencer: &Da::Address,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     );
 }

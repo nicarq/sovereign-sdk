@@ -16,7 +16,7 @@ use sov_bank::{Bank, Coins};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec};
+use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, Gas, RawTx, Spec};
@@ -31,12 +31,7 @@ use sov_state::StorageRoot;
 use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageManager, TestStorageSpec};
 use tempfile::TempDir;
 
-type BenchStf = StfBlueprint<
-    TestSpec,
-    MockDaSpec,
-    Runtime<TestSpec, MockDaSpec>,
-    BasicKernel<TestSpec, MockDaSpec>,
->;
+type BenchStf = StfBlueprint<TestSpec, Runtime<TestSpec>, BasicKernel<TestSpec>>;
 
 const SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0; 32]);
 // Minimum TPS below which it is considered an issue
@@ -148,7 +143,7 @@ fn signed_bank_tx(
     private_key: &TestPrivateKey,
     nonce: u64,
 ) -> FullyBakedTx {
-    let enc_msg = <Runtime<TestSpec, MockDaSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
+    let enc_msg = <Runtime<TestSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
     let tx = Transaction::<TestSpec>::new_signed_tx(
         private_key,
         UnsignedTransaction::new(
@@ -160,9 +155,7 @@ fn signed_bank_tx(
             None,
         ),
     );
-    Runtime::<TestSpec, MockDaSpec>::encode_with_standard_auth(RawTx::new(
-        borsh::to_vec(&tx).unwrap(),
-    ))
+    Runtime::<TestSpec>::encode_with_standard_auth(RawTx::new(borsh::to_vec(&tx).unwrap()))
 }
 
 // Sets up storage and returns blocks that should be benchmarked.
@@ -189,8 +182,7 @@ fn setup(
     let demo_genesis_config = {
         let stf_tests_conf_dir: &Path = "../test-data/genesis/stf-tests".as_ref();
         let mut rt_params =
-            create_genesis_config::<TestSpec, _>(&GenesisPaths::from_dir(stf_tests_conf_dir))
-                .unwrap();
+            create_genesis_config::<TestSpec>(&GenesisPaths::from_dir(stf_tests_conf_dir)).unwrap();
 
         // Funding gas for senders
         let remaining_gas_token_amount = u64::MAX

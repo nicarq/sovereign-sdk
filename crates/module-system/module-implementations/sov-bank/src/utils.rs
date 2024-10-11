@@ -245,9 +245,9 @@ mod tests {
     use derive_more::FromStr;
     use sov_modules_api::default_spec::DefaultSpec;
     use sov_modules_api::execution_mode::Native;
-    use sov_test_utils::MockZkVerifier;
+    use sov_test_utils::{MockDaSpec, MockZkVerifier};
 
-    type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+    type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
     use super::*;
 
     fn calculate_hash<T: Hash>(t: &T) -> u64 {

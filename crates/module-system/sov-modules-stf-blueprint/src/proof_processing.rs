@@ -24,18 +24,17 @@ const LOG_PREFIX: &str = "Returning early from the proof processing workflow";
 // 4. Return the proof receipt.
 // If any of the steps fail, the proof processing workflow is aborted and returns a `ProofReceipt` with a `ProofOutcome::Invalid`` outcome.
 #[allow(clippy::type_complexity)]
-pub(crate) fn process_proof<S, Da, RT>(
+pub(crate) fn process_proof<S, RT>(
     runtime: &RT,
     blob_hash: [u8; 32],
-    sequencer_da_address: Da::Address,
+    sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     raw_proof: Vec<u8>,
     state: StateCheckpoint<S::Storage>,
-) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>)
+) -> (ProcessProofOutput<S>, StateCheckpoint<S::Storage>)
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
+    RT: Runtime<S>,
 {
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
 
@@ -77,7 +76,7 @@ where
                 ProofType::OptimisticProofAttestation(proof) => runtime
                     .proof_processor()
                     .process_attestation(proof, &sequencer_rollup_address, &mut working_set)
-                    .map(|attestation| ProofReceiptContents::Attestation(attestation)),
+                    .map(ProofReceiptContents::Attestation),
 
                 ProofType::OptimisticProofChallenge(proof, rollup_height) => runtime
                     .proof_processor()
@@ -87,7 +86,7 @@ where
                         &sequencer_rollup_address,
                         &mut working_set,
                     )
-                    .map(|challenge| ProofReceiptContents::BlockProof(challenge)),
+                    .map(ProofReceiptContents::BlockProof),
             };
 
             let (outcome, mut tx_scratchpad, transaction_consumption) = match receipt_contents {
@@ -157,10 +156,10 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) struct ProcessProofOutput<S: Spec, Da: DaSpec> {
+pub(crate) struct ProcessProofOutput<S: Spec> {
     pub(crate) proof_receipt: ProofReceipt<
         S::Address,
-        Da,
+        <S as Spec>::Da,
         <S::Storage as Storage>::Root,
         StorageProof<<S::Storage as Storage>::Proof>,
     >,
@@ -170,27 +169,30 @@ pub(crate) struct ProcessProofOutput<S: Spec, Da: DaSpec> {
 
 // Decides if the proof processing workflow should continue or return early.
 #[allow(clippy::large_enum_variant)]
-enum WorkflowResult<Arg, S: Spec, Da: DaSpec> {
+enum WorkflowResult<Arg, S: Spec> {
     // Proceed with the proof processing.
     Proceed(Arg),
     // Early return from the proof processing.
-    EarlyReturn(ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>),
+    EarlyReturn(ProcessProofOutput<S>, StateCheckpoint<S::Storage>),
 }
 
-struct ProofProcessingWorkflow<'a, S: Spec, Da: DaSpec, RT: Runtime<S, Da>> {
+struct ProofProcessingWorkflow<'a, S: Spec, RT: Runtime<S>> {
     runtime: &'a RT,
     blob_hash: [u8; 32],
-    sequencer_da_address: &'a Da::Address,
+    sequencer_da_address: &'a <<S as Spec>::Da as DaSpec>::Address,
     _phantom: PhantomData<S>,
 }
 
-impl<'a, S, Da, RT> ProofProcessingWorkflow<'a, S, Da, RT>
+impl<'a, S, RT> ProofProcessingWorkflow<'a, S, RT>
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
+    RT: Runtime<S>,
 {
-    fn new(runtime: &'a RT, blob_hash: [u8; 32], sequencer_da_address: &'a Da::Address) -> Self {
+    fn new(
+        runtime: &'a RT,
+        blob_hash: [u8; 32],
+        sequencer_da_address: &'a <<S as Spec>::Da as DaSpec>::Address,
+    ) -> Self {
         Self {
             runtime,
             blob_hash,
@@ -203,7 +205,7 @@ where
         &self,
         gas_price: &<S::Gas as Gas>::Price,
         mut tx_scratchpad: TxScratchpad<S::Storage>,
-    ) -> PreExecWorkingSetResult<S, Da> {
+    ) -> PreExecWorkingSetResult<S> {
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             gas_price,
@@ -218,7 +220,7 @@ where
             }
             Err(AuthorizeSequencerError { reason }) => WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
-                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                    proof_receipt: invalid_proof_receipt::<S>(
                         self.blob_hash,
                         InvalidProofError::PreconditionNotMet(format!(
                             "Failed to authorize sequencer: {}",
@@ -238,7 +240,7 @@ where
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
         pre_exec_working_set: PreExecWorkingSet<S>,
-    ) -> WorkflowResult<WorkingSet<S>, S, Da> {
+    ) -> WorkflowResult<WorkingSet<S>, S> {
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         let gas_info = gas_meter.gas_info();
@@ -252,7 +254,7 @@ where
         {
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
-                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                    proof_receipt: invalid_proof_receipt::<S>(
                         self.blob_hash,
                         InvalidProofError::PreconditionNotMet(format!(
                             "Failed to reserve gas: {}",
@@ -274,7 +276,7 @@ where
 
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
-                    proof_receipt: invalid_proof_receipt::<S, Da>(
+                    proof_receipt: invalid_proof_receipt::<S>(
                         self.blob_hash,
                         InvalidProofError::PreconditionNotMet(format!(
                             "Failed to reserve gas: {}",
@@ -299,7 +301,7 @@ where
         &self,
         blob_hash: [u8; 32],
         state: StateCheckpoint<S::Storage>,
-    ) -> (ProcessProofOutput<S, Da>, StateCheckpoint<S::Storage>) {
+    ) -> (ProcessProofOutput<S>, StateCheckpoint<S::Storage>) {
         let mut state = state.to_tx_scratchpad();
         self.runtime
             .sequencer_remuneration()
@@ -307,7 +309,7 @@ where
 
         (
             ProcessProofOutput {
-                proof_receipt: invalid_proof_receipt::<S, Da>(
+                proof_receipt: invalid_proof_receipt::<S>(
                     blob_hash,
                     InvalidProofError::PreconditionNotMet(
                         "Sequencer slashed for invalid serialization".to_string(),
@@ -336,12 +338,12 @@ where
 }
 
 #[allow(clippy::type_complexity)]
-fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
+fn invalid_proof_receipt<S: Spec>(
     blob_hash: [u8; 32],
     reason: InvalidProofError,
 ) -> ProofReceipt<
     S::Address,
-    Da,
+    <S as Spec>::Da,
     <S::Storage as Storage>::Root,
     StorageProof<<S::Storage as Storage>::Proof>,
 > {
@@ -353,5 +355,4 @@ fn invalid_proof_receipt<S: Spec, Da: DaSpec>(
     }
 }
 
-type PreExecWorkingSetResult<S, Da> =
-    WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S>), S, Da>;
+type PreExecWorkingSetResult<S> = WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S>), S>;

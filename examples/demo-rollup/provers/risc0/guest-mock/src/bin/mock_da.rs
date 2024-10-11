@@ -2,7 +2,7 @@
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_kernels::basic::BasicKernel;
-use sov_mock_da::MockDaVerifier;
+use sov_mock_da::{MockDaSpec, MockDaVerifier};
 pub use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Zk;
@@ -39,10 +39,9 @@ pub fn main() {
     let start_cycles = risc0_zkvm_platform::syscall::sys_cycle_count();
 
     let stf: StfBlueprint<
-        DefaultSpec<Risc0Verifier, MockZkVerifier, Zk>,
-        _,
-        Runtime<_, _>,
-        BasicKernel<_, _>,
+        DefaultSpec<MockDaSpec, Risc0Verifier, MockZkVerifier, Zk>,
+        Runtime<_>,
+        BasicKernel<_>,
     > = StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, _, _, MockZkGuest>::new(stf, MockDaVerifier {});

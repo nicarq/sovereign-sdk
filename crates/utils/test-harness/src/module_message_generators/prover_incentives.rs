@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use sov_modules_api::{DaSpec, Spec};
+use sov_modules_api::Spec;
 use sov_prover_incentives::ProverIncentives;
 
 use crate::constants::DEFAULT_MAX_FEE;
@@ -10,14 +8,13 @@ use crate::{AccountPool, PreparedCallMessage};
 /// [`sov_prover_incentives::ProverIncentives`] module call messages, that are sign- and broadcast-able by accounts
 /// from the [`AccountPool`].
 #[derive(Clone)]
-pub struct ProverIncentivesMessageGenerator<S: Spec, Da: DaSpec> {
+pub struct ProverIncentivesMessageGenerator<S: Spec> {
     message_count: u64,
     account_pool: AccountPool<S>,
     account_pool_index: u64,
-    _phantom: PhantomData<Da>,
 }
 
-impl<S: Spec, Da: DaSpec> ProverIncentivesMessageGenerator<S, Da> {
+impl<S: Spec> ProverIncentivesMessageGenerator<S> {
     /// Creates a [`ProverIncentivesMessageGenerator`] with an [`AccountPool`] capable of sending
     /// [`sov_prover_incentives::ProverIncentives`] module messages.
     pub fn new_from_account_pool(account_pool: AccountPool<S>) -> Self {
@@ -25,18 +22,17 @@ impl<S: Spec, Da: DaSpec> ProverIncentivesMessageGenerator<S, Da> {
             account_pool,
             message_count: 0,
             account_pool_index: 0,
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<S: Spec, Da: DaSpec> Iterator for ProverIncentivesMessageGenerator<S, Da> {
-    type Item = PreparedCallMessage<S, ProverIncentives<S, Da>>;
+impl<S: Spec> Iterator for ProverIncentivesMessageGenerator<S> {
+    type Item = PreparedCallMessage<S, ProverIncentives<S>>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let account_pool_index = self.account_pool_index;
 
-        let prepared_call_message = PreparedCallMessage::<S, ProverIncentives<S, Da>> {
+        let prepared_call_message = PreparedCallMessage::<S, ProverIncentives<S>> {
             call_message: sov_prover_incentives::CallMessage::Register(2000 + self.message_count),
             account_pool_index,
             max_fee: DEFAULT_MAX_FEE,

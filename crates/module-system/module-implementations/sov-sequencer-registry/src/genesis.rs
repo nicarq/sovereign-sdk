@@ -16,16 +16,16 @@ use crate::SequencerRegistry;
     feature = "native",
     derive(schemars::JsonSchema),
     schemars(
-        bound = "S: ::sov_modules_api::Spec, Da::Address: ::schemars::JsonSchema",
+        bound = "S: ::sov_modules_api::Spec, <S::Da as DaSpec>::Address: ::schemars::JsonSchema",
         rename = "SequencerConfig"
     )
 )]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-pub struct SequencerConfig<S: Spec, Da: DaSpec> {
+pub struct SequencerConfig<S: Spec> {
     /// The rollup address of the sequencer.
     pub seq_rollup_address: S::Address,
     /// The Data Availability (DA) address of the sequencer.
-    pub seq_da_address: Da::Address,
+    pub seq_da_address: <S::Da as DaSpec>::Address,
     /// Initial sequencer bond
     pub seq_bond: u64,
     /// The minimum bond required for a sequencer to send transactions.
@@ -38,7 +38,7 @@ pub struct SequencerConfig<S: Spec, Da: DaSpec> {
     pub is_preferred_sequencer: bool,
 }
 
-impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
+impl<S: Spec> SequencerRegistry<S> {
     pub(crate) fn init_module(
         &self,
         config: &<Self as sov_modules_api::Module>::Config,
@@ -74,7 +74,7 @@ impl<S: Spec, Da: DaSpec> SequencerRegistry<S, Da> {
 mod tests {
     use std::str::FromStr;
 
-    use sov_mock_da::{MockAddress, MockDaSpec};
+    use sov_mock_da::MockAddress;
     use sov_modules_api::prelude::*;
     use sov_modules_api::AddressBech32;
     use sov_test_utils::TestSpec;
@@ -94,7 +94,7 @@ mod tests {
         )
         .unwrap();
 
-        let config = SequencerConfig::<TestSpec, MockDaSpec> {
+        let config = SequencerConfig::<TestSpec> {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
             seq_bond: 100,
@@ -111,8 +111,7 @@ mod tests {
             "is_preferred_sequencer":true
         }"#;
 
-        let parsed_config: SequencerConfig<TestSpec, MockDaSpec> =
-            serde_json::from_str(data).unwrap();
+        let parsed_config: SequencerConfig<TestSpec> = serde_json::from_str(data).unwrap();
         assert_eq!(config, parsed_config);
     }
 }

@@ -1,6 +1,6 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    DaSpec, GasSpec, KernelStateAccessor, Spec, StateAccessor, StateReader, VersionReader,
+    GasSpec, KernelStateAccessor, Spec, StateAccessor, StateReader, VersionReader,
 };
 use sov_state::User;
 
@@ -35,10 +35,9 @@ impl borsh::BorshSerialize for NotInstantiable {
     }
 }
 
-impl<S, Da> ChainState<S, Da>
+impl<S> ChainState<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.

@@ -9,12 +9,11 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::Spec;
 
-type Da = MockDaSpec;
-type S = DefaultSpec<MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
 
 #[test]
 fn test_display_tx() {
-    let msg: RuntimeCall<S, Da> = RuntimeCall::Bank(CallMessage::Transfer {
+    let msg: RuntimeCall<S> = RuntimeCall::Bank(CallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
         )
@@ -28,7 +27,7 @@ fn test_display_tx() {
         },
     });
     let data = borsh::to_vec(&msg).unwrap();
-    let schema = Schema::of::<RuntimeCall<S, Da>>();
+    let schema = Schema::of::<RuntimeCall<S>>();
     assert_eq!(
         schema.display(&data).unwrap(),
         r#"Bank.Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks } }"#

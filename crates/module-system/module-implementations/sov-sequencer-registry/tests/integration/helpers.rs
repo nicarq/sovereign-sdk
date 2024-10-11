@@ -15,17 +15,16 @@ pub const ANOTHER_SEQUENCER_DA_ADDRESS: [u8; 32] = [2; 32];
 
 generate_optimistic_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
-pub(crate) type RT = TestRuntime<S, Da>;
+pub(crate) type RT = TestRuntime<S>;
 
-pub(crate) type TestSequencerRegistry = SequencerRegistry<S, Da>;
+pub(crate) type TestSequencerRegistry = SequencerRegistry<S>;
 
-pub(crate) type TestSequencerRegistryError =
-    SequencerRegistryError<S, MockDaSpec, ApiStateAccessor<S>>;
+pub(crate) type TestSequencerRegistryError = SequencerRegistryError<S, ApiStateAccessor<S>>;
 
 /// Defines the roles that are used in the sequencer registry tests.
 pub struct TestRoles {
     /// The default sequencer.
-    pub default_sequencer: TestSequencer<S, Da>,
+    pub default_sequencer: TestSequencer<S>,
     /// Another user that can be used to register a sequencer.
     pub additional_sequencer: TestUser<S>,
     /// The admin of the [`ValueSetter`] module.
@@ -33,7 +32,7 @@ pub struct TestRoles {
 }
 
 /// Returns the minimal bond required to register a sequencer at the current slot.
-pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, Da>, S>) -> u64 {
+pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
     runner.query_state(|state| {
         TestSequencerRegistry::default()
             .get_coins_to_lock(state)
@@ -46,7 +45,7 @@ pub fn minimal_bond(runner: &TestRunner<TestRuntime<S, Da>, S>) -> u64 {
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
 ///
 /// Same as [`setup`] but allows to pass a custom runtime.
-pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
+pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRuntime<S>, S>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
 
@@ -103,6 +102,6 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
 
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
 /// Returns a `TestSequencer` and two `TestUsers` that are used to test the sequencer registry, the first one is also the admin of the [`ValueSetter`] module.
-pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S, Da>, S>) {
+pub fn setup() -> (TestRoles, TestRunner<TestRuntime<S>, S>) {
     setup_with_custom_runtime(RT::default())
 }

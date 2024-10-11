@@ -1,5 +1,4 @@
 use sov_chain_state::ChainState;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Gas, GasArray, KernelStateAccessor, Spec, VersionReader};
@@ -37,7 +36,7 @@ fn check_chain_state_update(
         // Kernel working set
         &mut KernelStateAccessor<<S as Spec>::Storage>,
         // The immediate result of the apply slot function
-        TestApplySlotOutput<TestChainStateRuntime<S, MockDaSpec>, S>,
+        TestApplySlotOutput<TestChainStateRuntime<S>, S>,
     ),
 ) {
     let (admin, mut runner) = setup();
@@ -70,7 +69,7 @@ fn test_chain_state_update_gas_used() {
                 },
             );
 
-            let in_progress_tx = ChainState::<S, MockDaSpec>::default()
+            let in_progress_tx = ChainState::<S>::default()
                 .get_last_slot(kernel)
                 .unwrap_infallible()
                 .unwrap();
@@ -97,11 +96,7 @@ fn test_chain_state_update_time() {
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
         &mut |_round, kernel, _result| {
-            let current_time = nanosecs(
-                ChainState::<S, MockDaSpec>::default()
-                    .get_time(kernel)
-                    .unwrap(),
-            );
+            let current_time = nanosecs(ChainState::<S>::default().get_time(kernel).unwrap());
 
             assert!(
                 previous_time < current_time,
@@ -124,7 +119,7 @@ fn test_chain_state_update_state_root() {
             if round == 0 {
                 previous_state_root = Some(result.state_root);
             } else {
-                let previous_transition = ChainState::<S, MockDaSpec>::default()
+                let previous_transition = ChainState::<S>::default()
                     .get_historical_transitions(round, kernel)
                     .unwrap_infallible()
                     .unwrap();
@@ -171,7 +166,7 @@ fn test_chain_state_update_transitions() {
         NUM_TXS_PER_ROUND,
         &mut |round, kernel, _result| {
             if round == 0 {
-                let in_progress_transition = ChainState::<S, MockDaSpec>::default()
+                let in_progress_transition = ChainState::<S>::default()
                     .get_last_slot(kernel)
                     .unwrap_infallible()
                     .unwrap();
@@ -180,7 +175,7 @@ fn test_chain_state_update_transitions() {
                 for (i, historical_transition) in historical_transitions.iter().enumerate() {
                     let expected_previous_transition = historical_transition;
 
-                    let stored_previous_transition = ChainState::<S, MockDaSpec>::default()
+                    let stored_previous_transition = ChainState::<S>::default()
                         .get_historical_transitions((i + 1) as u64, kernel)
                         .unwrap_infallible()
                         .unwrap();
@@ -211,7 +206,7 @@ fn test_chain_state_update_transitions() {
                 }
 
                 historical_transitions.push(
-                    ChainState::<S, MockDaSpec>::default()
+                    ChainState::<S>::default()
                         .get_last_slot(kernel)
                         .unwrap_infallible()
                         .unwrap(),

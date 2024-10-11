@@ -5,7 +5,7 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, setup_soft_confirmation_kernel,
     setup_with_registration_soft_confirmation_kernel,
 };
-use crate::{Da, TestData, S};
+use crate::{TestData, S};
 
 /// Tests the soft confirmation kernel functionality by executing one batch per slot for the preferred sequencer.
 /// Expected result:
@@ -24,7 +24,7 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
     ) = setup_soft_confirmation_kernel();
 
     runner.query_state(|state| {
-        let blob_storage = BlobStorage::<S, Da>::default();
+        let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage.take_blobs_for_slot_number(1, state).is_empty());
         assert!(blob_storage.take_blobs_for_slot_number(2, state).is_empty());

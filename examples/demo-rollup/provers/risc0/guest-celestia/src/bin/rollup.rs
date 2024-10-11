@@ -6,7 +6,7 @@ use const_rollup_config::{ROLLUP_BATCH_NAMESPACE_RAW, ROLLUP_PROOF_NAMESPACE_RAW
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_celestia_adapter::types::Namespace;
-use sov_celestia_adapter::verifier::CelestiaVerifier;
+use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier};
 use sov_kernels::basic::BasicKernel;
 use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
 use sov_modules_api::default_spec::DefaultSpec;
@@ -26,10 +26,9 @@ pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
     let stf: StfBlueprint<
-        DefaultSpec<Risc0Verifier, MockZkVerifier, Zk>,
-        _,
-        Runtime<_, _>,
-        BasicKernel<_, _>,
+        DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, Zk>,
+        Runtime<_>,
+        BasicKernel<_>,
     > = StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, _, Risc0Guest, MockZkGuest>::new(

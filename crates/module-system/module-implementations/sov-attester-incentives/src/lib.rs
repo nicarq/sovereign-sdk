@@ -25,8 +25,8 @@ use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateMap, StateReader, StateValue, TxState,
+    Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -46,10 +46,9 @@ pub struct UnbondingInfo {
 /// - Must contain `[id]` field
 /// - Can contain any number of ` #[state]` or `[module]` fields
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
-pub struct AttesterIncentives<S, Da>
+pub struct AttesterIncentives<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     /// Id of the module.
     #[id]
@@ -116,13 +115,12 @@ where
 
     /// Reference to the chain state module, used to check the initial hashes of the state transition.
     #[module]
-    pub(crate) chain_state: sov_chain_state::ChainState<S, Da>,
+    pub(crate) chain_state: sov_chain_state::ChainState<S>,
 }
 
-impl<S, Da> Module for AttesterIncentives<S, Da>
+impl<S> Module for AttesterIncentives<S>
 where
     S: Spec,
-    Da: DaSpec,
 {
     type Spec = S;
 
@@ -182,7 +180,7 @@ where
     }
 }
 
-impl<S: Spec, Da: DaSpec> AttesterIncentives<S, Da> {
+impl<S: Spec> AttesterIncentives<S> {
     /// Returns a bool indicating if the [`AttesterIncentives`] module should be paid fees.
     pub fn should_reward_fees<Accessor: StateReader<User>>(&self, state: &mut Accessor) -> bool {
         self.chain_state

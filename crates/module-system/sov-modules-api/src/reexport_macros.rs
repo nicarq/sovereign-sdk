@@ -6,24 +6,24 @@
 /// use sov_bank::Bank;
 /// use sov_sequencer_registry::SequencerRegistry;
 ///
-/// struct MyRuntime<S: Spec, Da: DaSpec> {
+/// struct MyRuntime<S: Spec> {
 ///   pub bank: Bank<S>,
-///   pub sequencer_registry: SequencerRegistry<S, Da>,
+///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
 ///
 /// // Applying #[derive(DispatchCall)] to MyRuntime generates the following code:
 /// #[allow(non_camel_case_types)]
 /// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// #[serde(rename_all = "snake_case")]
-/// pub enum RuntimeCall<S: Spec, Da: DaSpec> {
+/// pub enum RuntimeCall<S: Spec> {
 ///   bank(<Bank::<S> as Module>::CallMessage),
-///   sequencer_registry(<SequencerRegistry::<S, Da> as Module>::CallMessage),
+///   sequencer_registry(<SequencerRegistry::<S> as Module>::CallMessage),
 /// }
 ///
-/// impl<S: Spec, Da: DaSpec> DispatchCall for MyRuntime<S, Da> {
+/// impl<S: Spec> DispatchCall for MyRuntime<S> {
 ///   type Spec = S;
 ///
-///   type Decodable = RuntimeCall<S, Da>;
+///   type Decodable = RuntimeCall<S>;
 ///
 /// // -- Method bodies elided for brevity --
 /// # /// Decodes serialized call message
@@ -79,9 +79,9 @@
 ///
 /// #[derive(DispatchCall)]
 /// #[dispatch_call(serde(untagged), derive(UniversalWallet))]
-/// struct MyRuntime<S: Spec, Da: DaSpec> {
+/// struct MyRuntime<S: Spec> {
 ///   pub bank: Bank<S>,
-///   pub sequencer_registry: SequencerRegistry<S, Da>,
+///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
 ///
 /// ```
@@ -89,22 +89,22 @@ pub use sov_modules_macros::DispatchCall;
 /// Derives the <runtime_name>Event enum for a given runtime.
 ///
 /// ```rust
-/// use sov_modules_api::{DaSpec, Event, Module, Spec};
+/// use sov_modules_api::{Event, Module, Spec};
 /// use sov_bank::Bank;
 /// use sov_sequencer_registry::SequencerRegistry;
 ///
-/// struct Runtime<S: Spec, Da: DaSpec> {
+/// struct Runtime<S: Spec> {
 ///   pub bank: Bank<S>,
-///   pub sequencer_registry: SequencerRegistry<S, Da>,
+///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
 ///
 /// // Applying #[derive(Event)] to MyRuntime generates the following code:
 /// #[allow(non_camel_case_types)]
 /// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// #[serde(untagged, bound = "")]
-/// pub enum RuntimeEvent<S: Spec, Da: DaSpec> {
+/// pub enum RuntimeEvent<S: Spec> {
 ///   bank(<Bank::<S> as Module>::Event),
-///   sequencer_registry(<SequencerRegistry::<S, Da> as Module>::Event),
+///   sequencer_registry(<SequencerRegistry::<S> as Module>::Event),
 /// }
 /// ```
 ///
@@ -130,9 +130,9 @@ pub use sov_modules_macros::DispatchCall;
 ///
 /// #[derive(Event)]
 /// #[event(serde(deny_unknown_fields), borsh(use_discriminant = false))]
-/// struct Runtime<S: Spec, Da: DaSpec> {
+/// struct Runtime<S: Spec> {
 ///   pub bank: Bank<S>,
-///   pub sequencer_registry: SequencerRegistry<S, Da>,
+///   pub sequencer_registry: SequencerRegistry<S>,
 /// }
 ///
 /// ```

@@ -20,7 +20,7 @@ use crate::{
 };
 
 #[allow(clippy::result_large_err)]
-pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
+pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
     auth_output: AuthenticationOutput<
         S,
@@ -28,7 +28,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
         <R as TransactionAuthenticator<S>>::AuthorizationData,
     >,
     gas_info: GasInfo<S::Gas>,
-    sequencer_da_address: &D::Address,
+    sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
     mut tx_scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
@@ -120,7 +120,7 @@ pub fn process_unauthorized_tx<S: Spec, D: DaSpec, R: Runtime<S, D>>(
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
+pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
     gas_price: &<S::Gas as Gas>::Price,
     tx: &FullyBakedTx,
@@ -143,7 +143,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, Da: DaSpec, R: Runtime<S, Da
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_unregistered_with_cycle_count<S: Spec, Da: DaSpec, R: Runtime<S, Da>>(
+fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>>(
     runtime: &R,
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
@@ -164,21 +164,20 @@ pub(crate) struct BatchWithSingleTx {
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-pub(crate) fn apply_batch<S, Da, RT, K>(
+pub(crate) fn apply_batch<S, RT, K>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
     batch: BatchWithSingleTx,
     blob_idx: usize,
-    sequencer_da_address: Da::Address,
+    sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<S, Da>, StateCheckpoint<S::Storage>, S::Gas)
+) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>, S::Gas)
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
-    K: KernelSlotHooks<S, Da>,
+    RT: Runtime<S>,
+    K: KernelSlotHooks<S>,
 {
     debug!(
         batch_id = hex::encode(batch.id),

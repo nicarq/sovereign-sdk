@@ -26,6 +26,7 @@ use crate::prover::datagen::get_blocks_from_da;
 use crate::test_helpers::test_genesis_paths;
 
 type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
+    sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0Verifier,
     sov_mock_zkvm::MockZkVerifier,
     WitnessGeneration,
@@ -33,12 +34,7 @@ type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
 
 mod datagen;
 
-type TestSTF<'a> = StfBlueprint<
-    DefaultSpec,
-    MockDaSpec,
-    Runtime<DefaultSpec, MockDaSpec>,
-    BasicKernel<DefaultSpec, MockDaSpec>,
->;
+type TestSTF<'a> = StfBlueprint<DefaultSpec, Runtime<DefaultSpec>, BasicKernel<DefaultSpec>>;
 
 /// This test reproduces the proof generation process for the rollup used in benchmarks.
 #[tokio::test(flavor = "multi_thread")]
@@ -57,9 +53,7 @@ async fn test_proof_generation() {
 
     let genesis_config = {
         let rt_params =
-            create_genesis_config::<DefaultSpec, _>(&test_genesis_paths(OperatingMode::Zk))
-                .unwrap();
-
+            create_genesis_config::<DefaultSpec>(&test_genesis_paths(OperatingMode::Zk)).unwrap();
         GenesisParams { runtime: rt_params }
     };
 

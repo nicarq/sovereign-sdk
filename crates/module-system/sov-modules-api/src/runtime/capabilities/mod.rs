@@ -15,7 +15,6 @@ pub use kernel::*;
 mod gas;
 pub use gas::*;
 pub use proof::ProofProcessor;
-use sov_rollup_interface::da::DaSpec;
 mod sequencer;
 pub use sequencer::*;
 
@@ -34,13 +33,13 @@ impl<T> Guard<T> {
 }
 
 /// Indicates that a type provides the necessary capabilities for a runtime.
-pub trait HasCapabilities<S: Spec, Da: DaSpec> {
+pub trait HasCapabilities<S: Spec> {
     /// The concrete implementation of the capabilities.
-    type Capabilities<'a>: GasEnforcer<S, Da>
-        + SequencerAuthorization<S, Da>
-        + TransactionAuthorizer<S, Da, AuthorizationData = Self::AuthorizationData>
-        + ProofProcessor<S, Da>
-        + SequencerRemuneration<S, Da>
+    type Capabilities<'a>: GasEnforcer<S>
+        + SequencerAuthorization<S>
+        + TransactionAuthorizer<S, AuthorizationData = Self::AuthorizationData>
+        + ProofProcessor<S>
+        + SequencerRemuneration<S>
     where
         Self: 'a;
 
@@ -65,14 +64,14 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// Returns the [`GasEnforcer`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn gas_enforcer(&self) -> impl GasEnforcer<S, Da> {
+    fn gas_enforcer(&self) -> impl GasEnforcer<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`SequencerAuthorization`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn sequencer_authorization(&self) -> impl SequencerAuthorization<S, Da> {
+    fn sequencer_authorization(&self) -> impl SequencerAuthorization<S> {
         self.capabilities().inner
     }
 
@@ -81,21 +80,21 @@ pub trait HasCapabilities<S: Spec, Da: DaSpec> {
     /// This method can be overriden to provide a custom implementation.
     fn transaction_authorizer(
         &self,
-    ) -> impl TransactionAuthorizer<S, Da, AuthorizationData = Self::AuthorizationData> {
+    ) -> impl TransactionAuthorizer<S, AuthorizationData = Self::AuthorizationData> {
         self.capabilities().inner
     }
 
     /// Returns the [`ProofProcessor`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn proof_processor(&self) -> impl ProofProcessor<S, Da> {
+    fn proof_processor(&self) -> impl ProofProcessor<S> {
         self.capabilities().inner
     }
 
     /// Returns the [`SequencerRemuneration`] implementation on [`HasCapabilities::Capabilities`].
     ///
     /// This method can be overriden to provide a custom implementation.
-    fn sequencer_remuneration(&self) -> impl SequencerRemuneration<S, Da> {
+    fn sequencer_remuneration(&self) -> impl SequencerRemuneration<S> {
         self.capabilities().inner
     }
 }

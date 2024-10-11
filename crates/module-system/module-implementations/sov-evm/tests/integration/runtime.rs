@@ -1,9 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_evm::Evm;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DaSpec, DispatchCall, RawTx, Spec};
+use sov_modules_api::{DispatchCall, RawTx, Spec};
 use sov_state::Storage;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
@@ -11,7 +10,7 @@ generate_bare_runtime! {
     name: TestRuntime,
     modules: [evm: Evm<S>],
     operating_mode:OperatingMode::Zk,
-    minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S, Da>,
+    minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>]
 }
@@ -44,7 +43,7 @@ impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverte
 #[derive(std::fmt::Debug, Clone, BorshDeserialize, BorshSerialize)]
 pub struct AuthenticatorInput(sov_modules_api::RawTx);
 
-impl<S: Spec, Da: DaSpec> TransactionAuthenticator<S> for TestRuntime<S, Da>
+impl<S: Spec> TransactionAuthenticator<S> for TestRuntime<S>
 where
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
@@ -93,7 +92,7 @@ where
     }
 }
 
-impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
+impl<S: Spec> FinalizeHook for TestRuntime<S> {
     type Spec = S;
 
     fn finalize_hook(
@@ -105,7 +104,7 @@ impl<S: Spec, Da: DaSpec> FinalizeHook for TestRuntime<S, Da> {
     }
 }
 
-impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
+impl<S: Spec> SlotHooks for TestRuntime<S> {
     type Spec = S;
 
     fn begin_slot_hook(
@@ -132,4 +131,4 @@ impl<S: Spec, Da: DaSpec> SlotHooks for TestRuntime<S, Da> {
     }
 }
 
-pub(crate) type RT = TestRuntime<TestSpec, MockDaSpec>;
+pub(crate) type RT = TestRuntime<TestSpec>;

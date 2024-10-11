@@ -38,7 +38,6 @@ use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities};
 use sov_modules_api::macros::{expose_rpc, CliWallet, UniversalWallet};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
-use sov_rollup_interface::da::DaSpec;
 
 pub use crate::authentication::EthereumToRollupAddressConverter;
 #[cfg(feature = "native")]
@@ -52,17 +51,17 @@ use crate::genesis_config::GenesisPaths;
     expose_rpc,
     dispatch_call(derive(UniversalWallet))
 )]
-pub struct Runtime<S: Spec, Da: DaSpec> {
+pub struct Runtime<S: Spec> {
     /// The Bank module.
     pub bank: sov_bank::Bank<S>,
     /// The Sequencer Registry module.
-    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S, Da>,
+    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
     /// The Value Setter module.
     pub value_setter: sov_value_setter::ValueSetter<S>,
     /// The Attester Incentives module.
-    pub attester_incentives: sov_attester_incentives::AttesterIncentives<S, Da>,
+    pub attester_incentives: sov_attester_incentives::AttesterIncentives<S>,
     /// The Prover Incentives module.
-    pub prover_incentives: sov_prover_incentives::ProverIncentives<S, Da>,
+    pub prover_incentives: sov_prover_incentives::ProverIncentives<S>,
     /// The Accounts module.
     pub accounts: sov_accounts::Accounts<S>,
     /// The Nonces module.
@@ -70,21 +69,20 @@ pub struct Runtime<S: Spec, Da: DaSpec> {
     /// The NFT module.
     pub nft: sov_nft::NonFungibleToken<S>,
     /// The Chain state module.
-    pub chain_state: sov_chain_state::ChainState<S, Da>,
+    pub chain_state: sov_chain_state::ChainState<S>,
     /// The Blob storage module.
-    pub blob_storage: sov_blob_storage::BlobStorage<S, Da>,
+    pub blob_storage: sov_blob_storage::BlobStorage<S>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S>,
 }
 
-impl<S, Da> sov_modules_stf_blueprint::Runtime<S, Da> for Runtime<S, Da>
+impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>
 where
     S: Spec,
-    Da: DaSpec,
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
-    type GenesisConfig = GenesisConfig<S, Da>;
+    type GenesisConfig = GenesisConfig<S>;
 
     #[cfg(feature = "native")]
     type GenesisPaths = GenesisPaths;
@@ -99,7 +97,7 @@ where
 
         sov_modules_stf_blueprint::RuntimeEndpoints {
             axum_router,
-            jsonrpsee_module: get_rpc_methods::<S, Da>(api_state),
+            jsonrpsee_module: get_rpc_methods::<S>(api_state),
         }
     }
 
@@ -109,8 +107,8 @@ where
     }
 }
 
-impl<S: Spec, Da: DaSpec> HasCapabilities<S, Da> for Runtime<S, Da> {
-    type Capabilities<'a> = StandardCapabilities<'a, S, Da>;
+impl<S: Spec> HasCapabilities<S> for Runtime<S> {
+    type Capabilities<'a> = StandardCapabilities<'a, S>;
     type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
         Guard::new(StandardCapabilities {

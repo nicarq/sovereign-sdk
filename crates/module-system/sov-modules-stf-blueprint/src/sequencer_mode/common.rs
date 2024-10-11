@@ -3,8 +3,7 @@ use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchSequencerReceipt, Context, DaSpec, DispatchCall, Error, Gas, Spec, TxScratchpad,
-    WorkingSet,
+    BatchSequencerReceipt, Context, DispatchCall, Error, Gas, Spec, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
@@ -24,7 +23,7 @@ pub type TransactionReceipt<S> =
 /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
-pub fn apply_tx<S, RT, Da>(
+pub fn apply_tx<S, RT>(
     runtime: &RT,
     ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,
@@ -34,8 +33,7 @@ pub fn apply_tx<S, RT, Da>(
 ) -> (ApplyTxResult<S>, TxScratchpad<S::Storage>)
 where
     S: Spec,
-    Da: DaSpec,
-    RT: Runtime<S, Da>,
+    RT: Runtime<S>,
 {
     let tx_result = attempt_tx(tx, message, ctx, runtime, &mut working_set);
     let (tx_scratchpad, receipt, transaction_consumption) = match tx_result {
@@ -48,7 +46,7 @@ where
                 TransactionReceipt {
                     tx_hash: raw_tx_hash,
                     body_to_save: None,
-                    events: convert_to_runtime_events::<S, RT, Da>(events),
+                    events: convert_to_runtime_events::<S, RT>(events),
                     receipt: TxEffect::Successful(SuccessfulTxContents {
                         gas_used: gas_used.clone(),
                     }),
@@ -91,7 +89,7 @@ where
     )
 }
 
-fn attempt_tx<S: Spec, Da: DaSpec, RT: Runtime<S, Da>>(
+fn attempt_tx<S: Spec, RT: Runtime<S>>(
     tx: &AuthenticatedTransactionData<S>,
     message: <RT as DispatchCall>::Decodable,
     ctx: &Context<S>,
@@ -126,8 +124,8 @@ pub type AuthTxOutput<S, R> = AuthenticationOutput<
 >;
 
 /// The receipt for a batch using the STF blueprint.
-pub type BatchReceipt<S, Da> = sov_rollup_interface::stf::BatchReceipt<
-    BatchSequencerReceipt<Da>,
+pub type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
+    BatchSequencerReceipt<<S as Spec>::Da>,
     TxReceiptContents<S>,
     <<S as Spec>::Gas as Gas>::Price,
 >;
@@ -163,8 +161,8 @@ pub(crate) fn create_tx_receipt<S: Spec>(
     }
 }
 
-pub(crate) fn apply_batch_logs<S: Spec, Da: DaSpec>(
-    batch_receipt: &BatchReceipt<S, Da>,
+pub(crate) fn apply_batch_logs<S: Spec>(
+    batch_receipt: &BatchReceipt<S>,
     gas_used: &S::Gas,
     blob_idx: usize,
 ) {

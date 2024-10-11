@@ -14,6 +14,7 @@ use sov_stf_runner::RollupConfig;
 type InnerZkvmHost = MockZkvm;
 type OuterZkvmHost = MockZkvm;
 type S = DefaultSpec<
+    MockDaSpec,
     <<InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
     <<OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
     execution_mode::Native,
@@ -24,10 +25,10 @@ fn main() -> io::Result<()> {
     store_module_call_json_schema::<sov_bank::Bank<S>>("sov-bank.json")?;
     store_module_call_json_schema::<sov_accounts::Accounts<S>>("sov-accounts.json")?;
     store_module_call_json_schema::<sov_value_setter::ValueSetter<S>>("sov-value-setter.json")?;
-    store_module_call_json_schema::<sov_prover_incentives::ProverIncentives<S, MockDaSpec>>(
+    store_module_call_json_schema::<sov_prover_incentives::ProverIncentives<S>>(
         "sov-prover-incentives.json",
     )?;
-    store_module_call_json_schema::<sov_sequencer_registry::SequencerRegistry<S, MockDaSpec>>(
+    store_module_call_json_schema::<sov_sequencer_registry::SequencerRegistry<S>>(
         "sov-sequencer-registry.json",
     )?;
 
@@ -40,7 +41,7 @@ fn main() -> io::Result<()> {
     store_genesis_config_json_schema::<sov_prover_incentives::ProverIncentivesConfig<S>>(
         "sov-prover-incentives.json",
     )?;
-    store_genesis_config_json_schema::<sov_sequencer_registry::SequencerConfig<S, MockDaSpec>>(
+    store_genesis_config_json_schema::<sov_sequencer_registry::SequencerConfig<S>>(
         "sov-sequencer-registry.json",
     )?;
 

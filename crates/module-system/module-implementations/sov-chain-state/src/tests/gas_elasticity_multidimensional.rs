@@ -1,4 +1,3 @@
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::{Gas, GasArray, GasPrice, GasSpec, Spec};
 use sov_test_utils::TestSpec;
 
@@ -21,14 +20,13 @@ fn test_helper(gas_used: &<TestSpec as Spec>::Gas) -> <<TestSpec as Spec>::Gas a
 
     parent_gas_info.update_gas_used(gas_used.clone());
 
-    ChainState::<TestSpec, MockDaSpec>::compute_base_fee_per_gas(&parent_gas_info)
+    ChainState::<TestSpec>::compute_base_fee_per_gas(&parent_gas_info)
 }
 
 /// Checks that the `base_fee_per_gas` does not change when the gas used is the same as the gas target.
 #[test]
 fn test_base_fee_does_not_change_if_target_is_reached() {
-    let computed_base_fee_per_gas =
-        test_helper(&ChainState::<TestSpec, MockDaSpec>::initial_gas_target());
+    let computed_base_fee_per_gas = test_helper(&ChainState::<TestSpec>::initial_gas_target());
 
     assert_eq!(
         computed_base_fee_per_gas,
@@ -40,7 +38,7 @@ fn test_base_fee_does_not_change_if_target_is_reached() {
 /// Checks that the `base_fee_per_gas` increases correctly when the gas used is above the gas target.
 #[test]
 fn test_base_fee_increases_if_above_target() {
-    let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
+    let gas_target = ChainState::<TestSpec>::initial_gas_target();
     let gas_increase_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
         / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
@@ -70,7 +68,7 @@ fn test_base_fee_increases_if_above_target() {
 /// Checks that the `base_fee_per_gas` decreases correctly when the gas used is below the gas target.
 #[test]
 fn test_base_fee_decreases_if_below_target() {
-    let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
+    let gas_target = ChainState::<TestSpec>::initial_gas_target();
     let gas_decrease_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
         / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
@@ -92,7 +90,7 @@ fn test_base_fee_decreases_if_below_target() {
 /// We consume more gas than the target for each even dimension and less gas for each odd dimension.
 #[test]
 fn test_base_fee_varies_accross_each_dimension() {
-    let gas_target = ChainState::<TestSpec, MockDaSpec>::initial_gas_target();
+    let gas_target = ChainState::<TestSpec>::initial_gas_target();
     let gas_delta_amount: u64 = gas_target.as_ref().iter().sum::<u64>()
         / (gas_target.as_ref().len() as u64)
         / GAS_DELTA_FRACTION;
