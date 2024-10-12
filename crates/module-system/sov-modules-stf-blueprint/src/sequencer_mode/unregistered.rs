@@ -16,7 +16,8 @@ use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
 };
 use crate::{
-    ApplyTxResult, AuthTxOutput, KernelSlotHooks, Runtime, StateCheckpoint, TxProcessingError,
+    ApplyTxResult, AuthTxOutput, KernelSlotHooks, Runtime, SkippedTxContents, StateCheckpoint,
+    TxProcessingError,
 };
 
 #[allow(clippy::result_large_err)]
@@ -263,8 +264,13 @@ where
     let (tx_result, tx_scratchpad) = process_tx_result;
     checkpoint = tx_scratchpad.commit();
     match tx_result {
-        Err(reason) => {
-            let tx_receipt = create_tx_receipt(reason, raw_tx_hash, 0);
+        Err(error) => {
+            let skipped = SkippedTxContents {
+                error,
+                gas_used: S::Gas::zero(),
+            };
+
+            let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, 0);
             tx_receipts.push(tx_receipt);
         }
         Ok(ApplyTxResult {

@@ -67,10 +67,29 @@ pub trait Runtime<S: Spec>:
     fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
 }
 
+/// The contents of the receipt for a skipped transaction
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SkippedTxContents<S: Spec> {
+    /// The gas consumed by the transaction.
+    pub gas_used: S::Gas,
+    /// Reason why the transaction was skipped.
+    pub error: TxProcessingError,
+}
+
+impl<S: Spec> PartialEq for SkippedTxContents<S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.gas_used == other.gas_used && self.error == other.error
+    }
+}
+impl<S: Spec> Eq for SkippedTxContents<S> {}
+
 /// The transaction processing error.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, Error)]
 #[serde(rename_all = "snake_case")]
 pub enum TxProcessingError {
+    /// Transaction authentication failed.
+    #[error(" Transaction authentication failed {0}.")]
+    AuthenticationFailed(String),
     /// The transaction had an invalid nonce.
     #[error("The transaction had an invalid nonce, reason: {0}.")]
     IncorrectNonce(String),
@@ -123,7 +142,7 @@ pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
 
 impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents<S> {
     type Reverted = RevertedTxContents<S>;
-    type Skipped = TxProcessingError;
+    type Skipped = SkippedTxContents<S>;
     type Successful = SuccessfulTxContents<S>;
 }
 

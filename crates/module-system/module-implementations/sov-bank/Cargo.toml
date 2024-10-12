@@ -28,6 +28,7 @@ sov-modules-api = { workspace = true }
 sov-state = { workspace = true }
 
 [dev-dependencies]
+sov-modules-stf-blueprint = { workspace = true }
 sov-bank = { path = ".", features = ["native", "test-utils"] }
 sov-chain-state = { workspace = true }
 tempfile = { workspace = true }
@@ -49,6 +50,7 @@ native = [
 	"sov-modules-api/native",
 	"sov-state/native",
 	"sov-chain-state/native",
+	"sov-modules-stf-blueprint/native"
 ]
 cli = ["native"]
 test-utils = []
