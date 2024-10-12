@@ -18,7 +18,7 @@ pub use crate::sequencer_mode::common::PreExecError;
 use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
 };
-use crate::{ApplyTxResult, AuthTxOutput, Runtime, TxProcessingError};
+use crate::{ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, TxProcessingError};
 
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err)]
@@ -369,8 +369,13 @@ where
         let (tx_result, tx_scratchpad) = process_tx_result;
         checkpoint = tx_scratchpad.commit();
         match tx_result {
-            Err(reason) => {
-                let tx_receipt = create_tx_receipt(reason, raw_tx_hash, idx);
+            Err(error) => {
+                let skipped = SkippedTxContents {
+                    error,
+                    gas_used: S::Gas::zero(),
+                };
+
+                let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, idx);
                 tx_receipts.push(tx_receipt);
             }
             Ok(ApplyTxResult {

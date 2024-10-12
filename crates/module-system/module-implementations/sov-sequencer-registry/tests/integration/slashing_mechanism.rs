@@ -149,15 +149,15 @@ fn test_sequencer_without_enough_stake() {
             let tx_receipt = &result.batch_receipt.unwrap().tx_receipts[0];
 
             match &tx_receipt.receipt {
-                sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let TxProcessingError::OutOfGas(error_message) = reason {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
                         assert!(
                             error_message.contains("The gas to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",
                             error_message
                         );
                     } else {
-                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", skipped.error);
                     }
                 },
                 unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),

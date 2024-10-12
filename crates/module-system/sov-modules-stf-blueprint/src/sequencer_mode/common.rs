@@ -10,8 +10,8 @@ use tracing::{debug, info, warn};
 
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
-    ApplyTxResult, RevertedTxContents, Runtime, SuccessfulTxContents, TransactionAuthenticator,
-    TxEffect, TxProcessingError, TxReceiptContents,
+    ApplyTxResult, RevertedTxContents, Runtime, SkippedTxContents, SuccessfulTxContents,
+    TransactionAuthenticator, TxEffect, TxReceiptContents,
 };
 
 /// The receipt type for a transacition using the STF blueprint.
@@ -134,20 +134,20 @@ pub(crate) const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by 
 
 /// Returns the gas used by a transaction from its receipt.
 pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
-    match receipt.receipt {
+    match &receipt.receipt {
         TxEffect::Successful(ref successful) => successful.gas_used.clone(),
         TxEffect::Reverted(ref reverted) => reverted.gas_used.clone(),
-        TxEffect::Skipped(_) => S::Gas::zero(),
+        TxEffect::Skipped(skipped) => skipped.gas_used.clone(),
     }
 }
 
 pub(crate) fn create_tx_receipt<S: Spec>(
-    reason: TxProcessingError,
+    skipped: SkippedTxContents<S>,
     raw_tx_hash: TxHash,
     idx: usize,
 ) -> TransactionReceipt<S> {
     warn!(
-        error = %reason,
+        error = %skipped.error,
         raw_tx_hash = %raw_tx_hash,
         tx_idx = %idx,
         "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
@@ -157,7 +157,7 @@ pub(crate) fn create_tx_receipt<S: Spec>(
         tx_hash: raw_tx_hash,
         body_to_save: None,
         events: Vec::new(),
-        receipt: TxEffect::Skipped(reason),
+        receipt: TxEffect::Skipped(skipped),
     }
 }
 

@@ -106,10 +106,17 @@ fn send_tx_bad_nonce() {
     runner.execute_transaction(TransactionTestCase {
         input: generate_default_tx(5, &admin),
         assert: Box::new(move |ctx, _state| {
-            assert!(matches!(
-                ctx.tx_receipt,
-                TxEffect::Skipped(TxProcessingError::IncorrectNonce(..))
-            ));
+            if let TxEffect::Skipped(skipped) = &ctx.tx_receipt {
+                assert!(matches!(
+                    skipped.error,
+                    TxProcessingError::IncorrectNonce(_)
+                ));
+            } else {
+                panic!(
+                    "Expected Skipped error, but got a different TxEffect: {:?}",
+                    ctx.tx_receipt
+                );
+            }
         }),
     });
 }

@@ -5,7 +5,7 @@ use sov_modules_api::prelude::anyhow::Context;
 use sov_modules_api::transaction::{PriorityFeeBips, TransactionConsumption, TxDetails};
 use sov_modules_api::{Gas, Spec, StoredEvent, TxEffect};
 use sov_modules_stf_blueprint::{
-    ApplyTxResult, RevertedTxContents, SuccessfulTxContents, TransactionReceipt, TxProcessingError,
+    ApplyTxResult, RevertedTxContents, SkippedTxContents, SuccessfulTxContents, TransactionReceipt,
 };
 use sov_rollup_interface::common::HexString;
 use sov_rollup_json_client::types;
@@ -70,7 +70,7 @@ impl<S: Spec> TryFrom<types::SimulateExecutionResponse> for SimulateExecutionCon
                     TxEffect::Reverted(decoded_inner)
                 }
                 types::TxEffectOutcome::Skipped => {
-                    let decoded_inner: TxProcessingError =
+                    let decoded_inner: SkippedTxContents<S> =
                         serde_json::from_slice(&decode_b64(&inner)?)?;
                     TxEffect::Skipped(decoded_inner)
                 }

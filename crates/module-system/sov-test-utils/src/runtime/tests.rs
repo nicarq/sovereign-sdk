@@ -211,15 +211,15 @@ fn test_custom_transaction_details_max_fee() {
             .with_max_fee(0),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
-                sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let TxProcessingError::OutOfGas(error_message) = reason {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
                         assert!(
                             error_message.contains("The gas to charge is greater than the funds available in the meter."),
                             "Error message doesn't contain with the expected phrase. Got: {}",
                             error_message
                         );
                     } else {
-                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", skipped.error);
                     }
                 },
                 unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
@@ -268,15 +268,15 @@ fn test_custom_transaction_details_gas_limit() {
             .with_gas_limit(Some(GasUnit::from([admin.available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
-                sov_modules_api::TxEffect::Skipped(reason) => {
-                    if let TxProcessingError::CannotReserveGas(error_message) = reason {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    if let TxProcessingError::CannotReserveGas(error_message) = &skipped.error {
                         assert!(
                             error_message.contains("The current gas price is too high to cover the maximum fee for the transaction"),
                             "Error message doesn't contain with the expected phrase. Got: {}",
                             error_message
                         );
                     } else {
-                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", reason);
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", skipped.error);
                     }
                 },
                 unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),

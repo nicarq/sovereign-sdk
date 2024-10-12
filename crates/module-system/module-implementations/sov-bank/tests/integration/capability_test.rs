@@ -2,6 +2,7 @@ use sov_bank::{config_gas_token_id, Bank, Coins, ReserveGasError};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
+use sov_modules_stf_blueprint::SkippedTxContents;
 use sov_test_utils::{get_gas_used, AsUser, TestUser, TransactionTestCase, TxProcessingError};
 
 use crate::helpers::{setup, TestData};
@@ -236,8 +237,10 @@ fn test_reserve_gas_no_account() {
             },
         }),
         assert: Box::new(move |result, state| {
-            if let TxEffect::Skipped(TxProcessingError::CannotReserveGas(reason)) =
-                result.tx_receipt
+            if let TxEffect::Skipped(SkippedTxContents {
+                gas_used: _,
+                error: TxProcessingError::CannotReserveGas(reason),
+            }) = result.tx_receipt
             {
                 assert_eq!(
                     reason,
@@ -303,8 +306,10 @@ fn test_reserve_gas_not_enough_balance() {
             })
             .with_max_fee(u64::MAX),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Skipped(TxProcessingError::CannotReserveGas(reason)) =
-                result.tx_receipt
+            if let TxEffect::Skipped(SkippedTxContents {
+                gas_used: _,
+                error: TxProcessingError::CannotReserveGas(reason),
+            }) = result.tx_receipt
             {
                 assert_eq!(
                     reason,
@@ -349,8 +354,10 @@ fn test_reserve_gas_price_too_high() {
             .with_max_fee(sender_balance)
             .with_gas_limit(Some(GasUnit::from([sender_balance / 2; 2]))),
         assert: Box::new(move |result, _state| {
-            if let TxEffect::Skipped(TxProcessingError::CannotReserveGas(reason)) =
-                result.tx_receipt
+            if let TxEffect::Skipped(SkippedTxContents {
+                gas_used: _,
+                error: TxProcessingError::CannotReserveGas(reason),
+            }) = result.tx_receipt
             {
                 assert_eq!(
                     reason,
