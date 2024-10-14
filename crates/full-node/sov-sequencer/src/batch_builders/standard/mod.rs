@@ -2,6 +2,7 @@
 
 mod mempool;
 
+use std::marker::PhantomData;
 use std::num::NonZero;
 use std::sync::Arc;
 
@@ -24,12 +25,13 @@ use sov_modules_stf_blueprint::{
     TxProcessingError,
 };
 use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
 use tracing::error;
 
 use self::mempool::{Mempool, MempoolCursor};
-use super::RtAwareBatchBuilderSpec;
+use super::{EmptyConfirmation, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
     tx_auth, AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
@@ -205,13 +207,14 @@ where
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
-    type Confirmation = ();
+    type Confirmation = EmptyConfirmation<Z>;
     type Batch = Batch;
     type Config = StdBatchBuilderConfig;
     type Spec = Z::Spec;
 
     async fn create(
         storage_recv: StorageReceiver<Z::Spec>,
+        _da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
         config: &StdBatchBuilderConfig,
@@ -252,7 +255,6 @@ where
     }
 
     fn is_ready(&self) -> bool {
-        // Non-preferred sequencers are always ready to accept transactions.
         true
     }
 
@@ -369,7 +371,7 @@ where
         Ok(AcceptedTx {
             tx: baked_tx,
             tx_hash,
-            confirmation: (),
+            confirmation: EmptyConfirmation(PhantomData),
         })
     }
 
@@ -482,11 +484,6 @@ where
                         break;
                     }
                 }
-            }
-
-            // TODO SEQUENCER; don't drain txs from mempool until the batch is submitted
-            for tx in &txs {
-                self.mempool.remove_without_notifying(&tx.hash);
             }
 
             if txs.is_empty() {

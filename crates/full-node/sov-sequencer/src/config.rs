@@ -24,6 +24,15 @@ impl Default for BatchBuilderConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[schemars(bound = "Da: DaSpec, BbConfig: JsonSchema", rename = "SequencerConfig")]
 pub struct SequencerConfig<Da: DaSpec, BbConfig = BatchBuilderConfig> {
+    /// When enabled, submitted transactions are periodically assembled into
+    /// batches and automatically posted to the DA layer. When disabled, the
+    /// batch production endpoint has to be called explicitly.
+    ///
+    /// Experimental.
+    // TODO(@neysofu): remove the experimental notice when we're confident it
+    // works as expected.
+    #[serde(default)]
+    pub automatic_batch_production: bool,
     /// The sequencer won't process incoming requests unless the node is within
     /// this many blocks behind the DA chain head.
     pub max_allowed_blocks_behind: u64,
@@ -45,6 +54,7 @@ impl<Da: DaSpec> SequencerConfig<Da> {
     /// to the unit struct `()`.
     pub fn without_bb_config(&self) -> SequencerConfig<Da, ()> {
         SequencerConfig {
+            automatic_batch_production: self.automatic_batch_production,
             max_allowed_blocks_behind: self.max_allowed_blocks_behind,
             dropped_tx_ttl_secs: self.dropped_tx_ttl_secs,
             da_address: self.da_address.clone(),

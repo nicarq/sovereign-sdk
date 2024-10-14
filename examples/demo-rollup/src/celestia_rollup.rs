@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use backon::ExponentialBuilder;
 use demo_stf::runtime::{BondingProofServiceImpl, EthereumToRollupAddressConverter, Runtime};
@@ -16,6 +18,7 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, StfBl
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0Verifier;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
+use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::SequencerDb;
@@ -100,6 +103,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
+        da_sync_state: Arc<DaSyncState>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
@@ -107,6 +111,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             ledger_db,
             sequencer_db,
             da_service,
+            da_sync_state,
             &rollup_config.sequencer,
             &rollup_config.runner,
         )

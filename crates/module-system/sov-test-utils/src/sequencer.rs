@@ -120,6 +120,7 @@ where
         let (_, storage_receiver) = watch::channel(stf_state);
         let batch_builder = B::create(
             storage_receiver,
+            Default::default(),
             da_service.sequencer_address(),
             seq_db_txs,
             &batch_builder_config,
@@ -132,6 +133,7 @@ where
             status_manager,
             sequencer_db,
             ledger_db,
+            false,
         );
 
         let (axum_addr, sequencer_axum_server) = {

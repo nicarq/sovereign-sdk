@@ -202,6 +202,7 @@ mod tests {
                 .unwrap(),
             },
             sequencer: SequencerConfig {
+                automatic_batch_production: false,
                 max_allowed_blocks_behind: 5,
                 dropped_tx_ttl_secs: 60,
                 da_address: CelestiaAddress::from_str(

@@ -2,6 +2,8 @@
 //! are nested under this module.
 
 use std::fmt::Debug;
+use std::marker::PhantomData;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
@@ -11,15 +13,16 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, DispatchCall, FullyBakedTx, Gas, RawTx, Spec, TxScratchpad,
+    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, RawTx,
+    RuntimeEventProcessor, RuntimeEventResponse, Spec, TxScratchpad,
 };
 use sov_modules_stf_blueprint::Runtime;
+use sov_rollup_interface::node::DaSyncState;
 use tracing::error;
 
 use crate::{SeqDbTx, TxHash, TxStatusManager};
 
-// It's a private module because the preferred sequencer is not intended for use yet.
-mod preferred;
+pub mod preferred;
 pub mod standard;
 
 /// An aggregator of types for [`Runtime`]-aware
@@ -48,7 +51,7 @@ where
 #[async_trait]
 pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
-    type Confirmation: serde::Serialize + Send + Sync + 'static;
+    type Confirmation: DataWithEvents + serde::Serialize + Send + Sync + 'static;
     /// The batch type that will be serialized and sent to the DA layer.
     type Batch: BorshSerialize + Debug + Send + Sync + 'static;
     /// Arbitrary configuration value(s) fed to [`BatchBuilder::create`].
@@ -70,6 +73,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// Creates a new [`BatchBuilder`].
     async fn create(
         storage: StorageReceiver<Self::Spec>,
+        da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
         config: &Self::Config,
@@ -157,6 +161,35 @@ pub struct FreshlyBuiltBatch<B: BatchBuilder> {
     /// Metadata about the transactions contained in the batch. This data is
     /// *not* part of the batch itself nor will it be posted onto the DA layer.
     pub hashes: Vec<TxHash>,
+}
+
+/// Extracts events from [`BatchBuilder::Confirmation`].
+pub trait DataWithEvents {
+    /// The generic type of [`RuntimeEventResponse`].
+    type EventInner: EventModuleName
+        + Clone
+        + borsh::BorshDeserialize
+        + borsh::BorshSerialize
+        + serde::Serialize
+        + serde::de::DeserializeOwned
+        + Send
+        + Sync
+        + 'static;
+
+    /// Extracts all events from a transaction confirmation.
+    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>>;
+}
+
+/// The transaction confirmation data used by [`standard::StdBatchBuilder`].
+#[derive(Clone, serde::Serialize)]
+pub struct EmptyConfirmation<Z>(PhantomData<Z>);
+
+impl<Z: RtAwareBatchBuilderSpec> DataWithEvents for EmptyConfirmation<Z> {
+    type EventInner = <Z::Rt as RuntimeEventProcessor>::RuntimeEvent;
+
+    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
+        vec![]
+    }
 }
 
 type AuthRes<S, Rt> = (

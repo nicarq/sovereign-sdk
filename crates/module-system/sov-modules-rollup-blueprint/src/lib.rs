@@ -60,10 +60,11 @@ mod blueprint {
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
     };
     use sov_rollup_interface::node::da::DaService;
+    use sov_rollup_interface::node::DaSyncState;
     use sov_rollup_interface::optimistic::BondingProofService;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
-    use sov_sequencer::batch_builders::standard::StdBatchBuilder;
+    use sov_sequencer::batch_builders::BatchBuilder;
     use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
     use sov_state::Storage;
@@ -140,6 +141,7 @@ mod blueprint {
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,
+            da_sync_state: Arc<DaSyncState>,
             rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<RuntimeEndpoints>;
 
@@ -267,17 +269,6 @@ mod blueprint {
                 &rollup_config.storage.path,
                 Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
             )?;
-            // We pass "bootstrap" storage here,
-            // as it will be replaced with the latest on after the first processed block.
-            let endpoints = self
-                .create_endpoints(
-                    api_storage_receiver,
-                    &ledger_db,
-                    &sequencer_db,
-                    &da_service,
-                    &rollup_config,
-                )
-                .await?;
 
             let st_info_sender = match prover_config {
                 Some(config) => {
@@ -295,7 +286,7 @@ mod blueprint {
 
                     let st_info_sender = match operating_mode {
                         OperatingMode::Optimistic => {
-                            let prover_address = rollup_config.proof_manager.prover_address;
+                            let prover_address = rollup_config.proof_manager.prover_address.clone();
                             let receiver = api_storage_sender.subscribe();
                             let bonding_proof_service =
                                 self.create_bonding_proof_service(prover_address, receiver);
@@ -323,9 +314,9 @@ mod blueprint {
             };
 
             let runner = StateTransitionRunner::new(
-                rollup_config.runner,
-                da_service,
-                ledger_db,
+                rollup_config.runner.clone(),
+                da_service.clone(),
+                ledger_db.clone(),
                 native_stf,
                 storage_manager,
                 api_storage_sender,
@@ -333,6 +324,17 @@ mod blueprint {
                 st_info_sender,
             )
             .await?;
+
+            let endpoints = self
+                .create_endpoints(
+                    api_storage_receiver,
+                    &ledger_db,
+                    &sequencer_db,
+                    &da_service,
+                    runner.da_sync_state(),
+                    &rollup_config,
+                )
+                .await?;
 
             Ok(Rollup { runner, endpoints })
         }
@@ -406,14 +408,14 @@ mod blueprint {
     }
 
     /// A [`Sequencer`] that for a rollup built with [`RollupBlueprint`].
-    pub type SequencerBlueprint<B, M> = Sequencer<RollupBlueprintSequencerSpec<B, M>>;
+    pub type SequencerBlueprint<B, M, Bb> = Sequencer<RollupBlueprintSequencerSpec<B, M, Bb>>;
 
     /// The [`SequencerSpec`] of a [`SequencerBlueprint`].
     #[derive(derivative::Derivative)]
     #[derivative(Clone(bound = ""))]
-    pub struct RollupBlueprintSequencerSpec<B, M>(PhantomData<(B, M)>);
+    pub struct RollupBlueprintSequencerSpec<B, M, Bb>(PhantomData<(B, M, Bb)>);
 
-    impl<B, M> SequencerSpec for RollupBlueprintSequencerSpec<B, M>
+    impl<B, M, Bb> SequencerSpec for RollupBlueprintSequencerSpec<B, M, Bb>
     where
         B: FullNodeBlueprint<M> + Send + Sync + 'static,
         M: ExecutionMode + Send + Sync + 'static,
@@ -423,8 +425,9 @@ mod blueprint {
             ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
         <B::OuterZkvmHost as ZkvmHost>::Guest:
             ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
+        Bb: BatchBuilder<Spec = B::Spec>,
     {
-        type BatchBuilder = StdBatchBuilder<(B::Spec, B::Runtime), B::Kernel>;
+        type BatchBuilder = Bb;
         type Da = B::DaService;
         type BatchReceipt = <B::Runtime as ApplyBatchHooks>::BatchResult;
         type TxReceipt = TxReceiptContents<B::Spec>;
