@@ -386,7 +386,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     assert_eq!(
         receipt.inner.outcome,
         BatchSequencerOutcome::Ignored(
-            "The runtime call included in the transaction was invalid.".to_string()
+            "Transaction authentication raised a fatal error, error: Other: The runtime call included in the transaction was invalid.".to_string()
         )
     );
 
@@ -494,7 +494,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         assert_eq!(
             receipt.inner.outcome,
             BatchSequencerOutcome::Ignored(
-                "The runtime call included in the transaction was invalid.".to_string()
+                "Transaction authentication raised a fatal error, error: Other: The runtime call included in the transaction was invalid.".to_string()
             )
         );
     }

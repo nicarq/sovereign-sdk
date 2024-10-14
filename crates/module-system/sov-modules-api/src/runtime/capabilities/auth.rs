@@ -31,7 +31,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
-use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::TxHash;
@@ -41,7 +40,7 @@ use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
 };
 use crate::{
-    Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter,
+    Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter, GasMeteringError,
     MeteredBorshDeserialize, MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad,
 };
 
@@ -167,10 +166,10 @@ pub enum FatalError {
         got: u64,
     },
     /// Transaction decoding failed.
-    #[error("Transaction decoding error: {0}, tx hash: {1}")]
-    MessageDecodingFailed(String, HexHash),
+    #[error("Transaction decoding error: {0}")]
+    MessageDecodingFailed(String),
     /// A variant to capture any other fatal error.
-    #[error("Other fatal error: {0}")]
+    #[error("Other: {0}")]
     Other(String),
 }
 
@@ -179,8 +178,8 @@ pub enum FatalError {
 #[serde(rename_all = "snake_case")]
 pub enum AuthenticationError {
     /// The transaction authentication failed in a way that should have been detected by the sequencer before they accepted the transaction. The sequencer is slashed.
-    #[error("Transaction authentication raised a fatal error, error: {0}")]
-    FatalError(FatalError),
+    #[error("Transaction authentication raised a fatal error, error: {0}, tx_hash {1}")]
+    FatalError(FatalError, TxHash),
     /// The transaction authentication returned an error, but including it could have been an honest mistake. The sequencer should be charged enough to cover the cost of checking the transaction but not slashed.
     #[error("Transaction authentication ran out of gas: {0}.")]
     OutOfGas(
@@ -196,19 +195,10 @@ pub enum AuthenticationError {
 pub enum UnregisteredAuthenticationError {
     /// The transaction authentication failed in a way that is unrecoverable.
     #[error("Transaction authentication raised a fatal error, error: {0}")]
-    FatalError(FatalError),
+    FatalError(FatalError, TxHash),
     /// Transaction run out of gas
     #[error("Transaction ran out of gas, error: {0}")]
     OutOfGas(String),
-    /// The runtime call included in the transaction wasn't a sequencer registry "Register"
-    /// message.
-    #[error("The runtime call included in the transaction was invalid.")]
-    RuntimeCall,
-    #[error(
-        "The emergency registration transaction did not use the standard authentication mechanism"
-    )]
-    /// The transaction didn't use the standard authenticator.
-    InvalidAuthenticator,
 }
 
 /// Data required to authorize a sov-transaction.
@@ -238,22 +228,26 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
                 expected: config_chain_id(),
                 got: tx.details.chain_id,
             },
+            raw_tx_hash,
         ));
     }
 
     tx.verify(meter).map_err(|e| match e {
         TransactionVerificationError::BadSignature(_)
         | TransactionVerificationError::TransactionDeserializationError(_) => {
-            AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
+            AuthenticationError::FatalError(
+                FatalError::SigVerificationFailed(e.to_string()),
+                raw_tx_hash,
+            )
         }
         TransactionVerificationError::GasError(_) => AuthenticationError::OutOfGas(e.to_string()),
     })?;
 
     let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::MessageDecodingFailed(
-            e.to_string(),
+        AuthenticationError::FatalError(
+            FatalError::MessageDecodingFailed(e.to_string()),
             raw_tx_hash,
-        ))
+        )
     })?;
 
     let pub_key = tx.pub_key().clone();
@@ -284,18 +278,45 @@ pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
     state: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
-    let raw_tx_hash = MeteredHasher::<
-        _,
-        PreExecWorkingSet<S>,
-        <S::CryptoSpec as CryptoSpec>::Hasher,
-    >::digest::<S>(raw_tx, state)
-    .map(TxHash::new)
-    .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
+    let raw_tx_hash = calculate_hash::<S>(raw_tx, state)
+        .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
     let tx = <Transaction<S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
         .map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
+        AuthenticationError::FatalError(
+            FatalError::DeserializationFailed(e.to_string()),
+            raw_tx_hash,
+        )
     })?;
 
     verify_and_decode_tx::<S, D>(raw_tx_hash, tx, state)
+}
+
+/// Calculates the hash of `data` and charges gas.
+pub fn calculate_hash<S: Spec>(
+    data: &[u8],
+    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+) -> Result<TxHash, GasMeteringError<S::Gas>> {
+    let hash = MeteredHasher::<
+        _,
+        PreExecWorkingSet<S>,
+        <S::CryptoSpec as CryptoSpec>::Hasher,
+    >::digest::<S>(data, pre_exec_working_set)
+    .map(TxHash::new)?;
+
+    Ok(hash)
+}
+
+/// Helper function to create a `FatalError::DeserializationFailed` authentication error.
+pub fn fatal_deserialization_error<S: Spec, E: ToString>(
+    raw_tx: &[u8],
+    err: E,
+    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+) -> AuthenticationError {
+    let hash = match calculate_hash::<S>(raw_tx, pre_exec_working_set) {
+        Ok(hash) => hash,
+        Err(err) => return AuthenticationError::OutOfGas(err.to_string()),
+    };
+
+    AuthenticationError::FatalError(FatalError::DeserializationFailed(err.to_string()), hash)
 }

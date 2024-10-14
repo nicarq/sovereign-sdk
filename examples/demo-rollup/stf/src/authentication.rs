@@ -3,7 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_evm::EthereumAuthenticator;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthenticationOutput, AuthorizationData, UnregisteredAuthenticationError,
+    calculate_hash, AuthenticationError, AuthenticationOutput, AuthorizationData, FatalError,
+    UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::{DispatchCall, PreExecWorkingSet, RawTx, Spec};
@@ -44,22 +45,29 @@ where
 
     fn authenticate_unregistered(
         &self,
-        raw_tx: &Self::Input,
+        input: &Self::Input,
         pre_exec_ws: &mut PreExecWorkingSet<S>,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
     > {
-        let contents = if let Auth::Mod(tx) = raw_tx {
-            tx
-        } else {
-            return Err(UnregisteredAuthenticationError::InvalidAuthenticator)?;
+        let contents = match input {
+            Auth::Mod(tx) => tx,
+            Auth::Evm(tx) => {
+                let fallback_hash = calculate_hash::<S>(tx, pre_exec_ws)
+                    .map_err(|err| UnregisteredAuthenticationError::OutOfGas(err.to_string()))?;
+                return Err(UnregisteredAuthenticationError::FatalError(
+                    FatalError::Other("Invalid authenticator".to_string()),
+                    fallback_hash,
+                ))?;
+            }
         };
+
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_modules_api::capabilities::authenticate::<S, Runtime<S>>(contents, pre_exec_ws)
                 .map_err(|e| match e {
-                    AuthenticationError::FatalError(err) => {
-                        UnregisteredAuthenticationError::FatalError(err)
+                    AuthenticationError::FatalError(err, hash) => {
+                        UnregisteredAuthenticationError::FatalError(err, hash)
                     }
                     AuthenticationError::OutOfGas(err) => {
                         UnregisteredAuthenticationError::OutOfGas(err)
@@ -70,7 +78,12 @@ where
             RuntimeCall::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {
                 ..
             }) => Ok((tx_and_raw_hash, auth_data, runtime_call)),
-            _ => Err(UnregisteredAuthenticationError::RuntimeCall)?,
+            _ => Err(UnregisteredAuthenticationError::FatalError(
+                FatalError::Other(
+                    "The runtime call included in the transaction was invalid.".to_string(),
+                ),
+                tx_and_raw_hash.raw_tx_hash,
+            ))?,
         }
     }
 

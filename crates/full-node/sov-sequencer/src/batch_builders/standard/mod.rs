@@ -422,7 +422,7 @@ where
                         AddTxToBatchError::PreExecCheck(pre_exec_error) => match pre_exec_error {
                             // If authentication is fatally broken, we can
                             // never submit it succesfully so drop it from the mempool
-                            PreExecError::AuthError(AuthenticationError::FatalError(_)) => {
+                            PreExecError::AuthError(AuthenticationError::FatalError(_, _)) => {
                                 tracing::info!(hash= %mempool_tx.hash, error = %pre_exec_error, "Invalid tx detected in mempool; dropping tx",);
                                 self.mempool
                                     .drop(&mempool_tx.hash, "Transaction is invalid".to_string());

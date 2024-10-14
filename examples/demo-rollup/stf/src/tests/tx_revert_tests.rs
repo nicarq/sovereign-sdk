@@ -371,7 +371,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         assert!(
             matches!(
                 apply_blob_outcome.inner.outcome,
-                BatchSequencerOutcome::Slashed(FatalError::MessageDecodingFailed(_, _))
+                BatchSequencerOutcome::Slashed(FatalError::MessageDecodingFailed(_))
             ),
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
         );
