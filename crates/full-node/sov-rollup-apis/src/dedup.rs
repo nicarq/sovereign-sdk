@@ -67,6 +67,13 @@ pub struct NonceDeDupEndpoint<S: Spec> {
     state: ApiState<S>,
 }
 
+impl<S: Spec> NonceDeDupEndpoint<S> {
+    /// Creates a new `NonceDeDupEndpoint` instance.
+    pub fn new(state: ApiState<S>) -> Self {
+        Self { state }
+    }
+}
+
 /// The response of the nonce module implementation.
 #[derive(serde::Serialize, Clone)]
 pub struct NonceResponse {

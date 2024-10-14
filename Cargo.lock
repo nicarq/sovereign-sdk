@@ -2303,6 +2303,7 @@ dependencies = [
  "sov-nft",
  "sov-nonces",
  "sov-prover-incentives",
+ "sov-rollup-apis",
  "sov-rollup-interface",
  "sov-sequencer-registry",
  "sov-state",
