@@ -191,22 +191,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use sov_mock_da::storable::service::StorableMockDaService;
     use sov_mock_da::MockFee;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt;
-    use tracing_subscriber::{fmt, EnvFilter};
 
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn check_that_all_blocks_are_collected_instant_finality() {
-        tracing_subscriber::registry()
-            .with(fmt::layer())
-            .with(EnvFilter::from_str("debug,sqlx=warn,sov_stf_runner=trace").unwrap())
-            .init();
         let da_service = StorableMockDaService::new_in_memory(Default::default(), 0).await;
         let blocks_number = 200;
         for i in 1..=blocks_number {

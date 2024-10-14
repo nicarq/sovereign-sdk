@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use anyhow::ensure;
+use anyhow::{ensure, Context};
 use jmt::storage::{HasPreimage, TreeReader};
 use jmt::{KeyHash, Version};
 use rockbound::cache::delta_reader::DeltaReader;
@@ -113,6 +113,11 @@ impl StateDb {
         version: Version,
         key: &SchemaKey,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
+        // Defense programming
+        if version >= self.next_version {
+            // The future is not set.
+            return Ok(None);
+        }
         let found = self.db.get_prev::<JmtValues<N>>(&(key, version))?;
 
         match found {
@@ -133,6 +138,15 @@ impl StateDb {
         node_batch: &jmt::storage::NodeBatch,
         latest_preimages: Option<&SchemaBatch>,
     ) -> anyhow::Result<SchemaBatch> {
+        if node_batch.nodes().is_empty() {
+            anyhow::bail!(
+                "NodeBatch {} should have at least one Node",
+                std::any::type_name::<N>()
+            );
+            // Otherwise next_version won't be properly upgraded.
+        }
+        // We always .put and not .delete to keep archival data.
+
         let mut batch = SchemaBatch::new();
         for (node_key, node) in node_batch.nodes() {
             batch.put::<JmtNodes<N>>(node_key, node)?;
@@ -207,7 +221,11 @@ impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
         version: Version,
         key_hash: KeyHash,
     ) -> anyhow::Result<Option<jmt::OwnedValue>> {
-        let key_opt = self.state_db.db.get::<KeyHashToKey<N>>(&key_hash.0)?;
+        let key_opt = self
+            .state_db
+            .db
+            .get::<KeyHashToKey<N>>(&key_hash.0)
+            .context("Preimage for key is not found")?;
 
         if let Some(key) = key_opt {
             self.state_db.get_value_option_by_key::<N>(version, &key)
@@ -226,250 +244,5 @@ impl<'a, N: Namespace> TreeReader for JmtHandler<'a, N> {
 impl<'a, N: Namespace> HasPreimage for JmtHandler<'a, N> {
     fn preimage(&self, key_hash: KeyHash) -> anyhow::Result<Option<Vec<u8>>> {
         self.state_db.db.get::<KeyHashToKey<N>>(&key_hash.0)
-    }
-}
-
-#[cfg(test)]
-mod state_db_tests {
-    use std::sync::Arc;
-
-    use jmt::storage::{NodeBatch, TreeReader};
-    use jmt::{JellyfishMerkleTree, KeyHash};
-    use rockbound::cache::delta_reader::DeltaReader;
-    use sha2::Sha256;
-
-    use crate::namespaces::{KernelNamespace, Namespace, UserNamespace};
-    use crate::state_db::{JmtHandler, StateDb};
-
-    #[test]
-    fn test_simple() {
-        let tempdir = tempfile::tempdir().unwrap();
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let key_hash = KeyHash([1u8; 32]);
-        let key = vec![2u8; 100];
-        let value = [8u8; 150];
-
-        // Writing
-        let mut preimages_schematized =
-            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
-                .unwrap();
-        let mut batch = NodeBatch::default();
-        batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
-        let node_batch_schematized = state_db
-            .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
-            .unwrap();
-
-        preimages_schematized.merge(node_batch_schematized);
-        rocksdb.write_schemas(&preimages_schematized).unwrap();
-
-        // Reading back
-        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
-        let found = state_db_handler.get_value(0, key_hash).unwrap();
-        assert_eq!(found, value);
-
-        let found = state_db
-            .get_value_option_by_key::<UserNamespace>(0, &key)
-            .unwrap()
-            .unwrap();
-        assert_eq!(found, value);
-    }
-
-    #[test]
-    fn test_namespace() {
-        let tempdir = tempfile::tempdir().unwrap();
-
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
-        let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
-
-        let key_hash = KeyHash([1u8; 32]);
-        let key = vec![2u8; 100];
-        let value_1 = [8u8; 150];
-        let value_2 = [100u8; 150];
-
-        // Populate the user space of the state db with some values
-        {
-            let mut preimages_schematized =
-                StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
-                    .unwrap();
-            let mut batch = NodeBatch::default();
-            batch.extend(vec![], vec![((0, key_hash), Some(value_1.to_vec()))]);
-            let node_batch_schematized = state_db
-                .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
-                .unwrap();
-            preimages_schematized.merge(node_batch_schematized);
-
-            rocksdb.write_schemas(&preimages_schematized).unwrap();
-        }
-
-        // Check that user space values are read correctly from the database.
-        {
-            let found = user_state_db_handler.get_value(0, key_hash).unwrap();
-            assert_eq!(found, value_1);
-        }
-
-        // Try to retrieve these values from the kernel space
-        {
-            assert!(kernel_state_db_handler.get_value(0, key_hash).is_err());
-        }
-
-        // Populate the kernel space of the state db with some values but for different version
-        {
-            let mut preimages_schematized =
-                StateDb::materialize_preimages_namespace::<KernelNamespace>(vec![(key_hash, &key)])
-                    .unwrap();
-            let mut batch = NodeBatch::default();
-            batch.extend(vec![], vec![((1, key_hash), Some(value_2.to_vec()))]);
-            let node_batch_schematized = state_db
-                .materialize_node_batch::<KernelNamespace>(&batch, Some(&preimages_schematized))
-                .unwrap();
-            preimages_schematized.merge(node_batch_schematized);
-            rocksdb.write_schemas(&preimages_schematized).unwrap();
-        }
-        // Check that the correct value is returned.
-        {
-            assert!(kernel_state_db_handler.get_value(0, key_hash).is_err());
-            let found = kernel_state_db_handler.get_value(1, key_hash).unwrap();
-            assert_eq!(found, value_2);
-        }
-    }
-
-    #[test]
-    fn test_root_hash_at_init() {
-        let tempdir = tempfile::tempdir().unwrap();
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-        assert_eq!(0, state_db.get_next_version());
-
-        let user_state_db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
-        check_root_hash_at_init_handler(&user_state_db_handler);
-        let kernel_state_db_handler: JmtHandler<'_, KernelNamespace> = state_db.get_jmt_handler();
-
-        check_root_hash_at_init_handler(&kernel_state_db_handler);
-    }
-
-    #[test]
-    #[ignore = "https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/648"]
-    fn test_only_single_namespace_via_jmt() {
-        let tempdir = tempfile::tempdir().unwrap();
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let key_hash = KeyHash([1u8; 32]);
-        let key = vec![2u8; 100];
-        let value = [8u8; 150];
-
-        // Writing
-        let version = state_db.get_next_version();
-        let mut preimages_batch =
-            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
-                .unwrap();
-        let db_handler: JmtHandler<'_, UserNamespace> = state_db.get_jmt_handler();
-        let jmt = JellyfishMerkleTree::<JmtHandler<UserNamespace>, Sha256>::new(&db_handler);
-        let (_new_root, _update_proof, tree_update) = jmt
-            .put_value_set_with_proof(vec![(key_hash, Some(value.to_vec()))], version)
-            .expect("JMT update must succeed");
-        let node_batch = state_db
-            .materialize_node_batch::<UserNamespace>(
-                &tree_update.node_batch,
-                Some(&preimages_batch),
-            )
-            .unwrap();
-        preimages_batch.merge(node_batch);
-
-        rocksdb.write_schemas(&preimages_batch).unwrap();
-
-        drop(rocksdb);
-        drop(state_db);
-
-        // Re-opening DB
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
-        let found = state_db_handler.get_value(0, key_hash).unwrap();
-        assert_eq!(found, value);
-    }
-
-    #[test]
-    fn test_only_single_namespace() {
-        let tempdir = tempfile::tempdir().unwrap();
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let key_hash = KeyHash([1u8; 32]);
-        let key = vec![2u8; 100];
-        let value = [8u8; 150];
-
-        // Writing
-        let mut preimages_schematized =
-            StateDb::materialize_preimages_namespace::<UserNamespace>(vec![(key_hash, &key)])
-                .unwrap();
-        let mut batch = NodeBatch::default();
-        batch.extend(vec![], vec![((0, key_hash), Some(value.to_vec()))]);
-        let node_batch_schematized = state_db
-            .materialize_node_batch::<UserNamespace>(&batch, Some(&preimages_schematized))
-            .unwrap();
-
-        preimages_schematized.merge(node_batch_schematized);
-        rocksdb.write_schemas(&preimages_schematized).unwrap();
-
-        drop(state_db);
-        drop(rocksdb);
-
-        // Re-opening DB
-        let rocksdb = Arc::new(
-            StateDb::get_rockbound_options()
-                .default_setup_db_in_path(tempdir.path())
-                .unwrap(),
-        );
-        let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
-        let state_db = StateDb::with_delta_reader(reader).unwrap();
-
-        let state_db_handler: JmtHandler<UserNamespace> = state_db.get_jmt_handler();
-        let found = state_db_handler.get_value(0, key_hash).unwrap();
-        assert_eq!(found, value);
-    }
-
-    fn check_root_hash_at_init_handler<N: Namespace>(handler: &JmtHandler<N>) {
-        let jmt = JellyfishMerkleTree::<JmtHandler<N>, Sha256>::new(handler);
-
-        // Just pointing out the obvious.
-        let root_hash = jmt.get_root_hash_option(0).unwrap();
-        assert!(root_hash.is_none());
     }
 }

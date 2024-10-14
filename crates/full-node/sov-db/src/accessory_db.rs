@@ -62,6 +62,7 @@ impl AccessoryDb {
     ) -> anyhow::Result<SchemaBatch> {
         let mut batch = SchemaBatch::default();
         for (key, value) in key_value_pairs {
+            // We always .put and not .delete to keep archival data.
             batch.put::<ModuleAccessoryState>(&(key, version), &value)?;
         }
         Ok(batch)

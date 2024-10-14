@@ -42,10 +42,10 @@ test-legacy: ## Runs test suite with output from tests printed
 	@cargo test -- --nocapture -Zunstable-options --report-time
 
 test:  ## Runs test suite using next test
-	@cargo nextest run --workspace --all-features --status-level skip
+	@cargo nextest run --no-fail-fast --workspace --all-features --status-level skip
 
 test-default-features:  ## Runs test suite using default features
-	@cargo nextest run --workspace --status-level skip
+	@cargo nextest run --no-fail-fast --workspace --status-level skip
 
 install-dev-tools:  ## Installs all necessary cargo helpers
 install-dev-tools: install-risc0-toolchain install-sp1-toolchain

@@ -36,7 +36,7 @@ fn make_user_map_proof(
     let state_checkpoint = StateCheckpoint::new::<S, MockKernel<S>>(storage.clone(), &kernel);
     let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
 
-    let proof = map.get_with_proof(&1, &mut state);
+    let proof = map.get_with_proof(&1, &mut state).unwrap();
     (root, proof, map)
 }
 
@@ -68,7 +68,7 @@ fn make_user_value_proof(
     let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
     let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
 
-    let proof = state_val.get_with_proof(&mut state);
+    let proof = state_val.get_with_proof(&mut state).unwrap();
     (root, proof, state_val)
 }
 
@@ -194,7 +194,7 @@ fn test_archival_proof_gen() {
     let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
     for iter in 0..10 {
         let mut archival_accessor = api_state_accessor.get_archival_at(iter);
-        let proof = state_val.get_with_proof(&mut archival_accessor);
+        let proof = state_val.get_with_proof(&mut archival_accessor).unwrap();
         let value = state_val
             .verify_proof::<S>(roots[iter as usize], proof)
             .unwrap();
@@ -206,7 +206,7 @@ fn test_archival_proof_gen() {
     }
 
     // Check that the default working_set use the latest state for archival proof generation
-    let proof = state_val.get_with_proof(&mut api_state_accessor);
+    let proof = state_val.get_with_proof(&mut api_state_accessor).unwrap();
     let final_value = state_val.verify_proof::<S>(roots[9], proof).unwrap();
     assert_eq!(final_value, None);
 }

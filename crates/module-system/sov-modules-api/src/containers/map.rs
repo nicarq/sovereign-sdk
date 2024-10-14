@@ -285,7 +285,7 @@ where
         &self,
         key: &Kq,
         state: &mut W,
-    ) -> sov_state::StorageProof<W::Proof>
+    ) -> Option<sov_state::StorageProof<W::Proof>>
     where
         Kq: ?Sized,
         Codec::KeyCodec: EncodeLike<Kq, K>,

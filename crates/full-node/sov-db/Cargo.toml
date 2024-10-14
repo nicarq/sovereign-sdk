@@ -39,6 +39,7 @@ tracing = { workspace = true }
 rand = { workspace = true, optional = true }
 
 [dev-dependencies]
+sov-db = { path = ".", features = ["test-utils"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }
 sov-test-utils = { workspace = true }
@@ -61,7 +62,8 @@ arbitrary = [
 	"sov-mock-zkvm/arbitrary",
 	"sov-rollup-interface/arbitrary",
 	"sov-test-utils/arbitrary",
-	"sov-mock-da/arbitrary"
+	"sov-mock-da/arbitrary",
+	"sov-db/arbitrary"
 ]
 test-utils = ["dep:rand"]
 

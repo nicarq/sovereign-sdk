@@ -6,11 +6,12 @@ use criterion::measurement::WallTime;
 use criterion::{
     black_box, criterion_group, criterion_main, BenchmarkGroup, BenchmarkId, Criterion,
 };
-use jmt::{JellyfishMerkleTree, KeyHash, Version};
+use jmt::{KeyHash, Version};
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::{SchemaBatch, DB};
-use sov_db::state_db::{JmtHandler, StateDb};
-use sov_db::test_utils::generate_random_bytes;
+use sov_db::namespaces::KernelNamespace;
+use sov_db::state_db::StateDb;
+use sov_db::test_utils::{build_node_batch, generate_random_bytes};
 
 type N = sov_db::namespaces::UserNamespace;
 
@@ -36,19 +37,19 @@ fn put_data(state_db: &StateDb, raw_data: Vec<Vec<u8>>, version: Version) -> Sch
 
     let preimages_batch = StateDb::materialize_preimages([], key_preimages).unwrap();
 
-    let db_handler: JmtHandler<'_, N> = state_db.get_jmt_handler();
-
-    let jmt = JellyfishMerkleTree::<JmtHandler<N>, sha2::Sha256>::new(&db_handler);
-
-    let (_new_root, _update_proof, tree_update) = jmt
-        .put_value_set_with_proof(batch, version)
-        .expect("JMT update must succeed");
+    // Writing empty data into kernel namespace to keep versions in sync
+    let kernel_node_batch = build_node_batch::<_, sha2::Sha256>(
+        &state_db.get_jmt_handler::<KernelNamespace>(),
+        version,
+        Vec::new(),
+    );
+    let user_node_batch = build_node_batch::<_, sha2::Sha256>(
+        &state_db.get_jmt_handler::<KernelNamespace>(),
+        version,
+        batch,
+    );
     state_db
-        .materialize_node_batches(
-            &Default::default(),
-            &tree_update.node_batch,
-            Some(preimages_batch),
-        )
+        .materialize_node_batches(&kernel_node_batch, &user_node_batch, Some(preimages_batch))
         .unwrap()
 }
 
@@ -72,7 +73,7 @@ fn prepare_data(size: usize, rocksdb: DB) -> TestData {
         .unwrap()
         .clone();
 
-    let version = 1;
+    let version = 0;
     let data = put_data(&db, raw_data.clone(), version);
 
     rocksdb.write_schemas(&data).unwrap();
@@ -80,7 +81,10 @@ fn prepare_data(size: usize, rocksdb: DB) -> TestData {
     // re-initialize `StateDb` so the latest version is updated.
     let reader = DeltaReader::new(rocksdb.clone(), Vec::new());
     let db = StateDb::with_delta_reader(reader).unwrap();
-    let version = db.get_next_version() - 1;
+    let version = db
+        .get_next_version()
+        .checked_sub(1)
+        .expect("Should have data write data");
     for chunk in raw_data.chunks(2) {
         let key = &chunk[0];
         let value = chunk[1].clone();

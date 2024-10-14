@@ -153,7 +153,6 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
         Some(reqwest::StatusCode::NOT_FOUND),
         unknown_module_info.status()
     );
-    println!("Unknown module info: {:?}", unknown_module_info);
     check_not_found_error(
         unknown_module_info,
         "Not Found",
@@ -376,12 +375,24 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     let info = state_vec_info.data.clone().length.unwrap();
     assert_eq!(0, info);
 
-    // TODO: Returns head value, should be 404 https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
-    // let state_vec_info = client
-    //     .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64))
-    //     .await
-    //     .unwrap_err();
-    // println!("E: {:?}", state_vec_info);
+    // StateVec info is zero in the future
+    let state_vec_info = client
+        .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64))
+        .await?;
+    let info = state_vec_info.data.clone().length.unwrap();
+    assert_eq!(0, info);
+
+    let state_vec_element_response = client
+        .value_setter_many_values_get_state_vec_element(1, Some(u32::MAX as u64))
+        .await
+        .unwrap_err();
+    check_not_found_error(
+        state_vec_element_response,
+        "many_values '1' not found",
+        // TODO: Should it be index. Offloading it to item of better id handling.
+        "id",
+        "1",
+    );
     Ok(())
 }
 

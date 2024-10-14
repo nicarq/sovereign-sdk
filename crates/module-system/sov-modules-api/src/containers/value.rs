@@ -159,7 +159,7 @@ mod proofs {
         N: ProvableCompileTimeNamespace,
     {
         /// Gets the value with a proof of correctness.
-        pub fn get_with_proof<W>(&self, state: &mut W) -> sov_state::StorageProof<W::Proof>
+        pub fn get_with_proof<W>(&self, state: &mut W) -> Option<sov_state::StorageProof<W::Proof>>
         where
             W: ProvenStateAccessor<N>,
         {

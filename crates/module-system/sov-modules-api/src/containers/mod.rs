@@ -41,22 +41,22 @@ mod test {
             TestCase {
                 key: SlotKey::from_slice(b"key_0"),
                 value: SlotValue::from("value_0"),
-                version: 1,
+                version: 0,
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_1"),
-                version: 2,
+                version: 1,
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_2"),
                 value: SlotValue::from("value_2"),
-                version: 3,
+                version: 2,
             },
             TestCase {
                 key: SlotKey::from_slice(b"key_1"),
                 value: SlotValue::from("value_3"),
-                version: 4,
+                version: 3,
             },
         ]
     }

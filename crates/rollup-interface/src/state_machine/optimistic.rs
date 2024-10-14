@@ -28,7 +28,7 @@ pub trait BondingProofService: Send + Sync + 'static {
     /// The actual state proof that the attester was bonded.
     type StateProof: BorshSerialize + BorshDeserialize + Send + Sync;
     /// Gets the bonding proof for the given height.
-    fn get_bonding_proof(&self, height: u64) -> ProofOfBond<Self::StateProof>;
+    fn get_bonding_proof(&self, height: u64) -> Option<ProofOfBond<Self::StateProof>>;
 }
 
 /// An attestation that a particular DA layer block transitioned the rollup state to some value

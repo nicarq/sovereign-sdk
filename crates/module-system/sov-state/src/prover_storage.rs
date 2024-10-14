@@ -68,20 +68,35 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
+    // Return version to use, if applicable
+    // If none returned, means no version can be used and should return empty value
+    fn get_version_to_use(&self, version: Option<Version>) -> Option<Version> {
+        if self.is_empty() {
+            return None;
+        }
+        let next_version = self.db.get_next_version();
+        match version {
+            None => Some(
+                next_version
+                    .checked_sub(1)
+                    .expect("Next version for non empty storage should be above 0"),
+            ),
+            Some(passed_version) => {
+                if passed_version >= next_version {
+                    None
+                } else {
+                    Some(passed_version)
+                }
+            }
+        }
+    }
+
     fn read_value<N: CompileTimeNamespace>(
         &self,
         key: &SlotKey,
         version: Option<Version>,
     ) -> Option<SlotValue> {
-        if self.is_empty() {
-            return None;
-        }
-        let version_to_use = version.unwrap_or_else(|| {
-            self.db
-                .get_next_version()
-                .checked_sub(1)
-                .expect("If storage is not `is_empty` it should have next version to be above 0")
-        });
+        let version_to_use = self.get_version_to_use(version)?;
 
         match N::NAMESPACE {
             Namespace::User => self.read_value_namespace::<DBUserNamespace>(key, version_to_use),
@@ -195,23 +210,19 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         .expect("accessory db write must succeed")
     }
 
+    // Caller must only use `Some(version)` from `get_version_to_use`.
+    // Otherwise it might panic.
     fn get_with_proof_namespace<N: namespaces::Namespace>(
         &self,
         namespace: ProvableNamespace,
         key: SlotKey,
-        version: Option<u64>,
+        version: Version,
     ) -> StorageProof<<ProverStorage<S> as Storage>::Proof> {
-        let version_to_use = version.unwrap_or_else(|| {
-            self.db
-                .get_next_version()
-                .checked_sub(1)
-                .expect("If storage is not `is_empty` it should have next version to be above 0")
-        });
         let state_db_handler: JmtHandler<N> = self.db.get_jmt_handler();
         let merkle = JellyfishMerkleTree::<JmtHandler<N>, S::Hasher>::new(&state_db_handler);
         // We should've checked all input before this point, so any error means a bug.
         let (val_opt, proof) = merkle
-            .get_with_proof(KeyHash::with::<S::Hasher>(key.as_ref()), version_to_use)
+            .get_with_proof(KeyHash::with::<S::Hasher>(key.as_ref()), version)
             .expect("Corrupted JMT state");
         StorageProof {
             key,
@@ -362,26 +373,37 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         key: SlotKey,
         version: Option<u64>,
     ) -> anyhow::Result<StorageProof<Self::Proof>> {
-        if self.is_empty() {
-            anyhow::bail!("Empty storage, no proofs available yet");
-        }
+        let version_to_use = match self.get_version_to_use(version) {
+            None => {
+                anyhow::bail!(
+                    "Proof is not available at version {:?}. Empty storage or future version",
+                    version
+                )
+            }
+            Some(v) => v,
+        };
         let namespace = N::PROVABLE_NAMESPACE;
         Ok(match namespace {
             ProvableNamespace::User => {
-                self.get_with_proof_namespace::<DBUserNamespace>(namespace, key, version)
+                self.get_with_proof_namespace::<DBUserNamespace>(namespace, key, version_to_use)
             }
             ProvableNamespace::Kernel => {
-                self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key, version)
+                self.get_with_proof_namespace::<DBKernelNamespace>(namespace, key, version_to_use)
             }
         })
     }
 
     fn get_root_hash(&self, version: Version) -> anyhow::Result<Self::Root> {
-        if self.is_empty() {
-            anyhow::bail!("Empty storage does not have root hash");
-        }
-        let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version)?;
-        let kernel_root = self.get_root_hash_namespace_helper::<DBKernelNamespace>(version)?;
+        let version_to_use = match self.get_version_to_use(Some(version)) {
+            None => {
+                // Mimic error from jmt.
+                anyhow::bail!("Root node not found for version {}.", version)
+            }
+            Some(v) => v,
+        };
+        let user_root = self.get_root_hash_namespace_helper::<DBUserNamespace>(version_to_use)?;
+        let kernel_root =
+            self.get_root_hash_namespace_helper::<DBKernelNamespace>(version_to_use)?;
 
         Ok(StorageRoot::<S>::new(user_root, kernel_root))
     }
