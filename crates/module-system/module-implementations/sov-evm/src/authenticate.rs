@@ -1,33 +1,17 @@
 use borsh::BorshDeserialize;
-use reth_primitives::TransactionSignedEcRecovered;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizationData, TransactionAuthenticator,
+    fatal_deserialization_error, AuthenticationOutput, AuthorizationData, FatalError,
+    TransactionAuthenticator,
 };
 use sov_modules_api::macros::config_value;
-use sov_modules_api::runtime::capabilities::{AuthenticationError, FatalError};
+use sov_modules_api::runtime::capabilities::AuthenticationError;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{FullyBakedTx, GasMeter, PreExecWorkingSet, RawTx, Spec};
+use sov_modules_api::{FullyBakedTx, PreExecWorkingSet, RawTx, Spec};
 use sov_rollup_interface::TxHash;
 
-use crate::conversions::RlpConversionError;
 use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
-
-/// Calculate transaction hash without recovering the signer.
-pub fn tx_hash<S: Spec, Meter: GasMeter<S::Gas>>(
-    raw_tx: &[u8],
-) -> Result<TxHash, AuthenticationError> {
-    let tx = RlpEvmTransaction::try_from_slice(raw_tx).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
-
-    let tx = convert_to_transaction_signed(tx).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
-
-    Ok(TxHash::new(tx.hash.into()))
-}
 
 /// Authenticates a raw evm transaction.
 ///
@@ -45,30 +29,36 @@ pub fn authenticate<
     EvmToRollupAddressConverter: From<reth_primitives::Address> + TryInto<S::Address>,
 >(
     raw_tx: &[u8],
-    _pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 
-    let tx = RlpEvmTransaction::try_from_slice(raw_tx).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
+    let tx = RlpEvmTransaction::try_from_slice(raw_tx)
+        .map_err(|e| fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set))?;
 
     let tx_clone = tx.clone();
 
-    let evm_tx_recovered: TransactionSignedEcRecovered =
-        tx.try_into().map_err(|e: RlpConversionError| {
-            AuthenticationError::FatalError(FatalError::SigVerificationFailed(e.to_string()))
-        })?;
+    let tx = RlpEvmTransaction::try_from_slice(raw_tx)
+        .map_err(|e| fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set))?;
 
-    let tx_hash = evm_tx_recovered.hash();
-    let (signed_tx, signer) = evm_tx_recovered.to_components();
+    let tx = convert_to_transaction_signed(tx).map_err(
+        |e: crate::conversions::RlpConversionError| {
+            fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set)
+        },
+    )?;
+
+    let hash = TxHash::new(tx.hash().into());
+    let signer = tx.recover_signer().ok_or(AuthenticationError::FatalError(
+        FatalError::SigVerificationFailed(format!("Invalid ethereum signature: tx hash {}", hash)),
+        hash,
+    ))?;
 
     let chain_id = config_value!("CHAIN_ID");
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = 10_000_000;
     let gas_limit = None;
 
-    let nonce = signed_tx.nonce();
+    let nonce = tx.nonce();
 
     let credentials = Credentials::new(signer);
     let credential_id = signer.into_word().0.into();
@@ -81,7 +71,7 @@ pub fn authenticate<
     };
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
-        raw_tx_hash: TxHash::new(tx_hash.into()),
+        raw_tx_hash: hash,
         authenticated_tx,
     };
 

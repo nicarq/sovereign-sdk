@@ -1,9 +1,9 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationError, AuthenticationOutput, AuthorizeSequencerError, FatalError, GasEnforcer,
-    SequencerAuthorization, SequencerRemuneration, TransactionAuthenticator, TransactionAuthorizer,
-    TryReserveGasError,
+    fatal_deserialization_error, AuthenticationError, AuthenticationOutput,
+    AuthorizeSequencerError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
+    TransactionAuthenticator, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::SequencerReward;
@@ -192,7 +192,7 @@ pub fn authenticate_tx<S: Spec, R: Runtime<S>>(
     let gas_info = pre_exec_working_set.gas_info();
     let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
     match res {
-        Err(e @ AuthenticationError::FatalError(_)) => {
+        Err(e @ AuthenticationError::FatalError(_, _)) => {
             runtime
                 .sequencer_remuneration()
                 .slash_sequencer(sequencer_da_address, &mut tx_scratchpad);
@@ -220,9 +220,8 @@ fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>>(
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
-    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
-        AuthenticationError::FatalError(FatalError::DeserializationFailed(e.to_string()))
-    })?;
+    let auth_input = borsh::from_slice(&tx.data)
+        .map_err(|e| fatal_deserialization_error::<S, _>(&tx.data, e, pre_exec_working_set))?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
 }
 
@@ -325,7 +324,7 @@ where
                     );
                 }
                 PreExecError::AuthError(e) => match e {
-                    AuthenticationError::FatalError(err) => {
+                    AuthenticationError::FatalError(err, _) => {
                         error!(
                             sequencer_da_address = %sequencer_da_address,
                             err=%err, "Tx authentication raised a fatal error, sequencer slashed");

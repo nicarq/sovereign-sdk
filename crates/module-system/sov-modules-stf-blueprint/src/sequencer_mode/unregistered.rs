@@ -1,8 +1,9 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, FatalError, GasEnforcer, SequencerRemuneration, TransactionAuthenticator,
-    TransactionAuthorizer, TryReserveGasError, UnregisteredAuthenticationError,
+    calculate_hash, AuthenticationOutput, FatalError, GasEnforcer, SequencerRemuneration,
+    TransactionAuthenticator, TransactionAuthorizer, TryReserveGasError,
+    UnregisteredAuthenticationError,
 };
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
@@ -150,9 +151,13 @@ fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>>(
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
-        UnregisteredAuthenticationError::FatalError(FatalError::DeserializationFailed(
-            e.to_string(),
-        ))
+        match calculate_hash::<S>(&tx.data, pre_exec_working_set) {
+            Ok(hash) => UnregisteredAuthenticationError::FatalError(
+                FatalError::DeserializationFailed(e.to_string()),
+                hash,
+            ),
+            Err(err) => UnregisteredAuthenticationError::OutOfGas(err.to_string()),
+        }
     })?;
     runtime.authenticate_unregistered(&auth_input, pre_exec_working_set)
 }
