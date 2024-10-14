@@ -9,9 +9,16 @@ use tokio::task::JoinHandle;
 use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn fetch_aggregated_proof_test() -> anyhow::Result<()> {
+async fn fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
     let test_case = TestCase::new(1);
     run_make_proof_sync(test_case, 1).await?;
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn fetch_aggregated_proof_test_async() -> anyhow::Result<()> {
+    let test_case = TestCase::new(1);
     run_make_proof_async(test_case, 1).await?;
 
     Ok(())
@@ -19,14 +26,14 @@ async fn fetch_aggregated_proof_test() -> anyhow::Result<()> {
 
 // In this test, proofs are created just after batch is submitted to the DA.
 async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyhow::Result<()> {
-    let tmpdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir()?;
     let jump = test_case.jump();
 
     let nb_of_batches = test_case.input.nb_of_batches;
     let (mut test_node, runner_task) = spawn(jump, nb_of_threads, tmpdir.path()).await;
 
     for batch_number in 0..nb_of_batches {
-        test_node.send_transaction().await.unwrap();
+        test_node.send_transaction().await?;
         test_node.make_block_proof();
 
         if (batch_number + 1) % jump == 0 {
@@ -47,13 +54,20 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
     test_node.abort_prover().await;
-    runner_task.abort();
+    // Joining runner task to avoid error:
+    // pthread lock: Invalid argument
+    //
+    // that is probably coming from rocksdb de-allocation.
+    // Or this hides some awful nasty bug somewhere deep in 3rd party library.
+    // Runner suppose to fail, as it won't receive new blocks
+    let _x = runner_task.await?;
+
     Ok(())
 }
 
 // In this test, proofs are created after multiple batches are submitted to the DA.
 async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyhow::Result<()> {
-    let tmpdir = tempfile::tempdir().unwrap();
+    let tmpdir = tempfile::tempdir()?;
     let jump = test_case.jump();
     let nb_of_batches = test_case.input.nb_of_batches;
     let (mut test_node, runner_task) = spawn(test_case.jump(), nb_of_threads, tmpdir.path()).await;
@@ -83,7 +97,7 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
     test_node.abort_prover().await;
-    runner_task.abort();
+    let _x = runner_task.await?;
     Ok(())
 }
 
@@ -104,7 +118,7 @@ async fn spawn(
     jump: usize,
     nb_of_threads: usize,
     path: impl AsRef<std::path::Path>,
-) -> (TestNode, JoinHandle<()>) {
+) -> (TestNode, JoinHandle<anyhow::Result<()>>) {
     let genesis_block = MockBlock {
         header: MockBlockHeader::from_height(0),
         validity_cond: Default::default(),
@@ -116,9 +130,9 @@ async fn spawn(
         genesis_params: vec![1],
     };
 
-    let da_service = Arc::new(DaServiceWithRetries::new_fast(MockDaService::new(
-        MockAddress::new([11u8; 32]),
-    )));
+    let da_service = Arc::new(DaServiceWithRetries::new_fast(
+        MockDaService::new(MockAddress::new([11u8; 32])).with_wait_attempts(20),
+    ));
 
     let (mut runner, test_node) = initialize_runner(
         da_service,
@@ -129,9 +143,7 @@ async fn spawn(
     )
     .await;
 
-    let join_handle = tokio::spawn(async move {
-        runner.run_in_process().await.unwrap();
-    });
+    let join_handle = tokio::spawn(async move { runner.run_in_process().await });
 
     (test_node, join_handle)
 }

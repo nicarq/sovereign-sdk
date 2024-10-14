@@ -40,7 +40,7 @@ type MockInitVariant = InitVariant<
     MockZkVerifier,
     DaServiceWithRetries<MockDaService>,
 >;
-type S = DefaultStorageSpec<sha2::Sha256>;
+type S = DefaultStorageSpec<Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
 
 /// TestNode simulates a full-node.
@@ -61,7 +61,7 @@ impl TestNode {
             data: vec![1, 2, 3],
         }]);
 
-        let serialized_batch = borsh::to_vec(&batch).unwrap();
+        let serialized_batch = borsh::to_vec(&batch)?;
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
@@ -71,7 +71,7 @@ impl TestNode {
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
     pub async fn try_send_aggregated_proof(&self) -> anyhow::Result<MockHash> {
         let batch = Batch::new(vec![FullyBakedTx { data: vec![] }]);
-        let serialized_batch = borsh::to_vec(&batch).unwrap();
+        let serialized_batch = borsh::to_vec(&batch)?;
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
