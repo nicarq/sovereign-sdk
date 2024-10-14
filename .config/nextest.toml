@@ -1,0 +1,15 @@
+[[profile.default.overrides]]
+filter = 'test(test_forced_sequencer_registration)'
+retries = { backoff = "exponential", count = 2, delay = "5s", jitter = true }
+
+[[profile.default.overrides]]
+filter = 'test(fetch_aggregated_proof_test)'
+retries = { backoff = "exponential", count = 2, delay = "5s", jitter = true }
+
+[[profile.default.overrides]]
+filter = 'test(submit_batches_and_proofs_and_restart_regular)'
+retries = { backoff = "exponential", count = 2, delay = "5s", jitter = true }
+
+[[profile.default.overrides]]
+filter = 'test(push_pull_single_thread)'
+retries = { backoff = "exponential", count = 2, delay = "5s", jitter = true }
