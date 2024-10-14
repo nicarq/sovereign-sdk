@@ -1,3 +1,6 @@
+//! See [`PreferredBatchBuilder`].
+
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -12,10 +15,11 @@ use sov_modules_api::{
     RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, TransactionReceipt, TxEffect};
+use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
 
-use super::{tx_auth, RtAwareBatchBuilderSpec};
+use super::{tx_auth, DataWithEvents, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
@@ -25,12 +29,21 @@ use crate::{SeqDbTx, TxStatusManager};
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
+/// Transaction confirmation metadata that the sequencer returns to clients.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Confirmation<Z: RtAwareBatchBuilderSpec> {
     tx_hash: TxHash,
     tx: Option<TxBody>,
     events: Vec<RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>,
     receipt: TxEffect<Z::Spec>,
+}
+
+impl<Z: RtAwareBatchBuilderSpec> DataWithEvents for Confirmation<Z> {
+    type EventInner = <Z::Rt as RuntimeEventProcessor>::RuntimeEvent;
+
+    fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
+        self.events.clone()
+    }
 }
 
 impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confirmation<Z> {
@@ -51,6 +64,7 @@ impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confir
     }
 }
 
+/// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
     kernel: Arc<SoftConfirmationsKernel<Z::Spec>>,
@@ -59,6 +73,7 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
+    da_sync_state: Arc<DaSyncState>,
     last_da_height: u64,
     txs_in_next_batch: Vec<TxWithHash>,
 }
@@ -72,6 +87,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
     async fn create(
         storage: StorageReceiver<Z::Spec>,
+        da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         _seq_db_txs: Vec<SeqDbTx>,
         _config: &Self::Config,
@@ -92,15 +108,15 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
-            last_da_height: 0, // TODO
+            last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
+            da_sync_state,
             txs_in_next_batch: vec![],
         })
     }
 
     fn is_ready(&self) -> bool {
-        // TODO(@neysofu): the preferred sequencer should only ever accept transactions
-        // if it's close enough to the chain head.
-        true
+        let distance = self.da_sync_state.status().distance();
+        distance <= sov_blob_storage::config_deferred_slots_count()
     }
 
     fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {

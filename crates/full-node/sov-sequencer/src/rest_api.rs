@@ -2,11 +2,12 @@ use std::sync::OnceLock;
 
 use anyhow::Context;
 use axum::extract::ws::WebSocket;
-use axum::extract::{ws, State};
+use axum::extract::{ws, Request, State, WebSocketUpgrade};
 use axum::http::StatusCode;
-use axum::response::IntoResponse;
-use axum::Json;
-use futures::StreamExt;
+use axum::middleware::Next;
+use axum::response::{IntoResponse, Response};
+use axum::{middleware, Json};
+use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_rest_utils::{
@@ -58,22 +59,36 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                         .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
                         .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
                 )
-                .route(
-                    "/txs/:tx_hash",
-                    axum::routing::get(Sequencer::<Ss>::axum_get_tx),
-                )
-                .route(
-                    "/txs/:tx_hash/ws",
-                    axum::routing::get(Sequencer::<Ss>::axum_get_tx_ws),
-                )
-                .route("/txs", axum::routing::post(Sequencer::<Ss>::axum_accept_tx))
-                .route(
-                    "/batches",
-                    axum::routing::post(Sequencer::<Ss>::axum_submit_batch),
-                )
+                .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
+                .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
+                .route("/txs", axum::routing::post(Self::axum_accept_tx))
+                .route("/batches", axum::routing::post(Self::axum_submit_batch))
+                .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
                 .with_state(self.clone()),
         )
+        .layer(middleware::from_fn_with_state(
+            self.clone(),
+            Sequencer::<Ss>::ready_middleware,
+        ))
         .fallback(errors::global_404)
+    }
+
+    async fn ready_middleware(
+        State(sequencer): State<Self>,
+        request: Request,
+        next: Next,
+    ) -> Result<Response, Response> {
+        if sequencer.is_ready().await {
+            Ok(next.run(request).await)
+        } else {
+            Err(ErrorObject {
+                status: StatusCode::SERVICE_UNAVAILABLE,
+                title: "The node is not fully synced with the DA head and can't accept transactions at this time; try again later"
+                    .to_string(),
+                details: Default::default(),
+            }
+            .into_response())
+        }
     }
 
     async fn send_initial_status_to_ws(
@@ -224,6 +239,19 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             }
             .into_response()),
         }
+    }
+
+    async fn subscribe_to_events(
+        State(sequencer): State<Self>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        ws.on_upgrade(|socket| async move {
+            let receiver = sequencer.subscribe_events().await;
+            let stream = BroadcastStream::new(receiver)
+                .map_err(|err| anyhow::anyhow!("Error creating broadcast stream: {err}"))
+                .boxed();
+            serve_generic_ws_subscription(socket, stream).await;
+        })
     }
 }
 

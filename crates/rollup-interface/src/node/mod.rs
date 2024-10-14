@@ -5,4 +5,7 @@
 //! access system resources or networking, write data to disk, etc..
 
 pub mod da;
+mod da_sync_state;
 pub mod ledger_api;
+
+pub use da_sync_state::{DaSyncState, SyncStatus};

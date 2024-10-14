@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
@@ -8,11 +10,14 @@ use sov_modules_api::rest::{HasRestApi, StorageReceiver};
 use sov_modules_api::{RuntimeEventProcessor, Spec};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
+use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
+use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig, SequencerDb};
 use sov_stf_runner::RunnerConfig;
+use tracing::warn;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
@@ -25,6 +30,7 @@ pub async fn register_endpoints<B, M>(
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
+    da_sync_state: Arc<DaSyncState>,
     sequencer_config: &SequencerConfig<<B::Spec as Spec>::Da>,
     runner_config: &RunnerConfig,
 ) -> anyhow::Result<RuntimeEndpoints>
@@ -42,18 +48,20 @@ where
         BatchBuilderConfig::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime), B::Kernel>::create(
                 storage.clone(),
+                da_sync_state.clone(),
                 da_address,
                 sequencer_db.read_all()?,
                 bb_config,
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
-            let sequencer = SequencerBlueprint::<B, M>::new(
+            let sequencer = SequencerBlueprint::<B, M, _>::new(
                 batch_builder,
                 da_service.clone(),
                 tx_status_manager,
                 sequencer_db.clone(),
                 ledger_db.clone(),
+                sequencer_config.automatic_batch_production,
             );
 
             (
@@ -62,7 +70,30 @@ where
             )
         }
         BatchBuilderConfig::Preferred => {
-            todo!("Preferred sequencer is not yet supported")
+            warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
+
+            let batch_builder = PreferredBatchBuilder::<(B::Spec, B::Runtime)>::create(
+                storage.clone(),
+                da_sync_state.clone(),
+                da_address,
+                sequencer_db.read_all()?,
+                &(),
+            )
+            .await?;
+            let tx_status_manager = batch_builder.tx_status_manager();
+            let sequencer = SequencerBlueprint::<B, M, _>::new(
+                batch_builder,
+                da_service.clone(),
+                tx_status_manager,
+                sequencer_db.clone(),
+                ledger_db.clone(),
+                sequencer_config.automatic_batch_production,
+            );
+
+            (
+                sequencer.api_state(),
+                sequencer.rest_api_server("/sequencer"),
+            )
         }
     };
 

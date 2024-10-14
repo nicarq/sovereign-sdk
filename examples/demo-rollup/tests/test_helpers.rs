@@ -71,6 +71,7 @@ pub async fn construct_rollup(
                 .expect("Prover address is not valid"),
         },
         sequencer: SequencerConfig {
+            automatic_batch_production: false,
             max_allowed_blocks_behind: 5,
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,

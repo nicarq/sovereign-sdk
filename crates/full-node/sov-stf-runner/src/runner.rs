@@ -11,6 +11,7 @@ use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
+use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_rollup_interface::stf::{
     ExecutionContext, ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
     StoredEvent,
@@ -59,73 +60,6 @@ where
     listen_address_axum: SocketAddr,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
-}
-
-/// The state necessary to track the sync status of the node
-#[derive(Debug, Default)]
-pub struct DaSyncState {
-    synced_da_height: AtomicU64,
-    target_da_height: AtomicU64,
-}
-
-/// The status of the current sync
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum SyncStatus {
-    /// The node has caught up to the chain tip
-    Synced {
-        /// The current height through which we've synced
-        synced_da_height: u64,
-    },
-    /// The node is currently syncing
-    Syncing {
-        /// The current height through which we've synced
-        synced_da_height: u64,
-        /// The height to which we're syncing. This reflects the current view of the DA chain tip
-        target_da_height: u64,
-    },
-}
-
-impl SyncStatus {
-    /// Returns true if the sync status is `Synced`
-    pub fn is_synced(&self) -> bool {
-        match self {
-            SyncStatus::Synced { .. } => true,
-            SyncStatus::Syncing { .. } => false,
-        }
-    }
-}
-
-impl DaSyncState {
-    async fn update_target<Da: DaService<Error = anyhow::Error>>(
-        &self,
-        da_service: &Da,
-    ) -> anyhow::Result<()> {
-        let target_da_height = da_service.get_head_block_header().await?.height();
-        self.target_da_height
-            .store(target_da_height, std::sync::atomic::Ordering::Release);
-        Ok(())
-    }
-
-    /// Latest known sync status.
-    pub fn status(&self) -> SyncStatus {
-        let current = self
-            .synced_da_height
-            .load(std::sync::atomic::Ordering::Acquire);
-        let target = self
-            .target_da_height
-            .load(std::sync::atomic::Ordering::Acquire);
-
-        if current == target {
-            SyncStatus::Synced {
-                synced_da_height: current,
-            }
-        } else {
-            SyncStatus::Syncing {
-                synced_da_height: current,
-                target_da_height: target,
-            }
-        }
-    }
 }
 
 /// How [`StateTransitionRunner`] is initialized
@@ -349,6 +283,11 @@ where
             }),
             sync_fetcher,
         })
+    }
+
+    /// Returns the [`DaSyncState`] of the node.
+    pub fn da_sync_state(&self) -> Arc<DaSyncState> {
+        self.sync_state.clone()
     }
 
     /// Starts an RPC server with provided RPC methods and returns [`SocketAddr`] it is bind to.
