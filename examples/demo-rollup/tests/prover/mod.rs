@@ -40,8 +40,6 @@ type TestSTF<'a> = StfBlueprint<DefaultSpec, Runtime<DefaultSpec>, BasicKernel<D
 #[tokio::test(flavor = "multi_thread")]
 #[cfg_attr(skip_guest_build, ignore)]
 async fn test_proof_generation() {
-    sov_test_utils::logging::initialize_logging();
-
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     tracing::info!("Creating temp dir at {}", temp_dir.path().display());
     let da_service = MockDaService::new(MockAddress::default());

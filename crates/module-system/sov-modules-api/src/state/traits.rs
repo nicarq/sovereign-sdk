@@ -462,7 +462,7 @@ pub trait ProvenStateAccessor<N: ProvableCompileTimeNamespace>: StateReaderAndWr
     /// The underlying storage whose proof is returned
     type Proof;
     /// Fetch the value with the requested key and provide a proof of its presence/absence.
-    fn get_with_proof(&mut self, key: SlotKey) -> StorageProof<Self::Proof>
+    fn get_with_proof(&mut self, key: SlotKey) -> Option<StorageProof<Self::Proof>>
     where
         Self: StateReaderAndWriter<N>,
         N: ProvableCompileTimeNamespace;

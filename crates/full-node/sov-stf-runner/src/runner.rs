@@ -333,7 +333,10 @@ where
 
         tokio::task::spawn(async move {
             let mut interval = tokio::time::interval(polling_interval);
-            debug!(?interval, "Interval for polling sync da height");
+            debug!(
+                inerval_ms = interval.period().as_millis(),
+                "Interval for polling sync DA height"
+            );
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             interval.tick().await; // Tick the interval once because it starts at 0ms. <https://docs.rs/tokio/latest/src/tokio/time/interval.rs.html#427>
 
@@ -595,6 +598,9 @@ where
                     raw_proof,
                 )) => {
                     aggregated_proofs.push(AggregatedProof::new(raw_proof, public_data));
+                }
+                ProofOutcome::Valid(_) => {
+                    tracing::info!("Not aggregated proof, probably running in a different mode. Will be fixed in the future.");
                 }
                 _ => {
                     tracing::error!("Invalid proof outcome, {:?}", receipt.outcome);

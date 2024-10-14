@@ -148,7 +148,8 @@ pub(crate) fn build_proof(
 
     let proof_of_bond = TestAttesterIncentives::default()
         .bonded_attesters
-        .get_with_proof(user_address, &mut archival_state);
+        .get_with_proof(user_address, &mut archival_state)
+        .unwrap();
 
     Ok(Attestation {
         initial_state_root: prev_root,

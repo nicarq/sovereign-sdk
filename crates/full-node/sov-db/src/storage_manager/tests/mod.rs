@@ -718,8 +718,8 @@ fn removed_fork_data_view() {
     let (block_a, block_b, block_c) = get_abc_blocks();
 
     // Operations in Block A
-    let _ = storage_manager.create_state_for(&block_a).unwrap();
-    let stf_changes = produce_single_entry_native_changes(&key, &value_1);
+    let (storage, _) = storage_manager.create_state_for(&block_a).unwrap();
+    let stf_changes = produce_single_entry_native_changes(&storage.state, &key, &value_1);
     storage_manager
         .save_change_set(&block_a, stf_changes, SchemaBatch::default())
         .unwrap();
@@ -736,7 +736,7 @@ fn removed_fork_data_view() {
     assert_eq!(value_1, value_at_c);
 
     // Saving block B, data is correct
-    let stf_changes = produce_single_entry_native_changes(&key, &value_2);
+    let stf_changes = produce_single_entry_native_changes(&stf_reader_b.state, &key, &value_2);
     storage_manager
         .save_change_set(&block_b, stf_changes, SchemaBatch::default())
         .unwrap();
@@ -770,8 +770,8 @@ fn fork_keeps_reference_to_snapshot_after_finalization() {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = NativeStorageManager::<Da, S>::new(tmpdir.path()).unwrap();
 
-    let _ = storage_manager.create_state_for(&block_a).unwrap();
-    let stf_changes = produce_single_entry_native_changes(&key, &value_1);
+    let (storage, _) = storage_manager.create_state_for(&block_a).unwrap();
+    let stf_changes = produce_single_entry_native_changes(&storage.state, &key, &value_1);
     storage_manager
         .save_change_set(&block_a, stf_changes, SchemaBatch::default())
         .unwrap();
@@ -779,12 +779,14 @@ fn fork_keeps_reference_to_snapshot_after_finalization() {
     let (stf_reader_b, _) = storage_manager.create_state_for(&block_b).unwrap();
     let (stf_reader_c, _) = storage_manager.create_state_for(&block_c).unwrap();
 
+    // Bump version, so reader works
+    // let key = encode_state_key_with_version(1, 1);
     let value_at_b = get_state_value(&stf_reader_b.state, &key);
     assert_eq!(value_1, value_at_b);
     let value_at_c = get_state_value(&stf_reader_c.state, &key);
     assert_eq!(value_1, value_at_c);
 
-    let stf_changes = produce_single_entry_native_changes(&key, &value_2);
+    let stf_changes = produce_single_entry_native_changes(&stf_reader_b.state, &key, &value_2);
     storage_manager
         .save_change_set(&block_b, stf_changes, SchemaBatch::default())
         .unwrap();

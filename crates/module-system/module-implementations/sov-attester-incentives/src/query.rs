@@ -67,7 +67,7 @@ where
         &self,
         address: S::Address,
         state: &mut ApiStateAccessor<S>,
-    ) -> StorageProof<<S::Storage as Storage>::Proof> {
+    ) -> Option<StorageProof<<S::Storage as Storage>::Proof>> {
         self.bonded_attesters.get_with_proof(&address, state)
     }
 
@@ -142,18 +142,18 @@ where
     fn get_bonding_proof(
         &self,
         height: u64,
-    ) -> ProofOfBond<<Self as BondingProofService>::StateProof> {
+    ) -> Option<ProofOfBond<<Self as BondingProofService>::StateProof>> {
         let storage = self.storage.borrow().clone();
         let checkpoint = StateCheckpoint::new(storage, &K::default());
         let state = ApiStateAccessor::<S>::new(&checkpoint, Arc::new(K::default()), Some(height));
         let mut state = state.get_archival_at(height);
         let proof = self
             .attester_incentives
-            .get_bond_proof(self.attester_address.clone(), &mut state);
+            .get_bond_proof(self.attester_address.clone(), &mut state)?;
 
-        ProofOfBond {
+        Some(ProofOfBond {
             claimed_rollup_height: height,
             proof,
-        }
+        })
     }
 }

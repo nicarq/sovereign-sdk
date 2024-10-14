@@ -16,10 +16,8 @@ use sov_test_utils::TestStorageSpec;
 /// The HTTP API must serve consistent data during the request/response lifecycle,
 /// even if data in RocksDB is being updated.
 /// Notes:
-///   - Currently, the test does not verify future versions passed explicitly.
 ///   - The test can only check and cover versioned data.
 ///     Non-versioned data, such as events, will leak into the HTTP API.
-///
 ///
 /// ## Test scenario
 /// At each iteration, it creates storage and materializes changes.
@@ -334,48 +332,43 @@ fn assert_values(
         namespace,
     );
 
+    let next_version = expected_values.len() as u64;
     for (idx, expected_value) in expected_values.into_iter().enumerate() {
         let version = idx as u64;
         assert_eq!(expected_value, get_value(Some(version)),);
     }
 
-    // Future checks are disabled for now
-    // Will be enabled as part of https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1351
-    // // Future versions are not available
-    // // Checking 3 more next versions for extra confidence
-    // for idx in next_version..(next_version + 3) {
-    //     let version = idx as u64;
-    //     assert_eq!(
-    //         None,
-    //         get_value(Some(version)),
-    //         "Future version({}) should not be available",
-    //         version
-    //     );
-    // }
-    //
-    // // Boundary check
-    // assert_eq!(
-    //     None,
-    //     get_value(Some(u64::MAX)),
-    //     "Future version(u64::MAX) should not be available",
-    // );
+    // Future versions are not available
+    // Checking 3 more next versions for extra confidence
+    for version in next_version..(next_version + 3) {
+        assert_eq!(
+            None,
+            get_value(Some(version)),
+            "Future version({}) should not be available",
+            version
+        );
+    }
+
+    // Boundary check
+    assert_eq!(
+        None,
+        get_value(Some(u64::MAX)),
+        "Future version(u64::MAX) should not be available",
+    );
 }
 
 fn assert_root_hashes(
     storage: &ProverStorage<TestStorageSpec>,
     expected_root_hashes: Vec<StorageRoot<TestStorageSpec>>,
 ) {
-    if expected_root_hashes.is_empty() {
-        assert!(storage.get_root_hash(0).is_err());
-    }
-    // let future_version = expected_root_hashes.len() as u64;
+    let next_version = expected_root_hashes.len() as u64;
     for (version, expected_root_hash) in expected_root_hashes.into_iter().enumerate() {
         assert_eq!(
             expected_root_hash,
             storage.get_root_hash(version as u64).unwrap()
         );
     }
-    // let future_root = storage.get_root_hash(future_version).unwrap_err();
-    // let expected_error = format!("Root node not found for version {}.", future_version);
-    // assert_eq!(expected_error, future_root.to_string());
+    let future_root = storage.get_root_hash(next_version).unwrap_err();
+    let expected_error = format!("Root node not found for version {}.", next_version);
+    assert_eq!(expected_error, future_root.to_string());
 }

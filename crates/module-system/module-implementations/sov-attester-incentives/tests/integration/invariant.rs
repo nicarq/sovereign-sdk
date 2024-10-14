@@ -220,7 +220,8 @@ fn test_cannot_attest_genesis_height() {
 
         let proof_of_bond = TestAttesterIncentives::default()
             .bonded_attesters
-            .get_with_proof(&genesis_attester.user_info.address(), &mut archival_state);
+            .get_with_proof(&genesis_attester.user_info.address(), &mut archival_state)
+            .unwrap();
 
         let genesis_block_hash = MockBlock::default().header.hash();
 

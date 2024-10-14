@@ -11,15 +11,16 @@ use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::stf::StoredEvent;
 
 use crate::accessory_db::AccessoryDb;
-use crate::namespaces::UserNamespace;
-use crate::schema::namespace::JmtValues;
+use crate::namespaces::{KernelNamespace, UserNamespace};
 use crate::schema::tables::EventByNumber;
 use crate::schema::types::EventNumber;
 use crate::state_db::StateDb;
 use crate::storage_manager::tests::TestNativeStorage;
 use crate::storage_manager::NativeChangeSet;
+use crate::test_utils::build_node_batch;
 // Encoding/Decoding data.
 
+type H = sha2::Sha256;
 pub type N = UserNamespace;
 pub const VERSION: jmt::Version = 0;
 
@@ -56,15 +57,34 @@ pub fn get_state_value(state_db: &StateDb, key: &(SchemaKey, jmt::Version)) -> O
 }
 
 pub fn produce_single_entry_native_changes(
+    state_db: &StateDb,
     key: &(SchemaKey, jmt::Version),
     value: &Option<SchemaValue>,
 ) -> NativeChangeSet {
-    let mut stf_changes = NativeChangeSet::default();
-    stf_changes
-        .state_change_set
-        .put::<JmtValues<N>>(key, value)
+    let key_hash = KeyHash::with::<H>(&key.0);
+    let materialized_preimages =
+        StateDb::materialize_preimages(vec![(key_hash, &key.0)], vec![(key_hash, &key.0)]).unwrap();
+
+    let jmt_handler_user = state_db.get_jmt_handler::<UserNamespace>();
+    let jmt_handler_kernel = state_db.get_jmt_handler::<KernelNamespace>();
+
+    let node_batch_user =
+        build_node_batch::<_, H>(&jmt_handler_user, key.1, vec![(key_hash, value.clone())]);
+    let node_batch_kernel =
+        build_node_batch::<_, H>(&jmt_handler_kernel, key.1, vec![(key_hash, value.clone())]);
+
+    let state_change_set = state_db
+        .materialize_node_batches(
+            &node_batch_kernel,
+            &node_batch_user,
+            Some(materialized_preimages),
+        )
         .unwrap();
-    stf_changes
+
+    NativeChangeSet {
+        state_change_set,
+        ..Default::default()
+    }
 }
 
 // Materializing changes.
