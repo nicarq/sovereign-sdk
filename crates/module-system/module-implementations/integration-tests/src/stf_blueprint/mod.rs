@@ -68,13 +68,14 @@ fn test_enforces_chain_id() {
         input: vec![tx].into(),
         assert: Box::new(move |result, _state| {
             match &result.batch_receipt.unwrap().inner.outcome {
-                sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
+                sov_modules_api::BatchSequencerOutcome::Ignored(reason) => {
                     assert_eq!(
                         reason,
                         &FatalError::InvalidChainId {
                             expected: 4321,
                             got: 4322
-                        },
+                        }
+                        .to_string(),
                         "Expected invalid chain id error but got {:?}",
                         reason
                     );

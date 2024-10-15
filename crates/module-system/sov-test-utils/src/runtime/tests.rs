@@ -185,13 +185,14 @@ fn test_custom_transaction_details_chain_id() {
         .into(),
         assert: Box::new(move |result, _state| {
             match result.batch_receipt.unwrap().inner.outcome {
-                sov_modules_api::BatchSequencerOutcome::Slashed(reason) => {
+                sov_modules_api::BatchSequencerOutcome::Ignored(reason) => {
                     assert_eq!(
                         reason,
                         FatalError::InvalidChainId {
                             expected: real_chain_id,
                             got: fake_chain_id
                         }
+                        .to_string()
                     );
                 }
                 unexpected => panic!("Expected batch slashed, but got {:?}", unexpected),

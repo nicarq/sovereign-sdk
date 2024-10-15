@@ -2,7 +2,6 @@ use std::convert::Infallible;
 
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::runtime::capabilities::FatalError;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, PrivateKey, PublicKey, Spec,
@@ -174,10 +173,8 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            BatchSequencerOutcome::Slashed(
-                FatalError::SigVerificationFailed(
-                    "Signature verification error: Bad signature error: signature error: Verification equation was not satisfied".to_string()
-                ),
+            BatchSequencerOutcome::Ignored(
+                    "Signature verification failed: Invalid signature: signature error: Verification equation was not satisfied".to_string()
             ),
             apply_blob_outcome.inner.outcome,
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
@@ -371,7 +368,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         assert!(
             matches!(
                 apply_blob_outcome.inner.outcome,
-                BatchSequencerOutcome::Slashed(FatalError::MessageDecodingFailed(_))
+                BatchSequencerOutcome::Ignored(_)
             ),
             "Unexpected outcome: Stateless verification should have failed due to invalid signature"
         );

@@ -149,8 +149,29 @@ where
         }
         Err(_) => {
             // We could not deserialize the data from the DA. Penalize the sequencer and return early.
-            tracing::debug!("{LOG_PREFIX}: unable to deserialize the aggregated proof");
-            workflow.slash_for_bad_serialization(blob_hash, state)
+            tracing::debug!("{LOG_PREFIX}: unable to deserialize proof");
+
+            let state = state.to_tx_scratchpad();
+            let state = workflow
+                .penalize_sequencer(
+                    "Unable to deserialize proof",
+                    0, // TODO #1490
+                    state,
+                )
+                .commit();
+
+            (
+                ProcessProofOutput {
+                    proof_receipt: invalid_proof_receipt::<S>(
+                        blob_hash,
+                        InvalidProofError::PreconditionNotMet(
+                            "Sequencer penalized for invalid serialization".to_string(),
+                        ),
+                    ),
+                    gas_used: S::Gas::zero(),
+                },
+                state,
+            )
         }
     }
 }
@@ -263,7 +284,7 @@ where
                     ),
                     gas_used: S::Gas::zero(),
                 },
-                self.penalize_sequencer(reason, scratchpad, gas_info.remaining_funds)
+                self.penalize_sequencer(reason, gas_info.remaining_funds, scratchpad)
                     .commit(),
             );
         }
@@ -287,8 +308,8 @@ where
                 },
                 self.penalize_sequencer(
                     err,
-                    scratchpad,
                     transaction_consumption.remaining_funds().0,
+                    scratchpad,
                 )
                 .commit(),
             );
@@ -297,43 +318,19 @@ where
         WorkflowResult::Proceed(working_set)
     }
 
-    fn slash_for_bad_serialization(
-        &self,
-        blob_hash: [u8; 32],
-        state: StateCheckpoint<S::Storage>,
-    ) -> (ProcessProofOutput<S>, StateCheckpoint<S::Storage>) {
-        let mut state = state.to_tx_scratchpad();
-        self.runtime
-            .sequencer_remuneration()
-            .slash_sequencer(self.sequencer_da_address, &mut state);
-
-        (
-            ProcessProofOutput {
-                proof_receipt: invalid_proof_receipt::<S>(
-                    blob_hash,
-                    InvalidProofError::PreconditionNotMet(
-                        "Sequencer slashed for invalid serialization".to_string(),
-                    ),
-                ),
-                gas_used: S::Gas::zero(),
-            },
-            state.commit(),
-        )
-    }
-
     fn penalize_sequencer(
         &self,
         reason: impl std::fmt::Display,
-        mut tx_scratchpad: TxScratchpad<S::Storage>,
         remaining_funds: u64,
+        mut state: TxScratchpad<S::Storage>,
     ) -> TxScratchpad<S::Storage> {
         self.runtime.sequencer_authorization().penalize_sequencer(
             self.sequencer_da_address,
             reason,
             remaining_funds,
-            &mut tx_scratchpad,
+            &mut state,
         );
-        tx_scratchpad
+        state
     }
 }
 

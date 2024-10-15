@@ -155,7 +155,7 @@ pub enum FatalError {
     #[error("Transaction deserialization error: {0}")]
     DeserializationFailed(String),
     /// Signature verification failed.
-    #[error("Signature verification error: {0}")]
+    #[error("Signature verification failed: {0}")]
     SigVerificationFailed(String),
     /// The ChainID was invalid
     #[error("Invalid chain id: expected {expected}, got {got}")]

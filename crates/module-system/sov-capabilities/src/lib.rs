@@ -124,10 +124,10 @@ impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
-            .authorize_sequencer(sequencer, base_fee_per_gas, tx_scratchpad)
+            .authorize_sequencer(sequencer, base_fee_per_gas, state)
     }
 
     fn penalize_sequencer(
@@ -273,13 +273,5 @@ impl<'a, S: Spec> SequencerRemuneration<S> for StandardProvenRollupCapabilities<
     ) {
         self.sequencer_registry
             .reward_sequencer(sender, reward.into(), state);
-    }
-
-    fn slash_sequencer(
-        &self,
-        sender: &<S::Da as DaSpec>::Address,
-        state: &mut TxScratchpad<S::Storage>,
-    ) {
-        self.sequencer_registry.slash_sequencer(sender, state);
     }
 }

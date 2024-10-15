@@ -218,7 +218,9 @@ impl sov_rollup_interface::crypto::Signature for Ed25519Signature {
         pub_key
             .pub_key
             .verify_strict(msg, &self.msg_sig)
-            .map_err(|e| SigVerificationError::BadSignature(e.to_string()))
+            .map_err(|e| SigVerificationError {
+                error: e.to_string(),
+            })
     }
 }
 

@@ -39,7 +39,7 @@ pub trait SequencerAuthorization<S: Spec> {
         &self,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         base_fee_per_gas: &<S::Gas as Gas>::Price,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
 
     /// Penalizes the sequencer without slashing his account.
@@ -63,13 +63,6 @@ pub trait SequencerRemuneration<S: Spec> {
         &self,
         sender: &S::Address,
         reward: SequencerReward,
-        state: &mut TxScratchpad<S::Storage>,
-    );
-
-    /// Slash the sequencer for malicious behavior.
-    fn slash_sequencer(
-        &self,
-        sender: &<<S as Spec>::Da as DaSpec>::Address,
         state: &mut TxScratchpad<S::Storage>,
     );
 }

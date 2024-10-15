@@ -193,14 +193,6 @@ pub fn authenticate_tx<S: Spec, R: Runtime<S>>(
     let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
     match res {
         Err(e @ AuthenticationError::FatalError(_, _)) => {
-            runtime
-                .sequencer_remuneration()
-                .slash_sequencer(sequencer_da_address, &mut tx_scratchpad);
-
-            // Slashed
-            (Err(PreExecError::AuthError(e)), tx_scratchpad)
-        }
-        Err(e @ AuthenticationError::OutOfGas(_)) => {
             runtime.sequencer_authorization().penalize_sequencer(
                 sequencer_da_address,
                 e.clone(),
@@ -208,6 +200,9 @@ pub fn authenticate_tx<S: Spec, R: Runtime<S>>(
                 &mut tx_scratchpad,
             );
 
+            (Err(PreExecError::AuthError(e)), tx_scratchpad)
+        }
+        Err(e @ AuthenticationError::OutOfGas(_)) => {
             (Err(PreExecError::AuthError(e)), tx_scratchpad)
         }
         Ok(ok) => (Ok((ok, gas_info)), tx_scratchpad),
@@ -335,7 +330,7 @@ where
                                 tx_receipts,
                                 inner: BatchSequencerReceipt {
                                     da_address: sequencer_da_address,
-                                    outcome: BatchSequencerOutcome::Slashed(err),
+                                    outcome: BatchSequencerOutcome::Ignored(err.to_string()),
                                 },
                                 gas_price: gas_price.clone(),
                             },

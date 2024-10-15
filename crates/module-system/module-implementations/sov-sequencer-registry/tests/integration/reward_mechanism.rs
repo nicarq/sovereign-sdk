@@ -5,10 +5,13 @@ use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{Gas, GasSpec, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{get_gas_used, AsUser, TransactionTestCase, TxProcessingError};
+use sov_test_utils::{
+    get_gas_used, AsUser, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
+    TxProcessingError,
+};
 
 use super::helpers::S;
-use crate::helpers::{setup, TestRoles, RT};
+use crate::helpers::{setup, TestRoles, TestSequencerRegistry, ANOTHER_SEQUENCER_DA_ADDRESS, RT};
 
 const VALUE_SETTER_NEW_CONST: u32 = 10;
 const OTHER_VALUE_SETTER_CONST: u32 = 42;
@@ -197,5 +200,105 @@ fn test_penalize_sequencer() {
                 "The sequencer stake has not decreased which means he wasn't penalized: current stake {current_stake}, genesis stake {genesis_stake}"
             );
         })
+    });
+}
+
+fn produce_malformed_tx(
+    runner: &mut TestRunner<RT, S>,
+    admin: &TestUser<S>,
+) -> TransactionType<sov_value_setter::ValueSetter<S>, S> {
+    let mut nonces = runner.nonces().clone();
+
+    runner.query_state(|state| {
+        let mut tx = admin
+            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+                sov_value_setter::CallMessage::SetValue(10),
+            )
+            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+
+        tx.data.pop();
+
+        TransactionType::PreAuthenticated(tx)
+    })
+}
+
+#[test]
+fn test_sequencer_without_enough_stake() {
+    let (
+        TestRoles {
+            additional_sequencer,
+            admin,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let minimal_bond = runner.query_state(|state| {
+        TestSequencerRegistry::default()
+            .get_coins_to_lock(state)
+            .unwrap_infallible()
+            .amount
+    });
+
+    let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
+
+    // We first register a sequencer with the minimal bond amount
+    let register_tx = additional_sequencer.create_plain_message::<TestSequencerRegistry>(
+        sov_sequencer_registry::CallMessage::Register {
+            da_address: additional_sequencer_da_address.as_ref().to_vec(),
+            amount: minimal_bond,
+        },
+    );
+
+    runner.execute(register_tx);
+
+    let malformed_transaction = produce_malformed_tx(&mut runner, &admin);
+
+    // First, we send a transaction with max fee 0. Since the tx doesn't provide enough fees to cover
+    // the cost of its deserialization, the sequencer pays the difference. This reduces his balance below
+    // the minimum.
+    //
+    // Next we send a malformed transaction. Since the sequencer's balance is below the minimum, the transaction
+    // is ignored. This means that the sequencer is *not* slashed even though the transaction is malicious.
+    runner.execute_batch(BatchTestCase {
+        input: vec![
+            admin
+                .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+                    sov_value_setter::CallMessage::SetValue(10),
+                )
+                .with_max_fee(0),
+            malformed_transaction,
+        ]
+        .into(),
+        assert: Box::new(move |result, state| {
+            assert_eq!(
+                result.batch_receipt.clone().unwrap().tx_receipts.len(), 1,
+                "Only the first transaction should have been included in the batch"
+            );
+
+            let tx_receipt = &result.batch_receipt.unwrap().tx_receipts[0];
+
+            match &tx_receipt.receipt {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
+                        assert!(
+                            error_message.contains("The gas to charge is greater than the funds available in the meter."),
+                            "Error message doesn't contain with the expected phrase. Got: {}",
+                            error_message
+                        );
+                    } else {
+                        panic!("Expected CannotReserveGas error, but got a different SkippedReason: {:?}", skipped.error);
+                    }
+                },
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+
+            assert!(
+                TestSequencerRegistry::default()
+                    .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
+                    .unwrap_infallible(),
+                "The additional sequencer should still be registered"
+            );
+        }),
     });
 }
