@@ -1,9 +1,9 @@
 use std::fmt::Debug;
 
 use anyhow::Result;
+use schemars::JsonSchema;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
 use thiserror::Error;
@@ -12,11 +12,7 @@ use super::ValueSetter;
 use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-value-setter` module.
-#[cfg_attr(
-    feature = "native",
-    derive(CliWalletArg, UniversalWallet),
-    derive(schemars::JsonSchema)
-)]
+#[cfg_attr(feature = "native", derive(CliWalletArg,))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -25,6 +21,8 @@ use crate::event::Event;
     Debug,
     PartialEq,
     Clone,
+    JsonSchema,
+    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {

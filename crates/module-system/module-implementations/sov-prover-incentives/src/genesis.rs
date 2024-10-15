@@ -1,4 +1,5 @@
 use anyhow::Result;
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
@@ -9,16 +10,12 @@ use crate::ProverIncentives;
 /// Configuration of the prover incentives module. Specifies the minimum bond, the commitment to
 /// the allowed verifier method and a set of initial provers with their
 /// bonding amount.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(
-        bound = "S: ::sov_modules_api::Spec",
-        rename = "ProverIncentivesConfig"
-    )
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+#[schemars(
+    bound = "S: ::sov_modules_api::Spec",
+    rename = "ProverIncentivesConfig"
+)]
 pub struct ProverIncentivesConfig<S: Spec> {
     /// A penalty for provers who submit a proof for transitions that were already proven
     pub proving_penalty: S::Gas,

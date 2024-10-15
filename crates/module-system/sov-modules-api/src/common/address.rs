@@ -187,10 +187,16 @@ macro_rules! impl_bech32_conversion {
 macro_rules! impl_hash32_type {
     ($id:ident, $bech32_version:ident, $human_readable_prefix:expr) => {
         #[derive(
-            Clone, Copy, PartialEq, Eq, Hash, borsh::BorshDeserialize, borsh::BorshSerialize,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            borsh::BorshDeserialize,
+            borsh::BorshSerialize,
+            schemars::JsonSchema,
+            sov_modules_api::macros::UniversalWallet,
         )]
-        #[cfg_attr(feature = "native", derive(sov_modules_api::macros::UniversalWallet))]
-        #[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
         #[cfg_attr(
             feature = "arbitrary",
             derive(
@@ -200,11 +206,7 @@ macro_rules! impl_hash32_type {
         )]
         /// A globally unique identifier.
         pub struct $id(
-            #[cfg_attr(
-                feature = "native",
-                sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))
-            )]
-            [u8; 32],
+            #[sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))] [u8; 32],
         );
 
         const fn __impl_hash32_type_prefix() -> &'static str {
@@ -286,7 +288,6 @@ impl<H> PartialOrd for Address<H> {
 
 // Serialize Address without field labels. This changes the output from `{ addr: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx}`
 // to just `sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx`
-#[cfg(feature = "native")]
 impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for Address<H> {
     type Output = AddressSchema;
 }
@@ -295,19 +296,10 @@ const fn address_prefix() -> &'static str {
     config_value_private!("ADDRESS_PREFIX")
 }
 
-#[cfg_attr(
-    feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
-)]
+#[derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)]
 #[allow(dead_code)]
 #[doc(hidden)]
-pub struct AddressSchema(
-    #[cfg_attr(
-        feature = "native",
-        sov_wallet(display(bech32m(prefix = "address_prefix()")))
-    )]
-    [u8; 32],
-);
+pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "address_prefix()")))] [u8; 32]);
 
 // We manually implement clone so that we can silence this clippy warning.
 // Derivative has o facility to enable that.
@@ -321,7 +313,6 @@ impl<H> Clone for Address<H> {
     }
 }
 
-#[cfg(feature = "native")]
 impl<H> schemars::JsonSchema for Address<H> {
     fn schema_name() -> String {
         "Address".to_string()

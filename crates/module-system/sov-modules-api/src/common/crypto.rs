@@ -2,33 +2,36 @@
 //! to provide more constraints that are useful for the module system.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use schemars::JsonSchema;
 
-/// An extended digital signature. This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring
+/// An extended digital signature.
+/// This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring [`JsonSchema`] and
 /// that the signature can be serialized and deserialized using Borsh. Borsh serialization and deserialization
 /// is used to serialize and deserialize standard rollup transactions.
 #[cfg(not(feature = "native"))]
 pub trait SignatureExt:
-    sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize
+    sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize + JsonSchema
 {
 }
 
 #[cfg(not(feature = "native"))]
-impl<S: sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize> SignatureExt
-    for S
+impl<
+        S: sov_rollup_interface::crypto::Signature + BorshDeserialize + BorshSerialize + JsonSchema,
+    > SignatureExt for S
 {
 }
 
 /// An extended digital signature.
-/// This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring
+/// This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring [`JsonSchema`] and
 /// that the signature can be serialized and deserialized using Borsh. Borsh serialization and deserialization
 /// is used to serialize and deserialize standard rollup transactions.
-/// When the `native` feature is enabled, we also have access to the [`schemars::JsonSchema`] and [`std::str::FromStr`] traits.
+/// When the `native` feature is enabled, we also have access to the [`std::str::FromStr`] trait.
 #[cfg(feature = "native")]
 pub trait SignatureExt:
     sov_rollup_interface::crypto::Signature
     + BorshDeserialize
     + BorshSerialize
-    + schemars::JsonSchema
+    + JsonSchema
     + std::str::FromStr<Err = anyhow::Error>
 {
 }
@@ -39,21 +42,21 @@ impl<
             + BorshDeserialize
             + BorshSerialize
             + std::str::FromStr<Err = anyhow::Error>
-            + schemars::JsonSchema,
+            + JsonSchema,
     > SignatureExt for S
 {
 }
 
 /// PublicKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
-/// that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// [`JsonSchema`] and that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
 /// is used to serialize and deserialize standard rollup transactions.
-/// When the `native` feature is enabled, we also have access to the [`schemars::JsonSchema`] and [`std::str::FromStr`] traits.
+/// When the `native` feature is enabled, we also have access to the [`std::str::FromStr`] trait.
 #[cfg(feature = "native")]
 pub trait PublicKeyExt:
     sov_rollup_interface::crypto::PublicKey
     + BorshDeserialize
     + BorshSerialize
-    + ::schemars::JsonSchema
+    + JsonSchema
     + std::str::FromStr<Err = anyhow::Error>
 {
 }
@@ -63,24 +66,25 @@ impl<
         P: sov_rollup_interface::crypto::PublicKey
             + BorshDeserialize
             + BorshSerialize
-            + ::schemars::JsonSchema
+            + JsonSchema
             + std::str::FromStr<Err = anyhow::Error>,
     > PublicKeyExt for P
 {
 }
 
 /// PublicKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PublicKey`] trait by requiring
-/// that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
+/// [`JsonSchema`] and that the public key can be serialized and deserialized using Borsh. Borsh serialization and deserialization
 /// is used to serialize and deserialize standard rollup transactions.
 #[cfg(not(feature = "native"))]
 pub trait PublicKeyExt:
-    sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize
+    sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize + JsonSchema
 {
 }
 
 #[cfg(not(feature = "native"))]
-impl<P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize> PublicKeyExt
-    for P
+impl<
+        P: sov_rollup_interface::crypto::PublicKey + BorshDeserialize + BorshSerialize + JsonSchema,
+    > PublicKeyExt for P
 {
 }
 

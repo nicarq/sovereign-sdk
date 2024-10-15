@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{GenesisState, Module, Spec};
@@ -8,13 +9,9 @@ use crate::utils::TokenHolderRef;
 use crate::{config_gas_token_id, Bank, TokenId};
 
 /// Initial configuration for sov-bank module.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: Spec", rename = "BankConfig")
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+#[schemars(bound = "S: Spec", rename = "BankConfig")]
 pub struct BankConfig<S: Spec> {
     /// Configuration for the gas token
     pub gas_token_config: GasTokenConfig<S>,
@@ -24,14 +21,10 @@ pub struct BankConfig<S: Spec> {
 
 /// [`TokenConfig`] specifies a configuration used when generating a token for the bank
 /// module.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, derive_more::Display)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: Spec", rename = "TokenConfig")
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema, derive_more::Display)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
 #[display("{:?}", self)]
+#[schemars(bound = "S: Spec", rename = "TokenConfig")]
 pub struct TokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,
@@ -44,13 +37,9 @@ pub struct TokenConfig<S: Spec> {
 }
 
 /// [`GasTokenConfig`] specifies a configuration for the rollup's gas token.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: Spec", rename = "GasTokenConfig")
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[serde(bound = "S::Address: Serialize + DeserializeOwned")]
+#[schemars(bound = "S: Spec", rename = "GasTokenConfig")]
 pub struct GasTokenConfig<S: Spec> {
     /// The name of the token.
     pub token_name: String,

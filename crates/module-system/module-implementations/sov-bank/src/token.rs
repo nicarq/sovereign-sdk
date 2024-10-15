@@ -7,6 +7,7 @@ use std::num::ParseIntError;
 
 use anyhow::{bail, Context};
 use borsh::{BorshDeserialize, BorshSerialize};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "arbitrary")]
 use sov_modules_api::prelude::arbitrary;
@@ -63,12 +64,7 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
 /// Structure that stores information specifying
 /// a given `amount` (type [`Amount`]) of coins stored at a `token_id`
 /// (type [`crate::TokenId`]).
-#[cfg_attr(
-    feature = "native",
-    derive(clap::Parser),
-    derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::UniversalWallet)
-)]
+#[cfg_attr(feature = "native", derive(clap::Parser))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[derive(
     borsh::BorshDeserialize,
@@ -79,6 +75,8 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
     Deserialize,
     PartialEq,
     Eq,
+    JsonSchema,
+    UniversalWallet,
 )]
 pub struct Coins {
     /// The number of tokens

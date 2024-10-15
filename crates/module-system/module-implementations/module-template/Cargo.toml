@@ -20,7 +20,7 @@ arbitrary = { workspace = true, optional = true }
 borsh = { workspace = true, features = ["rc"] }
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 
 sov-bank = { workspace = true }
@@ -47,7 +47,6 @@ arbitrary = [
 ]
 native = [
 	"module-template/native",
-	"schemars",
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",

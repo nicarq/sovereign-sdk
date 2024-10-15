@@ -200,7 +200,6 @@ pub fn event(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), event_macro.derive_event_enum(input))
 }
 
-#[cfg(feature = "native")]
 #[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
 pub fn derive_wallet(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

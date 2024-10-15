@@ -26,7 +26,7 @@ sov-test-utils = { workspace = true }
 [dependencies]
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -40,7 +40,6 @@ sov-chain-state = { workspace = true }
 [features]
 default = []
 native = [
-	"schemars",
 	"sov-bank/native",
 	"sov-chain-state/native",
 	"sov-mock-da/native",

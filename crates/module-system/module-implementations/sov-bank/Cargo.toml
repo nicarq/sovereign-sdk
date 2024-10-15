@@ -19,7 +19,7 @@ anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 derive_more = { workspace = true, features = ["display"] }
 proptest = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
@@ -45,12 +45,11 @@ arbitrary = [
 	"sov-test-utils/arbitrary",
 ]
 native = [
-	"schemars",
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",
 	"sov-chain-state/native",
-	"sov-modules-stf-blueprint/native"
+	"sov-modules-stf-blueprint/native",
 ]
 cli = ["native"]
 test-utils = []

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{DaSpec, GenesisState, Spec};
@@ -11,16 +12,12 @@ use crate::SequencerRegistry;
 /// [`Module::genesis`](sov_modules_api::Module::genesis).
 ///
 // TODO: Allow multiple sequencers: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/278
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(
-        bound = "S: ::sov_modules_api::Spec, <S::Da as DaSpec>::Address: ::schemars::JsonSchema",
-        rename = "SequencerConfig"
-    )
-)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, JsonSchema)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
+#[schemars(
+    bound = "S: sov_modules_api::Spec, <S::Da as DaSpec>::Address: JsonSchema",
+    rename = "SequencerConfig"
+)]
 pub struct SequencerConfig<S: Spec> {
     /// The rollup address of the sequencer.
     pub seq_rollup_address: S::Address,

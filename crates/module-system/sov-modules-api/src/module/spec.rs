@@ -3,6 +3,7 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use schemars::JsonSchema;
 use sov_rollup_interface::crypto::Signature;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::Attestation;
@@ -49,7 +50,7 @@ pub trait Spec:
         + BorshDeserialize
         + MaybeArbitrary
         + Sync
-        + ::schemars::JsonSchema
+        + JsonSchema
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
         + std::str::FromStr<Err = anyhow::Error>;
 
@@ -59,6 +60,7 @@ pub trait Spec:
         + MaybeArbitrary
         + BorshSerialize
         + BorshDeserialize
+        + JsonSchema
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.

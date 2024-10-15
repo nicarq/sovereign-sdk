@@ -34,8 +34,9 @@
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
 use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities};
+use sov_modules_api::macros::UniversalWallet;
 #[cfg(feature = "native")]
-use sov_modules_api::macros::{expose_rpc, CliWallet, UniversalWallet};
+use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
 
@@ -45,12 +46,8 @@ use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
 #[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
-#[cfg_attr(
-    feature = "native",
-    derive(CliWallet),
-    expose_rpc,
-    dispatch_call(derive(UniversalWallet))
-)]
+#[dispatch_call(derive(UniversalWallet))]
+#[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 pub struct Runtime<S: Spec> {
     /// The Bank module.
     pub bank: sov_bank::Bank<S>,

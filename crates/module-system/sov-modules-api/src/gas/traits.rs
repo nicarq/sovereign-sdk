@@ -4,7 +4,6 @@ use core::fmt::{self, Debug, Display};
 
 use anyhow::Result;
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "native")]
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -17,7 +16,6 @@ const GAS_DIMENSIONS: usize = config_value_private!(
 );
 
 /// A multi-dimensional gas unit represented as an array of `u64`.`
-#[cfg(feature = "native")]
 pub trait GasArray:
     'static
     + fmt::Debug
@@ -30,55 +28,6 @@ pub trait GasArray:
     + PartialOrd
     + Ord
     + JsonSchema
-    + core::hash::Hash
-    + Serialize
-    + DeserializeOwned
-    + BorshSerialize
-    + BorshDeserialize
-    + From<[u64; GAS_DIMENSIONS]>
-    + Into<[u64; GAS_DIMENSIONS]>
-    + AsRef<[u64; GAS_DIMENSIONS]>
-    + AsMut<[u64; GAS_DIMENSIONS]>
-    + TryFrom<Vec<u64>, Error: Into<anyhow::Error> + Debug>
-{
-    /// A zeroed instance of the unit.
-    const ZEROED: Self;
-
-    /// In-place combination of gas units, resulting in an addition.
-    fn combine(&mut self, rhs: &Self) -> &mut Self;
-
-    /// Out-of-place substraction of gas units.
-    ///
-    /// # Output
-    /// Returns [`None`] if the substraction in any gas dimension underflows.
-    fn checked_sub(&self, rhs: &Self) -> Option<Self>;
-
-    /// In-place division of gas units.
-    fn scalar_division(&mut self, scalar: u64) -> &mut Self;
-
-    /// In-place product of gas units, resulting in a multiplication.
-    fn scalar_product(&mut self, scalar: u64) -> &mut Self;
-
-    /// In-place addition of gas units with a scalar.
-    fn scalar_add(&mut self, scalar: u64) -> &mut Self;
-
-    /// In-place substraction of gas units with a scalar.
-    fn scalar_sub(&mut self, scalar: u64) -> &mut Self;
-}
-
-/// A multi-dimensional gas unit represented as an array of `u64`.`
-#[cfg(not(feature = "native"))]
-pub trait GasArray:
-    'static
-    + fmt::Debug
-    + Display
-    + Clone
-    + Send
-    + Sync
-    + PartialEq
-    + Eq
-    + PartialOrd
-    + Ord
     + core::hash::Hash
     + Serialize
     + DeserializeOwned
@@ -140,10 +89,7 @@ pub trait Gas: GasArray {
     BorshSerialize,
     BorshDeserialize,
     derive_more::Display,
-)]
-#[cfg_attr(
-    feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
 )]
 #[display("GasUnit{:?}", self.0)]
 pub struct GasUnit<const N: usize>([u64; N]);
@@ -177,7 +123,6 @@ impl<const N: usize> Debug for GasPrice<N> {
 
 macro_rules! impl_gas_dimensions {
     ($t: ty, $t_name: literal, $n: expr) => {
-        #[cfg(feature = "native")]
         impl schemars::JsonSchema for $t {
             fn schema_name() -> String {
                 $t_name.to_owned() + "(" + &format!("{}", $n) + ")"

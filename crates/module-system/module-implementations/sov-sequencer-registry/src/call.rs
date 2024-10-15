@@ -1,7 +1,7 @@
+use schemars::JsonSchema;
 use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
-#[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, TxState};
@@ -10,11 +10,7 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 
 /// This enumeration represents the available call messages for interacting with
 /// the `sov-sequencer-registry` module.
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    derive(CliWalletArg, UniversalWallet)
-)]
+#[cfg_attr(feature = "native", derive(CliWalletArg,))]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
@@ -27,6 +23,8 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
     borsh::BorshDeserialize,
     serde::Serialize,
     serde::Deserialize,
+    JsonSchema,
+    UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {

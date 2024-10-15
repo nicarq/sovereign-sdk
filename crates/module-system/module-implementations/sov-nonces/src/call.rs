@@ -1,16 +1,13 @@
 use std::io::Result;
 
-#[cfg(feature = "native")]
+use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 
 /// The Nonces module does not support calls so we use [`NotInstantiable`] type here.
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::CliWalletArg)
+#[cfg_attr(feature = "native", derive(sov_modules_api::macros::CliWalletArg))]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, JsonSchema, UniversalWallet,
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {

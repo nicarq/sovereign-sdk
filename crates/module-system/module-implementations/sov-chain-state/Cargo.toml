@@ -16,7 +16,7 @@ workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 anyhow = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 serde = { workspace = true }
@@ -48,5 +48,4 @@ native = [
 	"sov-state/native",
 	"sov-value-setter/native",
 	"sov-bank/native",
-	"schemars",
 ]

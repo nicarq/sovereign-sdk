@@ -1,3 +1,5 @@
+use schemars::JsonSchema;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     GasSpec, KernelStateAccessor, Spec, StateAccessor, StateReader, VersionReader,
@@ -7,13 +9,10 @@ use sov_state::User;
 use crate::ChainState;
 
 /// The Chain State module does not support calls so we use [`NotInstantiable`] type here.
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::CliWalletArg),
-    derive(sov_modules_api::macros::UniversalWallet)
+#[cfg_attr(feature = "native", derive(sov_modules_api::macros::CliWalletArg))]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, JsonSchema, UniversalWallet,
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {

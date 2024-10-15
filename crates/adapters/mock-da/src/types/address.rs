@@ -32,7 +32,6 @@ impl MockAddress {
     }
 }
 
-#[cfg(feature = "native")]
 impl schemars::JsonSchema for MockAddress {
     fn schema_name() -> String {
         "MockAddress".to_string()

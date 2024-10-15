@@ -6,7 +6,6 @@ pub mod stf;
 pub mod zk;
 
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
-#[cfg(feature = "native")]
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -89,18 +88,6 @@ mod sealed {
     impl Sealed for WitnessGeneration {}
 }
 
-/// A convenience trait requiring that the type implements `JsonSchema` under the native feature flag
-#[cfg(feature = "native")]
-pub trait MaybeJsonSchema: JsonSchema {}
-#[cfg(feature = "native")]
-impl<T: JsonSchema> MaybeJsonSchema for T {}
-
-#[cfg(not(feature = "native"))]
-/// A convenience trait requiring that the type implements `JsonSchema` under the native feature flag
-pub trait MaybeJsonSchema {}
-#[cfg(not(feature = "native"))]
-impl<T> MaybeJsonSchema for T {}
-
 /// A marker trait for general addresses.
 pub trait BasicAddress:
     Ord
@@ -115,7 +102,7 @@ pub trait BasicAddress:
     + core::str::FromStr
     + Serialize
     + DeserializeOwned
-    + MaybeJsonSchema
+    + JsonSchema
     + 'static
 {
 }

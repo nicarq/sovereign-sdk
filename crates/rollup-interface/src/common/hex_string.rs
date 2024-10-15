@@ -3,10 +3,8 @@ use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-#[cfg(feature = "native")]
 use crate as sov_rollup_interface;
 use crate::da::BlockHashTrait;
-#[cfg(feature = "native")]
 use crate::sov_universal_wallet::UniversalWallet; // Needed for UniversalWallet, as it requires global paths
 
 /// A [`hex`]-encoded 32-byte hash. Note, this is not necessarily a transaction
@@ -15,15 +13,15 @@ pub type HexHash = HexString<[u8; 32]>;
 
 /// A [`serde`]-compatible newtype wrapper around [`Vec<u8>`] or other
 /// bytes-like types, which is serialized as a 0x-prefixed hex string.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef)]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
+#[derive(
+    Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::AsRef, UniversalWallet,
+)]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
 pub struct HexString<T = Vec<u8>>(pub T);
 
-#[cfg(feature = "native")]
 impl schemars::JsonSchema for HexString {
     fn schema_name() -> String {
         "HexString".to_string()
@@ -39,7 +37,6 @@ impl schemars::JsonSchema for HexString {
     }
 }
 
-#[cfg(feature = "native")]
 impl schemars::JsonSchema for HexHash {
     fn schema_name() -> String {
         "HexHash".to_string()

@@ -5,7 +5,6 @@ use std::time::Duration;
 
 pub use address::{MockAddress, MOCK_SEQUENCER_DA_ADDRESS};
 use borsh::{BorshDeserialize, BorshSerialize};
-#[cfg(feature = "native")]
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
@@ -15,7 +14,6 @@ use sov_rollup_interface::da::{
 };
 #[cfg(feature = "native")]
 use sov_rollup_interface::node::da::SlotData;
-#[cfg(feature = "native")]
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::Bytes;
 
@@ -45,8 +43,8 @@ pub struct Proof(pub(crate) Vec<u8>);
     BorshSerialize,
     derive_more::From,
     derive_more::Into,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct MockHash(pub [u8; 32]);
 
 impl Debug for MockHash {
@@ -168,8 +166,7 @@ pub(crate) const GENESIS_BLOCK: MockBlock = MockBlock {
 };
 
 /// Configuration for block producing.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "native", derive(JsonSchema))]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum BlockProducingConfig {
     /// New blocks are produced periodically.
@@ -181,8 +178,7 @@ pub enum BlockProducingConfig {
 }
 
 /// The configuration for Mock Da.
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
-#[cfg_attr(feature = "native", derive(JsonSchema))]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize, JsonSchema)]
 pub struct MockDaConfig {
     /// Connection string to the database for storing Da Data.
     ///   - "sqlite://demo_data/da.sqlite?mode=rwc"

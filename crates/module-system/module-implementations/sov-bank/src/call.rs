@@ -1,6 +1,8 @@
 use anyhow::{bail, Context as _, Result};
+use schemars::JsonSchema;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::CliWalletArg;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     CallResponse, Context, EventEmitter, Spec, StateAccessor, StateReader, TxState,
 };
@@ -10,13 +12,7 @@ use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
 use crate::{Amount, Bank, Coins, Token, TokenId};
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
-#[cfg_attr(
-    feature = "native",
-    derive(CliWalletArg),
-    derive(schemars::JsonSchema),
-    derive(sov_modules_api::macros::UniversalWallet),
-    schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")
-)]
+#[cfg_attr(feature = "native", derive(CliWalletArg))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -25,7 +21,10 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     Debug,
     PartialEq,
     Clone,
+    JsonSchema,
+    UniversalWallet,
 )]
+#[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
