@@ -7,7 +7,7 @@ use axum::Router;
 use serde::Serialize;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::rest::ApiState;
-use sov_modules_api::{ApiStateAccessor, CredentialId, Spec};
+use sov_modules_api::{ApiStateAccessor, CryptoSpec, PublicKey, Spec};
 use sov_nonces::Nonces;
 use sov_rest_utils::{errors, preconfigured_router_layers, ResponseObject};
 
@@ -90,7 +90,8 @@ impl<S: Spec> DeDupEndpoint<S> for NonceDeDupEndpoint<S> {
         address: String,
         mut state: ApiStateAccessor<S>,
     ) -> Result<Self::Response, Self::Error> {
-        let credential_id = CredentialId::from_str(&address)?;
+        let pub_key = <S::CryptoSpec as CryptoSpec>::PublicKey::from_str(&address)?;
+        let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
         let nonce = Nonces::<S>::default()
             .nonce(&credential_id, &mut state)
             .unwrap()
