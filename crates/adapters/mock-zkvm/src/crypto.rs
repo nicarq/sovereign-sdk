@@ -113,12 +113,17 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub struct Ed25519PublicKey {
     #[cfg_attr(
         feature = "native",
-        schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))
+        schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH")),
+        sov_wallet(as_ty = "[u8; ed25519_dalek::PUBLIC_KEY_LENGTH]")
     )]
     pub(crate) pub_key: DalekPublicKey,
 }
@@ -176,13 +181,18 @@ impl BorshSerialize for Ed25519PublicKey {
 }
 
 /// An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+#[cfg_attr(
+    feature = "native",
+    derive(schemars::JsonSchema),
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 #[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Ed25519Signature {
     /// The inner signature.
     #[cfg_attr(
         feature = "native",
-        schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))
+        schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE")),
+        sov_wallet(as_ty = "[u8; ed25519_dalek::Signature::BYTE_SIZE]")
     )]
     pub msg_sig: DalekSignature,
 }

@@ -31,6 +31,10 @@ mod tests;
     serde::Serialize,
     serde::Deserialize,
 )]
+#[cfg_attr(
+    feature = "native",
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 pub struct Transaction<S: Spec> {
     /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
@@ -148,6 +152,10 @@ impl<S: Spec> Transaction<S> {
 
 /// An unsent transaction with the required data to be submitted to the DA layer
 #[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[cfg_attr(
+    feature = "native",
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 pub struct UnsignedTransaction<S: Spec> {
     // The runtime message
     runtime_msg: Vec<u8>,

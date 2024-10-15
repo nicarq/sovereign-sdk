@@ -7,6 +7,7 @@ use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_universal_wallet::schema::{Schema, SchemaGenerator};
 
 type S =
@@ -34,12 +35,16 @@ fn main() -> io::Result<()> {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
 
-    store_schema_as_json::<RuntimeCall<S>>("demo-rollup-schema.json")?;
+    store_schema_as_json::<Transaction<S>, UnsignedTransaction<S>, RuntimeCall<S>>(
+        "demo-rollup-schema.json",
+    )?;
     Ok(())
 }
 
-fn store_schema_as_json<T: SchemaGenerator>(filename: &str) -> io::Result<()> {
-    let schema = Schema::of::<T>();
+fn store_schema_as_json<T: SchemaGenerator, U: SchemaGenerator, R: SchemaGenerator>(
+    filename: &str,
+) -> io::Result<()> {
+    let schema = Schema::of_rollup_types::<T, U, R>();
     let schema_string = serde_json::to_string_pretty(&schema)?;
     let mut file = File::create(filename)?;
     file.write_all(schema_string.as_bytes())?;

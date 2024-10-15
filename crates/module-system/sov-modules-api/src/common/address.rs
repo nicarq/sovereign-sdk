@@ -452,9 +452,11 @@ mod test {
     #[test]
     fn test_address_schema() {
         let address: Address<Sha256> = Address::from([11; 32]);
-        let schema = Schema::of::<Address<Sha256>>();
+        let schema = Schema::of_single_type::<Address<Sha256>>();
         assert_eq!(
-            schema.display(&borsh::to_vec(&address).unwrap()).unwrap(),
+            schema
+                .display(0, &borsh::to_vec(&address).unwrap())
+                .unwrap(),
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
         );
     }

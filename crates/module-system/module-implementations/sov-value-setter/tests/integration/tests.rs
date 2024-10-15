@@ -82,9 +82,9 @@ fn test_display_value_setter_call() {
 
     let msg = RuntimeCall::ValueSetter(CallMessage::SetValue(92));
 
-    let schema = Schema::of::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
-        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ValueSetter.SetValue(92)"#
     );
 }

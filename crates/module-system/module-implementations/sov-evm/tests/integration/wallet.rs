@@ -13,9 +13,9 @@ fn test_display_evm() {
     let msg: RuntimeCall = RuntimeCall::Evm(CallMessage {
         rlp: RlpEvmTransaction { rlp: vec![1, 2, 3] },
     });
-    let schema = Schema::of::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
-        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"Evm { rlp: { rlp: 0x010203 } }"#
     );
 }

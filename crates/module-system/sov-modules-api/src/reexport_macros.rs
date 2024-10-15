@@ -721,7 +721,7 @@ pub mod macros {
     ///    opaque_contents: Vec<u8>,
     /// }
     /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".to_string(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
-    /// assert_eq!(Schema::of::<Unreadable>().display(&serialized).unwrap(), r#"{ name: "foo.txt" }"#);
+    /// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(as_ty = "path::to::Type")]`
@@ -747,7 +747,7 @@ pub mod macros {
     ///    tag: String,
     /// }
     /// let serialized = borsh::to_vec(&Tagged { data: Foreign("foo".to_string()), tag: "world".to_string()}).unwrap();
-    /// assert_eq!(Schema::of::<Tagged>().display(&serialized).unwrap(), r#"{ data: "foo", tag: "world" }"#);
+    /// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: "foo", tag: "world" }"#);
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(skip)]`
@@ -767,7 +767,7 @@ pub mod macros {
     ///     contents: Vec<u8>,
     /// }
     /// let serialized = borsh::to_vec(&File { contents: vec![1, 2, 3], checksum: None }).unwrap();
-    /// assert_eq!(Schema::of::<File>().display(&serialized).unwrap(), r#"{ contents: 0x010203 }"#);
+    /// assert_eq!(Schema::of_single_type::<File>().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(display({encoding}))]`
@@ -794,7 +794,7 @@ pub mod macros {
     ///   [u8;32],
     /// );
     /// let serialized = borsh::to_vec(&CelestiaAddress([1; 32])).unwrap();
-    /// assert_eq!(Schema::of::<CelestiaAddress>().display(&serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
+    /// assert_eq!(Schema::of_single_type::<CelestiaAddress>().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
     /// ```
     #[cfg(feature = "native")]
     pub use sov_modules_macros::UniversalWallet;
