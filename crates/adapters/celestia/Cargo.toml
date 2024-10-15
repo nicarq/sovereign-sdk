@@ -38,7 +38,7 @@ hex = { workspace = true, features = ["serde"] }
 jsonrpsee = { workspace = true, features = ["http-client"], optional = true }
 schemars = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true }
 tokio = { workspace = true, optional = true, features = ["sync"] }
 futures = { workspace = true, optional = true }
 thiserror = { workspace = true }
@@ -72,7 +72,6 @@ native = [
     "dep:celestia-rpc",
     "dep:futures",
     "dep:jsonrpsee",
-    "dep:serde_json",
     "dep:tokio",
     "sov-celestia-adapter/native",
     "sov-rollup-interface/native",

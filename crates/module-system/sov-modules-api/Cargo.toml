@@ -50,10 +50,10 @@ tracing-test = { workspace = true, optional = true }
 sha2 = { workspace = true }
 strum = { workspace = true }
 bech32 = { workspace = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true }
 hex = { workspace = true }
 clap = { workspace = true, optional = true }
-schemars = { workspace = true, features = [], optional = true }
+schemars = { workspace = true, features = [] }
 derivative = { workspace = true }
 utoipa = { workspace = true, optional = true }
 utoipa-swagger-ui = { workspace = true, optional = true }
@@ -112,8 +112,6 @@ native = [
     "clap",
     "jsonrpsee",
     "heck",
-    "schemars",
-    "serde_json",
     "serde_yaml",
     "sov-bank/native",
     "sov-db",

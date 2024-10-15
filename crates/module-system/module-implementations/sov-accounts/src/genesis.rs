@@ -1,4 +1,5 @@
 use anyhow::{bail, Result};
+use schemars::JsonSchema;
 use serde_with::{serde_as, DisplayFromStr};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{CredentialId, GenesisState};
@@ -7,8 +8,7 @@ use crate::{Account, Accounts};
 
 /// Account data for the genesis.
 #[serde_as]
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct AccountData<Address> {
     /// Credential ID of the account.
     #[serde_as(as = "DisplayFromStr")]
@@ -18,12 +18,8 @@ pub struct AccountData<Address> {
 }
 
 /// Initial configuration for sov-accounts module.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: ::sov_modules_api::Spec", rename = "AccountConfig")
-)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[schemars(bound = "S: ::sov_modules_api::Spec", rename = "AccountConfig")]
 pub struct AccountConfig<S: Spec> {
     /// Accounts to initialize the rollup.
     pub accounts: Vec<AccountData<S::Address>>,

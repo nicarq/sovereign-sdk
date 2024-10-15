@@ -4,7 +4,6 @@ use anyhow::Context;
 use celestia_types::state::{AccAddress, AddressKind, AddressTrait};
 // use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "native")]
 use sov_rollup_interface::reexports::schemars::{self};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Hash, derive_more::Display)] // TODO: , BorshDeserialize, BorshSerialize)]
@@ -22,7 +21,6 @@ impl Ord for CelestiaAddress {
     }
 }
 
-#[cfg(feature = "native")]
 impl schemars::JsonSchema for CelestiaAddress {
     fn schema_name() -> String {
         "CelestiaAddress".to_string()

@@ -1,15 +1,12 @@
 use anyhow::Result;
+use schemars::JsonSchema;
 use sov_modules_api::{GenesisState, Spec};
 
 use super::ValueSetter;
 
 /// Initial configuration for sov-value-setter module.
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: Spec", rename = "ValueSetterConfig")
-)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, JsonSchema)]
+#[schemars(bound = "S: Spec", rename = "ValueSetterConfig")]
 pub struct ValueSetterConfig<S: Spec> {
     /// Admin of the module.
     pub admin: S::Address,

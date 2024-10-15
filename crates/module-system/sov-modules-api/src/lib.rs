@@ -87,8 +87,6 @@ pub use reexport_macros::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 pub use runtime::*;
-#[cfg(feature = "native")]
-pub use schemars;
 pub use sov_rollup_interface::common::HexHash;
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
@@ -107,9 +105,8 @@ pub use sov_rollup_interface::zk::{
 };
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::{CompileTimeNamespace, Storage};
-#[cfg(feature = "native")]
-pub use sov_universal_wallet;
 pub use state::*;
+pub use {schemars, sov_universal_wallet};
 
 pub use crate::common::ModuleError as Error;
 pub use crate::proof_metadata::SovApiProofSerializer;
@@ -186,7 +183,6 @@ pub mod prelude {
     pub extern crate serde_yaml;
     #[cfg(feature = "native")]
     pub extern crate sov_rest_utils;
-    #[cfg(feature = "native")]
     pub extern crate sov_universal_wallet;
     pub extern crate strum;
     #[cfg(feature = "native")]

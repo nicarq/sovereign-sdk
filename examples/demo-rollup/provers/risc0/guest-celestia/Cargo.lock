@@ -3426,6 +3426,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "serde_with",
  "sov-modules-api",
@@ -3455,6 +3456,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
+ "schemars",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3470,6 +3472,7 @@ dependencies = [
  "borsh",
  "derive_more 1.0.0",
  "hex",
+ "schemars",
  "serde",
  "sov-chain-state",
  "sov-modules-api",
@@ -3514,6 +3517,7 @@ dependencies = [
  "risc0-zkvm-platform",
  "schemars",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "sov-cycle-utils",
  "sov-rollup-interface",
@@ -3528,6 +3532,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "derivative",
+ "schemars",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3616,6 +3621,7 @@ dependencies = [
  "digest 0.10.7",
  "ed25519-dalek",
  "hex",
+ "schemars",
  "serde",
  "sha2 0.10.8",
  "sov-rollup-interface",
@@ -3633,7 +3639,9 @@ dependencies = [
  "derive_more 1.0.0",
  "digest 0.10.7",
  "hex",
+ "schemars",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
  "sov-modules-macros",
  "sov-rollup-interface",
@@ -3687,6 +3695,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3698,6 +3707,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-modules-api",
  "sov-state",
@@ -3710,6 +3720,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "derive_more 1.0.0",
+ "schemars",
  "serde",
  "sov-bank",
  "sov-chain-state",
@@ -3750,8 +3761,11 @@ dependencies = [
  "derive_more 1.0.0",
  "digest 0.10.7",
  "hex",
+ "schemars",
  "serde",
+ "serde_json",
  "sha2 0.10.8",
+ "sov-universal-wallet",
  "thiserror",
 ]
 
@@ -3761,6 +3775,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-bank",
  "sov-modules-api",
@@ -3792,6 +3807,7 @@ version = "0.1.0"
 dependencies = [
  "bech32",
  "borsh",
+ "sov-universal-wallet-macros",
  "thiserror",
 ]
 
@@ -3810,11 +3826,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-universal-wallet-macros"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "sov-universal-wallet-macro-helpers",
+ "syn 2.0.77",
+]
+
+[[package]]
 name = "sov-value-setter"
 version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "schemars",
  "serde",
  "sov-modules-api",
  "thiserror",

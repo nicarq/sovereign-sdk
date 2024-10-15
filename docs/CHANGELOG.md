@@ -1,3 +1,6 @@
+## 2024-10-15
+- #1663 Makes all existing `JsonSchema` trait requirements apply in the non-native mode. This allows removal of some inconvenient feature gates. 
+
 ## 2024-10-10
 - #1607 Fixes querying future rollup height via REST API. Now it returns HTTP 404 instead of data at the rollup head.
 

@@ -4,10 +4,8 @@ mod simple_hasher;
 pub use simple_hasher::NoOpHasher;
 mod signatures;
 pub use signatures::*;
-#[cfg(feature = "native")]
 use sov_universal_wallet::UniversalWallet;
 
-#[cfg(feature = "native")]
 use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 use crate::common::HexHash;
 
@@ -29,15 +27,14 @@ use crate::common::HexHash;
     derive_more::Display,
     derive_more::FromStr,
     derive_more::From,
+    UniversalWallet,
 )]
-#[cfg_attr(feature = "native", derive(UniversalWallet,))]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
 )]
 pub struct CredentialId(pub HexHash);
 
-#[cfg(feature = "native")]
 impl schemars::JsonSchema for CredentialId {
     fn schema_name() -> String {
         "CredentialId".to_string()

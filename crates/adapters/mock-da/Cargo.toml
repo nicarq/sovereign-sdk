@@ -20,9 +20,9 @@ async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
 bytes = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["from", "into"] }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
+serde_json = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true, features = [
@@ -48,7 +48,11 @@ futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = [
+	"test-util",
+	"macros",
+	"rt-multi-thread",
+] }
 rand = { workspace = true }
 testcontainers = { version = "0.21", features = ["blocking"] }
 testcontainers-modules = { version = "0.9", features = ["postgres"] }
@@ -59,14 +63,12 @@ arbitrary = [
 	"dep:arbitrary",
 	"chrono?/arbitrary",
 	"sov-mock-da/arbitrary",
-	"sov-rollup-interface/arbitrary"
+	"sov-rollup-interface/arbitrary",
 ]
 native = [
 	"dep:chrono",
 	"dep:futures",
-	"dep:schemars",
 	"dep:sea-orm",
-	"dep:serde_json",
 	"dep:tokio",
 	"sov-mock-da/native",
 	"sov-rollup-interface/native",

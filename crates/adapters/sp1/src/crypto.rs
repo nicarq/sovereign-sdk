@@ -8,8 +8,7 @@ use digest::typenum::U32;
 use digest::Digest;
 use ed25519_consensus::{Signature, VerificationKey};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
-#[cfg(feature = "native")]
-use sov_rollup_interface::reexports::schemars;
+use sov_rollup_interface::reexports::schemars::{self, JsonSchema};
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
@@ -112,10 +111,9 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized SP1 fork of the ed25519-consensus crate.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
 pub struct SP1PublicKey {
-    #[cfg_attr(feature = "native", schemars(with = "&[u8]", length(equal = "32")))]
+    #[schemars(with = "&[u8]", length(equal = "32"))]
     pub(crate) pub_key: VerificationKey,
 }
 
@@ -169,11 +167,10 @@ impl BorshSerialize for SP1PublicKey {
 }
 
 /// An ed25519 signature. Wraps the optimized SP1 fork of the ed25519-consensus crate.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct SP1Signature {
     /// The inner signature.
-    #[cfg_attr(feature = "native", schemars(with = "&[u8]", length(equal = "64")))]
+    #[schemars(with = "&[u8]", length(equal = "64"))]
     pub msg_sig: Signature,
 }
 

@@ -10,8 +10,7 @@ use ed25519_dalek::{
     Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
 };
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
-#[cfg(feature = "native")]
-use sov_rollup_interface::reexports::schemars;
+use sov_rollup_interface::reexports::schemars::{self, JsonSchema};
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
@@ -114,13 +113,9 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
 pub struct Risc0PublicKey {
-    #[cfg_attr(
-        feature = "native",
-        schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))
-    )]
+    #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))]
     pub(crate) pub_key: DalekPublicKey,
 }
 
@@ -174,14 +169,10 @@ impl BorshSerialize for Risc0PublicKey {
 }
 
 /// An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[cfg_attr(feature = "native", derive(schemars::JsonSchema))]
-#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Risc0Signature {
     /// The inner signature.
-    #[cfg_attr(
-        feature = "native",
-        schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))
-    )]
+    #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))]
     pub msg_sig: DalekSignature,
 }
 

@@ -796,6 +796,5 @@ pub mod macros {
     /// let serialized = borsh::to_vec(&CelestiaAddress([1; 32])).unwrap();
     /// assert_eq!(Schema::of_single_type::<CelestiaAddress>().display(0, &serialized).unwrap(), "celestia1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqsagv2r7");
     /// ```
-    #[cfg(feature = "native")]
     pub use sov_modules_macros::UniversalWallet;
 }

@@ -24,7 +24,7 @@ proptest-derive = { workspace = true, optional = true }
 sov-bank = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-state = { workspace = true }
-schemars = { workspace = true, optional = true }
+schemars = { workspace = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 sov-cycle-utils = { workspace = true, optional = true }
@@ -67,7 +67,6 @@ arbitrary = [
 ]
 native = [
 	"sov-cycle-utils?/native",
-	"schemars",
 	"sov-bank/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",
