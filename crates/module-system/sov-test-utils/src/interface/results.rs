@@ -1,41 +1,5 @@
-use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::{Spec, TxEffect};
 use sov_modules_stf_blueprint::TxReceiptContents;
-
-/// Represents the different outcomes that can occur for a sequencer after batch processing.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum BatchSequencerOutcome {
-    /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
-    Rewarded,
-    /// Sequencer loses its deposit and receives no reward.
-    Slashed(
-        /// Reason why sequencer was slashed.
-        FatalError,
-    ),
-    /// Batch was ignored, sequencer deposit left untouched.
-    Ignored(
-        /// Reason why the batch was ignored.
-        String,
-    ),
-    /// The batch was dropped and should not be included in the slot receipt. This can happen if the sequencer is not registered.
-    Dropped,
-}
-
-impl PartialEq<sov_modules_api::BatchSequencerOutcome> for BatchSequencerOutcome {
-    fn eq(&self, other: &sov_modules_api::BatchSequencerOutcome) -> bool {
-        match (self, other) {
-            (
-                BatchSequencerOutcome::Slashed(a),
-                sov_modules_api::BatchSequencerOutcome::Slashed(b),
-            ) => a == b,
-            (
-                BatchSequencerOutcome::Ignored(a),
-                sov_modules_api::BatchSequencerOutcome::Ignored(b),
-            ) => a == b,
-            _ => false,
-        }
-    }
-}
 
 /// The expected outcome of a batch.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -43,7 +7,7 @@ pub struct BatchExpectedReceipt<S: Spec> {
     /// The list of [`TxEffect`] for each transaction executed in the batch
     pub(crate) tx_receipts: Vec<TxEffect<TxReceiptContents<S>>>,
     /// The expected outcome of the batch
-    pub(crate) batch_outcome: BatchSequencerOutcome,
+    pub(crate) batch_outcome: sov_modules_api::BatchSequencerOutcome,
 }
 
 /// Defines the expected receipts of a slot. This is simply a list of [`BatchExpectedReceipt`]s.

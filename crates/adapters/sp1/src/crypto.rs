@@ -208,7 +208,9 @@ impl sov_rollup_interface::crypto::Signature for SP1Signature {
         pub_key
             .pub_key
             .verify(&self.msg_sig, msg)
-            .map_err(|e| SigVerificationError::BadSignature(e.to_string()))
+            .map_err(|e| SigVerificationError {
+                error: e.to_string(),
+            })
     }
 }
 

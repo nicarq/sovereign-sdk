@@ -81,7 +81,7 @@ impl<'a, GU: Gas, Meter: GasMeter<GU>, Hasher: Digest<OutputSize = U32>>
 #[derive(Debug, thiserror::Error)]
 pub enum MeteredSigVerificationError<GU: Gas> {
     /// The signature is invalid for the provided public key.
-    #[error("Signature verification error: {0}")]
+    #[error("Invalid signature: {0}")]
     BadSignature(SigVerificationError),
 
     /// There is not enough gas to verify the signature.

@@ -4,6 +4,7 @@ use std::borrow::ToOwned;
 use std::fmt::Debug;
 use std::hash;
 
+use derive_more::derive::Display;
 use digest::typenum::U32;
 use digest::Digest;
 use serde::{Deserialize, Serialize};
@@ -15,11 +16,10 @@ use super::CredentialId;
 use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
 
 /// Representation of a signature verification error.
-#[derive(Debug, thiserror::Error)]
-pub enum SigVerificationError {
-    /// The signature is invalid for the provided public key.
-    #[error("Bad signature error: {0}")]
-    BadSignature(String),
+#[derive(Debug, Display)]
+pub struct SigVerificationError {
+    /// The error message.
+    pub error: String,
 }
 
 /// A digital signature.

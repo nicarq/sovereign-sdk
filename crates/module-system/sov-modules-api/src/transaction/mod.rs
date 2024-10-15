@@ -55,7 +55,7 @@ pub enum TransactionVerificationError<GU: Gas> {
     #[error("Impossible to deserialize transaction: {0}")]
     TransactionDeserializationError(String),
     /// The signature check failed.
-    #[error("Signature verification error: {0}")]
+    #[error("Invalid signature: {0}")]
     BadSignature(SigVerificationError),
     /// There is not enough gas to verify the signature.
     #[error("A gas error was raised when trying to verify the signature, {0}")]

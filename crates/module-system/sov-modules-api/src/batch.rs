@@ -2,7 +2,6 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
-use crate::capabilities::FatalError;
 use crate::transaction::SequencerReward;
 
 /// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
@@ -123,11 +122,6 @@ pub struct BlobDataWithId {
 pub enum BatchSequencerOutcome {
     /// Sequencer receives reward amount in defined token and can withdraw its deposit. The amount is net of any penalties.
     Rewarded(SequencerReward),
-    /// Sequencer loses its deposit and receives no reward.
-    Slashed(
-        /// Reason why sequencer was slashed.
-        FatalError,
-    ),
     /// Batch was ignored, sequencer deposit left untouched.
     Ignored(
         /// Reason why the batch was ignored.
