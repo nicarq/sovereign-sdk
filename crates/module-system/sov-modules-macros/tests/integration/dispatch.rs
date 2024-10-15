@@ -244,7 +244,7 @@ mod custom_attributes {
     }
     #[test]
     fn custom_attributes() {
-        let _ = Schema::of::<RuntimeCall<TestSpec>>();
+        let _ = Schema::of_single_type::<RuntimeCall<TestSpec>>();
     }
 }
 

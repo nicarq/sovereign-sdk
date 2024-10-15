@@ -11,9 +11,9 @@ enum RuntimeCall {
 fn test_display_accounts_call() {
     let msg = RuntimeCall::ProverIncentives(CallMessage::Register(100));
 
-    let schema = Schema::of::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
-        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
         r#"ProverIncentives.Register(100)"#
     );
 }

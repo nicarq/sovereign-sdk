@@ -60,9 +60,9 @@ fn test_display_accounts_call() {
 
     let msg = RuntimeCall::Accounts(CallMessage::InsertCredentialId([1; 32].into()));
 
-    let schema = Schema::of::<RuntimeCall>();
+    let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
         r#"Accounts.InsertCredentialId(0x0101010101010101010101010101010101010101010101010101010101010101)"#,
-        schema.display(&borsh::to_vec(&msg).unwrap()).unwrap(),
+        schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
     );
 }

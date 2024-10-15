@@ -27,9 +27,9 @@ fn test_display_tx() {
         },
     });
     let data = borsh::to_vec(&msg).unwrap();
-    let schema = Schema::of::<RuntimeCall<S>>();
+    let schema = Schema::of_single_type::<RuntimeCall<S>>();
     assert_eq!(
-        schema.display(&data).unwrap(),
+        schema.display(0, &data).unwrap(),
         r#"Bank.Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks } }"#
     );
 }

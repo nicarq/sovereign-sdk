@@ -2,7 +2,9 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_universal_wallet::schema::{IndexLinking, Item, Link, Primitive, Schema, SchemaGenerator};
+use sov_universal_wallet::schema::{
+    IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
+};
 use sov_universal_wallet::UniversalWallet;
 
 // Hack - because the macro is configured to be re-exported from sov_rollup_interface;
@@ -17,17 +19,18 @@ macro_rules! encode_decode_tests_simple {
     ($schema:ident, $item:ident, $expected_display:literal) => {
         let borsh_ser = borsh::to_vec(&$item).unwrap();
         let json = serde_json::to_string(&$item).unwrap();
-        assert_eq!($schema.display(&borsh_ser).unwrap(), $expected_display);
-        // println!("JSON: {json}");
-        assert_eq!($schema.json_to_borsh(&json).unwrap(), borsh_ser);
+        assert_eq!($schema.display(0, &borsh_ser).unwrap(), $expected_display);
+        assert_eq!($schema.json_to_borsh(0, &json).unwrap(), borsh_ser);
     };
 }
 
 macro_rules! encode_decode_tests {
-    ($schema:ident, $item:ident, $expected_display:literal) => {
-        // println!("{:?}", &$schema);
-        encode_decode_tests_simple!($schema, $item, $expected_display);
-        let schema_json = serde_json::to_string(&$schema).unwrap();
+    ($schema_type:ty, $item:ident, $expected_display:literal) => {
+        let schema = Schema::of_single_type::<$schema_type>();
+        // println!("{:?}", &schema);
+        encode_decode_tests_simple!(schema, $item, $expected_display);
+        let schema_json = serde_json::to_string_pretty(&schema).unwrap();
+        println!("{schema_json}");
         let recovered_schema = Schema::from_json(&schema_json).unwrap();
         encode_decode_tests_simple!(recovered_schema, $item, $expected_display);
     };
@@ -59,15 +62,21 @@ fn test_associated_types() {
         type Address = u64;
     }
 
-    let schema = Schema::of::<EnumWithAssociatedType<MySpec>>();
     let my_enum = EnumWithAssociatedType::<MySpec>::AssociatedVariant { address: 123 };
 
-    encode_decode_tests!(schema, my_enum, "AssociatedVariant { address: 123 }");
+    encode_decode_tests!(
+        EnumWithAssociatedType<MySpec>,
+        my_enum,
+        "AssociatedVariant { address: 123 }"
+    );
 
-    let schema = Schema::of::<EnumWithWhereClauseAssociatedType<MySpec>>();
     let my_enum = EnumWithWhereClauseAssociatedType::<MySpec>::TheVariant { address: 123 };
 
-    encode_decode_tests!(schema, my_enum, "TheVariant { address: 123 }");
+    encode_decode_tests!(
+        EnumWithWhereClauseAssociatedType<MySpec>,
+        my_enum,
+        "TheVariant { address: 123 }"
+    );
 }
 
 #[test]
@@ -78,9 +87,8 @@ fn test_inner_item_derive() {
         my_field: u8,
     }
 
-    let schema = Schema::of::<A>();
     let my_a = A { my_field: 32 };
-    encode_decode_tests!(schema, my_a, "{ my_field: 32 }");
+    encode_decode_tests!(A, my_a, "{ my_field: 32 }");
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone, BorshSerialize, BorshDeserialize)]
@@ -192,18 +200,16 @@ pub struct ComplexRec<T> {
 
 #[test]
 fn test_tuple_schema_recursive_generic() {
-    let schema = Schema::of::<TestCallRec<u64>>();
     let my_call = TestCallRec::<u64>::Withdraw(Box::new(43));
 
-    encode_decode_tests!(schema, my_call, "Withdraw(43)");
+    encode_decode_tests!(TestCallRec<u64>, my_call, "Withdraw(43)");
 }
 
 #[test]
 fn test_tuple_struct_schema_recursive_generic() {
-    let schema = Schema::of::<TestCallStructRec<u64>>();
     let my_call = TestCallStructRec::<u64>::Withdraw(Box::new(43));
 
-    encode_decode_tests!(schema, my_call, "Withdraw(43)");
+    encode_decode_tests!(TestCallStructRec<u64>, my_call, "Withdraw(43)");
 }
 
 #[derive(Debug, PartialEq, Serialize, Eq, Clone)]
@@ -222,10 +228,9 @@ pub struct ComplexRecNonGeneric {
 }
 #[test]
 fn test_medium_struct_schema_recursive_nongeneric() {
-    let schema = Schema::of::<TestCallRecNonGeneric>();
     let my_call = TestCallRecNonGeneric::Withdraw(43);
 
-    encode_decode_tests!(schema, my_call, "Withdraw(43)");
+    encode_decode_tests!(TestCallRecNonGeneric, my_call, "Withdraw(43)");
 }
 
 const PREFIX_SOV: &str = "sov";
@@ -412,8 +417,6 @@ struct WithTuples {
 
 #[test]
 fn test_tuples() {
-    let schema = Schema::of::<WithTuples>();
-
     let my_with_tuples = WithTuples {
         double: (5, 8),
         mixed: (13214, "hello".to_string(), Role::Challenger),
@@ -421,12 +424,11 @@ fn test_tuples() {
         octuple: (1, 2, 3, 4, 5, 6, 7, 8),
     };
 
-    encode_decode_tests!(schema, my_with_tuples, "{ double: (5, 8), mixed: (13214, \"hello\", RoleChallenger), quintuple: (1, 2, 3, 4, 5), octuple: (1, 2, 3, 4, 5, 6, 7, 8) }");
+    encode_decode_tests!(WithTuples, my_with_tuples, "{ double: (5, 8), mixed: (13214, \"hello\", RoleChallenger), quintuple: (1, 2, 3, 4, 5), octuple: (1, 2, 3, 4, 5, 6, 7, 8) }");
 }
 
 #[test]
 fn test_enum_with_complex_tuples() {
-    let schema = Schema::of::<EnumWithMultiTuple>();
     let runtime_call = RuntimeCall::TestCall(TestCall::Register(Registration {
         address: [17; 32],
         role: Role::Attester,
@@ -444,15 +446,13 @@ fn test_enum_with_complex_tuples() {
         runtime_call,
     );
 
-    encode_decode_tests!(schema, my_enum,
+    encode_decode_tests!(EnumWithMultiTuple, my_enum,
         "TheVariant(16, Foo { first_field: 84, second_field: \"abcd\", third_field: 14 }, TestCall.Register { address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 })"
     );
 }
 
 #[test]
 fn test_enum_with_simple_tuples() {
-    let schema = Schema::of::<EnumWithMultiTupleSimple>();
-
     let my_enum = EnumWithMultiTupleSimple::TheVariant(
         16,
         EnumWithStruct::Foo {
@@ -463,15 +463,13 @@ fn test_enum_with_simple_tuples() {
         "hello".to_string(),
     );
 
-    encode_decode_tests!(schema, my_enum,
+    encode_decode_tests!(EnumWithMultiTupleSimple, my_enum,
         "TheVariant(16, Foo { first_field: 84, second_field: \"abcd\", third_field: 14 }, \"hello\")"
     );
 }
 
 #[test]
 fn test_enum_with_identical_tuples() {
-    let schema = Schema::of::<EnumWithIdenticalTuples>();
-
     let my_enum = EnumWithIdenticalTuples::SecondVariant(
         16,
         EnumWithStruct::Foo {
@@ -482,15 +480,13 @@ fn test_enum_with_identical_tuples() {
         "hello".to_string(),
     );
 
-    encode_decode_tests!(schema, my_enum,
+    encode_decode_tests!(EnumWithIdenticalTuples, my_enum,
         "SecondVariant(16, Foo { first_field: 84, second_field: \"abcd\", third_field: 14 }, \"hello\")"
     );
 }
 
 #[test]
 fn test_enum_with_struct() {
-    let schema = Schema::of::<EnumWithStruct>();
-
     let my_with_tuples = EnumWithStruct::Foo {
         first_field: 84,
         second_field: "abcd".to_string(),
@@ -498,7 +494,7 @@ fn test_enum_with_struct() {
     };
 
     encode_decode_tests!(
-        schema,
+        EnumWithStruct,
         my_with_tuples,
         "Foo { first_field: 84, second_field: \"abcd\", third_field: 14 }"
     );
@@ -506,8 +502,6 @@ fn test_enum_with_struct() {
 
 #[test]
 fn test_enum_with_struct_and_generic() {
-    let schema = Schema::of::<EnumWithStructAndGeneric<u32>>();
-
     let my_with_tuples = EnumWithStructAndGeneric::Foo {
         first_field: 84,
         second_field: Generic { contents: 52 },
@@ -515,7 +509,7 @@ fn test_enum_with_struct_and_generic() {
     };
 
     encode_decode_tests!(
-        schema,
+        EnumWithStructAndGeneric<u32>,
         my_with_tuples,
         "Foo { first_field: 84, second_field: { contents: 52 }, third_field: 14 }"
     );
@@ -523,8 +517,6 @@ fn test_enum_with_struct_and_generic() {
 
 #[test]
 fn test_enum_with_struct_and_multiple_generics() {
-    let schema = Schema::of::<EnumWithStructAndThreeGenerics<u32, u8, i8>>();
-
     let my_with_generics: EnumWithStructAndThreeGenerics<u32, u8, i8> =
         EnumWithStructAndThreeGenerics::VarA {
             first_field: 84,
@@ -535,7 +527,7 @@ fn test_enum_with_struct_and_multiple_generics() {
         };
 
     encode_decode_tests!(
-        schema,
+        EnumWithStructAndThreeGenerics<u32, u8, i8>,
         my_with_generics,
         "VarA { first_field: 84, second_field: { contents: 2000000000 }, third_field: 14 }"
     );
@@ -543,8 +535,6 @@ fn test_enum_with_struct_and_multiple_generics() {
 
 #[test]
 fn test_enum_with_tuples_and_generics() {
-    let schema = Schema::of::<EnumWithMultiTupleAndGenerics<u32, u8, i8>>();
-
     let my_var_two: EnumWithMultiTupleAndGenerics<u32, u8, i8> =
         EnumWithMultiTupleAndGenerics::Two(Generic { contents: 19 });
     let my_var_one: EnumWithMultiTupleAndGenerics<u32, u8, i8> = EnumWithMultiTupleAndGenerics::One(
@@ -559,32 +549,28 @@ fn test_enum_with_tuples_and_generics() {
         "abdsf".to_string(),
     );
 
-    encode_decode_tests!(schema, my_var_two, "Two { contents: 19 }");
+    encode_decode_tests!(EnumWithMultiTupleAndGenerics<u32, u8, i8>, my_var_two, "Two { contents: 19 }");
 
-    encode_decode_tests!(schema, my_var_one,
-        "One(1245345, VarC { first_field: 435653, second_field: { contents: { contents: -5 } }, third_field: 73242 }, \"abdsf\")"
-        );
+    encode_decode_tests!(EnumWithMultiTupleAndGenerics<u32, u8, i8>, my_var_one,
+    "One(1245345, VarC { first_field: 435653, second_field: { contents: { contents: -5 } }, third_field: 73242 }, \"abdsf\")"
+    );
 }
 
 #[test]
 fn test_minimal_enum_schema() {
-    let schema = Schema::of::<Role>();
-
     let item = Role::Attester;
-    encode_decode_tests!(schema, item, "Attester");
+    encode_decode_tests!(Role, item, "Attester");
 }
 
 #[test]
 fn test_minimal_struct_schema() {
-    let schema = Schema::of::<MinimalStruct>();
     let my_registration = MinimalStruct { tokens: 1000 };
 
-    encode_decode_tests!(schema, my_registration, "{ tokens: 1000 }");
+    encode_decode_tests!(MinimalStruct, my_registration, "{ tokens: 1000 }");
 }
 
 #[test]
 fn test_simple_struct_schema() {
-    let schema = Schema::of::<Registration>();
     let my_registration = Registration {
         address: [17; 32],
         role: Role::Attester,
@@ -592,12 +578,94 @@ fn test_simple_struct_schema() {
         schemaless: NoSchemaU64Wrapper(123),
     };
 
-    encode_decode_tests!(schema, my_registration, "{ address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }");
+    encode_decode_tests!(Registration, my_registration, "{ address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }");
+}
+
+#[test]
+fn test_multiobject_schema() {
+    let schema = Schema::of_rollup_types::<Role, MinimalStruct, Registration>();
+
+    let my_role = Role::Attester;
+    let my_minimal_struct = MinimalStruct { tokens: 1000 };
+    let my_registration = Registration {
+        address: [17; 32],
+        role: Role::Attester,
+        tokens: 1000,
+        schemaless: NoSchemaU64Wrapper(123),
+    };
+
+    // println!("{:?}", &$schema);
+    let schema_json = serde_json::to_string_pretty(&schema).unwrap();
+    // println!("{schema_json}");
+    let _recovered_schema = Schema::from_json(&schema_json).unwrap();
+
+    // TODO: ugly
+    let role_borsh_ser = borsh::to_vec(&my_role).unwrap();
+    let role_json = serde_json::to_string(&my_role).unwrap();
+    assert_eq!(
+        schema
+            .display(
+                schema
+                    .rollup_expected_index(RollupRoots::Transaction)
+                    .unwrap(),
+                &role_borsh_ser
+            )
+            .unwrap(),
+        "Attester"
+    );
+    assert_eq!(
+        schema
+            .json_to_borsh(
+                schema
+                    .rollup_expected_index(RollupRoots::Transaction)
+                    .unwrap(),
+                &role_json
+            )
+            .unwrap(),
+        role_borsh_ser
+    );
+    let struct_borsh_ser = borsh::to_vec(&my_minimal_struct).unwrap();
+    let struct_json = serde_json::to_string(&my_minimal_struct).unwrap();
+    assert_eq!(
+        schema
+            .display(
+                schema
+                    .rollup_expected_index(RollupRoots::UnsignedTransaction)
+                    .unwrap(),
+                &struct_borsh_ser
+            )
+            .unwrap(),
+        "{ tokens: 1000 }"
+    );
+    assert_eq!(
+        schema
+            .json_to_borsh(
+                schema
+                    .rollup_expected_index(RollupRoots::UnsignedTransaction)
+                    .unwrap(),
+                &struct_json
+            )
+            .unwrap(),
+        struct_borsh_ser
+    );
+    let reg_borsh_ser = borsh::to_vec(&my_registration).unwrap();
+    let reg_json = serde_json::to_string(&my_registration).unwrap();
+    assert_eq!(schema.display(schema.rollup_expected_index(RollupRoots::RuntimeCall).unwrap(), &reg_borsh_ser).unwrap(), "{ address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }");
+    assert_eq!(
+        schema
+            .json_to_borsh(
+                schema
+                    .rollup_expected_index(RollupRoots::RuntimeCall)
+                    .unwrap(),
+                &reg_json
+            )
+            .unwrap(),
+        reg_borsh_ser
+    );
 }
 
 #[test]
 fn test_medium_struct_schema() {
-    let schema = Schema::of::<RuntimeCall>();
     let my_call = RuntimeCall::TestCall(TestCall::Register(Registration {
         address: [17; 32],
         role: Role::Attester,
@@ -605,12 +673,11 @@ fn test_medium_struct_schema() {
         schemaless: NoSchemaU64Wrapper(123),
     }));
 
-    encode_decode_tests!(schema, my_call, "TestCall.Register { address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }");
+    encode_decode_tests!(RuntimeCall, my_call, "TestCall.Register { address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }");
 }
 
 #[test]
 fn test_vec_schema() {
-    let schema = Schema::of::<RuntimeCall>();
     let my_call = RuntimeCall::TestCall(TestCall::RegisterMany(vec![RegistrationLike {
         address: [23; 32],
         some_bytes: vec![1, 2, 3, 4, 5],
@@ -621,33 +688,30 @@ fn test_vec_schema() {
         }],
     }]));
 
-    encode_decode_tests!(schema, my_call,
+    encode_decode_tests!(RuntimeCall, my_call,
         "TestCall.RegisterMany [{ address: 0x1717171717171717171717171717171717171717171717171717171717171717, some_bytes: 0x0102030405, extra_complexity: [{ address: celestia1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsr0ealj, extra_bytes: [6, 7, 8, 9, 10], role: Attester }] }]"
     );
 }
 
 #[test]
 fn test_vec_simple_schema() {
-    let schema = Schema::of::<RuntimeCall>();
     let my_call = RuntimeCall::TestCall(TestCall::RegisterSimple(vec![1, 2, 3]));
 
-    encode_decode_tests!(schema, my_call, "TestCall.RegisterSimple(0x010203)");
+    encode_decode_tests!(RuntimeCall, my_call, "TestCall.RegisterSimple(0x010203)");
 }
 
 #[test]
 fn test_vec_string() {
-    let schema = Schema::of::<Vec<StringWrapper>>();
     let my_call = vec![
         StringWrapper("hello".to_string()),
         StringWrapper("world".to_string()),
     ];
 
-    encode_decode_tests!(schema, my_call, r#"["hello", "world"]"#);
+    encode_decode_tests!(Vec<StringWrapper>, my_call, r#"["hello", "world"]"#);
 }
 
 #[test]
 fn test_complex_type() {
-    let schema = Schema::of::<Complex>();
     let my_call = Complex {
         rollup_address: [1; 32],
         da_address: [2; 64],
@@ -676,14 +740,13 @@ fn test_complex_type() {
         }),
     };
 
-    encode_decode_tests!(schema, my_call,
+    encode_decode_tests!(Complex, my_call,
         "{ rollup_address: sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqslg48nn, da_address: celestia1qgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs08sssm, message: [3, 2, 1], first_item: \"hello\", role: Attester, tokens: 1000, memo: [\"This is a memo\"], registration: { address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 }, events: [0x68656c6c6f, 0x676f6f64627965], child_addresses: [0x0303030303030303030303030303030303030303030303030303030303030303, 0x0404040404040404040404040404040404040404040404040404040404040404], nested_vec_bytes: [[0x000102]], nested_vec_enum: [[TestCall.Withdraw(1)], [TestCall.Withdraw(2)]], aliased_vec: 0x070809, aliased_int: 1234567, aliased_call: Register { address: 0x1111111111111111111111111111111111111111111111111111111111111111, role: Attester, tokens: 1000, schemaless: 123 } }"
     );
 }
 
 #[test]
 fn test_silent_simple_field() {
-    let schema = Schema::of::<WithSilentField<&'static str>>();
     let my_call = WithSilentField {
         int: 123,
         skipped: "this should be skipped",
@@ -692,7 +755,7 @@ fn test_silent_simple_field() {
     };
 
     encode_decode_tests!(
-        schema,
+        WithSilentField<&'static str>,
         my_call,
         "{ int: 123, str: \"this should be included\" }"
     );
@@ -702,29 +765,30 @@ fn test_silent_simple_field() {
 
 #[test]
 fn test_primtive_indirection() {
-    let schema = Schema::of::<Generic<Box<Vec<u8>>>>();
     let generic: Generic<Box<Vec<u8>>> = Generic {
         contents: Box::new(vec![12, 34]),
     };
 
-    encode_decode_tests!(schema, generic, "{ contents: 0x0c22 }");
+    encode_decode_tests!(Generic<Box<Vec<u8>>>, generic, "{ contents: 0x0c22 }");
 }
 
 #[test]
 fn test_nested_generics() {
-    let schema = Schema::of::<NestedGeneric<Vec<u8>>>();
     let generic: NestedGeneric<Vec<u8>> = NestedGeneric {
         contents: Generic {
             contents: vec![8, 34],
         },
     };
 
-    encode_decode_tests!(schema, generic, "{ contents: { contents: 0x0822 } }");
+    encode_decode_tests!(
+        NestedGeneric<Vec<u8>>,
+        generic,
+        "{ contents: { contents: 0x0822 } }"
+    );
 }
 
 #[test]
 fn test_nested_silent_fields() {
-    let schema = Schema::of::<WithSilentField<WithSilentField<i32>>>();
     let my_call = WithSilentField {
         int: 123,
         skipped: WithSilentField {
@@ -738,7 +802,7 @@ fn test_nested_silent_fields() {
     };
 
     encode_decode_tests!(
-        schema,
+        WithSilentField<WithSilentField<i32>>,
         my_call,
         "{ int: 123, str: \"this should be included\" }"
     );

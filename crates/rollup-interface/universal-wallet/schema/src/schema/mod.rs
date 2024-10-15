@@ -10,10 +10,25 @@ mod schema_impls;
 #[cfg(test)]
 mod tests;
 
+use thiserror::Error;
+
 use crate::display::{Context as DisplayContext, DisplayVisitor, FormatError};
 #[cfg(feature = "serde")]
 use crate::json_to_borsh::{Context as EncodeContext, EncodeError, EncodeVisitor};
 use crate::ty::{LinkingScheme, Ty};
+
+#[derive(Debug, Error)]
+pub enum SchemaError {
+    #[error(transparent)]
+    FormatError(#[from] FormatError),
+    #[cfg(feature = "serde")]
+    #[error(transparent)]
+    EncodeError(#[from] EncodeError),
+    #[error("Rollup type {0:?} was missing from schema")]
+    MissingRollupRoot(RollupRoots),
+    #[error("Index {0} not found in schema")]
+    InvalidIndex(usize),
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -23,6 +38,17 @@ impl LinkingScheme for IndexLinking {
     type TypeLink = Link;
 }
 
+// TODO: Some type safety for fully-constructed schemas.
+// It should be possible to use the type system to ensure at compile-time that
+// a) constructed Schemas do not have any Link::Placeholder; and
+// b) it is not possible to call construction methods (the ones that edit the links) on a finished
+// Schema.
+// This could be done with, for example, an intermediate SchemaUnderConstruction type using a
+// ConstrutionIndexLinking, which implements into::<Schema>().
+//
+// Right now this is mostly achieved using member visibility (nobody outside can call the private
+// construction methods) and sanity checking (on a derived schema, if under_construction is empty,
+// there won't be any placeholders); but a separate type would provide a stronger guarantee.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Link {
@@ -55,10 +81,28 @@ impl ItemId {
     }
 }
 
+/// Not enforced in the types, but the expected convention that should be followed when generating
+/// the schema.
+#[derive(Debug, Copy, Clone)]
+pub enum RollupRoots {
+    Transaction = 0,
+    UnsignedTransaction = 1,
+    RuntimeCall = 2,
+}
+
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Schema {
+    /// The types described by this schema. This is an array of type descriptions, where complex
+    /// types refer to their sub-types by index within the array.
+    /// Any of the types here can be used for schema operations (such as borsh-to-human or
+    /// json-to-borsh reserialisations).
     types: Vec<Ty<IndexLinking>>,
+
+    /// A mapping from the complex root types that parametrized the schema generation invocation (in
+    /// order, skipping primitives) to the actual indices they ended up at in the type array above.
+    root_type_indices: Vec<usize>,
+
     /// A map from the type ID of an item to its index in the types array. Note that primitives and "virtual" structs/tuples
     /// (i.e. the contents of an enum variant) are not included in this map.
     /// Only used during schema construction.
@@ -71,8 +115,8 @@ pub struct Schema {
     under_construction: HashMap<ItemId, usize>,
 }
 
-/// A schema, representing a type (i.e. rust code) as a data structure.
-/// The schema allows the type's borsh serialization to be displayed as a human readable string,
+/// A schema, representing set of types (i.e. rust code) as a data structure.
+/// The schema allows the a type's borsh serialization to be displayed as a human readable string,
 /// and the type's JSON serialisation to be re-serialised to borsh without depending on the
 /// original Rust type.
 /// It is also serialisable and therefore can be imported and used with non-Rust languages, enabling
@@ -82,9 +126,38 @@ pub struct Schema {
 /// `OverrideSchema`. In turn, `SchemaGenerator` is intended to be automatically derived using the
 /// `UniversalWallet` macro.
 impl Schema {
-    pub fn of<T: SchemaGenerator>() -> Self {
+    /// Instantiate a schema for a single type.
+    /// This root type will be at index 0
+    pub fn of_single_type<T: SchemaGenerator>() -> Self {
+        // TODO: this could easily be implemented with a macro for N types for any N >= 1, if ever needed
         let mut schema = Self::default();
-        T::write_schema(&mut schema);
+        let link = T::write_schema(&mut schema);
+        schema.push_root_link(link);
+        assert!(
+            schema.under_construction.is_empty(),
+            "Schema generation left some types partially constructed. This is a bug in the schema. {:?}",
+            schema
+        );
+        schema
+    }
+
+    /// Instantiate a schema for a standard set of rollup types: its complete transaction, its
+    /// unsigned transaction, and its call message type.
+    /// The types will be accessible using the indices stored in root_type_indices (in the above
+    /// order); they can also be queried using the `RollupRoots` enum through the `_rollup`-tagged
+    /// functions on the schema
+    pub fn of_rollup_types<
+        Transaction: SchemaGenerator,
+        UnsignedTransaction: SchemaGenerator,
+        RuntimeCall: SchemaGenerator,
+    >() -> Self {
+        let mut schema = Self::default();
+        let link = Transaction::write_schema(&mut schema);
+        schema.push_root_link(link);
+        let link = UnsignedTransaction::write_schema(&mut schema);
+        schema.push_root_link(link);
+        let link = RuntimeCall::write_schema(&mut schema);
+        schema.push_root_link(link);
         assert!(
             schema.under_construction.is_empty(),
             "Schema generation left some types partially constructed. This is a bug in the schema. {:?}",
@@ -98,40 +171,41 @@ impl Schema {
         serde_json::from_str(input)
     }
 
-    /// Use the schema to display the provided input
-    pub fn display(&self, input: &[u8]) -> Result<String, FormatError> {
+    pub fn rollup_expected_index(&self, rollup_type: RollupRoots) -> Result<usize, SchemaError> {
+        self.root_type_indices
+            .get(rollup_type as usize)
+            .copied()
+            .ok_or(SchemaError::MissingRollupRoot(rollup_type))
+    }
+
+    /// Use the schema to display the given type using the provided borsh encoded input
+    pub fn display(&self, type_index: usize, input: &[u8]) -> Result<String, SchemaError> {
         let mut output = String::new();
         let input = &mut &input[..];
         let mut visitor = DisplayVisitor::new(input, &mut output);
-        // Use `?` to return the error if it exists, but drop the inner Option. If it's `None` and the input is non-empty, we'll return
-        // an error thanks to the check that `visitor.has_displayed_whole_input()`.
-        let _ = self
-            .types
-            .first()
-            .map(|ty: &Ty<IndexLinking>| ty.visit(self, &mut visitor, DisplayContext::default()))
-            .transpose()?;
+        self.types
+            .get(type_index)
+            .ok_or(SchemaError::InvalidIndex(type_index))?
+            .visit(self, &mut visitor, DisplayContext::default())?;
 
         if !visitor.has_displayed_whole_input() {
-            return Err(FormatError::UnusedInput);
+            return Err(FormatError::UnusedInput.into());
         }
         Ok(output)
     }
 
-    /// Use the schema to convert the provided serde-compatible JSON string into borsch
+    /// Use the schema to convert a serde-compatible JSON string of the given type into its borsh
+    /// encoding
     #[cfg(feature = "serde")]
-    pub fn json_to_borsh(&self, input: &str) -> Result<Vec<u8>, EncodeError> {
+    pub fn json_to_borsh(&self, type_index: usize, input: &str) -> Result<Vec<u8>, SchemaError> {
         let mut output = Vec::new();
 
         let mut visitor = EncodeVisitor::new(&mut output)?;
 
-        let _ = self
-            .types
-            .first()
-            .map(|ty: &Ty<IndexLinking>| {
-                println!("Visiting type {:?}!", ty);
-                ty.visit(self, &mut visitor, EncodeContext::new(input)?)
-            })
-            .transpose()?;
+        self.types
+            .get(type_index)
+            .ok_or(SchemaError::InvalidIndex(type_index))?
+            .visit(self, &mut visitor, EncodeContext::new(input)?)?;
 
         Ok(output)
     }
@@ -182,9 +256,9 @@ impl Schema {
                 if let Some(location) = self.find_item_by_id(&item_id) {
                     MaybePartialLink::Complete(Link::ByIndex(location))
                 } else {
+                    let num_children = c.num_children();
                     let location = self.types.len();
                     self.known_types.insert(item_id.clone(), location);
-                    let num_children = c.num_children();
                     self.types.push(c.into());
                     if num_children != 0 {
                         self.under_construction.insert(item_id, num_children);
@@ -195,6 +269,19 @@ impl Schema {
                 }
             }
             Item::Atom(primitive) => MaybePartialLink::Complete(Link::Immediate(primitive)),
+        }
+    }
+
+    /// After generating a root type, register it with the schema for ease of reference. Sets
+    /// the canonical "root links", so has to be carefully called in the right order (normally,
+    /// immediately after root type construction, with the link to the newly created type).
+    /// No-op for primitive links.
+    /// Panics on placeholder links.
+    fn push_root_link(&mut self, link: Link) {
+        match link {
+            Link::ByIndex(i) => self.root_type_indices.push(i),
+            Link::Immediate(..) => {},
+            Link::Placeholder => panic!("Attempted to register a placeholder link as a schema root - are you passing the right link?"),
         }
     }
 }
@@ -223,7 +310,7 @@ pub trait SchemaGenerator: Sized + 'static {
     /// If the type is composed of other types, this is the container with all links set to [`Link::Placeholder`].
     fn scaffold() -> Item<IndexLinking>;
 
-    /// Writes the type to the top-level schema if it is not already present and returns a link to it.
+    /// Writes the type to the schema if it is not already present and returns a link to it.
     ///
     /// Any child types will have their schemas generated as well, but the placement of those types is left
     /// to the discretion of the implementation - they may or may not appear at the top level of the schema.

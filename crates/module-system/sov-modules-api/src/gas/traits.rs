@@ -141,6 +141,10 @@ pub trait Gas: GasArray {
     BorshDeserialize,
     derive_more::Display,
 )]
+#[cfg_attr(
+    feature = "native",
+    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+)]
 #[display("GasUnit{:?}", self.0)]
 pub struct GasUnit<const N: usize>([u64; N]);
 
