@@ -21,6 +21,8 @@ pub use gas::*;
 pub use proof::ProofProcessor;
 mod sequencer;
 pub use sequencer::*;
+mod chain_state;
+pub use chain_state::*;
 
 use crate::Spec;
 
@@ -110,7 +112,7 @@ pub trait HasKernel<S: Spec> {
 
     /// The concrete implementation of the kernel.
     type Kernel<'a>: Kernel<S>
-        + KernelSlotHooks<S>
+        + ChainState<Spec = S>
         + BlobSelector<Spec = S, BlobType = Self::BlobType>
     where
         Self: 'a;
@@ -135,8 +137,8 @@ pub trait HasKernel<S: Spec> {
         self.inner().inner
     }
 
-    /// Returns the [`KernelSlotHooks`] implementation on [`HasKernel::Kernel`].
-    fn kernel_slot_hooks(&self) -> impl KernelSlotHooks<S> {
+    /// Returns the [`ChainState`] implementation on [`HasKernel::Kernel`].
+    fn chain_state(&self) -> impl ChainState<Spec = S> {
         self.inner().inner
     }
 

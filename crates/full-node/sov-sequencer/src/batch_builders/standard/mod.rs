@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError, FatalError, HasKernel, KernelSlotHooks, TransactionAuthenticator,
+    AuthenticationError, ChainState, FatalError, HasKernel, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::transaction::SequencerReward;
@@ -331,10 +331,7 @@ where
         // This closure helps us make sure that we always put the
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self
-                .runtime
-                .kernel_slot_hooks()
-                .base_fee_per_gas(&mut checkpoint);
+            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint);
 
             let (tx_scratchpad, output_res) = tx_auth(
                 &self.runtime,
@@ -417,10 +414,7 @@ where
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self
-                .runtime
-                .kernel_slot_hooks()
-                .base_fee_per_gas(&mut checkpoint);
+            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint);
 
             let mut ctx = BatchConstructionContext {
                 visible_height,

@@ -1,4 +1,4 @@
-use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
+use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, StateCheckpoint, WorkingSet,
 };
@@ -47,6 +47,10 @@ impl<S: Spec> SlotHooks for Runtime<S> {
     fn end_slot_hook(&self, state: &mut sov_modules_api::StateCheckpoint<S::Storage>) {
         self.evm.end_slot_hook(state);
     }
+}
+
+impl<S: Spec> KernelSlotHooks for Runtime<S> {
+    type Spec = S;
 }
 
 impl<S: Spec> FinalizeHook for Runtime<S> {

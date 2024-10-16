@@ -4,7 +4,7 @@ use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
+use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
     BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec,
 };
@@ -57,24 +57,26 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     }
 }
 
-impl<'a, S: Spec> KernelSlotHooks<S> for BasicKernel<'a, S> {
-    fn begin_slot_hook(
+impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, S> {
+    type Spec = S;
+
+    fn synchronise_chain(
         &self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
-    ) -> <S::Storage as Storage>::Root {
+    ) {
         self.chain_state
-            .begin_slot_hook(slot_header, validity_condition, pre_state_root, state)
+            .synchronize_chain(slot_header, validity_condition, pre_state_root, state);
     }
 
-    fn end_slot_hook(
+    fn finalise_chain_state(
         &self,
         gas_used: &S::Gas,
         state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
     ) {
-        self.chain_state.end_slot_hook(gas_used, state);
+        self.chain_state.finalize_chain_state(gas_used, state);
     }
 
     fn base_fee_per_gas(
@@ -82,5 +84,13 @@ impl<'a, S: Spec> KernelSlotHooks<S> for BasicKernel<'a, S> {
         state: &mut sov_modules_api::StateCheckpoint<S::Storage>,
     ) -> <<S as Spec>::Gas as Gas>::Price {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
+    }
+
+    fn current_visible_hash(
+        &self,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
+    ) -> <<Self::Spec as Spec>::Storage as Storage>::Root {
+        self.chain_state.current_visible_hash(pre_state_root, state)
     }
 }

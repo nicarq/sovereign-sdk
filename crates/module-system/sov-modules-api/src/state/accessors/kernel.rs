@@ -28,7 +28,7 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
     }
 }
 
-/// A special wrapper over [`StateCheckpoint`] that allows access to kernel values inside the [`crate::runtime::capabilities::KernelSlotHooks`]
+/// A special wrapper over [`StateCheckpoint`] that allows access to kernel values
 ///
 /// ## Note
 /// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true slot number.

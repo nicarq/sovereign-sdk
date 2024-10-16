@@ -17,7 +17,7 @@ use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::BasicKernel;
 pub use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::{Kernel, KernelSlotHooks};
+use sov_modules_api::capabilities::{ChainState as _, Kernel};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -198,7 +198,7 @@ where
         let mut state_checkpoint = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &kernel);
 
         let base_fee_per_gas = runtime
-            .kernel_slot_hooks()
+            .chain_state()
             .base_fee_per_gas(&mut state_checkpoint);
 
         ApiStateAccessor::<S>::new_with_price(

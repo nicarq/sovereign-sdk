@@ -2,7 +2,9 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
 use crate::transaction::AuthenticatedTransactionData;
-use crate::{AccessoryStateReaderAndWriter, Context, Spec, StateCheckpoint, TxState};
+use crate::{
+    AccessoryStateReaderAndWriter, Context, KernelStateAccessor, Spec, StateCheckpoint, TxState,
+};
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -92,6 +94,30 @@ pub trait SlotHooks {
 
     /// Hook that runs at the end of the `apply_slot` function inside the `StateTransitionFunction`.
     fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
+}
+
+/// Hooks allowing the runtime to get access to the DA layer state
+pub trait KernelSlotHooks {
+    /// The runtime spec.
+    type Spec: Spec;
+
+    /// Called at the beginning of a slot.
+    fn begin_slot_hook(
+        &self,
+        _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
+        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) {
+    }
+
+    /// Called at the end of a slot
+    fn end_slot_hook(
+        &self,
+        _gas_used: &<Self::Spec as Spec>::Gas,
+        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) {
+    }
 }
 
 /// Trait that defines a hook that runs outside of the main slot processing loop.

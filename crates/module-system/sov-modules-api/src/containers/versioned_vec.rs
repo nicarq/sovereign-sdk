@@ -167,7 +167,7 @@ where
         self.len_value().get(&(state.rollup_height_to_access() - 1), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
     }
 
-    /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelStateAccessor`] inside the [`crate::runtime::capabilities::KernelSlotHooks`].
+    /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelStateAccessor`].
     ///
     /// ## Warning
     /// If used within the module system, this method may break soft-confirmations
