@@ -12,6 +12,8 @@ use sov_modules_api::FullyBakedTx;
 use sov_rollup_interface::TxHash;
 use uuid::Uuid;
 
+use crate::batch_builders::BatchBuilder;
+
 /// Transactions within [`SequencerDb`] are identified by a monotonically
 /// increasing
 /// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
@@ -89,8 +91,8 @@ impl SequencerDb {
 /// A transaction stored inside [`SequencerDb`].
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct SeqDbTx {
-    /// The encoded, unmodified transaction bytes.
-    pub tx_bytes: FullyBakedTx,
+    /// The encoded transaction bytes.
+    tx_bytes: Vec<u8>,
     /// The hash of the transaction, as calculated by
     /// [`BatchBuilder::accept_tx`](crate::batch_builders::BatchBuilder::accept_tx).
     pub hash: TxHash,
@@ -101,14 +103,26 @@ pub struct SeqDbTx {
 
 impl SeqDbTx {
     /// Creates a new [`SeqDbTx`] from the given transaction bytes.
-    pub fn new(hash: TxHash, tx_bytes: FullyBakedTx) -> Self {
+    pub fn new<Bb: BatchBuilder>(hash: TxHash, tx_input: Bb::TxInput) -> Self {
         Self {
-            tx_bytes,
+            tx_bytes: borsh::to_vec(&tx_input).unwrap(),
             hash,
             // UUIDv7 are monotonically increasing. See here:
             // <https://github.com/uuid-rs/uuid/releases/tag/1.9.0>.
             uuid_v7: Uuid::now_v7().as_u128(),
         }
+    }
+
+    /// Decodes the transaction bytes stored in the [`SeqDbTx`] into appropriate
+    /// transaction type.
+    pub fn tx_input<Bb: BatchBuilder>(&self) -> Bb::TxInput {
+        borsh::from_slice(&self.tx_bytes)
+            .expect("Failed to deserialize stored transaction; this is a bug, please report it")
+    }
+
+    /// Returns the fully baked transaction bytes stored in the [`SeqDbTx`].
+    pub fn fully_baked_tx(&self) -> FullyBakedTx {
+        FullyBakedTx::new(self.tx_bytes.clone())
     }
 }
 

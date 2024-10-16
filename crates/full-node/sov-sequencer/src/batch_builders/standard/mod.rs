@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError, ChainState, FatalError, HasKernel, TransactionAuthenticator,
+    AuthenticationError, ChainState, HasKernel, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::transaction::SequencerReward;
@@ -57,7 +57,7 @@ pub struct StdBatchBuilderConfig {
 pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
     txsm: TxStatusManager<<Z::Spec as Spec>::Da>,
-    mempool: Mempool<<Z::Spec as Spec>::Da>,
+    mempool: Mempool<Self>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
@@ -102,40 +102,25 @@ where
         mut ctx: BatchConstructionContext<Z::Spec>,
     ) -> (
         BatchConstructionContext<Z::Spec>,
-        Result<Option<TransactionReceipt<Z::Spec>>, AddTxToBatchError>,
+        Result<Option<(FullyBakedTx, TransactionReceipt<Z::Spec>)>, AddTxToBatchError>,
     ) {
+        let fully_baked = seqdb_tx.fully_baked_tx();
+
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
-        let tx_len = seqdb_tx.tx_bytes.data.len();
+        let tx_len = fully_baked.data.len();
         if ctx.current_batch_size_in_bytes + tx_len > self.max_batch_size_bytes() {
             return (ctx, Ok(None));
         }
 
         let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
 
-        let input = match borsh::from_slice(&seqdb_tx.tx_bytes.data) {
-            Ok(input) => input,
-            Err(err) => {
-                ctx.state_checkpoint = tx_scratchpad.revert();
-
-                return (
-                    ctx,
-                    Err(AddTxToBatchError::PreExecCheck(PreExecError::AuthError(
-                        AuthenticationError::FatalError(
-                            FatalError::DeserializationFailed(err.to_string()),
-                            seqdb_tx.hash,
-                        ),
-                    ))),
-                );
-            }
-        };
-
         let (tx_scratchpad, output_res) = tx_auth(
             &self.runtime,
             tx_scratchpad,
             ctx.gas_price.clone(),
             &self.sequencer_address,
-            input,
+            seqdb_tx.tx_input::<Self>(),
         );
 
         let (auth_output, gas_meter) = match output_res {
@@ -190,7 +175,7 @@ where
                 ctx.state_checkpoint = tx_scratchpad.commit();
                 ctx.reward.accumulate(sequencer_reward);
 
-                (ctx, Ok(Some(receipt)))
+                (ctx, Ok(Some((fully_baked, receipt))))
             }
         }
     }
@@ -214,6 +199,7 @@ impl<Z> BatchBuilder for StdBatchBuilder<Z>
 where
     Z: RtAwareBatchBuilderSpec,
 {
+    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
@@ -271,6 +257,10 @@ where
         })
     }
 
+    fn encode_tx(raw: RawTx) -> Self::TxInput {
+        Z::Rt::add_standard_auth(raw)
+    }
+
     fn is_ready(&self) -> bool {
         true
     }
@@ -297,19 +287,22 @@ where
 
     async fn accept_tx(
         &mut self,
-        raw: RawTx,
+        tx_input: Self::TxInput,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
-        tracing::trace!(raw_tx = hex::encode(&raw), "`accept_tx` has been called");
-
-        let authenticated = Z::Rt::add_standard_auth(raw);
         let baked_tx = {
-            let data = borsh::to_vec(&authenticated).map_err(|err| AcceptTxError {
-                http_status: StatusCode::BAD_REQUEST.as_u16(),
-                title: "Failed to encode transaction".to_string(),
-                details: err.to_string(),
-            })?;
-            FullyBakedTx { data }
+            FullyBakedTx {
+                data: borsh::to_vec(&tx_input).map_err(|err| AcceptTxError {
+                    http_status: StatusCode::BAD_REQUEST.as_u16(),
+                    title: "Failed to encode transaction".to_string(),
+                    details: err.to_string(),
+                })?,
+            }
         };
+
+        tracing::trace!(
+            baked_tx = hex::encode(&baked_tx),
+            "`accept_tx` has been called"
+        );
 
         if baked_tx.data.len() > self.max_batch_size_bytes() {
             return Err(AcceptTxError {
@@ -338,7 +331,7 @@ where
                 checkpoint.to_tx_scratchpad(),
                 gas_price,
                 &self.sequencer_address,
-                authenticated,
+                tx_input.clone(),
             );
 
             let (auth_output, gas_meter) = match output_res {
@@ -375,7 +368,7 @@ where
             };
 
             {
-                self.mempool.add_new_tx(tx_hash, baked_tx.clone());
+                self.mempool.add_new_tx(tx_hash, tx_input);
                 tracing::trace!(
                     %tx_hash,
                     "Transaction has been added to the mempool"
@@ -469,18 +462,17 @@ where
                     },
                 };
 
-                match tx_receipt.map(|r| r.receipt) {
-                    Some(TxEffect::Successful(_)) => {
+                match tx_receipt.map(|(tx, r)| (tx, r.receipt)) {
+                    Some((fully_baked_tx, TxEffect::Successful(_))) => {
                         tracing::info!(
                             hash = %mempool_tx.hash,
                             "Transaction has been included in the batch",
                         );
 
-                        let tx_len = mempool_tx.tx_bytes.data.len();
-                        ctx.current_batch_size_in_bytes += tx_len;
+                        ctx.current_batch_size_in_bytes += fully_baked_tx.data.len();
 
                         txs.push(TxWithHash {
-                            fully_baked_tx: mempool_tx.tx_bytes.clone(),
+                            fully_baked_tx,
                             hash: mempool_tx.hash,
                         });
 
@@ -488,11 +480,11 @@ where
                         // space inside the batch.
                         cursor = cursor.max(self.mempool_cursor(&ctx));
                     }
-                    Some(tx_receipt) => {
+                    Some((fully_baked_tx, tx_receipt)) => {
                         // Failed transaction; ignore and process the next one.
                         tracing::warn!(
                             ?tx_receipt,
-                            tx = hex::encode(&mempool_tx.tx_bytes.data),
+                            tx = hex::encode(&fully_baked_tx),
                             hash = %mempool_tx.hash,
                             "Error during transaction dispatch"
                         );

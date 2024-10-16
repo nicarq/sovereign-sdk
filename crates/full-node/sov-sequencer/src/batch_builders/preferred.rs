@@ -28,7 +28,7 @@ use crate::{SeqDbTx, TxStatusManager};
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 struct TxBody(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
 
-/// Transaction confirmation metadata that the sequencer returns to clients.
+/// Transaction confirmation data of [`PreferredBatchBuilder`].
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Confirmation<Z: RtAwareBatchBuilderSpec> {
     tx_hash: TxHash,
@@ -78,6 +78,7 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
 
 #[async_trait]
 impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
+    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
     type Confirmation = Confirmation<Z>;
     type Batch = PreferredBatchData;
     type Config = ();
@@ -87,7 +88,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         storage: StorageReceiver<Z::Spec>,
         da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
-        _seq_db_txs: Vec<SeqDbTx>,
+        seq_db_txs: Vec<SeqDbTx>,
         _config: &Self::Config,
     ) -> anyhow::Result<Self> {
         let runtime: Z::Rt = Default::default();
@@ -104,8 +105,8 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
         let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
 
-        Ok(Self {
-            runtime,
+        let mut bb = Self {
+            runtime: Default::default(),
             storage,
             sequencer_address,
             checkpoint: Some(initial_checkpoint),
@@ -114,7 +115,16 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
             da_sync_state,
             txs_in_next_batch: vec![],
-        })
+        };
+
+        // Restore persisted transactions.
+        for seq_db_tx in seq_db_txs {
+            bb.accept_tx(seq_db_tx.tx_input::<Self>())
+                .await
+                .map_err(|err| anyhow::anyhow!("Failed to restore transactions: {:?}", err))?;
+        }
+
+        Ok(bb)
     }
 
     fn is_ready(&self) -> bool {
@@ -144,14 +154,24 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         //self.checkpoint = Some(checkpoint);
     }
 
+    fn encode_tx(raw: RawTx) -> Self::TxInput {
+        Z::Rt::add_standard_auth(raw)
+    }
+
     async fn accept_tx(
         &mut self,
-        raw_tx_bytes: RawTx,
+        tx_input: Self::TxInput,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
         let state_checkpoint = self
             .checkpoint
             .take()
             .expect("Absent checkpoint; this is a bug, please report it");
+
+        let baked_tx = FullyBakedTx {
+            data: borsh::to_vec(&tx_input).expect(
+                "Failed to serialize transaction inside the batch. This is a bug, please report it",
+            ),
+        };
 
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
@@ -163,19 +183,12 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             let visible_height = kernel_ws.virtual_slot_number();
             let tx_scratchpad = checkpoint.to_tx_scratchpad();
 
-            let auth_input = Z::Rt::add_standard_auth(raw_tx_bytes.clone());
-            let baked_tx = FullyBakedTx {
-                data: borsh::to_vec(&auth_input).expect(
-                    "Failed to borsh-serialize transaction; this is a bug, please report it",
-                ),
-            };
-
             let (tx_scratchpad, output_res) = tx_auth(
                 &self.runtime,
                 tx_scratchpad,
                 gas_price,
                 &self.sequencer_address,
-                auth_input,
+                tx_input,
             );
 
             let (auth_output, gas_meter) = match output_res {

@@ -4,11 +4,12 @@ use std::num::NonZero;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use sov_modules_api::{DaSpec, FullyBakedTx};
+use sov_modules_api::Spec;
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
 use tracing::debug;
 
+use crate::batch_builders::BatchBuilder;
 use crate::db::{SeqDbTx, SeqDbTxId};
 use crate::{TxStatus, TxStatusManager};
 
@@ -17,9 +18,9 @@ use crate::{TxStatus, TxStatusManager};
 // - gas per byte
 #[derive(derivative::Derivative)]
 #[derivative(Debug)]
-pub struct Mempool<Da: DaSpec> {
+pub struct Mempool<Bb: BatchBuilder> {
     max_txs_count: NonZero<usize>,
-    txsm: TxStatusManager<Da>,
+    txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
     // Transaction data
     // ----------------
     txs_ordered_by_most_fair_fit: BTreeMap<MempoolCursor, Arc<SeqDbTx>>,
@@ -27,11 +28,11 @@ pub struct Mempool<Da: DaSpec> {
     txs_by_hash: HashMap<TxHash, Arc<SeqDbTx>>,
 }
 
-impl<Da: DaSpec> Mempool<Da> {
+impl<Bb: BatchBuilder> Mempool<Bb> {
     /// Creates a new [`Mempool`] with the given capacity and initializes it
     /// with the given transactions.
     pub fn new(
-        txsm: TxStatusManager<Da>,
+        txsm: TxStatusManager<<<Bb as BatchBuilder>::Spec as Spec>::Da>,
         max_txs_count: NonZero<usize>,
         txs: Vec<SeqDbTx>,
     ) -> anyhow::Result<Self> {
@@ -81,10 +82,7 @@ impl<Da: DaSpec> Mempool<Da> {
             return;
         };
 
-        let cursor = MempoolCursor {
-            tx_size_in_bytes: tx.tx_bytes.data.len(),
-            uuid_v7: tx.uuid_v7,
-        };
+        let cursor = MempoolCursor::from_db_tx(&tx);
 
         self.txs_ordered_by_incremental_id.remove(&tx.uuid_v7);
         self.txs_ordered_by_most_fair_fit.remove(&cursor);
@@ -118,13 +116,13 @@ impl<Da: DaSpec> Mempool<Da> {
         }
     }
 
-    pub fn add_new_tx(&mut self, hash: TxHash, tx: FullyBakedTx) -> Arc<SeqDbTx> {
+    pub fn add_new_tx(&mut self, hash: TxHash, tx_input: Bb::TxInput) -> Arc<SeqDbTx> {
         if let Some(tx) = self.txs_by_hash.get(&hash) {
             // We already have this transaction in the mempool; simply return a
             // reference to it (don't re-add it!).
             tx.clone()
         } else {
-            let tx = Arc::new(SeqDbTx::new(hash, tx));
+            let tx = Arc::new(SeqDbTx::new::<Bb>(hash, tx_input));
             self.add(tx.clone());
             tx
         }
@@ -133,10 +131,7 @@ impl<Da: DaSpec> Mempool<Da> {
     pub fn add(&mut self, tx: Arc<SeqDbTx>) {
         self.make_space_for_tx();
 
-        let cursor = MempoolCursor {
-            tx_size_in_bytes: tx.tx_bytes.data.len(),
-            uuid_v7: tx.uuid_v7,
-        };
+        let cursor = MempoolCursor::from_db_tx(&tx);
 
         self.txs_ordered_by_incremental_id
             .insert(tx.uuid_v7, tx.clone());
@@ -158,6 +153,13 @@ impl MempoolCursor {
         Self {
             tx_size_in_bytes,
             uuid_v7: 0,
+        }
+    }
+
+    pub fn from_db_tx(tx: &SeqDbTx) -> Self {
+        Self {
+            tx_size_in_bytes: tx.fully_baked_tx().data.len(),
+            uuid_v7: tx.uuid_v7,
         }
     }
 }
