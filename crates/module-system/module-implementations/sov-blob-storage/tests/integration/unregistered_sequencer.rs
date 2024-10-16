@@ -1,25 +1,26 @@
 use sov_blob_storage::config_unregistered_blobs_per_slot;
 use sov_mock_da::MockBlob;
-use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
+use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
-use sov_test_utils::{AsUser, SequencerInfo, TestSequencer};
+use sov_test_utils::runtime::traits::MinimalGenesis;
+use sov_test_utils::{AsUser, EncodeCall, SequencerInfo, TestSequencer};
 
 use crate::helpers_basic_kernel::{build_basic_blobs, setup_basic_kernel};
 use crate::helpers_soft_confirmations::{
     build_soft_confirmation_blobs, setup_soft_confirmation_kernel,
 };
-use crate::{HashMap, TestData, TestRunner, RT, S};
+use crate::{HashMap, TestData, TestRunner, S};
 
 fn make_unregistered_blobs<
-    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
+    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + EncodeCall<SequencerRegistry<S>>,
 >(
     num_blobs: u64,
     sender: &TestSequencer<S>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<K>,
+    runner: &mut TestRunner<RT>,
 ) -> Vec<MockBlob> {
     let user_stake_value = runner.query_state(|state| {
         SequencerRegistry::<S>::default()

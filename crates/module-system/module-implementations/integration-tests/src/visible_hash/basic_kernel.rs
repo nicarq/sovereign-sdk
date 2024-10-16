@@ -1,0 +1,96 @@
+use sov_modules_api::hooks::SlotHooks;
+use sov_modules_api::{Spec, Storage};
+use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator};
+
+use crate::visible_hash::{
+    last_state_root_closure, FinalizeHook, HighLevelOptimisticGenesisConfig, TestClosureArgs,
+    TestUser, TestVisibleHashModule, S,
+};
+
+generate_bare_runtime! {
+    name: TestVisibleHashRuntime,
+    modules: [visible_hash_module: TestVisibleHashModule<S>],
+    operating_mode: sov_modules_api::OperatingMode::Optimistic,
+    minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
+    impl_hooks: [ApplyBatchHooks, TxHooks],
+    runtime_trait_impl_bounds: [],
+    kernel_type: sov_kernels::basic::BasicKernel<S>
+}
+
+impl_standard_runtime_authenticator!(TestVisibleHashRuntime<S>);
+
+type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
+
+type RT = TestVisibleHashRuntime<S>;
+
+impl<S: Spec> SlotHooks for TestVisibleHashRuntime<S> {
+    type Spec = S;
+
+    fn begin_slot_hook(
+        &self,
+        visible_hash: &<<S as Spec>::Storage as Storage>::Root,
+        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
+    ) {
+        self.visible_hash_module
+            .begin_slot_hook(visible_hash, state);
+    }
+}
+
+impl<S: Spec> FinalizeHook for TestVisibleHashRuntime<S> {
+    type Spec = S;
+
+    fn finalize_hook(
+        &self,
+        root_hash: &<<S as Spec>::Storage as Storage>::Root,
+        state: &mut impl sov_modules_api::AccessoryStateReaderAndWriter,
+    ) {
+        self.visible_hash_module.finalize_hook(root_hash, state);
+    }
+}
+
+fn setup() -> (TestUser<S>, TestRunner<RT>) {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+
+    let user = genesis_config.additional_accounts.first().unwrap().clone();
+
+    let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ());
+
+    let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    (user, runner)
+}
+
+/// Tests that the visible kernel hash updates for each slot for the basic Kernel
+#[test]
+fn visible_hash_basic_kernel() {
+    let (_, mut runner) = setup();
+
+    const NUM_SLOTS: u64 = 10;
+
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  prev_finalize_hook_hash,
+                  begin_slot_hash,
+                  finalize_hook_hash,
+                  current_slot_hash,
+              }| {
+            assert_eq!(
+                prev_finalize_hook_hash, begin_slot_hash,
+                "The previous finalize slot hash should match the current begin slot hash"
+            );
+
+            assert_ne!(
+                finalize_hook_hash, begin_slot_hash,
+                "The begin and finalize slot hashes should not match"
+            );
+
+            assert_eq!(
+                finalize_hook_hash, current_slot_hash,
+                "The last finalize slot hash should match the current slot hash"
+            );
+        },
+        &mut runner,
+        NUM_SLOTS,
+    );
+}

@@ -15,7 +15,6 @@ use prettytable::Table;
 use sov_bank::{Bank, Coins};
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
@@ -31,7 +30,7 @@ use sov_state::StorageRoot;
 use sov_test_utils::{TestPrivateKey, TestSpec, TestStorageManager, TestStorageSpec};
 use tempfile::TempDir;
 
-type BenchStf = StfBlueprint<TestSpec, Runtime<TestSpec>, BasicKernel<TestSpec>>;
+type BenchStf = StfBlueprint<TestSpec, Runtime<TestSpec>>;
 
 const SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0; 32]);
 // Minimum TPS below which it is considered an issue

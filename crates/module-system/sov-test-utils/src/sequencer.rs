@@ -5,7 +5,6 @@ use std::time::Duration;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, SlotData};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
@@ -38,9 +37,8 @@ pub type TestSequencer<B> = Sequencer<TestSequencerSpec<B>>;
 /// The default test fair batch builder type.
 /// An alias for a [`StdBatchBuilder`] with a [`TestSpec`],
 /// a [`MockDaService`] for DA interactions,
-/// a [`TestOptimisticRuntime`] and a [`BasicKernel`].
-pub type TestStdBatchBuilder =
-    StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>), BasicKernel<TestSpec>>;
+/// a [`TestOptimisticRuntime`] and a [`sov_kernels::basic::BasicKernel`].
+pub type TestStdBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
 
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and

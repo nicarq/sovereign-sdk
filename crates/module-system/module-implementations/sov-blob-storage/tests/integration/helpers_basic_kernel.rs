@@ -3,16 +3,20 @@ use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
-use sov_test_utils::{BatchType, TestSequencer, TEST_DEFAULT_USER_STAKE};
+use sov_test_utils::{
+    generate_zk_runtime_with_kernel, BatchType, TestSequencer, TEST_DEFAULT_USER_STAKE,
+};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::{
-    assert_blobs_are_correctly_received_helper, GenesisConfig, HashMap, SlotConfigInfo,
-    TestBlobStorageRuntime, TestData, TestRunner, S,
+    assert_blobs_are_correctly_received_helper, HashMap, SlotConfigInfo, TestData, TestRunner, S,
 };
 
+pub type BasicRT = BasicBlobStorageRuntime<S>;
+generate_zk_runtime_with_kernel!(kernel_type: BasicKernel<S>, BasicBlobStorageRuntime <= value_setter: ValueSetter<S>);
+
 /// Sets up a test runtime and returns a [`TestData`] struct.
-pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S>>) {
+pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicRT>) {
     // Generate a genesis config, then overwrite the attester key/address with ones that
     // we know. We leave the other values untouched.
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
@@ -39,10 +43,8 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S>>) {
         },
     );
 
-    let runner = TestRunner::<BasicKernel<S>>::new_with_genesis(
-        genesis.into_genesis_params(),
-        TestBlobStorageRuntime::default(),
-    );
+    let runner =
+        TestRunner::<BasicRT>::new_with_genesis(genesis.into_genesis_params(), BasicRT::default());
 
     (
         TestData {
@@ -60,7 +62,7 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicKernel<S>>) {
 pub fn build_basic_blobs(
     slots_info: &SlotConfigInfo<TestSequencer<S>>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<BasicKernel<S>>,
+    runner: &mut TestRunner<BasicRT>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
     for sequencer in slots_info {
@@ -68,7 +70,7 @@ pub fn build_basic_blobs(
     }
 
     runner.query_state(|state| {
-        TestRunner::<BasicKernel<S>>::batches_to_blobs::<ValueSetter<S>>(batches, nonces, state)
+        TestRunner::<BasicRT>::batches_to_blobs::<ValueSetter<S>>(batches, nonces, state)
     })
 }
 
@@ -91,7 +93,7 @@ pub fn assert_blobs_are_correctly_received_basic_kernel(
     sending_order: Vec<Vec<TestSequencer<S>>>,
     receive_order: Vec<Vec<usize>>,
     virtual_slot_heights_increases: Vec<u64>,
-    runner: &mut TestRunner<BasicKernel<S>>,
+    runner: &mut TestRunner<BasicRT>,
 ) {
     let mut nonces = HashMap::new();
 

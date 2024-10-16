@@ -11,7 +11,6 @@ use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use prettytable::Table;
 use sov_db::storage_manager::NativeChangeSet;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::WitnessGeneration;
@@ -81,12 +80,11 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
 
 type BenchRisc0Spec = DefaultSpec<MockDaSpec, Risc0Verifier, Risc0Verifier, WitnessGeneration>;
 
-type BenchRisc0STF =
-    StfBlueprint<BenchRisc0Spec, Runtime<BenchRisc0Spec>, BasicKernel<BenchRisc0Spec>>;
+type BenchRisc0STF = StfBlueprint<BenchRisc0Spec, Runtime<BenchRisc0Spec>>;
 
 type BenchSP1Spec = DefaultSpec<MockDaSpec, SP1Verifier, SP1Verifier, WitnessGeneration>;
 
-type BenchSP1STF = StfBlueprint<BenchSP1Spec, Runtime<BenchSP1Spec>, BasicKernel<BenchSP1Spec>>;
+type BenchSP1STF = StfBlueprint<BenchSP1Spec, Runtime<BenchSP1Spec>>;
 
 /// Simple enum to select the test mode.
 enum BenchMode {

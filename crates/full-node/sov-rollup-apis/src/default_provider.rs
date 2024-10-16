@@ -16,12 +16,11 @@ use sov_rollup_interface::common::HexString;
 use crate::{PartialTransaction, RollupStateProvider};
 
 /// The default rollup state provider. Uses the kernel and a runtime to simulate transaction execution and compute the gas price.
-pub struct DefaultRollupStateProvider<S: Spec, K: KernelSlotHooks<S>, RT: Runtime<S>> {
-    phantom: PhantomData<(S, K, RT)>,
+pub struct DefaultRollupStateProvider<S: Spec, RT: Runtime<S>> {
+    phantom: PhantomData<(S, RT)>,
 }
 
-impl<S: Spec, K: KernelSlotHooks<S> + Send + Sync, RT: Runtime<S>> RollupStateProvider
-    for Arc<DefaultRollupStateProvider<S, K, RT>>
+impl<S: Spec, RT: Runtime<S>> RollupStateProvider for Arc<DefaultRollupStateProvider<S, RT>>
 where
     RT: HasCapabilities<S, AuthorizationData = AuthorizationData<S>>,
 {
@@ -36,9 +35,11 @@ where
     ) -> Result<<<Self::Spec as Spec>::Gas as Gas>::Price, Self::Error> {
         let storage = storage.borrow().clone();
 
-        let mut state = StateCheckpoint::new(storage, &K::default());
+        let mut state = StateCheckpoint::new(storage, &RT::default().kernel());
 
-        Ok(K::default().base_fee_per_gas(&mut state))
+        Ok(RT::default()
+            .kernel_slot_hooks()
+            .base_fee_per_gas(&mut state))
     }
 
     fn simulate_execution(
@@ -51,13 +52,15 @@ where
                 <PartialTransaction<S> as Into<AuthorizationData<S>>>::into(transaction.clone()),
             );
 
-        let mut state = StateCheckpoint::new(storage.borrow().clone(), &K::default());
+        let mut state = StateCheckpoint::new(storage.borrow().clone(), &RT::default().kernel());
 
         let height = state.rollup_height_to_access();
 
-        let gas_price = transaction
-            .gas_price
-            .unwrap_or_else(|| K::default().base_fee_per_gas(&mut state));
+        let gas_price = transaction.gas_price.unwrap_or_else(|| {
+            RT::default()
+                .kernel_slot_hooks()
+                .base_fee_per_gas(&mut state)
+        });
 
         let sequencer_da_address = transaction.sequencer.unwrap_or(default_sequencer);
 

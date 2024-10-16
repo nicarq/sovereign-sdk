@@ -6,18 +6,20 @@ use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{
-    AsUser, BatchType, SequencerInfo, SoftConfirmationBlobInfo, TestSequencer,
-    TEST_DEFAULT_USER_STAKE,
+    generate_zk_runtime_with_kernel, AsUser, BatchType, SequencerInfo, SoftConfirmationBlobInfo,
+    TestSequencer, TEST_DEFAULT_USER_STAKE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::{
-    assert_blobs_are_correctly_received_helper, GenesisConfig, HashMap, SlotConfigInfo,
-    TestBlobStorageRuntime, TestData, TestRunner, S,
+    assert_blobs_are_correctly_received_helper, HashMap, SlotConfigInfo, TestData, TestRunner, S,
 };
 
+pub type SoftConfRT = SoftConfBlobStorageRuntime<S>;
+generate_zk_runtime_with_kernel!(kernel_type: SoftConfirmationsKernel<S>, SoftConfBlobStorageRuntime <= value_setter: ValueSetter<S>);
+
 /// Sets up a test runtime and returns a [`TestData`] struct. Does not register the regular sequencer.
-pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfirmationsKernel<S>>) {
+pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfRT>) {
     let genesis_config = HighLevelZkGenesisConfig::generate_with_additional_accounts(2);
     let preferred_sequencer = genesis_config.initial_sequencer.clone();
     let user_account = genesis_config.additional_accounts.first().unwrap().clone();
@@ -42,9 +44,9 @@ pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfirma
         },
     );
 
-    let runner = TestRunner::<SoftConfirmationsKernel<S>>::new_with_genesis(
+    let runner = TestRunner::<SoftConfRT>::new_with_genesis(
         genesis.into_genesis_params(),
-        TestBlobStorageRuntime::default(),
+        SoftConfRT::default(),
     );
 
     (
@@ -60,8 +62,7 @@ pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfirma
 /// Sets up a test runtime and returns a [`TestData`] struct. Registers the regular sequencer
 /// Note: with this setup, the first available sequence number is 1. This is because the
 /// sequencer number 0 is used to register the non-preferred sequencer.
-pub fn setup_with_registration_soft_confirmation_kernel(
-) -> (TestData<S>, TestRunner<SoftConfirmationsKernel<S>>) {
+pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfRT>) {
     let (test_data, mut runner) = setup_soft_confirmation_kernel();
 
     let regular_sequencer = &test_data.regular_sequencer;
@@ -78,9 +79,7 @@ pub fn setup_with_registration_soft_confirmation_kernel(
     // There is an issue to fix that: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1330`
     let mut nonces = runner.nonces().clone();
     let blob = runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S>>::soft_confirmation_batches_to_blobs::<
-            SequencerRegistry<S>,
-        >(
+        TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<SequencerRegistry<S>>(
             vec![SoftConfirmationBlobInfo {
                 batch_type: BatchType(vec![regular_sequencer
                     .create_plain_message::<SequencerRegistry<S>>(
@@ -111,7 +110,7 @@ pub fn setup_with_registration_soft_confirmation_kernel(
 pub fn build_soft_confirmation_blobs(
     slot_info: &SlotConfigInfo<(TestSequencer<S>, SequencerInfo)>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<SoftConfirmationsKernel<S>>,
+    runner: &mut TestRunner<SoftConfRT>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
 
@@ -124,9 +123,9 @@ pub fn build_soft_confirmation_blobs(
     }
 
     runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S>>::soft_confirmation_batches_to_blobs::<
-            ValueSetter<S>,
-        >(batches, nonces, state)
+        TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<ValueSetter<S>>(
+            batches, nonces, state,
+        )
     })
 }
 
@@ -149,7 +148,7 @@ pub fn assert_blobs_are_correctly_received_soft_confirmation(
     sending_order: Vec<Vec<(TestSequencer<S>, SequencerInfo)>>,
     receive_order: Vec<Vec<usize>>,
     virtual_slot_heights_increases: Vec<u64>,
-    runner: &mut TestRunner<SoftConfirmationsKernel<S>>,
+    runner: &mut TestRunner<SoftConfRT>,
 ) {
     let mut nonces = HashMap::new();
 

@@ -1,11 +1,10 @@
 use sov_blob_storage::config_deferred_slots_count;
-use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_modules_api::GasMeter;
 use sov_test_utils::{BatchTestCase, BatchType, SequencerInfo};
 
 use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
-    setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel,
+    setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel, SoftConfRT,
 };
 use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestRunner, S};
 
@@ -100,7 +99,7 @@ fn test_recovery_mode_with_deferred_blobs() {
         .collect::<Vec<_>>();
 
     let slashing_slot = runner.query_state(|state| {
-        TestRunner::<SoftConfirmationsKernel<S>>::batches_to_blobs::<sov_bank::Bank<S>>(
+        TestRunner::<SoftConfRT>::batches_to_blobs::<sov_bank::Bank<S>>(
             vec![(BatchType(vec![]), preferred_sequencer.da_address)],
             &mut nonces,
             state,

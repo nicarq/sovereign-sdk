@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
-use sov_modules_api::capabilities::{BlobSelector, KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec};
-use sov_modules_stf_blueprint::BatchReceipt;
+use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_test_utils::runtime::{SlotReceipt, TestRunnerWithKernel, ValueSetter};
-use sov_test_utils::{generate_zk_runtime, TestSequencer, TestUser};
+use sov_test_utils::runtime::traits::MinimalGenesis;
+use sov_test_utils::runtime::{SlotReceipt, ValueSetter};
+use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
 
 mod helpers_basic_kernel;
 mod helpers_soft_confirmations;
@@ -27,25 +27,18 @@ pub struct TestData<S: Spec> {
     pub regular_sequencer: TestSequencer<S>,
 }
 
-pub type TestRunner<K> = TestRunnerWithKernel<RT, K, S>;
-pub type RT = TestBlobStorageRuntime<S>;
-
-generate_zk_runtime!(TestBlobStorageRuntime <= value_setter: ValueSetter<S>);
+type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 
 /// Returns the current virtual slot number in the runner.
-pub fn virtual_slot<
-    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
->(
-    runner: &TestRunner<K>,
+pub fn virtual_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
+    runner: &TestRunner<RT>,
 ) -> u64 {
     runner.query_kernel_state(|kernel| kernel.virtual_slot_number())
 }
 
 /// Returns the last `k` slot receipts
-pub fn last_slot_receipts<
-    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
->(
-    runner: &TestRunner<K>,
+pub fn last_slot_receipts<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
+    runner: &TestRunner<RT>,
     k: usize,
 ) -> &[SlotReceipt<S>] {
     assert!(
@@ -90,12 +83,12 @@ fn check_virtual_slot_height(
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
 fn assert_blobs_are_correctly_received_helper<
-    K: KernelSlotHooks<S> + BlobSelector<BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
+    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + EncodeCall<ValueSetter<S>>,
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
     receive_order: Vec<Vec<usize>>,
     expected_virtual_slot_heights_increases: Vec<u64>,
-    runner: &mut TestRunner<K>,
+    runner: &mut TestRunner<RT>,
 ) {
     assert_eq!(receive_order.len(), expected_virtual_slot_heights_increases.len() , "The number of slots to receive and the number of expected virtual slot heights don't match.");
 

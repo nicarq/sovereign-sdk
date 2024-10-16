@@ -14,7 +14,9 @@ pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, Trans
 pub use sequencer_mode::registered::{authenticate_tx, process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
-use sov_modules_api::capabilities::{BlobOrigin, HasCapabilities, TransactionAuthenticator};
+use sov_modules_api::capabilities::{
+    BlobOrigin, BlobSelector, HasCapabilities, HasKernel, Kernel, TransactionAuthenticator,
+};
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
 use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::TransactionConsumption;
@@ -39,6 +41,7 @@ use crate::unregistered::BatchWithSingleTx;
 pub trait Runtime<S: Spec>:
     DispatchCall<Spec = S>
     + HasCapabilities<S>
+    + HasKernel<S>
     + TransactionAuthenticator<
         S,
         Decodable = <Self as DispatchCall>::Decodable,
@@ -164,11 +167,10 @@ pub struct GenesisParams<RuntimeConfig> {
     pub runtime: RuntimeConfig,
 }
 
-impl<S, RT, K> StfBlueprint<S, RT, K>
+impl<S, RT> StfBlueprint<S, RT>
 where
     S: Spec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn begin_slot(
@@ -195,9 +197,10 @@ where
         // Run end_slot_hook
         self.runtime.end_slot_hook(&mut checkpoint);
 
-        let mut kernel_state_accessor = self.kernel.accessor(&mut checkpoint);
+        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut checkpoint);
 
-        self.kernel
+        self.runtime
+            .kernel_slot_hooks()
             .end_slot_hook(gas_used, &mut kernel_state_accessor);
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
@@ -216,13 +219,12 @@ where
     }
 }
 
-impl<S, RT, Da, K> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, Da>
-    for StfBlueprint<S, RT, K>
+impl<S, RT, Da> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, Da> for StfBlueprint<S, RT>
 where
     S: Spec<Da = Da>,
     Da: DaSpec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S, BlobType = BlobDataWithId>,
+    RT: HasKernel<S, BlobType = BlobDataWithId>,
 {
     type StateRoot = <S::Storage as Storage>::Root;
 
@@ -251,7 +253,7 @@ where
     ) -> (Self::StateRoot, Self::ChangeSet) {
         // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
         let mut state_checkpoint =
-            StateCheckpoint::new::<S, K>(pre_state.clone(), &Default::default());
+            StateCheckpoint::new::<S, _>(pre_state.clone(), &self.runtime.kernel());
 
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
@@ -290,9 +292,10 @@ where
     where
         I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
     {
-        let mut state = StateCheckpoint::with_witness(pre_state.clone(), witness, &self.kernel);
+        let mut state =
+            StateCheckpoint::with_witness(pre_state.clone(), witness, &self.runtime.kernel());
 
-        let mut kernel_accessor = self.kernel.accessor(&mut state);
+        let mut kernel = self.runtime.kernel().accessor(&mut state);
 
         // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
         //
@@ -303,11 +306,11 @@ where
         // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
         // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
         // `Runtime`'s slot hooks.
-        let visible_state_root = self.kernel.begin_slot_hook(
+        let visible_state_root = self.runtime.kernel_slot_hooks().begin_slot_hook(
             slot_header,
             validity_condition,
             pre_state_root,
-            &mut kernel_accessor,
+            &mut kernel,
         );
 
         let all_blobs = relevant_blobs
@@ -322,8 +325,9 @@ where
             );
 
         let selected_blobs = self
-            .kernel
-            .get_blobs_for_this_slot(all_blobs, &mut kernel_accessor)
+            .runtime
+            .blob_selector()
+            .get_blobs_for_this_slot(all_blobs, &mut kernel)
             .expect("blob selection must succeed, probably serialization failed");
 
         self.begin_slot(
@@ -335,7 +339,10 @@ where
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the virtual slot number.
-        let gas_price = self.kernel.base_fee_per_gas(&mut state);
+        let gas_price = self
+            .runtime
+            .kernel_slot_hooks()
+            .base_fee_per_gas(&mut state);
 
         let visible_height = state.rollup_height_to_access();
 
@@ -354,17 +361,16 @@ where
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let (batch_receipt, next_checkpoint, gas_used) =
-                        registered::apply_batch::<S, RT, K>(
-                            &self.runtime,
-                            state,
-                            BatchWithId { batch, id: blob.id },
-                            blob_idx,
-                            sender,
-                            &gas_price,
-                            visible_height,
-                            execution_context,
-                        );
+                    let (batch_receipt, next_checkpoint, gas_used) = registered::apply_batch::<S, RT>(
+                        &self.runtime,
+                        state,
+                        BatchWithId { batch, id: blob.id },
+                        blob_idx,
+                        sender,
+                        &gas_price,
+                        visible_height,
+                        execution_context,
+                    );
 
                     batch_receipts.push(batch_receipt);
                     total_gas.combine(&gas_used);
@@ -372,7 +378,7 @@ where
                 }
                 BlobData::EmergencyRegistration(tx) => {
                     let (batch_receipt, next_checkpoint, gas_used) =
-                        unregistered::apply_batch::<S, RT, K>(
+                        unregistered::apply_batch::<S, RT>(
                             &self.runtime,
                             state,
                             BatchWithSingleTx {

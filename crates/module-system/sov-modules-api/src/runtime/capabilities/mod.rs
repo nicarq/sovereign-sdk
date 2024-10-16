@@ -99,6 +99,49 @@ pub trait HasCapabilities<S: Spec> {
     }
 }
 
+/// Indicates that a type provides the necessary kernel capabilities for a runtime.
+pub trait HasKernel<S: Spec> {
+    /// The type of blobs that the kernel can process.
+    type BlobType;
+
+    /// The concrete implementation of the kernel.
+    type Kernel: Kernel<S> + KernelSlotHooks<S> + BlobSelector<Spec = S, BlobType = Self::BlobType>;
+
+    /// Fetches the kernel modules from the runtime.
+    ///
+    /// This method is only intended to be used internally on the [`HasKernel`] trait, if you
+    /// need to access a kernel capability do so with the constructor method.
+    ///
+    /// The returned struct is wrapped in a guard to prevent access from code outside of the trait.
+    /// Without the guard it would be possible to implement an override for a kernel capability and
+    /// accidently use the default implementation leading subtle type mismatch bugs.
+    ///
+    /// For example, if I override [`HasCapabilities::gas_enforcer`] to return a different [`GasEnforcer`]
+    /// implementation but then used `HasCapabilities::capabilities().try_reserve_gas` instead of
+    /// `HasCapabilities::gas_enforcer().try_reserve_gas` I would use the default implementation instead of
+    /// the override.
+    fn inner(&self) -> Guard<Self::Kernel>;
+
+    /// Returns the [`Kernel`] implementation on [`HasKernel::Kernel`].
+    fn kernel(&self) -> impl Kernel<S> {
+        self.inner().inner
+    }
+
+    /// Returns the [`KernelSlotHooks`] implementation on [`HasKernel::Kernel`].
+    fn kernel_slot_hooks(&self) -> impl KernelSlotHooks<S> {
+        self.inner().inner
+    }
+
+    /// Returns the [`BlobSelector`] implementation on [`HasKernel::Kernel`].
+    fn blob_selector(&self) -> impl BlobSelector<Spec = S, BlobType = Self::BlobType> {
+        self.inner().inner
+    }
+
+    /// Returns the [`KernelWithSlotMapping`] implementation on [`HasKernel::Kernel`].
+    #[cfg(feature = "native")]
+    fn kernel_with_slot_mapping(&self) -> std::sync::Arc<dyn KernelWithSlotMapping<S>>;
+}
+
 #[cfg(feature = "test-utils")]
 pub mod mocks {
     //! Mocks for the rollup capabilities module

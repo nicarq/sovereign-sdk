@@ -4,10 +4,10 @@ use async_trait::async_trait;
 use demo_stf::runtime::{BondingProofServiceImpl, EthereumToRollupAddressConverter, Runtime};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::higher_kinded_types::Generic;
@@ -40,7 +40,6 @@ where
 {
     type Spec = DefaultSpec<MockDaSpec, Risc0Verifier, MockZkVerifier, M>;
     type Runtime = Runtime<Self::Spec>;
-    type Kernel = BasicKernel<Self::Spec>;
 }
 
 #[async_trait]
@@ -64,13 +63,13 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         StfBlueprint<
             <Self::Spec as Generic>::With<Zk>,
             <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
-            <MockDemoRollup<Zk> as RollupBlueprint<Zk>>::Kernel,
         >,
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Kernel>;
+    type BondingProofService =
+        BondingProofServiceImpl<Self::Spec, <Self::Runtime as HasKernel<Self::Spec>>::Kernel>;
 
     fn create_bonding_proof_service(
         &self,
@@ -115,11 +114,12 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::Kernel, Self::DaService, Self::Runtime>(
-            da_service.clone(),
-            storage,
-            &mut endpoints.jsonrpsee_module,
-        )?;
+        crate::eth::register_ethereum::<
+            Self::Spec,
+            <Self::Runtime as HasKernel<Self::Spec>>::Kernel,
+            Self::DaService,
+            Self::Runtime,
+        >(da_service.clone(), storage, &mut endpoints.jsonrpsee_module)?;
 
         Ok(endpoints)
     }

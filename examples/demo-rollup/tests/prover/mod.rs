@@ -3,7 +3,6 @@ use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_ELF;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::WitnessGeneration;
@@ -34,7 +33,7 @@ type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
 
 mod datagen;
 
-type TestSTF<'a> = StfBlueprint<DefaultSpec, Runtime<DefaultSpec>, BasicKernel<DefaultSpec>>;
+type TestSTF<'a> = StfBlueprint<DefaultSpec, Runtime<DefaultSpec>>;
 
 /// This test reproduces the proof generation process for the rollup used in benchmarks.
 #[tokio::test(flavor = "multi_thread")]

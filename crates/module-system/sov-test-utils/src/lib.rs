@@ -24,8 +24,6 @@ use sov_modules_stf_blueprint::{BatchReceipt, StfBlueprint};
 use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
 
-use crate::runtime::BasicKernel;
-
 mod evm;
 
 /// Utilities for generating test data.
@@ -71,10 +69,8 @@ pub type TestSignature = <TestCryptoSpec as CryptoSpec>::Signature;
 pub type TestHasher = <TestCryptoSpec as CryptoSpec>::Hasher;
 /// The default storage spec type. Uses a [`TestHasher`] for hashing.
 pub type TestStorageSpec = sov_state::DefaultStorageSpec<TestHasher>;
-/// The default STF blueprint type. Uses [`MockDaSpec`] for DA and custom kernel.
-pub type TestStfBlueprintWithKernel<RT, K, S> = StfBlueprint<S, RT, K>;
-/// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`BasicKernel`] for kernel.
-pub type TestStfBlueprint<RT, S> = StfBlueprint<S, RT, BasicKernel<S>>;
+/// The default STF blueprint type. Uses [`MockDaSpec`] for DA and [`sov_kernels::basic::BasicKernel`] for kernel.
+pub type TestStfBlueprint<RT, S> = StfBlueprint<S, RT>;
 /// The default [`sov_db::storage_manager::NativeStorageManager`], that can be used with [`ProverStorage`] and [`TestStorageSpec`].
 pub type TestStorageManager =
     sov_db::storage_manager::NativeStorageManager<MockDaSpec, ProverStorage<TestStorageSpec>>;

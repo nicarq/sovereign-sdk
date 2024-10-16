@@ -1,3 +1,5 @@
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec};
@@ -99,5 +101,25 @@ impl<S: Spec> ChainState<S> {
         self.slots
             .set(&state.true_slot_number(), &in_progress_slot, state)
             .unwrap_infallible();
+
+        self.true_to_virtual_slot_number_history
+            .set(
+                &state.true_slot_number(),
+                &state.virtual_slot_number(),
+                state,
+            )
+            .unwrap_infallible();
+    }
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
+    fn visible_slot_number_at(
+        &self,
+        true_slot_number: u64,
+        state: &mut sov_modules_api::state::ApiStateAccessor<S>,
+    ) -> u64 {
+        self.visible_slot_number_at(true_slot_number, state)
+            .unwrap_infallible()
     }
 }

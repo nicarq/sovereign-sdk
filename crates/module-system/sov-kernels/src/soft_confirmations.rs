@@ -75,8 +75,8 @@ impl<S: Spec> KernelSlotHooks<S> for SoftConfirmationsKernel<S> {
         &self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,
         validity_condition: &<S::Da as DaSpec>::ValidityCondition,
-        pre_state_root: &<<Self::Spec as sov_modules_api::Spec>::Storage as Storage>::Root,
-        state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
     ) -> <S::Storage as Storage>::Root {
         self.chain_state
             .begin_slot_hook(slot_header, validity_condition, pre_state_root, state)
@@ -85,14 +85,14 @@ impl<S: Spec> KernelSlotHooks<S> for SoftConfirmationsKernel<S> {
     fn end_slot_hook(
         &self,
         gas_used: &S::Gas,
-        state: &mut sov_modules_api::KernelStateAccessor<<Self::Spec as Spec>::Storage>,
+        state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
     ) {
         self.chain_state.end_slot_hook(gas_used, state);
     }
 
     fn base_fee_per_gas(
         &self,
-        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        state: &mut sov_modules_api::StateCheckpoint<S::Storage>,
     ) -> <<S as Spec>::Gas as Gas>::Price {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }

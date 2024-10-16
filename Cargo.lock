@@ -9415,6 +9415,7 @@ dependencies = [
  "serde",
  "sov-eth-dev-signer",
  "sov-evm",
+ "sov-kernels",
  "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",

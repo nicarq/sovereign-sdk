@@ -328,20 +328,6 @@ impl<S: Spec> ChainState<S> {
     ) {
         tracing::debug!(slot_number = value, "Setting next visible slot number");
 
-        let true_slot_num = self
-            .true_slot_number
-            .get(state)
-            .unwrap_infallible()
-            .unwrap_or_default();
-        let visible_slot_num = self
-            .next_visible_slot_number
-            .get(state)
-            .unwrap_infallible()
-            .unwrap_or_default();
-
-        self.true_to_virtual_slot_number_history
-            .set(&true_slot_num, &visible_slot_num, state)
-            .unwrap_infallible();
         self.next_visible_slot_number
             .set(value, state)
             .unwrap_infallible();

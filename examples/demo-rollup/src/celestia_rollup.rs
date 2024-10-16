@@ -7,8 +7,8 @@ use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParam
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec};
@@ -43,7 +43,6 @@ where
 {
     type Spec = DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M>;
     type Runtime = Runtime<Self::Spec>;
-    type Kernel = BasicKernel<Self::Spec>;
 }
 
 #[async_trait]
@@ -68,13 +67,13 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         StfBlueprint<
             <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Spec,
             <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
-            <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Kernel,
         >,
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Kernel>;
+    type BondingProofService =
+        BondingProofServiceImpl<Self::Spec, <Self::Runtime as HasKernel<Self::Spec>>::Kernel>;
 
     fn get_operating_mode(
         genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
@@ -119,7 +118,12 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::Kernel, Self::DaService, Self::Runtime>(
+        crate::eth::register_ethereum::<
+            Self::Spec,
+            <Self::Runtime as HasKernel<Self::Spec>>::Kernel,
+            Self::DaService,
+            Self::Runtime,
+        >(
             da_service.clone(),
             storage.clone(),
             &mut endpoints.jsonrpsee_module,
