@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError, HasKernel, KernelSlotHooks, TransactionAuthenticator,
+    AuthenticationError, FatalError, HasKernel, KernelSlotHooks, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::transaction::SequencerReward;
@@ -20,8 +20,7 @@ use sov_modules_api::{
     StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
-    authenticate_tx, process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect,
-    TxProcessingError,
+    process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::DaSyncState;
@@ -32,7 +31,8 @@ use tracing::error;
 use self::mempool::{Mempool, MempoolCursor};
 use super::{EmptyConfirmation, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
-    tx_auth, AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
+    pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
+    FreshlyBuiltBatch, TxWithHash,
 };
 use crate::db::SeqDbTx;
 use crate::{TxHash, TxStatus, TxStatusManager};
@@ -113,20 +113,35 @@ where
 
         let tx_scratchpad = ctx.state_checkpoint.to_tx_scratchpad();
 
-        let auth = authenticate_tx(
+        let input = match borsh::from_slice(&seqdb_tx.tx_bytes.data) {
+            Ok(input) => input,
+            Err(err) => {
+                ctx.state_checkpoint = tx_scratchpad.revert();
+
+                return (
+                    ctx,
+                    Err(AddTxToBatchError::PreExecCheck(PreExecError::AuthError(
+                        AuthenticationError::FatalError(
+                            FatalError::DeserializationFailed(err.to_string()),
+                            seqdb_tx.hash,
+                        ),
+                    ))),
+                );
+            }
+        };
+
+        let (tx_scratchpad, output_res) = tx_auth(
             &self.runtime,
-            &ctx.gas_price,
-            &self.sequencer_address,
-            &FullyBakedTx {
-                data: seqdb_tx.tx_bytes.data.clone(),
-            },
             tx_scratchpad,
+            ctx.gas_price.clone(),
+            &self.sequencer_address,
+            input,
         );
 
-        let (auth_output, gas_info, tx_scratchpad) = match auth {
-            (Ok((aut_output, gas_info)), tx_scratchpad) => (aut_output, gas_info, tx_scratchpad),
+        let (auth_output, gas_meter) = match output_res {
+            Ok(ok) => ok,
 
-            (Err(err), tx_scratchpad) => {
+            Err(err) => {
                 ctx.state_checkpoint = tx_scratchpad.revert();
                 return (ctx, Err(AddTxToBatchError::PreExecCheck(err)));
             }
@@ -153,7 +168,7 @@ where
         let (res, tx_scratchpad) = process_tx(
             &self.runtime,
             auth_output,
-            gas_info,
+            gas_meter.gas_info(),
             &self.sequencer_address,
             ctx.visible_height,
             tx_scratchpad,
@@ -164,7 +179,6 @@ where
             Err(reason) => {
                 // ...and immediately store the new `StateCheckpoint`.
                 ctx.state_checkpoint = tx_scratchpad.revert();
-
                 (ctx, Err(AddTxToBatchError::TxProcessing(reason)))
             }
             Ok(ApplyTxResult {
@@ -333,7 +347,10 @@ where
             let (auth_output, gas_meter) = match output_res {
                 Ok(ok) => ok,
                 Err(error) => {
-                    return (tx_scratchpad.revert(), Err(error));
+                    return (
+                        tx_scratchpad.revert(),
+                        Err(pre_exec_err_to_accept_tx_err(error)),
+                    );
                 }
             };
 

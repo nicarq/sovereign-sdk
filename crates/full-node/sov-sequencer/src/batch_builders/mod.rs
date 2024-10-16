@@ -16,7 +16,7 @@ use sov_modules_api::{
     BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, RawTx,
     RuntimeEventProcessor, RuntimeEventResponse, Spec, TxScratchpad,
 };
-use sov_modules_stf_blueprint::Runtime;
+use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
 use tracing::error;
 
@@ -203,9 +203,33 @@ type AuthRes<S, Rt> = (
             >,
             BasicGasMeter<<S as Spec>::Gas>,
         ),
-        AcceptTxError,
+        PreExecError,
     >,
 );
+
+fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> AcceptTxError {
+    match err{
+        PreExecError::SequencerError(error) => {
+            AcceptTxError {
+                http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
+                title: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
+                details: error.to_string(),
+            }
+
+        },
+        PreExecError::AuthError(error) => {
+            AcceptTxError {
+                // For certain kinds of authentication errors, 401
+                // or 403 would be more appropriate. But we'd have
+                // to inspect the error contents to determine the
+                // most appropriate status code... so 400 will do.
+                http_status: StatusCode::BAD_REQUEST.as_u16(),
+                title: "The transaction is invalid".to_string(),
+                details:error.to_string(),
+            }
+        },
+    }
+}
 
 fn tx_auth<S, Rt>(
     runtime: &Rt,
@@ -226,14 +250,7 @@ where
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
         Err(AuthorizeSequencerError { reason }) => {
             error!(%reason, "Sequencer authorization failed");
-            return (
-                        tx_scratchpad,
-                        Err(AcceptTxError {
-                            http_status: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
-                            title: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
-                            details: reason.to_string(),
-                        }),
-                    );
+            return (tx_scratchpad, Err(PreExecError::SequencerError(reason)));
         }
     };
 
@@ -242,24 +259,11 @@ where
     let auth_res = match runtime.authenticate(&input, &mut pre_exec_ws) {
         Ok(ok) => ok,
         Err(err) => {
-            let details = err.to_string();
             let tx_scratchpad = pre_exec_ws.to_scratchpad_and_gas_meter().0;
-            return (
-                tx_scratchpad,
-                Err(AcceptTxError {
-                    // For certain kinds of authentication errors, 401
-                    // or 403 would be more appropriate. But we'd have
-                    // to inspect the error contents to determine the
-                    // most appropriate status code... so 400 will do.
-                    http_status: StatusCode::BAD_REQUEST.as_u16(),
-                    title: "The transaction is invalid".to_string(),
-                    details,
-                }),
-            );
+            return (tx_scratchpad, Err(PreExecError::AuthError(err)));
         }
     };
 
     let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
-
     (tx_scratchpad, Ok((auth_res, gas_meter)))
 }

@@ -19,7 +19,7 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
 
-use super::{tx_auth, DataWithEvents, RtAwareBatchBuilderSpec};
+use super::{pre_exec_err_to_accept_tx_err, tx_auth, DataWithEvents, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
@@ -177,7 +177,10 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             let (auth_output, gas_meter) = match output_res {
                 Ok(ok) => ok,
                 Err(error) => {
-                    return (tx_scratchpad.revert(), Err(error));
+                    return (
+                        tx_scratchpad.revert(),
+                        Err(pre_exec_err_to_accept_tx_err(error)),
+                    );
                 }
             };
 
