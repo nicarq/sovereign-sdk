@@ -1,6 +1,8 @@
 ## 2024-10-14
 - #1642 Accumulate the sequencer's rewards in its staking account. This change will impact SDK consumers who assumed the rewards were accumulated in the sequencer's `personal` account.
 ## 2024-10-15
+- #1661 Adds `max_authentication_gas` to the `Authenticator` trait and corresponding `MAX_AUTHENTICATION_GAS` constant in `constants.toml`.
+This is a breaking change and the consumers of the SDK have to add `MAX_AUTHENTICATION_GAS` to `constants.toml`
 - #1660 Remove the slash_sequencer capability. This change is only relevant to the sequencers.
 - #1663 Makes all existing `JsonSchema` trait requirements apply in the non-native mode. This allows removal of some inconvenient feature gates. 
 ## 2024-10-10

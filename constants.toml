@@ -56,6 +56,9 @@ DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION = [1, 1]
 DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION = [
     100, 100
 ]
+# --- End Gas parameters to specify how to charge gas for hashing ---
+# Gas parameters to specify maximum authentication costs ---
+MAX_AUTHENTICATION_GAS_PER_TX =  [100000, 100000]
 # --- End Gas parameters to specify how to charge gas for signature verification ---
 # The cost of deserializing a message using Borsh
 DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION = [1, 1]
@@ -72,3 +75,5 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
+
+

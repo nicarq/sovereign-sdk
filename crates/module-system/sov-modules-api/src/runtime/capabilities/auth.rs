@@ -65,6 +65,9 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// The input to the authenticator
     type Input: BorshDeserialize + BorshSerialize + std::fmt::Debug;
 
+    /// Maximum amount of gas used for authentication.
+    fn max_authentication_gas(&self) -> S::Gas;
+
     /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
     /// into an executable message.
     fn authenticate(
