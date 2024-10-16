@@ -124,7 +124,8 @@ setup_private_validator() {
   # Generate a genesis transaction that creates a validator with a self-delegation
   celestia-appd gentx "$NODE_NAME" 5000000000utia \
     --keyring-backend="test" \
-    --chain-id "$P2P_NETWORK"
+    --chain-id "$P2P_NETWORK" \
+    --gas-prices "1utia"
   # Collect the genesis transactions and form a genesis.json
   celestia-appd collect-gentxs
 
