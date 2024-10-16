@@ -164,6 +164,10 @@ macro_rules! impl_standard_runtime_authenticator {
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
             type Input = AuthenticatorInput;
 
+            fn max_authentication_gas(&self) -> <S as ::sov_modules_api::Spec>::Gas {
+                S::Gas::from(::sov_modules_api::macros::config_value!("MAX_AUTHENTICATION_GAS_PER_TX"))
+            }
+
             fn authenticate(
                 &self,
                 tx: &AuthenticatorInput,

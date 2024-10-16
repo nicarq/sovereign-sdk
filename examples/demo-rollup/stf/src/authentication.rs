@@ -6,6 +6,7 @@ use sov_modules_api::capabilities::{
     calculate_hash, AuthenticationError, AuthenticationOutput, AuthorizationData, FatalError,
     UnregisteredAuthenticationError,
 };
+use sov_modules_api::macros::config_value;
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::{DispatchCall, PreExecWorkingSet, RawTx, Spec};
 
@@ -20,6 +21,10 @@ where
     type AuthorizationData = AuthorizationData<S>;
 
     type Input = Auth;
+
+    fn max_authentication_gas(&self) -> <S as Spec>::Gas {
+        S::Gas::from(config_value!("MAX_AUTHENTICATION_GAS_PER_TX"))
+    }
 
     fn authenticate(
         &self,
