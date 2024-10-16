@@ -100,10 +100,18 @@ If you want to add support for a new data availability layer, the easiest way to
 ## Adapters
 
 Adapters contain the logic integrating 3rd party codebases into the Sovereign SDK. Over time, we expect Sovereign SDK
-to have adapters for almost all Data Availability Layers and LLVM-compatible proof systems. Currently, we
-maintain adapters for [`Risc0`](https://www.risczero.com) (a zkVM) and [`Celestia`](https://www.celestia.org) a (DA layer).
-The Avail project also maintains an adapter for their DA layer, which can be found [here](https://github.com/availproject/avail-sovereign-da-adapter).
-[Chainway](https://chainway.xyz/) team also maintains an open-source Bitcoin DA adapter for their Sovereign Rollup on Bitcoin, which can be found [here](https://github.com/chainwayxyz/bitcoin-da).
+to have adapters for almost all Data Availability Layers and LLVM-compatible proof systems. 
+
+Currently, we maintain zkVM adapters for:
+- [`Risc0`](https://www.risczero.com)
+- [`SP1`](https://succinct.xyz)
+
+And DA layer adapters for:
+- [`Celestia`](https://www.celestia.org)
+- [`Bitcoin`](https://bitcoin.org/en/)
+- [`Solana`](https://solana.com)
+
+TODO: Add links to specific adapter repos.
 
 ## Testing
 
@@ -116,4 +124,6 @@ API stability and compliance with semantic versioning will be maintained on a be
 
 ## License
 
-To protect end-users from potentially insecure and unstable forks of Sovereign SDK, Sovereign Labs is currently reserving the rights to this repository until the SDK is ready for testnet. At that point, this repository will be open sourced with an Apache 2.0 license.
+See the [LICENSE](LICENSE.md) file for license rights and limitations. 
+
+The current license remains in effect until the Sovereign SDK becomes production-ready, as deemed by the team. Afterward, Sovereign Labs plans to re-license parts of this repository under the Apache 2.0 license as part of its free and open-source "Core" offering. Other parts will be re-licensed under a proprietary license that enforces a revenue share for certain features, allowing the company to continue sustainably improving the Sovereign SDK.
