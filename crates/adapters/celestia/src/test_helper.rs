@@ -4,7 +4,8 @@ pub(crate) mod files {
 
     use anyhow::Context;
     use celestia_types::nmt::Namespace;
-    use celestia_types::{ExtendedDataSquare, ExtendedHeader, NamespacedShares};
+    use celestia_types::row_namespace_data::NamespacedShares;
+    use celestia_types::ExtendedHeader;
     use serde::de::DeserializeOwned;
 
     use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
@@ -17,7 +18,6 @@ pub(crate) mod files {
     pub const ROLLUP_BATCH_ROWS_JSON: &str = "rollup_batch_rows.json";
     pub const ROLLUP_PROOF_ROWS_JSON: &str = "rollup_proof_rows.json";
     pub const ETX_ROWS_JSON: &str = "etx_rows.json";
-    pub const EDS_JSON: &str = "eds.json";
 
     pub mod with_rollup_proof_data {
         use super::*;
@@ -73,7 +73,6 @@ pub(crate) mod files {
         let rollup_batch_rows: NamespacedShares = load_from_file(path, ROLLUP_BATCH_ROWS_JSON)?;
         let rollup_proof_rows: NamespacedShares = load_from_file(path, ROLLUP_PROOF_ROWS_JSON)?;
         let etx_rows: NamespacedShares = load_from_file(path, ETX_ROWS_JSON)?;
-        let eds: ExtendedDataSquare = load_from_file(path, EDS_JSON)?;
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: batch_namespace,
@@ -85,13 +84,7 @@ pub(crate) mod files {
             rows: rollup_proof_rows,
         };
 
-        FilteredCelestiaBlock::new(
-            rollup_batch_shares,
-            rollup_proof_shares,
-            header,
-            etx_rows,
-            eds,
-        )
+        FilteredCelestiaBlock::new(rollup_batch_shares, rollup_proof_shares, header, etx_rows)
     }
 
     pub(crate) fn make_test_path(data_path: &str) -> PathBuf {

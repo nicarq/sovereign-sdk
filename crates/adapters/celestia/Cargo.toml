@@ -18,15 +18,11 @@ borsh = { workspace = true, features = ["bytes"] }
 bech32 = { workspace = true }
 prost = "0.12"
 
-#celestia-proto = { version = "0.2.0" }
-#celestia-rpc = { version = "0.2.0", default-features = false, optional = true }
-#celestia-types = { version = "0.2.0", default-features = false }
-# Pre 0.3.0 commit
-celestia-proto = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7" }
-celestia-rpc = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7", default-features = false, optional = true }
-celestia-types = { git = "https://github.com/eigerco/lumina.git", rev = "1579079cc480982f956c47ab664489d2d2d121b7", default-features = false }
-celestia-tendermint = { version = "0.32.1", default-features = false }
-celestia-tendermint-proto = { version = "0.32.1" }
+celestia-proto = { version = "0.4.1" }
+celestia-rpc = { version = "0.6.0", default-features = false, optional = true }
+celestia-types = { version = "0.6.1", default-features = false }
+celestia-tendermint = { version = "0.32.2", default-features = false }
+celestia-tendermint-proto = { version = "0.32.2" }
 nmt-rs = { workspace = true }
 
 # Convenience

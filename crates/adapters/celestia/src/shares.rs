@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_types::nmt::{Namespace, NS_SIZE};
-use celestia_types::NamespacedShares;
+use celestia_types::row_namespace_data::NamespacedShares;
 use prost::bytes::Buf;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::Bytes;
@@ -138,7 +138,7 @@ impl Share {
         let out: [_; NS_SIZE] = self.raw_inner_ref()[..NS_SIZE]
             .try_into()
             .expect("can't fail for correct size");
-        nmt_rs::NamespaceId(out).into()
+        Namespace::from_raw(&out).expect("invalid namespace")
     }
 
     pub fn is_valid_tx_start(&self, idx: usize) -> bool {

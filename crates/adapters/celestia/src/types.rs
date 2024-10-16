@@ -8,11 +8,8 @@ use celestia_types::consts::appconsts::SHARE_SIZE;
 /// Reexport the [`Namespace`] from `celestia-types`
 pub use celestia_types::nmt::Namespace;
 use celestia_types::nmt::{NamespacedHash, Nmt, NmtExt, NS_SIZE};
-use celestia_types::{
-    Commitment, DataAvailabilityHeader, ExtendedDataSquare, ExtendedHeader, NamespacedShares,
-    ValidateBasic,
-};
-use nmt_rs::NamespacedSha2Hasher;
+use celestia_types::row_namespace_data::NamespacedShares;
+use celestia_types::{Commitment, ExtendedDataSquare, ExtendedHeader, ValidateBasic};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 #[cfg(feature = "native")]
@@ -28,7 +25,7 @@ use crate::utils::BoxError;
 use crate::verifier::address::CelestiaAddress;
 #[cfg(feature = "native")]
 use crate::verifier::ChainValidityCondition;
-use crate::verifier::{PARITY_SHARES_NAMESPACE, PFB_NAMESPACE};
+use crate::verifier::PARITY_SHARES_NAMESPACE;
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
 /// Celestia namespace and corresponding shares.
@@ -141,7 +138,7 @@ impl NamespaceData {
 pub struct FilteredCelestiaBlock {
     pub(crate) header: CelestiaHeader,
     /// All rows in the extended data square which contain pfb data
-    pub(crate) pfb_rows: Vec<Row>,
+    pub(crate) etx_rows: NamespacedShares,
     /// Batch related data.
     pub(crate) rollup_batch_data: NamespaceData,
 
@@ -181,17 +178,11 @@ impl FilteredCelestiaBlock {
         rollup_proof_shares: NamespaceWithShares,
         header: ExtendedHeader,
         etx_rows: NamespacedShares,
-        data_square: ExtendedDataSquare,
     ) -> Result<Self, BoxError> {
         let tx_data = NamespaceGroup::from(&etx_rows);
         let pfbs = parse_pfb_namespace(tx_data)?;
         // Parse out all of the rows containing etxs
         trace!("Parsing namespaces...");
-        let pfb_rows =
-            get_rows_containing_namespace(PFB_NAMESPACE, &header.dah, data_square.rows()?)?;
-
-        // validate the extended data square
-        data_square.validate()?;
 
         let (rollup_batch_data, rollup_proof_data) = NamespaceWithShares::convert_to_namespace_data(
             &pfbs,
@@ -201,7 +192,7 @@ impl FilteredCelestiaBlock {
 
         Ok(FilteredCelestiaBlock {
             header: CelestiaHeader::new(header.dah, header.header.into()),
-            pfb_rows,
+            etx_rows,
             rollup_batch_data,
             rollup_proof_data,
         })
@@ -346,24 +337,6 @@ fn share_namespace_unchecked(share: &[u8]) -> Namespace {
     .into()
 }
 
-fn get_rows_containing_namespace<'a>(
-    nid: Namespace,
-    dah: &'a DataAvailabilityHeader,
-    data_square_rows: impl Iterator<Item = &'a [Vec<u8>]>,
-) -> Result<Vec<Row>, BoxError> {
-    let mut output = vec![];
-
-    for (row, root) in data_square_rows.zip(dah.row_roots().iter()) {
-        if root.contains::<NamespacedSha2Hasher<NS_SIZE>>(*nid) {
-            output.push(Row {
-                shares: row.to_vec(),
-                root: root.clone(),
-            });
-        }
-    }
-    Ok(output)
-}
-
 #[cfg(test)]
 pub mod tests {
     use crate::parse_pfb_namespace;
@@ -372,7 +345,7 @@ pub mod tests {
     use crate::verifier::PFB_NAMESPACE;
 
     #[test]
-    fn filtered_block_with_prof_data() {
+    fn filtered_block_with_proof_data() {
         let block = with_rollup_proof_data::filtered_block();
 
         // valid dah
@@ -385,8 +358,8 @@ pub mod tests {
         assert_eq!(rollup_proof_data.rows.rows[0].shares.len(), 1);
         assert!(rollup_proof_data.rows.rows[0].proof.is_of_presence());
 
-        assert_eq!(block.pfb_rows.len(), 1);
-        let pfbs_count = block.pfb_rows[0]
+        assert_eq!(block.etx_rows.rows.len(), 1);
+        let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
@@ -410,8 +383,8 @@ pub mod tests {
         assert!(rollup_batch_data.rows.rows[0].proof.is_of_presence());
 
         // 3 pfbs at all but only one belongs to rollup
-        assert_eq!(block.pfb_rows.len(), 1);
-        let pfbs_count = block.pfb_rows[0]
+        assert_eq!(block.etx_rows.rows.len(), 1);
+        let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
@@ -437,8 +410,8 @@ pub mod tests {
         assert!(rollup_batch_data.rows.rows[0].proof.is_of_absence());
 
         // 2 pfbs at all and no relevant
-        assert_eq!(block.pfb_rows.len(), 1);
-        let pfbs_count = block.pfb_rows[0]
+        assert_eq!(block.etx_rows.rows.len(), 1);
+        let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
             .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))

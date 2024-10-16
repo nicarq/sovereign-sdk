@@ -2,7 +2,8 @@ use std::convert::Infallible;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_types::nmt::{Namespace, NS_SIZE};
-use celestia_types::{Commitment, DataAvailabilityHeader, NamespacedShares};
+use celestia_types::row_namespace_data::NamespacedShares;
+use celestia_types::{Commitment, DataAvailabilityHeader};
 use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{
