@@ -12,7 +12,8 @@ generate_bare_runtime! {
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
-    runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>]
+    runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>],
+    kernel_type: sov_kernels::basic::BasicKernel<S>
 }
 
 /// A converter from an Ethereum address to a rollup address.

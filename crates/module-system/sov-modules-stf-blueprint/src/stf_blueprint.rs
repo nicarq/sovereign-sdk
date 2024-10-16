@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::{DaSpec, Gas, ProofReceipt, Spec, StateCheckpoint, Storage};
 use sov_rollup_interface::stf::StoredEvent;
 use sov_state::StorageProof;
@@ -10,33 +9,29 @@ use crate::Runtime;
 /// An implementation of the
 /// [`StateTransitionFunction`](sov_rollup_interface::stf::StateTransitionFunction)
 /// that is specifically designed to work with the module-system.
-pub struct StfBlueprint<S: Spec, RT: Runtime<S>, K: KernelSlotHooks<S>> {
+pub struct StfBlueprint<S: Spec, RT: Runtime<S>> {
     /// The runtime includes all the modules that the rollup supports.
     pub(crate) runtime: RT,
-    pub(crate) kernel: K,
     phantom_context: PhantomData<S>,
 }
 
-impl<S, RT, K> Default for StfBlueprint<S, RT, K>
+impl<S, RT> Default for StfBlueprint<S, RT>
 where
     S: Spec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S>,
 {
     fn default() -> Self {
         Self {
             runtime: RT::default(),
-            kernel: K::default(),
             phantom_context: PhantomData,
         }
     }
 }
 
-impl<S, RT, K> StfBlueprint<S, RT, K>
+impl<S, RT> StfBlueprint<S, RT>
 where
     S: Spec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S>,
 {
     /// [`StfBlueprint`] constructor with the default [`Runtime`] value. Same as
     /// [`Default::default`].

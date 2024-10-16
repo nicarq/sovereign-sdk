@@ -31,14 +31,20 @@
 //!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
 
 #[cfg(feature = "native")]
+use std::sync::Arc;
+
+#[cfg(feature = "native")]
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
-use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities};
+use sov_kernels::basic::BasicKernel;
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::KernelWithSlotMapping;
+use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities, HasKernel};
 use sov_modules_api::macros::UniversalWallet;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{DispatchCall, Event, Genesis, MessageCodec, Spec};
+use sov_modules_api::{BlobDataWithId, DispatchCall, Event, Genesis, MessageCodec, Spec};
 
 pub use crate::authentication::EthereumToRollupAddressConverter;
 #[cfg(feature = "native")]
@@ -121,5 +127,19 @@ impl<S: Spec> HasCapabilities<S> for Runtime<S> {
             prover_incentives: &self.prover_incentives,
             attester_incentives: &self.attester_incentives,
         })
+    }
+}
+
+impl<S: Spec> HasKernel<S> for Runtime<S> {
+    type BlobType = BlobDataWithId;
+    type Kernel = BasicKernel<S>;
+
+    fn inner(&self) -> Guard<Self::Kernel> {
+        Guard::new(BasicKernel::default())
+    }
+
+    #[cfg(feature = "native")]
+    fn kernel_with_slot_mapping(&self) -> Arc<dyn KernelWithSlotMapping<S>> {
+        Arc::new(self.chain_state.clone())
     }
 }

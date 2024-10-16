@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 pub use sov_accounts::Accounts;
 pub use sov_attester_incentives;
@@ -16,8 +15,9 @@ pub use sov_capabilities::StandardProvenRollupCapabilities;
 pub use sov_chain_state::{ChainState, ChainStateConfig};
 use sov_db::storage_manager::NativeChangeSet;
 pub use sov_kernels::basic::BasicKernel;
+pub use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
-use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
+use sov_modules_api::capabilities::{Kernel, KernelSlotHooks};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -42,13 +42,10 @@ use crate::storage::SimpleStorageManager;
 use crate::{
     generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
     ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput, SoftConfirmationBlobInfo,
-    TestStfBlueprintWithKernel, TransactionAssertContext, TransactionTestCase, TransactionType,
+    TestStfBlueprint, TransactionAssertContext, TransactionTestCase, TransactionType,
 };
 
 pub(crate) mod macros;
-
-/// A [`TestRunner`] with a [`BasicKernel`].
-pub type TestRunner<RT, S> = TestRunnerWithKernel<RT, BasicKernel<S>, S>;
 
 generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>);
 
@@ -100,8 +97,8 @@ pub struct RunnerConfig<Da: DaSpec> {
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
-pub struct TestRunnerWithKernel<RT: Runtime<S>, K: KernelSlotHooks<S>, S: Spec> {
-    stf: StfBlueprint<S, RT, K>,
+pub struct TestRunner<RT: Runtime<S>, S: Spec> {
+    stf: StfBlueprint<S, RT>,
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
@@ -110,14 +107,12 @@ pub struct TestRunnerWithKernel<RT: Runtime<S>, K: KernelSlotHooks<S>, S: Spec> 
     pub config: RunnerConfig<S::Da>,
 }
 
-/// The output of the runner
-pub type TestApplySlotOutput<RT, S> = TestApplySlotOutputWithKernel<RT, BasicKernel<S>, S>;
-
-type TestApplySlotOutputWithKernel<RT, K, S> = ApplySlotOutput<
+/// The output of the apply slot function that uses the test spec and da spec.
+pub type TestApplySlotOutput<RT, S> = ApplySlotOutput<
     <S as Spec>::InnerZkvm,
     <S as Spec>::OuterZkvm,
     <S as Spec>::Da,
-    TestStfBlueprintWithKernel<RT, K, S>,
+    TestStfBlueprint<RT, S>,
 >;
 
 /// The output of the runner
@@ -130,11 +125,10 @@ pub struct RunnerOutput<S: Spec> {
     pub root: <<S as Spec>::Storage as Storage>::Root,
 }
 
-impl<RT, K, S> TestRunnerWithKernel<RT, K, S>
+impl<RT, S> TestRunner<RT, S>
 where
-    RT: Runtime<S> + MinimalGenesis<S>,
-    S: Spec<Da = MockDaSpec, Storage = ProverStorage<DefaultSpecWithHasher<S>>>,
-    K: KernelSlotHooks<S, BlobType = BlobDataWithId> + KernelWithSlotMapping<S>,
+    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>,
+    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
 {
     /// Returns the runtime of the test runner.
     pub fn runtime(&self) -> &RT {
@@ -195,16 +189,18 @@ where
 
     fn current_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
-        let kernel = K::default();
+        let runtime = self.runtime();
+        let kernel = runtime.kernel();
 
-        let mut state_checkpoint =
-            StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
+        let mut state_checkpoint = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &kernel);
 
-        let base_fee_per_gas = kernel.base_fee_per_gas(&mut state_checkpoint);
+        let base_fee_per_gas = runtime
+            .kernel_slot_hooks()
+            .base_fee_per_gas(&mut state_checkpoint);
 
         ApiStateAccessor::<S>::new_with_price(
             &state_checkpoint,
-            Arc::new(kernel),
+            runtime.kernel_with_slot_mapping(),
             None,
             base_fee_per_gas,
         )
@@ -230,7 +226,9 @@ where
     pub fn __apply_to_state(&mut self, query: impl FnOnce(&mut StateCheckpoint<S::Storage>)) {
         let stf_state = self.storage_manager.create_storage();
 
-        let mut state = StateCheckpoint::<S::Storage>::new(stf_state.clone(), self.stf.kernel());
+        let runtime = self.runtime();
+
+        let mut state = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &runtime.kernel());
 
         query(&mut state);
 
@@ -250,11 +248,13 @@ where
     ) -> Output {
         let stf_state = self.storage_manager.create_storage();
 
-        let state = &mut StateCheckpoint::new(stf_state, self.stf.kernel());
+        let runtime = self.runtime();
 
-        let mut kernel_accessor = self.stf.kernel().accessor(state);
+        let state = &mut StateCheckpoint::new(stf_state, &runtime.kernel());
 
-        query(&mut kernel_accessor)
+        let mut kernel = runtime.kernel().accessor(state);
+
+        query(&mut kernel)
     }
 
     /// Builds a new test runner and runs genesis.
@@ -263,7 +263,7 @@ where
         runtime: RT,
     ) -> Self {
         // Use the runtime to create an STF blueprint
-        let stf = StfBlueprint::<S, RT, K>::with_runtime(runtime);
+        let stf = StfBlueprint::<S, RT>::with_runtime(runtime);
 
         // ----- Setup and run genesis ---------
         let temp_dir = tempfile::tempdir().unwrap();
@@ -401,7 +401,7 @@ where
     pub fn simulate<T: Into<SlotInput<S, M>>, M>(
         &mut self,
         input: T,
-    ) -> (TestApplySlotOutputWithKernel<RT, K, S>, NoncesMap<S>)
+    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>)
     where
         M: Module,
         RT: EncodeCall<M>,
@@ -446,10 +446,7 @@ where
 
     /// Executes the provided input and commits the state updates.
     /// This is useful for executing setup transactions that aren't test cases.
-    pub fn execute<T: Into<SlotInput<S, M>>, M>(
-        &mut self,
-        input: T,
-    ) -> TestApplySlotOutputWithKernel<RT, K, S>
+    pub fn execute<T: Into<SlotInput<S, M>>, M>(&mut self, input: T) -> TestApplySlotOutput<RT, S>
     where
         M: Module,
         RT: EncodeCall<M>,
@@ -462,7 +459,7 @@ where
 
     fn commit_apply_slot_output(
         &mut self,
-        output: &TestApplySlotOutputWithKernel<RT, K, S>,
+        output: &TestApplySlotOutput<RT, S>,
         nonces: NoncesMap<S>,
     ) {
         self.storage_manager.commit(output.change_set.clone());

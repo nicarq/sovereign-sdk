@@ -9,7 +9,8 @@ macro_rules! generate_bare_runtime {
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         impl_hooks: [$($hook:ident),* $(,)?],
-        runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*]
+        runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
+        kernel_type: $kernel_type:ty
     ) => {
         /// Generated test runtime implementation using the testing framework.
         #[derive(
@@ -103,6 +104,7 @@ macro_rules! generate_bare_runtime {
             fn genesis_config(_genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
                 unimplemented!()
             }
+
         }
 
         impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
@@ -126,6 +128,20 @@ macro_rules! generate_bare_runtime {
             }
         }
 
+        impl<S> sov_modules_api::capabilities::HasKernel<S> for $id<S> where
+            S: ::sov_modules_api::Spec,
+        {
+            type BlobType = sov_modules_api::BlobDataWithId;
+            type Kernel = $kernel_type;
+
+            fn inner(&self) -> sov_modules_api::capabilities::Guard<Self::Kernel> {
+                sov_modules_api::capabilities::Guard::new(<$kernel_type>::default())
+            }
+
+            fn kernel_with_slot_mapping(&self) -> std::sync::Arc<dyn ::sov_modules_api::capabilities::KernelWithSlotMapping<S>> {
+                ::std::sync::Arc::new(self.chain_state.clone())
+            }
+        }
     };
 }
 
@@ -223,33 +239,59 @@ macro_rules! impl_standard_runtime_authenticator {
 }
 
 /// Generates a optimistic runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
-/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments.
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a basic kernel.
 #[macro_export]
 macro_rules! generate_optimistic_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_optimistic_runtime_with_kernel! {
+            kernel_type: $crate::runtime::BasicKernel<S>,
+            $id <= $($module_name : $module_ty),*
+        }
+    };
+}
+
+/// Generates a optimistic runtime containing the [`Bank`](sov_bank::Bank), [`AttesterIncentives`](sov_attester_incentives::AttesterIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a custom kernel.
+#[macro_export]
+macro_rules! generate_optimistic_runtime_with_kernel {
+    (kernel_type: $kernel_ty:ty, $id:ident <= $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
-            runtime_trait_impl_bounds: []
+            runtime_trait_impl_bounds: [],
+            kernel_type: $kernel_ty
         }
     };
 }
 
 /// Generates a zk runtime containing the [`Bank`](sov_bank::Bank), [`ProverIncentives`](sov_prover_incentives::ProverIncentives),
-/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments.
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a basic kernel.
 #[macro_export]
 macro_rules! generate_zk_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
+        $crate::generate_zk_runtime_with_kernel! {
+            kernel_type: $crate::runtime::BasicKernel<S>,
+            $id <= $($module_name : $module_ty),*
+        }
+    };
+}
+
+/// Generates a zk runtime containing the [`Bank`](sov_bank::Bank), [`ProverIncentives`](sov_prover_incentives::ProverIncentives),
+/// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a custom kernel.
+#[macro_export]
+macro_rules! generate_zk_runtime_with_kernel {
+    (kernel_type: $kernel_ty:ty, $id:ident <= $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
             impl_hooks: [SlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
-            runtime_trait_impl_bounds: []
+            runtime_trait_impl_bounds: [],
+            kernel_type: $kernel_ty
         }
     };
 }

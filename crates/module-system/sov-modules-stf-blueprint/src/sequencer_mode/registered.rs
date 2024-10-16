@@ -5,7 +5,6 @@ use sov_modules_api::capabilities::{
     AuthorizeSequencerError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
     TransactionAuthenticator, TransactionAuthorizer, TryReserveGasError,
 };
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
@@ -223,7 +222,7 @@ fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>>(
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-pub(crate) fn apply_batch<S, RT, K>(
+pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
     batch_with_id: BatchWithId,
@@ -236,7 +235,6 @@ pub(crate) fn apply_batch<S, RT, K>(
 where
     S: Spec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S>,
 {
     debug!(
         batch_id = hex::encode(batch_with_id.id),

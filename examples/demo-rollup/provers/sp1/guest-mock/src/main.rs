@@ -4,7 +4,6 @@ sp1_zkvm::entrypoint!(main);
 
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockDaSpec, MockDaVerifier};
 pub use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
 use sov_modules_api::default_spec::DefaultSpec;
@@ -19,13 +18,10 @@ pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();
 
-    let stf: StfBlueprint<
-        DefaultSpec<MockDaSpec, SP1Verifier, MockZkVerifier, Zk>,
-        Runtime<_>,
-        BasicKernel<_>,
-    > = StfBlueprint::new();
+    let stf: StfBlueprint<DefaultSpec<MockDaSpec, SP1Verifier, MockZkVerifier, Zk>, Runtime<_>> =
+        StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::<_, _, _, _, _, MockZkGuest>::new(stf, MockDaVerifier {});
+    let stf_verifier = StfVerifier::<_, _, _, _, MockZkGuest>::new(stf, MockDaVerifier {});
 
     stf_verifier
         .run_block(guest, storage)

@@ -1,7 +1,6 @@
 use std::path::Path;
 
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::{Batch, DaSpec, RawTx, Spec};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, StfBlueprint};
@@ -15,7 +14,7 @@ mod tx_revert_tests;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 pub(crate) type RuntimeTest = Runtime<S>;
-pub(crate) type StfBlueprintTest = StfBlueprint<S, RuntimeTest, BasicKernel<S>>;
+pub(crate) type StfBlueprintTest = StfBlueprint<S, RuntimeTest>;
 
 pub(crate) struct TestPrivateKeys<S: Spec> {
     pub token_deployer: PrivateKeyAndAddress<S>,

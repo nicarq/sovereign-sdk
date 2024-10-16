@@ -6,7 +6,6 @@ mod wallet;
 #[cfg(feature = "native")]
 pub use endpoints::*;
 use pluggable_traits::PluggableSpec;
-use sov_modules_api::capabilities::{KernelSlotHooks, KernelWithSlotMapping};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{BlobDataWithId, Spec};
 #[cfg(feature = "native")]
@@ -26,14 +25,7 @@ pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync {
     type Spec: PluggableSpec + Spec;
 
     /// The runtime for the rollup.
-    type Runtime: Runtime<Self::Spec> + Send + Sync + 'static;
-
-    /// The kernel for the rollup.
-    type Kernel: KernelSlotHooks<Self::Spec, BlobType = BlobDataWithId>
-        + KernelWithSlotMapping<Self::Spec>
-        + Send
-        + Sync
-        + 'static;
+    type Runtime: Runtime<Self::Spec, BlobType = BlobDataWithId> + Send + Sync + 'static;
 }
 
 #[cfg(feature = "native")]
@@ -351,7 +343,7 @@ mod blueprint {
         /// The State Transition Runner.
         #[allow(clippy::type_complexity)]
         pub runner: StateTransitionRunner<
-            StfBlueprint<S::Spec, S::Runtime, S::Kernel>,
+            StfBlueprint<S::Spec, S::Runtime>,
             S::StorageManager,
             S::DaService,
             S::InnerZkvmHost,

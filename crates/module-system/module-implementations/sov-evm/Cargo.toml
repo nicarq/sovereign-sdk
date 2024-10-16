@@ -18,6 +18,7 @@ workspace = true
 [dependencies]
 sov-modules-api = { workspace = true, features = ["evm"] }
 sov-rollup-interface = { workspace = true }
+sov-kernels = { workspace = true }
 sov-state = { workspace = true }
 
 anyhow = { workspace = true }
@@ -71,18 +72,19 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 [features]
 default = []
 native = [
-    "alloy-rpc-types",
-    "jsonrpsee",
-    "revm-inspectors",
-    "alloy-primitives/std",
-    "reth-primitives/std",
-    "reth-rpc-types/default",
-    "dep:reth-rpc-eth-types",
+	"alloy-rpc-types",
+	"jsonrpsee",
+	"revm-inspectors",
+	"alloy-primitives/std",
+	"reth-primitives/std",
+	"reth-rpc-types/default",
+	"dep:reth-rpc-eth-types",
     # Optional for speed up in native mode
     # "revm/asm-keccak"
-    "sov-evm/native",
-    "sov-mock-da/native",
-    "sov-modules-api/native",
-    "sov-state/native",
-    "sov-rollup-interface/native",
+	"sov-evm/native",
+	"sov-mock-da/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+	"sov-rollup-interface/native",
+	"sov-kernels/native"
 ]

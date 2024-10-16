@@ -46,7 +46,7 @@ where
     let da_address = sequencer_config.da_address.clone();
     let (api_state, sequencer_router) = match &sequencer_config.batch_builder {
         BatchBuilderConfig::Standard(bb_config) => {
-            let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime), B::Kernel>::create(
+            let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
                 storage.clone(),
                 da_sync_state.clone(),
                 da_address,
@@ -123,7 +123,7 @@ where
     // Rollup endpoint
     {
         let rollup_router = RollupTxRouter::<
-            std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Kernel, B::Runtime>>,
+            std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Runtime>>,
         >::axum_router(storage, sequencer_config.da_address.clone());
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }

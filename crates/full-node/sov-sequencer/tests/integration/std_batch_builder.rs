@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use base64::prelude::*;
 use borsh::BorshDeserialize;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::MockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::*;
@@ -21,8 +20,7 @@ use sov_test_utils::{
 };
 use sov_value_setter::ValueSetter;
 
-pub type MyBatchBuilder =
-    StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>), BasicKernel<TestSpec>>;
+pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
 
 async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();

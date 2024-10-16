@@ -11,10 +11,9 @@ use axum::http::StatusCode;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError, KernelSlotHooks, KernelWithSlotMapping, TransactionAuthenticator,
+    AuthenticationError, HasKernel, KernelSlotHooks, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
-use sov_modules_api::runtime::capabilities::Kernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     Batch, DispatchCall, EnumUtils, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
@@ -55,9 +54,8 @@ pub struct StdBatchBuilderConfig {
 /// Transactions are included in batches by following a largest-first,
 /// least-recent-first priority. Only transactions that were successfully
 /// dispatched are included.
-pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec, K> {
+pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
-    kernel: Arc<K>,
     txsm: TxStatusManager<<Z::Spec as Spec>::Da>,
     mempool: Mempool<<Z::Spec as Spec>::Da>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
@@ -90,10 +88,9 @@ struct TxInfo<BlobHash> {
     status: TxStatus<BlobHash>,
 }
 
-impl<Z, K> StdBatchBuilder<Z, K>
+impl<Z> StdBatchBuilder<Z>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: KernelSlotHooks<Z::Spec> + Send + Sync + 'static,
 {
     const DEFAULT_MAX_BATCH_SIZE_BYTES: usize = 1024 * 1024;
 
@@ -199,10 +196,9 @@ where
 }
 
 #[async_trait]
-impl<Z, K> BatchBuilder for StdBatchBuilder<Z, K>
+impl<Z> BatchBuilder for StdBatchBuilder<Z>
 where
     Z: RtAwareBatchBuilderSpec,
-    K: Kernel<Z::Spec> + KernelWithSlotMapping<Z::Spec> + KernelSlotHooks<Z::Spec>,
 {
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
@@ -219,15 +215,23 @@ where
         seq_db_txs: Vec<SeqDbTx>,
         config: &StdBatchBuilderConfig,
     ) -> anyhow::Result<Self> {
-        let kernel = Arc::new(K::default());
+        let runtime = Z::Rt::default();
+        let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
+        let kernel = runtime.kernel();
+
         let storage = storage_recv.borrow();
 
-        let checkpoint = StateCheckpoint::new(storage.clone(), &*kernel);
+        let checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
 
-        let api_state = ApiState::build(Arc::new(()), checkpoint_receiver, kernel.clone(), None);
+        let api_state = ApiState::build(
+            Arc::new(()),
+            checkpoint_receiver,
+            kernel_with_slot_mapping,
+            None,
+        );
 
-        let checkpoint = StateCheckpoint::new(storage.clone(), &*kernel);
+        let checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
         let txsm = TxStatusManager::default();
 
         // We must drop it to retake ownership over `storage_recv`.
@@ -244,7 +248,6 @@ where
             txsm,
             api_state,
             runtime: Z::Rt::default(),
-            kernel,
             storage_recv,
             checkpoint_sender,
             checkpoint: Some(checkpoint),
@@ -271,7 +274,7 @@ where
     }
 
     async fn set_state(&mut self, _da_height: u64, stf_state: <Z::Spec as Spec>::Storage) {
-        let checkpoint = StateCheckpoint::new(stf_state, &*self.kernel);
+        let checkpoint = StateCheckpoint::new(stf_state, &Z::Rt::default().kernel());
         self.checkpoint_sender
             .send(checkpoint.clone_with_empty_witness())
             .ok();
@@ -314,7 +317,10 @@ where
         // This closure helps us make sure that we always put the
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
+            let gas_price = self
+                .runtime
+                .kernel_slot_hooks()
+                .base_fee_per_gas(&mut checkpoint);
 
             let (tx_scratchpad, output_res) = tx_auth(
                 &self.runtime,
@@ -394,7 +400,10 @@ where
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
+            let gas_price = self
+                .runtime
+                .kernel_slot_hooks()
+                .base_fee_per_gas(&mut checkpoint);
 
             let mut ctx = BatchConstructionContext {
                 visible_height,

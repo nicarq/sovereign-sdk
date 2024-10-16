@@ -1,3 +1,6 @@
+## 2024-10-11
+- #1636 Removes the `Kernel` structure from the `StfBlueprint`. It also adds and implements the `HasKernel` trait on the `Runtime`. Please make sure to remove the explicit dependence on the `Kernel` structure in your `StateTransitionFunction` implementations and use the `Runtime` instead. 
+
 ## 2024-10-14
 - #1642 Accumulate the sequencer's rewards in its staking account. This change will impact SDK consumers who assumed the rewards were accumulated in the sequencer's `personal` account.
 ## 2024-10-15
@@ -14,6 +17,7 @@ This is a breaking change and the consumers of the SDK have to add `MAX_AUTHENTI
 ## 2024-10-05
 - #1624 Adds `DaSpec` as an associated type of `Spec` and removes it from every other type inside the module system. See the changes to the demo-rollup here for an example migration: https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1624/files#diff-d9126f60816d820a29c0bf89e154c54c031f9fec4490301d08c3a3f2b39310e2
 
+- #1581 Fixes misalignment of rollup_height and JMT version. Genesis data is available at `rollup_height=0` via REST API.
 ## 2024-10-05
 - #1619 Allows the Kernel information to be immediately available from the transaction context in the non-preferred sequencer mode. Users may experience breaking changes if they were relying on the previous behavior - ie the Kernel information written in the slot _i_ would only be available in the slot _i+1_.
 - #1581 Fixes misalignment of rollup_height and JMT version. Genesis data is available at `rollup_height=0` via REST API.

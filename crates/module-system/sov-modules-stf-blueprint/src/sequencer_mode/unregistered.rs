@@ -17,8 +17,7 @@ use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
 };
 use crate::{
-    ApplyTxResult, AuthTxOutput, KernelSlotHooks, Runtime, SkippedTxContents, StateCheckpoint,
-    TxProcessingError,
+    ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, StateCheckpoint, TxProcessingError,
 };
 
 #[allow(clippy::result_large_err)]
@@ -170,7 +169,7 @@ pub(crate) struct BatchWithSingleTx {
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-pub(crate) fn apply_batch<S, RT, K>(
+pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
     batch: BatchWithSingleTx,
@@ -183,7 +182,6 @@ pub(crate) fn apply_batch<S, RT, K>(
 where
     S: Spec,
     RT: Runtime<S>,
-    K: KernelSlotHooks<S>,
 {
     debug!(
         batch_id = hex::encode(batch.id),

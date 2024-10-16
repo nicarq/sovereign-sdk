@@ -7,7 +7,6 @@ use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_bank::{Bank, Coins, TokenId};
 use sov_db::storage_manager::NativeChangeSet;
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
@@ -34,7 +33,7 @@ use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
 
 type BenchSpec = sov_test_utils::TestSpec;
-type Stf = StfBlueprint<BenchSpec, Runtime<BenchSpec>, BasicKernel<BenchSpec>>;
+type Stf = StfBlueprint<BenchSpec, Runtime<BenchSpec>>;
 
 type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
     BatchSequencerReceipt<MockDaSpec>,
