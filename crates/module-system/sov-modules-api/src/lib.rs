@@ -120,9 +120,9 @@ pub use crate::state::StateReaderAndWriter;
 ///
 /// ```rust
 /// use sov_modules_api::prelude::*;
-/// use sov_modules_api::macros::CliWalletArg;
+/// use sov_modules_api::macros::UniversalWallet;
 ///
-/// #[derive(CliWalletArg)]
+/// #[derive(UniversalWallet)]
 /// struct MyStruct;
 /// ```
 pub mod prelude {

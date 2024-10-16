@@ -17,6 +17,7 @@ workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+clap = { workspace = true, optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
@@ -67,6 +68,7 @@ arbitrary = [
 ]
 native = [
 	"sov-cycle-utils?/native",
+	"clap",
 	"sov-bank/native",
 	"sov-mock-da/native",
 	"sov-modules-api/native",

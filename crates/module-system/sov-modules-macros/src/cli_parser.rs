@@ -288,7 +288,10 @@ pub(crate) fn derive_cli_wallet(
     Ok(expanded.into())
 }
 
-pub(crate) fn derive_cli_wallet_arg(ast: DeriveInput) -> syn::Result<proc_macro::TokenStream> {
+pub(crate) fn derive_cli_wallet_arg(
+    ast: DeriveInput,
+    path_to_sov_modules_api: syn::TypePath,
+) -> syn::Result<proc_macro::TokenStream> {
     let (named_type_defn, conversion_logic, subcommand_ident) = match &ast.data {
         // Creating an enum "_WithNamedFields" which is identical to the first enum
         // except that all fields are named.
@@ -318,7 +321,7 @@ pub(crate) fn derive_cli_wallet_arg(ast: DeriveInput) -> syn::Result<proc_macro:
         }
 
         // Implement the `CliWalletArg` trait for the original type. This is what allows the original type to be used as a CLI arg.
-        impl #impl_generics sov_modules_api::CliWalletArg for #item_name #ty_generics #where_clause {
+        impl #impl_generics #path_to_sov_modules_api::CliWalletArg for #item_name #ty_generics #where_clause {
             type CliStringRepr = #subcommand_ident #ty_generics;
         }
     };
@@ -385,13 +388,13 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
 
     let inner_module_ident =
         format_ident!("__{}_cli_parser_inner_module", item_with_named_fields_ident);
+
     let enum_defn = quote! {
         #[doc(inline)]
         pub use #inner_module_ident::*;
 
         #[allow(non_snake_case)]
         mod #inner_module_ident {
-            use ::sov_modules_api::prelude::clap;
             use super::*;
 
             /// An auto-generated version of the #ident_name::CallMessage enum which is guaranteed to have
@@ -455,7 +458,6 @@ fn derive_cli_wallet_arg_struct(
         #[allow(non_snake_case)]
         mod #inner_module_ident {
             use super::*;
-            use ::sov_modules_api::prelude::clap;
 
             // An auto-generated version of the #ident_name::CallMessage struct which is guaranteed to have
             // no anonymous fields. This is necessary to enable `clap`'s automatic CLI parsing.

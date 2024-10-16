@@ -149,6 +149,9 @@ use offchain::offchain_generator;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
+#[cfg(feature = "native")]
+use crate::common::get_derived_struct_subattr;
+
 // Inputs to the [`config_value`](crate::config_value) proc-macro.
 /// Returns the name of the function that invoked the proc-macro.
 // Shamelessly copy-pasted from <https://stackoverflow.com/a/40234666/5148606>.
@@ -200,14 +203,24 @@ pub fn event(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), event_macro.derive_event_enum(input))
 }
 
-#[proc_macro_derive(UniversalWallet, attributes(sov_wallet))]
+#[proc_macro_derive(UniversalWallet, attributes(sov_wallet, universal_wallet))]
 pub fn derive_wallet(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
-    let result = sov_universal_wallet_macro_helpers::schema::derive(
-        input,
-        Some(syn::parse_quote! { sov_modules_api }),
-        syn::parse_quote! { sov_modules_api::macros::UniversalWallet },
-    );
+
+    let result = crate::common::get_derived_struct_subattr::<syn::TypePath>(
+        &input,
+        "universal_wallet",
+        "sov_modules_api_path",
+        syn::parse_quote! { sov_modules_api },
+    )
+    .and_then(|sov_api_type_path| {
+        sov_universal_wallet_macro_helpers::schema::derive(
+            input,
+            Some(sov_api_type_path),
+            syn::parse_quote! { sov_modules_api::macros::UniversalWallet },
+        )
+    });
+
     handle_macro_error_and_expand(fn_name!(), result.map(Into::into))
 }
 
@@ -293,10 +306,22 @@ pub fn cli_parser(input: TokenStream) -> TokenStream {
 }
 
 #[cfg(feature = "native")]
-#[proc_macro_derive(CliWalletArg)]
+#[proc_macro_derive(CliWalletArg, attributes(cli_wallet_arg))]
 pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
     let input: syn::DeriveInput = parse_macro_input!(input);
-    handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet_arg(input))
+
+    handle_macro_error_and_expand(
+        fn_name!(),
+        get_derived_struct_subattr::<syn::TypePath>(
+            &input,
+            "cli_wallet_arg",
+            "sov_modules_api_path",
+            syn::parse_quote! { sov_modules_api },
+        )
+        .and_then(|path_to_sov_modules_api| {
+            cli_parser::derive_cli_wallet_arg(input, path_to_sov_modules_api)
+        }),
+    )
 }
 
 #[proc_macro_attribute]

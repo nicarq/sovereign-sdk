@@ -224,6 +224,45 @@ impl<'a> StructDef<'a> {
     }
 }
 
+/// Returns the first match of the subattribute named `subattr_name` from the attribute `attr_name`.
+/// There should be only one attribute with `attr_name`.
+/// If no attribute with `attr_name` is found, returns `default_value`.
+pub(crate) fn get_derived_struct_subattr<T: syn::parse::Parse>(
+    input: &syn::DeriveInput,
+    attr_name: &str,
+    subattr_name: &str,
+    default_value: T,
+) -> syn::Result<T> {
+    let attributes: Vec<_> = input
+        .attrs
+        .clone()
+        .into_iter()
+        .filter(|attr| attr.path().is_ident(attr_name))
+        .collect();
+
+    if attributes.len() > 1 {
+        return Err(syn::Error::new_spanned(
+            input.clone(),
+            format!("Only one `#[{attr_name}]` attribute is allowed per type"),
+        ));
+    }
+
+    if let Some(attr) = attributes.first() {
+        let subattrs_parsed: Punctuated<syn::MetaNameValue, syn::Token![,]> = attr
+            .parse_args_with(Punctuated::<syn::MetaNameValue, syn::Token![,]>::parse_terminated)?;
+
+        for subattr in subattrs_parsed.into_iter() {
+            let syn::MetaNameValue { path, value, .. } = subattr;
+
+            if path.is_ident(subattr_name) {
+                return Ok(syn::parse_quote! { #value });
+            }
+        }
+    }
+
+    Ok(default_value)
+}
+
 /// Gets the first type parameter's identifier from [`syn::Generics`].
 pub(crate) fn get_generics_type_param(
     generics: &syn::Generics,
