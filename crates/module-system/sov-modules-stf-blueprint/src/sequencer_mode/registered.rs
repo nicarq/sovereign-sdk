@@ -49,7 +49,7 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
         &mut tx_scratchpad,
         execution_context,
     );
-    let ctx = match maybe_ctx {
+    let mut ctx = match maybe_ctx {
         Ok(ctx) => ctx,
         Err(err) => {
             let err_string = err.to_string();
@@ -91,11 +91,12 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
         );
     }
 
-    if let Err(TryReserveGasError { reason }) =
-        runtime
-            .gas_enforcer()
-            .try_reserve_gas(tx, &gas_info.gas_price, &ctx, &mut tx_scratchpad)
-    {
+    if let Err(TryReserveGasError { reason }) = runtime.gas_enforcer().try_reserve_gas(
+        tx,
+        &gas_info.gas_price,
+        &mut ctx,
+        &mut tx_scratchpad,
+    ) {
         runtime.sequencer_authorization().penalize_sequencer(
             sequencer_da_address,
             &reason,

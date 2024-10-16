@@ -2,8 +2,9 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
-    Address, CallResponse, Context, DispatchCall, EncodeCall, Error, Event, ExecutionContext,
-    Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+    Address, CallResponse, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
+    ExecutionContext, Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState,
+    WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
@@ -363,10 +364,12 @@ mod derive_dispatch {
 
         let sender = Address::try_from([0; 32].as_ref()).unwrap();
         let sequencer = Address::try_from([1; 32].as_ref()).unwrap();
+        let sequencer_da = <<ZkTestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
         let context: Context<ZkTestSpec> = Context::new(
             sender,
             Default::default(),
             sequencer,
+            sequencer_da,
             1,
             ExecutionContext::Node,
         );

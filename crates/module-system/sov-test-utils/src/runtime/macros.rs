@@ -9,6 +9,7 @@ macro_rules! generate_bare_runtime {
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         impl_hooks: [$($hook:ident),* $(,)?],
+        $(gas_enforcer_override: $gas_enforcer_override_fn:ident,)?
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
         kernel_type: $kernel_type:ty
     ) => {
@@ -126,6 +127,12 @@ macro_rules! generate_bare_runtime {
                     }
                 )
             }
+
+            $(
+                fn gas_enforcer(&self) -> impl ::sov_modules_api::capabilities::GasEnforcer<S> {
+                    self. $gas_enforcer_override_fn ()
+                }
+            )?
         }
 
         impl<S> sov_modules_api::capabilities::HasKernel<S> for $id<S> where

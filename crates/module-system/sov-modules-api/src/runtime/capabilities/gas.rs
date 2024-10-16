@@ -25,7 +25,7 @@ pub trait GasEnforcer<S: Spec> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
-        ctx: &Context<S>,
+        ctx: &mut Context<S>,
         scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<(), TryReserveGasError>;
 

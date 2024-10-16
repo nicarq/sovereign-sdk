@@ -10,8 +10,8 @@ use rand::{RngCore, SeedableRng};
 use sov_accounts::{AccountConfig, AccountData, Accounts, CallMessage};
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{
-    Context, CredentialId, ExecutionContext, Module, PrivateKey, PublicKey, Spec, StateCheckpoint,
-    WorkingSet,
+    Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
+    StateCheckpoint, WorkingSet,
 };
 use sov_test_utils::storage::new_finalized_storage;
 use sov_test_utils::{TestHasher, TestPrivateKey};
@@ -19,8 +19,8 @@ use sov_test_utils::{TestHasher, TestPrivateKey};
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls
 fuzz_target!(
-    |input: (u16, [u8; 32], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
-        let (iterations, seed, sequencer, keys) = input;
+    |input: (u16, [u8; 32], [u8; 32], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
+        let (iterations, seed, sequencer, sequencer_da, keys) = input;
         if iterations < 1024 {
             // pointless to setup & run a small iterations count
             return Corpus::Reject;
@@ -48,6 +48,7 @@ fuzz_target!(
             StateCheckpoint::<<S as Spec>::Storage>::new(storage, &MockKernel::<S>::default());
 
         let sequencer = <S as Spec>::Address::from(sequencer);
+        let sequencer_da = <<S as Spec>::Da as DaSpec>::Address::from(sequencer_da);
         let accounts: Vec<_> = keys
             .iter()
             .map(|k| AccountData {
@@ -79,6 +80,7 @@ fuzz_target!(
                 *sender,
                 Default::default(),
                 sequencer,
+                sequencer_da,
                 i as u64,
                 ExecutionContext::Node,
             );

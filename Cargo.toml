@@ -47,6 +47,7 @@ members = [
     "crates/module-system/module-implementations/sov-chain-state",
     "crates/module-system/module-implementations/sov-blob-storage",
     "crates/module-system/module-implementations/sov-evm",
+    "crates/module-system/module-implementations/sov-paymaster",
     "crates/module-system/module-implementations/sov-prover-incentives",
     "crates/module-system/module-implementations/sov-attester-incentives",
     "crates/module-system/module-implementations/sov-sequencer-registry",

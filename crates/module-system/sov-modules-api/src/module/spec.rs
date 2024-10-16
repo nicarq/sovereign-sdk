@@ -153,6 +153,10 @@ pub struct Context<S: Spec> {
     sender: S::Address,
     /// The rollup address of the sequencer who included the transaction.
     sequencer: S::Address,
+    /// The DA layer address of the sequencer who included the transaction.
+    sequencer_da_address: <S::Da as DaSpec>::Address,
+    /// The rollup address that pays the gas fees for the transaction.
+    gas_refund_recipient: S::Address,
     /// The height to report. This is set by the kernel when the context is created
     visible_height: u64,
     /// Describes the context in which the transaction is being executed.
@@ -171,16 +175,53 @@ impl<S: Spec> Context<S> {
         &self.sequencer
     }
 
-    /// Returns the rollup address of the sequencer which included the transaction.
+    /// Returns the DA layer address of the sequencer which included the transaction.
+    pub fn sequencer_da_address(&self) -> &<S::Da as DaSpec>::Address {
+        &self.sequencer_da_address
+    }
+
+    /// Returns the rollup address which will receive any gas refund from the transaction.
+    pub fn gas_refund_recipient(&self) -> &S::Address {
+        &self.gas_refund_recipient
+    }
+
+    /// Updates the rollup address which will receive any gas refund from the transaction.
+    pub fn set_gas_refund_recipient(&mut self, recipient: S::Address) {
+        self.gas_refund_recipient = recipient;
+    }
+
+    /// Returns the [`ExecutionContext`] of the transaction.
     pub fn execution_context(&self) -> &ExecutionContext {
         &self.execution_context
     }
 
-    /// Constructs a new Context.
+    /// Constructs a new Context with the provided sender as the payer.
     pub fn new(
         sender: S::Address,
         sender_credentials: Credentials,
         sequencer: S::Address,
+        sequencer_da_address: <S::Da as DaSpec>::Address,
+        height: u64,
+        execution_context: ExecutionContext,
+    ) -> Self {
+        Self::with_payer(
+            sender.clone(),
+            sender_credentials,
+            sequencer,
+            sequencer_da_address,
+            sender,
+            height,
+            execution_context,
+        )
+    }
+
+    /// Constructs a new Context with the provided payer.
+    pub fn with_payer(
+        sender: S::Address,
+        sender_credentials: Credentials,
+        sequencer: S::Address,
+        sequencer_da_address: <S::Da as DaSpec>::Address,
+        payer: S::Address,
         height: u64,
         execution_context: ExecutionContext,
     ) -> Self {
@@ -188,6 +229,8 @@ impl<S: Spec> Context<S> {
             sender_credentials,
             sender,
             sequencer,
+            sequencer_da_address,
+            gas_refund_recipient: payer,
             visible_height: height,
             execution_context,
             phantom: core::marker::PhantomData,
@@ -222,21 +265,25 @@ pub type SovStateTransitionPublicData<S> = StateTransitionPublicData<
 #[cfg(feature = "arbitrary")]
 mod arbitrary {
     use ::arbitrary::{Arbitrary, Unstructured};
+    use sov_rollup_interface::da::DaSpec;
 
     use super::{Context, Spec};
     impl<'a, S> Arbitrary<'a> for Context<S>
     where
         S: Spec,
         S::Address: Arbitrary<'a>,
+        <S::Da as DaSpec>::Address: Arbitrary<'a>,
     {
         fn arbitrary(u: &mut Unstructured<'a>) -> ::arbitrary::Result<Self> {
             let sender = u.arbitrary()?;
             let sequencer = u.arbitrary()?;
+            let sequencer_da_address = u.arbitrary()?;
             let height = u.arbitrary()?;
             Ok(Self::new(
                 sender,
                 Default::default(),
                 sequencer,
+                sequencer_da_address,
                 height,
                 crate::ExecutionContext::Node,
             ))

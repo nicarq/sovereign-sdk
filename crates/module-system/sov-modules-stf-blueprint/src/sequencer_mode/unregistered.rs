@@ -41,10 +41,15 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     let raw_tx_hash = auth_tx.raw_tx_hash;
     let tx = &auth_tx.authenticated_tx;
 
-    let ctx = match runtime
+    let mut ctx = match runtime
         .transaction_authorizer()
-        .resolve_unregistered_context(&auth_data, height, &mut tx_scratchpad, execution_context)
-    {
+        .resolve_unregistered_context(
+            &auth_data,
+            sequencer_da_address,
+            height,
+            &mut tx_scratchpad,
+            execution_context,
+        ) {
         Ok(ctx) => ctx,
         Err(e) => {
             return (
@@ -66,11 +71,12 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
         );
     }
 
-    if let Err(TryReserveGasError { reason }) =
-        runtime
-            .gas_enforcer()
-            .try_reserve_gas(tx, &gas_info.gas_price, &ctx, &mut tx_scratchpad)
-    {
+    if let Err(TryReserveGasError { reason }) = runtime.gas_enforcer().try_reserve_gas(
+        tx,
+        &gas_info.gas_price,
+        &mut ctx,
+        &mut tx_scratchpad,
+    ) {
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
             tx_scratchpad,

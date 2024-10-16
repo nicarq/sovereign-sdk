@@ -9749,6 +9749,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-paymaster"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "bcs",
+ "borsh",
+ "proptest",
+ "proptest-derive",
+ "schemars",
+ "serde",
+ "sov-bank",
+ "sov-kernels",
+ "sov-modules-api",
+ "sov-paymaster",
+ "sov-state",
+ "sov-test-utils",
+ "strum 0.26.3",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "sov-prover-incentives"
 version = "0.3.0"
 dependencies = [

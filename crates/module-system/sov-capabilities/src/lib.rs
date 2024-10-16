@@ -53,7 +53,7 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
-        context: &Context<S>,
+        context: &mut Context<S>,
         scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<(), TryReserveGasError> {
         self.bank
@@ -179,7 +179,7 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
-        let sequencer = self.
+        let sequencer_rollup_address = self.
         sequencer_registry.resolve_da_address(sequencer, tx_scratchpad)?
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
@@ -190,7 +190,8 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
         Ok(Context::new(
             sender,
             auth_data.credentials.clone(),
-            sequencer,
+            sequencer_rollup_address,
+            sequencer.clone(),
             height,
             execution_context,
         ))
@@ -199,6 +200,7 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
     fn resolve_unregistered_context(
         &self,
         auth_data: &Self::AuthorizationData,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
@@ -213,6 +215,7 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
             sender.clone(),
             auth_data.credentials.clone(),
             sender,
+            sequencer.clone(),
             height,
             execution_context,
         ))
