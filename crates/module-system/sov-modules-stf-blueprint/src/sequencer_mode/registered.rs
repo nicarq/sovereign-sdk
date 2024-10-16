@@ -153,7 +153,7 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
 
     let sequencer_reward = transaction_consumption.priority_fee();
     runtime.sequencer_remuneration().reward_sequencer(
-        ctx.sequencer(),
+        sequencer_da_address,
         sequencer_reward,
         &mut tx_scratchpad,
     );

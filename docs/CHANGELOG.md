@@ -1,3 +1,5 @@
+## 2024-10-14
+- #1642 Accumulate the sequencer's rewards in its staking account. This change will impact SDK consumers who assumed the rewards were accumulated in the sequencer's `personal` account.
 ## 2024-10-15
 - #1660 Remove the slash_sequencer capability. This change is only relevant to the sequencers.
 - #1663 Makes all existing `JsonSchema` trait requirements apply in the non-native mode. This allows removal of some inconvenient feature gates. 

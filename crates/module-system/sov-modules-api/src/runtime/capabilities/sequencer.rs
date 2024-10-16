@@ -59,9 +59,10 @@ pub trait SequencerAuthorization<S: Spec> {
 /// Functionality related to the rewarding and slashing of the sequencer.
 pub trait SequencerRemuneration<S: Spec> {
     /// Reward the sequencer for correctly processing the transaction batch.
+    /// This reward increases its staked balance.
     fn reward_sequencer(
         &self,
-        sender: &S::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         reward: SequencerReward,
         state: &mut TxScratchpad<S::Storage>,
     );

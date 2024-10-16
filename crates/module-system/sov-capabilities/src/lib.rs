@@ -267,11 +267,12 @@ impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> 
 impl<'a, S: Spec> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S> {
     fn reward_sequencer(
         &self,
-        sender: &S::Address,
+        sequencer: &<S::Da as DaSpec>::Address,
         reward: SequencerReward,
         state: &mut TxScratchpad<S::Storage>,
     ) {
         self.sequencer_registry
-            .reward_sequencer(sender, reward.into(), state);
+            .add_to_stake(self.bank.id().to_payable(), sequencer, reward.into(), state)
+            .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
     }
 }

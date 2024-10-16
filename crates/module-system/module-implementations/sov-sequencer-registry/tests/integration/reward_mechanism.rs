@@ -62,13 +62,13 @@ fn reward_mechanism_test(
     runner: &mut TestRunner<RT, S>,
 ) {
     let TestRoles {
-        default_sequencer,
+        default_sequencer: test_sequencer,
         admin,
         ..
     } = roles;
 
-    let default_sequencer_address = default_sequencer.user_info.address();
-    let default_sequencer_balance = default_sequencer.user_info.available_gas_balance;
+    let test_sequencer_da_address = test_sequencer.da_address;
+    let test_sequencer_bond = test_sequencer.bond;
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
@@ -79,10 +79,11 @@ fn reward_mechanism_test(
             .with_max_priority_fee_bips(max_priority_fee),
         assert: Box::new(move |_result, state| {
             assert_eq!(
-                Bank::<S>::default()
-                    .get_balance_of(&default_sequencer_address, config_gas_token_id(), state)
-                    .unwrap_infallible(),
-                Some(default_sequencer_balance + expected_reward),
+                TestRunner::<RT, S>::get_sequencer_staking_balance(
+                    &test_sequencer_da_address,
+                    state
+                ),
+                Some(test_sequencer_bond + expected_reward),
                 "The sequencer was not rewarded the correct amount"
             );
         }),
@@ -118,11 +119,9 @@ fn test_reward_sequencer_max_fee_not_high_enough() {
     reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
 }
 
-/// Tests that the sequencer registry balance does not change after rewarding the sequencer.
-/// If the balance changed the sequencer registry would break because it will eventually run out of funds.
-/// This is a regression test for `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1466>`.
+/// Tests that the sequencer registry balance accumulates the sequencer's rewards.
 #[test]
-fn test_reward_sequencer_registry_balance_does_not_change() {
+fn test_reward_sequencer_registry() {
     let (roles, gas_consumed, mut runner) = reward_mechanism_test_setup();
 
     let sequencer_registry_balance = |runner: &TestRunner<RT, S>| {
@@ -144,15 +143,16 @@ fn test_reward_sequencer_registry_balance_does_not_change() {
     let expected_reward = priority_fee.apply(gas_consumed).unwrap();
     let max_fee = gas_consumed + expected_reward;
 
-    let balance_before = sequencer_registry_balance(&runner);
+    let balance_before = sequencer_registry_balance(&runner).unwrap();
 
     reward_mechanism_test(max_fee, priority_fee, expected_reward, roles, &mut runner);
 
-    let balance_after = sequencer_registry_balance(&runner);
+    let balance_after = sequencer_registry_balance(&runner).unwrap();
 
     assert_eq!(
-        balance_before, balance_after,
-        "The sequencer registry balance should not change after rewarding the sequencer"
+        balance_before + expected_reward,
+        balance_after,
+        "The sequencer registry balance should increase after rewarding the sequencer"
     );
 }
 

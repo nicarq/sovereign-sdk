@@ -39,7 +39,7 @@ fn test_default_sequencer() {
 
     let test_sequencer_address = test_sequencer.user_info.address();
     let test_sequencer_da_address = test_sequencer.da_address;
-    let test_sequencer_initial_balance = test_sequencer.user_info.available_gas_balance;
+    let test_sequencer_bond = test_sequencer.bond;
 
     let custom_priority_fee = PriorityFeeBips::from_percentage(10);
 
@@ -50,10 +50,12 @@ fn test_default_sequencer() {
         assert: Box::new(move |result, state| {
             // Assert that the sequencer has been rewarded
             assert_eq!(
-                TestRunner::<RT, S>::bank_gas_balance(&test_sequencer_address, state),
+                TestRunner::<RT, S>::get_sequencer_staking_balance(
+                    &test_sequencer_da_address,
+                    state
+                ),
                 Some(
-                    test_sequencer_initial_balance
-                        + custom_priority_fee.apply(result.gas_value_used).unwrap()
+                    test_sequencer_bond + custom_priority_fee.apply(result.gas_value_used).unwrap()
                 ),
                 "The sequencer should have been rewarded the execution funds "
             );
