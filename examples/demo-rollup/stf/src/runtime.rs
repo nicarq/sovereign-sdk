@@ -132,10 +132,13 @@ impl<S: Spec> HasCapabilities<S> for Runtime<S> {
 
 impl<S: Spec> HasKernel<S> for Runtime<S> {
     type BlobType = BlobDataWithId;
-    type Kernel = BasicKernel<S>;
+    type Kernel<'a> = BasicKernel<'a, S>;
 
-    fn inner(&self) -> Guard<Self::Kernel> {
-        Guard::new(BasicKernel::default())
+    fn inner(&self) -> Guard<Self::Kernel<'_>> {
+        Guard::new(BasicKernel {
+            chain_state: &self.chain_state,
+            blob_storage: &self.blob_storage,
+        })
     }
 
     #[cfg(feature = "native")]

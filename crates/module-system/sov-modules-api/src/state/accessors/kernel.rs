@@ -52,7 +52,7 @@ impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     /// Instantiates a new [`KernelStateAccessor`].
-    pub fn from_checkpoint<Sp: Spec<Storage = S>, K: Kernel<Sp>>(
+    pub fn from_checkpoint<Sp: Spec<Storage = S>, K: Kernel<Sp> + ?Sized>(
         kernel: &K,
         checkpoint: &'a mut StateCheckpoint<S>,
     ) -> Self {

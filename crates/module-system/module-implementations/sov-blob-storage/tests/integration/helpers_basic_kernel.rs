@@ -13,7 +13,7 @@ use crate::{
 };
 
 pub type BasicRT = BasicBlobStorageRuntime<S>;
-generate_zk_runtime_with_kernel!(kernel_type: BasicKernel<S>, BasicBlobStorageRuntime <= value_setter: ValueSetter<S>);
+generate_zk_runtime_with_kernel!(kernel_type: BasicKernel<'a, S>, BasicBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
 /// Sets up a test runtime and returns a [`TestData`] struct.
 pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicRT>) {

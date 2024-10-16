@@ -1,9 +1,8 @@
 use std::convert::Infallible;
-use std::sync::Arc;
 use std::vec;
 
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, FullyBakedTx, Spec,
@@ -85,9 +84,8 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
     // Generate a new storage instance after dumping data to the db.
     {
         let runtime = &mut Runtime::<TestSpec>::default();
-        let kernel = BasicKernel::<TestSpec>::default();
         let stf_state = storage_manager.create_storage();
-        let mut state = ApiStateAccessor::from_storage(stf_state, kernel);
+        let mut state = ApiStateAccessor::from_storage(stf_state, runtime);
         let resp =
             runtime
                 .bank
@@ -170,9 +168,9 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
         .create_state_after(block_1.header())
         .unwrap();
 
-    let kernel = BasicKernel::<TestSpec>::default();
-    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &kernel);
-    let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
+    let kernel = runtime.kernel_with_slot_mapping();
+    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &runtime.kernel());
+    let mut state = ApiStateAccessor::new(&empty_checkpoint, kernel, None);
 
     let resp = runtime
         .bank
@@ -249,9 +247,9 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 
     let stf_storage = storage_manager.create_storage();
 
-    let kernel = BasicKernel::<TestSpec>::default();
-    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &kernel);
-    let mut state = ApiStateAccessor::new(&empty_checkpoint, Arc::new(kernel), None);
+    let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &runtime.kernel());
+    let mut state =
+        ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping(), None);
 
     let successful_reg = runtime
         .sequencer_registry
@@ -326,8 +324,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     let runtime = &mut Runtime::<TestSpec>::default();
     storage_manager.commit(apply_block_result.change_set);
 
-    let kernel = BasicKernel::<TestSpec>::default();
-    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), runtime);
 
     let successful_reg = runtime
         .sequencer_registry
@@ -393,8 +390,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let runtime = &mut Runtime::<TestSpec>::default();
     storage_manager.commit(apply_block_result.change_set);
 
-    let kernel = BasicKernel::<TestSpec>::default();
-    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), runtime);
 
     let registered = runtime
         .sequencer_registry
@@ -503,8 +499,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     storage_manager.commit(apply_block_result.change_set);
 
     // unregistered sequencer tx in the first blob was successfully applied
-    let kernel = BasicKernel::<TestSpec>::default();
-    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), kernel);
+    let mut state = ApiStateAccessor::from_storage(storage_manager.create_storage(), runtime);
 
     let registered = runtime
         .sequencer_registry

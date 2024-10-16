@@ -7,8 +7,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
-use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
-use sov_modules_api::capabilities::{KernelSlotHooks, TransactionAuthenticator};
+use sov_modules_api::capabilities::{HasKernel, KernelSlotHooks, TransactionAuthenticator};
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, RawTx,
@@ -67,7 +66,6 @@ impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confir
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     runtime: Z::Rt,
-    kernel: Arc<SoftConfirmationsKernel<Z::Spec>>,
     storage: StorageReceiver<Z::Spec>,
     sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
@@ -92,18 +90,23 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         _seq_db_txs: Vec<SeqDbTx>,
         _config: &Self::Config,
     ) -> anyhow::Result<Self> {
-        let kernel = Arc::new(SoftConfirmationsKernel::default());
+        let runtime: Z::Rt = Default::default();
+        let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
+            storage.borrow().clone(),
+            &runtime.kernel(),
+        ));
+        let api_state = ApiState::build(
+            Arc::new(()),
+            checkpoint_receiver,
+            runtime.kernel_with_slot_mapping(),
+            None,
+        );
 
-        let (checkpoint_sender, checkpoint_receiver) =
-            watch::channel(StateCheckpoint::new(storage.borrow().clone(), &*kernel));
-        let api_state = ApiState::build(Arc::new(()), checkpoint_receiver, kernel.clone(), None);
-
-        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &*kernel);
+        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
 
         Ok(Self {
-            runtime: Default::default(),
+            runtime,
             storage,
-            kernel,
             sequencer_address,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
@@ -153,9 +156,13 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.kernel.base_fee_per_gas(&mut checkpoint);
+            let gas_price = self
+                .runtime
+                .kernel_slot_hooks()
+                .base_fee_per_gas(&mut checkpoint);
 
-            let kernel_ws = KernelStateAccessor::from_checkpoint(&*self.kernel, &mut checkpoint);
+            let kernel_ws =
+                KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
             let visible_height = kernel_ws.virtual_slot_number();
             let tx_scratchpad = checkpoint.to_tx_scratchpad();
 

@@ -21,7 +21,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
 /// A simple implementation will simply process all blobs in the order that they appear,
 /// while a second will support a "preferred sequencer" with some limited power to reorder blobs
 /// in order to give out soft confirmations.
-pub trait Kernel<S: Spec>: Default {
+pub trait Kernel<S: Spec> {
     /// Returns a [`KernelStateAccessor`] for the given [`StateCheckpoint`].
     fn accessor<'a>(
         &self,

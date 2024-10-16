@@ -16,7 +16,7 @@ use crate::{
 };
 
 pub type SoftConfRT = SoftConfBlobStorageRuntime<S>;
-generate_zk_runtime_with_kernel!(kernel_type: SoftConfirmationsKernel<S>, SoftConfBlobStorageRuntime <= value_setter: ValueSetter<S>);
+generate_zk_runtime_with_kernel!(kernel_type: SoftConfirmationsKernel<'a, S>, SoftConfBlobStorageRuntime <= value_setter: ValueSetter<S>);
 
 /// Sets up a test runtime and returns a [`TestData`] struct. Does not register the regular sequencer.
 pub fn setup_soft_confirmation_kernel() -> (TestData<S>, TestRunner<SoftConfRT>) {

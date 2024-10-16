@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 
-use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
@@ -92,8 +91,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
     // Checks on storage after execution
     {
         let runtime = &mut Runtime::<TestSpec>::default();
-        let kernel = BasicKernel::<TestSpec>::default();
-        let mut state = ApiStateAccessor::from_storage(storage, kernel);
+        let mut state = ApiStateAccessor::from_storage(storage, runtime);
 
         let resp = runtime
             .bank
@@ -188,8 +186,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
     {
         let runtime = &mut Runtime::<TestSpec>::default();
-        let kernel = BasicKernel::<TestSpec>::default();
-        let mut state = ApiStateAccessor::from_storage(storage, kernel);
+        let mut state = ApiStateAccessor::from_storage(storage, runtime);
 
         let nonce = runtime
             .nonces
@@ -211,8 +208,7 @@ fn get_attester_stake_for_block(
 ) -> Result<u64, Infallible> {
     let stf_state = storage_manager.create_storage();
 
-    let kernel = BasicKernel::<TestSpec>::default();
-    let mut state = ApiStateAccessor::from_storage(stf_state, kernel);
+    let mut state = ApiStateAccessor::from_storage(stf_state, stf.runtime());
 
     Ok(stf
         .runtime()
@@ -327,8 +323,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let balance = {
             let stf_state = storage_manager.create_storage();
             let runtime: RuntimeTest = Runtime::default();
-            let kernel = BasicKernel::<TestSpec>::default();
-            let mut state = ApiStateAccessor::from_storage(stf_state.clone(), kernel);
+            let mut state = ApiStateAccessor::from_storage(stf_state.clone(), &runtime);
 
             let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
 
@@ -381,8 +376,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
     {
         let runtime = &mut Runtime::<TestSpec>::default();
-        let kernel = BasicKernel::<TestSpec>::default();
-        let mut state = ApiStateAccessor::from_storage(storage, kernel);
+        let mut state = ApiStateAccessor::from_storage(storage, runtime);
 
         // Sequencer is not in the list of allowed sequencers
 
