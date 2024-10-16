@@ -160,9 +160,9 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     (Ok(apply_tx), tx_scratchpad)
 }
 
-/// Authenticate the transaction from the (supposedly) registered sequencer before execution
+// Authenticate the transaction from the (supposedly) registered sequencer before execution
 #[allow(clippy::type_complexity)]
-pub fn authenticate_tx<S: Spec, R: Runtime<S>>(
+fn authenticate_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
     gas_price: &<S::Gas as Gas>::Price,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
