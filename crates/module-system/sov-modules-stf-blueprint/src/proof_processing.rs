@@ -129,7 +129,7 @@ where
 
             let sequencer_reward = transaction_consumption.priority_fee();
             runtime.sequencer_remuneration().reward_sequencer(
-                &sequencer_rollup_address,
+                &sequencer_da_address,
                 sequencer_reward,
                 &mut tx_scratchpad,
             );

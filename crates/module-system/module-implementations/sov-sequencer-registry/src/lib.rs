@@ -16,14 +16,14 @@ pub use call::*;
 pub use event::Event;
 pub use genesis::*;
 use serde::{Deserialize, Serialize};
-use sov_bank::{config_gas_token_id, Amount, Coins, IntoPayable};
+use sov_bank::{config_gas_token_id, Amount, Coins};
 use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
     BasicAddress, CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
     Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader,
-    StateValue, TxScratchpad, TxState,
+    StateValue, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -297,31 +297,5 @@ impl<S: Spec> SequencerRegistry<S> {
         state: &mut Reader,
     ) -> Result<bool, Reader::Error> {
         Ok(self.allowed_sequencers.get(da_address, state)?.is_some())
-    }
-
-    /// Rewards the sequencer with the `amount` of gas tokens.
-    /// Transfers the reward from the module's account to the sequencer's account.
-    ///
-    /// # Safety note:
-    /// This method panics if the module account does not have enough funds to pay for the reward (the module balance should be populated in the `GasEnforcer` capability hook).
-    pub fn reward_sequencer(
-        &self,
-        sequencer: &S::Address,
-        amount: u64,
-        state: &mut TxScratchpad<S::Storage>,
-    ) {
-        self.bank
-            .transfer_from(
-                self.bank.id().to_payable(),
-                sequencer,
-                Coins {
-                    amount,
-                    token_id: config_gas_token_id(),
-                },
-                state,
-            )
-            .expect(
-                "Impossible to transfer the reward from the module account to the sequencer. This is a bug",
-            );
     }
 }

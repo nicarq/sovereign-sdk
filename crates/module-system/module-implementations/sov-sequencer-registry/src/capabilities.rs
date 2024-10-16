@@ -104,14 +104,14 @@ impl<S: Spec> SequencerRegistry<S> {
         }
     }
 
-    /// Increases the staked balance of the sequencer by transferring the given amount from the user to the SequencerRegistry module.
+    /// Increases the staked balance of the sequencer by transferring the given amount from the sender to the SequencerRegistry module.
     pub fn add_to_stake(
         &self,
-        user: &S::Address,
+        sender: impl Payable<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         amount: u64,
         state: &mut TxScratchpad<S::Storage>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> anyhow::Result<()> {
         if let Some(AllowedSequencer { address, balance }) = self
             .allowed_sequencers
             .get(sequencer, state)
@@ -130,7 +130,7 @@ impl<S: Spec> SequencerRegistry<S> {
             };
 
             self.bank
-                .transfer_from(user, self.id.to_payable(), coins, state)?;
+                .transfer_from(sender, self.id.to_payable(), coins, state)?;
 
             self.allowed_sequencers
                 .set(

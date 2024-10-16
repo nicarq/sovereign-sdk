@@ -173,6 +173,16 @@ where
             .unwrap_infallible()
     }
 
+    /// A simple helper function to get the the staked balance of a sequencer.
+    pub fn get_sequencer_staking_balance(
+        sequencer: &<S::Da as DaSpec>::Address,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> Option<u64> {
+        sov_sequencer_registry::SequencerRegistry::<S>::default()
+            .get_sender_balance(sequencer, state)
+            .unwrap_infallible()
+    }
+
     /// Returns the slot receipts accumulated by the state runner
     pub fn receipts(&self) -> &Vec<SlotReceipt<S>> {
         &self.slot_receipts
