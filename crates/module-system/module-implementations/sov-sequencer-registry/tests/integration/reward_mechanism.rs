@@ -245,7 +245,7 @@ fn test_sequencer_without_enough_stake() {
     // We first register a sequencer with the minimal bond amount
     let register_tx = additional_sequencer.create_plain_message::<TestSequencerRegistry>(
         sov_sequencer_registry::CallMessage::Register {
-            da_address: additional_sequencer_da_address.as_ref().to_vec(),
+            da_address: additional_sequencer_da_address.into(),
             amount: minimal_bond,
         },
     );

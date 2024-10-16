@@ -142,7 +142,7 @@ fn test_register_sequencer() {
     // We first bond the sequencer
     runner.execute(new_sequencer.create_plain_message::<SequencerRegistry<S>>(
         sov_sequencer_registry::CallMessage::Register {
-            da_address: new_sequencer.da_address.as_ref().to_vec(),
+            da_address: new_sequencer.da_address,
             amount: new_sequencer.bond,
         },
     ));

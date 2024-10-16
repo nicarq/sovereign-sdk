@@ -1,6 +1,6 @@
 use sov_bank::Amount;
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, DaSpec, Spec};
 use sov_sequencer_registry::{CallMessage, SequencerRegistry};
 
 use crate::generators::{Message, MessageGenerator};
@@ -103,7 +103,8 @@ impl<S: Spec> MessageGenerator for SequencerRegistryMessageGenerator<S> {
             messages.push(Message::new(
                 msg.sender_priv_key.clone().into(),
                 CallMessage::Register {
-                    da_address: msg.da_address.clone(),
+                    da_address: <S::Da as DaSpec>::Address::try_from(&msg.da_address)
+                        .expect("Generated sequencer address was invalid"),
                     amount: msg.amount,
                 },
                 chain_id,
@@ -119,7 +120,8 @@ impl<S: Spec> MessageGenerator for SequencerRegistryMessageGenerator<S> {
             messages.push(Message::new(
                 msg.sender_priv_key.clone().into(),
                 CallMessage::Deposit {
-                    da_address: msg.da_address.clone(),
+                    da_address: <S::Da as DaSpec>::Address::try_from(&msg.da_address)
+                        .expect("Generated sequencer address was invalid"),
                     amount: msg.amount,
                 },
                 chain_id,

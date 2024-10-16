@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 demo-stf = { path = "../stf" }
-sov-celestia-adapter = { workspace = true, features = ["native"] }
+sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-demo-rollup = { path = ".." }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native", "arbitrary"] }

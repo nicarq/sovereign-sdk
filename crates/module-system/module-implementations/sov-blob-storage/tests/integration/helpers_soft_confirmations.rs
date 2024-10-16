@@ -84,7 +84,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
                 batch_type: BatchType(vec![regular_sequencer
                     .create_plain_message::<SequencerRegistry<S>>(
                         sov_sequencer_registry::CallMessage::Register {
-                            da_address: regular_sequencer_da_address.as_ref().to_vec(),
+                            da_address: regular_sequencer_da_address,
                             amount: user_stake_value,
                         },
                     )]),

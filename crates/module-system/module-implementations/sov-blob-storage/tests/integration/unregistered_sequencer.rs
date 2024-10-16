@@ -33,7 +33,7 @@ fn make_unregistered_blobs<
         .map(|_| {
             let tx = sender.create_plain_message::<SequencerRegistry<S>>(
                 sov_sequencer_registry::CallMessage::Register {
-                    da_address: sender.da_address.as_ref().to_vec(),
+                    da_address: sender.da_address,
                     amount: user_stake_value,
                 },
             );

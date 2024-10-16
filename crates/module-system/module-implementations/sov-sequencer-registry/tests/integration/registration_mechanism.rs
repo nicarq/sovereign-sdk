@@ -89,7 +89,7 @@ fn test_new_sequencer_registration() {
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: other_sequencer_da_address.as_ref().to_vec(),
+                da_address: other_sequencer_da_address,
                 amount: user_stake_value,
             },
         ),
@@ -155,7 +155,7 @@ fn test_registration_not_enough_funds() {
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: amount_to_register,
             },
         ),
@@ -195,7 +195,7 @@ fn test_registration_second_time() {
     runner.execute(
         additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         ),
@@ -204,7 +204,7 @@ fn test_registration_second_time() {
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         ),
@@ -242,7 +242,7 @@ fn test_exit_happy_path() {
     let register = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: other_sequencer_da_address.as_ref().to_vec(),
+                da_address: other_sequencer_da_address,
                 amount: user_stake_value,
             },
         ),
@@ -270,7 +270,7 @@ fn test_exit_happy_path() {
     let exit = TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Exit {
-                da_address: other_sequencer_da_address.as_ref().to_vec(),
+                da_address: other_sequencer_da_address,
             },
         ),
         assert: Box::new(move |result, state| {
@@ -320,7 +320,7 @@ fn cannot_exit_with_own_batch() {
 
     runner.execute_transaction(TransactionTestCase {
         input: default_sequencer.create_plain_message::<TestSequencerRegistry>(CallMessage::Exit {
-            da_address: default_sequencer.da_address.as_ref().to_vec(),
+            da_address: default_sequencer.da_address,
         }),
         assert: Box::new(move |result, _state| match &result.tx_receipt {
             TxEffect::Reverted(reason) => {
@@ -359,13 +359,13 @@ fn test_exit_different_sender_fails() {
     let additional_sequencer_register = additional_sequencer
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         );
     let second_sequencer_register = second_sequencer.create_plain_message::<TestSequencerRegistry>(
         sov_sequencer_registry::CallMessage::Register {
-            da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
+            da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
             amount: user_stake_value,
         },
     );
@@ -375,7 +375,7 @@ fn test_exit_different_sender_fails() {
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Exit {
-                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
             },
         ),
         assert: Box::new(move |result, _state| match &result.tx_receipt {
@@ -437,13 +437,13 @@ fn test_get_preferred_sequencer_after_exit() {
     let register_additional_sequencer = additional_sequencer
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.as_ref().to_vec(),
+                da_address: ANOTHER_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         );
     let exit_default_sequencer = default_sequencer.create_plain_message::<TestSequencerRegistry>(
         sov_sequencer_registry::CallMessage::Exit {
-            da_address: default_sequencer.da_address.as_ref().to_vec(),
+            da_address: default_sequencer.da_address,
         },
     );
 
@@ -482,7 +482,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
     runner.execute_transaction(TransactionTestCase {
         input: default_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
-                da_address: default_sequencer.da_address.as_ref().to_vec(),
+                da_address: default_sequencer.da_address,
                 amount: default_sequencer_balance + user_stake_value,
             },
         ),
@@ -540,7 +540,7 @@ fn test_non_registered_sequencer_cannot_send_batches() {
     let outcome = runner.execute(BatchType(vec![admin
         .create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Register {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         )]));
@@ -564,7 +564,7 @@ fn test_balance_increase_fails_for_unknown_sequencer() {
     runner.execute_transaction(TransactionTestCase {
         input: additional_sequencer.create_plain_message::<TestSequencerRegistry>(
             sov_sequencer_registry::CallMessage::Deposit {
-                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.as_ref().to_vec(),
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
                 amount: user_stake_value,
             },
         ),
@@ -634,7 +634,7 @@ fn test_cannot_sequence_when_gas_price_is_too_high() {
         let register_signed = roles
             .additional_sequencer
             .create_plain_message::<SequencerRegistry<S>>(CallMessage::Register {
-                da_address: additional_sequencer_da_address.as_ref().to_vec(),
+                da_address: additional_sequencer_da_address,
                 amount: additional_sequencer_bond,
             })
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
