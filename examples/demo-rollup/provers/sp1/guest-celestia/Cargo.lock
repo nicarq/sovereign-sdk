@@ -6350,6 +6350,7 @@ version = "0.1.0"
 dependencies = [
  "bech32 0.11.0",
  "borsh",
+ "nmt-rs",
  "sov-universal-wallet-macros",
  "thiserror",
 ]

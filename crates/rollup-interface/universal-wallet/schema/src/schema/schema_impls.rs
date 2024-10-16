@@ -25,7 +25,7 @@ mod primitive_type_impls {
                 fn scaffold() -> Item<IndexLinking> {
                     Item::Atom(Primitive::Integer(IntegerType::$t, IntegerDisplay::Decimal))
                 }
-                fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+                fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
                     Vec::new()
                 }
             }
@@ -54,7 +54,7 @@ mod primitive_type_impls {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Boolean)
         }
-        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
             Vec::new()
         }
     }
@@ -63,7 +63,7 @@ mod primitive_type_impls {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Float32)
         }
-        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
             Vec::new()
         }
     }
@@ -72,7 +72,7 @@ mod primitive_type_impls {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Float64)
         }
-        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
             Vec::new()
         }
     }
@@ -81,7 +81,7 @@ mod primitive_type_impls {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Skip { len: 0 })
         }
-        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
             Vec::new()
         }
     }
@@ -90,7 +90,7 @@ mod primitive_type_impls {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::String)
         }
-        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
             Vec::new()
         }
     }
@@ -100,7 +100,7 @@ mod primitive_type_impls {
     }
 
     impl<T: SchemaGenerator> SchemaGenerator for Vec<T> {
-        fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![T::make_linkable(schema)]
         }
 
@@ -126,7 +126,7 @@ mod primitive_type_impls {
     }
 
     impl<const N: usize, T: SchemaGenerator> SchemaGenerator for [T; N] {
-        fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![T::make_linkable(schema)]
         }
 
@@ -182,7 +182,7 @@ mod primitive_type_impls {
                     }))
                 }
 
-                fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+                fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
                     vec![$($tts::make_linkable(schema)),*]
                 }
             }
@@ -217,7 +217,7 @@ mod primitive_type_impls {
             }))
         }
 
-        fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![T::make_linkable(schema)]
         }
     }
@@ -230,7 +230,7 @@ mod primitive_type_impls {
             })
         }
 
-        fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![K::make_linkable(schema), V::make_linkable(schema)]
         }
     }
@@ -263,7 +263,7 @@ mod primitive_type_impls {
             }))
         }
 
-        fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+        fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![T::make_linkable(schema), T::make_linkable(schema)]
         }
     }

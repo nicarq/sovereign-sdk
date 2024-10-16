@@ -1724,6 +1724,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nmt-rs"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e408e823bdc9b4bb525a61b44e846239833a8f9bd86c03a43e4ca314a5497582"
+dependencies = [
+ "borsh",
+ "bytes",
+ "serde",
+ "sha2",
+]
+
+[[package]]
 name = "num"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3256,6 +3268,7 @@ version = "0.1.0"
 dependencies = [
  "bech32",
  "borsh",
+ "nmt-rs",
  "sov-universal-wallet-macros",
  "thiserror",
 ]

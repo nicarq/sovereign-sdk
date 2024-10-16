@@ -10201,6 +10201,7 @@ version = "0.1.0"
 dependencies = [
  "bech32 0.11.0",
  "borsh",
+ "nmt-rs",
  "serde",
  "serde_arrays",
  "serde_json",

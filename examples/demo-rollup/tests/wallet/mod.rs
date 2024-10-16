@@ -6,7 +6,8 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::sov_universal_wallet::schema::Schema;
+use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 
 type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
@@ -27,9 +28,20 @@ fn test_display_tx() {
         },
     });
     let data = borsh::to_vec(&msg).unwrap();
-    let schema = Schema::of_single_type::<RuntimeCall<S>>();
+    let schema = Schema::of_rollup_types_with_metadata::<
+        Transaction<S>,
+        UnsignedTransaction<S>,
+        RuntimeCall<S>,
+    >(4321);
     assert_eq!(
-        schema.display(0, &data).unwrap(),
+        schema
+            .display(
+                schema
+                    .rollup_expected_index(RollupRoots::RuntimeCall)
+                    .unwrap(),
+                &data
+            )
+            .unwrap(),
         r#"Bank.Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks } }"#
     );
 }

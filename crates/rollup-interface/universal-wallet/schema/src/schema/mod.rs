@@ -1,11 +1,16 @@
 use std::any::TypeId;
 use std::collections::HashMap;
+use std::fmt::Debug;
 mod container;
 mod primitive;
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use container::Container;
+use nmt_rs::simple_merkle::db::MemDb;
+use nmt_rs::simple_merkle::tree::{MerkleHash, MerkleTree};
+use nmt_rs::TmSha2Hasher;
 pub use primitive::Primitive;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 mod schema_impls;
 #[cfg(test)]
 mod tests;
@@ -21,6 +26,8 @@ use crate::ty::{LinkingScheme, Ty};
 pub enum SchemaError {
     #[error(transparent)]
     FormatError(#[from] FormatError),
+    #[error(transparent)]
+    BorshError(#[from] borsh::io::Error),
     #[cfg(feature = "serde")]
     #[error(transparent)]
     EncodeError(#[from] EncodeError),
@@ -30,7 +37,7 @@ pub enum SchemaError {
     InvalidIndex(usize),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct IndexLinking;
 
@@ -49,7 +56,7 @@ impl LinkingScheme for IndexLinking {
 // Right now this is mostly achieved using member visibility (nobody outside can call the private
 // construction methods) and sanity checking (on a derived schema, if under_construction is empty,
 // there won't be any placeholders); but a separate type would provide a stronger guarantee.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Link {
     ByIndex(usize),
@@ -72,6 +79,19 @@ impl MaybePartialLink {
     }
 }
 
+pub trait SchemaMetadata: Debug + Default + BorshSerialize {}
+impl<M: Debug + Default + BorshSerialize> SchemaMetadata for M {}
+
+/// This newtype is mainly necessary to allow the schema to derive Debug ergonomically
+#[derive(Default)]
+pub struct MerkleTreeCache(Option<MerkleTree<MemDb<[u8; 32]>, TmSha2Hasher>>);
+
+impl Debug for MerkleTreeCache {
+    fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct ItemId(pub TypeId);
 
@@ -90,9 +110,19 @@ pub enum RollupRoots {
     RuntimeCall = 2,
 }
 
+/// A schema, representing set of types (i.e. rust code) as a data structure.
+/// The schema allows any included type's borsh serialization to be displayed as a human readable string,
+/// and the type's JSON serialisation to be re-serialised to borsh without depending on the
+/// original Rust type.
+/// It is also serialisable and therefore, once generated for a rollup, can be imported and used with
+/// non-Rust languages, enabling toolkits in any language to implement the same functionality as above.
+///
+/// A schema can be instantiated for any type that implements either `SchemaGenerator` or
+/// `OverrideSchema`. In turn, `SchemaGenerator` is intended to be automatically derived using the
+/// `UniversalWallet` macro.
 #[derive(Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Schema {
+pub struct Schema<Meta = ()> {
     /// The types described by this schema. This is an array of type descriptions, where complex
     /// types refer to their sub-types by index within the array.
     /// Any of the types here can be used for schema operations (such as borsh-to-human or
@@ -102,6 +132,18 @@ pub struct Schema {
     /// A mapping from the complex root types that parametrized the schema generation invocation (in
     /// order, skipping primitives) to the actual indices they ended up at in the type array above.
     root_type_indices: Vec<usize>,
+
+    /// The raw ID associated with the chain. Hashed with the root of the schema's merkle tree to
+    /// calculate the final chain ID.
+    chain_metadata: Meta,
+
+    /// Cached chain ID value, calculated by hashing the schema's merkle root with the chain nonce
+    #[cfg_attr(feature = "serde", serde(skip))]
+    chain_hash: Option<[u8; 32]>,
+
+    /// Cached (lazily-constructed) merkelization of the entire schema.
+    #[cfg_attr(feature = "serde", serde(skip))]
+    merkle_tree: MerkleTreeCache,
 
     /// A map from the type ID of an item to its index in the types array. Note that primitives and "virtual" structs/tuples
     /// (i.e. the contents of an enum variant) are not included in this map.
@@ -115,16 +157,6 @@ pub struct Schema {
     under_construction: HashMap<ItemId, usize>,
 }
 
-/// A schema, representing set of types (i.e. rust code) as a data structure.
-/// The schema allows the a type's borsh serialization to be displayed as a human readable string,
-/// and the type's JSON serialisation to be re-serialised to borsh without depending on the
-/// original Rust type.
-/// It is also serialisable and therefore can be imported and used with non-Rust languages, enabling
-/// foreign language toolkits to implement the same functionality as above.
-///
-/// A schema can be instantiated for any type that implements either `SchemaGenerator` or
-/// `OverrideSchema`. In turn, `SchemaGenerator` is intended to be automatically derived using the
-/// `UniversalWallet` macro.
 impl Schema {
     /// Instantiate a schema for a single type.
     /// This root type will be at index 0
@@ -140,18 +172,25 @@ impl Schema {
         );
         schema
     }
+}
 
+impl<Meta: SchemaMetadata> Schema<Meta> {
     /// Instantiate a schema for a standard set of rollup types: its complete transaction, its
     /// unsigned transaction, and its call message type.
     /// The types will be accessible using the indices stored in root_type_indices (in the above
     /// order); they can also be queried using the `RollupRoots` enum through the `_rollup`-tagged
     /// functions on the schema
-    pub fn of_rollup_types<
+    pub fn of_rollup_types_with_metadata<
         Transaction: SchemaGenerator,
         UnsignedTransaction: SchemaGenerator,
         RuntimeCall: SchemaGenerator,
-    >() -> Self {
-        let mut schema = Self::default();
+    >(
+        chain_metadata: Meta,
+    ) -> Self {
+        let mut schema = Self {
+            chain_metadata,
+            ..Default::default()
+        };
         let link = Transaction::write_schema(&mut schema);
         schema.push_root_link(link);
         let link = UnsignedTransaction::write_schema(&mut schema);
@@ -166,11 +205,44 @@ impl Schema {
         schema
     }
 
-    #[cfg(feature = "serde")]
+    /// Returns the chain ID calculated using the merkle root of all the schema types, combined
+    /// with a chain-specific nonce value.
+    /// This allows the chain ID to be used for verification of the schema (and thus verification
+    /// that a transaction claiming to correspond to a given schema will have the effect it claims).
+    pub fn chain_hash(&mut self) -> Result<[u8; 32], SchemaError> {
+        match self.chain_hash {
+            Some(id) => Ok(id),
+            None => {
+                let merkle_root = match &mut self.merkle_tree.0 {
+                    Some(tree) => tree.root(),
+                    None => {
+                        let mut tree = MerkleTree::new();
+                        for ty in &self.types {
+                            tree.push_raw_leaf(&borsh::to_vec(ty)?)
+                        }
+                        let root = tree.root();
+                        self.merkle_tree = MerkleTreeCache(Some(tree));
+                        root
+                    }
+                };
+                let hasher = TmSha2Hasher::new();
+                Ok(hasher.hash_nodes(
+                    &merkle_root,
+                    &hasher.hash_leaf(&borsh::to_vec(&self.chain_metadata)?),
+                ))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<M: SchemaMetadata + Serialize + DeserializeOwned> Schema<M> {
     pub fn from_json(input: &str) -> Result<Self, serde_json::Error> {
         serde_json::from_str(input)
     }
+}
 
+impl<Any> Schema<Any> {
     pub fn rollup_expected_index(&self, rollup_type: RollupRoots) -> Result<usize, SchemaError> {
         self.root_type_indices
             .get(rollup_type as usize)
@@ -304,7 +376,7 @@ pub trait SchemaGenerator: Sized + 'static {
     /// add a `Default` bound on all types that implement SchemaGenerator) which Rustc doesn't like.
     /// So, we have a slightly messier signature where the type is expected to register each of its child
     /// types with the schema directly rather than returning them to the caller for future registration.
-    fn get_child_links(_schema: &mut Schema) -> Vec<Link>;
+    fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link>;
 
     /// Generate the "scaffolding" of the item. If the item is a primtive, this is just the corresponding primtive.
     /// If the type is composed of other types, this is the container with all links set to [`Link::Placeholder`].
@@ -314,7 +386,7 @@ pub trait SchemaGenerator: Sized + 'static {
     ///
     /// Any child types will have their schemas generated as well, but the placement of those types is left
     /// to the discretion of the implementation - they may or may not appear at the top level of the schema.
-    fn write_schema(schema: &mut Schema) -> Link {
+    fn write_schema<M>(schema: &mut Schema<M>) -> Link {
         let item = Self::scaffold();
         let item_id = ItemId::of::<Self>();
         match item {
@@ -334,7 +406,7 @@ pub trait SchemaGenerator: Sized + 'static {
     }
 
     /// Gets a link to the type, writing the type to the schema if necessary.
-    fn make_linkable(schema: &mut Schema) -> Link {
+    fn make_linkable<M>(schema: &mut Schema<M>) -> Link {
         match Self::scaffold() {
             Item::Container(_) => Self::write_schema(schema),
             Item::Atom(atom) => Link::Immediate(atom),
@@ -363,16 +435,16 @@ impl<T: OverrideSchema + 'static> SchemaGenerator for T {
     fn scaffold() -> Item<IndexLinking> {
         <Self as OverrideSchema>::Output::scaffold()
     }
-    fn get_child_links(schema: &mut Schema) -> Vec<Link> {
+    fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
         <Self as OverrideSchema>::Output::get_child_links(schema)
     }
     fn id_override() -> Option<ItemId> {
         <Self as OverrideSchema>::Output::id_override()
     }
-    fn make_linkable(schema: &mut Schema) -> Link {
+    fn make_linkable<M>(schema: &mut Schema<M>) -> Link {
         <Self as OverrideSchema>::Output::make_linkable(schema)
     }
-    fn write_schema(schema: &mut Schema) -> Link {
+    fn write_schema<M>(schema: &mut Schema<M>) -> Link {
         <Self as OverrideSchema>::Output::write_schema(schema)
     }
 }

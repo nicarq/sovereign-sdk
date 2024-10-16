@@ -9,8 +9,12 @@ bech32 = { workspace = true }
 thiserror = { workspace = true }
 
 borsh = { workspace = true, features = [] }
+nmt-rs = { workspace = true }
+
+# Schema ser/de traits, and json_to_borsh functionality
 serde_json = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+# Re-exporting the macro
 sov-universal-wallet-macros = { workspace = true, optional = true }
 
 [dev-dependencies]
@@ -24,7 +28,8 @@ serde = { workspace = true }
 [features]
 macros = ["sov-universal-wallet-macros"]
 serde = [
-    "dep:serde",
-    "serde_json",
-    "sov-universal-wallet/serde"
+	"dep:serde",
+	"serde_json",
+	"sov-universal-wallet/serde",
+	"nmt-rs/serde"
 ]
