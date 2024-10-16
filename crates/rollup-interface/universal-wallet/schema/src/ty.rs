@@ -3,6 +3,7 @@ use core::panic;
 use std::fmt::Debug;
 
 use bech32::{Bech32, Bech32m, Hrp};
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -13,12 +14,19 @@ pub trait LinkingScheme: Clone {
     /// The type used to link to other types in the schema representation. Usually, this is an enum
     /// which represents primitives with an immediate value and complex types with some kind of pointer.
     #[cfg(not(feature = "serde"))]
-    type TypeLink: Clone + Debug + PartialEq + Eq;
+    type TypeLink: Clone + Debug + PartialEq + Eq + BorshSerialize + BorshDeserialize;
     #[cfg(feature = "serde")]
-    type TypeLink: Clone + Debug + PartialEq + Eq + Serialize + DeserializeOwned;
+    type TypeLink: Clone
+        + Debug
+        + PartialEq
+        + Eq
+        + BorshSerialize
+        + BorshDeserialize
+        + Serialize
+        + DeserializeOwned;
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Ty<L: LinkingScheme> {
     Enum(Enum<L>),
@@ -145,7 +153,7 @@ impl<L: LinkingScheme> Ty<L> {
 /// An enum variant can contain...
 /// - A (possibly anonymous) struct
 /// - Another Enum
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct EnumVariant<L: LinkingScheme> {
     pub name: String,
@@ -153,7 +161,7 @@ pub struct EnumVariant<L: LinkingScheme> {
     pub value: Option<L::TypeLink>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Enum<L: LinkingScheme> {
     pub type_name: String,
@@ -161,7 +169,7 @@ pub struct Enum<L: LinkingScheme> {
     pub variants: Vec<EnumVariant<L>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Struct<L: LinkingScheme> {
     pub type_name: String,
@@ -169,13 +177,13 @@ pub struct Struct<L: LinkingScheme> {
     pub fields: Vec<NamedField<L>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Tuple<L: LinkingScheme> {
     pub fields: Vec<UnnamedField<L>>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct NamedField<L: LinkingScheme> {
     pub display_name: String,
@@ -185,7 +193,7 @@ pub struct NamedField<L: LinkingScheme> {
     pub doc: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct UnnamedField<L: LinkingScheme> {
     pub value: L::TypeLink,
@@ -193,7 +201,7 @@ pub struct UnnamedField<L: LinkingScheme> {
     pub doc: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[allow(non_camel_case_types)]
 pub enum IntegerType {
@@ -209,7 +217,7 @@ pub enum IntegerType {
     u128,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum IntegerDisplay {
     Hex,
@@ -217,7 +225,7 @@ pub enum IntegerDisplay {
     Decimal,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, BorshDeserialize, BorshSerialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ByteDisplay {
     #[default]
@@ -225,12 +233,38 @@ pub enum ByteDisplay {
     Decimal,
     Bech32 {
         #[cfg_attr(feature = "serde", serde(with = "hrp_serde"))]
+        #[borsh(
+            serialize_with = "hrp_borsh::borsh_serialize",
+            deserialize_with = "hrp_borsh::borsh_deserialize"
+        )]
         prefix: Hrp,
     },
     Bech32m {
         #[cfg_attr(feature = "serde", serde(with = "hrp_serde"))]
+        #[borsh(
+            serialize_with = "hrp_borsh::borsh_serialize",
+            deserialize_with = "hrp_borsh::borsh_deserialize"
+        )]
         prefix: Hrp,
     },
+}
+
+mod hrp_borsh {
+    use bech32::Hrp;
+    use borsh::{BorshDeserialize, BorshSerialize};
+
+    pub fn borsh_serialize<W: borsh::io::Write>(
+        hrp: &Hrp,
+        w: &mut W,
+    ) -> Result<(), borsh::io::Error> {
+        let s = hrp.as_str();
+        BorshSerialize::serialize(&s, w)
+    }
+
+    pub fn borsh_deserialize<R: borsh::io::Read>(r: &mut R) -> Result<Hrp, borsh::io::Error> {
+        let s: String = BorshDeserialize::deserialize_reader(r)?;
+        Hrp::parse(&s).map_err(borsh::io::Error::other)
+    }
 }
 
 #[cfg(feature = "serde")]

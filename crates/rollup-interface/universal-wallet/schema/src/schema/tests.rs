@@ -31,7 +31,7 @@ macro_rules! encode_decode_tests {
         encode_decode_tests_simple!(schema, $item, $expected_display);
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         println!("{schema_json}");
-        let recovered_schema = Schema::from_json(&schema_json).unwrap();
+        let recovered_schema = Schema::<()>::from_json(&schema_json).unwrap();
         encode_decode_tests_simple!(recovered_schema, $item, $expected_display);
     };
 }
@@ -139,7 +139,7 @@ impl SchemaGenerator for SchemalessStringWrapper {
     fn scaffold() -> Item<IndexLinking> {
         Item::Atom(Primitive::String)
     }
-    fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+    fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
         Vec::new()
     }
 }
@@ -583,7 +583,7 @@ fn test_simple_struct_schema() {
 
 #[test]
 fn test_multiobject_schema() {
-    let schema = Schema::of_rollup_types::<Role, MinimalStruct, Registration>();
+    let schema = Schema::of_rollup_types_with_metadata::<Role, MinimalStruct, Registration>(4321);
 
     let my_role = Role::Attester;
     let my_minimal_struct = MinimalStruct { tokens: 1000 };
@@ -597,7 +597,7 @@ fn test_multiobject_schema() {
     // println!("{:?}", &$schema);
     let schema_json = serde_json::to_string_pretty(&schema).unwrap();
     // println!("{schema_json}");
-    let _recovered_schema = Schema::from_json(&schema_json).unwrap();
+    let schema = Schema::<u64>::from_json(&schema_json).unwrap();
 
     // TODO: ugly
     let role_borsh_ser = borsh::to_vec(&my_role).unwrap();

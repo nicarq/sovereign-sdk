@@ -70,7 +70,7 @@ pub enum ResolutionError {
     ErrContainsPlaceholder,
 }
 
-impl TypeResolver for Schema {
+impl<M> TypeResolver for Schema<M> {
     type LinkingScheme = IndexLinking;
 
     fn resolve_or_err(

@@ -132,13 +132,14 @@ sov-modules-stf-blueprint = { path = "crates/module-system/sov-modules-stf-bluep
 sov-test-utils = { path = "crates/module-system/sov-test-utils", default-features = false, version = "0.3" }
 sov-db = { path = "crates/full-node/sov-db", default-features = false, version = "0.3" }
 sov-test-harness = { path = "crates/utils/test-harness" }
+sov-universal-wallet = { path = "crates/rollup-interface/universal-wallet/schema" }
+sov-universal-wallet-macros = { path = "crates/rollup-interface/universal-wallet/macros" }
+sov-universal-wallet-macro-helpers = { path = "crates/rollup-interface/universal-wallet/macro-helpers" }
 # Dependencies maintained by Sovereign
 jmt = { git = "https://github.com/penumbra-zone/jmt.git", rev = "dc554608895439022f1f11809d2d7a5f76f9a13f" }
 reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6209abff72929f5ba41614f5cea3e4a748428c3" }
 rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "4ff4c7c6b302107c3189a0438c14d481c0134b96" }
-sov-universal-wallet = { path = "crates/rollup-interface/universal-wallet/schema" }
-sov-universal-wallet-macros = { path = "crates/rollup-interface/universal-wallet/macros" }
-sov-universal-wallet-macro-helpers = { path = "crates/rollup-interface/universal-wallet/macro-helpers" }
+nmt-rs = { version = "0.2.2", features = ["serde", "borsh"] }
 # External dependencies
 async-trait = "0.1.81"
 anyhow = { version = "1.0.86" }

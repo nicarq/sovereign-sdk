@@ -7,6 +7,7 @@ use demo_stf::runtime::RuntimeCall;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkVerifier;
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_universal_wallet::schema::{Schema, SchemaGenerator};
 
@@ -44,7 +45,7 @@ fn main() -> io::Result<()> {
 fn store_schema_as_json<T: SchemaGenerator, U: SchemaGenerator, R: SchemaGenerator>(
     filename: &str,
 ) -> io::Result<()> {
-    let schema = Schema::of_rollup_types::<T, U, R>();
+    let schema = Schema::of_rollup_types_with_metadata::<T, U, R>(config_value!("CHAIN_ID"));
     let schema_string = serde_json::to_string_pretty(&schema)?;
     let mut file = File::create(filename)?;
     file.write_all(schema_string.as_bytes())?;

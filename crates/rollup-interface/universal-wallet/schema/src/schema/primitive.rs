@@ -1,9 +1,10 @@
+use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 use crate::ty::{ByteDisplay, IntegerDisplay, IntegerType, LinkingScheme, Ty};
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Primitive {
     Integer(IntegerType, IntegerDisplay),
