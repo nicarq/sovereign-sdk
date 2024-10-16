@@ -15,10 +15,10 @@ pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    BlobOrigin, BlobSelector, HasCapabilities, HasKernel, Kernel, TransactionAuthenticator,
+    BlobOrigin, BlobSelector, ChainState, HasCapabilities, HasKernel, Kernel,
+    TransactionAuthenticator,
 };
-use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, SlotHooks, TxHooks};
-use sov_modules_api::runtime::capabilities::KernelSlotHooks;
+use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
 use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
@@ -49,6 +49,7 @@ pub trait Runtime<S: Spec>:
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
     + TxHooks<Spec = S, TxState = WorkingSet<S>>
     + SlotHooks<Spec = S>
+    + KernelSlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
     + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<<S as Spec>::Da>>
     + Default
@@ -176,11 +177,22 @@ where
     fn begin_slot(
         &self,
         state: &mut StateCheckpoint<S::Storage>,
-        _slot_header: &<S::Da as DaSpec>::BlockHeader,
-        _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
-        visible_hash: &<<S as Spec>::Storage as Storage>::Root,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        visible_hash: &<S::Storage as Storage>::Root,
     ) {
-        self.runtime.begin_slot_hook(visible_hash, state);
+        let mut kernel_state_accessor = self.runtime.kernel().accessor(state);
+
+        KernelSlotHooks::begin_slot_hook(
+            &self.runtime,
+            slot_header,
+            validity_condition,
+            pre_state_root,
+            &mut kernel_state_accessor,
+        );
+
+        SlotHooks::begin_slot_hook(&self.runtime, visible_hash, state);
     }
 
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -195,13 +207,15 @@ where
         <S::Storage as Storage>::ChangeSet,
     ) {
         // Run end_slot_hook
-        self.runtime.end_slot_hook(&mut checkpoint);
+        SlotHooks::end_slot_hook(&self.runtime, &mut checkpoint);
 
         let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut checkpoint);
 
         self.runtime
-            .kernel_slot_hooks()
-            .end_slot_hook(gas_used, &mut kernel_state_accessor);
+            .chain_state()
+            .finalise_chain_state(gas_used, &mut kernel_state_accessor);
+
+        KernelSlotHooks::end_slot_hook(&self.runtime, gas_used, &mut kernel_state_accessor);
 
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
@@ -297,8 +311,6 @@ where
 
         let mut kernel = self.runtime.kernel().accessor(&mut state);
 
-        // TODO(@theochap, `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1372`): this should be a capability.
-        //
         // WARNING: The kernel slot hooks should always be called before the runtime slot hooks.
         // That way the state of the runtime modules is always in sync with the transaction `being executed`.
         //
@@ -306,12 +318,17 @@ where
         // The visible slot height gets updated in the `BlobStorage`'s `get_blobs_for_this_slot` method.
         // Be careful to not respect the call order: the `ChainState` hooks should be called before the `BlobStorage`'s which should be called before the
         // `Runtime`'s slot hooks.
-        let visible_state_root = self.runtime.kernel_slot_hooks().begin_slot_hook(
+        self.runtime.chain_state().synchronise_chain(
             slot_header,
             validity_condition,
             pre_state_root,
             &mut kernel,
         );
+
+        let visible_hash = self
+            .runtime
+            .chain_state()
+            .current_visible_hash(pre_state_root, &mut kernel);
 
         let all_blobs = relevant_blobs
             .batch_blobs
@@ -334,15 +351,13 @@ where
             &mut state,
             slot_header,
             validity_condition,
-            &visible_state_root,
+            pre_state_root,
+            &visible_hash,
         );
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the virtual slot number.
-        let gas_price = self
-            .runtime
-            .kernel_slot_hooks()
-            .base_fee_per_gas(&mut state);
+        let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state);
 
         let visible_height = state.rollup_height_to_access();
 

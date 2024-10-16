@@ -19,8 +19,8 @@ pub use genesis::*;
 use serde::de::DeserializeOwned;
 use sov_modules_api::OperatingMode;
 
-/// Hook implementation for the module
-pub mod hooks;
+/// Capabilities implementation for the module
+pub mod capabilities;
 
 /// The query interface with the module
 #[cfg(feature = "native")]
@@ -50,7 +50,7 @@ pub struct BlockGasInfo<GU: Gas> {
     /// in proving/execution performance.
     gas_limit: GU,
     /// The gas used by the block execution.
-    /// This value is set to zero at the beginning of the block execution (in the [`ChainState::begin_slot_hook`] hook),
+    /// This value is set to zero at the beginning of the block execution (in the [`ChainState::synchronize_chain`] capability),
     /// and is populated once the block execution is complete.
     gas_used: GU,
     /// The base fee per gas used for the block execution. This value combined with the `gas_used`
@@ -60,7 +60,7 @@ pub struct BlockGasInfo<GU: Gas> {
 
 impl<GU: Gas> BlockGasInfo<GU> {
     /// Creates a new [`BlockGasInfo`] with the provided gas limit and base fee per gas.
-    /// The `gas_used` is set to zero. This method is meant to be called from the [`ChainState::begin_slot_hook`] hook.
+    /// The `gas_used` is set to zero. This method is meant to be called from the [`ChainState::synchronize_chain`] capability.
     pub fn new(gas_limit: GU, base_fee_per_gas: GU::Price) -> Self {
         Self {
             gas_limit,
@@ -70,7 +70,7 @@ impl<GU: Gas> BlockGasInfo<GU> {
     }
 
     /// Updates the gas used by the block execution.
-    /// This method is meant to be called from the [`ChainState::end_slot_hook`] hook.
+    /// This method is meant to be called from the [`ChainState::finalize_chain_state`] capability.
     pub fn update_gas_used(&mut self, gas_used: GU) {
         self.gas_used = gas_used;
     }

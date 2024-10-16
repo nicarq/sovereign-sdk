@@ -18,6 +18,14 @@ macro_rules! impl_runtime_hook {
             fn end_slot_hook(&self, _state: &mut ::sov_modules_api::StateCheckpoint<S::Storage>) {}
         }
     };
+    ($runtime:ty, KernelSlotHooks) => {
+        impl<S> ::sov_modules_api::hooks::KernelSlotHooks for $runtime
+        where
+            S: ::sov_modules_api::Spec,
+        {
+            type Spec = S;
+        }
+    };
     ($runtime:ty, FinalizeHook) => {
         impl<S> ::sov_modules_api::hooks::FinalizeHook for $runtime
         where

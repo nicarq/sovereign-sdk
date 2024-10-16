@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
-use sov_modules_api::capabilities::{HasKernel, KernelSlotHooks, TransactionAuthenticator};
+use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthenticator};
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, RawTx,
@@ -156,10 +156,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self
-                .runtime
-                .kernel_slot_hooks()
-                .base_fee_per_gas(&mut checkpoint);
+            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint);
 
             let kernel_ws =
                 KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);

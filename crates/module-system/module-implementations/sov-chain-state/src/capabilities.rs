@@ -2,18 +2,18 @@
 use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec};
+use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
 use sov_state::{StateRoot, Storage};
 
-use crate::{BlockGasInfo, ChainState, SlotInformation};
+use crate::{BlockGasInfo, ChainState, SlotInformation, StateAccessor, User, VersionReader};
 
 impl<S: Spec> ChainState<S> {
     /// Computes the current root hash available at the current *virtual* slot number.
     /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
-    fn current_visible_hash(
+    pub fn current_visible_hash(
         &self,
         pre_state_root: &<S::Storage as Storage>::Root,
-        state: &mut KernelStateAccessor<S::Storage>,
+        state: &mut KernelStateAccessor<'_, S::Storage>,
     ) -> <S::Storage as Storage>::Root {
         let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
 
@@ -33,13 +33,13 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Update the chain state at the beginning of the slot. Compute the next gas price
-    pub fn begin_slot_hook(
+    pub fn synchronize_chain(
         &self,
         slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S::Storage>,
-    ) -> <S::Storage as Storage>::Root {
+    ) {
         // We increment the slot number at the very beginning of the slot execution
         self.increment_true_slot_number(state);
 
@@ -84,12 +84,14 @@ impl<S: Spec> ChainState<S> {
             .unwrap_infallible();
 
         self.time.set_true_current(&slot_header.time(), state);
-
-        self.current_visible_hash(pre_state_root, state)
     }
 
     /// Updates the gas used by the transition in progress at the end of each slot
-    pub fn end_slot_hook(&self, gas_used: &S::Gas, state: &mut KernelStateAccessor<S::Storage>) {
+    pub fn finalize_chain_state(
+        &self,
+        gas_used: &S::Gas,
+        state: &mut KernelStateAccessor<S::Storage>,
+    ) {
         // We retrieve the last slot in progress, update its gas information and store it back to the state
         let mut in_progress_slot = self
             .get_last_slot(state)
@@ -109,6 +111,24 @@ impl<S: Spec> ChainState<S> {
                 state,
             )
             .unwrap_infallible();
+    }
+
+    /// Returns the base fee per gas accessible at the current *virtual* slot.
+    /// This value is safe to be used in the transaction execution context.
+    ///
+    /// ## Note
+    /// If there is no in-progress transition at the current virtual slot, the initial base fee per gas is returned.
+    pub fn base_fee_per_gas<Reader: VersionReader + StateAccessor>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, <Reader as StateReader<User>>::Error> {
+        if let Some(in_progress_transition) =
+            self.slots.get(&(state.rollup_height_to_access()), state)?
+        {
+            Ok(in_progress_transition.gas_info.base_fee_per_gas)
+        } else {
+            Ok(<S as GasSpec>::initial_base_fee_per_gas())
+        }
     }
 }
 
