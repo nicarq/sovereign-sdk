@@ -1,3 +1,6 @@
+## 2024-10-16
+- #1671 Adds `Borsh`, `SchemaGenerator`, `Arbitrary`,  bounds to Da layer address types. It also changes the `SequencerRegistry::CallMessage` type to use `Da::Address` instead of `Vec<u8>` where applicable.
+
 ## 2024-10-11
 - #1636 Removes the `Kernel` structure from the `StfBlueprint`. It also adds and implements the `HasKernel` trait on the `Runtime`. Please make sure to remove the explicit dependence on the `Kernel` structure in your `StateTransitionFunction` implementations and use the `Runtime` instead. 
 

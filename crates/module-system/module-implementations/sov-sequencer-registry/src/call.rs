@@ -10,7 +10,7 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 
 /// This enumeration represents the available call messages for interacting with
 /// the `sov-sequencer-registry` module.
-#[cfg_attr(feature = "native", derive(CliWalletArg,))]
+#[cfg_attr(feature = "native", derive(CliWalletArg))]
 #[cfg_attr(
     feature = "arbitrary",
     derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
@@ -27,26 +27,27 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
     UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
-pub enum CallMessage {
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
+pub enum CallMessage<S: Spec> {
     /// Add a new sequencer to the sequencer registry.
     Register {
-        /// The raw Da address of the sequencer you're registering.
-        da_address: Vec<u8>,
+        /// The Da address of the sequencer you're registering.
+        da_address: <S::Da as DaSpec>::Address,
         /// The initial balance of the sequencer.
         amount: Amount,
     },
     /// Increases the balance of the sequencer, transferring the funds from the sequencer account
     /// to the rollup.
     Deposit {
-        /// The raw Da address of the sequencer.
-        da_address: Vec<u8>,
+        /// The  Da address of the sequencer.
+        da_address: <S::Da as DaSpec>::Address,
         /// The amount to increase.
         amount: Amount,
     },
     /// Remove a sequencer from the sequencer registry.
     Exit {
-        /// The raw Da address of the sequencer you're removing.
-        da_address: Vec<u8>,
+        /// The  Da address of the sequencer you're removing.
+        da_address: <S::Da as DaSpec>::Address,
     },
 }
 

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
 
 /// Sequencer DA address used in tests.
@@ -23,6 +24,16 @@ pub const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [0u8; 32];
 pub struct MockAddress {
     /// Underlying mock address.
     addr: [u8; 32],
+}
+
+// Serialize MockAddress without field labels. This changes the output from `{ addr: 0x0000000000000000000000000000000000000000000000}`
+// to just `0x0000000000000000000000000000000000000000000000`
+#[derive(UniversalWallet)]
+#[allow(dead_code)]
+#[doc(hidden)]
+pub struct MockAddressSchema(#[sov_wallet(display(hex))] [u8; 32]);
+impl sov_rollup_interface::sov_universal_wallet::schema::OverrideSchema for MockAddress {
+    type Output = MockAddressSchema;
 }
 
 impl MockAddress {
@@ -67,7 +78,8 @@ impl<'de> serde::Deserialize<'de> for MockAddress {
         D: serde::Deserializer<'de>,
     {
         if deserializer.is_human_readable() {
-            hex::deserialize(deserializer).map(MockAddress::new)
+            let string: String = serde::Deserialize::deserialize(deserializer)?;
+            Self::from_str(&string).map_err(serde::de::Error::custom)
         } else {
             serde::Deserialize::deserialize(deserializer).map(MockAddress::new)
         }
@@ -78,7 +90,7 @@ impl FromStr for MockAddress {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let addr = hex::decode(s).map_err(anyhow::Error::msg)?;
+        let addr = hex::decode(s.strip_prefix("0x").unwrap_or(s)).map_err(anyhow::Error::msg)?;
         Self::try_from(addr.as_slice())
     }
 }
@@ -108,7 +120,7 @@ impl From<[u8; 32]> for MockAddress {
 
 impl std::fmt::Display for MockAddress {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "{}", hex::encode(self.addr))
+        write!(f, "0x{}", hex::encode(self.addr))
     }
 }
 
@@ -119,6 +131,8 @@ impl RollupAddress for MockAddress {}
 mod tests {
     use std::string::ToString;
 
+    use sov_rollup_interface::sov_universal_wallet::schema::Schema;
+
     use super::*;
 
     #[test]
@@ -127,6 +141,15 @@ mod tests {
         let json = serde_json::to_string(&addr).unwrap();
         let recovered_addr = serde_json::from_str::<MockAddress>(&json).unwrap();
         assert_eq!(addr, recovered_addr);
+    }
+
+    #[test]
+    fn universal_wallet_roundtrip() {
+        let addr = MockAddress::new([3u8; 32]);
+        let serialized = borsh::to_vec(&addr).unwrap();
+        let schema = Schema::of_single_type::<MockAddress>();
+
+        assert_eq!(schema.display(0, &serialized).unwrap(), addr.to_string());
     }
 
     #[test]

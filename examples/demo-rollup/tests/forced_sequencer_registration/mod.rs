@@ -82,7 +82,7 @@ async fn forced_sequencer_registration_test_case(
 fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
     let msg =
         RuntimeCall::<TestSpec>::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {
-            da_address: UNREGISTERED_SENDER.as_ref().to_vec(),
+            da_address: UNREGISTERED_SENDER,
             amount: MINIMUM_BOND,
         });
     let chain_id = config_value!("CHAIN_ID");

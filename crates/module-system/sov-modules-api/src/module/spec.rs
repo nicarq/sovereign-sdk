@@ -3,7 +3,6 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use schemars::JsonSchema;
 use sov_rollup_interface::crypto::Signature;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::Attestation;
@@ -14,7 +13,7 @@ use sov_state::{Storage, StorageProof, Witness};
 use crate::gas::Gas;
 use crate::higher_kinded_types::Generic;
 use crate::transaction::Credentials;
-use crate::{ExecutionContext, MaybeArbitrary, PublicKeyExt, SignatureExt};
+use crate::{ExecutionContext, PublicKeyExt, SignatureExt};
 
 /// The `Spec` trait configures certain key primitives to be used by a by a particular instance of a rollup.
 /// `Spec` is almost always implemented on a Context object; since all Modules are generic
@@ -46,22 +45,12 @@ pub trait Spec:
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(feature = "native")]
     type Address: RollupAddress
-        + BorshSerialize
-        + BorshDeserialize
-        + MaybeArbitrary
         + Sync
-        + JsonSchema
-        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>
-        + std::str::FromStr<Err = anyhow::Error>;
+        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(not(feature = "native"))]
-    type Address: RollupAddress
-        + MaybeArbitrary
-        + BorshSerialize
-        + BorshDeserialize
-        + JsonSchema
-        + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
+    type Address: RollupAddress + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
     #[cfg(not(feature = "native"))]

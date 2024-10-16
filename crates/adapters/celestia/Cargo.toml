@@ -32,6 +32,7 @@ nmt-rs = { version = "0.2.2", features = ["serde", "borsh"] }
 # Convenience
 async-trait = { workspace = true }
 anyhow = { workspace = true }
+arbitrary = { workspace = true, optional = true }
 derive_more = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -85,4 +86,9 @@ bench = [
     "dep:risc0-zkvm-platform",
     "sov-celestia-adapter/bench",
     "sov-celestia-adapter/risc0",
+]
+arbitrary = [
+	"dep:arbitrary",
+	"sov-celestia-adapter/arbitrary",
+	"sov-rollup-interface/arbitrary"
 ]

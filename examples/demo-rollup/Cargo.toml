@@ -67,8 +67,13 @@ sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 
 [dev-dependencies]
+sov-risc0-adapter = { workspace = true, features = ["native", "arbitrary"] }
+sov-sp1-adapter = { workspace = true, features = ["native", "arbitrary"] }
+sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
+sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-rollup-interface = { workspace = true, features = ["arbitrary"] }
-sov-mock-da = { workspace = true }
+sov-modules-api = { workspace = true, features = ["native", "arbitrary"] }
+sov-mock-da = { workspace = true, features = ["arbitrary"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }

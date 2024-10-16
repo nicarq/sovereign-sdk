@@ -123,7 +123,7 @@ impl<S: Spec> Module for SequencerRegistry<S> {
 
     type Config = SequencerConfig<S>;
 
-    type CallMessage = CallMessage;
+    type CallMessage = CallMessage<S>;
 
     type Event = Event<S>;
 
@@ -142,21 +142,15 @@ impl<S: Spec> Module for SequencerRegistry<S> {
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse, Error> {
         Ok(match message {
-            CallMessage::Register { da_address, amount } => {
-                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
-                self.register(&da_address, amount, context, state)
-                    .map_err(|e| Error::ModuleError(e.into()))?
-            }
-            CallMessage::Deposit { da_address, amount } => {
-                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
-                self.deposit(&da_address, amount, context, state)
-                    .map_err(|e| Error::ModuleError(e.into()))?
-            }
-            CallMessage::Exit { da_address } => {
-                let da_address = <S::Da as DaSpec>::Address::try_from(&da_address)?;
-                self.exit(&da_address, context, state)
-                    .map_err(|e| Error::ModuleError(e.into()))?
-            }
+            CallMessage::Register { da_address, amount } => self
+                .register(&da_address, amount, context, state)
+                .map_err(|e| Error::ModuleError(e.into()))?,
+            CallMessage::Deposit { da_address, amount } => self
+                .deposit(&da_address, amount, context, state)
+                .map_err(|e| Error::ModuleError(e.into()))?,
+            CallMessage::Exit { da_address } => self
+                .exit(&da_address, context, state)
+                .map_err(|e| Error::ModuleError(e.into()))?,
         })
     }
 }

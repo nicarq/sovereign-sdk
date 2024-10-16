@@ -3,6 +3,8 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
+#[cfg(feature = "native")]
+use sov_rollup_interface::MaybeArbitrary;
 
 /// An extended digital signature.
 /// This extends the [`sov_rollup_interface::crypto::Signature`] trait by requiring [`JsonSchema`] and
@@ -91,7 +93,7 @@ impl<
 /// A PrivateKey used in the Module System. This extends the [`sov_rollup_interface::crypto::PrivateKey`] trait by requiring
 /// the `arbitrary` trait when the `arbitrary` feature is enabled.
 #[cfg(feature = "native")]
-pub trait PrivateKeyExt: sov_rollup_interface::crypto::PrivateKey + crate::MaybeArbitrary {}
+pub trait PrivateKeyExt: sov_rollup_interface::crypto::PrivateKey + MaybeArbitrary {}
 
 #[cfg(feature = "native")]
-impl<P: sov_rollup_interface::crypto::PrivateKey + crate::MaybeArbitrary> PrivateKeyExt for P {}
+impl<P: sov_rollup_interface::crypto::PrivateKey + MaybeArbitrary> PrivateKeyExt for P {}

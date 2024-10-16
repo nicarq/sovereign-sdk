@@ -5,10 +5,12 @@ pub mod da;
 pub mod stf;
 pub mod zk;
 
+use borsh::{BorshDeserialize, BorshSerialize};
 pub use bytes::{Buf, BufMut, Bytes, BytesMut};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sov_universal_wallet::schema::SchemaGenerator;
 
 use crate::common::HexHash;
 
@@ -99,9 +101,13 @@ pub trait BasicAddress:
     + core::hash::Hash
     + AsRef<[u8]>
     + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + core::str::FromStr
+    + core::str::FromStr<Err: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>
     + Serialize
     + DeserializeOwned
+    + BorshDeserialize
+    + BorshSerialize
+    + SchemaGenerator
+    + MaybeArbitrary
     + JsonSchema
     + 'static
 {
@@ -109,3 +115,15 @@ pub trait BasicAddress:
 
 /// An address used inside rollup
 pub trait RollupAddress: BasicAddress {}
+
+/// Implement the `arbitrary::Arbitrary` trait when the `arbitrary` feature is enabled.
+#[cfg(feature = "arbitrary")]
+pub trait MaybeArbitrary: for<'a> arbitrary::Arbitrary<'a> {}
+#[cfg(feature = "arbitrary")]
+impl<T: for<'a> arbitrary::Arbitrary<'a>> MaybeArbitrary for T {}
+
+/// Implement the `arbitrary::Arbitrary` trait when the `arbitrary` feature is enabled.
+#[cfg(not(feature = "arbitrary"))]
+pub trait MaybeArbitrary {}
+#[cfg(not(feature = "arbitrary"))]
+impl<T> MaybeArbitrary for T {}

@@ -24,13 +24,12 @@
               "minimum": 0.0
             },
             "da_address": {
-              "description": "The raw Da address of the sequencer you're registering.",
-              "type": "array",
-              "items": {
-                "type": "integer",
-                "format": "uint8",
-                "minimum": 0.0
-              }
+              "description": "The Da address of the sequencer you're registering.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/MockAddress"
+                }
+              ]
             }
           }
         }
@@ -58,13 +57,12 @@
               "minimum": 0.0
             },
             "da_address": {
-              "description": "The raw Da address of the sequencer.",
-              "type": "array",
-              "items": {
-                "type": "integer",
-                "format": "uint8",
-                "minimum": 0.0
-              }
+              "description": "The  Da address of the sequencer.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/MockAddress"
+                }
+              ]
             }
           }
         }
@@ -85,18 +83,24 @@
           ],
           "properties": {
             "da_address": {
-              "description": "The raw Da address of the sequencer you're removing.",
-              "type": "array",
-              "items": {
-                "type": "integer",
-                "format": "uint8",
-                "minimum": 0.0
-              }
+              "description": "The  Da address of the sequencer you're removing.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/MockAddress"
+                }
+              ]
             }
           }
         }
       },
       "additionalProperties": false
     }
-  ]
+  ],
+  "definitions": {
+    "MockAddress": {
+      "description": "Mock address; 32 bytes in hex-encoded format",
+      "type": "string",
+      "pattern": "^[a-fA-F0-9]{64}$"
+    }
+  }
 }

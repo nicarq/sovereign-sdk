@@ -4861,6 +4861,7 @@ name = "sov-celestia-adapter"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "async-trait",
  "bech32",
  "borsh",
