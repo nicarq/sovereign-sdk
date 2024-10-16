@@ -1,9 +1,12 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::{Deserialize, Serialize};
 
 use super::{EncodeLike, StateCodec, StateItemDecoder, StateItemEncoder};
 
 /// A [`StateCodec`] that uses [`borsh`] for all keys and values.
-#[derive(Debug, Default, PartialEq, Eq, Clone, BorshDeserialize, borsh::BorshSerialize)]
+#[derive(
+    Debug, Default, PartialEq, Eq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize,
+)]
 pub struct BorshCodec;
 
 impl<V> StateItemEncoder<V> for BorshCodec

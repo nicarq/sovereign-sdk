@@ -22,6 +22,9 @@ pub enum ReserveGasError<S: Spec> {
     #[error("The current gas price is too high to cover the maximum fee for the transaction")]
     /// The current gas price is too high to cover the maximum fee for the transaction.
     CurrentGasPriceTooHigh,
+    #[error("The transaction's gas limit is too high for this payer")]
+    /// The transaction's gas limit is too high for this payer.
+    MaxGasLimitExceeded,
     /// Impossible to transfer the gas from the payer to the bank
     #[error("Impossible to transfer the gas from the payer to the bank")]
     ImpossibleToTransferGas(String),
@@ -75,8 +78,17 @@ impl<S: Spec> Bank<S> {
             );
         }
 
+        if let Some(gas_limit) = &tx.gas_limit {
+            // We need to check the gas price in case the user has provided a gas limit.
+            if tx.max_fee < gas_limit.value(gas_price) {
+                return Err(ReserveGasError::CurrentGasPriceTooHigh);
+            }
+        }
+
         // We lock the `max_fee` amount into the `Bank` module.
         // We actually **need** to do that transfer because the payer account balance may change during the execution of the transaction.
+        // Only do this after all checks have passed because the paymaster does not revert on error, so
+        // any state changes may persist!
         if let Err(err) = self.transfer_from(
             payer,
             self.id.to_payable(),
@@ -87,13 +99,6 @@ impl<S: Spec> Bank<S> {
             scratchpad,
         ) {
             return Err(ReserveGasError::ImpossibleToTransferGas(err.to_string()));
-        }
-
-        if let Some(gas_limit) = &tx.gas_limit {
-            // We need to check the gas price in case the user has provided a gas limit.
-            if tx.max_fee < gas_limit.value(gas_price) {
-                return Err(ReserveGasError::CurrentGasPriceTooHigh);
-            }
         }
 
         Ok(())

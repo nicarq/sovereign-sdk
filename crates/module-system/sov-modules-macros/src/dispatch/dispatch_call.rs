@@ -208,7 +208,6 @@ impl DispatchCallMacro {
                 #create_dispatch_impl
             }
             pub use __generated_dispatch_call_impl::*;
-
         }
         .into())
     }

@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 
 use sov_modules_api::capabilities::mocks::MockKernel;
-use sov_modules_api::{Context, Module, PrivateKey, Spec, WorkingSet};
+use sov_modules_api::{Context, DaSpec, Module, PrivateKey, Spec, WorkingSet};
 use sov_nft::utils::get_collection_id;
 use sov_nft::{CallMessage, NonFungibleToken, OwnerAddress, UserAddress};
 use sov_test_utils::storage::new_finalized_storage;
@@ -32,11 +32,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         name: collection_name.to_string(),
         collection_uri: collection_uri.to_string(),
     };
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
     let creator_context = Context::<TestSpec>::new(
         creator_address,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -121,11 +123,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         name: collection_name.to_string(),
         collection_uri: new_collection_uri.to_string(),
     };
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
     let creator_context = Context::<TestSpec>::new(
         creator_address,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -150,11 +154,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let freeze_collection_message = CallMessage::FreezeCollection {
         collection_name: ne_collection_name.to_string(),
     };
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
     let creator_context = Context::<TestSpec>::new(
         creator_address,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -186,11 +192,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let freeze_collection_message = CallMessage::FreezeCollection {
         collection_name: collection_name.to_string(),
     };
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
     let creator_context = Context::<TestSpec>::new(
         creator_address,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -215,11 +223,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
         name: collection_name.to_string(),
         collection_uri: un_updated_collection_uri.to_string(),
     };
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
     let creator_context = Context::<TestSpec>::new(
         creator_address,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -320,10 +330,12 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     // transfer NFT with non-existent token id
     let target_address = private_key_2.to_address();
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
     let owner_context = Context::<TestSpec>::new(
         *owner.get_address(),
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -351,10 +363,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     // transfer NFT by owner
     let target_address = private_key_2.to_address();
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
+
     let owner_context = Context::<TestSpec>::new(
         *owner.get_address(),
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );
@@ -469,10 +484,13 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // transfer NFT by owner
     let target_address = private_key_1.to_address();
     let owner = private_key_2.to_address();
+    let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
+
     let owner_context = Context::<TestSpec>::new(
         owner,
         Default::default(),
         sequencer_address,
+        sequencer_da,
         1,
         sov_modules_api::ExecutionContext::Node,
     );

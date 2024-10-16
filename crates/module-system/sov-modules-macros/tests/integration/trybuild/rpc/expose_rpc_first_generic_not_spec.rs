@@ -3,7 +3,7 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, ApiStateAccessor, CallResponse, Context, DispatchCall, EncodeCall, Error,
+    Address, ApiStateAccessor, CallResponse, Context, DaSpec, DispatchCall, EncodeCall, Error,
     ExecutionContext, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
     StateValue, TxState,
 };
@@ -134,7 +134,15 @@ fn main() {
     let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
     let sender = Address::try_from([11; 32].as_ref()).unwrap();
     let sequencer = Address::try_from([11; 32].as_ref()).unwrap();
-    let context = Context::<S>::new(sender, sequencer, 1, ExecutionContext::Node);
+    let sequencer_da = <<ZkTestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
+    let context = Context::<S>::new(
+        sender,
+        Default::default(),
+        sequencer,
+        sequencer_da,
+        1,
+        ExecutionContext::Node,
+    );
 
     let _ = runtime
         .dispatch_call(module, &mut working_set, &context)

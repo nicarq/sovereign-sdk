@@ -124,6 +124,7 @@ pub trait TransactionAuthorizer<S: Spec> {
     fn resolve_unregistered_context(
         &self,
         auth_data: &Self::AuthorizationData,
+        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
         state: &mut TxScratchpad<S::Storage>,
         execution_context: ExecutionContext,
