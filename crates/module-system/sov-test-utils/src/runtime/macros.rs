@@ -132,10 +132,13 @@ macro_rules! generate_bare_runtime {
             S: ::sov_modules_api::Spec,
         {
             type BlobType = sov_modules_api::BlobDataWithId;
-            type Kernel = $kernel_type;
+            type Kernel<'a> = $kernel_type;
 
-            fn inner(&self) -> sov_modules_api::capabilities::Guard<Self::Kernel> {
-                sov_modules_api::capabilities::Guard::new(<$kernel_type>::default())
+            fn inner(&self) -> sov_modules_api::capabilities::Guard<Self::Kernel<'_>> {
+                sov_modules_api::capabilities::Guard::new(Self::Kernel {
+                    chain_state: &self.chain_state,
+                    blob_storage: &self.blob_storage,
+                })
             }
 
             fn kernel_with_slot_mapping(&self) -> std::sync::Arc<dyn ::sov_modules_api::capabilities::KernelWithSlotMapping<S>> {
@@ -244,7 +247,7 @@ macro_rules! impl_standard_runtime_authenticator {
 macro_rules! generate_optimistic_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_optimistic_runtime_with_kernel! {
-            kernel_type: $crate::runtime::BasicKernel<S>,
+            kernel_type: $crate::runtime::BasicKernel<'a, S>,
             $id <= $($module_name : $module_ty),*
         }
     };
@@ -273,7 +276,7 @@ macro_rules! generate_optimistic_runtime_with_kernel {
 macro_rules! generate_zk_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_zk_runtime_with_kernel! {
-            kernel_type: $crate::runtime::BasicKernel<S>,
+            kernel_type: $crate::runtime::BasicKernel<'a, S>,
             $id <= $($module_name : $module_ty),*
         }
     };

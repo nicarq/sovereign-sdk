@@ -7,7 +7,6 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
-use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::higher_kinded_types::Generic;
@@ -68,8 +67,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService =
-        BondingProofServiceImpl<Self::Spec, <Self::Runtime as HasKernel<Self::Spec>>::Kernel>;
+    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Runtime>;
 
     fn create_bonding_proof_service(
         &self,
@@ -77,7 +75,12 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
     ) -> Self::BondingProofService {
         let runtime = Runtime::<Self::Spec>::default();
-        BondingProofServiceImpl::new(attester_address, runtime.attester_incentives, storage)
+        BondingProofServiceImpl::new(
+            attester_address,
+            runtime.attester_incentives.clone(),
+            storage,
+            runtime,
+        )
     }
 
     fn get_operating_mode(
@@ -114,12 +117,11 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
         // TODO: Add issue for Sequencer level RPC injection:
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<
-            Self::Spec,
-            <Self::Runtime as HasKernel<Self::Spec>>::Kernel,
-            Self::DaService,
-            Self::Runtime,
-        >(da_service.clone(), storage, &mut endpoints.jsonrpsee_module)?;
+        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
+            da_service.clone(),
+            storage,
+            &mut endpoints.jsonrpsee_module,
+        )?;
 
         Ok(endpoints)
     }

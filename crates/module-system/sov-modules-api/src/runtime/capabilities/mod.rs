@@ -9,6 +9,10 @@ pub mod auth;
 mod batch_selector;
 mod kernel;
 mod proof;
+
+#[cfg(feature = "native")]
+use std::sync::Arc;
+
 pub use auth::*;
 pub use batch_selector::*;
 pub use kernel::*;
@@ -105,7 +109,11 @@ pub trait HasKernel<S: Spec> {
     type BlobType;
 
     /// The concrete implementation of the kernel.
-    type Kernel: Kernel<S> + KernelSlotHooks<S> + BlobSelector<Spec = S, BlobType = Self::BlobType>;
+    type Kernel<'a>: Kernel<S>
+        + KernelSlotHooks<S>
+        + BlobSelector<Spec = S, BlobType = Self::BlobType>
+    where
+        Self: 'a;
 
     /// Fetches the kernel modules from the runtime.
     ///
@@ -120,7 +128,7 @@ pub trait HasKernel<S: Spec> {
     /// implementation but then used `HasCapabilities::capabilities().try_reserve_gas` instead of
     /// `HasCapabilities::gas_enforcer().try_reserve_gas` I would use the default implementation instead of
     /// the override.
-    fn inner(&self) -> Guard<Self::Kernel>;
+    fn inner(&self) -> Guard<Self::Kernel<'_>>;
 
     /// Returns the [`Kernel`] implementation on [`HasKernel::Kernel`].
     fn kernel(&self) -> impl Kernel<S> {
@@ -139,7 +147,7 @@ pub trait HasKernel<S: Spec> {
 
     /// Returns the [`KernelWithSlotMapping`] implementation on [`HasKernel::Kernel`].
     #[cfg(feature = "native")]
-    fn kernel_with_slot_mapping(&self) -> std::sync::Arc<dyn KernelWithSlotMapping<S>>;
+    fn kernel_with_slot_mapping(&self) -> Arc<dyn KernelWithSlotMapping<S>>;
 }
 
 #[cfg(feature = "test-utils")]

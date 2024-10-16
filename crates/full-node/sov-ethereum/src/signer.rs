@@ -3,7 +3,7 @@ use jsonrpsee::RpcModule;
 use reth_primitives::{TxKind, U256};
 use reth_rpc_eth_types::EthApiError;
 use sov_evm::{EthereumAuthenticator, Evm, RlpEvmTransaction};
-use sov_modules_api::capabilities::{Kernel, KernelWithSlotMapping};
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::ApiStateAccessor;
 use sov_rollup_interface::node::da::DaService;
@@ -16,11 +16,10 @@ fn config_chain_id() -> u64 {
 
 pub(crate) fn register_signer_rpc_methods<
     S: sov_modules_api::Spec,
-    K: Kernel<S> + KernelWithSlotMapping<S>,
     Da: DaService,
-    RT: EthereumAuthenticator<S> + Send + Sync + 'static,
+    RT: EthereumAuthenticator<S> + HasKernel<S> + Default + Send + Sync + 'static,
 >(
-    rpc: &mut RpcModule<Ethereum<S, K, Da, RT>>,
+    rpc: &mut RpcModule<Ethereum<S, Da, RT>>,
 ) -> Result<(), jsonrpsee::core::client::Error> {
     rpc.register_async_method("eth_accounts", |_parameters, ethereum, _| async move {
         Ok::<_, ErrorObjectOwned>(ethereum.eth_signer.signers())

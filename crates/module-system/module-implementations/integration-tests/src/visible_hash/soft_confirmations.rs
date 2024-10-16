@@ -18,7 +18,7 @@ generate_bare_runtime! {
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     impl_hooks: [ApplyBatchHooks, TxHooks],
     runtime_trait_impl_bounds: [],
-    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<S>
+    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>
 }
 
 impl_standard_runtime_authenticator!(TestVisibleHashRuntime<S>);

@@ -8,7 +8,7 @@ use sov_state::{
 
 use super::seal::CachedAccessor;
 use super::StateCheckpoint;
-use crate::capabilities::{Kernel, KernelWithSlotMapping};
+use crate::capabilities::{HasKernel, KernelWithSlotMapping};
 use crate::gas::GasArray;
 use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent};
 
@@ -171,12 +171,13 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     }
 
     /// Creates a new [`ApiStateAccessor`] from the provided Storage with a gas price of zero.
-    pub fn from_storage<K: Kernel<S> + KernelWithSlotMapping<S>>(
-        storage: S::Storage,
-        kernel: K,
-    ) -> Self {
-        let empty_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
-        Self::new(&empty_checkpoint, Arc::new(kernel), None)
+    pub fn from_storage<K: HasKernel<S>>(storage: S::Storage, has_kernel: &K) -> Self {
+        let empty_checkpoint = StateCheckpoint::new(storage.clone(), &has_kernel.kernel());
+        Self::new(
+            &empty_checkpoint,
+            has_kernel.kernel_with_slot_mapping(),
+            None,
+        )
     }
 
     fn clone_without_witness_or_events(&self) -> Self {

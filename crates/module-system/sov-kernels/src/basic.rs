@@ -3,8 +3,6 @@
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
-#[cfg(feature = "native")]
-use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel, KernelSlotHooks};
 use sov_modules_api::{
@@ -13,34 +11,24 @@ use sov_modules_api::{
 use sov_state::Storage;
 
 /// The simplest imaginable kernel. It does not do any batching or reordering of blobs.
-#[derive(Clone)]
-pub struct BasicKernel<S: Spec> {
-    pub(crate) chain_state: ChainState<S>,
-    pub(crate) blob_storage: BlobStorage<S>,
+pub struct BasicKernel<'a, S: Spec> {
+    pub chain_state: &'a ChainState<S>,
+    pub blob_storage: &'a BlobStorage<S>,
 }
 
-impl<S: Spec> BasicKernel<S> {
+impl<'a, S: Spec> BasicKernel<'a, S> {
     /// Gets a reference to the kernel's ChainState module.
     pub fn chain_state(&self) -> &ChainState<S> {
-        &self.chain_state
+        self.chain_state
     }
 
     /// Gets a reference to the kernel's BlobStorage module.
     pub fn blob_storage(&self) -> &BlobStorage<S> {
-        &self.blob_storage
+        self.blob_storage
     }
 }
 
-impl<S: Spec> Default for BasicKernel<S> {
-    fn default() -> Self {
-        Self {
-            chain_state: Default::default(),
-            blob_storage: Default::default(),
-        }
-    }
-}
-
-impl<S: Spec> Kernel<S> for BasicKernel<S> {
+impl<'a, S: Spec> Kernel<S> for BasicKernel<'a, S> {
     fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state.true_slot_number(state).unwrap_infallible()
     }
@@ -50,7 +38,7 @@ impl<S: Spec> Kernel<S> for BasicKernel<S> {
     }
 }
 
-impl<S: Spec> BlobSelector for BasicKernel<S> {
+impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
     type Spec = S;
 
     type BlobType = BlobDataWithId;
@@ -69,18 +57,7 @@ impl<S: Spec> BlobSelector for BasicKernel<S> {
     }
 }
 
-#[cfg(feature = "native")]
-impl<S: Spec> KernelWithSlotMapping<S> for BasicKernel<S> {
-    fn visible_slot_number_at(
-        &self,
-        true_slot_number: u64,
-        _state: &mut sov_modules_api::ApiStateAccessor<S>,
-    ) -> u64 {
-        true_slot_number
-    }
-}
-
-impl<S: Spec> KernelSlotHooks<S> for BasicKernel<S> {
+impl<'a, S: Spec> KernelSlotHooks<S> for BasicKernel<'a, S> {
     fn begin_slot_hook(
         &self,
         slot_header: &<S::Da as DaSpec>::BlockHeader,

@@ -1,8 +1,7 @@
 //! Defines the query methods for the attester incentives module
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use sov_modules_api::capabilities::{Kernel, KernelWithSlotMapping};
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, Gas, GasMeter, Spec, StateCheckpoint, StateReader};
@@ -109,25 +108,26 @@ where
     attester_address: S::Address,
     attester_incentives: AttesterIncentives<S>,
     storage: tokio::sync::watch::Receiver<S::Storage>,
-    phantom: std::marker::PhantomData<K>,
+    has_kernel: K,
 }
 
 impl<S, K> BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    K: KernelWithSlotMapping<S>,
+    K: HasKernel<S>,
 {
     /// Creates a new `BondingProofServiceImpl` service.
     pub fn new(
         attester_address: S::Address,
         attester_incentives: AttesterIncentives<S>,
         storage: tokio::sync::watch::Receiver<S::Storage>,
+        has_kernel: K,
     ) -> Self {
         Self {
             attester_address,
             attester_incentives,
             storage,
-            phantom: std::marker::PhantomData,
+            has_kernel,
         }
     }
 }
@@ -135,7 +135,7 @@ where
 impl<S, K> BondingProofService for BondingProofServiceImpl<S, K>
 where
     S: Spec,
-    K: KernelWithSlotMapping<S> + Kernel<S>,
+    K: HasKernel<S> + Send + Sync + 'static,
 {
     type StateProof = StorageProof<<S::Storage as Storage>::Proof>;
 
@@ -144,8 +144,12 @@ where
         height: u64,
     ) -> Option<ProofOfBond<<Self as BondingProofService>::StateProof>> {
         let storage = self.storage.borrow().clone();
-        let checkpoint = StateCheckpoint::new(storage, &K::default());
-        let state = ApiStateAccessor::<S>::new(&checkpoint, Arc::new(K::default()), Some(height));
+        let checkpoint = StateCheckpoint::new(storage, &self.has_kernel.kernel());
+        let state = ApiStateAccessor::<S>::new(
+            &checkpoint,
+            self.has_kernel.kernel_with_slot_mapping(),
+            Some(height),
+        );
         let mut state = state.get_archival_at(height);
         let proof = self
             .attester_incentives
