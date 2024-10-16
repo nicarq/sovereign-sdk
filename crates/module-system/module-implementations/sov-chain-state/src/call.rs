@@ -1,5 +1,3 @@
-use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     GasSpec, KernelStateAccessor, Spec, StateAccessor, StateReader, VersionReader,
@@ -7,32 +5,6 @@ use sov_modules_api::{
 use sov_state::User;
 
 use crate::ChainState;
-
-/// The Chain State module does not support calls so we use [`NotInstantiable`] type here.
-#[cfg_attr(feature = "native", derive(sov_modules_api::macros::CliWalletArg))]
-#[derive(
-    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, JsonSchema, UniversalWallet,
-)]
-pub enum NotInstantiable {}
-
-impl borsh::BorshDeserialize for NotInstantiable {
-    // It is impossible to deserialize to NotInstantiable.
-    fn deserialize_reader<R: std::io::prelude::Read>(
-        _reader: &mut R,
-    ) -> Result<Self, std::io::Error> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "NotInstantiable is not instantiable",
-        ))
-    }
-}
-
-impl borsh::BorshSerialize for NotInstantiable {
-    // Since it impossible to have a value of NotInstantiable this code is unreachable.
-    fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> Result<(), std::io::Error> {
-        unreachable!()
-    }
-}
 
 impl<S> ChainState<S>
 where

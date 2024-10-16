@@ -2,14 +2,13 @@
 #![doc = include_str!("../README.md")]
 mod capabilities;
 use borsh::{BorshDeserialize, BorshSerialize};
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_chain_state::TransitionHeight;
-use sov_modules_api::macros::{config_value, UniversalWallet};
+use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleStateAccessor, KernelStateValue, Module,
-    ModuleId, ModuleInfo, Spec, StateMap,
+    ModuleId, ModuleInfo, NotInstantiable, Spec, StateMap,
 };
 use sov_state::codec::BcsCodec;
 
@@ -23,32 +22,6 @@ pub fn config_deferred_slots_count() -> u64 {
 /// this serves as protection against spam.
 pub fn config_unregistered_blobs_per_slot() -> u64 {
     config_value!("UNREGISTERED_BLOBS_PER_SLOT")
-}
-
-/// The Chain State module does not support calls so we use [`NotInstantiable`] type here.
-#[cfg_attr(feature = "native", derive(sov_modules_api::macros::CliWalletArg))]
-#[derive(
-    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, UniversalWallet, JsonSchema,
-)]
-pub enum NotInstantiable {}
-
-impl borsh::BorshDeserialize for NotInstantiable {
-    // It is impossible to deserialize to NotInstantiable.
-    fn deserialize_reader<R: std::io::prelude::Read>(
-        _reader: &mut R,
-    ) -> Result<Self, std::io::Error> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "NotInstantiable is not instantiable",
-        ))
-    }
-}
-
-impl borsh::BorshSerialize for NotInstantiable {
-    // Since it impossible to have a value of NotInstantiable this code is unreachable.
-    fn serialize<W: std::io::Write>(&self, _writer: &mut W) -> Result<(), std::io::Error> {
-        unreachable!()
-    }
 }
 
 /// The sequence number for a batch from the preferred sequencer.   

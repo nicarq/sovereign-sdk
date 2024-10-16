@@ -25,6 +25,7 @@ sov-state = { workspace = true, features = ["native"] }
 
 [dependencies]
 anyhow = { workspace = true }
+clap = { workspace = true, optional = true }
 sov-modules-api = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
@@ -34,6 +35,7 @@ borsh = { workspace = true, features = ["rc"] }
 [features]
 default = []
 native = [
+	"clap",
 	"sov-modules-api/native",
 	"sov-value-setter/native",
 	"sov-state/native",

@@ -1,11 +1,9 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
-mod call;
 mod capabilities;
-use call::NotInstantiable;
 use sov_modules_api::{
     CallResponse, Context, CredentialId, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, StateReader, TxState,
+    ModuleRestApi, NotInstantiable, Spec, StateMap, StateReader, TxState,
 };
 use sov_state::User;
 

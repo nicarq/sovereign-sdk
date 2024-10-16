@@ -340,14 +340,14 @@
             "name": "BlobStorage",
             "serde_name": "blob_storage",
             "value": {
-              "ByIndex": 60
+              "ByIndex": 59
             }
           },
           {
             "name": "Evm",
             "serde_name": "evm",
             "value": {
-              "ByIndex": 62
+              "ByIndex": 60
             }
           }
         ]
@@ -1467,7 +1467,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 59
+              "ByIndex": 45
             },
             "silent": false,
             "doc": ""
@@ -1476,10 +1476,16 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "NotInstantiable",
-        "serde_type_name": "NotInstantiable",
-        "variants": []
+      "Tuple": {
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 45
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
       }
     },
     {
@@ -1488,26 +1494,6 @@
           {
             "value": {
               "ByIndex": 61
-            },
-            "silent": false,
-            "doc": ""
-          }
-        ]
-      }
-    },
-    {
-      "Enum": {
-        "type_name": "NotInstantiable",
-        "serde_type_name": "NotInstantiable",
-        "variants": []
-      }
-    },
-    {
-      "Tuple": {
-        "fields": [
-          {
-            "value": {
-              "ByIndex": 63
             },
             "silent": false,
             "doc": ""
@@ -1525,7 +1511,7 @@
             "serde_display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 64
+              "ByIndex": 62
             },
             "doc": ""
           }

@@ -9,7 +9,7 @@ mod gas;
 mod tests;
 use sov_modules_api::{
     BootstrapWorkingSet, GenesisState, KernelStateAccessor, ModuleError, ModuleId, ModuleInfo,
-    Spec, StateAccessor, StateReader, StateReaderAndWriter, Zkvm,
+    NotInstantiable, Spec, StateAccessor, StateReader, StateReaderAndWriter, Zkvm,
 };
 
 mod genesis;
@@ -436,7 +436,7 @@ impl<S: Spec> ChainState<S> {
 impl<S: Spec> Module for ChainState<S> {
     type Spec = S;
 
-    type CallMessage = call::NotInstantiable;
+    type CallMessage = NotInstantiable;
 
     type Config = ChainStateConfig<S>;
 
