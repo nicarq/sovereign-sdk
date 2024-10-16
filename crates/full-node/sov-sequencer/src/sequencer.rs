@@ -182,7 +182,11 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             let mut result = batch_builder.accept_tx(RawTx::new(tx.clone())).await;
 
             if let Ok(accepted) = &result {
+                for event in accepted.confirmation.events() {
+                    self.events_sender.send(event).ok();
+                }
                 let stored_tx = SeqDbTx::new(accepted.tx_hash, accepted.tx.clone());
+
                 // Send notification.
                 self.tx_status_manager
                     .notify(accepted.tx_hash, TxStatus::Submitted);
