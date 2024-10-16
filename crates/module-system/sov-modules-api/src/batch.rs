@@ -35,6 +35,7 @@ impl FullyBakedTx {
 #[derive(
     Debug,
     PartialEq,
+    Eq,
     Clone,
     BorshDeserialize,
     BorshSerialize,

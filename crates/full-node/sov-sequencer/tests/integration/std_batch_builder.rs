@@ -3,75 +3,14 @@ use std::time::Duration;
 
 use base64::prelude::*;
 use borsh::BorshDeserialize;
-use sov_mock_da::MockDaService;
-use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Address, Batch, BlobReaderTrait, FullyBakedTx, RawTx};
+use sov_modules_api::{Address, Batch, BlobReaderTrait};
 use sov_rollup_interface::node::da::DaService;
-use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer_json_client::types;
-use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Bank, Coins, TestOptimisticRuntime};
-use sov_test_utils::sequencer::TestSequencerSetup;
-use sov_test_utils::{
-    EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
-    TEST_DEFAULT_USER_BALANCE,
-};
-use sov_value_setter::ValueSetter;
+use sov_test_utils::{EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
 
-pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
-
-async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
-    let dir = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR);
-
-    let batch_builder_config = StdBatchBuilderConfig {
-        mempool_max_txs_count: None,
-        max_batch_size_bytes: None,
-    };
-
-    TestSequencerSetup::new(dir, da_service, batch_builder_config, vec![])
-        .await
-        .unwrap()
-}
-
-fn build_tx(
-    setup: &TestSequencerSetup<MyBatchBuilder>,
-    nonce: u64,
-    call_message: Vec<u8>,
-) -> RawTx {
-    let tx = borsh::to_vec(&Transaction::<TestSpec>::new_signed_tx(
-        &setup.admin_private_key,
-        UnsignedTransaction::new(
-            call_message,
-            config_value!("CHAIN_ID"),
-            TEST_DEFAULT_MAX_PRIORITY_FEE,
-            TEST_DEFAULT_MAX_FEE,
-            nonce,
-            None,
-        ),
-    ))
-    .unwrap();
-
-    RawTx::new(tx)
-}
-
-fn valid_tx_bytes(
-    setup: &TestSequencerSetup<MyBatchBuilder>,
-    nonce: u64,
-    value_to_set: u32,
-) -> RawTx {
-    let msg = <TestOptimisticRuntime<TestSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
-        sov_value_setter::CallMessage::SetValue(value_to_set),
-    );
-
-    build_tx(setup, nonce, msg)
-}
-
-fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
-    TestOptimisticRuntime::<TestSpec>::encode_with_standard_auth(raw_tx)
-}
+use crate::utils::{build_tx, new_sequencer, valid_tx_bytes, wrap_with_auth};
 
 // This test has to be single-threaded because logs from other threads don't
 // show up in traced_test (https://github.com/dbrgn/tracing-test/issues/23).

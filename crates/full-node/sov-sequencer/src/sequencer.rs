@@ -33,7 +33,7 @@ pub struct Inner<Ss: SequencerSpec> {
     // automatically updated by the batch-builder with the latest state.
     // We simply cache a copy so that we don't need to lock the builder to retrieve it.
     api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
-    sequencer_db: SequencerDb,
+    pub(crate) sequencer_db: SequencerDb,
     events_sender: broadcast::Sender<
         RuntimeEventResponse<
             <<Ss::BatchBuilder as BatchBuilder>::Confirmation as DataWithEvents>::EventInner,
@@ -145,6 +145,16 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         }
     }
 
+    /// Returns a reference to the underlying [`SequencerDb`].
+    pub fn db(&self) -> &SequencerDb {
+        &self.inner.sequencer_db
+    }
+
+    /// Locks the batch builder and returns a reference to it.
+    pub async fn batch_builder(&self) -> MutexGuard<Ss::BatchBuilder> {
+        self.inner.batch_builder.lock().await
+    }
+
     /// Subscribes to events emitted by the sequencer.
     pub async fn subscribe_events(
         &self,
@@ -172,20 +182,23 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
     /// Calls [`BatchBuilder::accept_tx`] for each transaction, and finally
     /// [`BatchBuilder::build_next_batch`].
-    pub async fn submit_batch(&self, txs: Vec<Vec<u8>>) -> anyhow::Result<SubmittedBatchInfo> {
+    pub async fn submit_batch(
+        &self,
+        txs: Vec<<Ss::BatchBuilder as BatchBuilder>::TxInput>,
+    ) -> anyhow::Result<SubmittedBatchInfo> {
         // Acquire the lock before any DA operation, to avoid out-of-order
         // batches and other potential issues.
-        let mut batch_builder = self.batch_builder.lock().await;
+        let mut batch_builder = self.batch_builder().await;
 
         let mut accept_tx_results = vec![];
         for tx in txs {
-            let mut result = batch_builder.accept_tx(RawTx::new(tx.clone())).await;
+            let mut result = batch_builder.accept_tx(tx.clone()).await;
 
             if let Ok(accepted) = &result {
                 for event in accepted.confirmation.events() {
                     self.events_sender.send(event).ok();
                 }
-                let stored_tx = SeqDbTx::new(accepted.tx_hash, accepted.tx.clone());
+                let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
 
                 // Send notification.
                 self.tx_status_manager
@@ -217,21 +230,30 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             .await
     }
 
+    /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
+    ///
+    /// TODO(@neysofu): this method should be replaced an API endpoint -aware
+    /// approach, so that multiple transaction formats can be supported.
+    pub fn encode_tx(&self, raw: RawTx) -> <Ss::BatchBuilder as BatchBuilder>::TxInput {
+        Ss::BatchBuilder::encode_tx(raw)
+    }
+
     /// See [`BatchBuilder::accept_tx`].
     pub async fn accept_tx(
         &self,
-        tx: Vec<u8>,
+        tx_input: <Ss::BatchBuilder as BatchBuilder>::TxInput,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, AcceptTxError> {
-        let mut batch_builder = self.batch_builder.lock().await;
+        let mut batch_builder = self.batch_builder().await;
 
-        tracing::info!(tx = hex::encode(&tx), "Accepting transaction");
-        let accepted = batch_builder.accept_tx(RawTx::new(tx)).await?;
+        let tx_bytes = borsh::to_vec(&tx_input).expect("Failed to serialize transaction");
+        tracing::info!(tx = hex::encode(&tx_bytes), "Accepting transaction");
+        let accepted = batch_builder.accept_tx(tx_input.clone()).await?;
 
         for event in accepted.confirmation.events() {
             self.events_sender.send(event).ok();
         }
 
-        let stored_tx = SeqDbTx::new(accepted.tx_hash, accepted.tx.clone());
+        let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx_input);
         self.sequencer_db.insert(&stored_tx).await.map_err(|e| {
             error!(%e, "Database error. Failed to accept transaction");
             AcceptTxError {

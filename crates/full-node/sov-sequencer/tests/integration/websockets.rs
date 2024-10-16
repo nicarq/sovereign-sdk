@@ -2,7 +2,7 @@ use futures::stream::StreamExt;
 use sov_sequencer_json_client::types::TxStatus;
 use sov_test_utils::sequencer::TestSequencerSetup;
 
-use crate::generate_txs;
+use crate::utils::generate_txs;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn mempool_eviction_event() {
@@ -14,12 +14,10 @@ async fn mempool_eviction_event() {
     .unwrap();
 
     let txs = generate_txs(sequencer.admin_private_key.clone());
-    let (tx_hash_1, tx_1) = &txs[0];
-    let (_, tx_2) = &txs[1];
 
     let client = sequencer.client();
     let mut subscription = client
-        .subscribe_to_tx_status_updates(*tx_hash_1)
+        .subscribe_to_tx_status_updates(txs[0].tx_hash)
         .await
         .unwrap();
 
@@ -29,8 +27,11 @@ async fn mempool_eviction_event() {
         TxStatus::Unknown
     );
 
-    let tx_bytes = borsh::to_vec(&tx_1).unwrap();
-    sequencer.sequencer.accept_tx(tx_bytes).await.unwrap();
+    sequencer
+        .sequencer
+        .accept_tx(txs[0].tx_input.clone())
+        .await
+        .unwrap();
 
     // The transaction enters the mempool.
     assert_eq!(
@@ -40,8 +41,11 @@ async fn mempool_eviction_event() {
 
     // In the meantime, another transaction enters the mempool and causes the
     // first one to be evicted.
-    let tx_bytes = borsh::to_vec(&tx_2).unwrap();
-    sequencer.sequencer.accept_tx(tx_bytes).await.unwrap();
+    sequencer
+        .sequencer
+        .accept_tx(txs[1].tx_input.clone())
+        .await
+        .unwrap();
 
     assert_eq!(
         subscription.next().await.unwrap().unwrap().status,
@@ -58,10 +62,9 @@ async fn rpc_subscribe() {
     let client = sequencer.client();
 
     let txs = generate_txs(sequencer.admin_private_key.clone());
-    let (tx_hash, tx) = &txs[0];
 
     let mut subscription = client
-        .subscribe_to_tx_status_updates(*tx_hash)
+        .subscribe_to_tx_status_updates(txs[0].tx_hash)
         .await
         .unwrap();
 
@@ -72,7 +75,7 @@ async fn rpc_subscribe() {
     );
 
     client
-        .publish_batch_with_serialized_txs(&[tx])
+        .publish_batch_with_serialized_txs(&[txs[0].tx_object.clone()])
         .await
         .unwrap();
 

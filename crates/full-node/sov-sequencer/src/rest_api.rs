@@ -10,6 +10,7 @@ use axum::{middleware, Json};
 use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
+use sov_modules_api::RawTx;
 use sov_rest_utils::{
     errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult,
     ErrorObject, Path,
@@ -184,9 +185,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         sequencer: State<Self>,
         tx: Json<AcceptTx>,
     ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
-        let tx = tx.0.body.blob;
+        let raw_tx = RawTx::new(tx.0.body.blob);
+        let tx_input = sequencer.encode_tx(raw_tx);
 
-        let tx_with_hash = match sequencer.accept_tx(tx).await {
+        let tx_with_hash = match sequencer.accept_tx(tx_input).await {
             Ok(tx_hash) => tx_hash,
             Err(AcceptTxError {
                 http_status,
@@ -225,7 +227,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             .0
             .transactions
             .into_iter()
-            .map(|tx| tx.blob)
+            .map(|tx| {
+                let raw_tx = RawTx::new(tx.blob);
+                sequencer.encode_tx(raw_tx)
+            })
             .collect::<Vec<_>>();
 
         match sequencer.submit_batch(batch).await {

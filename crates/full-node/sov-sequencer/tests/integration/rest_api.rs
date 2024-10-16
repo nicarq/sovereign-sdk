@@ -2,7 +2,7 @@ use base64::prelude::*;
 use sov_sequencer_json_client::types::PublishBatchBody;
 use sov_test_utils::sequencer::TestSequencerSetup;
 
-use crate::generate_txs;
+use crate::utils::generate_txs;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn axum_submit_batch_ok() {
@@ -15,7 +15,7 @@ async fn axum_submit_batch_ok() {
         .publish_batch(&PublishBatchBody {
             transactions: txs
                 .iter()
-                .map(|(_hash, tx)| BASE64_STANDARD.encode(borsh::to_vec(tx).unwrap()))
+                .map(|tx| BASE64_STANDARD.encode(&tx.raw_tx.data))
                 .collect(),
         })
         .await;
