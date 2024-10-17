@@ -11,14 +11,14 @@ fn main() {
         let methods_path = out_dir.join("methods.rs");
 
         let elf = r#"
-            pub const ROLLUP_ELF: &[u8] = &[];
-            pub const MOCK_DA_ELF: &[u8] = &[];
+            pub const ROLLUP_PATH: &str = "";
+            pub const MOCK_DA_PATH: &str = "";
         "#;
 
         std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
     } else {
         let guest_pkg_to_options = get_guest_options();
-        risc0_build::embed_methods_with_options(guest_pkg_to_options);
+        risc0_build::embed_method_metadata_with_options(guest_pkg_to_options);
     }
 }
 

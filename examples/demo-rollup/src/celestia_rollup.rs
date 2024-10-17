@@ -155,7 +155,21 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let inner_vm = Risc0Host::new(risc0::ROLLUP_ELF);
+        let inner_vm = if let RollupProverConfig::Skip = prover_config {
+            Risc0Host::new(b"")
+        } else {
+            let elf = std::fs::read(risc0::ROLLUP_PATH)
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "Could not read guest elf file from `{}`. {}",
+                        risc0::ROLLUP_PATH,
+                        e
+                    )
+                })
+                .leak();
+            Risc0Host::new(elf)
+        };
+
         let outer_vm = MockZkvm::new_non_blocking();
 
         let zk_stf = StfBlueprint::new();

@@ -135,7 +135,16 @@ fn log_bench_data(bench_data: BenchData, mode: BenchMode) {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Run the risc0 benchmarks
-    run(BenchRisc0STF::new(), risc0::MOCK_DA_ELF, BenchMode::Risc0).await?;
+    let elf = std::fs::read(risc0::MOCK_DA_PATH)
+        .unwrap_or_else(|e| {
+            panic!(
+                "Could not read guest elf file from `{}`. {}",
+                risc0::MOCK_DA_PATH,
+                e
+            )
+        })
+        .leak();
+    run(BenchRisc0STF::new(), elf, BenchMode::Risc0).await?;
 
     // Clear the global hashmap used for collecting metrics to avoid polluting the SP1 results.
     // Dot it in its own scope to prevent the lock from being held for too long.
