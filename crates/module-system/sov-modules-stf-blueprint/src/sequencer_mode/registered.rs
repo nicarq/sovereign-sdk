@@ -1,16 +1,16 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    fatal_deserialization_error, AuthenticationError, AuthenticationOutput,
-    AuthorizeSequencerError, GasEnforcer, SequencerAuthorization, SequencerRemuneration,
-    TransactionAuthenticator, TransactionAuthorizer, TryReserveGasError,
+    fatal_deserialization_error, AuthenticationError, AuthorizeSequencerError, GasEnforcer,
+    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
-    ExecutionContext, FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Spec,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Spec,
     StateCheckpoint, TxScratchpad, WorkingSet,
 };
+use sov_rollup_interface::TxHash;
 use tracing::{debug, error, warn};
 
 pub use crate::sequencer_mode::common::PreExecError;
@@ -20,15 +20,13 @@ use crate::sequencer_mode::common::{
 use crate::{ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, TxProcessingError};
 
 /// Executes the entire transaction lifecycle.
-#[allow(clippy::result_large_err)]
+
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
 pub fn process_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
-    auth_output: AuthenticationOutput<
-        S,
-        <R as TransactionAuthenticator<S>>::Decodable,
-        <R as TransactionAuthenticator<S>>::AuthorizationData,
-    >,
-    gas_info: GasInfo<S::Gas>,
+    validated_output: ValidatedAuthOutput<S, R>,
+    gas_price: &<S::Gas as Gas>::Price,
+    gas_used_for_authentication: &S::Gas,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
     mut tx_scratchpad: TxScratchpad<S::Storage>,
@@ -37,7 +35,28 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     Result<ApplyTxResult<S>, TxProcessingError>,
     TxScratchpad<S::Storage>,
 ) {
-    let (auth_tx, auth_data, message) = auth_output;
+    let auth_cost = gas_used_for_authentication.value(gas_price);
+
+    let (auth_tx, auth_data, message) = match validated_output {
+        ValidatedAuthOutput::Valid(valid) => valid,
+        ValidatedAuthOutput::Invalid(hex_string) => {
+            runtime
+                .gas_enforcer()
+                .transfer_authentication_cost_from_sequencer_to_prover(
+                    auth_cost,
+                    sequencer_da_address,
+                    &mut tx_scratchpad,
+                );
+
+            return (
+                Err(TxProcessingError::AuthenticationFailed(format!(
+                    "Authentication failed for tx: {}",
+                    hex_string
+                ))),
+                tx_scratchpad,
+            );
+        }
+    };
 
     let raw_tx_hash = auth_tx.raw_tx_hash;
     let tx = &auth_tx.authenticated_tx;
@@ -52,18 +71,16 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     let mut ctx = match maybe_ctx {
         Ok(ctx) => ctx,
         Err(err) => {
-            let err_string = err.to_string();
-
-            // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-            runtime.sequencer_authorization().penalize_sequencer(
-                sequencer_da_address,
-                err,
-                gas_info.remaining_funds,
-                &mut tx_scratchpad,
-            );
+            runtime
+                .gas_enforcer()
+                .transfer_authentication_cost_from_sequencer_to_prover(
+                    auth_cost,
+                    sequencer_da_address,
+                    &mut tx_scratchpad,
+                );
 
             return (
-                Err(TxProcessingError::CannotResolveContext(err_string)),
+                Err(TxProcessingError::CannotResolveContext(err.to_string())),
                 tx_scratchpad,
             );
         }
@@ -75,34 +92,32 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
             .transaction_authorizer()
             .check_uniqueness(&auth_data, &ctx, &mut tx_scratchpad)
     {
-        let err_string = err.to_string();
-
-        // We penalize the sequencer for the fixed amount of gas that was used to execute the transaction.
-        runtime.sequencer_authorization().penalize_sequencer(
-            sequencer_da_address,
-            err,
-            gas_info.remaining_funds,
-            &mut tx_scratchpad,
-        );
+        runtime
+            .gas_enforcer()
+            .transfer_authentication_cost_from_sequencer_to_prover(
+                auth_cost,
+                sequencer_da_address,
+                &mut tx_scratchpad,
+            );
 
         return (
-            Err(TxProcessingError::IncorrectNonce(err_string)),
+            Err(TxProcessingError::IncorrectNonce(err.to_string())),
             tx_scratchpad,
         );
     }
 
-    if let Err(TryReserveGasError { reason }) = runtime.gas_enforcer().try_reserve_gas(
-        tx,
-        &gas_info.gas_price,
-        &mut ctx,
-        &mut tx_scratchpad,
-    ) {
-        runtime.sequencer_authorization().penalize_sequencer(
-            sequencer_da_address,
-            &reason,
-            gas_info.remaining_funds,
-            &mut tx_scratchpad,
-        );
+    if let Err(TryReserveGasError { reason }) =
+        runtime
+            .gas_enforcer()
+            .try_reserve_gas(tx, gas_price, &mut ctx, &mut tx_scratchpad)
+    {
+        runtime
+            .gas_enforcer()
+            .transfer_authentication_cost_from_sequencer_to_prover(
+                auth_cost,
+                sequencer_da_address,
+                &mut tx_scratchpad,
+            );
 
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
@@ -110,21 +125,23 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(tx_scratchpad, &gas_info.gas_price, tx);
+    let mut working_set = WorkingSet::create_working_set(tx_scratchpad, gas_price, tx);
 
-    if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
-        let (mut scratchpad, transaction_consumption) = working_set.revert();
+    // Recover the authentication cost form the user.
+    if let Err(err) = working_set.charge_gas(gas_used_for_authentication) {
+        let (mut tx_scratchpad, _transaction_consumption) = working_set.revert();
 
-        runtime.sequencer_authorization().penalize_sequencer(
-            sequencer_da_address,
-            &err,
-            transaction_consumption.remaining_funds().0,
-            &mut scratchpad,
-        );
+        runtime
+            .gas_enforcer()
+            .transfer_authentication_cost_from_sequencer_to_prover(
+                auth_cost,
+                sequencer_da_address,
+                &mut tx_scratchpad,
+            );
 
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
-            scratchpad,
+            tx_scratchpad,
         );
     }
 
@@ -159,54 +176,6 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     );
 
     (Ok(apply_tx), tx_scratchpad)
-}
-
-// Authenticate the transaction from the (supposedly) registered sequencer before execution
-#[allow(clippy::type_complexity)]
-fn authenticate_tx<S: Spec, R: Runtime<S>>(
-    runtime: &R,
-    gas_price: &<S::Gas as Gas>::Price,
-    sequencer_da_address: &<S::Da as DaSpec>::Address,
-    tx: &FullyBakedTx,
-    mut scratchpad: TxScratchpad<S::Storage>,
-) -> (
-    Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), PreExecError>,
-    TxScratchpad<S::Storage>,
-) {
-    // Checks the sequencer balance before the transaction is executed.
-    // If the sequencer balance is not high enough, the transaction is rejected.
-    let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
-        sequencer_da_address,
-        gas_price,
-        &mut scratchpad,
-    ) {
-        Ok(allowed_seqiencer) => BasicGasMeter::new(allowed_seqiencer.balance, gas_price.clone()),
-        Err(AuthorizeSequencerError { reason }) => {
-            return (Err(PreExecError::SequencerError(reason)), scratchpad);
-        }
-    };
-
-    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(gas_meter);
-    let res = authenticate_with_cycle_count(runtime, tx, &mut pre_exec_working_set);
-
-    let gas_info = pre_exec_working_set.gas_info();
-    let (mut tx_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
-    match res {
-        Err(e @ AuthenticationError::FatalError(_, _)) => {
-            runtime.sequencer_authorization().penalize_sequencer(
-                sequencer_da_address,
-                e.clone(),
-                gas_info.remaining_funds,
-                &mut tx_scratchpad,
-            );
-
-            (Err(PreExecError::AuthError(e)), tx_scratchpad)
-        }
-        Err(e @ AuthenticationError::OutOfGas(_)) => {
-            (Err(PreExecError::AuthError(e)), tx_scratchpad)
-        }
-        Ok(ok) => (Ok((ok, gas_info)), tx_scratchpad),
-    }
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -266,12 +235,7 @@ where
             S::Gas::zero(),
         );
     }
-
     let raw_txs = batch_with_id.batch.txs;
-
-    let mut tx_receipts = Vec::with_capacity(raw_txs.len());
-    let mut gas_used = S::Gas::zero();
-    let mut accumulated_reward = SequencerReward::ZERO;
 
     debug!(
         batch_id = hex::encode(batch_with_id.id),
@@ -279,88 +243,100 @@ where
         "Verifying & executing transactions"
     );
 
-    for (idx, raw_tx) in raw_txs.iter().enumerate() {
-        let tx_scratchpad = checkpoint.to_tx_scratchpad();
+    let mut scratchpad = checkpoint.to_tx_scratchpad();
 
-        let authentication_result = authenticate_tx(
-            runtime,
-            gas_price,
-            &sequencer_da_address,
-            raw_tx,
-            tx_scratchpad,
-        );
-
-        let (auth_output, gas_info, tx_scratchpad) = match authentication_result {
-            (Ok((auth_output, gas_info)), tx_scratchpad) => (auth_output, gas_info, tx_scratchpad),
-            (Err(pre_exec_error), scratchpad) => match pre_exec_error {
-                PreExecError::SequencerError(error) => {
-                    let remaining = raw_txs.len() - idx - 1;
-                    error!(
-                        reason = %error,
-                        sequencer_da_address = %sequencer_da_address,
-                        tx_idx = %idx,
-                        remaining = remaining,
-                        "The transaction was rejected by the 'authorize_sequencer' capability. Dropping the remaining transactions in that batch",
-                    );
-
-                    return (
-                        BatchReceipt {
-                            batch_hash: batch_with_id.id,
-                            tx_receipts,
-                            inner: BatchSequencerReceipt {
-                                da_address: sequencer_da_address,
-                                outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
-                            },
-                            gas_price: gas_price.clone(),
-                        },
-                        scratchpad.commit(),
-                        gas_used,
-                    );
-                }
-                PreExecError::AuthError(e) => match e {
-                    AuthenticationError::FatalError(err, _) => {
-                        error!(
-                            sequencer_da_address = %sequencer_da_address,
-                            err=%err, "Tx authentication raised a fatal error, sequencer slashed");
-
-                        return (
-                            BatchReceipt {
-                                batch_hash: batch_with_id.id,
-                                tx_receipts,
-                                inner: BatchSequencerReceipt {
-                                    da_address: sequencer_da_address,
-                                    outcome: BatchSequencerOutcome::Ignored(err.to_string()),
-                                },
-                                gas_price: gas_price.clone(),
-                            },
-                            scratchpad.commit(),
-                            gas_used,
-                        );
-                    }
-                    AuthenticationError::OutOfGas(err) => {
-                        // TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/901
-                        error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
-                        checkpoint = scratchpad.commit();
-                        continue;
-                    }
+    // Begin the transaction authorization phase.
+    let gas_meter: BasicGasMeter<S::Gas> = match runtime
+        .sequencer_authorization()
+        // TODO: #1490 add check for minimum bond: raw_txs.len() * max_cost
+        .authorize_sequencer(&sequencer_da_address, gas_price, &mut scratchpad)
+    {
+        Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price.clone()),
+        Err(AuthorizeSequencerError { reason }) => {
+            return (
+                BatchReceipt {
+                    batch_hash: batch_with_id.id,
+                    tx_receipts: Vec::new(),
+                    inner: BatchSequencerReceipt {
+                        da_address: sequencer_da_address,
+                        outcome: BatchSequencerOutcome::Ignored(reason.to_string()),
+                    },
+                    gas_price: gas_price.clone(),
                 },
-            },
-        };
+                scratchpad.commit(),
+                S::Gas::zero(),
+            );
+        }
+    };
 
-        let raw_tx_hash = auth_output.0.raw_tx_hash;
+    let mut pre_exec_working_set: PreExecWorkingSet<S> =
+        scratchpad.to_pre_exec_working_set(gas_meter);
+
+    let mut auth_outputs: Vec<(usize, ValidatedAuthOutput<S, RT>, S::Gas)> = Vec::new();
+
+    let mut tx_receipts = Vec::with_capacity(raw_txs.len());
+    let mut gas_used = S::Gas::zero();
+    let mut accumulated_reward = SequencerReward::ZERO;
+
+    for (idx, raw_tx) in raw_txs.iter().enumerate() {
+        pre_exec_working_set.start_recording_gas_usage();
+        let authentication_result =
+            authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set);
+
+        // TODO: #1490
+        // charge gas for nonce check and context creation
+
+        let gas_used_for_authentication = pre_exec_working_set.get_recorded_gas_usage();
+
+        match authentication_result {
+            Ok(auth_output) => {
+                auth_outputs.push((
+                    idx,
+                    ValidatedAuthOutput::Valid(auth_output),
+                    gas_used_for_authentication,
+                ));
+            }
+            Err(pre_exec_error) => match pre_exec_error {
+                AuthenticationError::FatalError(err, hash) => {
+                    error!(error = ?err, "Authentication failed");
+                    auth_outputs.push((
+                        idx,
+                        ValidatedAuthOutput::Invalid(hash),
+                        gas_used_for_authentication,
+                    ));
+                }
+                AuthenticationError::OutOfGas(err) => {
+                    // TODO: #1490
+                    // Before entering the authentication loop we made sure that the sequencer has enough gas.
+                    // panic!("The impossible happened: the sequencer ran out of gas.")
+                    error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
+                    continue;
+                }
+            },
+        }
+    }
+    // End of the transaction authorization phase.
+
+    let (mut batch_scratchpad, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+
+    // Begin the transaction processing phase.
+    for (idx, validated_output, gas_used_for_authentication) in auth_outputs.into_iter() {
+        let raw_tx_hash = validated_output.hash();
 
         let process_tx_result = process_tx(
             runtime,
-            auth_output,
-            gas_info,
+            validated_output,
+            gas_price,
+            &gas_used_for_authentication,
             &sequencer_da_address,
             height,
-            tx_scratchpad,
+            batch_scratchpad,
             execution_context,
         );
 
-        let (tx_result, tx_scratchpad) = process_tx_result;
-        checkpoint = tx_scratchpad.commit();
+        let (tx_result, next_scratchpad) = process_tx_result;
+        batch_scratchpad = next_scratchpad;
+
         match tx_result {
             Err(error) => {
                 let skipped = SkippedTxContents {
@@ -383,6 +359,7 @@ where
             }
         }
     }
+    // End of the transaction processing phase.
 
     let batch_receipt = BatchReceipt {
         batch_hash: batch_with_id.id,
@@ -393,10 +370,29 @@ where
         },
         gas_price: gas_price.clone(),
     };
+    checkpoint = batch_scratchpad.commit();
 
     runtime.end_batch_hook(&batch_receipt.inner, &mut checkpoint);
 
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
     (batch_receipt, checkpoint, gas_used)
+}
+
+/// The output of the authentication phase.
+pub enum ValidatedAuthOutput<S: Spec, R: Runtime<S>> {
+    /// Transaction data after the authentication phase.
+    Valid(AuthTxOutput<S, R>),
+    /// Hash of the invalid transaction.
+    Invalid(TxHash),
+}
+
+impl<S: Spec, R: Runtime<S>> ValidatedAuthOutput<S, R> {
+    /// Get hash of the Validated Auth Output.
+    pub fn hash(&self) -> TxHash {
+        match self {
+            ValidatedAuthOutput::Valid(valid) => valid.0.raw_tx_hash,
+            ValidatedAuthOutput::Invalid(hash) => *hash,
+        }
+    }
 }

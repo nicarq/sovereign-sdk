@@ -13,7 +13,9 @@ use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, RawTx,
     RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
 };
-use sov_modules_stf_blueprint::{process_tx, ApplyTxResult, TransactionReceipt, TxEffect};
+use sov_modules_stf_blueprint::{
+    process_tx, ApplyTxResult, TransactionReceipt, TxEffect, ValidatedAuthOutput,
+};
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
@@ -205,8 +207,9 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
             let (res, tx_scratchpad) = process_tx(
                 &self.runtime,
-                auth_output,
-                gas_info,
+                ValidatedAuthOutput::Valid(auth_output),
+                &gas_info.gas_price,
+                &gas_info.gas_used,
                 &self.sequencer_address,
                 visible_height,
                 tx_scratchpad,

@@ -168,18 +168,33 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
-        let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
+
+        let batch_receipt = &apply_block_result.batch_receipts[0];
 
         assert_eq!(
-            BatchSequencerOutcome::Ignored(
-                    "Signature verification failed: Invalid signature: signature error: Verification equation was not satisfied".to_string()
+            batch_receipt.inner.outcome,
+            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
+        );
+
+        let tx_receipts = &batch_receipt.tx_receipts;
+
+        assert_eq!(tx_receipts.len(), 1);
+
+        match &tx_receipts[0].receipt {
+            sov_modules_api::TxEffect::Skipped(skipped) => assert_eq!(
+                skipped.error,
+                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0xcb9c1de47ae8f504c9eaf58ae0200a3287115a5f9d57ed69be9baa20315d7acb".to_string())
             ),
-            apply_blob_outcome.inner.outcome,
-            "Unexpected outcome: Stateless verification should have failed due to invalid signature"
+            unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+        }
+
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
         );
 
         // The batch receipt contains no events.
-        assert!(!has_tx_events(&apply_blob_outcome));
+        assert!(!has_tx_events(batch_receipt));
         storage_manager.commit(apply_block_result.change_set);
         storage_manager.create_storage()
     };
@@ -358,18 +373,33 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         );
 
         assert_eq!(1, apply_block_result.batch_receipts.len());
-        let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
-        assert!(
-            matches!(
-                apply_blob_outcome.inner.outcome,
-                BatchSequencerOutcome::Ignored(_)
+        let batch_receipt = &apply_block_result.batch_receipts[0];
+
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
+        );
+
+        let tx_receipts = &batch_receipt.tx_receipts;
+
+        assert_eq!(tx_receipts.len(), 1);
+
+        match &tx_receipts[0].receipt {
+            sov_modules_api::TxEffect::Skipped(skipped) => assert_eq!(
+                skipped.error,
+                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0x7854d0c36ed4082872e60c1029b16b06ca9ef7c4b040c3a5c9548921c612da23".to_string())
             ),
-            "Unexpected outcome: Stateless verification should have failed due to invalid signature"
+            unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+        }
+
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
         );
 
         // The batch receipt contains no events.
-        assert!(!has_tx_events(&apply_blob_outcome));
+        assert!(!has_tx_events(batch_receipt));
         storage_manager.commit(apply_block_result.change_set);
         storage_manager.create_storage()
     };

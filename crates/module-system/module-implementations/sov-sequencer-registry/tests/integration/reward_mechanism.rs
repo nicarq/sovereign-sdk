@@ -6,12 +6,12 @@ use sov_modules_api::{Gas, GasSpec, ModuleInfo};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    get_gas_used, AsUser, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
-    TxProcessingError,
+    assert_matches, get_gas_used, AsUser, BatchTestCase, TestUser, TransactionTestCase,
+    TransactionType, TxProcessingError,
 };
 
 use super::helpers::S;
-use crate::helpers::{setup, TestRoles, TestSequencerRegistry, ANOTHER_SEQUENCER_DA_ADDRESS, RT};
+use crate::helpers::{setup, TestRoles, RT};
 
 const VALUE_SETTER_NEW_CONST: u32 = 10;
 const OTHER_VALUE_SETTER_CONST: u32 = 42;
@@ -217,49 +217,27 @@ fn produce_malformed_tx(
             .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
 
         tx.data.pop();
-
         TransactionType::PreAuthenticated(tx)
     })
 }
 
 #[test]
-fn test_sequencer_without_enough_stake() {
+fn test_authentication_out_of_gas_error() {
     let (
         TestRoles {
-            additional_sequencer,
             admin,
+            default_sequencer,
             ..
         },
         mut runner,
     ) = setup();
 
-    let minimal_bond = runner.query_state(|state| {
-        TestSequencerRegistry::default()
-            .get_coins_to_lock(state)
-            .unwrap_infallible()
-            .amount
-    });
-
-    let additional_sequencer_da_address = ANOTHER_SEQUENCER_DA_ADDRESS;
-
-    // We first register a sequencer with the minimal bond amount
-    let register_tx = additional_sequencer.create_plain_message::<TestSequencerRegistry>(
-        sov_sequencer_registry::CallMessage::Register {
-            da_address: additional_sequencer_da_address.into(),
-            amount: minimal_bond,
-        },
-    );
-
-    runner.execute(register_tx);
-
+    let seq_address = default_sequencer.da_address;
+    let initial_seq_bond = default_sequencer.bond;
     let malformed_transaction = produce_malformed_tx(&mut runner, &admin);
 
     // First, we send a transaction with max fee 0. Since the tx doesn't provide enough fees to cover
-    // the cost of its deserialization, the sequencer pays the difference. This reduces his balance below
-    // the minimum.
-    //
-    // Next we send a malformed transaction. Since the sequencer's balance is below the minimum, the transaction
-    // is ignored. This means that the sequencer is *not* slashed even though the transaction is malicious.
+    // the cost of its deserialization, the sequencer pays the difference. Second tx is malformed.
     runner.execute_batch(BatchTestCase {
         input: vec![
             admin
@@ -271,13 +249,13 @@ fn test_sequencer_without_enough_stake() {
         ]
         .into(),
         assert: Box::new(move |result, state| {
+            let batch_receipt = result.batch_receipt.as_ref().unwrap();
             assert_eq!(
-                result.batch_receipt.clone().unwrap().tx_receipts.len(), 1,
+                batch_receipt.tx_receipts.len(), 2,
                 "Only the first transaction should have been included in the batch"
             );
 
-            let tx_receipt = &result.batch_receipt.unwrap().tx_receipts[0];
-
+            let tx_receipt = &batch_receipt.tx_receipts[0];
             match &tx_receipt.receipt {
                 sov_modules_api::TxEffect::Skipped(skipped) => {
                     if let TxProcessingError::OutOfGas(error_message) = &skipped.error {
@@ -293,12 +271,20 @@ fn test_sequencer_without_enough_stake() {
                 unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
             };
 
-            assert!(
-                TestSequencerRegistry::default()
-                    .is_registered_sequencer(&additional_sequencer_da_address.into(), state)
-                    .unwrap_infallible(),
-                "The additional sequencer should still be registered"
-            );
+            let tx_receipt = &batch_receipt.tx_receipts[1];
+            match &tx_receipt.receipt {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    assert_matches!(skipped.error, TxProcessingError::AuthenticationFailed(_));
+                },
+                unexpected => panic!("Expected transaction to revert, but got: {:?}", unexpected),
+            };
+
+            // Check that sequencer was penalized for invalid transactions.
+            let bond = TestRunner::<RT, S>::get_sequencer_staking_balance(
+                &seq_address,
+                state
+            ).unwrap();
+            assert!(bond < initial_seq_bond);
         }),
     });
 }
