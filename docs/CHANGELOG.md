@@ -1,3 +1,6 @@
+## 2024-10-17
+- #1674 Increase users' balances on the rollup. Consumers of the SDK should update their configuration files accordingly.
+
 ## 2024-10-16
 - #1665 Refactors and cleans-up the `Kernel` new capabilities. Consumers of the SDK may need to implement the `KernelSlotHooks` over the `Runtime` using the default implementation if that is not already the case.
 - #1671 Adds `Borsh`, `SchemaGenerator`, `Arbitrary`,  bounds to Da layer address types. It also changes the `SequencerRegistry::CallMessage` type to use `Da::Address` instead of `Vec<u8>` where applicable.
