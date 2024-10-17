@@ -1,6 +1,6 @@
 use demo_stf::genesis_config::create_genesis_config;
 use demo_stf::runtime::Runtime;
-use risc0::MOCK_DA_ELF;
+use risc0::MOCK_DA_PATH;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
@@ -70,7 +70,15 @@ async fn test_proof_generation() {
     let blocks = get_blocks_from_da().await.expect("Failed to get DA blocks");
 
     for filtered_block in &blocks[..2] {
-        let mut host = Risc0Host::new(MOCK_DA_ELF);
+        let elf = std::fs::read(MOCK_DA_PATH)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Could not read guest elf file from `{}`. {}",
+                    MOCK_DA_PATH, e
+                )
+            })
+            .leak();
+        let mut host = Risc0Host::new(elf);
 
         let height = filtered_block.header().height();
         tracing::info!(

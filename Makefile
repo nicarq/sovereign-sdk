@@ -64,8 +64,9 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	rustup target add wasm32-unknown-unknown
 
 install-risc0-toolchain:
-	cargo install cargo-risczero
-	cargo risczero install --version r0.1.79.0
+	curl -L https://risczero.com/install | bash
+	~/.risc0/bin/rzup install cargo-risczero v1.1.2
+	cargo risczero install
 	@echo "Risc0 toolchain version:"
 	cargo +risc0 --version
 
