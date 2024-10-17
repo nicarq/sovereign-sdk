@@ -1,12 +1,12 @@
-use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::UnsignedTransaction;
+use sov_modules_api::transaction::{SequencerReward, UnsignedTransaction};
 use sov_modules_api::EncodeCall;
+use sov_modules_stf_blueprint::TxProcessingError;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
-    generate_optimistic_runtime, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
-    TEST_DEFAULT_USER_BALANCE,
+    assert_matches, generate_optimistic_runtime, BatchTestCase, TestUser, TransactionTestCase,
+    TransactionType, TEST_DEFAULT_USER_BALANCE,
 };
 use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -67,21 +67,22 @@ fn test_enforces_chain_id() {
     runner.execute_batch(BatchTestCase {
         input: vec![tx].into(),
         assert: Box::new(move |result, _state| {
-            match &result.batch_receipt.unwrap().inner.outcome {
-                sov_modules_api::BatchSequencerOutcome::Ignored(reason) => {
-                    assert_eq!(
-                        reason,
-                        &FatalError::InvalidChainId {
-                            expected: 4321,
-                            got: 4322
-                        }
-                        .to_string(),
-                        "Expected invalid chain id error but got {:?}",
-                        reason
-                    );
+            let batch_receipt = result.batch_receipt.as_ref().unwrap();
+            let tx_receipts = &batch_receipt.tx_receipts;
+
+            assert_eq!(tx_receipts.len(), 1);
+
+            match &tx_receipts[0].receipt {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    assert_matches!(skipped.error, TxProcessingError::AuthenticationFailed(_));
                 }
-                unexpected => panic!("Expected slashed outcome but got {:?}", unexpected),
-            };
+                unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+            }
+
+            assert_eq!(
+                batch_receipt.inner.outcome,
+                sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
+            );
         }),
     });
 }

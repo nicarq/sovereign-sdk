@@ -1,11 +1,10 @@
 use sov_bank::{config_gas_token_id, Bank, Coins};
 use sov_chain_state::ChainState;
 use sov_mock_da::MockAddress;
-use sov_modules_api::capabilities::FatalError;
 use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
+use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, TxDetails};
 use sov_modules_api::{DaSpec, GasUnit};
 use sov_modules_stf_blueprint::TxProcessingError;
 use sov_sequencer_registry::SequencerRegistry;
@@ -16,8 +15,9 @@ use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestRunner};
 use crate::{
-    BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase, TransactionType,
-    TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
+    assert_matches, BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
+    TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    TEST_DEFAULT_USER_BALANCE,
 };
 
 type S = crate::TestSpec;
@@ -184,19 +184,23 @@ fn test_custom_transaction_details_chain_id() {
             .with_chain_id(fake_chain_id)]
         .into(),
         assert: Box::new(move |result, _state| {
-            match result.batch_receipt.unwrap().inner.outcome {
-                sov_modules_api::BatchSequencerOutcome::Ignored(reason) => {
-                    assert_eq!(
-                        reason,
-                        FatalError::InvalidChainId {
-                            expected: real_chain_id,
-                            got: fake_chain_id
-                        }
-                        .to_string()
-                    );
+            let batch_receipt = result.batch_receipt.as_ref().unwrap();
+            let tx_receipts = &batch_receipt.tx_receipts;
+
+            assert_eq!(tx_receipts.len(), 1);
+
+            match &tx_receipts[0].receipt {
+                sov_modules_api::TxEffect::Skipped(skipped) => {
+                    assert_matches!(skipped.error, TxProcessingError::AuthenticationFailed(_));
                 }
-                unexpected => panic!("Expected batch slashed, but got {:?}", unexpected),
-            };
+
+                unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
+            }
+
+            assert_eq!(
+                batch_receipt.inner.outcome,
+                sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
+            );
         }),
     });
 }

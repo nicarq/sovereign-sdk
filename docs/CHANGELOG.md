@@ -1,4 +1,5 @@
 ## 2024-10-17
+-  #1667: `stf-blueprint`: Extract the authentication logic into a separate stage. This change will break SDK consumers who rely on how the sequencer is penalized for processing invalid transactions.
 - #1674 Increase users' balances on the rollup. Consumers of the SDK should update their configuration files accordingly.
 
 ## 2024-10-16

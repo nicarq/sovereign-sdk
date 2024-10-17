@@ -21,6 +21,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
+    ValidatedAuthOutput,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::DaSyncState;
@@ -132,6 +133,8 @@ where
             }
         };
 
+        let gas_info = gas_meter.gas_info();
+
         let (_, _, message) = &auth_output;
         let destination_module =
             <Z::Rt as DispatchCall>::module_info(&self.runtime, message.discriminant());
@@ -152,8 +155,9 @@ where
 
         let (res, tx_scratchpad) = process_tx(
             &self.runtime,
-            auth_output,
-            gas_meter.gas_info(),
+            ValidatedAuthOutput::Valid(auth_output),
+            &gas_info.gas_price,
+            &gas_info.gas_used,
             &self.sequencer_address,
             ctx.visible_height,
             tx_scratchpad,
