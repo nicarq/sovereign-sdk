@@ -359,9 +359,15 @@ where
 
         match tx_result {
             Err(error) => {
+                tracing::info!(
+                    sequencer = %sequencer_da_address,
+                    reason = %error,
+                    "The sequencer paid for the transaction.",
+                );
+
                 let skipped = SkippedTxContents {
                     error,
-                    gas_used: S::Gas::zero(),
+                    gas_used: gas_used_for_authentication,
                 };
 
                 let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, idx);

@@ -129,17 +129,6 @@ impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities
         self.sequencer_registry
             .authorize_sequencer(sequencer, min_bond, state)
     }
-
-    fn penalize_sequencer(
-        &self,
-        sequencer: &<S::Da as DaSpec>::Address,
-        reason: impl std::fmt::Display,
-        remaining_stake: u64,
-        state: &mut TxScratchpad<S::Storage>,
-    ) {
-        self.sequencer_registry
-            .penalize_sequencer(sequencer, reason, remaining_stake, state);
-    }
 }
 
 impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S> {

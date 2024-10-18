@@ -29,42 +29,6 @@ impl<S: Spec> SequencerRegistry<S> {
         Ok(allowed_sequencer)
     }
 
-    /// Penalizes the sequencer.
-    pub fn penalize_sequencer(
-        &self,
-        sender: &<S::Da as DaSpec>::Address,
-        reason: impl std::fmt::Display,
-        remaining_stake: u64,
-        state: &mut TxScratchpad<S::Storage>,
-    ) {
-        if let Some(AllowedSequencer {
-            address,
-            balance: _,
-        }) = self
-            .allowed_sequencers
-            .get(sender, state)
-            .unwrap_infallible()
-        {
-            tracing::info!(
-                sequencer = %address,
-                remaining_stake = %remaining_stake,
-                reason = %reason,
-                "The sequencer was penalized",
-            );
-
-            self.allowed_sequencers
-                .set(
-                    sender,
-                    &AllowedSequencer {
-                        address,
-                        balance: remaining_stake,
-                    },
-                    state,
-                )
-                .unwrap_infallible();
-        }
-    }
-
     /// Transfers a portion of the sequencer's stake to the beneficiary and decreases the staked balance.
     pub fn remove_part_of_the_stake(
         &self,

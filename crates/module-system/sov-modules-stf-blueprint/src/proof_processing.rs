@@ -38,6 +38,11 @@ where
 {
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
 
+    // TODO #1490
+    // We're currently penalizing the sequencer too much, but this is acceptable for now.
+    // Once we measure the cost of deserialization, we can provide a more accurate value.
+    let max_auth_cost = runtime.max_authentication_gas().value(gas_price);
+
     match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
         Ok(proof_with_details) => {
             // Check if the sequencer is bonded, and create `pre_exec_working_set`.
@@ -54,9 +59,9 @@ where
                 }
             };
 
-            // Reserve gas for the proof verification. The sequencer pays for the verification.
-            // If the sequencer does not have enough funds, then penalize it and return early.
+            // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
+                max_auth_cost,
                 &sequencer_rollup_address,
                 gas_price,
                 proof_with_details.details.into(),
@@ -157,9 +162,9 @@ where
 
             let state = state.to_tx_scratchpad();
             let state = workflow
-                .penalize_sequencer(
+                .charge_sequencer_and_reward_prover(
                     "Unable to deserialize proof",
-                    0, // TODO #1490
+                    max_auth_cost,
                     state,
                 )
                 .commit();
@@ -263,6 +268,7 @@ where
 
     fn try_reserve_gas(
         &self,
+        max_auth_cost: u64,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
@@ -290,7 +296,7 @@ where
                     ),
                     gas_used: S::Gas::zero(),
                 },
-                self.penalize_sequencer(reason, gas_info.remaining_funds, scratchpad)
+                self.charge_sequencer_and_reward_prover(reason, max_auth_cost, scratchpad)
                     .commit(),
             );
         }
@@ -299,7 +305,7 @@ where
             WorkingSet::create_working_set(scratchpad, &gas_info.gas_price, &auth_tx);
 
         if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
-            let (scratchpad, transaction_consumption) = working_set.revert();
+            let (scratchpad, _transaction_consumption) = working_set.revert();
 
             return WorkflowResult::EarlyReturn(
                 ProcessProofOutput {
@@ -312,30 +318,34 @@ where
                     ),
                     gas_used: S::Gas::zero(),
                 },
-                self.penalize_sequencer(
-                    err,
-                    transaction_consumption.remaining_funds().0,
-                    scratchpad,
-                )
-                .commit(),
+                self.charge_sequencer_and_reward_prover(err, max_auth_cost, scratchpad)
+                    .commit(),
             );
         }
 
         WorkflowResult::Proceed(working_set)
     }
 
-    fn penalize_sequencer(
+    fn charge_sequencer_and_reward_prover(
         &self,
         reason: impl std::fmt::Display,
-        remaining_funds: u64,
+        max_auth_cost: u64,
         mut state: TxScratchpad<S::Storage>,
     ) -> TxScratchpad<S::Storage> {
-        self.runtime.sequencer_authorization().penalize_sequencer(
-            self.sequencer_da_address,
-            reason,
-            remaining_funds,
-            &mut state,
+        tracing::info!(
+            sequencer = %self.sequencer_da_address,
+            reason = %reason,
+            "The sequencer paid for the transaction.",
         );
+
+        self.runtime
+            .gas_enforcer()
+            .transfer_authentication_cost_from_sequencer_to_prover(
+                max_auth_cost,
+                self.sequencer_da_address,
+                &mut state,
+            );
+
         state
     }
 }
