@@ -235,6 +235,7 @@ where
         api_storage_sender: watch::Sender<Sm::StfState>,
         prev_state_root: Stf::StateRoot,
         st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
+        sync_status_sender: watch::Sender<SyncStatus>,
     ) -> anyhow::Result<Self> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
@@ -280,6 +281,7 @@ where
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
+                sync_status_sender,
             }),
             sync_fetcher,
         })
@@ -334,20 +336,26 @@ where
         tokio::task::spawn(async move {
             let mut interval = tokio::time::interval(polling_interval);
             debug!(
-                inerval_ms = interval.period().as_millis(),
+                interval_ms = interval.period().as_millis(),
                 "Interval for polling sync DA height"
             );
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-            interval.tick().await; // Tick the interval once because it starts at 0ms. <https://docs.rs/tokio/latest/src/tokio/time/interval.rs.html#427>
+            interval.tick().await; // Tick the interval once because it starts at 0ms.
 
             loop {
-                if let Err(error) = sync_state.update_target(da_service.as_ref()).await {
-                    error!(
-                        ?error,
-                        "Failed to update the sync status; will retry in ~{}ms",
-                        polling_interval.as_millis()
-                    );
-                }
+                let target_da_height = match da_service.get_head_block_header().await {
+                    Ok(header) => header.height(),
+                    Err(error) => {
+                        error!(
+                            ?error,
+                            "Failed to get the DA head block header during sync status update; will retry in ~{}ms",
+                            polling_interval.as_millis()
+                        );
+                        continue;
+                    }
+                };
+
+                sync_state.update_target(target_da_height);
 
                 if let SyncStatus::Syncing {
                     synced_da_height,
@@ -356,6 +364,7 @@ where
                 {
                     info!(synced_da_height, target_da_height, "Sync in progress");
                 }
+
                 interval.tick().await;
             }
         });
@@ -364,10 +373,8 @@ where
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> anyhow::Result<()> {
         let mut next_da_height = self.first_unprocessed_height_at_startup;
-        let target_height = self.da_service.get_head_block_header().await?.height();
-        self.sync_state
-            .target_da_height
-            .store(target_height, std::sync::atomic::Ordering::Release);
+        let target_da_height = self.da_service.get_head_block_header().await?.height();
+        self.sync_state.update_target(target_da_height);
 
         self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
 
@@ -513,9 +520,7 @@ where
             .await?;
 
         // Updating counters and metrics
-        self.sync_state
-            .synced_da_height
-            .store(next_da_height, std::sync::atomic::Ordering::Release);
+        self.sync_state.update_synced(next_da_height);
         debug!(
             height = next_da_height,
             prev_state_root = hex::encode(prev_state_root.as_ref()),

@@ -10,7 +10,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
-use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec};
+use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec, SyncStatus};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlueprint};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint};
@@ -102,6 +102,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     async fn create_endpoints(
         &self,
         storage: watch::Receiver<<Self::Spec as Spec>::Storage>,
+        sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
         da_service: &Self::DaService,
@@ -110,6 +111,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
             storage.clone(),
+            sync_status_receiver,
             ledger_db,
             sequencer_db,
             da_service,

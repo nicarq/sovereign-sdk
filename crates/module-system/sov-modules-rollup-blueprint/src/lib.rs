@@ -46,7 +46,8 @@ mod blueprint {
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::rest::StorageReceiver;
     use sov_modules_api::{
-        OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec, Zkvm,
+        OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec,
+        SyncStatus, Zkvm,
     };
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
@@ -64,12 +65,12 @@ mod blueprint {
         ProverService, RawGenesisStateRoot, RollupProverConfig, WorkflowProcessManager,
     };
     use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
-    use tokio::sync::oneshot;
+    use tokio::sync::{oneshot, watch};
 
     use crate::RollupBlueprint;
 
     /// This trait defines how to crate all the necessary dependencies required by a rollup.
-    #[allow(clippy::type_complexity)]
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[async_trait]
     pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M>
     where
@@ -130,6 +131,7 @@ mod blueprint {
         async fn create_endpoints(
             &self,
             storage: StorageReceiver<Self::Spec>,
+            sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
             da_service: &Self::DaService,
@@ -305,6 +307,11 @@ mod blueprint {
                 None => None,
             };
 
+            let (sync_status_sender, sync_status_receiver) = watch::channel(SyncStatus::Syncing {
+                synced_da_height: 0,
+                target_da_height: 0,
+            });
+
             let runner = StateTransitionRunner::new(
                 rollup_config.runner.clone(),
                 da_service.clone(),
@@ -314,12 +321,14 @@ mod blueprint {
                 api_storage_sender,
                 prev_state_root,
                 st_info_sender,
+                sync_status_sender,
             )
             .await?;
 
             let endpoints = self
                 .create_endpoints(
                     api_storage_receiver,
+                    sync_status_receiver,
                     &ledger_db,
                     &sequencer_db,
                     &da_service,

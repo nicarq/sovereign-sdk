@@ -7,7 +7,7 @@ use sov_rollup_json_client::Client;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
 use sov_modules_api::prelude::tokio;
-use sov_modules_api::Spec;
+use sov_modules_api::{Spec, SyncStatus};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 
@@ -18,21 +18,17 @@ generate_optimistic_runtime!(TestRuntime <= );
 type RT = TestRuntime<S>;
 
 struct TestData {
-    /// Remove the dead code warning once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1552> is fixed.
-    #[allow(dead_code)]
     runner: TestRunner<RT, S>,
 
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::rollup_tx_router`].
-    /// Remove the dead code warning once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1552> is fixed.
-    #[allow(dead_code)]
     storage_sender: watch::Sender<<S as Spec>::Storage>,
 
-    /// Remove the dead code warning once <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1552> is fixed.
-    #[allow(dead_code)]
     user: TestUser<S>,
 
     axum_addr: SocketAddr,
     axum_server: axum_server::Handle,
+
+    sync_sender: watch::Sender<SyncStatus>,
 }
 
 impl Drop for TestData {
@@ -62,11 +58,16 @@ impl TestData {
         let storage = runner.storage_manager().create_storage();
 
         let (storage_sender, storage_receiver) = watch::channel(storage);
+        let (sync_sender, sync_receiver) = watch::channel(SyncStatus::Syncing {
+            synced_da_height: 0,
+            target_da_height: 0,
+        });
 
         let axum_router: axum::Router<()> =
             RollupTxRouter::<Arc<DefaultRollupStateProvider<S, RT>>>::axum_router(
                 storage_receiver,
                 sequencer_da_address,
+                sync_receiver,
             );
 
         let (axum_addr, axum_server) = {
@@ -90,6 +91,7 @@ impl TestData {
             user,
             axum_addr,
             axum_server,
+            sync_sender,
         }
     }
 
@@ -104,6 +106,10 @@ impl TestData {
 
         let storage = self.runner.storage_manager().create_storage();
         self.storage_sender.send_replace(storage);
+    }
+
+    pub fn send_sync_status(&self, status: SyncStatus) {
+        self.sync_sender.send(status).unwrap();
     }
 
     /// Returns a [`Client`] REST handler for the sequencer.
