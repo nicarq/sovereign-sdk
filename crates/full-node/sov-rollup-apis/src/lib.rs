@@ -7,9 +7,10 @@ use axum::extract::State;
 use axum::routing::{get, post};
 use axum::Json;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
+use sov_modules_api::prelude::tokio::sync::watch;
 use sov_modules_api::rest::StorageReceiver;
 use sov_modules_api::transaction::{Credentials, TxDetails};
-use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec};
+use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_modules_stf_blueprint::Runtime;
 use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
@@ -29,6 +30,7 @@ pub use default_provider::DefaultRollupStateProvider;
 pub struct RollupTxRouter<T: RollupStateProvider> {
     storage: StorageReceiver<T::Spec>,
     default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
+    sync_status_receiver: watch::Receiver<SyncStatus>,
 }
 
 /// The object returned by the `/base-fee-per-gas/latest` endpoint.
@@ -123,10 +125,11 @@ where
     T: RollupStateProvider + Clone + Send + Sync + 'static,
     T::Runtime: HasCapabilities<T::Spec, AuthorizationData = AuthorizationData<T::Spec>>,
 {
-    /// Returns an [`axum::Router`] that exposes simulation data.
+    /// Returns an [`axum::Router`] that exposes gas information, simulation data and sync status.
     pub fn axum_router(
         storage: StorageReceiver<T::Spec>,
         default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
+        sync_status_receiver: watch::Receiver<SyncStatus>,
     ) -> axum::Router<()> {
         preconfigured_router_layers(
             axum::Router::new()
@@ -135,11 +138,24 @@ where
                     get(Self::get_latest_base_fee_per_gas),
                 )
                 .route("/rollup/simulate", post(Self::simulate))
+                .route("/rollup/sync-status", get(Self::get_sync_status))
                 .with_state(RollupTxRouter {
                     storage,
                     default_sequencer,
+                    sync_status_receiver,
                 }),
         )
+    }
+
+    /// Handler for the `/rollup/sync-status` endpoint.
+    async fn get_sync_status(
+        State(RollupTxRouter {
+            sync_status_receiver,
+            ..
+        }): State<Self>,
+    ) -> ApiResult<SyncStatus> {
+        let sync_status = *sync_status_receiver.borrow();
+        Ok(ResponseObject::from(sync_status))
     }
 
     /// Get the latest base fee per gas in the storage.
@@ -159,6 +175,7 @@ where
         State(RollupTxRouter {
             storage,
             default_sequencer,
+            ..
         }): State<Self>,
         Json(req): Json<types::SimulateBody>,
     ) -> ApiResult<SimulateExecutionResponse> {

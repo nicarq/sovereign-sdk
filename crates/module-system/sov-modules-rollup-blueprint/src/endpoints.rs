@@ -7,7 +7,7 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::{HasRestApi, StorageReceiver};
-use sov_modules_api::{RuntimeEventProcessor, Spec};
+use sov_modules_api::{RuntimeEventProcessor, Spec, SyncStatus};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::node::DaSyncState;
@@ -24,9 +24,11 @@ use crate::{FullNodeBlueprint, SequencerBlueprint};
 const LEDGER_PATH: &str = "/ledger";
 const SEQUENCER_PATH: &str = "/sequencer";
 
+#[allow(clippy::too_many_arguments)]
 /// Register rollup's default RPC methods and Axum router.
 pub async fn register_endpoints<B, M>(
     storage: StorageReceiver<B::Spec>,
+    sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
@@ -124,7 +126,11 @@ where
     {
         let rollup_router = RollupTxRouter::<
             std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Runtime>>,
-        >::axum_router(storage, sequencer_config.da_address.clone());
+        >::axum_router(
+            storage,
+            sequencer_config.da_address.clone(),
+            sync_status_receiver,
+        );
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }
 

@@ -1,12 +1,16 @@
 use std::net::SocketAddr;
 use std::num::NonZero;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 use std::time::Duration;
 
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
-use sov_modules_api::{RuntimeEventProcessor, RuntimeEventResponse, SlotData};
+use sov_modules_api::{
+    DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, SyncStatus,
+};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -115,10 +119,21 @@ where
         storage_manager.finalize(&genesis_block.header).unwrap();
         let stf_state = storage_manager.create_bootstrap_state().unwrap().0;
 
+        let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {
+            synced_da_height: 0,
+            target_da_height: 0,
+        });
+
+        let da_sync_state = Arc::new(DaSyncState {
+            synced_da_height: AtomicU64::new(0),
+            target_da_height: AtomicU64::new(0),
+            sync_status_sender,
+        });
+
         let (_, storage_receiver) = watch::channel(stf_state);
         let batch_builder = B::create(
             storage_receiver,
-            Default::default(),
+            da_sync_state,
             da_service.sequencer_address(),
             seq_db_txs,
             &batch_builder_config,

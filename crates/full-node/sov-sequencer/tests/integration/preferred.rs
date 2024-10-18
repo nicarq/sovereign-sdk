@@ -1,5 +1,9 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
 use base64::prelude::*;
 use sov_mock_da::MockDaService;
+use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
@@ -8,6 +12,7 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::TestSpec;
+use tokio::sync::watch;
 
 use crate::utils::generate_txs;
 
@@ -46,7 +51,17 @@ async fn restore_txs_from_seq_db() {
     assert_eq!(db_txs.len(), 1);
     assert_eq!(db_txs[0].fully_baked_tx(), tx.fully_baked_tx);
 
-    let da_sync_state = Default::default();
+    let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {
+        synced_da_height: 0,
+        target_da_height: 0,
+    });
+
+    let da_sync_state = Arc::new(DaSyncState {
+        synced_da_height: AtomicU64::new(0),
+        target_da_height: AtomicU64::new(0),
+        sync_status_sender,
+    });
+
     let mut restored_batch_builder: PreferredBatchBuilder<(
         TestSpec,
         TestOptimisticRuntime<TestSpec>,

@@ -2,7 +2,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::tokio::{self};
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
-use sov_modules_api::{Gas, GasSpec, PrivateKey, Spec};
+use sov_modules_api::{Gas, GasSpec, PrivateKey, Spec, SyncStatus};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
 use sov_rollup_json_client::types;
@@ -181,5 +181,50 @@ async fn test_simulation() {
         matches!(query_apply_tx_receipt.receipt, TxEffect::Successful(..)),
         "The queries receipt isn't successful. Instead, the receipt is {:?}",
         query_apply_tx_receipt.receipt
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sync_status_fully_synced() {
+    let data = TestData::setup().await;
+
+    let expected_synced_da_height = 100;
+
+    data.send_sync_status(SyncStatus::Synced {
+        synced_da_height: expected_synced_da_height,
+    });
+
+    let sync_status: types::SyncStatus =
+        data.client().get_sync_status().await.unwrap().data.clone();
+
+    assert_eq!(
+        sync_status,
+        types::SyncStatus::Synced {
+            synced_da_height: expected_synced_da_height as i64
+        }
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_sync_status_syncing() {
+    let data = TestData::setup().await;
+
+    let synced_da_height = 100;
+    let target_da_height = 200;
+
+    data.send_sync_status(SyncStatus::Syncing {
+        synced_da_height,
+        target_da_height,
+    });
+
+    let sync_status: types::SyncStatus =
+        data.client().get_sync_status().await.unwrap().data.clone();
+
+    assert_eq!(
+        sync_status,
+        types::SyncStatus::Syncing {
+            synced_da_height: synced_da_height as i64,
+            target_da_height: target_da_height as i64,
+        }
     );
 }

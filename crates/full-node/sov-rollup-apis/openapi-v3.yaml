@@ -98,6 +98,28 @@ paths:
                 required:
                   - meta
 
+  /rollup/sync-status:
+    get:
+      summary: Get the current sync status of the rollup
+      operationId: get_sync_status
+      tags:
+        - Rollup
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/SyncStatus"
+                  meta:
+                    type: object
+                required:
+                  - data
+                  - meta
+
 components:
   responses:
     Dedup:
@@ -308,3 +330,35 @@ components:
         - status
         - title
         - details
+
+    SyncStatus:
+      oneOf:
+        - type: object
+          title: "synced"
+          description: "The height of the fully synced node"
+          properties:
+            synced:
+              type: object
+              properties:
+                synced_da_height:
+                  type: integer
+              required:
+                - synced_da_height
+          required:
+            - synced
+        - type: object
+          title: "syncing"
+          description: "The synced height and target height of the syncing node"
+          properties:
+            syncing:
+              type: object
+              properties:
+                synced_da_height:
+                  type: integer
+                target_da_height:
+                  type: integer
+              required:
+                - synced_da_height
+                - target_da_height
+          required:
+            - syncing

@@ -1,19 +1,22 @@
 use std::sync::atomic::AtomicU64;
 
-use super::da::DaService;
-use crate::da::BlockHeaderTrait;
+use serde::{Deserialize, Serialize};
+use tokio::sync::watch;
 
-/// The state necessary to track the sync status of the node
-#[derive(Debug, Default)]
+/// The node sync status tracker
+#[derive(Debug)]
 pub struct DaSyncState {
     /// Last processed DA height.
     pub synced_da_height: AtomicU64,
     /// Latest known DA height.
     pub target_da_height: AtomicU64,
+    /// The sender of the sync status
+    pub sync_status_sender: watch::Sender<SyncStatus>,
 }
 
 /// The status of the current sync
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum SyncStatus {
     /// The node has caught up to the chain tip
     Synced {
@@ -51,16 +54,30 @@ impl SyncStatus {
 }
 
 impl DaSyncState {
-    /// Updates the target height of the sync state using the provided
-    /// [`DaService`].
-    pub async fn update_target<Da: DaService<Error = anyhow::Error>>(
-        &self,
-        da_service: &Da,
-    ) -> anyhow::Result<()> {
-        let target_da_height = da_service.get_head_block_header().await?.height();
+    /// Updates the target height of the sync state.
+    pub fn update_target(&self, target_da_height: u64) {
         self.target_da_height
             .store(target_da_height, std::sync::atomic::Ordering::Release);
-        Ok(())
+
+        if let Err(e) = self.sync_status_sender.send(self.status()) {
+            tracing::warn!(
+                "Failed to send sync status update after updating target height: {:?}. There are no receivers for the sync status.",
+                e
+            );
+        }
+    }
+
+    /// Updates the synced height of the sync state.
+    pub fn update_synced(&self, synced_da_height: u64) {
+        self.synced_da_height
+            .store(synced_da_height, std::sync::atomic::Ordering::Release);
+
+        if let Err(e) = self.sync_status_sender.send(self.status()) {
+            tracing::warn!(
+                "Failed to send sync status update after updating synced height: {:?}. There are no receivers for the sync status.",
+                e
+            );
+        }
     }
 
     /// Latest known sync status.

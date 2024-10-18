@@ -11,7 +11,7 @@ use sov_mock_da::{
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
-use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer};
+use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer, SyncStatus};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -197,6 +197,10 @@ pub async fn initialize_runner(
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let api_storage_sender = watch::Sender::new(genesis_storage.clone());
+    let sync_sender = watch::Sender::new(SyncStatus::Syncing {
+        synced_da_height: 0,
+        target_da_height: 0,
+    });
 
     let inner_vm = MockZkvm::new();
     let outer_vm = MockZkvm::new_non_blocking();
@@ -261,6 +265,7 @@ pub async fn initialize_runner(
             api_storage_sender,
             prev_state_root,
             st_info_sender,
+            sync_sender,
         )
         .await
         .unwrap(),
