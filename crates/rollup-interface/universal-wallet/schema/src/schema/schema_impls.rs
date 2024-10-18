@@ -204,14 +204,14 @@ mod primitive_type_impls {
                 serde_type_name: "Option".to_string(),
                 variants: vec![
                     EnumVariant {
-                        name: "Some".to_string(),
-                        serde_name: "Some".to_string(),
-                        value: Some(Link::Placeholder),
-                    },
-                    EnumVariant {
                         name: "None".to_string(),
                         serde_name: "None".to_string(),
                         value: None,
+                    },
+                    EnumVariant {
+                        name: "Some".to_string(),
+                        serde_name: "Some".to_string(),
+                        value: Some(Link::Placeholder),
                     },
                 ],
             }))
