@@ -131,7 +131,6 @@ fn create_test_rt_genesis_config<S: Spec>(
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
             seq_bond,
-            minimum_bond: user_stake.clone(),
             is_preferred_sequencer: true,
         },
         attester_incentives: AttesterIncentivesConfig {

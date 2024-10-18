@@ -181,30 +181,6 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     };
     assert!(finality_period >= 1);
 
-    // Known value: array
-    let sequencer_bond = client
-        .sequencer_registry_minimum_bond_get_state_value(None)
-        .await?;
-
-    let sequencer_bond = if let RuntimeAnyJsonValue::Object(inner) = &sequencer_bond.data {
-        let value = inner
-            .get("value")
-            .cloned()
-            .expect("minimum sequencer bond must be set");
-        value
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|x| x.as_u64().unwrap())
-            .collect::<Vec<u64>>()
-    } else {
-        panic!(
-            "Unexpected type of minimum sequencer bond response: {:?}",
-            &sequencer_bond.data
-        );
-    };
-    assert_eq!(vec![500000, 500000], sequencer_bond);
-
     // Empty value
     let empty_value = client.value_setter_value_get_state_value(None).await?;
     match &empty_value.data {

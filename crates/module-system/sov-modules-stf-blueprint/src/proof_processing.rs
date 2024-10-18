@@ -41,14 +41,18 @@ where
     match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
         Ok(proof_with_details) => {
             // Check if the sequencer is bonded, and create `pre_exec_working_set`.
-            let (sequencer_rollup_address, pre_exec_working_set) =
-                match workflow.authorize_sequencer(gas_price, state.to_tx_scratchpad()) {
-                    WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
-                    WorkflowResult::EarlyReturn(out, state) => {
-                        tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
-                        return (out, state);
-                    }
-                };
+            let (sequencer_rollup_address, pre_exec_working_set) = match workflow
+                .authorize_sequencer(
+                    gas_price,
+                    runtime.max_authentication_gas(),
+                    state.to_tx_scratchpad(),
+                ) {
+                WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
+                WorkflowResult::EarlyReturn(out, state) => {
+                    tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
+                    return (out, state);
+                }
+            };
 
             // Reserve gas for the proof verification. The sequencer pays for the verification.
             // If the sequencer does not have enough funds, then penalize it and return early.
@@ -225,11 +229,13 @@ where
     fn authorize_sequencer(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
+        max_auth_gas: S::Gas,
         mut tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> PreExecWorkingSetResult<S> {
+        let max_auth_cost = max_auth_gas.value(gas_price);
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
-            gas_price,
+            max_auth_cost,
             &mut tx_scratchpad,
         ) {
             Ok(allowed_sequencer) => {

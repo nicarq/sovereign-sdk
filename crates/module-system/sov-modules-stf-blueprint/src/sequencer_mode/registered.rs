@@ -245,24 +245,44 @@ where
 
     let mut scratchpad = checkpoint.to_tx_scratchpad();
 
+    let ignored_batch = |reason, seq_da_address| BatchReceipt {
+        batch_hash: batch_with_id.id,
+        tx_receipts: Vec::new(),
+        inner: BatchSequencerReceipt {
+            da_address: seq_da_address,
+            outcome: BatchSequencerOutcome::Ignored(reason),
+        },
+        gas_price: gas_price.clone(),
+    };
+
+    let max_batch_auth_cost = match runtime
+        .max_authentication_gas()
+        .value(gas_price)
+        .checked_mul(raw_txs.len() as u64)
+    {
+        Some(cost) => cost,
+        None => {
+            return (
+                ignored_batch(
+                    "The calculation of the maximum authentication cost resulted in an overflow"
+                        .to_string(),
+                    sequencer_da_address,
+                ),
+                scratchpad.commit(),
+                S::Gas::zero(),
+            );
+        }
+    };
+
     // Begin the transaction authorization phase.
     let gas_meter: BasicGasMeter<S::Gas> = match runtime
         .sequencer_authorization()
-        // TODO: #1490 add check for minimum bond: raw_txs.len() * max_cost
-        .authorize_sequencer(&sequencer_da_address, gas_price, &mut scratchpad)
+        .authorize_sequencer(&sequencer_da_address, max_batch_auth_cost, &mut scratchpad)
     {
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price.clone()),
         Err(AuthorizeSequencerError { reason }) => {
             return (
-                BatchReceipt {
-                    batch_hash: batch_with_id.id,
-                    tx_receipts: Vec::new(),
-                    inner: BatchSequencerReceipt {
-                        da_address: sequencer_da_address,
-                        outcome: BatchSequencerOutcome::Ignored(reason.to_string()),
-                    },
-                    gas_price: gas_price.clone(),
-                },
+                ignored_batch(reason.to_string(), sequencer_da_address),
                 scratchpad.commit(),
                 S::Gas::zero(),
             );
@@ -306,11 +326,11 @@ where
                     ));
                 }
                 AuthenticationError::OutOfGas(err) => {
-                    // TODO: #1490
                     // Before entering the authentication loop we made sure that the sequencer has enough gas.
-                    // panic!("The impossible happened: the sequencer ran out of gas.")
-                    error!(error = ?err, "Transaction will be completely forgotten, just like tears in the rain.");
-                    continue;
+                    panic!(
+                        "The impossible happened: the sequencer ran out of gas {}.",
+                        err
+                    )
                 }
             },
         }

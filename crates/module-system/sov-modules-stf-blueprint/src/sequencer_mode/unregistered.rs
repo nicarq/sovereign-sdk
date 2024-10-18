@@ -136,8 +136,8 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
     Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
     TxScratchpad<S::Storage>,
 ) {
-    // TODO #1490: Remove u64::MAX
-    let meter = BasicGasMeter::new(u64::MAX, gas_price.clone());
+    let max_auth_cost = runtime.max_authentication_gas().value(gas_price);
+    let meter = BasicGasMeter::new(max_auth_cost, gas_price.clone());
     let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(meter);
 
     let res = authenticate_unregistered_with_cycle_count(runtime, tx, &mut pre_exec_working_set);

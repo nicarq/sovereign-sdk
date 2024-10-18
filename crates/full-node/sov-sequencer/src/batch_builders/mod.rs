@@ -250,9 +250,10 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
+    let max_auth_cost = runtime.max_authentication_gas().value(&gas_price);
     let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_address,
-        &gas_price,
+        max_auth_cost,
         &mut tx_scratchpad,
     ) {
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),

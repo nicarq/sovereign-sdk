@@ -1,6 +1,5 @@
 use sov_blob_storage::config_unregistered_blobs_per_slot;
 use sov_mock_da::MockBlob;
-use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
 use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::da::RelevantBlobs;
@@ -22,19 +21,12 @@ fn make_unregistered_blobs<
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     runner: &mut TestRunner<RT>,
 ) -> Vec<MockBlob> {
-    let user_stake_value = runner.query_state(|state| {
-        SequencerRegistry::<S>::default()
-            .get_coins_to_lock(state)
-            .unwrap_infallible()
-            .amount
-    });
-
     (0..num_blobs)
         .map(|_| {
             let tx = sender.create_plain_message::<SequencerRegistry<S>>(
                 sov_sequencer_registry::CallMessage::Register {
                     da_address: sender.da_address,
-                    amount: user_stake_value,
+                    amount: 22,
                 },
             );
 

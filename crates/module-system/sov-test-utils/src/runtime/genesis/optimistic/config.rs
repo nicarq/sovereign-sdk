@@ -284,7 +284,6 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
                 seq_bond: initial_sequencer.bond,
-                minimum_bond: S::Gas::from(TEST_DEFAULT_USER_STAKE),
                 is_preferred_sequencer: true,
             },
             attester_incentives: AttesterIncentivesConfig {

@@ -1,7 +1,7 @@
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
+use sov_modules_api::macros::config_value;
+use sov_modules_api::{CryptoSpec, Gas, GasMeter, GasSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
@@ -69,10 +69,8 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     let regular_sequencer_da_address = regular_sequencer.da_address;
 
     let user_stake_value = runner.query_state(|state| {
-        SequencerRegistry::<S>::default()
-            .get_coins_to_lock(state)
-            .unwrap_infallible()
-            .amount
+        <S as Spec>::Gas::from(config_value!("MAX_AUTHENTICATION_GAS_PER_TX"))
+            .value(&state.gas_info().gas_price)
     });
 
     // We currently have to manually build the soft-confirmation blob

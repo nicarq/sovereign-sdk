@@ -1,7 +1,6 @@
 use sov_mock_da::MockDaSpec;
 use sov_modules_api::capabilities::AllowedSequencer;
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, GasMeter};
+use sov_modules_api::ApiStateAccessor;
 use sov_sequencer_registry::{SequencerRegistry, SequencerRegistryError};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
@@ -29,16 +28,6 @@ pub struct TestRoles {
     pub additional_sequencer: TestUser<S>,
     /// The admin of the [`ValueSetter`] module.
     pub admin: TestUser<S>,
-}
-
-/// Returns the minimal bond required to register a sequencer at the current slot.
-pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
-    runner.query_state(|state| {
-        TestSequencerRegistry::default()
-            .get_coins_to_lock(state)
-            .unwrap_infallible()
-            .amount
-    })
 }
 
 /// Simple helper that creates a test sequencer, initializes it with genesis data and verifies that the initialization was successful.
@@ -70,11 +59,8 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
     runner.query_state(|state| {
         // Check that the sequencer account is bonded
         assert_eq!(
-            TestSequencerRegistry::default().is_sender_allowed(
-                &genesis_sequencer_da_address,
-                &state.gas_info().gas_price,
-                state
-            ),
+            TestSequencerRegistry::default()
+                .is_sender_allowed(&genesis_sequencer_da_address, state),
             Ok(AllowedSequencer {
                 address: genesis_sequencer_address,
                 balance: genesis_sequencer_bond,

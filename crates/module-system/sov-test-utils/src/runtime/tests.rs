@@ -5,7 +5,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, TxDetails};
-use sov_modules_api::{DaSpec, GasUnit};
+use sov_modules_api::{DaSpec, Gas, GasMeter, GasUnit};
 use sov_modules_stf_blueprint::TxProcessingError;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -15,7 +15,7 @@ use crate::interface::AsUser;
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestRunner};
 use crate::{
-    assert_matches, BatchTestCase, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
+    assert_matches, BatchTestCase, MockDaSpec, Spec, TestSequencer, TestUser, TransactionTestCase,
     TransactionType, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
     TEST_DEFAULT_USER_BALANCE,
 };
@@ -127,10 +127,8 @@ fn test_register_sequencer() {
     let new_sequencer_address = MockAddress::from([42; 32]);
 
     let user_stake_value = runner.query_state(|state| {
-        SequencerRegistry::<S>::default()
-            .get_coins_to_lock(state)
-            .unwrap_infallible()
-            .amount
+        <S as Spec>::Gas::from(config_value!("MAX_AUTHENTICATION_GAS_PER_TX"))
+            .value(&state.gas_info().gas_price)
     });
 
     let new_sequencer = TestSequencer::<S> {

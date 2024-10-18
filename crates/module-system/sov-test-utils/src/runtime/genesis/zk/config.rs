@@ -148,7 +148,6 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
                 seq_rollup_address: initial_sequencer.as_user().address().clone(),
                 seq_da_address: initial_sequencer.da_address.clone(),
                 seq_bond: initial_sequencer.bond,
-                minimum_bond: default_user_stake.clone(),
                 is_preferred_sequencer: true,
             },
             prover_incentives: ProverIncentivesConfig {

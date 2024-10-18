@@ -1,5 +1,4 @@
 use sov_blob_storage::config_deferred_slots_count;
-use sov_modules_api::GasMeter;
 use sov_test_utils::{BatchTestCase, BatchType, SequencerInfo};
 
 use crate::helpers_soft_confirmations::{
@@ -33,11 +32,8 @@ fn test_recovery_mode() {
         assert: Box::new(move |_ctx, state| {
             // We check that the sequencer is not allowed to ensure he has been slashed
             assert_eq!(
-                sov_sequencer_registry::SequencerRegistry::<S>::default().is_sender_allowed(
-                    &preferred_sequencer.da_address,
-                    &state.gas_info().gas_price,
-                    state
-                ),
+                sov_sequencer_registry::SequencerRegistry::<S>::default()
+                    .is_sender_allowed(&preferred_sequencer.da_address, state),
                 Err(sov_sequencer_registry::AllowedSequencerError::NotRegistered),
                 "The sequencer should not be allowed to send a blob"
             );
