@@ -41,19 +41,6 @@ pub trait SequencerAuthorization<S: Spec> {
         min_bond: u64,
         state: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
-
-    /// Penalizes the sequencer without slashing his account.
-    /// If the sequencer is penalized, the stake amount of the sequencer is reduced, potentially preventing future transactions from being executed.
-    ///
-    /// ## Note
-    /// It should only be called once the sequencer cannot be penalized anymore.
-    fn penalize_sequencer(
-        &self,
-        sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        reason: impl std::fmt::Display,
-        penalty: u64,
-        state: &mut TxScratchpad<S::Storage>,
-    );
 }
 
 /// Functionality related to the rewarding and slashing of the sequencer.
