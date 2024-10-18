@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
-use crate::{Gas, Spec, TxScratchpad};
+use crate::{Spec, TxScratchpad};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError {
@@ -38,7 +38,7 @@ pub trait SequencerAuthorization<S: Spec> {
     fn authorize_sequencer(
         &self,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        base_fee_per_gas: &<S::Gas as Gas>::Price,
+        min_bond: u64,
         state: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
 

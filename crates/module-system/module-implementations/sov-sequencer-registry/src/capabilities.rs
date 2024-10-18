@@ -1,22 +1,30 @@
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 use sov_modules_api::capabilities::AuthorizeSequencerError;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, Gas, Spec, TxScratchpad};
+use sov_modules_api::{DaSpec, Spec, TxScratchpad};
 
-use crate::{AllowedSequencer, SequencerRegistry};
+use crate::{AllowedSequencer, AllowedSequencerError, SequencerRegistry};
 
 impl<S: Spec> SequencerRegistry<S> {
     /// Checks whether `sender` is a registered sequencer with enough staked amount.
     pub fn authorize_sequencer(
         &self,
         sender: &<S::Da as DaSpec>::Address,
-        base_fee_per_gas: &<S::Gas as Gas>::Price,
+        min_bond: u64,
         scratchpad: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
-        let allowed_sequencer = match self.is_sender_allowed(sender, base_fee_per_gas, scratchpad) {
+        let allowed_sequencer = match self.is_sender_allowed(sender, scratchpad) {
             Ok(seq) => seq,
             Err(e) => return Err(AuthorizeSequencerError { reason: e.into() }),
         };
+
+        if allowed_sequencer.balance < min_bond {
+            let err = AllowedSequencerError::InsufficientStakeAmount {
+                bond_amount: allowed_sequencer.balance,
+                minimum_bond_amount: min_bond,
+            };
+            return Err(AuthorizeSequencerError { reason: err.into() });
+        }
 
         Ok(allowed_sequencer)
     }

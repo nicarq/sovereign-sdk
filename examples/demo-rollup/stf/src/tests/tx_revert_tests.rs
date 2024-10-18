@@ -1,5 +1,6 @@
 use std::convert::Infallible;
 
+use sov_bank::config_gas_token_id;
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
@@ -340,11 +341,9 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             let runtime: RuntimeTest = Runtime::default();
             let mut state = ApiStateAccessor::from_storage(stf_state.clone(), &runtime);
 
-            let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
-
             runtime
                 .bank
-                .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)?
+                .get_balance_of(&sequencer_rollup_address, config_gas_token_id(), &mut state)?
                 .unwrap()
         };
         (genesis_root, balance)
@@ -416,11 +415,9 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             .unwrap();
         assert_eq!(None, allowed_sequencer);
 
-        // Balance of sequencer is not increased
-        let coins = runtime.sequencer_registry.get_coins_to_lock(&mut state)?;
         let sequencer_balance_after = runtime
             .bank
-            .get_balance_of(&sequencer_rollup_address, coins.token_id, &mut state)?
+            .get_balance_of(&sequencer_rollup_address, config_gas_token_id(), &mut state)?
             .unwrap();
         assert_eq!(sequencer_balance_before, sequencer_balance_after);
     }

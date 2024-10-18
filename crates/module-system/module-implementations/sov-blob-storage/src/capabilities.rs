@@ -83,11 +83,7 @@ impl<S: Spec> BlobStorage<S> {
                     tracing::trace!(idx, "Processing as proof");
                     if self
                         .sequencer_registry
-                        .is_sender_allowed(
-                            &blob.sender(),
-                            &self.chain_state.virtual_base_fee_per_gas(state),
-                            state,
-                        )
+                        .is_sender_allowed(&blob.sender(), state)
                         .is_ok()
                     {
                         if let Some(proof) =
@@ -161,11 +157,10 @@ impl<S: Spec> BlobStorage<S> {
         unregistered_blobs_processed: u64,
         state: &mut KernelStateAccessor<S::Storage>,
     ) -> ValidateBlobOutcome {
-        match self.sequencer_registry.is_sender_allowed(
-            &blob.sender(),
-            &self.chain_state.virtual_base_fee_per_gas(state),
-            state,
-        ) {
+        match self
+            .sequencer_registry
+            .is_sender_allowed(&blob.sender(), state)
+        {
             Ok(_) => ValidateBlobOutcome::Accept(SequencerStatus::Registered),
             Err(e) => match e {
                 AllowedSequencerError::InsufficientStakeAmount { .. } => {
@@ -355,11 +350,7 @@ impl<S: Spec> BlobStorage<S> {
                         }
                     } else if self
                         .sequencer_registry
-                        .is_sender_allowed(
-                            &blob.sender(),
-                            &self.chain_state.virtual_base_fee_per_gas(state),
-                            state,
-                        )
+                        .is_sender_allowed(&blob.sender(), state)
                         .is_ok()
                     {
                         if let Some(proof) =

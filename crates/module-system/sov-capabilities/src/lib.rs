@@ -123,11 +123,11 @@ impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities
     fn authorize_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
-        base_fee_per_gas: &<S::Gas as Gas>::Price,
+        min_bond: u64,
         state: &mut TxScratchpad<S::Storage>,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
-            .authorize_sequencer(sequencer, base_fee_per_gas, state)
+            .authorize_sequencer(sequencer, min_bond, state)
     }
 
     fn penalize_sequencer(

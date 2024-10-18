@@ -25,8 +25,6 @@ pub struct SequencerConfig<S: Spec> {
     pub seq_da_address: <S::Da as DaSpec>::Address,
     /// Initial sequencer bond
     pub seq_bond: u64,
-    /// The minimum bond required for a sequencer to send transactions.
-    pub minimum_bond: S::Gas,
     /// Determines whether this sequencer is *regular* or *preferred*.
     ///
     /// Batches from the preferred sequencer are always processed first in
@@ -46,10 +44,9 @@ impl<S: Spec> SequencerRegistry<S> {
             sequencer_da_address = %config.seq_da_address,
             sequencer_bond = %config.seq_bond,
             is_preferred_sequencer = config.is_preferred_sequencer,
-            minimum_bond = %config.minimum_bond,
+
             "Starting sequencer registry genesis..."
         );
-        self.minimum_bond.set(&config.minimum_bond, state)?;
 
         self.register_staker(
             &config.seq_da_address,
@@ -95,7 +92,6 @@ mod tests {
             seq_rollup_address,
             seq_da_address: seq_da_addreess,
             seq_bond: 100,
-            minimum_bond: <TestSpec as Spec>::Gas::from([50; 2]),
             is_preferred_sequencer: true,
         };
 
@@ -104,7 +100,6 @@ mod tests {
             "seq_rollup_address":"sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
             "seq_da_address":"0000000000000000000000000000000000000000000000000000000000000000",
             "seq_bond":100,
-            "minimum_bond":[50, 50],
             "is_preferred_sequencer":true
         }"#;
 

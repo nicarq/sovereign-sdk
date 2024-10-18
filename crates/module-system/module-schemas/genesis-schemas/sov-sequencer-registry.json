@@ -5,7 +5,6 @@
   "type": "object",
   "required": [
     "is_preferred_sequencer",
-    "minimum_bond",
     "seq_bond",
     "seq_da_address",
     "seq_rollup_address"
@@ -14,14 +13,6 @@
     "is_preferred_sequencer": {
       "description": "Determines whether this sequencer is *regular* or *preferred*.\n\nBatches from the preferred sequencer are always processed first in block, which means the preferred sequencer can guarantee soft confirmation time for transactions.",
       "type": "boolean"
-    },
-    "minimum_bond": {
-      "description": "The minimum bond required for a sequencer to send transactions.",
-      "allOf": [
-        {
-          "$ref": "#/definitions/GasUnit(2)"
-        }
-      ]
     },
     "seq_bond": {
       "description": "Initial sequencer bond",
@@ -51,15 +42,6 @@
       "description": "Address",
       "type": "string",
       "pattern": "^sov1[a-zA-Z0-9]+$"
-    },
-    "GasUnit(2)": {
-      "description": "GasUnit is an array of u64 of size 2",
-      "type": "array",
-      "items": {
-        "type": "number"
-      },
-      "maxItems": 2,
-      "minItems": 2
     },
     "MockAddress": {
       "description": "Mock address; 32 bytes in hex-encoded format",
