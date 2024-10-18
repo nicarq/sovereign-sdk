@@ -184,16 +184,16 @@
         "serde_type_name": "Option",
         "variants": [
           {
+            "name": "None",
+            "serde_name": "None",
+            "value": null
+          },
+          {
             "name": "Some",
             "serde_name": "Some",
             "value": {
               "ByIndex": 6
             }
-          },
-          {
-            "name": "None",
-            "serde_name": "None",
-            "value": null
           }
         ]
       }
@@ -1372,16 +1372,16 @@
         "serde_type_name": "Option",
         "variants": [
           {
+            "name": "None",
+            "serde_name": "None",
+            "value": null
+          },
+          {
             "name": "Some",
             "serde_name": "Some",
             "value": {
               "Immediate": "String"
             }
-          },
-          {
-            "name": "None",
-            "serde_name": "None",
-            "value": null
           }
         ]
       }
@@ -1392,16 +1392,16 @@
         "serde_type_name": "Option",
         "variants": [
           {
+            "name": "None",
+            "serde_name": "None",
+            "value": null
+          },
+          {
             "name": "Some",
             "serde_name": "Some",
             "value": {
               "Immediate": "Boolean"
             }
-          },
-          {
-            "name": "None",
-            "serde_name": "None",
-            "value": null
           }
         ]
       }
