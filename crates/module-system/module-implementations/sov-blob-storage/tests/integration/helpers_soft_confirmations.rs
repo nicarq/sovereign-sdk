@@ -69,7 +69,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     let regular_sequencer_da_address = regular_sequencer.da_address;
 
     let user_stake_value = runner.query_state(|state| {
-        <S as Spec>::Gas::from(config_value!("MAX_AUTHENTICATION_GAS_PER_TX"))
+        <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
             .value(&state.gas_info().gas_price)
     });
 

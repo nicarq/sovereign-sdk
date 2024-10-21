@@ -1,7 +1,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Context, Gas, Spec, TxScratchpad};
+use crate::{Context, Gas, GasSpec, Spec, TxScratchpad};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
 pub struct TryReserveGasError {
@@ -11,6 +11,23 @@ pub struct TryReserveGasError {
 
 /// Enforces gas limits and penalties for transactions.
 pub trait GasEnforcer<S: Spec> {
+    /// Maximum amount of gas the sequencer can pay for the tx execution. Typically this will be the sum
+    /// of authentication (sig check) gas and process_tx_pre_exec_checks_gas.
+    fn max_tx_check_costs(&self) -> <S as Spec>::Gas {
+        <S as GasSpec>::max_tx_check_costs()
+    }
+
+    /// The gas used in the batch hooks.
+    fn batch_hook_gas(&self) -> <S as Spec>::Gas {
+        <S as GasSpec>::batch_hook_gas()
+    }
+
+    /// The gas used for the transaction pre-execution checks.
+    /// For example nonce checks, context resolution etc..
+    fn process_tx_pre_exec_checks_gas(&self) -> <S as Spec>::Gas {
+        <S as GasSpec>::process_tx_pre_exec_checks_gas()
+    }
+
     /// Checks that the transaction has enough gas to be processed.
     ///
     /// ## Note
@@ -73,13 +90,12 @@ pub trait GasEnforcer<S: Spec> {
     );
 
     /// The sequencer refunds the prover for the authentication of the transactions.
-    /// The caller should ensure that the prover is sufficiently staked; otherwise, the call will panic.
-    fn transfer_authentication_cost_from_sequencer_to_prover(
+    fn transfer_funds_from_sequencer_to_prover(
         &self,
         amount: u64,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
-    );
+    ) -> anyhow::Result<()>;
 
     /// The user refunds the sequencer for the authentication of its transaction.
     /// The caller should ensure that the user's balance will cover the cost; otherwise, the call will panic.

@@ -54,7 +54,7 @@ macro_rules! impl_runtime_hook {
             fn begin_batch_hook(
                 &self,
                 _sender: &<<S as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::Address,
-                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
+                _state_checkpoint: &mut ::sov_modules_api::TxScratchpad<S::Storage>,
             ) -> anyhow::Result<()> {
                 Ok(())
             }
@@ -62,7 +62,7 @@ macro_rules! impl_runtime_hook {
             fn end_batch_hook(
                 &self,
                 _result: &Self::BatchResult,
-                _state_checkpoint: &mut ::sov_modules_api::StateCheckpoint<S::Storage>,
+                _state_checkpoint: &mut ::sov_modules_api::TxScratchpad<S::Storage>,
             ) {
             }
         }

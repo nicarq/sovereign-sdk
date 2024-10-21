@@ -38,30 +38,25 @@ where
 {
     let workflow = ProofProcessingWorkflow::new(runtime, blob_hash, &sequencer_da_address);
 
-    // TODO #1490
-    // We're currently penalizing the sequencer too much, but this is acceptable for now.
+    // We're currently penalizing the sequencer too much, but this is acceptable.
     // Once we measure the cost of deserialization, we can provide a more accurate value.
-    let max_auth_cost = runtime.max_authentication_gas().value(gas_price);
+    let max_pre_exec_check_gas = runtime.gas_enforcer().max_tx_check_costs();
+    let max_auth_cost = max_pre_exec_check_gas.value(gas_price);
+
+    // Check if the sequencer is bonded, and create `pre_exec_working_set`.
+    let (sequencer_rollup_address, pre_exec_working_set) =
+        match workflow.authorize_sequencer(gas_price, max_auth_cost, state.to_tx_scratchpad()) {
+            WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
+            WorkflowResult::EarlyReturn(out, state) => {
+                tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
+                return (out, state);
+            }
+        };
 
     match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
         Ok(proof_with_details) => {
-            // Check if the sequencer is bonded, and create `pre_exec_working_set`.
-            let (sequencer_rollup_address, pre_exec_working_set) = match workflow
-                .authorize_sequencer(
-                    gas_price,
-                    runtime.max_authentication_gas(),
-                    state.to_tx_scratchpad(),
-                ) {
-                WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
-                WorkflowResult::EarlyReturn(out, state) => {
-                    tracing::debug!("{LOG_PREFIX}: unable to create pre execution working set");
-                    return (out, state);
-                }
-            };
-
             // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
-                max_auth_cost,
                 &sequencer_rollup_address,
                 gas_price,
                 proof_with_details.details.into(),
@@ -98,28 +93,28 @@ where
                     .map(ProofReceiptContents::BlockProof),
             };
 
-            let (outcome, mut tx_scratchpad, transaction_consumption) = match receipt_contents {
+            let (outcome, mut scratchpad, transaction_consumption) = match receipt_contents {
                 Ok(receipt_contents) => {
-                    let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
+                    let (scratchpad, transaction_consumption, _) = working_set.finalize();
                     (
                         ProofOutcome::Valid(receipt_contents),
-                        tx_scratchpad,
+                        scratchpad,
                         transaction_consumption,
                     )
                 }
                 Err(e) if e.is_not_revertable() => {
-                    let (tx_scratchpad, transaction_consumption, _) = working_set.finalize();
+                    let (scratchpad, transaction_consumption, _) = working_set.finalize();
                     (
                         ProofOutcome::Invalid(e),
-                        tx_scratchpad,
+                        scratchpad,
                         transaction_consumption,
                     )
                 }
                 Err(e) => {
-                    let (tx_scratchpad, transaction_consumption) = working_set.revert();
+                    let (scratchpad, transaction_consumption) = working_set.revert();
                     (
                         ProofOutcome::Invalid(e),
-                        tx_scratchpad,
+                        scratchpad,
                         transaction_consumption,
                     )
                 }
@@ -128,19 +123,18 @@ where
             runtime.gas_enforcer().refund_remaining_gas(
                 &sequencer_rollup_address,
                 &transaction_consumption.remaining_funds(),
-                &mut tx_scratchpad,
+                &mut scratchpad,
             );
 
-            runtime.gas_enforcer().reward_prover(
-                &transaction_consumption.base_fee_value(),
-                &mut tx_scratchpad,
-            );
+            runtime
+                .gas_enforcer()
+                .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
             let sequencer_reward = transaction_consumption.priority_fee();
             runtime.sequencer_remuneration().reward_sequencer(
                 &sequencer_da_address,
                 sequencer_reward,
-                &mut tx_scratchpad,
+                &mut scratchpad,
             );
 
             (
@@ -153,14 +147,14 @@ where
                     },
                     gas_used: transaction_consumption.base_fee().clone(),
                 },
-                tx_scratchpad.commit(),
+                scratchpad.commit(),
             )
         }
         Err(_) => {
             // We could not deserialize the data from the DA. Penalize the sequencer and return early.
             tracing::debug!("{LOG_PREFIX}: unable to deserialize proof");
 
-            let state = state.to_tx_scratchpad();
+            let (state, _) = pre_exec_working_set.to_scratchpad_and_gas_meter();
             let state = workflow
                 .charge_sequencer_and_reward_prover(
                     "Unable to deserialize proof",
@@ -177,7 +171,7 @@ where
                             "Sequencer penalized for invalid serialization".to_string(),
                         ),
                     ),
-                    gas_used: S::Gas::zero(),
+                    gas_used: max_pre_exec_check_gas,
                 },
                 state,
             )
@@ -234,10 +228,9 @@ where
     fn authorize_sequencer(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
-        max_auth_gas: S::Gas,
+        max_auth_cost: u64,
         mut tx_scratchpad: TxScratchpad<S::Storage>,
     ) -> PreExecWorkingSetResult<S> {
-        let max_auth_cost = max_auth_gas.value(gas_price);
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             max_auth_cost,
@@ -268,7 +261,6 @@ where
 
     fn try_reserve_gas(
         &self,
-        max_auth_cost: u64,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
@@ -277,6 +269,7 @@ where
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         let gas_info = gas_meter.gas_info();
+        let auth_cost = gas_info.gas_used.value(gas_price);
         if let Err(TryReserveGasError { reason }) =
             self.runtime.gas_enforcer().try_reserve_gas_for_proof(
                 &auth_tx,
@@ -294,9 +287,9 @@ where
                             reason
                         )),
                     ),
-                    gas_used: S::Gas::zero(),
+                    gas_used: gas_info.gas_used,
                 },
-                self.charge_sequencer_and_reward_prover(reason, max_auth_cost, scratchpad)
+                self.charge_sequencer_and_reward_prover(reason, auth_cost, scratchpad)
                     .commit(),
             );
         }
@@ -316,9 +309,9 @@ where
                             err
                         )),
                     ),
-                    gas_used: S::Gas::zero(),
+                    gas_used: gas_info.gas_used,
                 },
-                self.charge_sequencer_and_reward_prover(err, max_auth_cost, scratchpad)
+                self.charge_sequencer_and_reward_prover(err, auth_cost, scratchpad)
                     .commit(),
             );
         }
@@ -340,11 +333,13 @@ where
 
         self.runtime
             .gas_enforcer()
-            .transfer_authentication_cost_from_sequencer_to_prover(
+            .transfer_funds_from_sequencer_to_prover(
                 max_auth_cost,
                 self.sequencer_da_address,
                 &mut state,
-            );
+            )
+            // We ensured this before we started processing the proof.
+            .expect("Sequencer should have enough funds to pay for the penalty");
 
         state
     }

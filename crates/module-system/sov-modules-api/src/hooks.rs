@@ -3,7 +3,8 @@ use sov_state::Storage;
 
 use crate::transaction::AuthenticatedTransactionData;
 use crate::{
-    AccessoryStateReaderAndWriter, Context, KernelStateAccessor, Spec, StateCheckpoint, TxState,
+    AccessoryStateReaderAndWriter, Context, KernelStateAccessor, Spec, StateCheckpoint,
+    TxScratchpad, TxState,
 };
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
@@ -61,7 +62,7 @@ pub trait ApplyBatchHooks {
     fn begin_batch_hook(
         &self,
         _sender: &<<Self::Spec as Spec>::Da as DaSpec>::Address,
-        _state_checkpoint: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        _state: &mut TxScratchpad<<Self::Spec as Spec>::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
@@ -71,7 +72,7 @@ pub trait ApplyBatchHooks {
     fn end_batch_hook(
         &self,
         _result: &Self::BatchResult,
-        _state_checkpoint: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        _state: &mut TxScratchpad<<Self::Spec as Spec>::Storage>,
     ) {
     }
 }

@@ -89,16 +89,19 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
             .refund_remaining_gas(sender, remaining_funds, tx_state);
     }
 
-    fn transfer_authentication_cost_from_sequencer_to_prover(
+    fn transfer_funds_from_sequencer_to_prover(
         &self,
         amount: u64,
         sequencer: &<S::Da as DaSpec>::Address,
         tx_state: &mut TxScratchpad<S::Storage>,
-    ) {
+    ) -> anyhow::Result<()> {
         let rewarded_module = self.attester_incentives.id().to_payable();
-        self.sequencer_registry
-            .remove_part_of_the_stake(sequencer, rewarded_module, amount, tx_state)
-            .unwrap_or_else(|e| panic!("Unable to remove the sequencer's stake: {}", e));
+        self.sequencer_registry.remove_part_of_the_stake(
+            sequencer,
+            rewarded_module,
+            amount,
+            tx_state,
+        )
     }
 
     fn transfer_authentication_cost_from_user_to_sequencer(

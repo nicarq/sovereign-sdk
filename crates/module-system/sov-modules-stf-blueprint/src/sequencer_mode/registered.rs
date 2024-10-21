@@ -29,7 +29,7 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     gas_used_for_authentication: &S::Gas,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
-    mut tx_scratchpad: TxScratchpad<S::Storage>,
+    mut scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
@@ -37,23 +37,25 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
 ) {
     let auth_cost = gas_used_for_authentication.value(gas_price);
 
+    let penalize = |tx_scratchpad: &mut TxScratchpad<S::Storage>| {
+        runtime
+            .gas_enforcer()
+            .transfer_funds_from_sequencer_to_prover(auth_cost, sequencer_da_address, tx_scratchpad)
+            // We ensured this before entering the tx execution loop.
+            .expect("Sequencer should have enough funds to pay for the pre-execution checks");
+    };
+
     let (auth_tx, auth_data, message) = match validated_output {
         ValidatedAuthOutput::Valid(valid) => valid,
         ValidatedAuthOutput::Invalid(hex_string) => {
-            runtime
-                .gas_enforcer()
-                .transfer_authentication_cost_from_sequencer_to_prover(
-                    auth_cost,
-                    sequencer_da_address,
-                    &mut tx_scratchpad,
-                );
+            penalize(&mut scratchpad);
 
             return (
                 Err(TxProcessingError::AuthenticationFailed(format!(
                     "Authentication failed for tx: {}",
                     hex_string
                 ))),
-                tx_scratchpad,
+                scratchpad,
             );
         }
     };
@@ -65,23 +67,17 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
         &auth_data,
         sequencer_da_address,
         height,
-        &mut tx_scratchpad,
+        &mut scratchpad,
         execution_context,
     );
     let mut ctx = match maybe_ctx {
         Ok(ctx) => ctx,
         Err(err) => {
-            runtime
-                .gas_enforcer()
-                .transfer_authentication_cost_from_sequencer_to_prover(
-                    auth_cost,
-                    sequencer_da_address,
-                    &mut tx_scratchpad,
-                );
+            penalize(&mut scratchpad);
 
             return (
                 Err(TxProcessingError::CannotResolveContext(err.to_string())),
-                tx_scratchpad,
+                scratchpad,
             );
         }
     };
@@ -90,92 +86,71 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     if let Err(err) =
         runtime
             .transaction_authorizer()
-            .check_uniqueness(&auth_data, &ctx, &mut tx_scratchpad)
+            .check_uniqueness(&auth_data, &ctx, &mut scratchpad)
     {
-        runtime
-            .gas_enforcer()
-            .transfer_authentication_cost_from_sequencer_to_prover(
-                auth_cost,
-                sequencer_da_address,
-                &mut tx_scratchpad,
-            );
+        penalize(&mut scratchpad);
 
         return (
             Err(TxProcessingError::IncorrectNonce(err.to_string())),
-            tx_scratchpad,
+            scratchpad,
         );
     }
 
     if let Err(TryReserveGasError { reason }) =
         runtime
             .gas_enforcer()
-            .try_reserve_gas(tx, gas_price, &mut ctx, &mut tx_scratchpad)
+            .try_reserve_gas(tx, gas_price, &mut ctx, &mut scratchpad)
     {
-        runtime
-            .gas_enforcer()
-            .transfer_authentication_cost_from_sequencer_to_prover(
-                auth_cost,
-                sequencer_da_address,
-                &mut tx_scratchpad,
-            );
+        penalize(&mut scratchpad);
 
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
-            tx_scratchpad,
+            scratchpad,
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(tx_scratchpad, gas_price, tx);
+    let mut working_set = WorkingSet::create_working_set(scratchpad, gas_price, tx);
 
     // Recover the authentication cost form the user.
     if let Err(err) = working_set.charge_gas(gas_used_for_authentication) {
-        let (mut tx_scratchpad, _transaction_consumption) = working_set.revert();
-
-        runtime
-            .gas_enforcer()
-            .transfer_authentication_cost_from_sequencer_to_prover(
-                auth_cost,
-                sequencer_da_address,
-                &mut tx_scratchpad,
-            );
+        let (mut scratchpad, _transaction_consumption) = working_set.revert();
+        penalize(&mut scratchpad);
 
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
-            tx_scratchpad,
+            scratchpad,
         );
     }
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    let (apply_tx, mut tx_scratchpad) =
-        apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
+    let (apply_tx, mut scratchpad) = apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
 
     let transaction_consumption = &apply_tx.transaction_consumption;
 
     runtime.transaction_authorizer().mark_tx_attempted(
         &auth_data,
         sequencer_da_address,
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
     runtime.gas_enforcer().refund_remaining_gas(
         ctx.sender(),
         &transaction_consumption.remaining_funds(),
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
-    runtime.gas_enforcer().reward_prover(
-        &transaction_consumption.base_fee_value(),
-        &mut tx_scratchpad,
-    );
+    runtime
+        .gas_enforcer()
+        .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
     let sequencer_reward = transaction_consumption.priority_fee();
     runtime.sequencer_remuneration().reward_sequencer(
         sequencer_da_address,
         sequencer_reward,
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
-    (Ok(apply_tx), tx_scratchpad)
+    (Ok(apply_tx), scratchpad)
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
@@ -213,36 +188,6 @@ where
         "Applying a batch"
     );
 
-    // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut checkpoint) {
-        error!(
-            error = %e,
-            batch_id = hex::encode(batch_with_id.id),
-            BEGIN_BATCH_HOOK_ERR,
-        );
-
-        return (
-            BatchReceipt {
-                batch_hash: batch_with_id.id,
-                tx_receipts: Vec::new(),
-                inner: BatchSequencerReceipt {
-                    da_address: sequencer_da_address,
-                    outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
-                },
-                gas_price: gas_price.clone(),
-            },
-            checkpoint,
-            S::Gas::zero(),
-        );
-    }
-    let raw_txs = batch_with_id.batch.txs;
-
-    debug!(
-        batch_id = hex::encode(batch_with_id.id),
-        txs_num = raw_txs.len(),
-        "Verifying & executing transactions"
-    );
-
     let mut scratchpad = checkpoint.to_tx_scratchpad();
 
     let ignored_batch = |reason, seq_da_address| BatchReceipt {
@@ -255,8 +200,61 @@ where
         gas_price: gas_price.clone(),
     };
 
-    let max_batch_auth_cost = match runtime
-        .max_authentication_gas()
+    let batch_hook_gas = runtime.gas_enforcer().batch_hook_gas();
+
+    // Charge gas for batch hooks.
+    match runtime
+        .gas_enforcer()
+        .transfer_funds_from_sequencer_to_prover(
+            batch_hook_gas.value(gas_price),
+            &sequencer_da_address,
+            &mut scratchpad,
+        ) {
+        Ok(_) => (),
+        Err(e) => {
+            error!(
+                error = %e,
+                batch_id = hex::encode(batch_with_id.id),
+                "Not enough gas to execute `begin_batch_hook`",
+            );
+
+            return (
+                ignored_batch(e.to_string(), sequencer_da_address),
+                scratchpad.revert(),
+                S::Gas::zero(),
+            );
+        }
+    }
+
+    let mut gas_used = batch_hook_gas;
+
+    // ApplyBlobHook: begin
+    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
+        error!(
+            error = %e,
+            batch_id = hex::encode(batch_with_id.id),
+            BEGIN_BATCH_HOOK_ERR,
+        );
+
+        return (
+            ignored_batch(BEGIN_BATCH_HOOK_ERR.to_string(), sequencer_da_address),
+            scratchpad.revert(),
+            gas_used,
+        );
+    }
+    let raw_txs = batch_with_id.batch.txs;
+
+    debug!(
+        batch_id = hex::encode(batch_with_id.id),
+        txs_num = raw_txs.len(),
+        "Verifying & executing transactions"
+    );
+
+    // Cost of the authentication for the entire batch.
+    // It should include the costs of `authentication` and process_tx pre-execution checks.
+    let max_tx_check_costs = match runtime
+        .gas_enforcer()
+        .max_tx_check_costs()
         .value(gas_price)
         .checked_mul(raw_txs.len() as u64)
     {
@@ -277,7 +275,7 @@ where
     // Begin the transaction authorization phase.
     let gas_meter: BasicGasMeter<S::Gas> = match runtime
         .sequencer_authorization()
-        .authorize_sequencer(&sequencer_da_address, max_batch_auth_cost, &mut scratchpad)
+        .authorize_sequencer(&sequencer_da_address, max_tx_check_costs, &mut scratchpad)
     {
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price.clone()),
         Err(AuthorizeSequencerError { reason }) => {
@@ -295,16 +293,23 @@ where
     let mut auth_outputs: Vec<(usize, ValidatedAuthOutput<S, RT>, S::Gas)> = Vec::new();
 
     let mut tx_receipts = Vec::with_capacity(raw_txs.len());
-    let mut gas_used = S::Gas::zero();
     let mut accumulated_reward = SequencerReward::ZERO;
 
     for (idx, raw_tx) in raw_txs.iter().enumerate() {
         pre_exec_working_set.start_recording_gas_usage();
+
+        // Charge gas for all the checks in the `process_tx`.
+        pre_exec_working_set
+            .charge_gas(&runtime.gas_enforcer().process_tx_pre_exec_checks_gas())
+            // It is safe to `expect`` here because we have already confirmed that the gas is sufficient to execute the entire batch
+            // when we ensured that the sequencer's staked balance is more than the `max_tx_check_costs`.
+            // WARNING:
+            //   This will break the rollup if the gas constants are not set correctly.
+            //   Please ensure to thoroughly test edge cases and ensure that the sequencer cannot run out of gas during pre-processing checks.
+            .expect("The impossible happened: the sequencer ran out of gas {}.");
+
         let authentication_result =
             authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set);
-
-        // TODO: #1490
-        // charge gas for nonce check and context creation
 
         let gas_used_for_authentication = pre_exec_working_set.get_recorded_gas_usage();
 
@@ -326,7 +331,11 @@ where
                     ));
                 }
                 AuthenticationError::OutOfGas(err) => {
-                    // Before entering the authentication loop we made sure that the sequencer has enough gas.
+                    // It is safe to panic here because we have already confirmed that the gas is sufficient to execute the entire batch
+                    // when we ensured that the sequencer's staked balance is more than the `max_tx_check_costs`.
+                    // WARNING:
+                    //   This will break the rollup if the gas constants are not set correctly.
+                    //   Please ensure to thoroughly test edge cases and ensure that the sequencer cannot run out of gas during pre-processing checks.
                     panic!(
                         "The impossible happened: the sequencer ran out of gas {}.",
                         err
@@ -396,10 +405,9 @@ where
         },
         gas_price: gas_price.clone(),
     };
+
+    runtime.end_batch_hook(&batch_receipt.inner, &mut batch_scratchpad);
     checkpoint = batch_scratchpad.commit();
-
-    runtime.end_batch_hook(&batch_receipt.inner, &mut checkpoint);
-
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
     (batch_receipt, checkpoint, gas_used)

@@ -31,7 +31,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
-    mut tx_scratchpad: TxScratchpad<S::Storage>,
+    mut scratchpad: TxScratchpad<S::Storage>,
     execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
@@ -47,14 +47,14 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
             &auth_data,
             sequencer_da_address,
             height,
-            &mut tx_scratchpad,
+            &mut scratchpad,
             execution_context,
         ) {
         Ok(ctx) => ctx,
         Err(e) => {
             return (
                 Err(TxProcessingError::CannotResolveContext(e.to_string())),
-                tx_scratchpad,
+                scratchpad,
             );
         }
     };
@@ -63,28 +63,28 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     if let Err(e) =
         runtime
             .transaction_authorizer()
-            .check_uniqueness(&auth_data, &ctx, &mut tx_scratchpad)
+            .check_uniqueness(&auth_data, &ctx, &mut scratchpad)
     {
         return (
             Err(TxProcessingError::IncorrectNonce(e.to_string())),
-            tx_scratchpad,
+            scratchpad,
         );
     }
 
-    if let Err(TryReserveGasError { reason }) = runtime.gas_enforcer().try_reserve_gas(
-        tx,
-        &gas_info.gas_price,
-        &mut ctx,
-        &mut tx_scratchpad,
-    ) {
+    if let Err(TryReserveGasError { reason }) =
+        runtime
+            .gas_enforcer()
+            .try_reserve_gas(tx, &gas_info.gas_price, &mut ctx, &mut scratchpad)
+    {
         return (
             Err(TxProcessingError::CannotReserveGas(reason.to_string())),
-            tx_scratchpad,
+            scratchpad,
         );
     }
 
-    let mut working_set = WorkingSet::create_working_set(tx_scratchpad, &gas_info.gas_price, tx);
+    let mut working_set = WorkingSet::create_working_set(scratchpad, &gas_info.gas_price, tx);
 
+    // Here we charge the gas for the transaction sig & pre-execution checks.
     if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
         let (scratchpad, _) = working_set.revert();
         return (
@@ -94,36 +94,34 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
     }
 
     // If the transaction is valid, execute it and apply the changes to the state.
-    let (apply_tx, mut tx_scratchpad) =
-        apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
+    let (apply_tx, mut scratchpad) = apply_tx(runtime, &ctx, tx, raw_tx_hash, message, working_set);
 
     let transaction_consumption = &apply_tx.transaction_consumption;
 
     runtime.transaction_authorizer().mark_tx_attempted(
         &auth_data,
         sequencer_da_address,
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
     runtime.gas_enforcer().refund_remaining_gas(
         ctx.sender(),
         &transaction_consumption.remaining_funds(),
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
-    runtime.gas_enforcer().reward_prover(
-        &transaction_consumption.base_fee_value(),
-        &mut tx_scratchpad,
-    );
+    runtime
+        .gas_enforcer()
+        .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
     let sequencer_reward = transaction_consumption.priority_fee();
     runtime.sequencer_remuneration().reward_sequencer(
         sequencer_da_address,
         sequencer_reward,
-        &mut tx_scratchpad,
+        &mut scratchpad,
     );
 
-    (Ok(apply_tx), tx_scratchpad)
+    (Ok(apply_tx), scratchpad)
 }
 
 #[allow(clippy::type_complexity)]
@@ -131,21 +129,21 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
     gas_price: &<S::Gas as Gas>::Price,
     tx: &FullyBakedTx,
-    tx_scratchpad: TxScratchpad<S::Storage>,
+    scratchpad: TxScratchpad<S::Storage>,
 ) -> (
     Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
     TxScratchpad<S::Storage>,
 ) {
-    let max_auth_cost = runtime.max_authentication_gas().value(gas_price);
+    let max_auth_cost = runtime.gas_enforcer().max_tx_check_costs().value(gas_price);
     let meter = BasicGasMeter::new(max_auth_cost, gas_price.clone());
-    let mut pre_exec_working_set = tx_scratchpad.to_pre_exec_working_set(meter);
+    let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
 
     let res = authenticate_unregistered_with_cycle_count(runtime, tx, &mut pre_exec_working_set);
-    let (tx_scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
+    let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     match res {
-        Err(e) => (Err(e), tx_scratchpad),
-        Ok(ok) => (Ok((ok, gas_meter.gas_info())), tx_scratchpad),
+        Err(e) => (Err(e), scratchpad),
+        Ok(ok) => (Ok((ok, gas_meter.gas_info())), scratchpad),
     }
 }
 
@@ -195,9 +193,11 @@ where
         ?gas_price,
         "Applying a batch"
     );
+    let mut scratchpad = checkpoint.to_tx_scratchpad();
 
+    // The sequencer is not bonded so we don't charge for the batch hook gas.
     // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut checkpoint) {
+    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
         error!(
             error = %e,
             batch_id = hex::encode(batch.id),
@@ -214,7 +214,7 @@ where
                 },
                 gas_price: gas_price.clone(),
             },
-            checkpoint,
+            scratchpad.commit(),
             S::Gas::zero(),
         );
     }
@@ -228,13 +228,11 @@ where
         "Verifying & executing transactions"
     );
 
-    let tx_scratchpad = checkpoint.to_tx_scratchpad();
-
     let authentication_result =
-        authenticate_unregistered_tx(runtime, gas_price, &batch.fully_baked_tx, tx_scratchpad);
+        authenticate_unregistered_tx(runtime, gas_price, &batch.fully_baked_tx, scratchpad);
 
-    let (auth_output, gas_info, tx_scratchpad) = match authentication_result {
-        (Ok((auth_output, gas_info)), tx_scratchpad) => (auth_output, gas_info, tx_scratchpad),
+    let (auth_output, gas_info, scratchpad) = match authentication_result {
+        (Ok((auth_output, gas_info)), scratchpad) => (auth_output, gas_info, scratchpad),
         (Err(err), scratchpad) => {
             warn!(
                 sequencer_da_address = %sequencer_da_address,
@@ -253,7 +251,8 @@ where
                     gas_price: gas_price.clone(),
                 },
                 scratchpad.commit(),
-                gas_used,
+                // The sequencer is not bonded so we don't charge for the authentication cost.
+                S::Gas::zero(),
             );
         }
     };
@@ -266,12 +265,12 @@ where
         gas_info,
         &sequencer_da_address,
         height,
-        tx_scratchpad,
+        scratchpad,
         execution_context,
     );
 
-    let (tx_result, tx_scratchpad) = process_tx_result;
-    checkpoint = tx_scratchpad.commit();
+    let (tx_result, mut scratchpad) = process_tx_result;
+
     match tx_result {
         Err(error) => {
             let skipped = SkippedTxContents {
@@ -304,7 +303,8 @@ where
         gas_price: gas_price.clone(),
     };
 
-    runtime.end_batch_hook(&batch_receipt.inner, &mut checkpoint);
+    runtime.end_batch_hook(&batch_receipt.inner, &mut scratchpad);
+    checkpoint = scratchpad.commit();
 
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
