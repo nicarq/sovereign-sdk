@@ -6,6 +6,7 @@ use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
+use sov_modules_api::rest::utils::errors;
 use sov_modules_api::rest::{HasRestApi, StorageReceiver};
 use sov_modules_api::{RuntimeEventProcessor, Spec, SyncStatus};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
@@ -66,10 +67,7 @@ where
                 sequencer_config.automatic_batch_production,
             );
 
-            (
-                sequencer.api_state(),
-                sequencer.rest_api_server("/sequencer"),
-            )
+            (sequencer.api_state(), sequencer.rest_api_server())
         }
         BatchBuilderConfig::Preferred => {
             warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
@@ -92,17 +90,14 @@ where
                 sequencer_config.automatic_batch_production,
             );
 
-            (
-                sequencer.api_state(),
-                sequencer.rest_api_server("/sequencer"),
-            )
+            (sequencer.api_state(), sequencer.rest_api_server())
         }
     };
 
     let mut endpoints = B::Runtime::endpoints(api_state);
 
     // Sequencer endpoints.
-    endpoints.axum_router = endpoints.axum_router.nest(SEQUENCER_PATH, sequencer_router);
+    endpoints.axum_router = endpoints.axum_router.merge(sequencer_router);
 
     // Ledger endpoint.
     {
@@ -115,11 +110,10 @@ where
             <B::Runtime as ApplyBatchHooks>::BatchResult,
             TxReceiptContents<B::Spec>,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
-        >::axum_router(ledger_db.clone(), LEDGER_PATH);
-        endpoints.axum_router = endpoints.axum_router.nest(
-            LEDGER_PATH,
-            ledger_axum_router.with_state(ledger_db.clone()),
-        );
+        >::axum_router(ledger_db.clone());
+        endpoints.axum_router = endpoints
+            .axum_router
+            .merge(ledger_axum_router.with_state(ledger_db.clone()));
     }
 
     // Rollup endpoint
@@ -133,6 +127,8 @@ where
         );
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
     }
+
+    endpoints.axum_router = endpoints.axum_router.fallback(errors::global_404);
 
     // Even if runtime does not have Open API spec, we still want to plug in Sequencer and Ledger.
     let mut runtime_spec = B::Runtime::default().openapi_spec().unwrap_or_default();

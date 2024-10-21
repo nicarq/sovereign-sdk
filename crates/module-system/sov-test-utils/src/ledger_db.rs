@@ -240,7 +240,6 @@ impl LedgerTestService {
                 .serve(
                     LedgerRoutes::<LedgerDb, u32, TestTxReceiptContents, TestEvent>::axum_router(
                         ledger_db1.clone(),
-                        "/ledger",
                     )
                     .with_state::<()>(ledger_db1)
                     .into_make_service(),
@@ -253,7 +252,8 @@ impl LedgerTestService {
             .listening()
             .await
             .ok_or(anyhow::anyhow!("Failed to bind"))?;
-        let axum_client = sov_ledger_json_client::Client::new(&format!("http://{}", axum_addr));
+        let axum_client =
+            sov_ledger_json_client::Client::new(&format!("http://{}/ledger", axum_addr));
 
         Ok(Self {
             _dir: dir,

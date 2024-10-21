@@ -10,27 +10,6 @@ use sov_ledger_json_client::types::IntOrHash;
 use sov_test_utils::ledger_db::{LedgerTestService, LedgerTestServiceData};
 use utils::ledger_response_body;
 
-/// We want 404s to return rich, JSON errors, like all the other kind of errors
-/// we generate.
-#[tokio::test(flavor = "multi_thread")]
-async fn global_404_error() {
-    let ledger_service = LedgerTestService::new(LedgerTestServiceData::Simple)
-        .await
-        .unwrap();
-
-    let addr = ledger_service.axum_handle.listening().await.unwrap();
-    let response = reqwest::get(format!("http://{}/foobar-not-found", addr))
-        .await
-        .unwrap();
-
-    assert_eq!(response.status(), 404);
-
-    let response_body = response.text().await.unwrap();
-    insta::with_settings!({sort_maps => true}, {
-        insta::assert_json_snapshot!(serde_json::from_str::<serde_json::Value>(&response_body).unwrap());
-    });
-}
-
 #[tokio::test(flavor = "multi_thread")]
 async fn get_latest_slot() {
     let slot = ledger_response_body(|client| async move {

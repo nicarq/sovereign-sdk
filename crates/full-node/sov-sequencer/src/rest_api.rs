@@ -49,29 +49,25 @@ pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
 // Web server and Axum-related methods.
 impl<Ss: SequencerSpec> Sequencer<Ss> {
     /// Creates a new Axum router for this sequencer.
-    pub fn rest_api_server(&self, path_prefix: &str) -> axum::Router<()> {
-        preconfigured_router_layers(
-            axum::Router::new()
-                // See:
-                // - https://github.com/juhaku/utoipa/issues/599
-                // - https://github.com/juhaku/utoipa/issues/734
-                .merge(
-                    SwaggerUi::new("/swagger-ui")
-                        .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                        .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
-                )
-                .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
-                .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
-                .route("/txs", axum::routing::post(Self::axum_accept_tx))
-                .route("/batches", axum::routing::post(Self::axum_submit_batch))
-                .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
-                .with_state(self.clone()),
+    pub fn rest_api_server(&self) -> axum::Router<()> {
+        let routes = axum::Router::new()
+            // See:
+            // - https://github.com/juhaku/utoipa/issues/599
+            // - https://github.com/juhaku/utoipa/issues/734
+            .merge(
+                SwaggerUi::new("/swagger-ui")
+                    .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
+                    .config(Config::from("sequencer/openapi-v3.yaml")),
+            )
+            .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
+            .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
+            .route("/txs", axum::routing::post(Self::axum_accept_tx))
+            .route("/batches", axum::routing::post(Self::axum_submit_batch))
+            .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
+            .with_state(self.clone());
+        preconfigured_router_layers(axum::Router::new().nest("/sequencer", routes)).layer(
+            middleware::from_fn_with_state(self.clone(), Sequencer::<Ss>::ready_middleware),
         )
-        .layer(middleware::from_fn_with_state(
-            self.clone(),
-            Sequencer::<Ss>::ready_middleware,
-        ))
-        .fallback(errors::global_404)
     }
 
     async fn ready_middleware(

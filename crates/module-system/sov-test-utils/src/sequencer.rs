@@ -150,7 +150,7 @@ where
         );
 
         let (axum_addr, sequencer_axum_server) = {
-            let router = sequencer.rest_api_server("/sequencer");
+            let router = sequencer.rest_api_server();
             let handle = axum_server::Handle::new();
 
             let handle1 = handle.clone();
@@ -205,7 +205,7 @@ where
 
     /// Returns a [`Client`] REST handler for the sequencer.
     pub fn client(&self) -> Client {
-        Client::new(&format!("http://{}", self.axum_addr))
+        Client::new(&format!("http://{}/sequencer", self.axum_addr))
     }
 }
 
