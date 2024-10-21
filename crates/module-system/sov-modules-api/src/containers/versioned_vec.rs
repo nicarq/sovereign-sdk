@@ -35,8 +35,8 @@ use crate::{
 pub struct VersionedStateVec<V, Codec = BorshCodec> {
     _phantom: PhantomData<V>,
     pub(crate) prefix: Prefix,
-    pub(crate) len_value: VersionedStateValue<usize, Codec>,
-    pub(crate) elems: NamespacedStateMap<Kernel, usize, V, Codec>,
+    pub(crate) len_value: VersionedStateValue<u64, Codec>,
+    pub(crate) elems: NamespacedStateMap<Kernel, u64, V, Codec>,
 }
 
 /// An error type for vector getters.
@@ -44,10 +44,10 @@ pub struct VersionedStateVec<V, Codec = BorshCodec> {
 pub enum VersionedStateVecError {
     /// Operation failed because the index was out of bounds.
     #[error("Index out of bounds for index: {index} with kernel namespace. Current vector length {length}")]
-    IndexOutOfBounds { index: usize, length: usize },
+    IndexOutOfBounds { index: u64, length: u64 },
     /// Value not found.
     #[error("Value not found for prefix: {prefix} and index: {index} with kernel namespace")]
-    MissingValue { prefix: Prefix, index: usize },
+    MissingValue { prefix: Prefix, index: u64 },
 }
 
 type VersionedStateVecResult<V> = Result<V, VersionedStateVecError>;
@@ -66,8 +66,8 @@ where
 impl<V, Codec: Clone> VersionedStateVec<V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
 {
     /// Creates a new [`crate::StateVec`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
@@ -98,22 +98,22 @@ where
         &self.prefix
     }
 
-    fn set_true_len(&self, length: usize, state: &mut impl KernelWriter) {
+    fn set_true_len(&self, length: u64, state: &mut impl KernelWriter) {
         self.len_value.set_true_current(&length, state);
     }
 
-    fn elems(&self) -> &NamespacedStateMap<Kernel, usize, V, Codec> {
+    fn elems(&self) -> &NamespacedStateMap<Kernel, u64, V, Codec> {
         &self.elems
     }
 
-    fn len_value(&self) -> &VersionedStateValue<usize, Codec> {
+    fn len_value(&self) -> &VersionedStateValue<u64, Codec> {
         &self.len_value
     }
 
     /// Returns the value for the given index.
     pub fn get<Reader: VersionReader>(
         &self,
-        index: usize,
+        index: u64,
         state: &mut Reader,
     ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
         let len = self.len(state)?;
@@ -130,7 +130,7 @@ where
     /// If the value is absent, returns an error.
     pub fn get_or_err<Reader: VersionReader>(
         &self,
-        index: usize,
+        index: u64,
         state: &mut Reader,
     ) -> Result<VersionedStateVecResult<V>, <Reader as StateReader<Kernel>>::Error> {
         let len = self.len(state)?;
@@ -151,7 +151,7 @@ where
     pub fn len<Reader: VersionReader>(
         &self,
         state: &mut Reader,
-    ) -> Result<usize, <Reader as StateReader<Kernel>>::Error>
+    ) -> Result<u64, <Reader as StateReader<Kernel>>::Error>
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
@@ -160,7 +160,7 @@ where
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
     /// This only works with accessors following the `true_slot_number`.
-    pub fn prev_len<S: Storage>(&self, state: &mut KernelStateAccessor<'_, S>) -> usize
+    pub fn prev_len<S: Storage>(&self, state: &mut KernelStateAccessor<'_, S>) -> u64
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
@@ -238,23 +238,23 @@ where
 pub struct VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     Kernel: CompileTimeNamespace,
     W: VersionReader,
 {
     state_vec: &'a VersionedStateVec<V, Codec>,
     state: &'ws mut W,
-    len: usize,
-    next_i: usize,
+    len: u64,
+    next_i: u64,
     _phantom: std::marker::PhantomData<(Kernel, V, Codec)>,
 }
 
 impl<'a, 'ws, V, Codec, W> Iterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
     W: VersionReader,
 {
     type Item = Result<V, W::Error>;
@@ -274,20 +274,20 @@ where
 impl<'a, 'ws, V, Codec, W> ExactSizeIterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
     fn len(&self) -> usize {
-        self.len - self.next_i
+        (self.len - self.next_i) as usize
     }
 }
 
 impl<'a, 'ws, V, Codec, W> FusedIterator for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
 }
@@ -296,8 +296,8 @@ impl<'a, 'ws, V, Codec, W> DoubleEndedIterator
     for VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
     W: VersionReader,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
@@ -356,10 +356,10 @@ mod test {
     enum TestCaseAction<T> {
         Push(T),
         Last(T),
-        CheckLen(usize),
+        CheckLen(u64),
         CheckContents(Vec<T>),
         CheckContentsReverse(Vec<T>),
-        CheckGet(usize, Option<T>),
+        CheckGet(u64, Option<T>),
         // This is a special case for the soft-confirmations mechanism,
         // it increases the virtual height of the kernel.
         IncreaseVirtualHeight,
