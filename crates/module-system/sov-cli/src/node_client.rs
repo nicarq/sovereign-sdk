@@ -72,11 +72,8 @@ impl NodeClient {
         if !check_if_rollup_has_standard_modules(&http_client, &base_url).await? {
             anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
         }
-        let ledger_url = format!("{}/ledger", api_url);
-        let ledger = LedgerClient::new(&ledger_url);
-
-        let sequencer_url = format!("{}/sequencer", api_url);
-        let sequencer = sov_sequencer_json_client::Client::new(&sequencer_url);
+        let ledger = LedgerClient::new(api_url);
+        let sequencer = sov_sequencer_json_client::Client::new(api_url);
 
         Ok(NodeClient {
             base_url,

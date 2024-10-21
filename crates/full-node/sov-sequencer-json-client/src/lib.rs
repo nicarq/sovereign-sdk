@@ -12,8 +12,8 @@ use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 pub extern crate tokio_tungstenite;
 
 progenitor::generate_api!(
-    spec = "../sov-sequencer/openapi-v3.yaml",
-    derives = [Debug, Clone, PartialEq, Eq],
+    spec = "../sov-api-spec/openapi-v3.yaml",
+    derives = [Debug, Clone, PartialEq],
 );
 
 /// Custom WebSocket extensions and extra utilities, in addition to the
@@ -51,7 +51,7 @@ impl Client {
         tx_hash: TxHash,
     ) -> Result<BoxStream<anyhow::Result<types::TxInfo>>, WsError> {
         let url = format!(
-            "{}/txs/{}/ws",
+            "{}/sequencer/txs/{}/ws",
             // The base URL can't be used for WebSocket connections; we need to
             // change the protocol.
             self.baseurl().replace("http://", "ws://"),

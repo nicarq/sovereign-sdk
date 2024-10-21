@@ -12,7 +12,6 @@ mod tx_status;
 
 pub use config::{BatchBuilderConfig, SequencerConfig};
 pub use db::{SeqDbTx, SequencerDb};
-pub use rest_api::open_api_v3_spec;
 pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::TxHash;

@@ -92,7 +92,13 @@ pub fn internal_server_error_response_500(err: impl ToString) -> Response {
 
 #[cfg(test)]
 mod tests {
+
+    use axum::body::{to_bytes, Body};
+    use axum::http::Request;
+    use tower::ServiceExt;
+
     use super::*;
+    use crate::ResponseObject;
 
     #[test]
     fn check_404() {
@@ -104,5 +110,33 @@ mod tests {
     fn check_500() {
         let r500 = internal_server_error_response_500("check check");
         assert_eq!(StatusCode::from_u16(500).unwrap(), r500.status());
+    }
+
+    #[tokio::test]
+    async fn test_global_404_fallback() {
+        let router = axum::Router::new().fallback(global_404);
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/doesnt-exist-foorbar")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let error: ResponseObject<()> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(1, error.errors.len());
+
+        let error = error.errors.first().unwrap();
+
+        assert_eq!("Not Found", error.title);
+        assert_eq!(
+            error.details.get("url").unwrap().to_string(),
+            "\"/doesnt-exist-foorbar\"".to_string()
+        );
     }
 }

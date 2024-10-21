@@ -1,7 +1,6 @@
 //! This crate contains API specification to interact with the gas module.
 
 #![deny(missing_docs)]
-use std::sync::OnceLock;
 
 use axum::extract::State;
 use axum::routing::{get, post};
@@ -46,17 +45,6 @@ pub struct GasPriceContainer<S: Spec> {
 pub struct SimulateExecutionContainer<S: Spec> {
     /// The result of the simulation returned by the `apply_tx` method.
     pub apply_tx_result: ApplyTxResult<S>,
-}
-
-const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
-
-/// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
-/// Performs clone of the whole spec, so might be slow.
-pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
-    static OPENAPI_SPEC_V3: OnceLock<openapiv3::OpenAPI> = OnceLock::new();
-    OPENAPI_SPEC_V3
-        .get_or_init(|| serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
-        .clone()
 }
 
 /// A partial transaction type that can be used to easily simulate the execution of a transaction.
