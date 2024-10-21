@@ -112,68 +112,66 @@ where
         + 'static,
 {
     /// Returns an [`axum::Router`] that exposes ledger data.
-    pub fn axum_router(ledger: T, path_prefix: &str) -> axum::Router<T> {
-        preconfigured_router_layers(
-            axum::Router::<T>::new()
-                // See:
-                // - https://github.com/juhaku/utoipa/issues/599
-                // - https://github.com/juhaku/utoipa/issues/734
-                .merge(
-                    SwaggerUi::new("/swagger-ui")
-                        .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                        .config(Config::from(format!("{}/openapi-v3.yaml", path_prefix))),
-                )
-                .route(
-                    "/aggregated-proofs/latest",
-                    get(Self::get_latest_aggregated_proof),
-                )
-                .route(
-                    "/aggregated-proofs/latest/ws",
-                    get(Self::subscribe_to_aggregated_proofs),
-                )
-                .route("/slots/latest/ws", get(Self::subscribe_to_head))
-                .route("/slots/finalized/ws", get(Self::subscribe_to_finalized))
-                .route(
-                    "/slots/latest/events/ws",
-                    get(Self::subscribe_to_slot_events),
-                )
-                .nest(
-                    "/slots/latest",
-                    Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                        ledger.clone(),
-                        Self::resolve_latest_slot,
-                    )),
-                )
-                .nest(
-                    "/slots/:slotId",
-                    Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                        ledger.clone(),
-                        Self::resolve_slot_id,
-                    )),
-                )
-                .nest(
-                    "/batches/:batchId",
-                    Self::router_batch(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                        ledger.clone(),
-                        Self::resolve_batch_id,
-                    )),
-                )
-                .nest(
-                    "/txs/:txId",
-                    Self::router_tx(ledger.clone()).route_layer(middleware::from_fn_with_state(
-                        ledger.clone(),
-                        Self::resolve_tx_id,
-                    )),
-                )
-                .nest(
-                    "/events/:eventId",
-                    Self::router_event().route_layer(middleware::from_fn_with_state(
-                        ledger,
-                        Self::resolve_event_id,
-                    )),
-                ),
-        )
-        .fallback(errors::global_404)
+    pub fn axum_router(ledger: T) -> axum::Router<T> {
+        let routes = axum::Router::<T>::new()
+            // See:
+            // - https://github.com/juhaku/utoipa/issues/599
+            // - https://github.com/juhaku/utoipa/issues/734
+            .merge(
+                SwaggerUi::new("/swagger-ui")
+                    .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
+                    .config(Config::from("/ledger/openapi-v3.yaml")),
+            )
+            .route(
+                "/aggregated-proofs/latest",
+                get(Self::get_latest_aggregated_proof),
+            )
+            .route(
+                "/aggregated-proofs/latest/ws",
+                get(Self::subscribe_to_aggregated_proofs),
+            )
+            .route("/slots/latest/ws", get(Self::subscribe_to_head))
+            .route("/slots/finalized/ws", get(Self::subscribe_to_finalized))
+            .route(
+                "/slots/latest/events/ws",
+                get(Self::subscribe_to_slot_events),
+            )
+            .nest(
+                "/slots/latest",
+                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_latest_slot,
+                )),
+            )
+            .nest(
+                "/slots/:slotId",
+                Self::router_slot(ledger.clone()).route_layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_slot_id,
+                )),
+            )
+            .nest(
+                "/batches/:batchId",
+                Self::router_batch(ledger.clone()).route_layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_batch_id,
+                )),
+            )
+            .nest(
+                "/txs/:txId",
+                Self::router_tx(ledger.clone()).route_layer(middleware::from_fn_with_state(
+                    ledger.clone(),
+                    Self::resolve_tx_id,
+                )),
+            )
+            .nest(
+                "/events/:eventId",
+                Self::router_event().route_layer(middleware::from_fn_with_state(
+                    ledger,
+                    Self::resolve_event_id,
+                )),
+            );
+        preconfigured_router_layers(axum::Router::<T>::new().nest("/ledger", routes))
     }
 
     // ROUTERS
