@@ -205,7 +205,7 @@ where
 
     /// Returns a [`Client`] REST handler for the sequencer.
     pub fn client(&self) -> Client {
-        Client::new(&format!("http://{}/sequencer", self.axum_addr))
+        Client::new(&format!("http://{}", self.axum_addr))
     }
 }
 

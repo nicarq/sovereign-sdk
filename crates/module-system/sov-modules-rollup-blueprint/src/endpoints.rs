@@ -22,8 +22,16 @@ use tracing::warn;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
-const LEDGER_PATH: &str = "/ledger";
-const SEQUENCER_PATH: &str = "/sequencer";
+const RAW_YAML_SPEC: &str = include_str!("../../../full-node/sov-api-spec/openapi-v3.yaml");
+
+/// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
+/// Performs clone of the whole spec, so might be slow.
+pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
+    static OPENAPI_SPEC_V3: std::sync::OnceLock<openapiv3::OpenAPI> = std::sync::OnceLock::new();
+    OPENAPI_SPEC_V3
+        .get_or_init(|| sov_modules_api::prelude::serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
+        .clone()
+}
 
 #[allow(clippy::too_many_arguments)]
 /// Register rollup's default RPC methods and Axum router.
@@ -141,12 +149,7 @@ where
     let mut runtime_spec: openapiv3::OpenAPI =
         sov_modules_api::prelude::serde_yaml::from_str(&serialized_runtime)?;
 
-    let ledger_spec = sov_ledger_apis::open_api_v3_spec();
-    merge_specs(&mut runtime_spec, ledger_spec, LEDGER_PATH)?;
-    let sequencer_spec = sov_sequencer::open_api_v3_spec();
-    merge_specs(&mut runtime_spec, sequencer_spec, SEQUENCER_PATH)?;
-    let rollup_spec = sov_rollup_apis::open_api_v3_spec();
-    merge_specs(&mut runtime_spec, rollup_spec, "")?;
+    merge_specs(&mut runtime_spec, open_api_v3_spec(), "")?;
 
     runtime_spec.servers = vec![server_url_from_runner_config(runner_config)];
 
@@ -287,6 +290,11 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn openapi_spec_is_valid() {
+        let _spec = open_api_v3_spec();
+    }
 
     #[test]
     fn test_merge_empty_specs() {

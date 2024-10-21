@@ -1,5 +1,3 @@
-use std::sync::OnceLock;
-
 use anyhow::Context;
 use axum::extract::ws::WebSocket;
 use axum::extract::{ws, Request, State, WebSocketUpgrade};
@@ -20,45 +18,15 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;
-use utoipa_swagger_ui::{Config, SwaggerUi};
 
 use crate::batch_builders::AcceptTxError;
 use crate::{Sequencer, SequencerSpec, SubmittedBatchInfo, TxStatus};
-
-const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
-
-/// This function does a pretty expensive clone of the entire OpenAPI
-/// specification object, so it might be slow.
-pub(crate) fn openapi_spec() -> serde_json::Value {
-    static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
-
-    OPENAPI_SPEC
-        .get_or_init(|| serde_yaml::from_str::<serde_json::Value>(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
-
-/// Returns parsed [`openapiv3::OpenAPI`] for Sequencer JSON API.
-/// Performs clone of the whole spec, so might be slow.
-pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
-    static OPENAPI_SPEC_V3: OnceLock<openapiv3::OpenAPI> = OnceLock::new();
-    OPENAPI_SPEC_V3
-        .get_or_init(|| serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
 
 // Web server and Axum-related methods.
 impl<Ss: SequencerSpec> Sequencer<Ss> {
     /// Creates a new Axum router for this sequencer.
     pub fn rest_api_server(&self) -> axum::Router<()> {
         let routes = axum::Router::new()
-            // See:
-            // - https://github.com/juhaku/utoipa/issues/599
-            // - https://github.com/juhaku/utoipa/issues/734
-            .merge(
-                SwaggerUi::new("/swagger-ui")
-                    .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                    .config(Config::from("sequencer/openapi-v3.yaml")),
-            )
             .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
             .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
             .route("/txs", axum::routing::post(Self::axum_accept_tx))
@@ -279,14 +247,4 @@ struct TxInfo<DaTransactionId> {
     id: TxHash,
     #[serde(flatten)]
     status: TxStatus<DaTransactionId>,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn openapi_spec_is_valid() {
-        let _spec = openapi_spec();
-    }
 }

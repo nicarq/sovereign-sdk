@@ -252,8 +252,7 @@ impl LedgerTestService {
             .listening()
             .await
             .ok_or(anyhow::anyhow!("Failed to bind"))?;
-        let axum_client =
-            sov_ledger_json_client::Client::new(&format!("http://{}/ledger", axum_addr));
+        let axum_client = sov_ledger_json_client::Client::new(&format!("http://{}", axum_addr));
 
         Ok(Self {
             _dir: dir,

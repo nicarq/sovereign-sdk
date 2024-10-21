@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Range;
-use std::sync::OnceLock;
 
 use anyhow::Context;
 use axum::extract::{Request, State, WebSocketUpgrade};
@@ -31,30 +30,8 @@ use sov_rollup_interface::node::ledger_api::{
     SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::TxReceiptContents;
-use utoipa_swagger_ui::{Config, SwaggerUi};
 
 type PathMap = Path<HashMap<String, NumberOrHash>>;
-
-const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
-
-/// This function does a pretty expensive clone of the entire OpenAPI
-/// specification object, so it might be slow.
-pub(crate) fn openapi_spec() -> serde_json::Value {
-    static OPENAPI_SPEC: OnceLock<serde_json::Value> = OnceLock::new();
-
-    OPENAPI_SPEC
-        .get_or_init(|| serde_yaml::from_str::<serde_json::Value>(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
-
-/// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
-/// Performs clone of the whole spec, so might be slow.
-pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
-    static OPENAPI_SPEC_V3: OnceLock<openapiv3::OpenAPI> = OnceLock::new();
-    OPENAPI_SPEC_V3
-        .get_or_init(|| serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
 
 /// Error to be returned when our bespoke path captures parser fails.
 fn bad_path_error(key: &str) -> Response {
@@ -114,14 +91,6 @@ where
     /// Returns an [`axum::Router`] that exposes ledger data.
     pub fn axum_router(ledger: T) -> axum::Router<T> {
         let routes = axum::Router::<T>::new()
-            // See:
-            // - https://github.com/juhaku/utoipa/issues/599
-            // - https://github.com/juhaku/utoipa/issues/734
-            .merge(
-                SwaggerUi::new("/swagger-ui")
-                    .external_url_unchecked("/openapi-v3.yaml", openapi_spec())
-                    .config(Config::from("/ledger/openapi-v3.yaml")),
-            )
             .route(
                 "/aggregated-proofs/latest",
                 get(Self::get_latest_aggregated_proof),
@@ -987,10 +956,5 @@ mod tests {
             NumberOrHash::Hash(HexHash::new([0; 32])).to_string(),
             "0x0000000000000000000000000000000000000000000000000000000000000000",
         );
-    }
-
-    #[test]
-    fn openapi_spec_is_valid() {
-        let _spec = openapi_spec();
     }
 }
