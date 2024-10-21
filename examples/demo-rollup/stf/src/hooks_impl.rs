@@ -1,6 +1,6 @@
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
 use sov_modules_api::{
-    AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, StateCheckpoint, WorkingSet,
+    AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
@@ -19,17 +19,12 @@ impl<S: Spec> ApplyBatchHooks for Runtime<S> {
     fn begin_batch_hook(
         &self,
         _sender: &<S::Da as DaSpec>::Address,
-        _state: &mut StateCheckpoint<S::Storage>,
+        _state: &mut TxScratchpad<S::Storage>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn end_batch_hook(
-        &self,
-        _result: &Self::BatchResult,
-        _state: &mut StateCheckpoint<S::Storage>,
-    ) {
-    }
+    fn end_batch_hook(&self, _result: &Self::BatchResult, _state: &mut TxScratchpad<S::Storage>) {}
 }
 
 impl<S: Spec> SlotHooks for Runtime<S> {

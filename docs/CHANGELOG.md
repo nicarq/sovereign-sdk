@@ -1,3 +1,5 @@
+## 2024-10-21
+- #1684 `stf-blueprint`: Charge gas for batch execution. This is a breaking change for consumers of the SDK. They should update `constants.toml` and `constants.testing.toml` with the relevant values.
 ## 2024-10-18
 - #1676: `SequencerRegistry`: the `minimal_bond` is determined by the batch size.
 Consumers of the SDK should update their configuration files accordingly (`minimum_bond` was removed from the `sequencer_registry.json`).

@@ -57,8 +57,12 @@ DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION = [
     100, 100
 ]
 # --- End Gas parameters to specify how to charge gas for hashing ---
-# Gas parameters to specify maximum authentication costs ---
-MAX_AUTHENTICATION_GAS_PER_TX =  [100000, 100000]
+# Maximum amount of gas the sequencer can pay for the tx execution ---
+MAX_SEQUENCER_EXEC_GAS_PER_TX =  [100000, 100000]
+# Gas parameters to specify batch hook costs ---
+BATCH_HOOK_GAS = [0, 0]
+# Gas parameters to specify tx pre execution costs ---
+PROCESS_TX_PRE_EXEC_GAS = [0, 0]
 # --- End Gas parameters to specify how to charge gas for signature verification ---
 # The cost of deserializing a message using Borsh
 DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION = [1, 1]

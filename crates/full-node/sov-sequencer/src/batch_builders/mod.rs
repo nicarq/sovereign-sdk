@@ -9,7 +9,8 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::BorshSerialize;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizeSequencerError, SequencerAuthorization, TransactionAuthenticator,
+    AuthenticationOutput, AuthorizeSequencerError, GasEnforcer, SequencerAuthorization,
+    TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
@@ -250,7 +251,10 @@ where
     S: Spec,
     Rt: Runtime<S>,
 {
-    let max_auth_cost = runtime.max_authentication_gas().value(&gas_price);
+    let max_auth_cost = runtime
+        .gas_enforcer()
+        .max_tx_check_costs()
+        .value(&gas_price);
     let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
         sequencer_address,
         max_auth_cost,
