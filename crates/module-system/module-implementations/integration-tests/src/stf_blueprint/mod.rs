@@ -1,21 +1,45 @@
-use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{SequencerReward, UnsignedTransaction};
-use sov_modules_api::EncodeCall;
+mod registered;
+
+use sov_bank::Bank;
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{ApiStateAccessor, DaSpec, Spec};
 use sov_modules_stf_blueprint::TxProcessingError;
+use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
 use sov_test_utils::{
-    assert_matches, generate_optimistic_runtime, BatchTestCase, TestUser, TransactionTestCase,
-    TransactionType, TEST_DEFAULT_USER_BALANCE,
+    generate_optimistic_runtime, TestSequencer, TestUser, TransactionTestCase,
+    TEST_DEFAULT_USER_BALANCE,
 };
-use sov_value_setter::{CallMessage, ValueSetter};
+use sov_value_setter::ValueSetter;
 
 type S = sov_test_utils::TestSpec;
 
 generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
 
-#[test]
-fn test_enforces_chain_id() {
+pub(crate) fn get_balance(payable: impl Payable<S>, state: &mut ApiStateAccessor<S>) -> u64 {
+    Bank::<S>::default()
+        .get_balance_of(payable, config_gas_token_id(), state)
+        .unwrap_infallible()
+        .unwrap()
+}
+
+pub(crate) fn get_seq_bond(
+    sequencer_da_address: &<<S as Spec>::Da as DaSpec>::Address,
+    state: &mut ApiStateAccessor<S>,
+) -> u64 {
+    let sequencer_module = SequencerRegistry::<S>::default();
+    sequencer_module
+        .is_sender_allowed(sequencer_da_address, state)
+        .unwrap()
+        .balance
+}
+
+pub(crate) fn setup() -> (
+    TestRunner<IntegTestRuntime<S>, S>,
+    TestUser<S>,
+    TestSequencer<S>,
+) {
     let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
     genesis_config
         .additional_accounts
@@ -30,59 +54,11 @@ fn test_enforces_chain_id() {
         },
     );
 
-    let mut runner: TestRunner<IntegTestRuntime<S>, S> =
+    let runner: TestRunner<IntegTestRuntime<S>, S> =
         TestRunner::new_with_genesis(genesis.into_genesis_params(), Default::default());
-    let encoded_message =
-        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8));
 
-    let real_chain_id = config_value!("CHAIN_ID");
+    let admin_account = genesis_config.additional_accounts[0].clone();
+    let sequencer_account = genesis_config.initial_sequencer.clone();
 
-    let utx = UnsignedTransaction::new(
-        encoded_message.clone(),
-        real_chain_id,
-        100.into(),
-        100_000_000,
-        0,
-        None,
-    );
-    let tx = TransactionType::<ValueSetter<S>, S>::pre_signed(utx, admin_account.private_key());
-
-    runner.execute_transaction(TransactionTestCase {
-        input: tx,
-        assert: Box::new(move |result, _state| assert!(result.tx_receipt.is_successful())),
-    });
-
-    let fake_chain_id = real_chain_id + 1;
-    let invalid_utx = UnsignedTransaction::new(
-        encoded_message,
-        fake_chain_id,
-        100.into(),
-        100_000_000,
-        0,
-        None,
-    );
-    let tx =
-        TransactionType::<ValueSetter<S>, S>::pre_signed(invalid_utx, admin_account.private_key());
-
-    runner.execute_batch(BatchTestCase {
-        input: vec![tx].into(),
-        assert: Box::new(move |result, _state| {
-            let batch_receipt = result.batch_receipt.as_ref().unwrap();
-            let tx_receipts = &batch_receipt.tx_receipts;
-
-            assert_eq!(tx_receipts.len(), 1);
-
-            match &tx_receipts[0].receipt {
-                sov_modules_api::TxEffect::Skipped(skipped) => {
-                    assert_matches!(skipped.error, TxProcessingError::AuthenticationFailed(_));
-                }
-                unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
-            }
-
-            assert_eq!(
-                batch_receipt.inner.outcome,
-                sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-            );
-        }),
-    });
+    (runner, admin_account, sequencer_account)
 }
