@@ -134,7 +134,7 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
     );
 
     runtime.gas_enforcer().refund_remaining_gas(
-        ctx.sender(),
+        ctx.gas_refund_recipient(),
         &transaction_consumption.remaining_funds(),
         &mut scratchpad,
     );

@@ -92,4 +92,9 @@ impl<T: TxReceiptContents> TxEffect<T> {
     pub fn is_reverted(&self) -> bool {
         matches!(self, TxEffect::Reverted(_))
     }
+
+    /// Returns true if and only if the effect is the [`TxEffect::Skipped`] variant.
+    pub fn is_skipped(&self) -> bool {
+        matches!(self, TxEffect::Skipped(_))
+    }
 }

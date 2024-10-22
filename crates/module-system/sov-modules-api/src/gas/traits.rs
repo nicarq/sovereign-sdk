@@ -8,6 +8,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_macros::config_value_private;
+use sov_universal_wallet::schema::SchemaGenerator;
 use thiserror::Error;
 
 const GAS_DIMENSIONS: usize = config_value_private!(
@@ -33,6 +34,7 @@ pub trait GasArray:
     + DeserializeOwned
     + BorshSerialize
     + BorshDeserialize
+    + SchemaGenerator
     + From<[u64; GAS_DIMENSIONS]>
     + Into<[u64; GAS_DIMENSIONS]>
     + AsRef<[u64; GAS_DIMENSIONS]>
@@ -110,8 +112,10 @@ impl<const N: usize> Debug for GasUnit<N> {
     Ord,
     BorshSerialize,
     BorshDeserialize,
+    sov_rollup_interface::sov_universal_wallet::UniversalWallet,
     derive_more::Display,
 )]
+#[sov_wallet()]
 #[display("GasPrice{:?}", self.0)]
 pub struct GasPrice<const N: usize>([u64; N]);
 

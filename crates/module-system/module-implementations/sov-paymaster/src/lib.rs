@@ -1,15 +1,14 @@
+#![deny(missing_docs)]
+#![doc = include_str!("../README.md")]
+
 mod call;
 mod event;
 mod genesis;
 mod policies;
-#[cfg(feature = "native")]
-mod query;
-pub use call::CallMessage;
+pub use call::*;
 pub use event::Event;
-pub use genesis::{PaymasterConfig, PaymasterSetup};
+pub use genesis::*;
 pub use policies::*;
-#[cfg(feature = "native")]
-pub use query::*;
 use sov_bank::ReserveGasError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
@@ -73,6 +72,9 @@ impl<S: Spec> Module for Paymaster<S> {
             CallMessage::SetPayerForSequencer { payer } => {
                 self.set_payer_for_sequencer(payer, context, state)?;
             }
+            CallMessage::UpdatePolicy { payer, update } => {
+                self.update_policy_if_authorized(update, context, &payer, state)?;
+            }
         }
         Ok(CallResponse::default())
     }
@@ -80,13 +82,19 @@ impl<S: Spec> Module for Paymaster<S> {
 
 impl<S: Spec> Paymaster<S> {
     /// Get the payer's policy pertaining to the current `context.sender()`
-    fn get_payee_policy(
+    fn get_payee_policy_if_sequencer_authorized(
         &self,
         payer: &S::Address,
         context: &Context<S>,
         state: &mut TxScratchpad<S::Storage>,
     ) -> Option<PayeePolicy<S>> {
         let policy = self.payers.get(payer, state).unwrap_infallible()?;
+        if !policy
+            .authorized_sequencers
+            .covers(context.sequencer_da_address())
+        {
+            return None;
+        }
         Some(
             policy
                 .payees
@@ -133,7 +141,9 @@ impl<S: Spec> Paymaster<S> {
             .unwrap_infallible()?;
 
         // If this sequencer acts as a paymaster, it reserves the gas for the transaction.
-        if let Some(payee_policy) = self.get_payee_policy(&payer, context, state) {
+        if let Some(payee_policy) =
+            self.get_payee_policy_if_sequencer_authorized(&payer, context, state)
+        {
             // If the paymaster pays for the gas, it also needs to get the refund
             match self.try_purchase_paymaster_gas(tx, gas_price, &payer, &payee_policy, state) {
                 Ok(()) => {
@@ -143,6 +153,16 @@ impl<S: Spec> Paymaster<S> {
                     tracing::debug!(reason = %e, "Failed to pay gas using paymaster");
                 }
             }
+        } else {
+            // If the sequencer isn't authorized for this payer, our map is stale. Remove the stale entry
+            self.sequencer_to_payer
+                .remove(context.sequencer_da_address(), state)
+                .unwrap_infallible();
+            tracing::debug!(
+                sequencer = %context.sequencer_da_address(),
+                attempted_payer = %payer,
+                "Sequencer is not authorized for payer. Removing sequencer_to_payer entry.",
+            );
         }
         None
     }

@@ -22,7 +22,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module,
+    Error, Gas, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, PrivateKey,
     RuntimeEventProcessor, Spec, StateCheckpoint, TxEffect,
 };
 use sov_modules_stf_blueprint::{
@@ -519,6 +519,42 @@ where
             gas_used.value(&gas_price),
         );
         (transaction_test.assert)(ctx, &mut self.current_state());
+        self
+    }
+
+    /// Send a transaction which should be skipped. Asserts that the tx is indeed skipped.
+    /// Does not increment the sender nonce.
+    pub fn execute_skipped_transaction<M: Module>(
+        &mut self,
+        mut transaction_test: TransactionTestCase<S, RT, M>,
+    ) -> &mut Self
+    where
+        RT: EncodeCall<M> + RuntimeEventProcessor + 'static,
+    {
+        // Wrap the test assertion in an assertion that the tx was skipped
+        transaction_test.assert = Box::new(|ctx, state| {
+            assert!(
+                ctx.tx_receipt.is_skipped(),
+                "Transaction was expected to be skipped but was executed"
+            );
+            (transaction_test.assert)(ctx, state);
+        });
+
+        // If we're incrementing a nonce, check which one.
+        let pubkey_for_nonce_to_decrement = match &transaction_test.input {
+            TransactionType::PreEncoded { key, .. }
+            | TransactionType::Plain { key, .. }
+            | TransactionType::Configuration { key, .. } => Some(key.pub_key()),
+            _ => None,
+        };
+        // Execute the tx and reset the nonce if necessary
+        self.execute_transaction(transaction_test);
+        if let Some(nonce) = pubkey_for_nonce_to_decrement {
+            if let Some(n) = self.nonces.get_mut(&nonce) {
+                *n -= 1;
+            }
+        }
+
         self
     }
 

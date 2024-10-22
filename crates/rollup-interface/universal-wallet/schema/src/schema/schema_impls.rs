@@ -267,4 +267,9 @@ mod primitive_type_impls {
             vec![T::make_linkable(schema), T::make_linkable(schema)]
         }
     }
+
+    #[cfg(feature = "arrayvec")]
+    impl<T: SchemaGenerator, const N: usize> OverrideSchema for arrayvec::ArrayVec<T, N> {
+        type Output = Vec<T>;
+    }
 }

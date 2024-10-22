@@ -2,8 +2,11 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_bank::ReserveGasError;
+use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{DaSpec, Gas, GasArray, Spec};
+
+use crate::call::SafeVec;
 
 /// The policy that the paymaster applies to a particular rollup user.
 #[derive(
@@ -15,6 +18,7 @@ use sov_modules_api::{DaSpec, Gas, GasArray, Spec};
     PartialEq,
     Clone,
     JsonSchema,
+    UniversalWallet,
 )]
 #[serde(bound = "S: Spec")]
 #[schemars(bound = "S: Spec", rename = "PayeePolicy")]
@@ -26,10 +30,14 @@ pub enum PayeePolicy<S: Spec> {
     ///
     /// In all other cases, the sender pays their own fees.
     Allow {
+        #[allow(missing_docs)]
         max_fee: Option<u64>,
+        #[allow(missing_docs)]
         gas_limit: Option<S::Gas>,
+        #[allow(missing_docs)]
         max_gas_price: Option<<S::Gas as Gas>::Price>,
     },
+    /// The payer does not pay fees for any transaction using this policy.
     Deny,
 }
 
@@ -130,6 +138,7 @@ impl<S: Spec> PayeePolicy<S> {
     }
 }
 
+/// The set of sequencers authorized to use a payer.
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -139,15 +148,21 @@ impl<S: Spec> PayeePolicy<S> {
     PartialEq,
     Clone,
     JsonSchema,
+    UniversalWallet,
 )]
 #[serde(bound = "Da: DaSpec")]
 #[schemars(bound = "Da: DaSpec", rename = "AuthorizedSequencers")]
 pub enum AuthorizedSequencers<Da: DaSpec> {
+    /// All sequencers are authorized to use this payer (according to its policy).
     All,
-    Some(Vec<Da::Address>),
+    /// Only the specified sequencers may use this payer.
+    Some(
+        #[schemars(with = "Vec<Da::Address>", length = DEFAULT_SAFE_VEC_LEN)] SafeVec<Da::Address>,
+    ),
 }
 
 impl<Da: DaSpec> AuthorizedSequencers<Da> {
+    /// Returns true if and only if the sequencer address is authorized to use the payer.
     pub fn covers(&self, address: &Da::Address) -> bool {
         match self {
             AuthorizedSequencers::All => true,
@@ -170,19 +185,30 @@ impl<Da: DaSpec> AuthorizedSequencers<Da> {
     PartialEq,
     Clone,
     JsonSchema,
+    UniversalWallet,
 )]
 #[serde(bound = "S: Spec, P: Serialize + DeserializeOwned")]
-#[schemars(bound = "S: Spec, P: JsonSchema", rename = "PaymasterPolicy")]
+#[schemars(bound = "S: Spec, P: JsonSchemaOverride", rename = "PaymasterPolicy")]
 pub struct PaymasterPolicy<S: Spec, P> {
     /// Default payee policy for users that are not in the balances map.
     pub default_payee_policy: PayeePolicy<S>,
 
-    /// Mapping from user address to the policy for that user.
+    /// A mapping from user address to the policy for that user.
+    #[schemars(with = "P::To")]
     pub payees: P,
 
     /// Users who are authorized to update this policy.
-    pub authorized_updaters: Vec<S::Address>,
+    #[schemars(with = "Vec<S::Address>", length = DEFAULT_SAFE_VEC_LEN)]
+    pub authorized_updaters: SafeVec<S::Address>,
 
-    /// Authorized sequencers.
+    /// Sequencers who are authorized to use this payer.
     pub authorized_sequencers: AuthorizedSequencers<S::Da>,
+}
+
+trait JsonSchemaOverride {
+    type To: JsonSchema;
+}
+
+impl<T: JsonSchema> JsonSchemaOverride for SafeVec<T> {
+    type To = Vec<T>;
 }
