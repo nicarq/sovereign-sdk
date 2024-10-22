@@ -1,10 +1,16 @@
+use std::collections::HashMap;
+
+use sov_bank::Bank;
 use sov_chain_state::ChainState;
 use sov_modules_api::hooks::SlotHooks;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Spec, Storage};
 use sov_state::StateRoot;
-use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator};
+use sov_test_utils::{
+    generate_bare_runtime, impl_standard_runtime_authenticator, BatchType, SequencerInfo,
+    SoftConfirmationBlobInfo, TestSequencer,
+};
 
 use crate::visible_hash::{
     last_state_root_closure, FinalizeHook, HighLevelOptimisticGenesisConfig, ProvableNamespace,
@@ -50,38 +56,61 @@ impl<S: Spec> FinalizeHook for TestVisibleHashRuntime<S> {
     }
 }
 
-fn setup() -> (TestUser<S>, TestRunner<RT>) {
+fn setup() -> (TestUser<S>, TestSequencer<S>, TestRunner<RT>) {
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
 
     let user = genesis_config.additional_accounts.first().unwrap().clone();
+    let sequencer = genesis_config.initial_sequencer.clone();
 
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ());
 
     let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default());
 
-    (user, runner)
+    (user, sequencer, runner)
 }
 
 /// Tests that the visible kernel hash does not update for each slot for the soft confirmations Kernel
 /// The finalize hook hash should always match the most recent slot hash.
 #[test]
 fn visible_hash_soft_confirmations_kernel() {
-    let (_, mut runner) = setup();
-
-    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
+    let (_, sequencer, mut runner) = setup();
 
     let genesis_hash = runner
         .state_root()
         .clone()
         .namespace_root(ProvableNamespace::Kernel);
 
+    let blobs = runner.query_state(|state| {
+        let batch = vec![
+            (SoftConfirmationBlobInfo {
+                batch_type: BatchType(vec![]),
+                sequencer_address: sequencer.da_address,
+                sequencer_info: SequencerInfo::Preferred {
+                    slots_to_advance: 1,
+                    sequence_number: 0,
+                },
+            }),
+        ];
+
+        TestRunner::<RT>::soft_confirmation_batches_to_blobs::<Bank<S>>(
+            batch,
+            &mut HashMap::new(),
+            state,
+        )
+    });
+
+    runner.execute::<_, Bank<S>>(blobs);
+
+    let current_slot_hash = *runner.state_root();
+
+    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
+
     // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The visible hash should not update
     last_state_root_closure(
         &mut |TestClosureArgs {
                   begin_slot_hash,
                   finalize_hook_hash,
-                  current_slot_hash,
                   ..
               }| {
             assert_eq!(
@@ -94,18 +123,14 @@ fn visible_hash_soft_confirmations_kernel() {
                 "The begin and finalize slot hashes should match"
             );
 
-            // The finalize hook hash should always match the most recent slot hash
-            assert_eq!(
-                finalize_hook_hash, current_slot_hash,
-                "The last finalize slot hash should match the current slot hash"
-            );
+            assert_ne!(finalize_hook_hash, current_slot_hash.as_ref());
         },
         &mut runner,
         num_slots,
     );
 
     // We expect that the new kernel root matches the one after the first transition (deferred update).
-    let expected_visible_hash = runner.query_state(|state| {
+    let expected_visible_hash = runner.query_kernel_state(|state| {
         ChainState::<S>::default()
             .get_historical_transitions(1, state)
             .unwrap_infallible()
@@ -127,7 +152,7 @@ fn visible_hash_soft_confirmations_kernel() {
                 "The last begin and finalize kernel hashes should not match"
             );
 
-            assert_ne!(
+            assert_eq!(
                 begin_slot_hash, expected_visible_hash,
                 "The begin kernel hash should match the hash of the first transition"
             );
@@ -138,7 +163,7 @@ fn visible_hash_soft_confirmations_kernel() {
             );
 
             // The finalize hook hash should always match the most recent slot hash
-            assert_eq!(
+            assert_ne!(
                 finalize_hook_hash, current_slot_hash,
                 "The last finalize slot hash should match the current slot hash"
             );

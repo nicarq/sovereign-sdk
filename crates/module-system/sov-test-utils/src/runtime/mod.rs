@@ -204,7 +204,6 @@ where
         ApiStateAccessor::<S>::new_with_price(
             &state_checkpoint,
             runtime.kernel_with_slot_mapping(),
-            None,
             base_fee_per_gas,
         )
     }
@@ -232,6 +231,18 @@ where
         let runtime = self.runtime();
 
         let mut state = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &runtime.kernel());
+
+        let mut kernel_state = runtime.kernel().accessor(&mut state);
+
+        // We need to synchronize the chain state with a mock kernel state to have a correct state view.
+        runtime.chain_state().synchronise_chain(
+            &Default::default(),
+            &Default::default(),
+            &self.state_root,
+            &mut kernel_state,
+        );
+
+        kernel_state.update_virtual_slot_number(kernel_state.virtual_slot_number() + 1);
 
         query(&mut state);
 

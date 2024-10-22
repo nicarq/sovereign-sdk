@@ -34,7 +34,7 @@ fn make_user_map_proof(
     let storage = storage_manager.create_storage();
 
     let state_checkpoint = StateCheckpoint::new::<S, MockKernel<S>>(storage.clone(), &kernel);
-    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
+    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel));
 
     let proof = map.get_with_proof(&1, &mut state).unwrap();
     (root, proof, map)
@@ -66,7 +66,7 @@ fn make_user_value_proof(
     let storage = storage_manager.create_storage();
 
     let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
-    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
+    let mut state = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel));
 
     let proof = state_val.get_with_proof(&mut state).unwrap();
     (root, proof, state_val)
@@ -157,19 +157,24 @@ mod value {
 
 #[test]
 fn test_archival_proof_gen() {
-    let kernel = MockKernel::<S>::default();
+    let mut kernel = MockKernel::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let state_val = StateValue::new(Prefix::new(vec![0]));
 
+    const NUM_ITER: u64 = 10;
+
     // Update the state value and calculate a new root for each iteration
     let mut roots = vec![];
-    for iter in 0..10 {
+    for iter in 0..NUM_ITER {
         let storage = storage_manager.create_storage();
-        let mut state = StateCheckpoint::<<S as Spec>::Storage>::new(
-            storage.clone(),
-            &MockKernel::<S>::new(iter, iter),
-        );
+
+        // We need to write to the version zero, hence the condition to ensure we have kernel heights matching version numbers.
+        if iter > 0 {
+            kernel.increase_heights();
+        }
+
+        let mut state = StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &kernel);
 
         if iter % 2 == 0 {
             state_val.set(&iter, &mut state).unwrap_infallible();
@@ -191,8 +196,8 @@ fn test_archival_proof_gen() {
     let storage = storage_manager.create_storage();
     // Generate a proof at each archival state and validate it against the root
     let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
-    let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel), None);
-    for iter in 0..10 {
+    let mut api_state_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel));
+    for iter in 0..NUM_ITER {
         let mut archival_accessor = api_state_accessor.get_archival_at(iter);
         let proof = state_val.get_with_proof(&mut archival_accessor).unwrap();
         let value = state_val

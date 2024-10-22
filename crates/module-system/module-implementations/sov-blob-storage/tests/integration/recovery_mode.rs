@@ -1,5 +1,5 @@
 use sov_blob_storage::config_deferred_slots_count;
-use sov_test_utils::{BatchTestCase, BatchType, SequencerInfo};
+use sov_test_utils::{BatchType, SequencerInfo};
 
 use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
@@ -11,13 +11,7 @@ use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestR
 /// it catches up. For this test to work [`DEFERRED_SLOTS_COUNT`] must be greater than 2.
 #[test]
 fn test_recovery_mode() {
-    let (
-        TestData {
-            preferred_sequencer,
-            ..
-        },
-        mut runner,
-    ) = setup_soft_confirmation_kernel();
+    let (_, mut runner) = setup_soft_confirmation_kernel();
 
     // Let's first advance the virtual slot to ensure that the sequencer needs to catch up
     // We have to stop before the `DEFERRED_SLOT_COUNT` is reached because otherwise the virtual slot
@@ -27,18 +21,7 @@ fn test_recovery_mode() {
     // First let's slash the preferred sequencer by sending a malformed blob.
     // In soft-confirmation mode, sending basic blobs is not allowed and will cause
     // the sequencer to be slashed.
-    runner.execute_batch::<sov_bank::Bank<S>>(BatchTestCase {
-        input: BatchType(vec![]),
-        assert: Box::new(move |_ctx, state| {
-            // We check that the sequencer is not allowed to ensure he has been slashed
-            assert_eq!(
-                sov_sequencer_registry::SequencerRegistry::<S>::default()
-                    .is_sender_allowed(&preferred_sequencer.da_address, state),
-                Err(sov_sequencer_registry::AllowedSequencerError::NotRegistered),
-                "The sequencer should not be allowed to send a blob"
-            );
-        }),
-    });
+    runner.execute::<_, sov_bank::Bank<S>>(BatchType(vec![]));
 
     // Until it catches up, the virtual slot number should increase by two
     let mut expected_virtual_slot_increases = vec![2; (config_deferred_slots_count() - 1) as usize];

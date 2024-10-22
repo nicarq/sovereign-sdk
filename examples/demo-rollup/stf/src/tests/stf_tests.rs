@@ -170,7 +170,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let kernel = runtime.kernel_with_slot_mapping();
     let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &runtime.kernel());
-    let mut state = ApiStateAccessor::new(&empty_checkpoint, kernel, None);
+    let mut state = ApiStateAccessor::new(&empty_checkpoint, kernel);
 
     let resp = runtime
         .bank
@@ -248,8 +248,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     let stf_storage = storage_manager.create_storage();
 
     let empty_checkpoint = StateCheckpoint::new(stf_storage.clone(), &runtime.kernel());
-    let mut state =
-        ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping(), None);
+    let mut state = ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping());
 
     let successful_reg = runtime
         .sequencer_registry
