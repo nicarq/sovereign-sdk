@@ -110,7 +110,7 @@ impl<
         let runtime = RT::default();
         let empty_checkpoint =
             StateCheckpoint::new::<S, _>(self.storage.borrow().clone(), &runtime.kernel());
-        ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping(), None)
+        ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping())
     }
 }
 
@@ -212,7 +212,7 @@ fn register_rpc_methods<
             let empty_checkpoint =
                 StateCheckpoint::new::<S, _>(ethereum.storage.borrow().clone(), &runtime.kernel());
             let mut state =
-                ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping(), None);
+                ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping());
 
             let suggested_tip = ethereum
                 .gas_price_oracle

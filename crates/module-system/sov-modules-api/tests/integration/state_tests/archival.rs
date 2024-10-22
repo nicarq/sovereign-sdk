@@ -40,7 +40,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
     for current_height in 0..100 {
         let storage = storage_manager.create_storage();
         let state_checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
-        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()), None);
+        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for past_height in 0..current_height {
             let mut archival_api_accessor = api_accessor.get_archival_at(past_height);
@@ -53,7 +53,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         let storage =
             increase_value_and_commit(&state_value, storage, &mut kernel, &mut storage_manager);
         let state_checkpoint = StateCheckpoint::new(storage, &kernel);
-        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()), None);
+        let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for another_past_height in 0..=current_height {
             let mut archival_api_accessor = api_accessor.get_archival_at(another_past_height);

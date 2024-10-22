@@ -36,6 +36,7 @@ use utoipa::openapi::OpenApi;
 
 use crate::capabilities::KernelWithSlotMapping;
 use crate::hooks::TxHooks;
+use crate::state::VersionReader;
 use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint};
 
 /// This Rust module is **NOT** part of the public API of the crate, and can
@@ -222,14 +223,17 @@ impl<S: Spec, T> ApiState<S, T> {
     /// or to read the rollup's latest state (by passing `None` as the height parameter).
     pub fn build_api_state_accessor(&self, height: Option<u64>) -> ApiStateAccessor<S> {
         let checkpoint = self.checkpoint_receiver.borrow();
-        let visible_height = height.map(|height| {
-            let kernel = self.kernel.clone();
-            let mut state = ApiStateAccessor::new(&*checkpoint, self.kernel.clone(), None);
-            kernel.visible_slot_number_at(height, &mut state)
-        });
+        let visible_height = height
+            .map(|height| {
+                let kernel = self.kernel.clone();
+                let mut state = ApiStateAccessor::new(&*checkpoint, self.kernel.clone());
+                kernel.visible_slot_number_at(height, &mut state)
+            })
+            .unwrap_or(checkpoint.rollup_height_to_access());
+
         // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
 
-        ApiStateAccessor::new(&*checkpoint, self.kernel.clone(), visible_height)
+        ApiStateAccessor::new_with_height(&*checkpoint, self.kernel.clone(), visible_height)
     }
 }
 

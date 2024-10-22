@@ -145,10 +145,10 @@ where
     ) -> Option<ProofOfBond<<Self as BondingProofService>::StateProof>> {
         let storage = self.storage.borrow().clone();
         let checkpoint = StateCheckpoint::new(storage, &self.has_kernel.kernel());
-        let state = ApiStateAccessor::<S>::new(
+        let state = ApiStateAccessor::<S>::new_with_height(
             &checkpoint,
             self.has_kernel.kernel_with_slot_mapping(),
-            Some(height),
+            height,
         );
         let mut state = state.get_archival_at(height);
         let proof = self

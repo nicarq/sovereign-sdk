@@ -10,7 +10,7 @@ use super::seal::CachedAccessor;
 use super::StateCheckpoint;
 use crate::capabilities::{HasKernel, KernelWithSlotMapping};
 use crate::gas::GasArray;
-use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent};
+use crate::{BasicGasMeter, Gas, GasMeter, GasMeteringError, Spec, TypedEvent, VersionReader};
 
 impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S> {
     fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
@@ -19,19 +19,19 @@ impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for ApiStateAccessor<S>
                 key,
                 &self.storage,
                 &self.witness,
-                self.storage_version,
+                Some(self.rollup_height),
             ),
             Namespace::Kernel => self.kernel_cache.get_without_caching(
                 key,
                 &self.storage,
                 &self.witness,
-                self.storage_version,
+                Some(self.rollup_height),
             ),
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => (Some(value), IsValueCached::Yes),
                 Some(None) => (None, IsValueCached::Yes),
                 None => (
-                    self.storage.get_accessory(key, self.storage_version),
+                    self.storage.get_accessory(key, Some(self.rollup_height)),
                     IsValueCached::No,
                 ),
             },
@@ -83,7 +83,7 @@ pub struct ApiStateAccessor<S: Spec> {
     user_cache: ProvableStorageCache<namespaces::User>,
     accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
     kernel: Arc<dyn KernelWithSlotMapping<S>>,
-    storage_version: Option<u64>,
+    rollup_height: u64,
 }
 
 #[cfg(feature = "native")]
@@ -101,7 +101,10 @@ const _: () = {
         type Proof = <<S as Spec>::Storage as Storage>::Proof;
 
         fn get_with_proof(&mut self, key: SlotKey) -> Option<StorageProof<Self::Proof>> {
-            match self.storage.get_with_proof::<N>(key, self.storage_version) {
+            match self
+                .storage
+                .get_with_proof::<N>(key, Some(self.rollup_height))
+            {
                 Ok(storage_proof) => Some(storage_proof),
                 Err(err) => {
                     tracing::debug!(error = ?err, "Error requesting storage proof");
@@ -133,25 +136,51 @@ impl<S: Spec> EventContainer for ApiStateAccessor<S> {
 }
 
 impl<S: Spec + 'static> ApiStateAccessor<S> {
-    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zer.
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zero at the [`StateCheckpoint::rollup_height_to_access`].
     pub fn new(
         state_checkpoint: &StateCheckpoint<S::Storage>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        storage_version: Option<u64>,
     ) -> Self {
-        Self::new_with_price(
+        Self::new_with_height(
             state_checkpoint,
             kernel,
-            storage_version,
+            state_checkpoint.rollup_height_to_access(),
+        )
+    }
+
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zero.
+    pub fn new_with_height(
+        state_checkpoint: &StateCheckpoint<S::Storage>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        rollup_height: u64,
+    ) -> Self {
+        Self::new_with_price_and_height(
+            state_checkpoint,
+            kernel,
+            rollup_height,
             <S::Gas as Gas>::Price::ZEROED,
         )
     }
 
-    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with a gas price of zer.
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price. The rollup height is set to [`StateCheckpoint::rollup_height_to_access`].
     pub fn new_with_price(
         state_checkpoint: &StateCheckpoint<S::Storage>,
         kernel: Arc<dyn KernelWithSlotMapping<S>>,
-        storage_version: Option<u64>,
+        gas_price: <S::Gas as Gas>::Price,
+    ) -> Self {
+        Self::new_with_price_and_height(
+            state_checkpoint,
+            kernel,
+            state_checkpoint.rollup_height_to_access(),
+            gas_price,
+        )
+    }
+
+    /// Creates a new [`ApiStateAccessor`] from a [`StateCheckpoint`] with the provided gas price.
+    pub fn new_with_price_and_height(
+        state_checkpoint: &StateCheckpoint<S::Storage>,
+        kernel: Arc<dyn KernelWithSlotMapping<S>>,
+        storage_version: u64,
         gas_price: <S::Gas as Gas>::Price,
     ) -> Self {
         let delta: &super::internals::Delta<<S as Spec>::Storage> = &state_checkpoint.delta;
@@ -166,18 +195,14 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             user_cache: delta.user_cache.clone(),
             accessory_writes: delta.accessory_writes.clone(),
             kernel,
-            storage_version,
+            rollup_height: storage_version,
         }
     }
 
     /// Creates a new [`ApiStateAccessor`] from the provided Storage with a gas price of zero.
     pub fn from_storage<K: HasKernel<S>>(storage: S::Storage, has_kernel: &K) -> Self {
         let empty_checkpoint = StateCheckpoint::new(storage.clone(), &has_kernel.kernel());
-        Self::new(
-            &empty_checkpoint,
-            has_kernel.kernel_with_slot_mapping(),
-            None,
-        )
+        Self::new(&empty_checkpoint, has_kernel.kernel_with_slot_mapping())
     }
 
     fn clone_without_witness_or_events(&self) -> Self {
@@ -190,19 +215,19 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
             user_cache: self.user_cache.clone(),
             accessory_writes: self.accessory_writes.clone(),
             kernel: self.kernel.clone(),
-            storage_version: self.storage_version,
+            rollup_height: self.rollup_height,
         }
     }
 
     /// Sets the accessor to return data consistent with the rollup's state
     /// as of the provided slot number.
-    pub fn set_rollup_height(&mut self, height: Option<u64>) {
-        let visible_height = height.map(|height| {
+    pub fn set_rollup_height(&mut self, height: u64) {
+        let visible_height = {
             let kernel = self.kernel.clone();
             kernel.visible_slot_number_at(height, self)
-        });
+        };
 
-        self.storage_version = visible_height;
+        self.rollup_height = visible_height;
     }
 
     /// Returns a new accessor which accesses the rollup
@@ -210,7 +235,13 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         // TODO: Is cloning the gas price the intended behavior here?
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
-        state.set_rollup_height(Some(height));
+        state.set_rollup_height(height);
         state
+    }
+}
+
+impl<S: Spec> VersionReader for ApiStateAccessor<S> {
+    fn rollup_height_to_access(&self) -> u64 {
+        self.rollup_height
     }
 }
