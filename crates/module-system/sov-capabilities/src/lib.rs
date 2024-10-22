@@ -86,12 +86,12 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
 
     fn refund_remaining_gas(
         &self,
-        sender: &S::Address,
+        recipient: &S::Address,
         remaining_funds: &RemainingFunds,
         tx_scratchpad: &mut TxScratchpad<S::Storage>,
     ) {
         self.bank
-            .refund_remaining_gas(sender, remaining_funds, tx_scratchpad);
+            .refund_remaining_gas(recipient, remaining_funds, tx_scratchpad);
     }
 
     fn transfer_funds_from_sequencer_to_prover(

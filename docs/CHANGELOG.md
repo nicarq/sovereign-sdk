@@ -1,3 +1,4 @@
+## 2024-10-16
 ## 2024-10-21
 - #1684 `stf-blueprint`: Charge gas for batch execution. This is a breaking change for consumers of the SDK. They should update `constants.toml` and `constants.testing.toml` with the relevant values.
 ## 2024-10-18

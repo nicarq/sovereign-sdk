@@ -5,6 +5,7 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+arrayvec = { workspace = true, optional = true }
 bech32 = { workspace = true }
 thiserror = { workspace = true }
 
@@ -31,5 +32,6 @@ serde = [
 	"dep:serde",
 	"serde_json",
 	"sov-universal-wallet/serde",
-	"nmt-rs/serde"
+	"nmt-rs/serde",
+	"arrayvec?/serde",
 ]

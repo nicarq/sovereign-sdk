@@ -155,13 +155,20 @@ impl HighLevelOptimisticGenesisConfig<TestSpec> {
     ///
     /// This is a convenience function for [`Self::add_accounts`]
     pub fn add_accounts_with_default_balance(self, num_accounts: usize) -> Self {
-        let mut additional_accounts = Vec::with_capacity(num_accounts);
+        self.add_accounts_with_balance(num_accounts, TEST_DEFAULT_USER_BALANCE)
+    }
 
+    /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
+    /// and `num_accounts` additional accounts.
+    ///
+    /// This is a convenience function for [`Self::add_accounts`]
+    pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u64) -> Self {
         for _ in 0..num_accounts {
-            additional_accounts.push(TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
+            self.additional_accounts
+                .push(TestUser::<TestSpec>::generate(balance));
         }
 
-        self.add_accounts(additional_accounts)
+        self
     }
 
     /// Adds a token to the genesis config. Generates a token with an (optional) given name and adds it to the list of tokens.

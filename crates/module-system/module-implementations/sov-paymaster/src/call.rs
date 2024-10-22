@@ -1,23 +1,35 @@
 use std::fmt::Debug;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+pub use arrayvec::ArrayVec;
+use arrayvec::CapacityError;
+use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
 
-use crate::{prefix_from_address_with_parent, Event, PayeePolicy, Paymaster, PaymasterPolicy};
+use crate::{
+    prefix_from_address_with_parent, AuthorizedSequencers, Event, PayeePolicy, PayeePolicyMap,
+    Paymaster, PaymasterPolicy,
+};
 
+/// The default length of a [`SafeVec`].
+pub const DEFAULT_SAFE_VEC_LEN: usize = 20;
+/// A [`Vec`]-like type with a reasonable limit on its length. This is implemented
+/// as an [`ArrayVec`] under the hood.
+pub type SafeVec<T, const LEN: usize = DEFAULT_SAFE_VEC_LEN> = ArrayVec<T, LEN>;
+
+/// A list of payees and the policies that apply to them.
+///
+/// A type alias for [`SafeVec`] where the elements have type `(S::Address, PayeePolicy<S>)`.
 #[allow(type_alias_bounds)]
-pub type PayeePolicyList<S: Spec> = Vec<(S::Address, PayeePolicy<S>)>;
+pub type PayeePolicyList<S: Spec> = SafeVec<(S::Address, PayeePolicy<S>)>;
 
-/// This call messages for interacting with
-/// the `Paymaster` module.
-/// The `derive` for [`schemars::JsonSchema`] is a requirement of
-/// [`sov_modules_api::ModuleCallJsonSchema`].
-#[cfg_attr(
-    feature = "native",
-    derive(schemars::JsonSchema),
-    schemars(bound = "S: Spec", rename = "CallMessage")
-)]
+/// Call messages for interacting with the `Paymaster` module.
+///
+/// ## Note:   
+/// These call messages are highly unusual in that they have different effects
+/// based on the address of the sequencer who places them on chain. See the docs
+/// on individual variants for more information.
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
@@ -26,21 +38,265 @@ pub type PayeePolicyList<S: Spec> = Vec<(S::Address, PayeePolicy<S>)>;
     Clone,
     serde::Serialize,
     serde::Deserialize,
+    JsonSchema,
     UniversalWallet,
 )]
 #[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
 pub enum CallMessage<S: Spec> {
+    /// Register a new payer with the given policy. If the sequencer who places this message on chain
+    /// is present in the list of `authorized_sequencers` to use the payer, the payer address for that
+    /// sequencer is set to the address of the newly registered payer.
     RegisterPaymaster {
+        #[allow(missing_docs)]
         policy: PaymasterPolicy<S, PayeePolicyList<S>>,
     },
+    /// Set the payer address for the sequencer to the given address.
+    /// This call message is highly unusual in that it executes regardless of the sender address on the rollup.
+    /// Sequencers who do not wish to update their payer address should not sequence transactions containing this callmessage.
     SetPayerForSequencer {
+        #[allow(missing_docs)]
         payer: S::Address,
     },
-    // TODO: Add/remove/update payees from policy
-    // TODO: Add/remove sequencers from policy
-    // TODO: Update default policy
-    // TODO: Add/remove authorized updaters
-    // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1618>
+    /// Update the policy for a given payer. If the sequencer who places this message on chain
+    /// is present in the list of `authorized_sequencers` to use the payer after the update, the payer address for that
+    /// sequencer is set to the address of the newly registered paymaster.
+    UpdatePolicy {
+        #[allow(missing_docs)]
+        payer: S::Address,
+        #[allow(missing_docs)]
+        update: PolicyUpdate<S>,
+    },
+}
+
+/// An update to the policy of a single gas payer
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    derivative::Derivative,
+    JsonSchema,
+    UniversalWallet,
+)]
+#[serde(bound = "S: Spec")]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
+#[derivative(Default(bound = ""))]
+pub struct PolicyUpdate<S: Spec> {
+    sequencer_update: Option<SequencerSetUpdate<S::Da>>,
+    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
+    updaters_to_add: Option<SafeVec<S::Address>>,
+    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
+    updaters_to_remove: Option<SafeVec<S::Address>>,
+    #[schemars(with = "&[(S::Address, PayeePolicy<S>)]", length = DEFAULT_SAFE_VEC_LEN)]
+    payee_policies_to_set: Option<SafeVec<(S::Address, PayeePolicy<S>)>>,
+    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
+    payee_policies_to_delete: Option<SafeVec<S::Address>>,
+    default_policy: Option<PayeePolicy<S>>,
+}
+
+impl<S: Spec> PolicyUpdate<S> {
+    /// Creates an empty policy update
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Authorize all sequencers to use this payer
+    pub fn allow_all_sequencers(mut self) -> Self {
+        self.sequencer_update = Some(SequencerSetUpdate::AllowAll);
+        self
+    }
+
+    /// Update the set of sequencers allowed to use this payer
+    pub fn update_allowed_sequencers(
+        mut self,
+        mut sequencer_update: AllowedSequencerUpdate<S::Da>,
+    ) -> Self {
+        // Sort the update lists for ease of use in the SDK. This helps efficiency, but the SDK works fine without it.
+        if let Some(x) = sequencer_update.to_add.as_mut() {
+            x.sort();
+        }
+        if let Some(x) = sequencer_update.to_remove.as_mut() {
+            x.sort();
+        }
+
+        self.sequencer_update = Some(SequencerSetUpdate::Update(sequencer_update));
+        self
+    }
+
+    /// Add an address  to the set of addresses authorized to update this policy
+    pub fn add_updater(mut self, updater_to_add: S::Address) -> Self {
+        retain_elts_if(&mut self.updaters_to_remove, |updater_to_remove| {
+            updater_to_remove != &updater_to_add
+        });
+        self.updaters_to_add
+            .get_or_insert(ArrayVec::new())
+            .push(updater_to_add);
+        self
+    }
+
+    /// Remove an address from the set of addresses authorized to update this policy
+    pub fn remove_updater(mut self, updater_to_remove: S::Address) -> Self {
+        retain_elts_if(&mut self.updaters_to_add, |updater_to_add| {
+            updater_to_add != &updater_to_remove
+        });
+        self.updaters_to_remove
+            .get_or_insert(ArrayVec::new())
+            .push(updater_to_remove);
+        self
+    }
+
+    /// Add a payee to this policy
+    pub fn add_payee_policy(mut self, payee_to_add: S::Address, policy: PayeePolicy<S>) -> Self {
+        retain_elts_if(&mut self.payee_policies_to_delete, |payee_to_delete| {
+            payee_to_delete != &payee_to_add
+        });
+        self.payee_policies_to_set
+            .get_or_insert(ArrayVec::new())
+            .push((payee_to_add, policy));
+        self
+    }
+
+    /// Remove a payee from this policy
+    pub fn remove_payee_policy(mut self, payee_to_delete: S::Address) -> Self {
+        retain_elts_if(&mut self.payee_policies_to_set, |payee_to_add| {
+            payee_to_add.0 != payee_to_delete
+        });
+        self.payee_policies_to_delete
+            .get_or_insert(ArrayVec::new())
+            .push(payee_to_delete);
+        self
+    }
+
+    /// Set the default policy for this payer
+    pub fn set_default_policy(mut self, policy: PayeePolicy<S>) -> Self {
+        self.default_policy = Some(policy);
+        self
+    }
+}
+
+/// An update to the allowed sequencer set for a gas payer.
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    derivative::Derivative,
+    JsonSchema,
+    UniversalWallet,
+)]
+#[serde(bound = "Da: DaSpec")]
+#[schemars(bound = "Da: DaSpec", rename = "SequencerUpdate")]
+pub enum SequencerSetUpdate<Da: DaSpec> {
+    /// Authorizes any sequencer to use this payer.
+    AllowAll,
+    /// Sets the list of authorized sequencers to an explicit whitelist if it was previously `AllowAll`.
+    /// Adds and removes the requested addresses from the sequencer whitelist.
+    Update(AllowedSequencerUpdate<Da>),
+}
+
+/// A list of updates to the `allowed_sequenceers` list for a particular payer.
+#[derive(
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    Debug,
+    PartialEq,
+    Clone,
+    serde::Serialize,
+    serde::Deserialize,
+    derivative::Derivative,
+    JsonSchema,
+    UniversalWallet,
+)]
+#[serde(bound = "Da: DaSpec")]
+#[schemars(bound = "Da: DaSpec", rename = "SequencerUpdateList")]
+#[derivative(Default(bound = ""))]
+pub struct AllowedSequencerUpdate<Da: DaSpec> {
+    #[schemars(with = "&[Da::Address]", length = DEFAULT_SAFE_VEC_LEN)]
+    to_add: Option<SafeVec<Da::Address>>,
+    #[schemars(with = "&[Da::Address]", length = DEFAULT_SAFE_VEC_LEN)]
+    to_remove: Option<SafeVec<Da::Address>>,
+}
+
+impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
+    /// Create an empty sequencer update list
+    pub fn new() -> Self {
+        Self {
+            to_add: None,
+            to_remove: None,
+        }
+    }
+
+    /// Create a new update which removes the sequencer
+    pub fn remove(address: Da::Address) -> Self {
+        let mut to_remove = SafeVec::new();
+        to_remove.push(address);
+        Self {
+            to_add: None,
+            to_remove: Some(to_remove),
+        }
+    }
+
+    /// Create a new update which adds the given sequencer.
+    pub fn add(address: Da::Address) -> Self {
+        let mut to_add = SafeVec::new();
+        to_add.push(address);
+        Self {
+            to_add: Some(to_add),
+            to_remove: None,
+        }
+    }
+
+    /// Add permissions for the requested sequencer
+    pub fn add_sequencer(
+        mut self,
+        sequencer_to_add: Da::Address,
+    ) -> Result<Self, CapacityError<Self>> {
+        retain_elts_if(&mut self.to_remove, |seq_to_remove| {
+            seq_to_remove != &sequencer_to_add
+        });
+        match self
+            .to_remove
+            .get_or_insert(ArrayVec::new())
+            .try_push(sequencer_to_add)
+        {
+            Ok(_) => Ok(self),
+            Err(_) => Err(CapacityError::new(self)),
+        }
+    }
+
+    /// Remove permissions for the requested sequencer
+    pub fn remove_sequencer(
+        mut self,
+        sequencer_to_remove: Da::Address,
+    ) -> Result<Self, CapacityError<Self>> {
+        retain_elts_if(&mut self.to_add, |seq_to_add| {
+            seq_to_add != &sequencer_to_remove
+        });
+        match self
+            .to_remove
+            .get_or_insert(ArrayVec::new())
+            .try_push(sequencer_to_remove)
+        {
+            Ok(_) => Ok(self),
+            Err(_) => Err(CapacityError::new(self)),
+        }
+    }
+}
+
+fn retain_elts_if<T>(collection: &mut Option<SafeVec<T>>, f: impl FnMut(&mut T) -> bool) {
+    if let Some(contents) = collection {
+        contents.retain(f);
+        if contents.is_empty() {
+            *collection = None;
+        }
+    }
 }
 
 impl<S: Spec> Paymaster<S> {
@@ -69,14 +325,32 @@ impl<S: Spec> Paymaster<S> {
         policy: PaymasterPolicy<S, PayeePolicyList<S>>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
+        if self.payers.get(new_payer, state)?.is_some() {
+            tracing::debug!(payer = %new_payer, "Payer already exists. Reverting registration tx.");
+            bail!("{} is already registered as a payer. Use `UpdatePolicy` if you wish to change its configuration.", new_payer);
+        }
+
         // Convert the set of payee policies to a statemap
         let payee_policies = StateMap::new(prefix_from_address_with_parent(
             self.payers.prefix(),
             new_payer,
         ));
-        for (address, policy) in policy.payees {
-            payee_policies.set(&address, &policy, state)?;
-        }
+
+        self.emit_event(
+            state,
+            Event::<S>::RegisteredPaymaster {
+                address: new_payer.clone(),
+            },
+        );
+        self.emit_event(
+            state,
+            Event::SetDefaultPayeePolicy {
+                payer: new_payer.clone(),
+                policy: policy.default_payee_policy.clone(),
+            },
+        );
+
+        self.add_payee_policies(new_payer, policy.payees, &payee_policies, state)?;
 
         // Store the paymaster policy
         let policy = PaymasterPolicy {
@@ -87,17 +361,9 @@ impl<S: Spec> Paymaster<S> {
         };
         self.payers.set(new_payer, &policy, state)?;
 
-        self.emit_event(
-            state,
-            Event::<S>::RegisteredPaymaster {
-                address: new_payer.clone(),
-            },
-        );
-
         for sequencer in sequencer_addresses_to_register {
             if policy.authorized_sequencers.covers(sequencer) {
                 self.sequencer_to_payer.set(sequencer, new_payer, state)?;
-
                 self.emit_event(
                     state,
                     Event::<S>::SetPayerForSequencer {
@@ -131,22 +397,241 @@ impl<S: Spec> Paymaster<S> {
             .covers(context.sequencer_da_address())
         {
             return Err(anyhow::anyhow!(
-                "Sequencer {} is not authorized to user paymaster {}",
+                "Sequencer {} is not authorized to use paymaster {}",
                 context.sequencer_da_address(),
                 payer
             ));
         }
         self.sequencer_to_payer
-            .set(context.sequencer_da_address(), context.sender(), state)?;
+            .set(context.sequencer_da_address(), &payer, state)?;
 
         self.emit_event(
             state,
             Event::<S>::SetPayerForSequencer {
-                payer: context.sender().clone(),
+                payer,
                 sequencer: context.sequencer_da_address().clone(),
             },
         );
 
         Ok(CallResponse::default())
     }
+
+    /// Update the policy of the payer
+    pub(crate) fn update_policy_if_authorized(
+        &self,
+        policy_update: PolicyUpdate<S>,
+        context: &Context<S>,
+        payer: &S::Address,
+        state: &mut impl TxState<S>,
+    ) -> Result<CallResponse> {
+        let Some(mut policy) = self.payers.get(payer, state)? else {
+            bail!("{} is not a registered payer", payer);
+        };
+        if !policy.authorized_updaters.contains(context.sender()) {
+            bail!(
+                "{} is not an authorized updater for payer {}",
+                context.sender(),
+                payer
+            );
+        }
+
+        let PolicyUpdate {
+            sequencer_update,
+            updaters_to_add,
+            updaters_to_remove,
+            payee_policies_to_set,
+            payee_policies_to_delete,
+            default_policy,
+        } = policy_update;
+
+        self.update_allowed_sequencers(payer, sequencer_update, &mut policy, context, state)?;
+        self.remove_allowed_updaters(updaters_to_remove, &mut policy);
+        self.add_allowed_updaters(payer, updaters_to_add, &mut policy)?;
+        self.remove_payee_policies(payer, payee_policies_to_delete, &policy, state)?;
+        if let Some(policies_to_add) = payee_policies_to_set {
+            self.add_payee_policies(payer, policies_to_add, &policy.payees, state)?;
+        }
+        if let Some(default_policy) = default_policy {
+            self.emit_event(
+                state,
+                Event::SetDefaultPayeePolicy {
+                    payer: payer.clone(),
+                    policy: default_policy.clone(),
+                },
+            );
+            policy.default_payee_policy = default_policy;
+        }
+
+        self.payers.set(payer, &policy, state)?;
+        Ok(Default::default())
+    }
+
+    fn add_payee_policies(
+        &self,
+        payer: &S::Address,
+        to_add: SafeVec<(S::Address, PayeePolicy<S>)>,
+        payee_policies: &PayeePolicyMap<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        for (address, policy) in to_add {
+            payee_policies.set(&address, &policy, state)?;
+            self.emit_event(
+                state,
+                Event::AddedPayeePolicy {
+                    payer: payer.clone(),
+                    payee: address,
+                    policy,
+                },
+            );
+        }
+        Ok(())
+    }
+
+    fn remove_payee_policies(
+        &self,
+        payer: &S::Address,
+        to_remove: Option<SafeVec<S::Address>>,
+        policy: &PaymasterPolicy<S, PayeePolicyMap<S>>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let Some(to_remove) = to_remove else {
+            return Ok(());
+        };
+        for payee in to_remove {
+            if policy.payees.remove(&payee, state)?.is_some() {
+                self.emit_event(
+                    state,
+                    Event::RemovedPayeePolicy {
+                        payer: payer.clone(),
+                        payee,
+                    },
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn remove_allowed_updaters(
+        &self,
+        to_remove: Option<SafeVec<S::Address>>,
+        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+    ) {
+        let authorized_updaters = &mut policy.authorized_updaters;
+        if let Some(to_remove) = to_remove {
+            remove_elts_from_list(to_remove, authorized_updaters);
+        }
+    }
+
+    fn add_allowed_updaters(
+        &self,
+        payer: &S::Address,
+        to_add: Option<SafeVec<S::Address>>,
+        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+    ) -> Result<()> {
+        let authorized_updaters = &mut policy.authorized_updaters;
+        if let Some(to_add) = to_add {
+            if authorized_updaters.len() + to_add.len() > authorized_updaters.capacity() {
+                bail!("Attempted to add too many updaters to policy for payer {}. Only {} updaters are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, authorized_updaters.len())
+            } else {
+                authorized_updaters.extend(to_add);
+            }
+        }
+        Ok(())
+    }
+
+    fn update_allowed_sequencers(
+        &self,
+        payer: &S::Address,
+        update: Option<SequencerSetUpdate<S::Da>>,
+        policy: &mut PaymasterPolicy<S, PayeePolicyMap<S>>,
+        context: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let Some(update) = update else { return Ok(()) };
+
+        match update {
+            SequencerSetUpdate::AllowAll => {
+                policy.authorized_sequencers = AuthorizedSequencers::All;
+            }
+
+            SequencerSetUpdate::Update(sequencer_update_list) => {
+                let to_remove = sequencer_update_list.to_remove.unwrap_or_default();
+                for address in to_remove.iter() {
+                    if self.sequencer_to_payer.remove(address, state)?.is_some() {
+                        self.emit_event(
+                            state,
+                            Event::<S>::RemovedPayerForSequencer {
+                                sequencer: context.sequencer_da_address().clone(),
+                                payer: payer.clone(),
+                            },
+                        );
+                    }
+                }
+                let sequencers_to_add = sequencer_update_list.to_add.unwrap_or_default();
+                match &mut policy.authorized_sequencers {
+                    // If all sequencers were authorized previously, scope the permissions down to just
+                    // the provided list
+                    AuthorizedSequencers::All => {
+                        policy.authorized_sequencers =
+                            AuthorizedSequencers::Some(sequencers_to_add);
+                    }
+                    AuthorizedSequencers::Some(existing_list) => {
+                        remove_elts_from_list(to_remove, existing_list);
+                        if sequencers_to_add.len() + existing_list.len() > existing_list.capacity()
+                        {
+                            bail!("Attempted to add too many sequencers to policy for payer {}. Only {} sequencers are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, existing_list.len())
+                        }
+                        if sequencers_to_add.contains(context.sequencer_da_address()) {
+                            self.sequencer_to_payer.set(
+                                context.sequencer_da_address(),
+                                payer,
+                                state,
+                            )?;
+                            self.emit_event(
+                                state,
+                                Event::<S>::SetPayerForSequencer {
+                                    sequencer: context.sequencer_da_address().clone(),
+                                    payer: payer.clone(),
+                                },
+                            );
+                        }
+                        existing_list.extend(sequencers_to_add);
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+// Remove elements from a list in place in O(n log n) time
+fn remove_elts_from_list<Item: Eq + Ord + Clone>(
+    mut to_remove: SafeVec<Item>,
+    original: &mut SafeVec<Item>,
+) {
+    to_remove.sort();
+    original.sort();
+
+    let mut to_remove = to_remove.iter().peekable();
+    let mut next_idx_to_fill = 0;
+    for idx in 0..original.len() {
+        let item = &original[idx];
+        // Since both lists are sorted, if the first item in the list to remove is less than the next item in our original list
+        // it's irrelevant. Advance the `to_remove` list until we get to relevant items.
+        while to_remove.peek().is_some_and(|contents| *contents < item) {
+            to_remove.next();
+        }
+        // If the next item in our original list is present in `to_remove`, we want to remove it.
+        // We do that by simply skipping the `push` at the end of the loop.
+        if to_remove.peek().is_some_and(|contents| *contents == item) {
+            continue;
+        }
+        if idx != next_idx_to_fill {
+            original[next_idx_to_fill] = item.clone();
+        }
+        next_idx_to_fill += 1;
+    }
+    let output_len = next_idx_to_fill;
+    original.truncate(output_len);
 }
