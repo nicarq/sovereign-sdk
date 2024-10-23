@@ -5,10 +5,9 @@ use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::{
-    DaSpec, Gas, Spec, StateAccessor, StateReader, StateTransitionPublicData, TxState,
+    DaSpec, Gas, Spec, StateAccessor, StateTransitionPublicData, TxState, VersionReader,
 };
 use sov_state::storage::{SlotKey, SlotValue, Storage, StorageProof};
-use sov_state::User;
 use tracing::debug;
 
 use crate::{AttesterIncentives, ProcessAttestationErrors, SlashingReason};
@@ -43,7 +42,7 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_initial_hash<ST: StateReader<User>>(
+    pub(crate) fn check_initial_hash<ST: VersionReader>(
         &self,
         claimed_rollup_height: TransitionHeight,
         attestation: &Attestation<
@@ -216,7 +215,7 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    pub(crate) fn check_transition<ST: StateReader<User>>(
+    pub(crate) fn check_transition<ST: VersionReader>(
         &self,
         claimed_rollup_height: u64,
         attestation: &Attestation<
@@ -252,7 +251,7 @@ where
         Ok(CheckTransitionStatus::Valid)
     }
 
-    pub(crate) fn check_challenge_outputs_against_transition<ST: StateReader<User>>(
+    pub(crate) fn check_challenge_outputs_against_transition<ST: VersionReader>(
         &self,
         public_outputs: &StateTransitionPublicData<
             S::Address,

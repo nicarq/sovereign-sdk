@@ -84,8 +84,8 @@ impl<T> InfallibleKernelStateAccessor for T where
 pub trait TxState<S: Spec>:
     StateReader<User, Error: Into<anyhow::Error>>
     + StateWriter<User, Error = <Self as StateReader<User>>::Error>
-    // + StateReader<Kernel> TODO: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/596>
     + StateWriter<Accessory>
+    + VersionReader<Error: Into<anyhow::Error>>
     + EventContainer
     + GasMeter<S::Gas>
 {
@@ -95,6 +95,7 @@ impl<S: Spec, T> TxState<S> for T where
     T: StateReader<User, Error: Into<anyhow::Error>>
         + StateWriter<User, Error = <Self as StateReader<User>>::Error>
         + StateWriter<Accessory>
+        + VersionReader<Error: Into<anyhow::Error>>
         + EventContainer
         + GasMeter<S::Gas>
 {
@@ -106,6 +107,7 @@ pub trait GenesisState<S: Spec>:
     StateReader<User, Error = Infallible>
     + StateWriter<User, Error = Infallible>
     + StateReader<Kernel, Error = Infallible>
+    + VersionReader<Error = Infallible>
     + KernelWriter
     + AccessoryStateWriter
     + EventContainer
@@ -117,6 +119,7 @@ impl<S: Spec, T> GenesisState<S> for T where
     T: StateReader<User, Error = Infallible>
         + StateWriter<User, Error = Infallible>
         + StateReader<Kernel, Error = Infallible>
+        + VersionReader<Error = Infallible>
         + KernelWriter
         + AccessoryStateWriter
         + EventContainer

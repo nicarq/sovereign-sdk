@@ -1,13 +1,9 @@
 //! Runtime state machine definitions.
 
-use sov_state::namespaces::User;
-use sov_state::{
-    CompileTimeNamespace, EventContainer, IsValueCached, Namespace, SlotKey, SlotValue, Storage,
-};
+use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue, Storage};
 
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
-use super::seal::CachedAccessor;
 use super::UniversalStateAccessor;
 #[cfg(feature = "test-utils")]
 use crate::capabilities::Kernel;
@@ -17,7 +13,7 @@ use crate::transaction::{
     transaction_consumption_helper, AuthenticatedTransactionData, PriorityFeeBips,
     TransactionConsumption,
 };
-use crate::{BasicGasMeter, Gas, GasArray, GasInfo, GasMeter, GasMeteringError};
+use crate::{BasicGasMeter, Gas, GasArray, GasInfo, GasMeter, GasMeteringError, VersionReader};
 
 /// A state diff over the storage that contains all the changes related to transaction execution.
 /// This structure is built from a [`StateCheckpoint`] and is used in the entire transaction lifecycle (from
@@ -91,6 +87,12 @@ impl<S: Storage> TxScratchpad<S> {
     }
 }
 
+impl<S: Storage> VersionReader for TxScratchpad<S> {
+    fn rollup_height_to_access(&self) -> u64 {
+        self.inner.inner.rollup_height_to_access()
+    }
+}
+
 /// A working set that can be used to charge gas for pre transaction execution checks.
 pub struct PreExecWorkingSet<S: Spec> {
     inner: TxScratchpad<S::Storage>,
@@ -134,17 +136,23 @@ impl<S: Spec> GasMeter<S::Gas> for PreExecWorkingSet<S> {
     }
 }
 
-impl<S: Spec> CachedAccessor<User> for PreExecWorkingSet<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        <TxScratchpad<S::Storage> as CachedAccessor<User>>::get_cached(&mut self.inner, key)
+impl<S: Spec> UniversalStateAccessor for PreExecWorkingSet<S> {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+        TxScratchpad::<S::Storage>::get(&mut self.inner, namespace, key)
     }
 
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        <TxScratchpad<S::Storage> as CachedAccessor<User>>::set_cached(&mut self.inner, key, value)
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+        TxScratchpad::<S::Storage>::set(&mut self.inner, namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        <TxScratchpad<S::Storage> as CachedAccessor<User>>::delete_cached(&mut self.inner, key)
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        TxScratchpad::<S::Storage>::delete(&mut self.inner, namespace, key)
+    }
+}
+
+impl<S: Spec> VersionReader for PreExecWorkingSet<S> {
+    fn rollup_height_to_access(&self) -> u64 {
+        self.inner.rollup_height_to_access()
     }
 }
 
@@ -351,22 +359,28 @@ impl<S: Spec> GasMeter<S::Gas> for WorkingSet<S> {
     }
 }
 
-impl<S: Spec, N: CompileTimeNamespace> CachedAccessor<N> for WorkingSet<S> {
-    fn get_cached(&mut self, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
-        CachedAccessor::<N>::get_cached(&mut self.delta, key)
+impl<S: Spec> UniversalStateAccessor for WorkingSet<S> {
+    fn get(&mut self, namespace: Namespace, key: &SlotKey) -> (Option<SlotValue>, IsValueCached) {
+        self.delta.get(namespace, key)
     }
-    fn set_cached(&mut self, key: &SlotKey, value: SlotValue) -> IsValueCached {
-        CachedAccessor::<N>::set_cached(&mut self.delta, key, value)
+    fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) -> IsValueCached {
+        self.delta.set(namespace, key, value)
     }
 
-    fn delete_cached(&mut self, key: &SlotKey) -> IsValueCached {
-        CachedAccessor::<N>::delete_cached(&mut self.delta, key)
+    fn delete(&mut self, namespace: Namespace, key: &SlotKey) -> IsValueCached {
+        self.delta.delete(namespace, key)
     }
 }
 
 impl<S: Spec> EventContainer for WorkingSet<S> {
     fn add_event<E: 'static + core::marker::Send>(&mut self, event_key: &str, event: E) {
         self.events.push(TypedEvent::new(event_key, event));
+    }
+}
+
+impl<S: Spec> VersionReader for WorkingSet<S> {
+    fn rollup_height_to_access(&self) -> u64 {
+        self.delta.inner.rollup_height_to_access()
     }
 }
 

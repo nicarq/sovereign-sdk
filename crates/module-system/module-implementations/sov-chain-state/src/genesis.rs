@@ -57,6 +57,14 @@ impl<S: Spec> ChainState<S> {
         self.genesis_da_height
             .set(&config.genesis_da_height, state)?;
 
+        self.slots.initialize(state);
+
+        // TODO(@theochap): for now we extend the vector by one to ensure that the first transition starts at height 1.
+        // This is a temporary solution until we can fix the issue <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1701`>
+        self.slots.extend(1, state);
+
+        self.state_roots.initialize(state);
+
         Ok(())
     }
 }

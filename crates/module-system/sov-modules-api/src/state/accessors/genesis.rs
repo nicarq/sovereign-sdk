@@ -5,6 +5,7 @@ use super::seal::CachedAccessor;
 use crate::state::events::TypedEvent;
 use crate::{
     BasicGasMeter, Gas, GasArray, GasMeter, GasMeteringError, Genesis, KernelWriter, Spec,
+    VersionReader,
 };
 
 /// A special state accessor which can only be used at genesis.
@@ -32,6 +33,12 @@ impl<Store: Storage> StateCheckpoint<Store> {
 
 impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
     fn true_slot_number(&self) -> u64 {
+        0
+    }
+}
+
+impl<S: Spec> VersionReader for GenesisStateAccessor<'_, S> {
+    fn rollup_height_to_access(&self) -> u64 {
         0
     }
 }

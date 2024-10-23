@@ -200,6 +200,9 @@ impl<S: Storage> AccessoryStateWriter for StateCheckpoint<S> {}
 impl<S: Storage> StateReader<User> for TxScratchpad<S> {
     inner_impl_unmetered_state_reader!(User);
 }
+impl<S: Storage> StateReader<Kernel> for TxScratchpad<S> {
+    inner_impl_unmetered_state_reader!(Kernel);
+}
 impl<S: Storage> StateWriter<User> for TxScratchpad<S> {
     inner_impl_unmetered_state_writer!(User);
 }
@@ -207,11 +210,21 @@ impl<S: Storage> StateWriter<User> for TxScratchpad<S> {
 impl<S: Spec> ProvableStateReader<User> for PreExecWorkingSet<S> {
     type Spec = S;
 }
+/// TODO: the [`PreExecWorkingSet`] should not be able to read the kernel state. Make sure
+/// to find a way to enforce that.
+impl<S: Spec> ProvableStateReader<Kernel> for PreExecWorkingSet<S> {
+    type Spec = S;
+}
 impl<S: Spec> ProvableStateWriter<User> for PreExecWorkingSet<S> {
     type Spec = S;
 }
 
 impl<S: Spec> ProvableStateReader<User> for WorkingSet<S> {
+    type Spec = S;
+}
+/// TODO: the [`WorkingSet`] should not be able to read the kernel state. Make sure
+/// to find a way to enforce that.
+impl<S: Spec> ProvableStateReader<Kernel> for WorkingSet<S> {
     type Spec = S;
 }
 impl<S: Spec> ProvableStateWriter<User> for WorkingSet<S> {
