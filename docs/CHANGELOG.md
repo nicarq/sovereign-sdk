@@ -1,5 +1,6 @@
 ## 2024-10-16
 ## 2024-10-21
+- #1700 `ChainState` module: ensure that the `slots` and `state_roots` are built using a `VersionedStateVec`. Consumers of the SDK should make sure they access these fields using versioned state accessors (which should be the case for all the state accessors available within the transaction lifecycle).
 - #1684 `stf-blueprint`: Charge gas for batch execution. This is a breaking change for consumers of the SDK. They should update `constants.toml` and `constants.testing.toml` with the relevant values.
 ## 2024-10-18
 - #1676: `SequencerRegistry`: the `minimal_bond` is determined by the batch size.

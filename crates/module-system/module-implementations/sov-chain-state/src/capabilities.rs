@@ -3,9 +3,9 @@ use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
-use sov_state::{StateRoot, Storage};
+use sov_state::{Kernel, StateRoot, Storage};
 
-use crate::{BlockGasInfo, ChainState, SlotInformation, StateAccessor, User, VersionReader};
+use crate::{BlockGasInfo, ChainState, SlotInformation, StateAccessor, VersionReader};
 
 impl<S: Spec> ChainState<S> {
     /// Computes the current root hash available at the current *virtual* slot number.
@@ -43,22 +43,11 @@ impl<S: Spec> ChainState<S> {
         // We increment the slot number at the very beginning of the slot execution
         self.increment_true_slot_number(state);
 
-        let slot_number = state.true_slot_number();
-
-        let previous_slot_number = slot_number
-            .checked_sub(1)
-            .expect("The slot number should be strictly greater than zero!");
-
         // The previous state root is set at the beginning of the next slot execution
-        self.state_roots
-            .set(&(previous_slot_number), pre_state_root, state)
-            .unwrap_infallible();
+        self.state_roots.push(pre_state_root, state);
 
         // There may not be a previous slot if the slot comes right after the genesis block
-        let maybe_previous_slot = self
-            .slots
-            .get(&(previous_slot_number), state)
-            .unwrap_infallible();
+        let maybe_previous_slot = self.slots.last_entry_from_previous_slot(state);
 
         // We compute the base fee per gas from the previous slot if it exists
         let base_fee_per_gas = maybe_previous_slot
@@ -71,17 +60,14 @@ impl<S: Spec> ChainState<S> {
             base_fee_per_gas,
         );
 
-        self.slots
-            .set(
-                &slot_number,
-                &SlotInformation {
-                    hash: slot_header.hash(),
-                    validity_condition: *validity_condition,
-                    gas_info,
-                },
-                state,
-            )
-            .unwrap_infallible();
+        self.slots.push(
+            &SlotInformation {
+                hash: slot_header.hash(),
+                validity_condition: *validity_condition,
+                gas_info,
+            },
+            state,
+        );
 
         self.time.set_true_current(&slot_header.time(), state);
     }
@@ -101,8 +87,8 @@ impl<S: Spec> ChainState<S> {
         in_progress_slot.gas_info.update_gas_used(gas_used.clone());
 
         self.slots
-            .set(&state.true_slot_number(), &in_progress_slot, state)
-            .unwrap_infallible();
+            .set_last(&in_progress_slot, state)
+            .expect("An error occurred while setting the last slot in progress. This is a bug. Please report it.");
 
         self.true_to_virtual_slot_number_history
             .set(
@@ -121,10 +107,9 @@ impl<S: Spec> ChainState<S> {
     pub fn base_fee_per_gas<Reader: VersionReader + StateAccessor>(
         &self,
         state: &mut Reader,
-    ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, <Reader as StateReader<User>>::Error> {
-        if let Some(in_progress_transition) =
-            self.slots.get(&(state.rollup_height_to_access()), state)?
-        {
+    ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, <Reader as StateReader<Kernel>>::Error>
+    {
+        if let Some(in_progress_transition) = self.slots.last(state)? {
             Ok(in_progress_transition.gas_info.base_fee_per_gas)
         } else {
             Ok(<S as GasSpec>::initial_base_fee_per_gas())

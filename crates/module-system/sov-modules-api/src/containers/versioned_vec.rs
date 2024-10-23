@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::iter::FusedIterator;
 use std::marker::PhantomData;
 
@@ -20,9 +21,14 @@ use crate::{
 /// to have a growable vector of values that depends on the current version of the rollup (which is compatible with
 /// soft-confirmations).
 /// - The data structure is *append-only*. This means that the vector can only be modified by appending new values to the end of the vector.
+/// The last element in the vector can be modified using the [`VersionedStateVec::set_last`] method.
 /// This choice is motivated by the fact that the vector is used in the soft-confirmations context, so there shouldn't be
 /// any way to modify older keys from the vector without breaking the soft-confirmations mechanism.
 /// - This data structure *needs* to be initialized at genesis. Otherwise, the state vector will be in an invalid state.
+///
+/// ## WARNING (@theochap - see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1728>`)
+/// Values may be `None` at indexes `< len`. Be careful when unwrapping the values retrieved with the getters such as
+/// [`VersionedStateVec::get`].
 #[derive(
     Debug,
     Clone,
@@ -182,6 +188,38 @@ where
         self.set_true_len(len + 1, state);
     }
 
+    /// Extends the vector by increasing the length by `size`. Queries for the new indices will return `None` until they are overwritten.
+    ///
+    /// ## Note
+    /// This method is only available for kernel space writers and should be used carefully.
+    /// Indeed, this means that the resulting vector can have `None` values at valid indexes.
+    ///
+    /// ## TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1728>`
+    /// This method should be removed once `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1701>` is fixed.
+    /// Indeed, this can lead to confusing behavior because the vector can have `None` values at indexes `< len`.
+    pub fn extend<Accessor: KernelWriter + VersionReader<Error = Infallible>>(
+        &self,
+        size: u64,
+        state: &mut Accessor,
+    ) {
+        let len = self.len(state).unwrap_infallible();
+        let new_len = len + size;
+        self.set_true_len(new_len, state);
+    }
+
+    /// Returns the previous last value in the vector at the true height.
+    pub fn last_entry_from_previous_slot<S: Storage>(
+        &self,
+        state: &mut KernelStateAccessor<'_, S>,
+    ) -> Option<V> {
+        let len = self.prev_len(state);
+        let i = match len.checked_sub(1) {
+            Some(i) => i,
+            None => return None,
+        };
+        self.elems().get(&i, state).unwrap_infallible()
+    }
+
     /// Returns the last value in the vector at the version visible from the accessor, or [`None`] if
     /// empty.
     pub fn last<VersionedState: VersionReader>(
@@ -195,6 +233,27 @@ where
         };
 
         self.elems().get(&i, state)
+    }
+
+    /// Sets the last element in a versioned state vector. Returns an error if the vector is empty.
+    pub fn set_last<Vq, S: Storage>(
+        &self,
+        new_value: &Vq,
+        state: &mut KernelStateAccessor<S>,
+    ) -> Result<(), anyhow::Error>
+    where
+        Vq: ?Sized,
+        Codec::ValueCodec: EncodeLike<Vq, V>,
+    {
+        let len = self.len(state).unwrap_infallible();
+        let i = match len.checked_sub(1) {
+            Some(i) => i,
+            None => anyhow::bail!("Vector is empty, impossible to set last element!"),
+        };
+
+        self.elems().set(&i, new_value, state).unwrap_infallible();
+
+        Ok(())
     }
 
     /// Returns an iterator over all the values in the vector.

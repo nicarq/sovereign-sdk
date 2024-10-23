@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{GasSpec, KernelStateAccessor, Spec};
+use sov_modules_api::{KernelStateAccessor, Spec};
 
 use crate::ChainState;
 
@@ -22,23 +22,5 @@ where
             .unwrap_infallible();
 
         state.update_true_slot_number(new_height);
-    }
-
-    /// Returns the *virtual* base fee per gas contained in a [`KernelStateAccessor`].
-    ///
-    /// TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1479>`): remove once the linked issue is fixed. This should be unified with the `base_fee_per_gas` method above.
-    pub fn virtual_base_fee_per_gas(
-        &self,
-        state: &mut KernelStateAccessor<S::Storage>,
-    ) -> <S::Gas as sov_modules_api::Gas>::Price {
-        if let Some(in_progress_transition) = self
-            .slots
-            .get(&(state.virtual_slot_number()), state)
-            .unwrap_infallible()
-        {
-            Self::compute_base_fee_per_gas(&in_progress_transition.gas_info)
-        } else {
-            <S as GasSpec>::initial_base_fee_per_gas()
-        }
     }
 }

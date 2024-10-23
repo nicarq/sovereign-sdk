@@ -2,6 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::NotInstantiable;
 /// Contains the call methods used by the module
 mod call;
 mod gas;
@@ -9,7 +10,7 @@ mod gas;
 mod tests;
 use sov_modules_api::{
     BootstrapWorkingSet, GenesisState, KernelStateAccessor, ModuleError, ModuleId, ModuleInfo,
-    NotInstantiable, Spec, StateAccessor, StateReader, StateReaderAndWriter, Zkvm,
+    Spec, StateAccessor, StateReader, StateReaderAndWriter, VersionedStateVec, Zkvm,
 };
 
 mod genesis;
@@ -31,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
 pub use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::{
-    DaSpec, Error, Gas, KernelStateValue, Module, StateMap, StateValue, ValidityConditionChecker,
+    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, ValidityConditionChecker,
     VersionReader, VersionedStateValue,
 };
 use sov_state::codec::BcsCodec;
@@ -239,22 +240,16 @@ pub struct ChainState<S: Spec> {
 
     /// A record of all previous slots' information which are available to the VM.
     /// Currently, this includes *all* slots, but that may change in the future.
-    ///
-    /// ## TODO(@theochap):
-    /// This should be a `VersionedStateVec` <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385`>
     #[state]
-    slots: StateMap<TransitionHeight, SlotInformation<S>, BcsCodec>,
+    slots: VersionedStateVec<SlotInformation<S>, BcsCodec>,
 
     /// The state root hashes from genesis to the current slot.
     /// ## Note
     /// There is a one slot-delay for the update of this state map because we cannot predict what will be the next
     /// most up to date state root inside the current slot. We have to wait for the next slot to start getting processed and return
     /// the pre-state root.
-    ///
-    /// ## TODO(@theochap):
-    /// This should be a `VersionedStateVec` <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1385`>
     #[state]
-    state_roots: StateMap<TransitionHeight, <S::Storage as Storage>::Root, BcsCodec>,
+    state_roots: VersionedStateVec<<S::Storage as Storage>::Root, BcsCodec>,
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
@@ -307,7 +302,7 @@ impl<S: Spec> ChainState<S> {
         &self,
         true_slot_number: u64,
         state: &mut T,
-    ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
+    ) -> Result<TransitionHeight, T::Error>
     where
         T: StateReader<Kernel>,
     {
@@ -345,11 +340,11 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Return the genesis hash of the module.
-    pub fn get_genesis_hash<Accessor: StateReader<User>>(
+    pub fn get_genesis_hash<Accessor: VersionReader>(
         &self,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(&0, state)
+        self.state_roots.get(0, state)
     }
 
     /// Return the code commitment to be used for verifying the rollup's execution
@@ -385,31 +380,31 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the last slot processed by the module.
-    pub fn get_last_slot<Reader: VersionReader + StateReader<User>>(
+    pub fn get_last_slot<Reader: VersionReader>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<SlotInformation<S>>, <Reader as StateReader<User>>::Error> {
-        self.slots.get(&state.rollup_height_to_access(), state)
+    ) -> Result<Option<SlotInformation<S>>, Reader::Error> {
+        self.slots.get(state.rollup_height_to_access(), state)
     }
 
     /// Returns the root hash of the state at the provided height.
-    pub fn get_root_at_height<Accessor: StateReader<User>>(
+    pub fn get_root_at_height<Accessor: VersionReader>(
         &self,
         transition_num: TransitionHeight,
         state: &mut Accessor,
-    ) -> Result<Option<<S::Storage as Storage>::Root>, <Accessor as StateReader<User>>::Error> {
-        self.state_roots.get(&transition_num, state)
+    ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
+        self.state_roots.get(transition_num, state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.
-    pub fn get_historical_transitions<Accessor: StateReader<User>>(
+    pub fn get_historical_transitions<Accessor: VersionReader>(
         &self,
         transition_num: TransitionHeight,
         state: &mut Accessor,
-    ) -> Result<Option<StateTransition<S>>, <Accessor as StateReader<User>>::Error> {
-        if let Some(root) = self.state_roots.get(&transition_num, state)? {
+    ) -> Result<Option<StateTransition<S>>, Accessor::Error> {
+        if let Some(root) = self.state_roots.get(transition_num, state)? {
             return Ok({
-                let maybe_slot = self.slots.get(&transition_num, state)?;
+                let maybe_slot = self.slots.get(transition_num, state)?;
 
                 maybe_slot.map(|slot| StateTransition {
                     post_state_root: root,
