@@ -68,6 +68,17 @@ impl<T> InfallibleStateAccessor for T where
 {
 }
 
+/// Like [`InfallibleStateAccessor`], but for the [`Kernel`] access.
+pub trait InfallibleKernelStateAccessor:
+    StateReader<Kernel, Error = Infallible> + StateWriter<Kernel, Error = Infallible>
+{
+}
+
+impl<T> InfallibleKernelStateAccessor for T where
+    T: StateReader<Kernel, Error = Infallible> + StateWriter<Kernel, Error = Infallible>
+{
+}
+
 /// The state accessor used during transaction execution. It provides unrestricted
 /// access to [`User`]-space state, as well as limited visibility into the `Kernel` state.
 pub trait TxState<S: Spec>:
