@@ -5,8 +5,8 @@ use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
-    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, InfallibleStateAccessor,
-    KernelStateAccessor, RawTx, Spec, VersionReader,
+    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, InfallibleKernelStateAccessor,
+    InfallibleStateAccessor, KernelStateAccessor, RawTx, Spec, VersionReader,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -197,7 +197,7 @@ impl<S: Spec> BlobStorage<S> {
         preferred_blob: T,
         next_sequence_number: SequenceNumber,
         blob: &<S::Da as DaSpec>::BlobTransaction,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl InfallibleKernelStateAccessor,
         needs_blob: bool,
     ) -> Option<T> {
         match (

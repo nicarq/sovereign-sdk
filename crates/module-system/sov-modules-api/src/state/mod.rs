@@ -18,6 +18,7 @@ pub use events::TypedEvent;
 pub use traits::ProvenStateAccessor;
 pub use traits::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
-    InfallibleStateAccessor, InfallibleStateReaderAndWriter, KernelWriter, StateAccessor,
-    StateAccessorError, StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
+    InfallibleKernelStateAccessor, InfallibleStateAccessor, InfallibleStateReaderAndWriter,
+    KernelWriter, StateAccessor, StateAccessorError, StateReader, StateReaderAndWriter,
+    StateWriter, TxState, VersionReader,
 };

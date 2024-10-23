@@ -7,8 +7,9 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleStateAccessor, KernelStateValue, Module,
-    ModuleId, ModuleInfo, NotInstantiable, Spec, StateMap,
+    Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleKernelStateAccessor,
+    InfallibleStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo,
+    NotInstantiable, Spec,
 };
 use sov_state::codec::BcsCodec;
 
@@ -40,12 +41,12 @@ pub struct BlobStorage<S: Spec> {
     #[state]
     #[allow(clippy::type_complexity)]
     pub(crate) deferred_blobs:
-        StateMap<u64, Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>, BcsCodec>,
+        KernelStateMap<u64, Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>, BcsCodec>,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
     pub(crate) deferred_preferred_sequencer_blobs:
-        StateMap<SequenceNumber, PreferredBlobDataWithId>,
+        KernelStateMap<SequenceNumber, PreferredBlobDataWithId>,
 
     /// The next sequence number for the preferred sequencer. This is used to determine if a batch is out of order.
     #[state]
@@ -65,7 +66,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slot_number: TransitionHeight,
         batches: &[(BlobDataWithId, <S::Da as DaSpec>::Address)],
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl InfallibleKernelStateAccessor,
     ) {
         self.deferred_blobs
             .set(&slot_number, batches, state)
@@ -77,7 +78,7 @@ impl<S: Spec> BlobStorage<S> {
     pub fn take_blobs_for_slot_number(
         &self,
         slot_height: TransitionHeight,
-        state: &mut impl InfallibleStateAccessor,
+        state: &mut impl InfallibleKernelStateAccessor,
     ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)> {
         self.deferred_blobs
             .remove(&slot_height, state)
