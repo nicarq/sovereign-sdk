@@ -26,6 +26,7 @@ sov-db = { workspace = true, optional = true }
 sov-sequencer = { workspace = true, optional = true }
 sov-ledger-apis = { workspace = true, optional = true }
 sov-rollup-apis = { workspace = true, optional = true }
+sov-api-spec = { workspace = true, optional = true }
 
 anyhow = { workspace = true }
 async-trait = { workspace = true, optional = true }
@@ -47,6 +48,7 @@ native = [
     "sov-db",
     "sov-ledger-apis",
     "sov-rollup-apis",
+    "sov-api-spec/native",
     "sov-modules-api/native",
     "sov-modules-stf-blueprint/native",
     "sov-rollup-interface/native",

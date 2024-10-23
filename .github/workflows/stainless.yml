@@ -1,7 +1,14 @@
 name: Stainless
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - "nightly"
+      - "stable"
+    paths:
+      - "crates/full-node/sov-api-spec/openapi-v3.yaml"
+      - "crates/full-node/sov-api-spec/openapi.stainless.yml"
 
 jobs:
   stainless:
@@ -9,21 +16,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
-          sudo chmod a+x /usr/local/bin/yq
-          yq --version
-      - name: Set up node
-        uses: actions/setup-node@v4
-      - name: Install Redocly CLI
-        run: npm install -g @redocly/cli@latest
-      - name: Build openapi spec
-        working-directory: ./crates/full-node/sov-api-spec
-        run: bash build_spec.sh
       - uses: stainless-api/upload-openapi-spec-action@main
         with:
           stainless_api_key: ${{ secrets.STAINLESS_API_KEY }}
-          input_path: "./crates/full-node/sov-api-spec/build/openapi.yaml"
-          config_path: "./crates/full-node/sov-api-spec/openapi.stainless.yml"
+          input_path: "crates/full-node/sov-api-spec/openapi-v3.yaml"
+          config_path: "crates/full-node/sov-api-spec/openapi.stainless.yml"
           project_name: "sovereign-sdk"

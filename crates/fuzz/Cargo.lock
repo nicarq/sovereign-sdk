@@ -4909,6 +4909,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-api-spec"
+version = "0.3.0"
+dependencies = [
+ "openapiv3",
+ "sov-modules-api",
+]
+
+[[package]]
 name = "sov-attester-incentives"
 version = "0.3.0"
 dependencies = [
@@ -5269,6 +5277,7 @@ dependencies = [
  "openapiv3",
  "serde",
  "serde_json",
+ "sov-api-spec",
  "sov-cli",
  "sov-db",
  "sov-ledger-apis",
