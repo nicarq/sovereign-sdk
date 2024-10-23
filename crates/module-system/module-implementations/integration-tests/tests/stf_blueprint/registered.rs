@@ -1,3 +1,5 @@
+use std::env;
+
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
 use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward};
@@ -107,7 +109,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 // Execute batch of valid transactions and ensure that the relevant (sequencer, attester, user) balances ware updated correctly
 #[test]
 fn execute_many_successful_tx_test() {
-    //env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![TxStatus::Valid, TxStatus::Valid, TxStatus::Valid];
     check_txs(tx_statuses, priority_fee_bips);
@@ -116,6 +118,7 @@ fn execute_many_successful_tx_test() {
 // Execute batch of mixes transactions and ensure that the relevant (sequencer, attester, user) balances ware updated correctly
 #[test]
 fn execute_batch_of_valid_and_invalid_tx_test() {
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[2, 2]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
         TxStatus::Valid,
