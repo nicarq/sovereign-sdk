@@ -23,7 +23,8 @@ resources:
               txs:
                 methods:
                   retrieve: >-
-                    get /ledger/slots/{slotId}/batches/{batchOffset}/txs/{txOffset}
+                    get
+                    /ledger/slots/{slotId}/batches/{batchOffset}/txs/{txOffset}
                 subresources:
                   events:
                     methods:
@@ -41,7 +42,8 @@ resources:
               events:
                 methods:
                   retrieve: >-
-                    get /ledger/batches/{batchId}/txs/{txOffset}/events/{eventOffset}
+                    get
+                    /ledger/batches/{batchId}/txs/{txOffset}/events/{eventOffset}
       txs:
         methods:
           retrieve: get /ledger/txs/{txId}
@@ -54,37 +56,45 @@ resources:
           retrieve: get /ledger/events/{eventId}
       aggregated_proofs:
         methods:
-          retrieve_latest: get /ledger/aggregated-proofs/latest
+          retrieve: get /ledger/aggregated-proofs/latest
     models:
-      jsonValue: Ledger_AnyJsonValue
-      Tx: Ledger_Tx
-      Event: Ledger_Event
-      Batch: Ledger_Batch
+      jsonValue: AnyJsonValue
+      tx: LedgerTx
+      event: LedgerEvent
+      batch: LedgerBatch
+      txReceipt: TxReceipt
+      moduleRef: ModuleRef
+      uint64Range: Uint64Range
   sequencer:
     subresources:
       batches:
         methods:
           create: post /sequencer/batches
         models:
-          submittedBatchInfo: Sequencer_SubmittedBatchInfo
+          submittedBatchInfo: SubmittedBatchInfo
       txs:
         methods:
           create: post /sequencer/txs
           retrieve: get /sequencer/txs/{txHash}
         models:
-          txInfo: Sequencer_TxInfo
+          txInfo: TxInfo
   rollup:
+    models:
+      simulateExecutionResponse: SimulateExecutionResponse
+    methods:
+      simulate: post /rollup/simulate
     subresources:
       base_fee_per_gas:
         methods:
-          retrieve_latest: get /rollup/base-fee-per-gas/latest
+          retrieve: get /rollup/base-fee-per-gas/latest
         models:
-          BaseFeePerGas: rollup_BaseFeePerGas
+          baseFeePerGas: BaseFeePerGas
       addresses:
-        subresources:
-          dedup:
-            methods:
-              retrieve: get /rollup/addresses/{address}/dedup
+        methods:
+          dedup: get /rollup/addresses/{address}/dedup
+      sync_status:
+        methods:
+          retrieve: get /rollup/sync-status
 targets:
   node:
     production_repo: Sovereign-Labs/sovereign-sdk-client-js

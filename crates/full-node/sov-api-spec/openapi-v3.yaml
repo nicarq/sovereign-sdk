@@ -1,3 +1,11 @@
+# ATTENTION TO MAINTAINERS OF THIS FILE
+#
+# We're using progenitor for generating a rust client to test our spec.
+# There is currently a bug where return types used for 2xx responses and 4xx responses CANNOT
+# be different. See open issue: https://github.com/oxidecomputer/progenitor/issues/928
+#
+# Because of this `data` & `errors` fields MUST be optional for types used by
+# progenitor when the endpoint can return an error and a success.
 openapi: 3.0.2
 info:
   title: Sovereign Full Node API
@@ -8,16 +16,13 @@ info:
     name: Sovereign Labs
     url: https://github.com/Sovereign-Labs/sovereign-sdk-wip
     email: info@sovereign.xyz
+  license:
+    name: Apache-2.0
+    url: https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/nightly/LICENSE.md
 servers:
   - url: http://localhost:12346
     description: Localhost
-tags:
-  - name: Ledger
-    x-displayName: Ledger
-  - name: Sequencer
-    x-displayName: Sequencer
-  - name: Rollup
-    x-displayName: Rollup
+security: []
 paths:
   /ledger/slots/latest:
     get:
@@ -26,12 +31,12 @@ paths:
       summary: Get the latest slot.
       operationId: get_latest_slot
       parameters:
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
           $ref: "#/components/responses/Slot"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/slots/{slotId}:
     get:
       tags:
@@ -39,13 +44,13 @@ paths:
       summary: Get a slot by ID.
       operationId: get_slot_by_id
       parameters:
-        - $ref: "#/components/parameters/Ledger_slotId"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/slotId"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
           $ref: "#/components/responses/Slot"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/slots/{slotId}/events:
     get:
       tags:
@@ -53,7 +58,7 @@ paths:
       summary: Get all the events for a slot, optionally filtered by key prefix.
       operationId: get_slot_filtered_events
       parameters:
-        - $ref: "#/components/parameters/Ledger_slotId"
+        - $ref: "#/components/parameters/slotId"
         - name: prefix
           in: query
           description: The key prefix to filter by.
@@ -62,7 +67,7 @@ paths:
             type: string
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Events"
+          $ref: "#/components/responses/LedgerEventResponse"
   /ledger/slots/{slotId}/batches/{batchOffset}:
     get:
       tags:
@@ -70,14 +75,14 @@ paths:
       summary: Get a batch by slot ID and batch offset.
       operationId: get_batch_by_slot_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_slotId"
-        - $ref: "#/components/parameters/Ledger_batchOffset"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/slotId"
+        - $ref: "#/components/parameters/batchOffset"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Batch"
+          $ref: "#/components/responses/LedgerBatch"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/slots/{slotId}/batches/{batchOffset}/txs/{txOffset}:
     get:
       tags:
@@ -85,15 +90,15 @@ paths:
       summary: Get a transaction by slot ID, batch offset, and transaction offset.
       operationId: get_tx_by_slot_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_slotId"
-        - $ref: "#/components/parameters/Ledger_batchOffset"
-        - $ref: "#/components/parameters/Ledger_txOffset"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/slotId"
+        - $ref: "#/components/parameters/batchOffset"
+        - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Tx"
+          $ref: "#/components/responses/LedgerTx"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/slots/{slotId}/batches/{batchOffset}/txs/{txOffset}/events/{eventOffset}:
     get:
       tags:
@@ -102,15 +107,15 @@ paths:
         Get an event by slot ID, batch offset, transaction offset, and event offset.
       operationId: get_event_by_slot_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_slotId"
-        - $ref: "#/components/parameters/Ledger_batchOffset"
-        - $ref: "#/components/parameters/Ledger_txOffset"
-        - $ref: "#/components/parameters/Ledger_eventOffset"
+        - $ref: "#/components/parameters/slotId"
+        - $ref: "#/components/parameters/batchOffset"
+        - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/eventOffset"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Event"
+          $ref: "#/components/responses/LedgerEvent"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/batches/{batchId}:
     get:
       tags:
@@ -118,13 +123,13 @@ paths:
       summary: Get a batch by ID.
       operationId: get_batch_by_id
       parameters:
-        - $ref: "#/components/parameters/Ledger_batchId"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/batchId"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Batch"
+          $ref: "#/components/responses/LedgerBatch"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/batches/{batchId}/txs/{txOffset}:
     get:
       tags:
@@ -132,14 +137,14 @@ paths:
       summary: Get a transaction by batch ID and transaction offset.
       operationId: get_tx_by_batch_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_batchId"
-        - $ref: "#/components/parameters/Ledger_txOffset"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/batchId"
+        - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Tx"
+          $ref: "#/components/responses/LedgerTx"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/batches/{batchId}/txs/{txOffset}/events/{eventOffset}:
     get:
       tags:
@@ -147,14 +152,14 @@ paths:
       summary: Get an event by batch ID, transaction offset, and event offset.
       operationId: get_event_by_batch_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_batchId"
-        - $ref: "#/components/parameters/Ledger_txOffset"
-        - $ref: "#/components/parameters/Ledger_eventOffset"
+        - $ref: "#/components/parameters/batchId"
+        - $ref: "#/components/parameters/txOffset"
+        - $ref: "#/components/parameters/eventOffset"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Event"
+          $ref: "#/components/responses/LedgerEvent"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/txs/{txId}:
     get:
       tags:
@@ -162,13 +167,13 @@ paths:
       summary: Get a transaction by ID.
       operationId: get_tx_by_id
       parameters:
-        - $ref: "#/components/parameters/Ledger_txId"
-        - $ref: "#/components/parameters/Ledger_children"
+        - $ref: "#/components/parameters/txId"
+        - $ref: "#/components/parameters/includeChildren"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Tx"
+          $ref: "#/components/responses/LedgerTx"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/txs/{txId}/events/{eventOffset}:
     get:
       tags:
@@ -176,13 +181,13 @@ paths:
       summary: Get an event by transaction ID and event offset.
       operationId: get_event_by_tx_id_and_offset
       parameters:
-        - $ref: "#/components/parameters/Ledger_txId"
-        - $ref: "#/components/parameters/Ledger_eventOffset"
+        - $ref: "#/components/parameters/txId"
+        - $ref: "#/components/parameters/eventOffset"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Event"
+          $ref: "#/components/responses/LedgerEvent"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/events/{eventId}:
     get:
       tags:
@@ -190,12 +195,12 @@ paths:
       summary: Get an event by ID.
       operationId: get_event_by_id
       parameters:
-        - $ref: "#/components/parameters/Ledger_eventId"
+        - $ref: "#/components/parameters/eventId"
       responses:
         "200":
-          $ref: "#/components/responses/Ledger_Event"
+          $ref: "#/components/responses/LedgerEvent"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /ledger/aggregated-proofs/latest:
     get:
       tags:
@@ -209,7 +214,7 @@ paths:
         "200":
           $ref: "#/components/responses/AggregatedProof"
         "404":
-          $ref: "#/components/responses/Ledger_NotFound"
+          $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/batches:
     post:
       summary: Submit a batch to the rollup
@@ -244,29 +249,10 @@ paths:
                     $ref: "#/components/schemas/SubmittedBatchInfo"
                   meta:
                     type: object
-                  errors:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Sequencer_SequencerError"
                 required:
                   - meta
         "409":
-          description: Can't publish batch
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: object
-                  meta:
-                    type: object
-                  errors:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/Sequencer_SequencerError"
-                required:
-                  - meta
+          $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/txs:
     post:
       summary: Submit a transaction to the rollup
@@ -307,7 +293,7 @@ paths:
       tags:
         - Sequencer
       parameters:
-        - $ref: "#/components/parameters/Sequencer_txHash"
+        - $ref: "#/components/parameters/txHash"
       responses:
         "200":
           description: Success
@@ -321,8 +307,9 @@ paths:
                   meta:
                     type: object
                 required:
-                  - data
                   - meta
+        "404":
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/base-fee-per-gas/latest:
     get:
       summary: Retrieve the latest base fee per gas
@@ -338,13 +325,13 @@ paths:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/rollup_BaseFeePerGas"
+                    $ref: "#/components/schemas/BaseFeePerGas"
                   meta:
                     type: object
                   errors:
                     type: array
                     items:
-                      $ref: "#/components/schemas/rollup_Error"
+                      $ref: "#/components/schemas/ApiError"
                 required:
                   - meta
   /rollup/addresses/{address}/dedup:
@@ -367,9 +354,9 @@ paths:
         - Rollup
       responses:
         "200":
-          $ref: "#/components/responses/rollup_Dedup"
+          $ref: "#/components/responses/Dedup"
         "400":
-          $ref: "#/components/responses/rollup_BadRequest"
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/simulate:
     post:
       summary: Simulate transaction execution
@@ -398,10 +385,6 @@ paths:
                     $ref: "#/components/schemas/SimulateExecutionResponse"
                   meta:
                     type: object
-                  errors:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/rollup_Error"
                 required:
                   - meta
   /rollup/sync-status:
@@ -427,58 +410,66 @@ paths:
                   - meta
 components:
   parameters:
-    Ledger_slotId:
+    slotId:
       name: slotId
       in: path
       required: true
       schema:
         $ref: "#/components/schemas/IntOrHash"
-    Ledger_batchId:
+    batchId:
       name: batchId
       in: path
       required: true
       schema:
         $ref: "#/components/schemas/IntOrHash"
-    Ledger_txId:
+    txId:
       name: txId
       in: path
       required: true
       schema:
         $ref: "#/components/schemas/IntOrHash"
-    Ledger_eventId:
+    eventId:
       name: eventId
       in: path
       required: true
       schema:
         type: integer
         format: uint64
-    Ledger_batchOffset:
+    batchOffset:
       name: batchOffset
       in: path
       required: true
       schema:
         type: integer
         format: uint64
-    Ledger_txOffset:
+    txOffset:
       name: txOffset
       in: path
       required: true
       schema:
         type: integer
         format: uint64
-    Ledger_eventOffset:
+    eventOffset:
       name: eventOffset
       in: path
       required: true
       schema:
         type: integer
         format: uint64
-    Ledger_children:
+    includeChildren:
       name: children
       in: query
       description: |
         The query mode to use when querying the ledger. If not specified, the
-        default is `Compact`.
+        default is `Compact`. If this value is "1" then `Full` mode is used.
+
+        `Compact` will return the parent struct but no details about its children.
+        For example, a `Compact` "get_slots" response would simply state the range of batch
+        numbers which occurred in the slot, but not the hashes of the batches themselves.
+
+        `Full` mode returns the parent struct and all its children, recursively fetching its children.
+        For example, a `Full` "get_batch" response would include the `Full` details of all the
+        transactions in the batch, and those would in turn return the event bodies which had occurred in those transactions.
       required: false
       schema:
         type: string
@@ -486,12 +477,12 @@ components:
         enum:
           - "0"
           - "1"
-    Sequencer_txHash:
+    txHash:
       name: txHash
       in: path
       required: true
       schema:
-        $ref: "#/components/schemas/Sequencer_TxHash"
+        $ref: "#/components/schemas/TxHash"
   responses:
     AggregatedProof:
       description: Success
@@ -503,9 +494,7 @@ components:
               data:
                 $ref: "#/components/schemas/AggregatedProof"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
-            required:
-              - data
+                $ref: "#/components/schemas/AnyJsonValue"
     Slot:
       description: Success
       content:
@@ -516,10 +505,8 @@ components:
               data:
                 $ref: "#/components/schemas/Slot"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
-            required:
-              - data
-    Ledger_Batch:
+                $ref: "#/components/schemas/AnyJsonValue"
+    LedgerBatch:
       description: Success
       content:
         application/json:
@@ -527,12 +514,10 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/Ledger_Batch"
+                $ref: "#/components/schemas/LedgerBatch"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
-            required:
-              - data
-    Ledger_Tx:
+                $ref: "#/components/schemas/AnyJsonValue"
+    LedgerTx:
       description: Success
       content:
         application/json:
@@ -540,12 +525,10 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/Ledger_Tx"
+                $ref: "#/components/schemas/LedgerTx"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
-            required:
-              - data
-    Ledger_Event:
+                $ref: "#/components/schemas/AnyJsonValue"
+    LedgerEvent:
       description: Success
       content:
         application/json:
@@ -553,12 +536,10 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/Ledger_Event"
+                $ref: "#/components/schemas/LedgerEvent"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
-            required:
-              - data
-    Ledger_Events:
+                $ref: "#/components/schemas/AnyJsonValue"
+    LedgerEventResponse:
       description: Success
       content:
         application/json:
@@ -568,18 +549,12 @@ components:
               data:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Ledger_Event"
+                  $ref: "#/components/schemas/LedgerEvent"
               meta:
-                $ref: "#/components/schemas/Ledger_AnyJsonValue"
+                $ref: "#/components/schemas/AnyJsonValue"
             required:
               - data
-    Ledger_NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema:
-            $ref: "#/components/schemas/Ledger_LedgerErrorsContainer"
-    rollup_Dedup:
+    Dedup:
       description: Successfully calculated dedup details for the provided address.
       content:
         application/json:
@@ -587,13 +562,12 @@ components:
             type: object
             properties:
               data:
-                $ref: "#/components/schemas/rollup_RollupAnyJsonValue"
+                $ref: "#/components/schemas/AnyJsonValue"
               meta:
-                $ref: "#/components/schemas/rollup_RollupAnyJsonValue"
+                $ref: "#/components/schemas/AnyJsonValue"
             required:
-              - data
               - meta
-    rollup_BadRequest:
+    ApiErrorResponse:
       description: The request sent was invalid.
       content:
         application/json:
@@ -603,34 +577,18 @@ components:
               errors:
                 type: array
                 items:
-                  $ref: "#/components/schemas/rollup_Error"
+                  $ref: "#/components/schemas/ApiError"
               meta:
-                $ref: "#/components/schemas/rollup_RollupAnyJsonValue"
+                $ref: "#/components/schemas/AnyJsonValue"
             required:
               - errors
-              - meta
   schemas:
-    Ledger_AnyJsonValue:
-      oneOf:
-        - type: string
-          title: String
-        - type: number
-          title: Number
-        - type: boolean
-          title: Boolean
-        - type: array
-          title: Array
-          items:
-            x-stainless-any: true
-        - type: object
-          title: Object
-          additionalProperties: true
-    Ledger_RewardedAddresses:
+    RewardedAddresses:
       type: array
       items:
         type: string
         format: byte
-    Ledger_ValidityConditions:
+    ValidityConditions:
       type: array
       items:
         type: string
@@ -642,16 +600,16 @@ components:
           description: Number
           format: uint64
         - $ref: "#/components/schemas/Hash"
-    Ledger_CodeCommitment:
+    CodeCommitment:
       type: string
       format: byte
-    Ledger_AggregatedProofPublicData:
+    AggregatedProofPublicData:
       type: object
       properties:
         rewarded_addresses:
-          $ref: "#/components/schemas/Ledger_RewardedAddresses"
+          $ref: "#/components/schemas/RewardedAddresses"
         validity_conditions:
-          $ref: "#/components/schemas/Ledger_ValidityConditions"
+          $ref: "#/components/schemas/ValidityConditions"
         initial_slot_number:
           type: integer
           format: uint64
@@ -674,7 +632,7 @@ components:
           type: string
           format: byte
         code_commitment:
-          $ref: "#/components/schemas/Ledger_CodeCommitment"
+          $ref: "#/components/schemas/CodeCommitment"
       required:
         - rewarded_addresses
         - validity_conditions
@@ -694,7 +652,7 @@ components:
           enum:
             - aggregatedProof
         public_data:
-          $ref: "#/components/schemas/Ledger_AggregatedProofPublicData"
+          $ref: "#/components/schemas/AggregatedProofPublicData"
         proof:
           type: string
           format: byte
@@ -703,7 +661,7 @@ components:
         - type
         - public_data
         - proof
-    Ledger_Uint64Range:
+    Uint64Range:
       type: object
       properties:
         start:
@@ -728,13 +686,13 @@ components:
         hash:
           $ref: "#/components/schemas/Hash"
         state_root:
-          $ref: "#/components/schemas/Ledger_HexBytes"
+          $ref: "#/components/schemas/HexString"
         batch_range:
-          $ref: "#/components/schemas/Ledger_Uint64Range"
+          $ref: "#/components/schemas/Uint64Range"
         batches:
           type: array
           items:
-            $ref: "#/components/schemas/Ledger_Batch"
+            $ref: "#/components/schemas/LedgerBatch"
         finality_status:
           type: string
           enum:
@@ -747,7 +705,7 @@ components:
         - state_root
         - batch_range
         - finality_status
-    Ledger_Batch:
+    LedgerBatch:
       type: object
       properties:
         type:
@@ -760,13 +718,13 @@ components:
         hash:
           $ref: "#/components/schemas/Hash"
         tx_range:
-          $ref: "#/components/schemas/Ledger_Uint64Range"
+          $ref: "#/components/schemas/Uint64Range"
         receipt:
-          $ref: "#/components/schemas/Ledger_AnyJsonValue"
+          $ref: "#/components/schemas/AnyJsonValue"
         txs:
           type: array
           items:
-            $ref: "#/components/schemas/Ledger_Tx"
+            $ref: "#/components/schemas/LedgerTx"
         slot_number:
           type: integer
           format: uint64
@@ -788,7 +746,7 @@ components:
             - skipped
       required:
         - result
-    Ledger_Tx:
+    LedgerTx:
       type: object
       properties:
         type:
@@ -801,7 +759,7 @@ components:
           type: integer
           format: uint64
         event_range:
-          $ref: "#/components/schemas/Ledger_Uint64Range"
+          $ref: "#/components/schemas/Uint64Range"
         body:
           type: string
           format: byte
@@ -810,7 +768,7 @@ components:
         events:
           type: array
           items:
-            $ref: "#/components/schemas/Ledger_Event"
+            $ref: "#/components/schemas/LedgerEvent"
         batch_number:
           type: integer
           format: uint64
@@ -822,7 +780,7 @@ components:
         - body
         - receipt
         - batch_number
-    Ledger_Event:
+    LedgerEvent:
       type: object
       properties:
         type:
@@ -838,14 +796,14 @@ components:
           type: object
           additionalProperties: true
         module:
-          $ref: "#/components/schemas/Ledger_ModuleRef"
+          $ref: "#/components/schemas/ModuleRef"
       required:
         - type
         - number
         - key
         - value
         - module
-    Ledger_ModuleRef:
+    ModuleRef:
       type: object
       properties:
         name:
@@ -857,65 +815,24 @@ components:
       title: Hash
       pattern: ^0x[a-fA-F0-9]{64}$
       description: Hash
-    Ledger_HexBytes:
+    HexString:
       type: string
       pattern: ^0x[a-fA-F0-9]+$
       description: Hex-encoded byte sequence
-    Ledger_LedgerError:
-      type: object
-      properties:
-        status:
-          type: integer
-          format: int32
-          description: HTTP status code related to this error
-          example: 404
-        title:
-          type: string
-          example: Entity not found
-        details:
-          type: object
-      required:
-        - status
-        - title
-    Ledger_LedgerErrorsContainer:
-      type: object
-      properties:
-        errors:
-          type: array
-          items:
-            $ref: "#/components/schemas/Ledger_LedgerError"
-      required:
-        - errors
-    Sequencer_TxHash:
+      example: "0x71c7656ec7ab88b098defb751b7401b5f6d8976f"
+    TxHash:
       type: string
       pattern: ^0x[a-fA-F0-9]+$
       description: The hash of a transaction
-      example: "0x71c7656ec7ab88b098defb751b7401b5f6d8976f"
-    Sequencer_TxBody:
-      type: string
-      format: byte
-      description: The body of a transaction, encoded as a Base64 string
     TxInfo:
       type: object
       properties:
         id:
-          $ref: "#/components/schemas/Sequencer_TxHash"
+          $ref: "#/components/schemas/TxHash"
         status:
           $ref: "#/components/schemas/TxStatus"
       required:
         - id
-        - status
-    Sequencer_SubmittedTx:
-      type: object
-      properties:
-        hash:
-          $ref: "#/components/schemas/Sequencer_TxHash"
-        body:
-          $ref: "#/components/schemas/Sequencer_TxBody"
-        status:
-          $ref: "#/components/schemas/TxStatus"
-      required:
-        - hash
         - status
     TxStatus:
       type: string
@@ -936,22 +853,7 @@ components:
       required:
         - da_height
         - num_txs
-    Sequencer_SequencerError:
-      type: object
-      properties:
-        status:
-          type: integer
-          format: int32
-          description: HTTP status code related to this error
-        title:
-          type: string
-        details:
-          type: object
-      required:
-        - status
-        - title
-        - details
-    rollup_BaseFeePerGas:
+    BaseFeePerGas:
       type: object
       properties:
         base_fee_per_gas:
@@ -1086,7 +988,7 @@ components:
       required:
         - outcome
         - content
-    rollup_RollupAnyJsonValue:
+    AnyJsonValue:
       oneOf:
         - type: string
           title: String
@@ -1101,7 +1003,7 @@ components:
         - type: object
           title: Object
           additionalProperties: true
-    rollup_Error:
+    ApiError:
       type: object
       properties:
         status:
@@ -1147,13 +1049,3 @@ components:
                 - target_da_height
           required:
             - syncing
-x-tagGroups:
-  - name: Sovereign SDK Ledger API
-    tags:
-      - Ledger
-  - name: Sovereign SDK Sequencer API
-    tags:
-      - Sequencer
-  - name: Sovereign SDK rollup API
-    tags:
-      - Rollup

@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use demo_stf::runtime::RuntimeCall;
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
@@ -131,9 +131,19 @@ pub(crate) async fn assert_aggregated_proof(
     let proof_response = client.ledger.get_latest_aggregated_proof().await?;
 
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-    verifier.verify(&proof_response.data.clone().try_into()?)?;
+    verifier.verify(
+        &proof_response
+            .data
+            .clone()
+            .ok_or_else(|| anyhow!("data should be defined"))?
+            .try_into()?,
+    )?;
 
-    let proof_pub_data = &proof_response.data.public_data;
+    let proof_pub_data = &proof_response
+        .data
+        .as_ref()
+        .ok_or_else(|| anyhow!("data should be defined"))?
+        .public_data;
     // We test inequality because proofs are saved asynchronously in the db.
     assert!(initial_slot <= proof_pub_data.initial_slot_number);
     assert!(final_slot <= proof_pub_data.final_slot_number);
@@ -144,10 +154,20 @@ pub(crate) async fn assert_aggregated_proof(
         initial_slot
             <= proof_data_info_response
                 .data
+                .as_ref()
+                .ok_or_else(|| anyhow!("data should be defined"))?
                 .public_data
                 .initial_slot_number
     );
-    assert!(final_slot <= proof_data_info_response.data.public_data.final_slot_number);
+    assert!(
+        final_slot
+            <= proof_data_info_response
+                .data
+                .as_ref()
+                .ok_or_else(|| anyhow!("data should be defined"))?
+                .public_data
+                .final_slot_number
+    );
 
     Ok(())
 }
@@ -168,7 +188,7 @@ pub(crate) async fn assert_slot_finality(
 
     assert_eq!(
         expected_finality,
-        slot.data.finality_status.into(),
+        slot.data.as_ref().unwrap().finality_status.into(),
         "Wrong finality status for slot number {slot_number}"
     );
 }
@@ -181,9 +201,10 @@ pub(crate) async fn assert_bank_event<S: Spec>(
     let event_response = client.ledger.get_event_by_id(event_number).await?;
 
     // Ensure "Bank" is present in response json
-    assert_eq!(event_response.data.module.name, "Bank");
+    assert_eq!(event_response.data.as_ref().unwrap().module.name, "Bank");
 
-    let event_value = serde_json::Value::Object(event_response.data.value.clone());
+    let event_value =
+        serde_json::Value::Object(event_response.data.as_ref().unwrap().value.clone());
 
     // Attempt to deserialize the "body" of the bank key in the response to the Event type
     let bank_event_contents = serde_json::from_value::<BankEvent<S>>(event_value)?;
