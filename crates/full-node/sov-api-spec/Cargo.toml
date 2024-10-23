@@ -1,0 +1,20 @@
+[package]
+name = "sov-api-spec"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+openapiv3 = { workspace = true }
+sov-modules-api = { workspace = true, features = ["native"] }
+
+[lints]
+workspace = true
+
+[features]
+default = ["native"]
+native = ["sov-modules-api/native"]

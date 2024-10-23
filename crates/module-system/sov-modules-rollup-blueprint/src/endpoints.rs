@@ -22,17 +22,6 @@ use tracing::warn;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
-const RAW_YAML_SPEC: &str = include_str!("../../../full-node/sov-api-spec/openapi-v3.yaml");
-
-/// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.
-/// Performs clone of the whole spec, so might be slow.
-pub fn open_api_v3_spec() -> openapiv3::OpenAPI {
-    static OPENAPI_SPEC_V3: std::sync::OnceLock<openapiv3::OpenAPI> = std::sync::OnceLock::new();
-    OPENAPI_SPEC_V3
-        .get_or_init(|| sov_modules_api::prelude::serde_yaml::from_str(RAW_YAML_SPEC).unwrap())
-        .clone()
-}
-
 #[allow(clippy::too_many_arguments)]
 /// Register rollup's default RPC methods and Axum router.
 pub async fn register_endpoints<B, M>(
@@ -146,16 +135,16 @@ where
 
     // Specs
     let serialized_runtime = sov_modules_api::prelude::serde_yaml::to_string(&runtime_spec)?;
-    let mut runtime_spec: openapiv3::OpenAPI =
+    let mut combined_spec: openapiv3::OpenAPI =
         sov_modules_api::prelude::serde_yaml::from_str(&serialized_runtime)?;
 
-    merge_specs(&mut runtime_spec, open_api_v3_spec(), "")?;
+    merge_specs(&mut combined_spec, sov_api_spec::open_api_v3_spec(), "")?;
 
-    runtime_spec.servers = vec![server_url_from_runner_config(runner_config)];
+    combined_spec.servers = vec![server_url_from_runner_config(runner_config)];
 
     endpoints.axum_router = endpoints.axum_router.merge(
         sov_modules_api::prelude::utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
-            .external_url_unchecked("/openapi-v3.json", serde_json::to_value(&runtime_spec)?)
+            .external_url_unchecked("/openapi-v3.json", serde_json::to_value(&combined_spec)?)
             .config(Config::from("/openapi-v3.json")),
     );
 
@@ -290,11 +279,6 @@ mod tests {
     };
 
     use super::*;
-
-    #[test]
-    fn openapi_spec_is_valid() {
-        let _spec = open_api_v3_spec();
-    }
 
     #[test]
     fn test_merge_empty_specs() {
