@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -113,6 +114,64 @@ pub enum TestCall {
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct MinimalStruct {
     tokens: u64,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+#[cfg_attr(
+    test,
+    sov_wallet(
+        show_as = "This is a simple struct, with {} tokens, and the following message: {}. End of template!"
+    )
+)]
+pub struct SimpleStructWithTemplate {
+    tokens: u64,
+    msg: String,
+}
+
+#[test]
+fn test_simple_struct_schema_with_template() {
+    let my_registration = SimpleStructWithTemplate {
+        tokens: 1000,
+        msg: "abc".to_string(),
+    };
+
+    encode_decode_tests!(SimpleStructWithTemplate, my_registration, "This is a simple struct, with 1000 tokens, and the following message: \"abc\". End of template!");
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub enum SimpleEnumWithTemplate {
+    #[cfg_attr(
+        test,
+        sov_wallet(show_as = "This variant has {} tokens, and the following message: {}. End.")
+    )]
+    VariantOne { tokens: u64, msg: String },
+    #[cfg_attr(
+        test,
+        sov_wallet(show_as = "This variant is a tuple with two fields: a string {} an u8 {}.")
+    )]
+    VariantTwo(String, u8),
+}
+
+#[test]
+fn test_simple_enum_schema_with_template() {
+    let var_one = SimpleEnumWithTemplate::VariantOne {
+        tokens: 1000,
+        msg: "abc".to_string(),
+    };
+    encode_decode_tests!(
+        SimpleEnumWithTemplate,
+        var_one,
+        "This variant has 1000 tokens, and the following message: \"abc\". End."
+    );
+
+    let var_two = SimpleEnumWithTemplate::VariantTwo("def".to_string(), 19);
+    encode_decode_tests!(
+        SimpleEnumWithTemplate,
+        var_two,
+        "This variant is a tuple with two fields: a string \"def\" an u8 19."
+    );
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]

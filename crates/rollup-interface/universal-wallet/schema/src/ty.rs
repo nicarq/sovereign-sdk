@@ -158,6 +158,7 @@ impl<L: LinkingScheme> Ty<L> {
 pub struct EnumVariant<L: LinkingScheme> {
     pub name: String,
     pub serde_name: String,
+    pub template: Option<String>,
     pub value: Option<L::TypeLink>,
 }
 
@@ -174,12 +175,14 @@ pub struct Enum<L: LinkingScheme> {
 pub struct Struct<L: LinkingScheme> {
     pub type_name: String,
     pub serde_type_name: String,
+    pub template: Option<String>,
     pub fields: Vec<NamedField<L>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Tuple<L: LinkingScheme> {
+    pub template: Option<String>,
     pub fields: Vec<UnnamedField<L>>,
 }
 
