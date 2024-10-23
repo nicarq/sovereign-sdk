@@ -49,7 +49,10 @@ pub(crate) fn start_slot_watcher_task(
                 )
                 .await
                 .expect("should be able to get slots by id");
-            let slot = &slot_response.data;
+            let slot = slot_response
+                .data
+                .as_ref()
+                .expect("slot data should be defined");
 
             let batches = &slot.batches;
             tracing::debug!(

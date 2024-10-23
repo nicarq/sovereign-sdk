@@ -117,7 +117,7 @@ async fn wait_for_batch_to_be_processed(
                 anyhow::bail!(err);
             }
         };
-        let tx_range = batch_response.data.tx_range.clone();
+        let tx_range = batch_response.data.clone().unwrap().tx_range.clone();
         let txs_count = tx_range.end.saturating_sub(tx_range.start);
         // TODO: Later we can assert `submitted_batch_info.batch_hash` with `batch_response.data.hash`.
         if txs_count > 0 {

@@ -20,8 +20,7 @@ async fn axum_submit_batch_ok() {
         })
         .await;
 
-    let response = response_result.unwrap();
-    let response_data = response.data.as_ref().unwrap();
+    let response_data = &response_result.unwrap().data.clone().unwrap();
 
     assert_eq!(response_data.da_height, 0);
     assert_eq!(response_data.num_txs, txs.len() as i32);

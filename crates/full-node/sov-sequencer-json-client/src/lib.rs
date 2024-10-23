@@ -39,11 +39,7 @@ impl Client {
                 transactions: vec![],
             })
             .await?;
-
-        match publish_batch_response.data.clone() {
-            None => Err(Error::ErrorResponse(publish_batch_response)),
-            Some(submitted_batch_info) => Ok(submitted_batch_info),
-        }
+        Ok(publish_batch_response.data.clone().unwrap())
     }
 
     pub async fn subscribe_to_tx_status_updates(

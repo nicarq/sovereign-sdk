@@ -219,10 +219,10 @@ impl NodeClient {
             .await
             .context("Unable to publish batch")?;
 
-        let response_data = response
+        let response_data = &response
             .data
             .as_ref()
-            .ok_or(anyhow::anyhow!("No data in response"))?;
+            .ok_or_else(|| anyhow::anyhow!("Response data was empty"))?;
 
         println!(
             "Your batch was submitted to the sequencer for publication. Response: {:?}",
