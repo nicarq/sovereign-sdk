@@ -46,6 +46,12 @@ pub enum FormatError {
     MissingStringLength,
     #[error("The provided input had leftover bytes that weren't displayed.")]
     UnusedInput,
+    #[error(
+        "A structs's display template did not provide sufficient slots to display its fields."
+    )]
+    InsufficientTemplateSlots,
+    #[error("A struct's display template had more slots than the struct had fields.")]
+    UnusedTemplateSlots,
 }
 
 pub struct Silencer<'a, W> {
@@ -109,7 +115,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
         }
     }
     fn tuple_delimiters<L: LinkingScheme>(
-        &mut self,
+        &self,
         tuple: &Tuple<L>,
         context: &Context,
         schema: &impl TypeResolver<LinkingScheme = L>,
@@ -136,11 +142,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
         }
     }
 
-    fn struct_delimiters<L: LinkingScheme>(
-        &mut self,
-        s: &Struct<L>,
-        context: &Context,
-    ) -> Delimiters {
+    fn struct_delimiters<L: LinkingScheme>(&self, s: &Struct<L>, context: &Context) -> Delimiters {
         if s.fields.is_empty() {
             return ("", "");
         }
@@ -153,6 +155,79 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
             | ParentType::Map => ("{ ", " }"),
             ParentType::Enum => (" { ", " }"),
         }
+    }
+
+    /// Generates a template/format string to display a struct if none was provided as an
+    /// attribute. The default template either displays the typename if the struct has no
+    /// fields, or looks like this (for a hypothetical struct with three fields named as below):
+    /// ```text
+    /// "{ field_one: {}, field_two: {}, field_three: {} }"
+    /// ```
+    /// In other words, simply lists out the field names followed by an unnamed substitution (that
+    /// will be filled in with the field's values, in order), enclosed in braces and
+    /// comma-separated.
+    fn struct_default_template<L: LinkingScheme>(
+        &self,
+        s: &Struct<L>,
+        context: &Context,
+        schema: &impl TypeResolver<LinkingScheme = L>,
+    ) -> String {
+        let mut template = String::new();
+        let (opener, closer) = self.struct_delimiters(s, context);
+        template.push_str(opener);
+        if s.fields.is_empty() {
+            template.push_str(&s.type_name);
+        } else {
+            for (i, field) in s.fields.iter().enumerate() {
+                if field.silent {
+                    continue;
+                }
+                if schema
+                    .resolve_or_err(&field.value)
+                    .map_or(false, |inner| inner.is_skip())
+                {
+                    continue;
+                }
+                if i > 0 {
+                    template.push_str(self.item_separator());
+                }
+                template.push_str(&field.display_name);
+                template.push_str(": {}");
+            }
+        }
+        template.push_str(closer);
+        template
+    }
+
+    /// Generates a template/format string to display a tuple if none was provided as an
+    /// attribute. The default template looks like this, for example for a tuple with three values:
+    /// ```text
+    /// "({}, {}, {})"
+    /// ```
+    /// In other words, simply lists out the fields as unnamed substitutions (which will be filled in
+    /// with the tuple's values in order, during display), enclosed in brackets and comma-separated.
+    /// The brackets are sometimes omitted - see the implementation of `tuple_delimiters` for the
+    /// logic.
+    fn tuple_default_template<L: LinkingScheme>(
+        &self,
+        t: &Tuple<L>,
+        context: &Context,
+        schema: &impl TypeResolver<LinkingScheme = L>,
+    ) -> String {
+        let mut template = String::new();
+        let (opener, closer) = self.tuple_delimiters(t, context, schema);
+        template.push_str(opener);
+        for (i, field) in t.fields.iter().enumerate() {
+            if field.silent {
+                continue;
+            }
+            if i > 0 {
+                template.push_str(self.item_separator());
+            }
+            template.push_str("{}");
+        }
+        template.push_str(closer);
+        template
     }
 
     fn map_delimiters(&mut self, context: &Context) -> Delimiters {
@@ -179,7 +254,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
         }
     }
 
-    fn item_separator(&mut self) -> &'static str {
+    fn item_separator(&self) -> &'static str {
         ", "
     }
 }
@@ -334,7 +409,9 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
                     discriminant: self.input[0],
                 })?;
         *self.input = &self.input[1..];
-        write!(self.f, "{}", variant.name)?;
+        if variant.template.is_none() {
+            write!(self.f, "{}", variant.name)?;
+        }
         context.parent_type = ParentType::Enum;
         if let Some(maybe_resolved) = &variant.value {
             let inner = schema.resolve_or_err(maybe_resolved)?;
@@ -349,33 +426,37 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
         schema: &impl TypeResolver<LinkingScheme = L>,
         mut context: Context,
     ) -> Self::ReturnType {
-        let (opener, closer) = self.struct_delimiters(s, &context);
-        self.f.write_str(opener)?;
-        if s.fields.is_empty() {
-            write!(self.f, "{}", s.type_name)?;
-        } else {
-            context.parent_type = ParentType::Struct(IsVirtual::No);
-            for (i, field) in s.fields.iter().enumerate() {
-                // Save the previous state of the silent flag so we can restore it after displaying the field.
-                let was_silent = self.f.silent;
-                if field.silent {
-                    self.f.silent = true;
-                }
-                let inner_ty = schema.resolve_or_err(&field.value)?;
+        let template = s
+            .template
+            .clone()
+            .unwrap_or_else(|| self.struct_default_template(s, &context, schema));
+        let mut template = template.as_str();
 
-                if !inner_ty.is_skip() {
-                    if i > 0 {
-                        let sep = self.item_separator();
-                        self.f.write_str(sep)?;
-                    }
-                    write!(self.f, "{}: ", field.display_name)?;
-                }
-                inner_ty.visit(schema, self, context)?;
-                // Restore the silent flag to its previous state
-                self.f.silent = was_silent;
+        context.parent_type = ParentType::Struct(IsVirtual::No);
+        for field in s.fields.iter() {
+            // Save the previous state of the silent flag so we can restore it after displaying the field.
+            let was_silent = self.f.silent;
+            if field.silent {
+                self.f.silent = true;
             }
+
+            let inner_ty = schema.resolve_or_err(&field.value)?;
+            if !field.silent && !inner_ty.is_skip() {
+                let Some((before_next_field, rest)) = template.split_once("{}") else {
+                    return Err(FormatError::InsufficientTemplateSlots);
+                };
+                self.f.write_str(before_next_field)?;
+                template = rest;
+            }
+
+            inner_ty.visit(schema, self, context)?;
+            // Restore the silent flag to its previous state
+            self.f.silent = was_silent;
         }
-        self.f.write_str(closer)?;
+        if template.contains("{}") {
+            return Err(FormatError::UnusedTemplateSlots);
+        }
+        self.f.write_str(template)?;
         Ok(())
     }
 
@@ -385,8 +466,12 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
         schema: &impl TypeResolver<LinkingScheme = L>,
         mut context: Context,
     ) -> Self::ReturnType {
-        let (opener, closer) = self.tuple_delimiters(t, &context, schema);
-        self.f.write_str(opener)?;
+        let template = t
+            .template
+            .clone()
+            .unwrap_or_else(|| self.tuple_default_template(t, &context, schema));
+        let mut template = template.as_str();
+
         let is_virtual = if tuple_is_enum_contents(&context) {
             IsVirtual::Yes
         } else {
@@ -398,23 +483,31 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
             IsTrivial::No
         };
         context.parent_type = ParentType::Tuple(is_virtual, trivial);
-        for (i, field) in t.fields.iter().enumerate() {
+
+        for field in t.fields.iter() {
             // Save the previous state of the silent flag so we can restore it after displaying the field.
             let was_silent = self.f.silent;
             if field.silent {
                 self.f.silent = true;
             }
-            if i > 0 {
-                let sep = self.item_separator();
-                self.f.write_str(sep)?;
+            if !field.silent {
+                let Some((before_next_field, rest)) = template.split_once("{}") else {
+                    return Err(FormatError::InsufficientTemplateSlots);
+                };
+                self.f.write_str(before_next_field)?;
+                template = rest;
             }
+
             schema
                 .resolve_or_err(&field.value)?
                 .visit(schema, self, context)?;
             // Restore the silent flag to its previous state
             self.f.silent = was_silent;
         }
-        self.f.write_str(closer)?;
+        if template.contains("{}") {
+            return Err(FormatError::UnusedTemplateSlots);
+        }
+        self.f.write_str(template)?;
         Ok(())
     }
 

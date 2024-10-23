@@ -40,5 +40,5 @@ fn test_transfer() {
         },
     };
 
-    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "Transfer { to: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx, coins: { amount: 10000, token_id: token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks } }");
+    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "Transfer to address sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks.");
 }

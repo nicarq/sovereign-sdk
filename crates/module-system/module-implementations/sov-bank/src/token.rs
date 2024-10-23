@@ -78,6 +78,7 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
     JsonSchema,
     UniversalWallet,
 )]
+#[sov_wallet(show_as = "{} coins of token ID {}")]
 pub struct Coins {
     /// The number of tokens
     pub amount: Amount,

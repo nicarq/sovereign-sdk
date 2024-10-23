@@ -4,6 +4,7 @@
       "Struct": {
         "type_name": "Transaction",
         "serde_type_name": "Transaction",
+        "template": null,
         "fields": [
           {
             "display_name": "signature",
@@ -66,6 +67,7 @@
       "Struct": {
         "type_name": "Ed25519Signature",
         "serde_type_name": "Ed25519Signature",
+        "template": null,
         "fields": [
           {
             "display_name": "msg_sig",
@@ -88,6 +90,7 @@
       "Struct": {
         "type_name": "Ed25519PublicKey",
         "serde_type_name": "Ed25519PublicKey",
+        "template": null,
         "fields": [
           {
             "display_name": "pub_key",
@@ -110,6 +113,7 @@
       "Struct": {
         "type_name": "TxDetails",
         "serde_type_name": "TxDetails",
+        "template": null,
         "fields": [
           {
             "display_name": "max_priority_fee_bips",
@@ -162,6 +166,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -186,11 +191,13 @@
           {
             "name": "None",
             "serde_name": "None",
+            "template": null,
             "value": null
           },
           {
             "name": "Some",
             "serde_name": "Some",
+            "template": null,
             "value": {
               "ByIndex": 6
             }
@@ -200,6 +207,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -228,6 +236,7 @@
       "Struct": {
         "type_name": "UnsignedTransaction",
         "serde_type_name": "UnsignedTransaction",
+        "template": null,
         "fields": [
           {
             "display_name": "runtime_msg",
@@ -276,6 +285,7 @@
           {
             "name": "Bank",
             "serde_name": "bank",
+            "template": null,
             "value": {
               "ByIndex": 10
             }
@@ -283,6 +293,7 @@
           {
             "name": "SequencerRegistry",
             "serde_name": "sequencer_registry",
+            "template": null,
             "value": {
               "ByIndex": 21
             }
@@ -290,6 +301,7 @@
           {
             "name": "ValueSetter",
             "serde_name": "value_setter",
+            "template": null,
             "value": {
               "ByIndex": 27
             }
@@ -297,6 +309,7 @@
           {
             "name": "AttesterIncentives",
             "serde_name": "attester_incentives",
+            "template": null,
             "value": {
               "ByIndex": 31
             }
@@ -304,6 +317,7 @@
           {
             "name": "ProverIncentives",
             "serde_name": "prover_incentives",
+            "template": null,
             "value": {
               "ByIndex": 36
             }
@@ -311,6 +325,7 @@
           {
             "name": "Accounts",
             "serde_name": "accounts",
+            "template": null,
             "value": {
               "ByIndex": 40
             }
@@ -318,6 +333,7 @@
           {
             "name": "Nonces",
             "serde_name": "nonces",
+            "template": null,
             "value": {
               "ByIndex": 45
             }
@@ -325,6 +341,7 @@
           {
             "name": "Nft",
             "serde_name": "nft",
+            "template": null,
             "value": {
               "ByIndex": 47
             }
@@ -332,6 +349,7 @@
           {
             "name": "ChainState",
             "serde_name": "chain_state",
+            "template": null,
             "value": {
               "ByIndex": 59
             }
@@ -339,6 +357,7 @@
           {
             "name": "BlobStorage",
             "serde_name": "blob_storage",
+            "template": null,
             "value": {
               "ByIndex": 60
             }
@@ -346,6 +365,7 @@
           {
             "name": "Evm",
             "serde_name": "evm",
+            "template": null,
             "value": {
               "ByIndex": 61
             }
@@ -355,6 +375,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -374,6 +395,7 @@
           {
             "name": "CreateToken",
             "serde_name": "create_token",
+            "template": null,
             "value": {
               "ByIndex": 12
             }
@@ -381,6 +403,7 @@
           {
             "name": "Transfer",
             "serde_name": "transfer",
+            "template": "Transfer to address {} {}.",
             "value": {
               "ByIndex": 15
             }
@@ -388,6 +411,7 @@
           {
             "name": "Burn",
             "serde_name": "burn",
+            "template": null,
             "value": {
               "ByIndex": 18
             }
@@ -395,6 +419,7 @@
           {
             "name": "Mint",
             "serde_name": "mint",
+            "template": null,
             "value": {
               "ByIndex": 19
             }
@@ -402,6 +427,7 @@
           {
             "name": "Freeze",
             "serde_name": "freeze",
+            "template": null,
             "value": {
               "ByIndex": 20
             }
@@ -413,6 +439,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_CreateToken",
         "serde_type_name": "__SovVirtualWallet_CallMessage_CreateToken",
+        "template": null,
         "fields": [
           {
             "display_name": "token_name",
@@ -460,6 +487,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -491,6 +519,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Transfer",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Transfer",
+        "template": "Transfer to address {} {}.",
         "fields": [
           {
             "display_name": "to",
@@ -517,6 +546,7 @@
       "Struct": {
         "type_name": "Coins",
         "serde_type_name": "Coins",
+        "template": "{} coins of token ID {}",
         "fields": [
           {
             "display_name": "amount",
@@ -546,6 +576,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -570,6 +601,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Burn",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Burn",
+        "template": null,
         "fields": [
           {
             "display_name": "coins",
@@ -587,6 +619,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Mint",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Mint",
+        "template": null,
         "fields": [
           {
             "display_name": "coins",
@@ -613,6 +646,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Freeze",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Freeze",
+        "template": null,
         "fields": [
           {
             "display_name": "token_id",
@@ -628,6 +662,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -647,6 +682,7 @@
           {
             "name": "Register",
             "serde_name": "register",
+            "template": null,
             "value": {
               "ByIndex": 23
             }
@@ -654,6 +690,7 @@
           {
             "name": "Deposit",
             "serde_name": "deposit",
+            "template": null,
             "value": {
               "ByIndex": 25
             }
@@ -661,6 +698,7 @@
           {
             "name": "Exit",
             "serde_name": "exit",
+            "template": null,
             "value": {
               "ByIndex": 26
             }
@@ -672,6 +710,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Register",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Register",
+        "template": null,
         "fields": [
           {
             "display_name": "da_address",
@@ -701,6 +740,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -721,6 +761,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Deposit",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Deposit",
+        "template": null,
         "fields": [
           {
             "display_name": "da_address",
@@ -752,6 +793,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_Exit",
         "serde_type_name": "__SovVirtualWallet_CallMessage_Exit",
+        "template": null,
         "fields": [
           {
             "display_name": "da_address",
@@ -767,6 +809,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -786,6 +829,7 @@
           {
             "name": "SetValue",
             "serde_name": "set_value",
+            "template": null,
             "value": {
               "ByIndex": 29
             }
@@ -793,6 +837,7 @@
           {
             "name": "SetManyValues",
             "serde_name": "set_many_values",
+            "template": null,
             "value": {
               "ByIndex": 30
             }
@@ -802,6 +847,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -820,6 +866,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -837,6 +884,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -856,6 +904,7 @@
           {
             "name": "RegisterAttester",
             "serde_name": "register_attester",
+            "template": null,
             "value": {
               "ByIndex": 33
             }
@@ -863,16 +912,19 @@
           {
             "name": "BeginExitAttester",
             "serde_name": "begin_exit_attester",
+            "template": null,
             "value": null
           },
           {
             "name": "ExitAttester",
             "serde_name": "exit_attester",
+            "template": null,
             "value": null
           },
           {
             "name": "RegisterChallenger",
             "serde_name": "register_challenger",
+            "template": null,
             "value": {
               "ByIndex": 34
             }
@@ -880,11 +932,13 @@
           {
             "name": "ExitChallenger",
             "serde_name": "exit_challenger",
+            "template": null,
             "value": null
           },
           {
             "name": "DepositAttester",
             "serde_name": "deposit_attester",
+            "template": null,
             "value": {
               "ByIndex": 35
             }
@@ -894,6 +948,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -912,6 +967,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -930,6 +986,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -948,6 +1005,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -967,6 +1025,7 @@
           {
             "name": "Register",
             "serde_name": "register",
+            "template": null,
             "value": {
               "ByIndex": 38
             }
@@ -974,6 +1033,7 @@
           {
             "name": "Deposit",
             "serde_name": "deposit",
+            "template": null,
             "value": {
               "ByIndex": 39
             }
@@ -981,6 +1041,7 @@
           {
             "name": "Exit",
             "serde_name": "exit",
+            "template": null,
             "value": null
           }
         ]
@@ -988,6 +1049,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1006,6 +1068,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1024,6 +1087,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1043,6 +1107,7 @@
           {
             "name": "InsertCredentialId",
             "serde_name": "insert_credential_id",
+            "template": null,
             "value": {
               "ByIndex": 42
             }
@@ -1052,6 +1117,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1065,6 +1131,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1078,6 +1145,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1096,6 +1164,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1116,6 +1185,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1135,6 +1205,7 @@
           {
             "name": "CreateCollection",
             "serde_name": "create_collection",
+            "template": null,
             "value": {
               "ByIndex": 49
             }
@@ -1142,6 +1213,7 @@
           {
             "name": "UpdateCollection",
             "serde_name": "update_collection",
+            "template": null,
             "value": {
               "ByIndex": 50
             }
@@ -1149,6 +1221,7 @@
           {
             "name": "FreezeCollection",
             "serde_name": "freeze_collection",
+            "template": null,
             "value": {
               "ByIndex": 51
             }
@@ -1156,6 +1229,7 @@
           {
             "name": "MintNft",
             "serde_name": "mint_nft",
+            "template": null,
             "value": {
               "ByIndex": 52
             }
@@ -1163,6 +1237,7 @@
           {
             "name": "UpdateNft",
             "serde_name": "update_nft",
+            "template": null,
             "value": {
               "ByIndex": 54
             }
@@ -1170,6 +1245,7 @@
           {
             "name": "TransferNft",
             "serde_name": "transfer_nft",
+            "template": null,
             "value": {
               "ByIndex": 57
             }
@@ -1181,6 +1257,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_CreateCollection",
         "serde_type_name": "__SovVirtualWallet_CallMessage_CreateCollection",
+        "template": null,
         "fields": [
           {
             "display_name": "name",
@@ -1207,6 +1284,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_UpdateCollection",
         "serde_type_name": "__SovVirtualWallet_CallMessage_UpdateCollection",
+        "template": null,
         "fields": [
           {
             "display_name": "name",
@@ -1233,6 +1311,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_FreezeCollection",
         "serde_type_name": "__SovVirtualWallet_CallMessage_FreezeCollection",
+        "template": null,
         "fields": [
           {
             "display_name": "collection_name",
@@ -1250,6 +1329,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_MintNft",
         "serde_type_name": "__SovVirtualWallet_CallMessage_MintNft",
+        "template": null,
         "fields": [
           {
             "display_name": "collection_name",
@@ -1306,6 +1386,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1321,6 +1402,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_UpdateNft",
         "serde_type_name": "__SovVirtualWallet_CallMessage_UpdateNft",
+        "template": null,
         "fields": [
           {
             "display_name": "collection_name",
@@ -1374,11 +1456,13 @@
           {
             "name": "None",
             "serde_name": "None",
+            "template": null,
             "value": null
           },
           {
             "name": "Some",
             "serde_name": "Some",
+            "template": null,
             "value": {
               "Immediate": "String"
             }
@@ -1394,11 +1478,13 @@
           {
             "name": "None",
             "serde_name": "None",
+            "template": null,
             "value": null
           },
           {
             "name": "Some",
             "serde_name": "Some",
+            "template": null,
             "value": {
               "Immediate": "Boolean"
             }
@@ -1410,6 +1496,7 @@
       "Struct": {
         "type_name": "__SovVirtualWallet_CallMessage_TransferNft",
         "serde_type_name": "__SovVirtualWallet_CallMessage_TransferNft",
+        "template": null,
         "fields": [
           {
             "display_name": "collection_id",
@@ -1448,6 +1535,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1470,6 +1558,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1483,6 +1572,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1496,6 +1586,7 @@
     },
     {
       "Tuple": {
+        "template": null,
         "fields": [
           {
             "value": {
@@ -1511,6 +1602,7 @@
       "Struct": {
         "type_name": "CallMessage",
         "serde_type_name": "CallMessage",
+        "template": null,
         "fields": [
           {
             "display_name": "rlp",
@@ -1528,6 +1620,7 @@
       "Struct": {
         "type_name": "RlpEvmTransaction",
         "serde_type_name": "RlpEvmTransaction",
+        "template": null,
         "fields": [
           {
             "display_name": "rlp",

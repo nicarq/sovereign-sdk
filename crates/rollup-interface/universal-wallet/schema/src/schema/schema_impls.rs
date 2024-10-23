@@ -172,6 +172,7 @@ mod primitive_type_impls {
             impl<$($tts: SchemaGenerator + 'static,)*> SchemaGenerator for ($($tts,)*) {
                 fn scaffold() -> Item<IndexLinking> {
                     Item::Container(Container::Tuple(Tuple {
+                        template: None,
                         fields: vec![
                             $(UnnamedField {
                                 value: type_to_placeholder!($tts),
@@ -206,11 +207,13 @@ mod primitive_type_impls {
                     EnumVariant {
                         name: "None".to_string(),
                         serde_name: "None".to_string(),
+                        template: None,
                         value: None,
                     },
                     EnumVariant {
                         name: "Some".to_string(),
                         serde_name: "Some".to_string(),
+                        template: None,
                         value: Some(Link::Placeholder),
                     },
                 ],
@@ -244,6 +247,7 @@ mod primitive_type_impls {
             Item::Container(Container::Struct(Struct {
                 type_name: "Range".to_string(),
                 serde_type_name: "Range".to_string(),
+                template: Some("{start}..{end}".to_string()),
                 fields: vec![
                     NamedField {
                         value: Link::Placeholder,

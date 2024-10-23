@@ -155,6 +155,8 @@ fn derive_wallet_field(
         ident, generics, ..
     } = &input;
     let input = Input::from_derive_input(&input)?;
+    let template_string = input.show_as;
+    let template_tokens = quote_str_option_literally(&template_string);
     let serde_rename = input.attrs;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let mut where_clause = where_clause.cloned();
@@ -168,16 +170,23 @@ fn derive_wallet_field(
                     &s.fields,
                     input.ident.clone(),
                     serde_rename,
+                    template_tokens,
                     &mut where_clause,
                     &prefix,
                 )?,
-                Style::Tuple => build_tuple_type_scaffold(&s.fields, &mut where_clause, &prefix)?,
+                Style::Tuple => build_tuple_type_scaffold(
+                    &s.fields,
+                    template_tokens,
+                    &mut where_clause,
+                    &prefix,
+                )?,
                 Style::Unit => {
                     let serde_type_name = serde_rename.rename_typename(ident)?;
                     quote! {
                         #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::ty::Struct {
                             type_name: stringify!(#ident).to_string(),
                             serde_type_name: #serde_type_name.to_string(),
+                            template: #template_tokens,
                             fields: vec![],
                         }))
                     }
@@ -194,9 +203,11 @@ fn derive_wallet_field(
                 let variant_ident = &variant.ident;
                 let virtual_type_generics = virtual_field_generics(generics.clone(), &variant.fields.fields);
                 let virtual_type_ident = virtual_typename(ident, variant_ident);
+                let variant_template = &variant.show_as;
+                let variant_template_tokens = quote_str_option_literally(variant_template);
                 let value = match &variant.fields.style {
                     Style::Struct => {
-                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, &prefix, &macro_name)?;
+                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_template, &prefix, &macro_name)?;
                         virtual_types.push(virtual_struct);
                         child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                         quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
@@ -206,7 +217,7 @@ fn derive_wallet_field(
                         if variant.fields.fields.len() > 1 && std::env::var("SOV_WALLET_PEDANTIC").is_ok() {
                             return Err(syn::Error::new_spanned(&input.ident, "Tuple structs with multiple entries are not human readable. Please use a named struct instead!"));
                         } else {
-                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, &prefix, &macro_name)?;
+                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_template, &prefix, &macro_name)?;
                             virtual_types.push(virtual_tuple);
                             child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                             quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
@@ -219,6 +230,7 @@ fn derive_wallet_field(
                     #prefix::sov_universal_wallet::ty::EnumVariant {
                         name: stringify!(#variant_ident).to_string(),
                         serde_name: #serde_variant_name.to_string(),
+                        template: #variant_template_tokens,
                         value: #value
                 }})
             })
@@ -281,6 +293,7 @@ pub fn build_struct_type_scaffold(
     fields: &[InputField],
     type_name: Ident,
     serde_rename: SerdeRename,
+    template_string: TokenStream,
     where_clause: &mut Option<WhereClause>,
     prefix: &Option<syn::TypePath>,
 ) -> Result<TokenStream, syn::Error> {
@@ -314,6 +327,7 @@ pub fn build_struct_type_scaffold(
         #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Struct( #prefix::sov_universal_wallet::ty::Struct {
             type_name: stringify!(#type_name).to_string(),
             serde_type_name: #serde_type_name.to_string(),
+            template: #template_string,
             fields: vec![#(#fields),*],
         }))
     })
@@ -332,6 +346,7 @@ pub fn build_struct_type_scaffold(
 /// ```
 pub fn build_tuple_type_scaffold(
     fields: &[InputField],
+    template_string: TokenStream,
     where_clause: &mut Option<WhereClause>,
     prefix: &Option<syn::TypePath>,
 ) -> Result<TokenStream, syn::Error> {
@@ -369,6 +384,7 @@ pub fn build_tuple_type_scaffold(
 
     Ok(quote! {
         #prefix::sov_universal_wallet::schema::Item::<#prefix::sov_universal_wallet::schema::IndexLinking>::Container(#prefix::sov_universal_wallet::schema::Container::Tuple( #prefix::sov_universal_wallet::ty::Tuple {
+            template: #template_string,
             fields: vec![#(#fields),*],
         }))
     })
@@ -414,6 +430,7 @@ fn build_virtual_struct(
     where_clause: &mut WhereClause,
     type_name: &Ident,
     type_generics: &Generics,
+    template_string: &Option<String>,
     prefix: &Option<syn::TypePath>,
     macro_name: &TokenStream,
 ) -> Result<TokenStream, syn::Error> {
@@ -443,15 +460,20 @@ fn build_virtual_struct(
         })
         .collect();
 
+    // TODO: pass attribute name as argument when creating the derive, instead of hardcoding
+    // sov_wallet
+    let template_attribute = match template_string {
+        Some(template) => quote! {#[sov_wallet(show_as = #template)]},
+        None => quote! {},
+    };
+
     // TODO: propagate `#[serde(rename_all_fields)]` here, transformed into a `rename_all`,
     // if support for that is required
-    //
-    // TODO: pass the macro name as an argument to the helper? This would improve hygiene quite a
-    // bit
     let virtual_struct = quote! {
         #[allow(non_camel_case_types, dead_code)]
         #[automatically_derived]
         #[derive(#macro_name)]
+        #template_attribute
         struct #type_name #virt_impl_generics #virt_where_clause {
             #(#struct_fields),*
         }
@@ -472,6 +494,7 @@ fn build_virtual_tuple(
     where_clause: &mut WhereClause,
     type_name: &Ident,
     type_generics: &Generics,
+    template_string: &Option<String>,
     prefix: &Option<syn::TypePath>,
     macro_name: &TokenStream,
 ) -> Result<TokenStream, syn::Error> {
@@ -498,11 +521,19 @@ fn build_virtual_tuple(
         })
         .collect();
 
+    // TODO: pass attribute name as argument when creating the derive, instead of hardcoding
+    // sov_wallet
+    let template_attribute = match template_string {
+        Some(template) => quote! {#[sov_wallet(show_as = #template)]},
+        None => quote! {},
+    };
+
     // TODOs as above for build_virtual_struct
     let virtual_tuple = quote! {
         #[allow(non_camel_case_types, dead_code)]
         #[automatically_derived]
         #[derive(#macro_name)]
+        #template_attribute
         struct #type_name #virt_impl_generics #virt_where_clause (
             #(#tuple_fields),*
         );
@@ -515,6 +546,16 @@ fn maybe_generate_field_schema(field: &InputField, prefix: &Option<syn::TypePath
     field.resolve_type(prefix)
 }
 
+/// necessary to have quote! actually include the Option tokens
+/// String options get quoted as a static str, so instead of a generic util this is a simple
+/// special-cased helper due to the need to call .to_string()
+fn quote_str_option_literally(opt: &Option<String>) -> TokenStream {
+    match opt {
+        Some(s) => quote! { Some(#s.to_string()) },
+        None => quote! { None },
+    }
+}
+
 #[derive(Debug, FromDeriveInput)]
 #[darling(attributes(sov_wallet), supports(any), forward_attrs(doc, serde))]
 pub struct Input {
@@ -522,6 +563,8 @@ pub struct Input {
     pub data: ast::Data<InputVariant, InputField>,
     #[darling(with = "parse_serde_rename_attrs")]
     pub attrs: SerdeRename,
+    #[darling(default)]
+    pub show_as: Option<String>,
 }
 
 #[derive(Debug, Clone, FromField)]
@@ -591,4 +634,6 @@ impl InputField {
 pub struct InputVariant {
     pub ident: Ident,
     pub fields: ast::Fields<InputField>,
+    #[darling(default)]
+    pub show_as: Option<String>,
 }

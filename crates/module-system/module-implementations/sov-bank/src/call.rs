@@ -40,6 +40,7 @@ pub enum CallMessage<S: Spec> {
     },
 
     /// Transfers a specified amount of tokens to the specified address.
+    #[sov_wallet(show_as = "Transfer to address {} {}.")]
     Transfer {
         /// The address to which the tokens will be transferred.
         to: S::Address,
