@@ -328,7 +328,7 @@ where
         // This closure helps us make sure that we always put the
         // state checkpoint back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint);
+            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let (tx_scratchpad, output_res) = tx_auth(
                 &self.runtime,
@@ -411,7 +411,7 @@ where
         // This closure helps us make sure that we always put the
         // `StateCheckpoint` back into `self` at the end of the function.
         let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint);
+            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
 
             let mut ctx = BatchConstructionContext {
                 visible_height,

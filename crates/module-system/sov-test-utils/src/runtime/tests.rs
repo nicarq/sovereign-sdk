@@ -44,6 +44,7 @@ fn setup() -> (TestUser<S>, TestRunner<TestOptimisticRuntime<S>, S>) {
     (admin, runner)
 }
 
+/// Ensures that [`TestRunner::query_state`] returns an [`sov_modules_api::ApiStateAccessor`] on the latest (most recent) state.
 #[test]
 fn test_query_runtime() {
     let (admin, mut runner) = setup();
@@ -81,6 +82,46 @@ fn test_query_runtime() {
                 .unwrap_infallible();
             assert_eq!(value, Some(1), "The value should be set to 1");
         }),
+    });
+}
+
+/// Ensures that calling [`TestRunner::query_archival_state`] returns an [`sov_modules_api::ApiStateAccessor`] on an archived (outdated) state.
+#[test]
+fn test_query_archival_state() {
+    let (admin, mut runner) = setup();
+
+    runner.query_state(|state| {
+        assert_eq!(
+            ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible(),
+            None,
+            "The value should not be set"
+        );
+    });
+
+    runner.execute_transaction(TransactionTestCase {
+        input: admin
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+        assert: Box::new(move |_result, state| {
+            let value = ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible();
+            assert_eq!(value, Some(1), "The value should be set to 1");
+        }),
+    });
+
+    runner.query_archival_state(0, |state| {
+        assert_eq!(
+            ValueSetter::<S>::default()
+                .value
+                .get(state)
+                .unwrap_infallible(),
+            None,
+            "The value should not be set"
+        );
     });
 }
 

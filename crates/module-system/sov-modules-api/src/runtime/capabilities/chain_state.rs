@@ -27,10 +27,14 @@ pub trait ChainState {
     );
 
     /// Returns the base fee per gas accessible at the current *virtual* slot.
+    ///
+    /// ## Note
+    /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
+    /// This can happen when querying a slot too far ahead in the future.
     fn base_fee_per_gas(
         &self,
         state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
-    ) -> <<Self::Spec as Spec>::Gas as Gas>::Price;
+    ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
     /// Returns the visible root hash accessible at the current *virtual* rollup height
     fn current_visible_hash(

@@ -219,23 +219,21 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         }
     }
 
-    /// Sets the accessor to return data consistent with the rollup's state
-    /// as of the provided slot number.
-    pub fn set_rollup_height(&mut self, height: u64) {
-        let visible_height = {
-            let kernel = self.kernel.clone();
-            kernel.visible_slot_number_at(height, self)
-        };
-
-        self.rollup_height = visible_height;
-    }
-
     /// Returns a new accessor which accesses the rollup
     pub fn get_archival_at(&self, height: u64) -> ApiStateAccessor<S> {
-        // TODO: Is cloning the gas price the intended behavior here?
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
-        state.set_rollup_height(height);
+
+        let kernel = self.kernel.clone();
+
+        let visible_height = kernel.visible_slot_number_at(height, &mut state);
+        state.rollup_height = height;
+
+        // Set the state's base fee per gas if there is a relevant value to retrieve from the state.
+        if let Some(base_fee_per_gas) = kernel.base_fee_per_gas_at(visible_height, &mut state) {
+            state.gas_meter.set_gas_price(base_fee_per_gas);
+        }
+
         state
     }
 }

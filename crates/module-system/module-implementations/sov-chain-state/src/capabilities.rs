@@ -99,21 +99,42 @@ impl<S: Spec> ChainState<S> {
             .unwrap_infallible();
     }
 
+    /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
+    pub fn base_fee_per_gas_at<Reader: VersionReader + StateAccessor>(
+        &self,
+        height: u64,
+        state: &mut Reader,
+    ) -> Result<
+        Option<<S::Gas as sov_modules_api::Gas>::Price>,
+        <Reader as StateReader<Kernel>>::Error,
+    > {
+        if height == 0 {
+            return Ok(Some(S::initial_base_fee_per_gas()));
+        }
+
+        Ok(
+            if let Some(in_progress_transition) = self.slots.get(height, state)? {
+                Some(in_progress_transition.gas_info.base_fee_per_gas)
+            } else {
+                None
+            },
+        )
+    }
+
     /// Returns the base fee per gas accessible at the current *virtual* slot.
     /// This value is safe to be used in the transaction execution context.
     ///
     /// ## Note
-    /// If there is no in-progress transition at the current virtual slot, the initial base fee per gas is returned.
+    /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
+    /// This can happen when querying a slot too far ahead in the future.
     pub fn base_fee_per_gas<Reader: VersionReader + StateAccessor>(
         &self,
         state: &mut Reader,
-    ) -> Result<<S::Gas as sov_modules_api::Gas>::Price, <Reader as StateReader<Kernel>>::Error>
-    {
-        if let Some(in_progress_transition) = self.slots.last(state)? {
-            Ok(in_progress_transition.gas_info.base_fee_per_gas)
-        } else {
-            Ok(<S as GasSpec>::initial_base_fee_per_gas())
-        }
+    ) -> Result<
+        Option<<S::Gas as sov_modules_api::Gas>::Price>,
+        <Reader as StateReader<Kernel>>::Error,
+    > {
+        self.base_fee_per_gas_at(state.rollup_height_to_access(), state)
     }
 }
 
@@ -126,5 +147,13 @@ impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
     ) -> u64 {
         self.visible_slot_number_at(true_slot_number, state)
             .unwrap_infallible()
+    }
+
+    fn base_fee_per_gas_at(
+        &self,
+        height: u64,
+        state: &mut sov_modules_api::state::ApiStateAccessor<S>,
+    ) -> Option<<<S as Spec>::Gas as sov_modules_api::Gas>::Price> {
+        self.base_fee_per_gas_at(height, state).unwrap_infallible()
     }
 }

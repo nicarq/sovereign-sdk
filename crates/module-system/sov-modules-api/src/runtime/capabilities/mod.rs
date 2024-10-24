@@ -16,6 +16,7 @@ use std::sync::Arc;
 pub use auth::*;
 pub use batch_selector::*;
 pub use kernel::*;
+
 mod gas;
 pub use gas::*;
 pub use proof::ProofProcessor;
@@ -196,6 +197,14 @@ pub mod mocks {
             _state: &mut crate::ApiStateAccessor<S>,
         ) -> u64 {
             true_slot_number
+        }
+
+        fn base_fee_per_gas_at(
+            &self,
+            _height: u64,
+            _state: &mut crate::state::ApiStateAccessor<S>,
+        ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
+            None
         }
     }
 

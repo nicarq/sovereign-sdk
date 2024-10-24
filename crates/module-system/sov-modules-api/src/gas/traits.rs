@@ -396,6 +396,12 @@ impl<GU: Gas> BasicGasMeter<GU> {
             gas_price,
         }
     }
+
+    /// Replaces the gas price in the provided meter.
+    #[cfg(feature = "native")]
+    pub(crate) fn set_gas_price(&mut self, gas_price: GU::Price) {
+        self.gas_price = gas_price;
+    }
 }
 
 impl<GU: Gas> GasMeter<GU> for BasicGasMeter<GU> {
