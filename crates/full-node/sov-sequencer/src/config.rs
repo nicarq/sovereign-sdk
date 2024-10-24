@@ -7,23 +7,56 @@ use crate::batch_builders::standard::StdBatchBuilderConfig;
 /// See [`SequencerConfig::batch_builder`].
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
-pub enum BatchBuilderConfig {
+pub struct BatchBuilderConfig<Addr> {
+    /// The list of addresses which can perform admin operations on the sequencer
+    #[serde(default = "Vec::<Addr>::new")]
+    pub admin_addresses: Vec<Addr>,
+    /// The sequencer operation mode and its corresponding config.
+    #[serde(flatten)]
+    pub mode: BatchBuilderMode,
+}
+
+impl<S> BatchBuilderConfig<S> {
+    /// Build a config for the standard sequencing mode with no admin addresses
+    pub fn standard(config: StdBatchBuilderConfig) -> Self {
+        Self {
+            admin_addresses: Vec::new(),
+            mode: BatchBuilderMode::Standard(config),
+        }
+    }
+    /// Build a config for the preferred sequencing mode with no admin addresses
+
+    pub fn preferred() -> Self {
+        Self {
+            admin_addresses: Vec::new(),
+            mode: BatchBuilderMode::Preferred,
+        }
+    }
+}
+
+/// See [`SequencerConfig::batch_builder`].
+#[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BatchBuilderMode {
     /// A standard batch builder, which can post transactions to the rollup but not give soft confirmations.
     Standard(StdBatchBuilderConfig),
     /// A "Preferred" batch builder which is allowed to give soft confirmations.
     Preferred,
 }
 
-impl Default for BatchBuilderConfig {
+impl<Addr> Default for BatchBuilderConfig<Addr> {
     fn default() -> Self {
-        Self::Standard(Default::default())
+        Self {
+            admin_addresses: Vec::new(),
+            mode: BatchBuilderMode::Standard(Default::default()),
+        }
     }
 }
 
 /// Sequencer configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
 #[schemars(bound = "Da: DaSpec, BbConfig: JsonSchema", rename = "SequencerConfig")]
-pub struct SequencerConfig<Da: DaSpec, BbConfig = BatchBuilderConfig> {
+pub struct SequencerConfig<Da: DaSpec, BbConfig> {
     /// When enabled, submitted transactions are periodically assembled into
     /// batches and automatically posted to the DA layer. When disabled, the
     /// batch production endpoint has to be called explicitly.
@@ -49,7 +82,7 @@ pub struct SequencerConfig<Da: DaSpec, BbConfig = BatchBuilderConfig> {
     pub batch_builder: BbConfig,
 }
 
-impl<Da: DaSpec> SequencerConfig<Da> {
+impl<Da: DaSpec> SequencerConfig<Da, ()> {
     /// Returns a new [`SequencerConfig`] with the batch builder config set
     /// to the unit struct `()`.
     pub fn without_bb_config(&self) -> SequencerConfig<Da, ()> {

@@ -27,6 +27,18 @@ impl<'a> StructDef<'a> {
             })
             .collect()
     }
+
+    pub(crate) fn enum_to_inner_legs(&self) -> Vec<proc_macro2::TokenStream> {
+        self.fields
+            .iter()
+            .map(|field| {
+                let name = pascal_case_ident(&field.ident);
+                quote::quote!(
+                    Self:: #name(inner) => inner,
+                )
+            })
+            .collect()
+    }
 }
 
 impl EventMacro {
@@ -94,7 +106,13 @@ impl EventMacro {
         );
 
         let event_enum_legs = struct_def.create_event_enum_legs();
-        let event_enum = struct_def.create_enum(&event_enum_legs, EVENT, &enum_attributes);
+        let enum_to_inner_legs = struct_def.enum_to_inner_legs();
+        let event_enum = struct_def.create_enum(
+            &event_enum_legs,
+            &enum_to_inner_legs,
+            EVENT,
+            &enum_attributes,
+        );
 
         let event_cases = struct_def.fields.iter().map(|field| {
             let name = pascal_case_ident(&field.ident);

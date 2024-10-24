@@ -168,7 +168,8 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         Self::PreSigned(RawTx { data: tx })
     }
 
-    fn sign(
+    /// Sign a message with the given key, generating a `RawTx`
+    pub fn sign(
         msg: Vec<u8>,
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         details: TxDetails<S>,

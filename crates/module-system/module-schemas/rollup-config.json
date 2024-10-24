@@ -257,6 +257,13 @@
         "max_allowed_blocks_behind"
       ],
       "properties": {
+        "admin_addresses": {
+          "description": "The list of addresses which can perform admin operations on the sequencer",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Address"
+          }
+        },
         "automatic_batch_production": {
           "description": "When enabled, submitted transactions are periodically assembled into batches and automatically posted to the DA layer. When disabled, the batch production endpoint has to be called explicitly.\n\nExperimental.",
           "default": false,

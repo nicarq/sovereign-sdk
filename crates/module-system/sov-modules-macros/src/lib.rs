@@ -172,7 +172,10 @@ macro_rules! fn_name {
     }};
 }
 
-#[proc_macro_derive(ModuleInfo, attributes(state, module, kernel_module, id, gas, phantom))]
+#[proc_macro_derive(
+    ModuleInfo,
+    attributes(module_info, state, module, kernel_module, id, gas, phantom)
+)]
 pub fn module_info(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
 

@@ -1,14 +1,18 @@
 #![allow(unused)]
 
 use sov_modules_api::{
-    Context, CryptoSpec, Module, ModuleId, ModuleInfo, Spec, StateMap, StateValue, TxState,
+    Context, CryptoSpec, InnerEnumVariant, Module, ModuleId, ModuleInfo, Spec, StateMap,
+    StateValue, TxState,
 };
 use sov_test_utils::ZkTestSpec;
 
 mod test_module {
+    use sov_modules_api::DaSpec;
+
     use super::*;
 
     #[derive(ModuleInfo)]
+    #[module_info(sequencer_safety = "not_sequencer_safe")]
     pub(crate) struct TestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -23,6 +27,14 @@ mod test_module {
 
         #[state]
         pub test_state3: StateValue<String>,
+    }
+
+    fn not_sequencer_safe<S: Spec>(
+        _module: &TestStruct<S>,
+        _call: InnerEnumVariant<'_>,
+        _address: &<<S as Spec>::Da as DaSpec>::Address,
+    ) -> bool {
+        false
     }
 
     impl<S: Spec> Module for TestStruct<S> {
@@ -163,5 +175,23 @@ fn dependencies_of_module_with_child_module() {
     assert_eq!(
         second_test_struct.dependencies(),
         [second_test_struct.module_in_second_struct_1.id()]
+    );
+}
+
+#[test]
+fn sequencer_safety_of_modules() {
+    let test_struct = test_module::TestStruct::<ZkTestSpec>::default();
+    let second_test_struct: second_test_module::SecondTestStruct<ZkTestSpec> = Default::default();
+    let call_1 = InnerEnumVariant::new_for_test(&());
+    let call_2 = InnerEnumVariant::new_for_test(&());
+
+    assert!(
+        !test_struct.is_safe_for_sequencer(call_1, &[0u8; 32].into()),
+        "test struct overrode its sequencer safety"
+    );
+
+    assert!(
+        second_test_struct.is_safe_for_sequencer(call_2, &[0u8; 32].into()),
+        "second test struct uses default sequencer safety"
     );
 }

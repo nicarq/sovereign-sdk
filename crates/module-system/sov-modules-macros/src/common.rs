@@ -190,6 +190,7 @@ impl<'a> StructDef<'a> {
     pub(crate) fn create_enum(
         &self,
         enum_legs: &[TokenStream],
+        enum_to_inner_legs: &[TokenStream],
         postfix: &'static str,
         extra_attributes: &[TokenStream],
     ) -> TokenStream {
@@ -205,11 +206,17 @@ impl<'a> StructDef<'a> {
                 #(#enum_legs)*
             }
 
-            impl #impl_generics ::sov_modules_api::EnumUtils for #enum_ident #type_generics #where_clause {
+            impl #impl_generics ::sov_modules_api::NestedEnumUtils for #enum_ident #type_generics #where_clause {
                 type Discriminants = #enum_discriminants_ident;
 
                 fn discriminant(&self) -> Self::Discriminants {
                     self.into()
+                }
+
+                fn raw_contents(&self) -> &dyn ::std::any::Any {
+                    match self {
+                        #(#enum_to_inner_legs)*
+                    }
                 }
             }
         }

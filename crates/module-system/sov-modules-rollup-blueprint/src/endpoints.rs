@@ -16,7 +16,7 @@ use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig, SequencerDb};
+use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig, SequencerDb};
 use sov_stf_runner::RunnerConfig;
 use tracing::warn;
 
@@ -31,7 +31,10 @@ pub async fn register_endpoints<B, M>(
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
     da_sync_state: Arc<DaSyncState>,
-    sequencer_config: &SequencerConfig<<B::Spec as Spec>::Da>,
+    sequencer_config: &SequencerConfig<
+        <B::Spec as Spec>::Da,
+        BatchBuilderConfig<<B::Spec as Spec>::Address>,
+    >,
     runner_config: &RunnerConfig,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
@@ -44,13 +47,14 @@ where
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
     let da_address = sequencer_config.da_address.clone();
-    let (api_state, sequencer_router) = match &sequencer_config.batch_builder {
-        BatchBuilderConfig::Standard(bb_config) => {
+    let (api_state, sequencer_router) = match &sequencer_config.batch_builder.mode {
+        BatchBuilderMode::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
                 storage.clone(),
                 da_sync_state.clone(),
                 da_address,
                 sequencer_db.read_all()?,
+                sequencer_config.batch_builder.admin_addresses.clone(),
                 bb_config,
             )
             .await?;
@@ -66,7 +70,7 @@ where
 
             (sequencer.api_state(), sequencer.rest_api_server())
         }
-        BatchBuilderConfig::Preferred => {
+        BatchBuilderMode::Preferred => {
             warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
 
             let batch_builder = PreferredBatchBuilder::<(B::Spec, B::Runtime)>::create(
@@ -74,6 +78,7 @@ where
                 da_sync_state.clone(),
                 da_address,
                 sequencer_db.read_all()?,
+                sequencer_config.batch_builder.admin_addresses.clone(),
                 &(),
             )
             .await?;

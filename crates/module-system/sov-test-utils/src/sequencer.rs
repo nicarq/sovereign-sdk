@@ -12,6 +12,7 @@ use sov_modules_api::{
     DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, SyncStatus,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
+use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
@@ -76,6 +77,7 @@ where
         dir: TempDir,
         da_service: MockDaService,
         batch_builder_config: B::Config,
+        register_admin: bool,
         seq_db_txs: Vec<SeqDbTx>,
         mut storage_manager: NativeStorageManager<
             MockDaSpec,
@@ -92,12 +94,18 @@ where
         let value_setter_config = ValueSetterConfig {
             admin: admin.address(),
         };
+        let paymaster_config = PaymasterConfig {
+            payers: SafeVec::new(),
+        };
 
         let runtime = TestOptimisticRuntime::<TestSpec>::default();
 
         // Run genesis registering the attester and sequencer we've generated.
-        let genesis_config =
-            GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
+        let genesis_config = GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            value_setter_config,
+            paymaster_config,
+        );
 
         let params = GenesisParams {
             runtime: genesis_config,
@@ -129,6 +137,11 @@ where
             target_da_height: AtomicU64::new(0),
             sync_status_sender,
         });
+        let admin_addresses = if register_admin {
+            vec![admin.address()]
+        } else {
+            vec![]
+        };
 
         let (_, storage_receiver) = watch::channel(stf_state);
         let batch_builder = B::create(
@@ -136,6 +149,7 @@ where
             da_sync_state,
             da_service.sequencer_address(),
             seq_db_txs,
+            admin_addresses,
             &batch_builder_config,
         )
         .await?;
@@ -187,6 +201,7 @@ where
         da_service: MockDaService,
         batch_builder_config: B::Config,
         seq_db_txs: Vec<SeqDbTx>,
+        register_admin: bool,
     ) -> anyhow::Result<Self> {
         let storage_manager = NativeStorageManager::<
             MockDaSpec,
@@ -197,6 +212,7 @@ where
             dir,
             da_service,
             batch_builder_config,
+            register_admin,
             seq_db_txs,
             storage_manager,
         )
@@ -226,6 +242,7 @@ impl TestSequencerSetup<TestStdBatchBuilder> {
                 max_batch_size_bytes: None,
             },
             vec![],
+            true,
         )
         .await
     }

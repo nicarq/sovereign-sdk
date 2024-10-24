@@ -35,11 +35,18 @@
 /// }
 ///
 ///
-/// impl<S: Spec> sov_modules_api::EnumUtils for RuntimeCall<S> {
+/// impl<S: Spec> sov_modules_api::NestedEnumUtils for RuntimeCall<S> {
 ///     type Discriminants = RuntimeCallDiscriminants;
 ///  
 ///     fn discriminant(&self) -> Self::Discriminants {
 ///         self.into()
+///     }
+///   
+///     fn raw_contents(&self) -> &dyn std::any::Any {
+///         match self {
+///             Self::bank(inner) => inner,
+///             Self::sequencer_registry(inner) => inner,
+///         }
 ///     }
 ///  }
 ///
@@ -78,7 +85,7 @@
 /// # }
 /// # fn module_info(
 /// #     &self,
-/// #     discriminant: <Self::Decodable as ::sov_modules_api::EnumUtils>::Discriminants,
+/// #     discriminant: <Self::Decodable as ::sov_modules_api::NestedEnumUtils>::Discriminants,
 /// # ) -> &dyn ::sov_modules_api::ModuleInfo<Spec = Self::Spec> {
 /// #     todo!()
 /// # }

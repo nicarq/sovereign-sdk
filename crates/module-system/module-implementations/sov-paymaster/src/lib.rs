@@ -13,8 +13,8 @@ use sov_bank::ReserveGasError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, TxScratchpad, TxState,
+    CallResponse, Context, DaSpec, Error, Gas, GenesisState, InnerEnumVariant, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, Spec, StateMap, TxScratchpad, TxState,
 };
 use sov_state::BcsCodec;
 
@@ -23,6 +23,7 @@ type PayeePolicyMap<S: Spec> = StateMap<S::Address, PayeePolicy<S>>;
 
 /// The `Paymaster` module allows a third party to gas on behalf of a user.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
+#[module_info(sequencer_safety = "is_safe_for_sequencer")]
 pub struct Paymaster<S: Spec> {
     /// Id of the module.
     #[id]
@@ -39,6 +40,32 @@ pub struct Paymaster<S: Spec> {
     /// Reference to the Bank module.
     #[module]
     pub(crate) bank: sov_bank::Bank<S>,
+}
+
+fn is_safe_for_sequencer<S: Spec>(
+    _module: &Paymaster<S>,
+    call: InnerEnumVariant<'_>,
+    sequencer_address: &<S::Da as DaSpec>::Address,
+) -> bool {
+    if let Some(call) = call.inner().downcast_ref::<CallMessage<S>>() {
+        // Updates are unsafe if they could change the payer registered for this sequencer
+        match call {
+            CallMessage::RegisterPaymaster { policy } => {
+                // If a policy doesn't include this sequencer, we're fine
+                !policy.authorized_sequencers.covers(sequencer_address)
+            }
+            // A set payer message is always dangerous
+            //
+            // Similarly, any policy update could change this sequencer's payer since the sequencer may already
+            // be an authorized sequencer on that policy.
+            // TODO: Change the update rules so that the sequencer is changed only if *newly* whitlisted.
+            // Then, update this sequencer safety implementation
+            CallMessage::SetPayerForSequencer { .. } | CallMessage::UpdatePolicy { .. } => false,
+        }
+    } else {
+        // Calls to other modules are safe as far as we're concerned
+        true
+    }
 }
 
 impl<S: Spec> Module for Paymaster<S> {

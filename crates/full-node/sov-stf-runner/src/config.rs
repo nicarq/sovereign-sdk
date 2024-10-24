@@ -6,7 +6,7 @@ use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use sov_rollup_interface::node::da::DaService;
-use sov_sequencer::SequencerConfig;
+use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 
 pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
 
@@ -89,7 +89,7 @@ pub struct RollupConfig<Address, Da: DaService> {
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
-    pub sequencer: SequencerConfig<Da::Spec>,
+    pub sequencer: SequencerConfig<Da::Spec, BatchBuilderConfig<Address>>,
 }
 
 /// Reads toml file as a specific type.
@@ -209,7 +209,7 @@ mod tests {
                     "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
                 )
                 .unwrap(),
-                batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
+                batch_builder: BatchBuilderConfig::standard(StdBatchBuilderConfig {
                     mempool_max_txs_count: None,
                     max_batch_size_bytes: None,
                 }),

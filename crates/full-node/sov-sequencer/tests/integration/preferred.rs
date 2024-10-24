@@ -14,7 +14,7 @@ use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::TestSpec;
 use tokio::sync::watch;
 
-use crate::utils::generate_txs;
+use crate::utils::{generate_paymaster_tx, generate_txs};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn restore_txs_from_seq_db() {
@@ -29,7 +29,7 @@ async fn restore_txs_from_seq_db() {
 
     let sequencer = TestSequencerSetup::<
         StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, vec![])
+    >::new(dir, da_service, batch_builder_config, vec![], true)
     .await
     .unwrap();
 
@@ -70,6 +70,7 @@ async fn restore_txs_from_seq_db() {
         da_sync_state,
         sequencer_addr,
         db_txs,
+        Vec::new(),
         &(),
     )
     .await
@@ -78,4 +79,65 @@ async fn restore_txs_from_seq_db() {
     let batch = restored_batch_builder.build_next_batch(0).await.unwrap();
 
     assert_eq!(batch.hashes.len(), 1);
+}
+
+// Checks that transactions that are not sequencer safe are rejected
+// when the sender address is not configured as an admin in the sequencer config.
+#[tokio::test(flavor = "multi_thread")]
+async fn not_sequencer_safe_txs_are_restricted() {
+    let dir = tempfile::tempdir().unwrap();
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let da_service = MockDaService::new(sequencer_addr);
+
+    let sequencer = TestSequencerSetup::<
+        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
+    >::new(dir, da_service, (), vec![], false)
+    .await
+    .unwrap();
+
+    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    {
+        let client = sequencer.client();
+
+        if let Err(e) = client
+            .accept_tx(&types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+        {
+            assert!(
+                e.to_string().contains("Only designated admins are allowed"),
+                "Unexpected error: {}",
+                e
+            );
+        } else {
+            panic!("Sequencer accepted admin tx from non-admin sender");
+        }
+    }
+}
+
+// Checks that transactions that are not sequencer safe are accepted
+// if the sender address is configured as an admin in the sequencer config.
+#[tokio::test(flavor = "multi_thread")]
+async fn sequencer_safe_txs_from_admins_are_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let da_service = MockDaService::new(sequencer_addr);
+
+    let sequencer = TestSequencerSetup::<
+        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
+    >::new(dir, da_service, (), vec![], true)
+    .await
+    .unwrap();
+
+    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    {
+        let client = sequencer.client();
+
+        client
+            .accept_tx(&types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await.expect("Transactions from sequencer admins should be accepted even if they are sequencer unsafe");
+    }
 }

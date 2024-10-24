@@ -160,7 +160,13 @@ pub mod third_test_module {
     use super::*;
 
     pub trait ModuleThreeStorable:
-        borsh::BorshSerialize + borsh::BorshDeserialize + core::fmt::Debug + Default + Send + Sync
+        borsh::BorshSerialize
+        + borsh::BorshDeserialize
+        + core::fmt::Debug
+        + Default
+        + Send
+        + Sync
+        + 'static
     {
     }
 
@@ -252,7 +258,7 @@ mod custom_attributes {
 // Wrap the test in a module rather than declaring the struct inside of the function
 // to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
 mod derive_event {
-    use sov_modules_api::EnumUtils;
+    use sov_modules_api::NestedEnumUtils;
 
     use super::*;
     #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
@@ -331,7 +337,7 @@ mod derive_genesis {
 // Wrap the test in a module rather than declaring the struct inside of the function
 // to avoid proc-macro resolution fallback error: https://github.com/rust-lang/rust/issues/83583
 mod derive_dispatch {
-    use sov_modules_api::EnumUtils;
+    use sov_modules_api::NestedEnumUtils;
 
     use super::*;
     #[derive(Default, Genesis, DispatchCall, MessageCodec)]
