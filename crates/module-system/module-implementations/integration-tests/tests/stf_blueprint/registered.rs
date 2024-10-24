@@ -1,18 +1,27 @@
 use std::env;
 
+use helpers::*;
 use serial_test::serial;
-use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward};
-use sov_modules_api::{BatchSequencerOutcome, Gas, GasSpec};
+use sov_attester_incentives::AttesterIncentives;
+use sov_bank::IntoPayable;
+use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, Transaction};
+use sov_modules_api::{ApiStateAccessor, BatchSequencerOutcome, Gas, GasSpec, ModuleInfo, RawTx};
 use sov_modules_stf_blueprint::TxEffect;
-use sov_test_utils::BatchTestCase;
+use sov_test_utils::{BatchTestCase, TestSequencer, TransactionType};
 
-use super::{create_txs, TxStatus};
+use super::{get_balance, get_seq_bond, TxStatus};
 use crate::stf_blueprint::setup;
 
 type S = sov_test_utils::TestSpec;
 
 fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
-    let (mut runner, actors) = setup();
+    let (mut runner, user_1, user_2, sequencer_account) = setup();
+
+    let actors = Actors {
+        admin_account: user_1,
+        not_admin_account: user_2,
+        sequencer_account,
+    };
 
     let txs = create_txs(
         &tx_statuses,
@@ -176,7 +185,13 @@ fn not_enough_stake_to_execute_batch_hook_test() {
         TxStatus::Success,
     ];
 
-    let (mut runner, actors) = setup();
+    let (mut runner, user_1, user_2, sequencer_account) = setup();
+
+    let actors = Actors {
+        admin_account: user_1,
+        not_admin_account: user_2,
+        sequencer_account,
+    };
 
     let txs = create_txs(
         &tx_statuses,
@@ -228,7 +243,13 @@ fn not_enough_stake_auth_batch_test() {
         TxStatus::Success,
     ];
 
-    let (mut runner, actors) = setup();
+    let (mut runner, user_1, user_2, sequencer_account) = setup();
+
+    let actors = Actors {
+        admin_account: user_1,
+        not_admin_account: user_2,
+        sequencer_account,
+    };
 
     let txs = create_txs(
         &tx_statuses,
@@ -270,4 +291,159 @@ fn not_enough_stake_auth_batch_test() {
             assert_eq!(end.total_balance(), start.total_balance());
         }),
     });
+}
+
+mod helpers {
+    use sov_modules_api::macros::config_value;
+    use sov_modules_api::transaction::{PriorityFeeBips, UnsignedTransaction};
+    use sov_modules_api::PrivateKey;
+    use sov_test_utils::{EncodeCall, TestUser};
+    use sov_value_setter::{CallMessage, ValueSetter};
+
+    use super::super::IntegTestRuntime;
+    use super::*;
+
+    pub(crate) struct Actors {
+        pub(crate) admin_account: TestUser<S>,
+        pub(crate) not_admin_account: TestUser<S>,
+        pub(crate) sequencer_account: TestSequencer<S>,
+    }
+
+    impl Actors {
+        pub(crate) fn balances(&self, state: &mut ApiStateAccessor<S>) -> Balances {
+            let attester_module = AttesterIncentives::<S>::default();
+            Balances {
+                admin_balance: get_balance(&self.admin_account.address(), state),
+                not_admin_balance: get_balance(&self.not_admin_account.address(), state),
+                attester_module_balance: get_balance(attester_module.id().to_payable(), state),
+                sequencer_bond: get_seq_bond(&self.sequencer_account.da_address, state).unwrap(),
+            }
+        }
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    pub(crate) struct Balances {
+        pub(crate) admin_balance: u64,
+        pub(crate) not_admin_balance: u64,
+        pub(crate) attester_module_balance: u64,
+        pub(crate) sequencer_bond: u64,
+    }
+
+    impl Balances {
+        pub(crate) fn total_balance(&self) -> u64 {
+            self.admin_balance
+                + self.not_admin_balance
+                + self.sequencer_bond
+                + self.attester_module_balance
+        }
+    }
+
+    fn create_tx_bad_chain_id(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        signer: &TestUser<S>,
+    ) -> TransactionType<ValueSetter<S>, S> {
+        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
+            CallMessage::SetValue(8),
+        );
+
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            config_value!("CHAIN_ID") + 1,
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
+    }
+
+    fn create_tx_bad_sig(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        signer: &TestUser<S>,
+    ) -> TransactionType<ValueSetter<S>, S> {
+        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
+            CallMessage::SetValue(8),
+        );
+
+        let utx = UnsignedTransaction::<S>::new(
+            encoded_message.clone(),
+            config_value!("CHAIN_ID"),
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        let mut signed_tx = Transaction::new_signed_tx(&signer.private_key, utx);
+
+        // Create a signature for a different message so it won't verify in the stf.
+        let bad_signature = signer.private_key.sign(&[1, 2, 3]);
+        signed_tx.signature = bad_signature;
+        let tx = borsh::to_vec(&signed_tx).unwrap();
+
+        TransactionType::PreSigned(RawTx { data: tx })
+    }
+
+    fn create_tx_valid(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        signer: &TestUser<S>,
+    ) -> TransactionType<ValueSetter<S>, S> {
+        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
+            CallMessage::SetValue(8),
+        );
+
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            config_value!("CHAIN_ID"),
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
+    }
+
+    pub(crate) fn create_txs(
+        statuses: &[TxStatus],
+        max_priority_fee_bips: PriorityFeeBips,
+        admin: &TestUser<S>,
+        not_admin: &TestUser<S>,
+    ) -> Vec<TransactionType<ValueSetter<S>, S>> {
+        let mut nonce = 0;
+        let mut reverted_tx_nonce = 0;
+        let mut txs = Vec::new();
+        for status in statuses {
+            match status {
+                TxStatus::Success => {
+                    let tx = create_tx_valid(nonce, max_priority_fee_bips, admin);
+                    txs.push(tx);
+                    nonce += 1;
+                }
+                TxStatus::Reverted => {
+                    // A call message send by not admin will be reverted.
+                    let tx = create_tx_valid(reverted_tx_nonce, max_priority_fee_bips, not_admin);
+                    txs.push(tx);
+                    reverted_tx_nonce += 1;
+                }
+                TxStatus::BadNonce => {
+                    let tx = create_tx_valid(9999, max_priority_fee_bips, admin);
+                    txs.push(tx);
+                }
+                TxStatus::BadChainId => {
+                    let tx = create_tx_bad_chain_id(nonce, max_priority_fee_bips, admin);
+                    txs.push(tx);
+                }
+                TxStatus::BadSignature => {
+                    let tx = create_tx_bad_sig(nonce, max_priority_fee_bips, admin);
+                    txs.push(tx);
+                }
+            }
+        }
+        txs
+    }
 }
