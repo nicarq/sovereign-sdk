@@ -4,6 +4,7 @@ use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec, Zkvm};
 use sov_modules_stf_blueprint::GenesisParams;
+use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_sequencer_registry::SequencerConfig;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
@@ -127,6 +128,9 @@ fn create_test_rt_genesis_config<S: Spec>(
         value_setter: ValueSetterConfig {
             admin: admin.clone(),
         },
+        paymaster: PaymasterConfig {
+            payers: SafeVec::new(),
+        },
         sequencer_registry: SequencerConfig {
             seq_rollup_address: seq_rollup_address.clone(),
             seq_da_address,
@@ -224,6 +228,9 @@ fn test_define_token() {
         ValueSetterConfig {
             admin: admin.address(),
         },
+        PaymasterConfig {
+            payers: SafeVec::new(),
+        },
     );
 
     assert_eq!(genesis_config.bank.tokens.len(), 2);
@@ -285,6 +292,9 @@ fn test_define_token_with_state() {
         genesis_config.clone().into(),
         ValueSetterConfig {
             admin: admin.address(),
+        },
+        PaymasterConfig {
+            payers: SafeVec::new(),
         },
     );
 
@@ -380,6 +390,9 @@ fn test_define_token_with_mint() {
         genesis_config.clone().into(),
         ValueSetterConfig {
             admin: admin.address(),
+        },
+        PaymasterConfig {
+            payers: SafeVec::new(),
         },
     );
 

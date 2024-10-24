@@ -7,13 +7,44 @@ use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
 use crate::{GasMeter, MeteredBorshDeserializeError, ModuleId, WorkingSet};
 
-/// A helper trait for working with enums.
-pub trait EnumUtils: VariantNames + AsRef<str> {
+/// A helper trait for working with enums like our generated `RuntimeCall` whose variants are tuples
+/// containing a single field
+pub trait NestedEnumUtils: VariantNames + AsRef<str> {
     /// An enum that consists of just the discriminant of the call message with no data.
-    type Discriminants: VariantNames + VariantArray + Into<&'static str> + AsRef<str> + Clone + Copy;
+    type Discriminants: VariantNames
+        + VariantArray
+        + Into<&'static str>
+        + AsRef<str>
+        + Clone
+        + Copy
+        + std::fmt::Debug;
 
     /// Returns the discriminant of the call message.
     fn discriminant(&self) -> Self::Discriminants;
+
+    /// Returns the inner enum associated with this variant as a [`std::any::Any`]
+    fn raw_contents(&self) -> &dyn std::any::Any;
+
+    /// Returns the inner enum associated with this variant as a type-safe [`InnerEnumVariant`]
+    fn contents(&self) -> InnerEnumVariant<'_> {
+        InnerEnumVariant(self.raw_contents())
+    }
+}
+
+/// The inner contents of nested enum.
+pub struct InnerEnumVariant<'a>(&'a dyn std::any::Any);
+
+impl<'a> InnerEnumVariant<'a> {
+    /// Returns the contents of the nested enum.
+    pub fn inner(&self) -> &dyn std::any::Any {
+        self.0
+    }
+
+    /// A type-unsafe constructor for use in testing
+    #[cfg(feature = "test-utils")]
+    pub fn new_for_test(contents: &'a dyn std::any::Any) -> Self {
+        Self(contents)
+    }
 }
 
 /// A trait that needs to be implemented for any call message.
@@ -22,7 +53,7 @@ pub trait DispatchCall: Send + Sync {
     type Spec: Spec;
 
     /// The concrete type that will decode into the call message of the module.
-    type Decodable: Send + Sync + EnumUtils;
+    type Decodable: Send + Sync + NestedEnumUtils;
 
     /// Decodes serialized call message
     fn decode_call(
@@ -44,6 +75,6 @@ pub trait DispatchCall: Send + Sync {
     /// Returns the ID of the dispatched module.
     fn module_info(
         &self,
-        discriminant: <Self::Decodable as EnumUtils>::Discriminants,
+        discriminant: <Self::Decodable as NestedEnumUtils>::Discriminants,
     ) -> &dyn ModuleInfo<Spec = Self::Spec>;
 }

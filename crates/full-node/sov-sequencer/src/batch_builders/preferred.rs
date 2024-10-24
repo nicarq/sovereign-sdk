@@ -10,8 +10,8 @@ use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthenticator};
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
-    Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, RawTx,
-    RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
+    Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, NestedEnumUtils,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, TransactionReceipt, TxEffect, ValidatedAuthOutput,
@@ -20,7 +20,10 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
 
-use super::{pre_exec_err_to_accept_tx_err, tx_auth, DataWithEvents, RtAwareBatchBuilderSpec};
+use super::{
+    pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth, DataWithEvents,
+    RtAwareBatchBuilderSpec,
+};
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
@@ -76,6 +79,7 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     da_sync_state: Arc<DaSyncState>,
     last_da_height: u64,
     txs_in_next_batch: Vec<TxWithHash>,
+    admin_addresses: Vec<<Z::Spec as Spec>::Address>,
 }
 
 #[async_trait]
@@ -91,6 +95,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
+        admin_addresses: Vec<<Self::Spec as Spec>::Address>,
         _config: &Self::Config,
     ) -> anyhow::Result<Self> {
         let runtime: Z::Rt = Default::default();
@@ -117,6 +122,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
             da_sync_state,
             txs_in_next_batch: vec![],
+            admin_addresses,
         };
 
         // Restore persisted transactions.
@@ -202,6 +208,26 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     );
                 }
             };
+            let authz_data = &auth_output.1;
+            let message = &auth_output.2;
+
+            // If the module isn't sequencer safe, the caller must be an admin to proceed
+            if !sender_is_allowed(
+                &self.runtime,
+                message,
+                authz_data.default_address.as_ref(),
+                &self.sequencer_address,
+                &self.admin_addresses,
+            ) {
+                return (
+                    tx_scratchpad.revert(),
+                    Err(AcceptTxError {
+                        http_status: StatusCode::FORBIDDEN.as_u16(),
+                        title: "The transaction is forbidden".to_string(),
+                        details: format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", message.discriminant()),
+                    }),
+                );
+            }
 
             let gas_info = gas_meter.gas_info();
 

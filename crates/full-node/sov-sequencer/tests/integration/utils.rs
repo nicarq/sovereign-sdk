@@ -2,21 +2,25 @@ use sov_mock_da::MockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::transaction::{Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, FullyBakedTx, RawTx};
 use sov_rollup_interface::TxHash;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{AuthenticatorInput, TestOptimisticRuntime};
+use sov_test_utils::runtime::sov_paymaster::{
+    AuthorizedSequencers, PayeePolicy, PaymasterPolicy, SafeVec,
+};
+use sov_test_utils::runtime::{AuthenticatorInput, Paymaster, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
-    EncodeCall, MessageGenerator, TestPrivateKey, TestSpec, TEST_DEFAULT_MAX_FEE,
-    TEST_DEFAULT_MAX_PRIORITY_FEE,
+    EncodeCall, MessageGenerator, TestPrivateKey, TestSpec, TransactionType,
+    TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 use sov_value_setter::ValueSetter;
 
 pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
+pub type RT = TestOptimisticRuntime<TestSpec>;
 
 pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();
@@ -27,7 +31,7 @@ pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
         max_batch_size_bytes: None,
     };
 
-    TestSequencerSetup::new(dir, da_service, batch_builder_config, vec![])
+    TestSequencerSetup::new(dir, da_service, batch_builder_config, vec![], true)
         .await
         .unwrap()
 }
@@ -97,6 +101,31 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
     }
 
     txs
+}
+
+/// Generates a paymaster tx signed with the provided key
+pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
+    let message = sov_test_utils::runtime::sov_paymaster::CallMessage::RegisterPaymaster {
+        policy: PaymasterPolicy {
+            default_payee_policy: PayeePolicy::Deny,
+            payees: SafeVec::new(),
+            authorized_updaters: SafeVec::new(),
+            authorized_sequencers: AuthorizedSequencers::All,
+        },
+    };
+    let details = TxDetails::<TestSpec> {
+        max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
+        max_fee: TEST_DEFAULT_MAX_FEE,
+        gas_limit: Some(TEST_DEFAULT_GAS_LIMIT.into()),
+        chain_id: config_value!("CHAIN_ID"),
+    };
+    let msg = <RT as EncodeCall<Paymaster<TestSpec>>>::encode_call(message);
+    TransactionType::<Paymaster<TestSpec>, TestSpec>::sign(
+        msg,
+        key,
+        details,
+        &mut Default::default(),
+    )
 }
 
 pub fn valid_tx_bytes(

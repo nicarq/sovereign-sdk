@@ -182,7 +182,7 @@ pub async fn initialize_runner(
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
             da_address: da_service.da_service().sequencer_address(),
-            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
+            batch_builder: BatchBuilderConfig::standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
             }),

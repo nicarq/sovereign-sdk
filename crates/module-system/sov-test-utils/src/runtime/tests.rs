@@ -7,6 +7,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, TxDetails};
 use sov_modules_api::{DaSpec, Gas, GasMeter, GasUnit};
 use sov_modules_stf_blueprint::TxProcessingError;
+use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_sequencer_registry::SequencerRegistry;
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -32,9 +33,16 @@ fn setup() -> (TestUser<S>, TestRunner<TestOptimisticRuntime<S>, S>) {
     let value_setter_config = ValueSetterConfig {
         admin: admin.address(),
     };
+    let paymaster_config = PaymasterConfig {
+        payers: SafeVec::new(),
+    };
 
     // Run genesis registering the attester and sequencer we've generated.
-    let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), value_setter_config);
+    let genesis = GenesisConfig::from_minimal_config(
+        genesis_config.into(),
+        value_setter_config,
+        paymaster_config,
+    );
 
     let runner = TestRunner::new_with_genesis(
         genesis.into_genesis_params(),

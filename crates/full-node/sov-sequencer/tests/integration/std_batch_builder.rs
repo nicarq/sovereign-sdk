@@ -1,16 +1,23 @@
 use std::str::FromStr;
 use std::time::Duration;
 
+use axum::http::StatusCode;
 use base64::prelude::*;
 use borsh::BorshDeserialize;
+use sov_mock_da::MockDaService;
 use sov_modules_api::prelude::*;
 use sov_modules_api::{Address, Batch, BlobReaderTrait};
 use sov_rollup_interface::node::da::DaService;
+use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer_json_client::types;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Bank, Coins, TestOptimisticRuntime};
+use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
 
-use crate::utils::{build_tx, new_sequencer, valid_tx_bytes, wrap_with_auth};
+use crate::utils::{
+    build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth,
+};
 
 // This test has to be single-threaded because logs from other threads don't
 // show up in traced_test (https://github.com/dbrgn/tracing-test/issues/23).
@@ -167,4 +174,87 @@ async fn test_batch_building_with_out_of_gas_error() {
     let batch = Batch::try_from_slice(block_data).unwrap();
     assert_eq!(wrap_with_auth(drainer).data, batch.txs[0].data);
     assert_eq!(batch.txs.len(), 1);
+}
+
+// Checks that transactions that are not sequencer safe are rejected
+// when the sender address is not configured as an admin in the sequencer config.
+#[tokio::test(flavor = "multi_thread")]
+async fn not_sequencer_safe_txs_are_restricted() {
+    let dir = tempfile::tempdir().unwrap();
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let da_service = MockDaService::new(sequencer_addr);
+    let batch_builder_config = StdBatchBuilderConfig {
+        mempool_max_txs_count: None,
+        max_batch_size_bytes: None,
+    };
+
+    let sequencer = TestSequencerSetup::<
+        StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
+    >::new(dir, da_service, batch_builder_config, vec![], false)
+    .await
+    .unwrap();
+
+    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    {
+        let client = sequencer.client();
+
+        client
+            .accept_tx(&types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        if let Err(e) = client
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await
+        {
+            assert!(
+                e.status()
+                    .is_some_and(|status| status == StatusCode::CONFLICT),
+                "{e}"
+            );
+        } else {
+            panic!("Sequencer accepted admin tx from non-admin sender");
+        }
+    }
+}
+
+// Checks that transactions that are not sequencer safe are accepted
+// if the sender address is configured as an admin in the sequencer config.
+#[tokio::test(flavor = "multi_thread")]
+async fn sequencer_safe_txs_from_admins_are_accepted() {
+    let dir = tempfile::tempdir().unwrap();
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let da_service = MockDaService::new(sequencer_addr);
+    let batch_builder_config = StdBatchBuilderConfig {
+        mempool_max_txs_count: None,
+        max_batch_size_bytes: None,
+    };
+
+    let sequencer = TestSequencerSetup::<
+        StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
+    >::new(dir, da_service, batch_builder_config, vec![], true)
+    .await
+    .unwrap();
+
+    let tx = generate_paymaster_tx(sequencer.admin_private_key.clone());
+    {
+        let client = sequencer.client();
+
+        client
+            .accept_tx(&types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+
+        client
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await
+            .expect("Batch publication should succeed because the provided tx is valid and comes from an admin");
+    }
 }

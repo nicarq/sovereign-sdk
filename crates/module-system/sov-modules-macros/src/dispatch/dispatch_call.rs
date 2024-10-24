@@ -110,7 +110,7 @@ impl<'a> StructDef<'a> {
 
                 fn module_info(
                     &self,
-                    discriminant: <Self::Decodable as ::sov_modules_api::EnumUtils>::Discriminants,
+                    discriminant: <Self::Decodable as ::sov_modules_api::NestedEnumUtils>::Discriminants,
                 ) -> &dyn ::sov_modules_api::ModuleInfo<Spec = Self::Spec> {
                     match discriminant {
                         #(#match_legs_info)*
@@ -193,7 +193,9 @@ impl DispatchCallMacro {
         );
 
         let call_enum_legs = struct_def.create_call_enum_legs();
-        let call_enum = struct_def.create_enum(&call_enum_legs, CALL, &enum_attributes);
+        let enum_to_inner_legs = struct_def.enum_to_inner_legs();
+        let call_enum =
+            struct_def.create_enum(&call_enum_legs, &enum_to_inner_legs, CALL, &enum_attributes);
 
         let create_dispatch_impl = struct_def.create_call_dispatch();
 

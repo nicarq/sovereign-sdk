@@ -1,4 +1,6 @@
 use proc_macro2::{self, Ident, Span};
+use quote::ToTokens;
+use syn::parse::Parse;
 use syn::{
     Attribute, DataStruct, DeriveInput, ImplGenerics, PathArguments, TypeGenerics, WhereClause,
 };
@@ -56,6 +58,7 @@ fn impl_module_info(struct_def: &StructDef) -> syn::Result<proc_macro2::TokenStr
         generic_param,
         fields,
         where_clause,
+        sequencer_safety_fn,
     } = struct_def;
 
     let mut impl_self_init = Vec::default();
@@ -97,6 +100,7 @@ fn impl_module_info(struct_def: &StructDef) -> syn::Result<proc_macro2::TokenStr
     let fn_id = make_fn_id(&module_id.ident)?;
     let fn_dependencies = make_fn_dependencies(modules);
     let fn_prefix = make_module_prefix_fn(ident);
+    let fn_is_safe_for_sequencer = make_sequencer_safety_fn(sequencer_safety_fn);
 
     Ok(quote::quote! {
         impl #impl_generics ::std::default::Default for #ident #type_generics #where_clause{
@@ -116,7 +120,10 @@ fn impl_module_info(struct_def: &StructDef) -> syn::Result<proc_macro2::TokenStr
 
             #fn_id
 
+            #fn_is_safe_for_sequencer
+
             #fn_dependencies
+
         }
     })
 }
@@ -271,6 +278,18 @@ fn make_init_id(
     })
 }
 
+fn make_sequencer_safety_fn(sequencer_safety_fn: &Option<syn::Path>) -> proc_macro2::TokenStream {
+    if let Some(path) = sequencer_safety_fn {
+        quote::quote! {
+            fn is_safe_for_sequencer<'a>(&self, call: ::sov_modules_api::InnerEnumVariant<'a>, sequencer: &<<Self::Spec as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::Address) -> bool {
+                #path (self, call, sequencer)
+            }
+        }
+    } else {
+        quote::quote! {}
+    }
+}
+
 /// Internal `proc macro` parsing utilities.
 pub mod parsing {
     use proc_macro2::Ident;
@@ -287,6 +306,7 @@ pub mod parsing {
 
         pub fields: Vec<ModuleField>,
         pub where_clause: Option<&'a WhereClause>,
+        pub sequencer_safety_fn: Option<syn::Path>,
     }
 
     impl<'a> StructDef<'a> {
@@ -297,6 +317,29 @@ pub mod parsing {
             let fields = parse_module_fields(&input.data)?;
             check_exactly_one_address(&fields)?;
             check_zero_or_one_gas(&fields)?;
+            let mut sequencer_safety_fn = None;
+            if let Some(attr) = input
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("module_info"))
+            {
+                attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("sequencer_safety") {
+                        let value = meta.value()?;
+                        let str_contents: syn::LitStr = Parse::parse(value)?;
+                        sequencer_safety_fn = Some(str_contents.parse()?);
+                        Ok(())
+                    } else {
+                        Err(syn::Error::new_spanned(
+                            attr,
+                            format!(
+                                r#"Unrecognized attribute #[module_info({})]`. Use #[module_info(sequencer_safety = "...")]"#,
+                                meta.path.to_token_stream(),
+                            ),
+                        ))
+                    }
+                })?;
+            };
 
             Ok(StructDef {
                 ident,
@@ -305,6 +348,7 @@ pub mod parsing {
                 type_generics,
                 generic_param,
                 where_clause,
+                sequencer_safety_fn,
             })
         }
 

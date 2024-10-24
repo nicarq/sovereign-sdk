@@ -16,7 +16,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    Batch, DispatchCall, EnumUtils, ExecutionContext, FullyBakedTx, Gas, GasMeter, RawTx, Spec,
+    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, RawTx, Spec,
     StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
@@ -30,7 +30,7 @@ use tokio::sync::watch;
 use tracing::error;
 
 use self::mempool::{Mempool, MempoolCursor};
-use super::{EmptyConfirmation, RtAwareBatchBuilderSpec};
+use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
     pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
     FreshlyBuiltBatch, TxWithHash,
@@ -65,6 +65,7 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     storage_recv: StorageReceiver<Z::Spec>,
     tx_hashes_of_last_batch: Vec<TxHash>,
     sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
+    admin_addresses: Vec<<Z::Spec as Spec>::Address>,
     config: StdBatchBuilderConfig,
 }
 
@@ -134,16 +135,16 @@ where
         };
 
         let gas_info = gas_meter.gas_info();
+        let (_, authz_data, message) = &auth_output;
 
-        let (_, _, message) = &auth_output;
-        let destination_module =
-            <Z::Rt as DispatchCall>::module_info(&self.runtime, message.discriminant());
-
-        // TODO: Add an admin permission to call methods that would otherwise be rejected
-        // TODO: Move this check before we authenticate the tx. This requires a separate method
-        // to decode the transaction without checking its signature.
-        // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1618>
-        if !destination_module.is_sequencer_safe() {
+        // If the module isn't sequencer safe, the caller must be an admin to proceed
+        if !sender_is_allowed(
+            &self.runtime,
+            message,
+            authz_data.default_address.as_ref(),
+            &self.sequencer_address,
+            &self.admin_addresses,
+        ) {
             ctx.state_checkpoint = tx_scratchpad.revert();
             return (
                 ctx,
@@ -217,6 +218,7 @@ where
         _da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
+        admin_addresses: Vec<<Z::Spec as Spec>::Address>,
         config: &StdBatchBuilderConfig,
     ) -> anyhow::Result<Self> {
         let runtime = Z::Rt::default();
@@ -253,6 +255,7 @@ where
             api_state,
             runtime: Z::Rt::default(),
             storage_recv,
+            admin_addresses,
             checkpoint_sender,
             checkpoint: Some(checkpoint),
             tx_hashes_of_last_batch: vec![],

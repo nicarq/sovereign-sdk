@@ -30,6 +30,7 @@ use sov_modules_stf_blueprint::{
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
 pub use sov_nonces::Nonces;
+pub use sov_paymaster::{self, Paymaster};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -50,7 +51,7 @@ use crate::{
 
 pub(crate) mod macros;
 
-generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>);
+generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>, paymaster: Paymaster<S>);
 
 /// Utilities for generating genesis configs.
 pub mod genesis;

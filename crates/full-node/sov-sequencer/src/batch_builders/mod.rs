@@ -9,13 +9,13 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::BorshSerialize;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizeSequencerError, GasEnforcer, SequencerAuthorization,
-    TransactionAuthenticator,
+    AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
+    SequencerAuthorization, TransactionAuthenticator,
 };
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, RawTx,
-    RuntimeEventProcessor, RuntimeEventResponse, Spec, TxScratchpad,
+    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, TxScratchpad,
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
@@ -35,13 +35,18 @@ pub trait RtAwareBatchBuilderSpec: Send + Sync + 'static {
     /// The `Spec` defines the rollup's types.
     type Spec: Spec;
     /// The runtime of the rollup.
-    type Rt: Runtime<Self::Spec>;
+    type Rt: Runtime<Self::Spec>
+        + HasCapabilities<Self::Spec, AuthorizationData = AuthorizationData<Self::Spec>>
+        + TransactionAuthenticator<Self::Spec, AuthorizationData = AuthorizationData<Self::Spec>>;
 }
 
 impl<S, Rt> RtAwareBatchBuilderSpec for (S, Rt)
 where
     S: Spec,
-    Rt: Runtime<S> + 'static,
+    Rt: Runtime<S>
+        + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
+        + TransactionAuthenticator<S, AuthorizationData = AuthorizationData<S>>
+        + 'static,
 {
     type Spec = S;
     type Rt = Rt;
@@ -85,6 +90,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
         da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
+        admin_addresses: Vec<<Self::Spec as Spec>::Address>,
         config: &Self::Config,
     ) -> anyhow::Result<Self>;
 
@@ -279,4 +285,21 @@ where
 
     let (tx_scratchpad, gas_meter) = pre_exec_ws.to_scratchpad_and_gas_meter();
     (tx_scratchpad, Ok((auth_res, gas_meter)))
+}
+
+/// Checks if the sender of a call is allowed to submit the message via the sequencer.
+///
+/// Returns true if either...
+/// 1. The message is `sequencer_safe`, meaning that submitting will never change the sequencer's config
+/// 2. The sender is an admin for this sequencer
+fn sender_is_allowed<RT: Runtime<S>, S: Spec>(
+    runtime: &RT,
+    call: &<RT as DispatchCall>::Decodable,
+    sender: Option<&S::Address>,
+    sequencer_address: &<S::Da as DaSpec>::Address,
+    admins: &[S::Address],
+) -> bool {
+    let destination_module = <RT as DispatchCall>::module_info(runtime, call.discriminant());
+    destination_module.is_safe_for_sequencer(call.contents(), sequencer_address)
+        || sender.is_some_and(|addr| admins.contains(addr))
 }

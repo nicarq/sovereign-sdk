@@ -3,6 +3,7 @@
 use core::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_rollup_interface::da::DaSpec;
 use sov_state::EventContainer;
 
 use crate::common::ModuleError;
@@ -108,9 +109,15 @@ pub trait ModuleInfo {
     /// Returns addresses of all the other modules this module is dependent on
     fn dependencies(&self) -> Vec<&ModuleId>;
 
-    /// Returns true if all calls to this module are safe to submit on behalf of an untrusted
-    /// third party.
-    fn is_sequencer_safe(&self) -> bool {
+    /// Returns true if the call is safe to submit on behalf of an aribtrary 3rd party as far
+    /// as this module is concerned. The provided `Any` *should* be an instance of the module's CallMessage
+    ///
+    /// This is an advanced function of the SDK. Types which are not    
+    fn is_safe_for_sequencer(
+        &self,
+        _call: InnerEnumVariant<'_>,
+        _sequencer_address: &<<Self::Spec as Spec>::Da as DaSpec>::Address,
+    ) -> bool {
         true
     }
 }

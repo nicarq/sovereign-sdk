@@ -10,7 +10,7 @@ mod sequencer;
 mod spec;
 mod tx_status;
 
-pub use config::{BatchBuilderConfig, SequencerConfig};
+pub use config::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig};
 pub use db::{SeqDbTx, SequencerDb};
 pub use sequencer::Sequencer;
 use serde::{Deserialize, Serialize};
