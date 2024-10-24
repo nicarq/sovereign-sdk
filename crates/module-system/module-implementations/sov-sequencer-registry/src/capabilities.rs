@@ -1,7 +1,7 @@
 use sov_bank::{config_gas_token_id, Coins, IntoPayable, Payable};
 use sov_modules_api::capabilities::AuthorizeSequencerError;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{DaSpec, Spec, TxScratchpad};
+use sov_modules_api::{DaSpec, InfallibleStateAccessor, Spec};
 
 use crate::{AllowedSequencer, AllowedSequencerError, SequencerRegistry};
 
@@ -11,7 +11,7 @@ impl<S: Spec> SequencerRegistry<S> {
         &self,
         sender: &<S::Da as DaSpec>::Address,
         min_bond: u64,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         let allowed_sequencer = match self.is_sender_allowed(sender, scratchpad) {
             Ok(seq) => seq,
@@ -35,7 +35,7 @@ impl<S: Spec> SequencerRegistry<S> {
         sequencer: &<S::Da as DaSpec>::Address,
         beneficiary: impl Payable<S>,
         amount: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), anyhow::Error> {
         if let Some(AllowedSequencer { address, balance }) = self
             .allowed_sequencers
@@ -82,7 +82,7 @@ impl<S: Spec> SequencerRegistry<S> {
         sender: impl Payable<S>,
         sequencer: &<S::Da as DaSpec>::Address,
         amount: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
         if let Some(AllowedSequencer { address, balance }) = self
             .allowed_sequencers

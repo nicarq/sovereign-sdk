@@ -304,6 +304,7 @@ pub trait AccessoryStateReader: CachedAccessor<Accessory> {}
 pub trait ProvableStateReader<N: ProvableCompileTimeNamespace>:
     CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
 {
+    /// The rollup spec associated with the state reader.
     type Spec: GasSpec;
 }
 
@@ -401,9 +402,12 @@ pub trait StateWriter<N: CompileTimeNamespace>: CachedAccessor<N> {
     fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error>;
 }
 
+/// A trait wrapper that replicates the functionality of [`StateWriter`] but with a gas metering interface.
+/// This allows a storage writer to charge gas for write operations.
 pub trait ProvableStateWriter<N: ProvableCompileTimeNamespace>:
     CachedAccessor<N> + GasMeter<<Self::Spec as GasSpec>::Gas>
 {
+    /// The rollup spec associated with the state reader.
     type Spec: GasSpec;
 }
 

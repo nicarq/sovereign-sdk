@@ -34,6 +34,7 @@ use sov_modules_macros::config_value_private;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::TxHash;
+use sov_state::User;
 use thiserror::Error;
 
 use crate::transaction::{
@@ -41,7 +42,8 @@ use crate::transaction::{
 };
 use crate::{
     Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter, GasMeteringError,
-    MeteredBorshDeserialize, MeteredHasher, PreExecWorkingSet, RawTx, Spec, TxScratchpad,
+    InfallibleStateAccessor, MeteredBorshDeserialize, MeteredHasher, ProvableStateReader, RawTx,
+    Spec,
 };
 
 /// The chain ID of the rollup.
@@ -67,10 +69,10 @@ pub trait TransactionAuthenticator<S: Spec> {
 
     /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
     /// into an executable message.
-    fn authenticate(
+    fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         tx: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S>,
+        state: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
@@ -78,10 +80,10 @@ pub trait TransactionAuthenticator<S: Spec> {
 
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
-    fn authenticate_unregistered(
+    fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         tx: &Self::Input,
-        state: &mut PreExecWorkingSet<S>,
+        state: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
@@ -113,7 +115,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
         context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
@@ -123,7 +125,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>>;
 
@@ -132,7 +134,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &Self::AuthorizationData,
         context: &Context<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()>;
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -140,7 +142,7 @@ pub trait TransactionAuthorizer<S: Spec> {
         &self,
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     );
 }
 
@@ -275,11 +277,15 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 }
 
 /// Authenticate raw sov-transaction.
-pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>>(
+pub fn authenticate<
+    Accessor: ProvableStateReader<User, Spec = S>,
+    S: Spec,
+    D: DispatchCall<Spec = S>,
+>(
     mut raw_tx: &[u8],
-    state: &mut PreExecWorkingSet<S>,
+    state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
-    let raw_tx_hash = calculate_hash::<S>(raw_tx, state)
+    let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
     let tx = <Transaction<S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
@@ -294,27 +300,29 @@ pub fn authenticate<S: Spec, D: DispatchCall<Spec = S>>(
 }
 
 /// Calculates the hash of `data` and charges gas.
-pub fn calculate_hash<S: Spec>(
+pub fn calculate_hash<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     data: &[u8],
-    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    accessor: &mut Accessor,
 ) -> Result<TxHash, GasMeteringError<S::Gas>> {
-    let hash = MeteredHasher::<
-        _,
-        PreExecWorkingSet<S>,
-        <S::CryptoSpec as CryptoSpec>::Hasher,
-    >::digest::<S>(data, pre_exec_working_set)
+    let hash = MeteredHasher::<_, Accessor, <S::CryptoSpec as CryptoSpec>::Hasher>::digest::<S>(
+        data, accessor,
+    )
     .map(TxHash::new)?;
 
     Ok(hash)
 }
 
 /// Helper function to create a `FatalError::DeserializationFailed` authentication error.
-pub fn fatal_deserialization_error<S: Spec, E: ToString>(
+pub fn fatal_deserialization_error<
+    Accessor: ProvableStateReader<User, Spec = S>,
+    S: Spec,
+    E: ToString,
+>(
     raw_tx: &[u8],
     err: E,
-    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    pre_exec_working_set: &mut Accessor,
 ) -> AuthenticationError {
-    let hash = match calculate_hash::<S>(raw_tx, pre_exec_working_set) {
+    let hash = match calculate_hash::<Accessor, S>(raw_tx, pre_exec_working_set) {
         Ok(hash) => hash,
         Err(err) => return AuthenticationError::OutOfGas(err.to_string()),
     };

@@ -1,12 +1,14 @@
 //! The basic kernel provides censorship resistance by processing all blobs immediately in the order they appear on DA
 
+use std::convert::Infallible;
+
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
 use sov_modules_api::capabilities::BlobOrigin;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec, VersionReader,
 };
 use sov_state::Storage;
 
@@ -81,7 +83,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
 
     fn base_fee_per_gas(
         &self,
-        state: &mut sov_modules_api::StateCheckpoint<S::Storage>,
+        state: &mut impl VersionReader<Error = Infallible>,
     ) -> Option<<<S as Spec>::Gas as Gas>::Price> {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }

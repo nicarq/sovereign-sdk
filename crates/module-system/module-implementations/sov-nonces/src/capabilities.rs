@@ -1,5 +1,5 @@
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{CredentialId, Spec, StateAccessor, TxScratchpad};
+use sov_modules_api::{CredentialId, InfallibleStateAccessor, Spec, StateAccessor};
 
 use crate::Nonces;
 
@@ -27,7 +27,7 @@ impl<S: Spec> Nonces<S> {
     pub fn mark_tx_attempted(
         &self,
         credential_id: &CredentialId,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) {
         let nonce = self
             .nonces

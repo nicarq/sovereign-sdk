@@ -8,8 +8,9 @@ use sov_modules_api::runtime::capabilities::AuthenticationError;
 use sov_modules_api::transaction::{
     AuthenticatedTransactionAndRawHash, AuthenticatedTransactionData, Credentials, PriorityFeeBips,
 };
-use sov_modules_api::{FullyBakedTx, PreExecWorkingSet, RawTx, Spec};
+use sov_modules_api::{FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::TxHash;
+use sov_state::User;
 
 use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
 
@@ -25,25 +26,26 @@ use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
 /// If the caller does plan to derive rollup addresses from evm addresses, they should be sure that their scheme for doing so is deterministic and
 /// collision resistant. You don't want someone to be able to pick a rollup address that someone else is already using!
 pub fn authenticate<
+    Accessor: ProvableStateReader<User, Spec = S>,
     S: Spec,
     EvmToRollupAddressConverter: From<reth_primitives::Address> + TryInto<S::Address>,
 >(
     raw_tx: &[u8],
-    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 
     let tx = RlpEvmTransaction::try_from_slice(raw_tx)
-        .map_err(|e| fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set))?;
+        .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
 
     let tx_clone = tx.clone();
 
     let tx = RlpEvmTransaction::try_from_slice(raw_tx)
-        .map_err(|e| fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set))?;
+        .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
 
     let tx = convert_to_transaction_signed(tx).map_err(
         |e: crate::conversions::RlpConversionError| {
-            fatal_deserialization_error::<S, _>(raw_tx, e, pre_exec_working_set)
+            fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state)
         },
     )?;
 

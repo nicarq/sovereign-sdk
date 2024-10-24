@@ -4,7 +4,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
 
-use crate::{SovAttestation, SovStateTransitionPublicData, Spec, WorkingSet};
+use crate::{SovAttestation, SovStateTransitionPublicData, Spec, TxState};
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
@@ -14,7 +14,7 @@ pub trait ProofProcessor<S: Spec> {
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError>;
 
     /// Called by the stf once the attestation is received.
@@ -22,7 +22,7 @@ pub trait ProofProcessor<S: Spec> {
         &self,
         proof: SerializedAttestation,
         prover_address: &S::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<SovAttestation<S>, InvalidProofError>;
 
     /// Called by the stf once the challenge is received.
@@ -31,6 +31,6 @@ pub trait ProofProcessor<S: Spec> {
         proof: SerializedChallenge,
         rollup_height: u64,
         prover_address: &S::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<SovStateTransitionPublicData<S>, InvalidProofError>;
 }
