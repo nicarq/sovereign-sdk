@@ -115,7 +115,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: Run lint
         run: |
           if ! make lint ; then
@@ -148,7 +147,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: cargo prover bench check
         env:
           BLOCKS: 1
@@ -172,7 +170,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: cargo bench check
         env:
           BLOCKS: 1
@@ -196,7 +193,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: rollup bench check
         env:
           BLOCKS: 10
@@ -232,7 +228,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
           install_zkvm: "0"
       # intentionally no target specifier; see https://github.com/jonhoo/rust-ci-conf/pull/4
       - name: cargo hack
@@ -267,7 +262,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
           install_zkvm: "0"
       - name: cargo hack
         run: make check-features-default-targets
@@ -291,7 +285,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - run: cargo nextest run --workspace --all-features --status-level skip
 
   nextest:
@@ -313,7 +306,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - run: cargo nextest run --workspace --status-level skip
 
   doctests:
@@ -334,7 +326,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
           install_zkvm: "0"
       # `cargo-nextest` does not support doctests (yet?), so we have to run them
       # separately.
@@ -360,7 +351,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
           install_zkvm: "0"
       - name: cargo generate-lockfile
         if: hashFiles('Cargo.lock') == ''
@@ -378,9 +368,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - uses: taiki-e/install-action@cargo-deny
       - run: make cargo-deny-check-licenses
 
@@ -404,7 +391,6 @@ jobs:
       - uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
           install_zkvm: "0"
       # The docs' artifact tends to become quite large with all the
       # dependencies, so we don't include them.
@@ -431,10 +417,18 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       - name: Upload to doc artifacts to S3
         if: github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GITHUB_HEAD_REF_SAFE: ${{ github.head_ref }}
+          GITHUB_REF_SAFE: ${{ github.ref }}
         run: |
-          TARGET_DIR="${GITHUB_HEAD_REF:-${GITHUB_REF#refs/heads/}}-doc" && \
-          aws --quiet s3 sync target/doc s3://${S3_BUCKET_NAME}/${TARGET_DIR} && \
-          echo "Docs are available at https://$S3_BUCKET_NAME.$AWS_REGION.amazonaws.com/${TARGET_DIR}/index.html";
+          # Sanitize inputs by removing any non-alphanumeric characters
+          SAFE_HEAD_REF=$(echo "$GITHUB_HEAD_REF_SAFE" | tr -cd '[:alnum:]-_')
+          SAFE_REF=$(echo "$GITHUB_REF_SAFE" | tr -cd '[:alnum:]-_')
+          # Use the sanitized variables
+          TARGET_DIR="${SAFE_HEAD_REF:-${SAFE_REF#refs/heads/}}-doc"
+          # Use quoting to prevent word splitting and globbing
+          aws --quiet s3 sync target/doc "s3://${S3_BUCKET_NAME}/${TARGET_DIR}" && \
+          echo "Docs are available at https://${S3_BUCKET_NAME}.${AWS_REGION}.amazonaws.com/${TARGET_DIR}/index.html";
 
   deploy-github-pages:
     runs-on: nscloud-ubuntu-20.04-amd64-2x4
@@ -495,7 +489,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: Compile README.md to Bash
         run: bashtestmd --input examples/demo-rollup/README_CELESTIA.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
@@ -518,7 +511,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - name: Compile README.md to Bash
         run: bashtestmd --input examples/demo-rollup/README.md --output demo-rollup-readme.sh --tag test-ci
       - run: cat demo-rollup-readme.sh
@@ -539,7 +531,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          ssh_private_key: ${{ secrets.SOV_UNIVERSAL_WALLET_ACCESS_TOKEN }}
       - run: make check-constant-overriding-is-disabled-in-release-mode
 
   validate-packages-to-publish-yml:
