@@ -2,8 +2,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sov_evm::Evm;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
 use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
-use sov_modules_api::{DispatchCall, RawTx, Spec};
-use sov_state::Storage;
+use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
+use sov_state::{Storage, User};
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
 generate_bare_runtime! {
@@ -54,10 +54,10 @@ where
 
     type Input = AuthenticatorInput;
 
-    fn authenticate(
+    fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         tx: &AuthenticatorInput,
-        pre_exec_ws: &mut sov_modules_api::PreExecWorkingSet<S>,
+        state: &mut Accessor,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<
             S,
@@ -67,16 +67,16 @@ where
         sov_modules_api::capabilities::AuthenticationError,
     > {
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_evm::authenticate::<_, EthereumToRollupAddressConverter>(&tx.0.data, pre_exec_ws)?;
+            sov_evm::authenticate::<_, _, EthereumToRollupAddressConverter>(&tx.0.data, state)?;
         let call = TestRuntimeCall::Evm(runtime_call);
 
         Ok((tx_and_raw_hash, auth_data, call))
     }
 
-    fn authenticate_unregistered(
+    fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         _tx: &AuthenticatorInput,
-        _state: &mut sov_modules_api::PreExecWorkingSet<S>,
+        _state: &mut Accessor,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<
             S,

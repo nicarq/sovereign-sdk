@@ -8,8 +8,8 @@ use sov_modules_api::transaction::{
     AuthenticatedTransactionData, ProverRewards, RemainingFunds, SequencerReward,
 };
 use sov_modules_api::{
-    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, InvalidProofError,
-    ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxScratchpad, WorkingSet,
+    AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, InfallibleStateAccessor,
+    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxState,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::SequencerRegistry;
@@ -27,10 +27,10 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec> {
 impl<'a, S: Spec> StandardProvenRollupCapabilities<'a, S> {
     fn get_prover_token_holder(
         &self,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> TokenHolderRef<'a, S> {
-        let reward_prover_incentives = self.prover_incentives.should_reward_fees(tx_scratchpad);
-        let reward_attester_incentives = self.attester_incentives.should_reward_fees(tx_scratchpad);
+        let reward_prover_incentives = self.prover_incentives.should_reward_fees(state);
+        let reward_attester_incentives = self.attester_incentives.should_reward_fees(state);
 
         assert!(
             reward_prover_incentives ^ reward_attester_incentives,
@@ -54,7 +54,7 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError> {
         self.bank
             .reserve_gas(tx, gas_price, context.sender(), scratchpad)
@@ -66,46 +66,46 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError> {
         self.bank
-            .reserve_gas(tx, gas_price, sender, scratchpad)
+            .reserve_gas(tx, gas_price, sender, state)
             .map_err(Into::into)
     }
 
     fn reward_prover(
         &self,
         prover_rewards: &ProverRewards,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
-        let rewarded_module = self.get_prover_token_holder(tx_scratchpad);
+        let rewarded_module = self.get_prover_token_holder(state);
 
         self.bank
-            .reward_prover(&rewarded_module, prover_rewards, tx_scratchpad);
+            .reward_prover(&rewarded_module, prover_rewards, state);
     }
 
     fn refund_remaining_gas(
         &self,
         recipient: &S::Address,
         remaining_funds: &RemainingFunds,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
         self.bank
-            .refund_remaining_gas(recipient, remaining_funds, tx_scratchpad);
+            .refund_remaining_gas(recipient, remaining_funds, state);
     }
 
     fn transfer_funds_from_sequencer_to_prover(
         &self,
         amount: u64,
         sequencer: &<S::Da as DaSpec>::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
-        let rewarded_prover_module = self.get_prover_token_holder(tx_scratchpad);
+        let rewarded_prover_module = self.get_prover_token_holder(state);
         self.sequencer_registry.remove_part_of_the_stake(
             sequencer,
             rewarded_prover_module,
             amount,
-            tx_scratchpad,
+            state,
         )
     }
 
@@ -114,10 +114,10 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
         amount: u64,
         user: &S::Address,
         sequencer: &<S::Da as DaSpec>::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
         self.sequencer_registry
-            .add_to_stake(user, sequencer, amount, tx_scratchpad)
+            .add_to_stake(user, sequencer, amount, state)
             .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
     }
 }
@@ -127,7 +127,7 @@ impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         min_bond: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError> {
         self.sequencer_registry
             .authorize_sequencer(sequencer, min_bond, state)
@@ -143,10 +143,10 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
         &self,
         auth_data: &Self::AuthorizationData,
         _context: &Context<S>,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
         self.nonces
-            .check_nonce(&auth_data.credential_id, auth_data.nonce, tx_scratchpad)
+            .check_nonce(&auth_data.credential_id, auth_data.nonce, state)
     }
 
     /// Marks a transaction as having been executed, preventing it from executing again.
@@ -154,10 +154,10 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
         &self,
         auth_data: &Self::AuthorizationData,
         _sequencer: &<S::Da as DaSpec>::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
         self.nonces
-            .mark_tx_attempted(&auth_data.credential_id, tx_scratchpad);
+            .mark_tx_attempted(&auth_data.credential_id, state);
     }
 
     /// Resolves the context for a transaction.
@@ -166,18 +166,18 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
         auth_data: &Self::AuthorizationData,
         sequencer: &<S::Da as DaSpec>::Address,
         height: u64,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         // TODO(@preston-evans98): This is a temporary hack to get the sequencer address
         // This should be resolved by the sequencer registry during blob selection
         let sequencer_rollup_address = self.
-        sequencer_registry.resolve_da_address(sequencer, tx_scratchpad)?
+        sequencer_registry.resolve_da_address(sequencer, state)?
             .ok_or(anyhow::anyhow!("Sequencer was no longer registered by the time of context resolution. This is a bug")).unwrap();
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,
-            tx_scratchpad,
+            state,
         )?;
         Ok(Context::new(
             sender,
@@ -194,13 +194,13 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
         auth_data: &Self::AuthorizationData,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         height: u64,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
         execution_context: ExecutionContext,
     ) -> anyhow::Result<Context<S>> {
         let sender = self.accounts.resolve_sender_address(
             &auth_data.default_address,
             &auth_data.credential_id,
-            tx_scratchpad,
+            state,
         )?;
         // The tx sender & sequencer are the same entity
         Ok(Context::new(
@@ -219,7 +219,7 @@ impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> 
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError> {
         let result = self
             .prover_incentives
@@ -232,7 +232,7 @@ impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> 
         &self,
         proof: sov_rollup_interface::optimistic::SerializedAttestation,
         prover_address: &<S as Spec>::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<SovAttestation<S>, InvalidProofError> {
         let result = self
             .attester_incentives
@@ -246,7 +246,7 @@ impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> 
         proof: sov_rollup_interface::optimistic::SerializedChallenge,
         rollup_height: u64,
         prover_address: &<S as Spec>::Address,
-        state: &mut WorkingSet<S>,
+        state: &mut impl TxState<S>,
     ) -> Result<SovStateTransitionPublicData<S>, InvalidProofError> {
         let result = self.attester_incentives.process_challenge(
             prover_address,
@@ -264,7 +264,7 @@ impl<'a, S: Spec> SequencerRemuneration<S> for StandardProvenRollupCapabilities<
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         reward: SequencerReward,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) {
         self.sequencer_registry
             .add_to_stake(self.bank.id().to_payable(), sequencer, reward.into(), state)

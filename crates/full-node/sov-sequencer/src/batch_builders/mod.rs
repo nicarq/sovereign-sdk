@@ -248,7 +248,7 @@ fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> AcceptTxError {
 
 fn tx_auth<S, Rt>(
     runtime: &Rt,
-    mut tx_scratchpad: TxScratchpad<S::Storage>,
+    mut tx_scratchpad: TxScratchpad<<S as Spec>::Storage>,
     gas_price: <S::Gas as Gas>::Price,
     sequencer_address: &<S::Da as DaSpec>::Address,
     input: <Rt as TransactionAuthenticator<S>>::Input,
@@ -261,11 +261,10 @@ where
         .gas_enforcer()
         .max_tx_check_costs()
         .value(&gas_price);
-    let gas_meter = match runtime.sequencer_authorization().authorize_sequencer(
-        sequencer_address,
-        max_auth_cost,
-        &mut tx_scratchpad,
-    ) {
+    let gas_meter: BasicGasMeter<S::Gas> = match runtime
+        .sequencer_authorization()
+        .authorize_sequencer(sequencer_address, max_auth_cost, &mut tx_scratchpad)
+    {
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price),
         Err(AuthorizeSequencerError { reason }) => {
             error!(%reason, "Sequencer authorization failed");
@@ -273,7 +272,7 @@ where
         }
     };
 
-    let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
+    let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set::<S>(gas_meter);
 
     let auth_res = match runtime.authenticate(&input, &mut pre_exec_ws) {
         Ok(ok) => ok,

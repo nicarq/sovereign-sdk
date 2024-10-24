@@ -159,8 +159,9 @@ fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>>(
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
-    let auth_input = borsh::from_slice(&tx.data)
-        .map_err(|e| fatal_deserialization_error::<S, _>(&tx.data, e, pre_exec_working_set))?;
+    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
+        fatal_deserialization_error::<PreExecWorkingSet<S>, S, _>(&tx.data, e, pre_exec_working_set)
+    })?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
 }
 

@@ -1,7 +1,7 @@
 use sov_bank::IntoPayable;
 use sov_modules_api::capabilities::{GasEnforcer, TryReserveGasError};
 use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use sov_modules_api::{Context, DaSpec, Gas, ModuleInfo, Spec, TxScratchpad};
+use sov_modules_api::{Context, DaSpec, Gas, InfallibleStateAccessor, ModuleInfo, Spec};
 use sov_paymaster::Paymaster;
 use sov_test_utils::generate_runtime;
 use sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig;
@@ -49,7 +49,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError> {
         self.paymaster
             .try_reserve_gas(tx, gas_price, context, state)
@@ -61,7 +61,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError> {
         self.bank
             .reserve_gas(tx, gas_price, sender, state)
@@ -71,7 +71,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
     fn reward_prover(
         &self,
         prover_rewards: &ProverRewards,
-        tx_state: &mut TxScratchpad<S::Storage>,
+        tx_state: &mut impl InfallibleStateAccessor,
     ) {
         let rewarded_module = self.attester_incentives.id().to_payable();
 
@@ -83,7 +83,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
         &self,
         recipient: &S::Address,
         remaining_funds: &RemainingFunds,
-        tx_state: &mut TxScratchpad<S::Storage>,
+        tx_state: &mut impl InfallibleStateAccessor,
     ) {
         self.bank
             .refund_remaining_gas(recipient, remaining_funds, tx_state);
@@ -93,7 +93,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
         &self,
         amount: u64,
         sequencer: &<S::Da as DaSpec>::Address,
-        tx_state: &mut TxScratchpad<S::Storage>,
+        tx_state: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()> {
         let rewarded_module = self.attester_incentives.id().to_payable();
         self.sequencer_registry.remove_part_of_the_stake(
@@ -109,7 +109,7 @@ impl<'a, S: Spec> GasEnforcer<S> for PaymasterGasEnforcer<'a, S> {
         amount: u64,
         user: &S::Address,
         sequencer: &<S::Da as DaSpec>::Address,
-        tx_state: &mut TxScratchpad<S::Storage>,
+        tx_state: &mut impl InfallibleStateAccessor,
     ) {
         self.sequencer_registry
             .add_to_stake(user, sequencer, amount, tx_state)

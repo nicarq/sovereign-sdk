@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
-use crate::{Spec, TxScratchpad};
+use crate::{InfallibleStateAccessor, Spec};
 
 /// An error that can be returned within the [`SequencerAuthorization::authorize_sequencer`] capability.
 pub struct AuthorizeSequencerError {
@@ -39,7 +39,7 @@ pub trait SequencerAuthorization<S: Spec> {
         &self,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
         min_bond: u64,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<AllowedSequencer<S>, AuthorizeSequencerError>;
 }
 
@@ -51,6 +51,6 @@ pub trait SequencerRemuneration<S: Spec> {
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
         reward: SequencerReward,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     );
 }

@@ -154,7 +154,7 @@ fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>>(
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
-        match calculate_hash::<S>(&tx.data, pre_exec_working_set) {
+        match calculate_hash::<PreExecWorkingSet<S>, S>(&tx.data, pre_exec_working_set) {
             Ok(hash) => UnregisteredAuthenticationError::FatalError(
                 FatalError::DeserializationFailed(e.to_string()),
                 hash,

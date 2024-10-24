@@ -191,12 +191,10 @@ macro_rules! impl_standard_runtime_authenticator {
             type Input = AuthenticatorInput;
 
 
-            fn authenticate(
+            fn authenticate<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,
                 tx: &AuthenticatorInput,
-                pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
-                    S,
-                >,
+                pre_exec_ws: &mut Accessor,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
                     S,
@@ -205,18 +203,16 @@ macro_rules! impl_standard_runtime_authenticator {
                 >,
                 ::sov_modules_api::capabilities::AuthenticationError,
             > {
-                ::sov_modules_api::capabilities::authenticate::<S, Self>(
+                ::sov_modules_api::capabilities::authenticate::<_, S, Self>(
                     &tx.0.data,
                     pre_exec_ws,
                 )
             }
 
-            fn authenticate_unregistered(
+            fn authenticate_unregistered<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,
                 tx: &AuthenticatorInput,
-                pre_exec_ws: &mut ::sov_modules_api::PreExecWorkingSet<
-                    S,
-                >,
+                pre_exec_ws: &mut Accessor,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
                     S,
@@ -226,6 +222,7 @@ macro_rules! impl_standard_runtime_authenticator {
                 ::sov_modules_api::capabilities::UnregisteredAuthenticationError,
             > {
                 ::sov_modules_api::capabilities::authenticate::<
+                    _,
                     S,
                     Self
                 >(&tx.0.data, pre_exec_ws) .map_err(|e| match e {

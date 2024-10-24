@@ -5,7 +5,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{DaSpec, GasSpec, KernelStateAccessor, KernelWriter, Spec, StateReader};
 use sov_state::{Kernel, StateRoot, Storage};
 
-use crate::{BlockGasInfo, ChainState, SlotInformation, StateAccessor, VersionReader};
+use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
 impl<S: Spec> ChainState<S> {
     /// Computes the current root hash available at the current *virtual* slot number.
@@ -100,7 +100,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
-    pub fn base_fee_per_gas_at<Reader: VersionReader + StateAccessor>(
+    pub fn base_fee_per_gas_at<Reader: VersionReader>(
         &self,
         height: u64,
         state: &mut Reader,
@@ -127,7 +127,7 @@ impl<S: Spec> ChainState<S> {
     /// ## Note
     /// This method can return `None` if the base fee per gas for the current slot cannot be determined yet.
     /// This can happen when querying a slot too far ahead in the future.
-    pub fn base_fee_per_gas<Reader: VersionReader + StateAccessor>(
+    pub fn base_fee_per_gas<Reader: VersionReader>(
         &self,
         state: &mut Reader,
     ) -> Result<

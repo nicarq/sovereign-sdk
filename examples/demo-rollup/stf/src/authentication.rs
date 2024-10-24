@@ -7,7 +7,8 @@ use sov_modules_api::capabilities::{
     UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
-use sov_modules_api::{DispatchCall, PreExecWorkingSet, RawTx, Spec};
+use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
+use sov_state::User;
 
 use crate::runtime::{Runtime, RuntimeCall};
 
@@ -21,21 +22,24 @@ where
 
     type Input = Auth;
 
-    fn authenticate(
+    fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         input: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S>,
+        pre_exec_ws: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
     > {
         match input {
             Auth::Mod(tx) => {
-                sov_modules_api::capabilities::authenticate::<S, Self>(tx, pre_exec_ws)
+                sov_modules_api::capabilities::authenticate::<_, S, Self>(tx, pre_exec_ws)
             }
             Auth::Evm(tx) => {
-                let (tx_and_raw_hash, auth_data, runtime_call) =
-                    sov_evm::authenticate::<S, EthereumToRollupAddressConverter>(tx, pre_exec_ws)?;
+                let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
+                    _,
+                    S,
+                    EthereumToRollupAddressConverter,
+                >(tx, pre_exec_ws)?;
                 let call = RuntimeCall::Evm(runtime_call);
 
                 Ok((tx_and_raw_hash, auth_data, call))
@@ -43,10 +47,10 @@ where
         }
     }
 
-    fn authenticate_unregistered(
+    fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
         input: &Self::Input,
-        pre_exec_ws: &mut PreExecWorkingSet<S>,
+        pre_exec_ws: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
@@ -54,7 +58,7 @@ where
         let contents = match input {
             Auth::Mod(tx) => tx,
             Auth::Evm(tx) => {
-                let fallback_hash = calculate_hash::<S>(tx, pre_exec_ws)
+                let fallback_hash = calculate_hash::<_, S>(tx, pre_exec_ws)
                     .map_err(|err| UnregisteredAuthenticationError::OutOfGas(err.to_string()))?;
                 return Err(UnregisteredAuthenticationError::FatalError(
                     FatalError::Other("Invalid authenticator".to_string()),
@@ -64,7 +68,7 @@ where
         };
 
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_modules_api::capabilities::authenticate::<S, Runtime<S>>(contents, pre_exec_ws)
+            sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(contents, pre_exec_ws)
                 .map_err(|e| match e {
                     AuthenticationError::FatalError(err, hash) => {
                         UnregisteredAuthenticationError::FatalError(err, hash)

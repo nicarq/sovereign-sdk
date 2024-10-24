@@ -1,7 +1,7 @@
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use crate::{Context, Gas, GasSpec, Spec, TxScratchpad};
+use crate::{Context, Gas, GasSpec, InfallibleStateAccessor, Spec};
 
 /// The error type returned by the [`GasEnforcer::try_reserve_gas`] method.
 pub struct TryReserveGasError {
@@ -43,7 +43,7 @@ pub trait GasEnforcer<S: Spec> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         ctx: &mut Context<S>,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError>;
 
     /// Checks that the proof or attestation has enough gas to be processed.
@@ -61,7 +61,7 @@ pub trait GasEnforcer<S: Spec> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         sender: &S::Address,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError>;
 
     /// Rewards the prover
@@ -73,7 +73,7 @@ pub trait GasEnforcer<S: Spec> {
     fn reward_prover(
         &self,
         prover_rewards: &ProverRewards,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
 
     /// Refunds any remaining gas to the payer after the transaction is processed.
@@ -86,7 +86,7 @@ pub trait GasEnforcer<S: Spec> {
         &self,
         sender: &S::Address,
         remaining_funds: &RemainingFunds,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
 
     /// The sequencer refunds the prover for the authentication of the transactions.
@@ -94,7 +94,7 @@ pub trait GasEnforcer<S: Spec> {
         &self,
         amount: u64,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) -> anyhow::Result<()>;
 
     /// The user refunds the sequencer for the authentication of its transaction.
@@ -104,6 +104,6 @@ pub trait GasEnforcer<S: Spec> {
         amount: u64,
         user: &S::Address,
         sequencer: &<<S as Spec>::Da as DaSpec>::Address,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     );
 }

@@ -1,7 +1,7 @@
 use sov_modules_api::capabilities::TryReserveGasError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{AuthenticatedTransactionData, ProverRewards, RemainingFunds};
-use sov_modules_api::{Gas, Spec, StateAccessorError, TxScratchpad};
+use sov_modules_api::{Gas, InfallibleStateAccessor, Spec, StateAccessorError};
 use thiserror::Error;
 
 use crate::utils::IntoPayable;
@@ -51,7 +51,7 @@ impl<S: Spec> Bank<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
-        scratchpad: &mut TxScratchpad<S::Storage>,
+        scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<(), ReserveGasError<S>> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
         let balance = match self
@@ -110,7 +110,7 @@ impl<S: Spec> Bank<S> {
         // The address that receives the base fee. Typically, this is the module id of either the `ProverIncentives` or the `AttesterIncentives` module.
         base_fee_recipient: &impl Payable<S>,
         base_fee: &ProverRewards,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) {
         self.transfer_from(
             self.id.to_payable(),
@@ -129,7 +129,7 @@ impl<S: Spec> Bank<S> {
         &self,
         payer: &S::Address,
         remaining_funds: &RemainingFunds,
-        tx_scratchpad: &mut TxScratchpad<S::Storage>,
+        tx_scratchpad: &mut impl InfallibleStateAccessor,
     ) {
         // We refund the payer. We need to give back the remaining funds on the gas meter, plus the unspent tip.
         // This is also the maximum fee minus everything that was spent for the tip and base fee (ie the total reward).

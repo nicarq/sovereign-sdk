@@ -1,7 +1,9 @@
+use std::convert::Infallible;
+
 use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
-use crate::{Gas, KernelStateAccessor, Spec, StateCheckpoint};
+use crate::{Gas, KernelStateAccessor, Spec, VersionReader};
 
 /// Capabilities allowing the kernel to update and access the DA layer state.
 pub trait ChainState {
@@ -33,7 +35,7 @@ pub trait ChainState {
     /// This can happen when querying a slot too far ahead in the future.
     fn base_fee_per_gas(
         &self,
-        state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+        state: &mut impl VersionReader<Error = Infallible>,
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
     /// Returns the visible root hash accessible at the current *virtual* rollup height

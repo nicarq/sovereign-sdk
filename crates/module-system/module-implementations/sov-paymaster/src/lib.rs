@@ -13,8 +13,8 @@ use sov_bank::ReserveGasError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, InnerEnumVariant, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, Spec, StateMap, TxScratchpad, TxState,
+    CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
+    InnerEnumVariant, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
 };
 use sov_state::BcsCodec;
 
@@ -113,7 +113,7 @@ impl<S: Spec> Paymaster<S> {
         &self,
         payer: &S::Address,
         context: &Context<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Option<PayeePolicy<S>> {
         let policy = self.payers.get(payer, state).unwrap_infallible()?;
         if !policy
@@ -137,7 +137,7 @@ impl<S: Spec> Paymaster<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), ReserveGasError<S>> {
         if let Some(payer) = self.gas_from_paymaster(tx, gas_price, context, state) {
             context.set_gas_refund_recipient(payer);
@@ -160,7 +160,7 @@ impl<S: Spec> Paymaster<S> {
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &Context<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Option<S::Address> {
         let payer = self
             .sequencer_to_payer
@@ -201,7 +201,7 @@ impl<S: Spec> Paymaster<S> {
         gas_price: &<S::Gas as Gas>::Price,
         payer: &S::Address,
         policy: &PayeePolicy<S>,
-        state: &mut TxScratchpad<S::Storage>,
+        state: &mut impl InfallibleStateAccessor,
     ) -> Result<(), ReserveGasError<S>> {
         policy.authorize_transaction(tx, gas_price)?;
         self.bank.reserve_gas(tx, gas_price, payer, state)

@@ -19,6 +19,6 @@ pub use traits::ProvenStateAccessor;
 pub use traits::{
     AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateWriter, GenesisState,
     InfallibleKernelStateAccessor, InfallibleStateAccessor, InfallibleStateReaderAndWriter,
-    KernelWriter, StateAccessor, StateAccessorError, StateReader, StateReaderAndWriter,
-    StateWriter, TxState, VersionReader,
+    KernelWriter, ProvableStateReader, ProvableStateWriter, StateAccessor, StateAccessorError,
+    StateReader, StateReaderAndWriter, StateWriter, TxState, VersionReader,
 };
