@@ -36,7 +36,7 @@ use thiserror::Error;
 #[serde(rename_all = "snake_case")]
 pub enum AllowedSequencerError {
     /// The amount of gas tokens that the sender is has staken is too low.
-    #[error("The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {bond_amount}, minimum bond amount: {minimum_bond_amount}")]
+    #[error("The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {bond_amount}, minimum bond amount: {minimum_bond_amount}.")]
     InsufficientStakeAmount {
         /// The amount of gas tokens that the sender is has staken.
         bond_amount: Amount,
@@ -44,7 +44,7 @@ pub enum AllowedSequencerError {
         minimum_bond_amount: Amount,
     },
     /// The sequencer is not registered.
-    #[error("The sequencer is not registered")]
+    #[error("The sequencer is not registered.")]
     NotRegistered,
 }
 
