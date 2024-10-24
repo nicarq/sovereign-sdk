@@ -4,9 +4,6 @@ inputs:
   github_token:
     description: "Token to use for private repo access"
     required: true
-  ssh_private_key:
-    description: "SSH private key to use for cloning private repos"
-    required: true
   # Useful if the job e.g. uses `SKIP_GUEST_BUILD` or `SP1_SKIP_PROGRAM_BUILD`.
   # Saves some installation time.
   install_zkvm:
@@ -16,10 +13,6 @@ inputs:
 runs:
   using: "composite"
   steps:
-    # SSH agent to access private repos
-    - uses: webfactory/ssh-agent@v0.9.0
-      with:
-        ssh-private-key: ${{ inputs.ssh_private_key }}
     # Install Rust
     - name: Install Rust
       shell: bash
