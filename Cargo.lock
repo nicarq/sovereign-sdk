@@ -4313,6 +4313,7 @@ dependencies = [
  "rockbound",
  "serde",
  "serde_json",
+ "serial_test",
  "sov-accounts",
  "sov-attester-incentives",
  "sov-bank",

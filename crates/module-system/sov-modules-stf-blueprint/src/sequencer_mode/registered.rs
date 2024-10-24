@@ -212,14 +212,15 @@ where
         ) {
         Ok(_) => (),
         Err(e) => {
+            let err_str = format!("Not enough gas to execute `begin_batch_hook`: {}", e);
             error!(
                 error = %e,
                 batch_id = hex::encode(batch_with_id.id),
-                "Not enough gas to execute `begin_batch_hook`",
+                "Not enough gas to execute `begin_batch_hook` ",
             );
 
             return (
-                ignored_batch(e.to_string(), sequencer_da_address),
+                ignored_batch(err_str, sequencer_da_address),
                 scratchpad.revert(),
                 S::Gas::zero(),
             );
@@ -252,7 +253,7 @@ where
 
     // Cost of the authentication for the entire batch.
     // It should include the costs of `authentication` and process_tx pre-execution checks.
-    let max_tx_check_costs = match runtime
+    let max_batch_check_costs = match runtime
         .gas_enforcer()
         .max_tx_check_costs()
         .value(gas_price)
@@ -267,7 +268,7 @@ where
                     sequencer_da_address,
                 ),
                 scratchpad.commit(),
-                S::Gas::zero(),
+                gas_used,
             );
         }
     };
@@ -275,14 +276,25 @@ where
     // Begin the transaction authorization phase.
     let gas_meter: BasicGasMeter<S::Gas> = match runtime
         .sequencer_authorization()
-        .authorize_sequencer(&sequencer_da_address, max_tx_check_costs, &mut scratchpad)
-    {
+        .authorize_sequencer(
+            &sequencer_da_address,
+            max_batch_check_costs,
+            &mut scratchpad,
+        ) {
         Ok(allowed_sequencer) => BasicGasMeter::new(allowed_sequencer.balance, gas_price.clone()),
         Err(AuthorizeSequencerError { reason }) => {
+            let err_str = format!("Not enough gas to authenticate the batch: {}", reason);
+
+            error!(
+                error = %reason,
+                batch_id = hex::encode(batch_with_id.id),
+                "Not enough gas to authenticate the batch",
+            );
+
             return (
-                ignored_batch(reason.to_string(), sequencer_da_address),
+                ignored_batch(err_str, sequencer_da_address),
                 scratchpad.commit(),
-                S::Gas::zero(),
+                gas_used,
             );
         }
     };

@@ -46,3 +46,4 @@ sov-value-setter = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
+serial_test = "3.1"

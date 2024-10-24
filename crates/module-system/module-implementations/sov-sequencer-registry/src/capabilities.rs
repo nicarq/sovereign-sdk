@@ -44,7 +44,7 @@ impl<S: Spec> SequencerRegistry<S> {
         {
             let new_balance = balance.checked_sub(amount).ok_or_else(|| {
                 anyhow::anyhow!(
-                    "Sequencer {} stake is too low. Balance {}, amount: {}",
+                    "Sequencer's: {} stake is too low. Current stake: {}, amount to deduct: {}",
                     sequencer,
                     balance,
                     amount
