@@ -13,7 +13,7 @@ lazy_static = { workspace = true }
 workspace = true
 
 [build-dependencies]
-sp1-helper = { version = "1", default-features = false }
+sp1-build = { version = "3.0.0", default-features = false }
 
 [features]
 bench = []
