@@ -1,6 +1,6 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::VersionReader;
+use sov_modules_api::{GasMeter, VersionReader};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser, TestUser};
@@ -173,6 +173,57 @@ fn test_chain_state_historical_transition_update() {
             in_progress_transition.gas_used(),
             first_transition.gas_used(),
             "The gas used of the in progress and the first historical transition should be the same"
+        );
+    });
+}
+
+/// This test ensures that the gas price for the archival state updates correctly
+/// when a previous state is queried.
+#[test]
+fn test_archival_state_updates_gas_price() {
+    let (admin, mut runner) = setup();
+
+    let initial_base_fee_per_gas = runner
+        .query_state(|state| {
+            ChainState::<S>::default()
+                .base_fee_per_gas(state)
+                .unwrap_infallible()
+        })
+        .unwrap();
+
+    runner.execute(
+        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+    );
+
+    runner.advance_slots(1);
+
+    let current_gas_price = runner
+        .query_state(|state| {
+            ChainState::<S>::default()
+                .base_fee_per_gas(state)
+                .unwrap_infallible()
+        })
+        .unwrap();
+
+    assert_ne!(
+        initial_base_fee_per_gas, current_gas_price,
+        "The gas price should have changed"
+    );
+
+    runner.query_state(|state| {
+        let gas_price = state.gas_info().gas_price;
+
+        assert_eq!(
+            gas_price, current_gas_price,
+            "The gas price stored in the accessor should be the same as the current gas price"
+        );
+
+        let archival_state = state.get_archival_at(1);
+
+        assert_eq!(
+            archival_state.gas_info().gas_price,
+            initial_base_fee_per_gas,
+            "The gas price stored in the archival state should be the same as the initial gas price"
         );
     });
 }

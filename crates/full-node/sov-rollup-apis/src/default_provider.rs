@@ -37,7 +37,7 @@ where
 
         let mut state = StateCheckpoint::new(storage, &RT::default().kernel());
 
-        Ok(RT::default().chain_state().base_fee_per_gas(&mut state))
+        RT::default().chain_state().base_fee_per_gas(&mut state).ok_or_else(|| anyhow::anyhow!("Impossible to get the base fee per gas for the current slot. The slot requested may be too far in the future and the base fee per gas is not yet known."))
     }
 
     fn simulate_execution(
@@ -54,9 +54,16 @@ where
 
         let height = state.rollup_height_to_access();
 
-        let gas_price = transaction
-            .gas_price
-            .unwrap_or_else(|| RT::default().chain_state().base_fee_per_gas(&mut state));
+        let gas_price = match transaction
+                .gas_price {
+                    Some(gas_price) => gas_price,
+                    None => {
+                        match RT::default().chain_state().base_fee_per_gas(&mut state) {
+                            Some(gas_price) => gas_price,
+                            None => return Err(anyhow::anyhow!("Impossible to get the base fee per gas for the current slot. The slot requested may be too far in the future and the base fee per gas is not yet known."))
+                        }
+                    }
+            };
 
         let sequencer_da_address = transaction.sequencer.unwrap_or(default_sequencer);
 

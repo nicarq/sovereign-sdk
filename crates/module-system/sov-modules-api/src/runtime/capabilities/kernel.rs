@@ -12,6 +12,20 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
         true_slot_number: u64,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> u64;
+
+    /// Returns the base fee per gas accessible at the specified true slot number for this state accessor.
+    ///
+    /// ## Usage
+    /// This method should first map the true slot number to the visible slot number using [`KernelWithSlotMapping::visible_slot_number_at`]
+    /// and then retrieve the base fee per gas from the state at the visible slot number.
+    ///
+    /// ## Note
+    /// This method may return `None` if it is not possible to retrieve the correct base fee per gas from the state.
+    fn base_fee_per_gas_at(
+        &self,
+        height: u64,
+        state: &mut crate::state::ApiStateAccessor<S>,
+    ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price>;
 }
 
 /// The kernel is responsible for managing the inputs to the `apply_blob` method.

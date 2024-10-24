@@ -67,7 +67,7 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmation
     fn base_fee_per_gas(
         &self,
         state: &mut sov_modules_api::StateCheckpoint<S::Storage>,
-    ) -> <<S as Spec>::Gas as Gas>::Price {
+    ) -> Option<<<S as Spec>::Gas as Gas>::Price> {
         self.chain_state.base_fee_per_gas(state).unwrap_infallible()
     }
 
