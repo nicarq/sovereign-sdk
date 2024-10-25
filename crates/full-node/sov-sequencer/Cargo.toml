@@ -61,7 +61,7 @@ sov-value-setter = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-rollup-interface = { workspace = true }
-sov-sequencer-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }

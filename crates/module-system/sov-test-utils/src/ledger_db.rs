@@ -22,7 +22,7 @@ use crate::{TestSpec, TestTxReceiptContents};
 
 type TestEvent = crate::runtime::TestOptimisticRuntimeEvent<TestSpec>;
 
-pub extern crate sov_ledger_json_client;
+pub extern crate sov_api_spec;
 
 /// Very simple utility function: it just persists some dummy data to the
 /// [`LedgerDb`], so that it's not empty when you read it within tests.
@@ -210,7 +210,7 @@ pub struct LedgerTestService {
     /// An Axum server handle.
     pub axum_handle: axum_server::Handle,
     /// An Axum client.
-    pub axum_client: sov_ledger_json_client::Client,
+    pub axum_client: sov_api_spec::Client,
 }
 
 impl LedgerTestService {
@@ -252,7 +252,7 @@ impl LedgerTestService {
             .listening()
             .await
             .ok_or(anyhow::anyhow!("Failed to bind"))?;
-        let axum_client = sov_ledger_json_client::Client::new(&format!("http://{}", axum_addr));
+        let axum_client = sov_api_spec::Client::new(&format!("http://{}", axum_addr));
 
         Ok(Self {
             _dir: dir,

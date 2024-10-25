@@ -61,7 +61,7 @@ async fn forced_sequencer_registration_test_case(
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     let mut slot_subscription = client
-        .ledger
+        .client
         .subscribe_slots()
         .await
         .context("Failed to subscribe to slots!")?;

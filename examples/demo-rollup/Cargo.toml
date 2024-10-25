@@ -78,7 +78,7 @@ sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
 sov-nft = { workspace = true, features = ["native"] }
-sov-ledger-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-modules-macros = { workspace = true }
 sov-test-utils = { workspace = true }
 sov-chain-state = { workspace = true }

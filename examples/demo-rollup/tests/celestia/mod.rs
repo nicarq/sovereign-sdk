@@ -81,7 +81,7 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
     let rest_port = 12346;
     let client = NodeClient::new_at_localhost(rest_port).await?;
 
-    let mut slot_subscription = client.ledger.subscribe_slots().await?;
+    let mut slot_subscription = client.client.subscribe_slots().await?;
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
@@ -98,7 +98,7 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
         );
 
         client
-            .sequencer
+            .client
             .publish_batch_with_serialized_txs(&[tx])
             .await?;
         let slot = slot_subscription.next().await.unwrap()?;

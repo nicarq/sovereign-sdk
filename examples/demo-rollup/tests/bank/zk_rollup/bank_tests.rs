@@ -112,7 +112,7 @@ async fn send_test_bank_txs(
         da_service.da_service().subscribe_proof_posted();
 
     let mut aggregated_proof_subscription = client
-        .ledger
+        .client
         .subscribe_aggregated_proof()
         .await
         .context("Failed to subscribe to aggregated proof")?;

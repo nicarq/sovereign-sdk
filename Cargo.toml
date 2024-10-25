@@ -19,12 +19,9 @@ members = [
     # Full Node
     "crates/full-node/sov-db",
     "crates/full-node/sov-sequencer",
-    "crates/full-node/sov-sequencer-json-client",
     "crates/full-node/sov-ethereum",
     "crates/full-node/sov-ledger-apis",
-    "crates/full-node/sov-ledger-json-client",
     "crates/full-node/sov-rollup-apis",
-    "crates/full-node/sov-rollup-json-client",
     "crates/full-node/sov-stf-runner",
     "crates/full-node/sov-metrics",
     "crates/full-node/sov-eth-dev-signer",
@@ -119,8 +116,6 @@ sov-paymaster = { path = "crates/module-system/module-implementations/sov-paymas
 sov-risc0-adapter = { path = "crates/adapters/risc0", default-features = false, version = "0.3" }
 sov-sp1-adapter = { path = "crates/adapters/sp1", default-features = false, version = "0.3" }
 sov-rollup-interface = { path = "crates/rollup-interface", default-features = false, version = "0.3" }
-sov-ledger-json-client = { path = "crates/full-node/sov-ledger-json-client", default-features = false, version = "0.3" }
-sov-rollup-json-client = { path = "crates/full-node/sov-rollup-json-client", default-features = false, version = "0.3" }
 sov-stf-runner = { path = "crates/full-node/sov-stf-runner", default-features = false, version = "0.3" }
 sov-attester-incentives = { path = "crates/module-system/module-implementations/sov-attester-incentives", default-features = false, version = "0.3" }
 sov-capabilities = { path = "crates/module-system/sov-capabilities", default-features = false, version = "0.3" }
@@ -128,7 +123,6 @@ sov-kernels = { path = "crates/module-system/sov-kernels", default-features = fa
 sov-state = { path = "crates/module-system/sov-state", default-features = false, version = "0.3" }
 sov-rest-utils = { path = "crates/utils/sov-rest-utils", default-features = false, version = "0.3" }
 sov-metrics = { path = "crates/full-node/sov-metrics", default-features = false, version = "0.3" }
-sov-sequencer-json-client = { path = "crates/full-node/sov-sequencer-json-client", default-features = false, version = "0.3" }
 sov-cli = { path = "crates/module-system/sov-cli", default-features = false, version = "0.3" }
 sov-modules-rollup-blueprint = { path = "crates/module-system/sov-modules-rollup-blueprint", default-features = false, version = "0.3" }
 sov-modules-macros = { path = "crates/module-system/sov-modules-macros", default-features = false, version = "0.3" }

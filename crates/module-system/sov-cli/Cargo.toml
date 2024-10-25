@@ -23,8 +23,7 @@ derive_more = { workspace = true, features = ["display"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 sov-rollup-interface = { workspace = true }
-sov-ledger-json-client = { workspace = true }
-sov-sequencer-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 directories = "5.0.1"
 anyhow = { workspace = true }
 hex = { workspace = true, features = ["serde"] }

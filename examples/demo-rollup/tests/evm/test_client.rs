@@ -13,8 +13,8 @@ use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use reth_primitives::Bytes;
+use sov_api_spec::WsSubscription;
 use sov_cli::NodeClient;
-use sov_ledger_json_client::WsSubscription;
 use sov_test_utils::{SimpleStorageContract, TestSpec, TEST_DEFAULT_MAX_FEE};
 
 const GAS: u64 = 900000u64;
@@ -388,7 +388,7 @@ impl TestClient {
     pub(crate) async fn subscribe_for_slots(&self) -> WsSubscription<u64> {
         Ok(self
             .node_client
-            .ledger
+            .client
             .subscribe_slots()
             .await?
             .map(|s| s.map(|s| s.number))
@@ -399,10 +399,10 @@ impl TestClient {
         &self,
         transactions: &[sov_modules_api::transaction::Transaction<TestSpec>],
     ) -> anyhow::Result<()> {
-        let mut slot_subscription = self.node_client.ledger.subscribe_slots().await?;
+        let mut slot_subscription = self.node_client.client.subscribe_slots().await?;
 
         self.node_client
-            .sequencer
+            .client
             .publish_batch_with_serialized_txs(transactions)
             .await?;
 

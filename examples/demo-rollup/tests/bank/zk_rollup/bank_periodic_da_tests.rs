@@ -44,7 +44,7 @@ async fn send_test_bank_txs(
     // There's no guarantee that we subscribed before the first proof is published.
     // But we know that it should be less or equal rollup_height of the first published batch
     let mut aggregated_proof_subscription = client
-        .ledger
+        .client
         .subscribe_aggregated_proof()
         .await
         .context("Failed to subscribe to aggregated proof")?;

@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use futures::StreamExt;
-use sov_ledger_json_client::types as ledger_api_types;
+use sov_api_spec::types as ledger_api_types;
 use sov_modules_api::prelude::tokio;
 use tokio::task::JoinHandle;
 
@@ -19,7 +19,7 @@ pub(crate) fn start_slot_watcher_task(
         let mut successful_count = 0;
         let mut error_count = 0;
 
-        let ledger_client = sov_ledger_json_client::Client::new(&ledger_url);
+        let ledger_client = sov_api_spec::Client::new(&ledger_url);
 
         tracing::info!("Starting slot watcher");
 

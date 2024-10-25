@@ -47,8 +47,7 @@ sov-accounts = { workspace = true, features = ["native"] }
 sov-nonces = { workspace = true, features = ["native"] }
 sov-kernels = { workspace = true, features = ["native"] }
 sov-ledger-apis = { workspace = true }
-sov-ledger-json-client = { workspace = true }
-sov-sequencer-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-capabilities = { workspace = true, features = ["native"] }
 sov-sequencer = { workspace = true }
 sov-sequencer-registry = { workspace = true, features = ["native"] }

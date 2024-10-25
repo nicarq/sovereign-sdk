@@ -1,3 +1,7 @@
+pub mod client;
+
+pub use client::*;
+
 const RAW_YAML_SPEC: &str = include_str!("../openapi-v3.yaml");
 
 /// Returns parsed [`openapiv3::OpenAPI`] for Ledger JSON API.

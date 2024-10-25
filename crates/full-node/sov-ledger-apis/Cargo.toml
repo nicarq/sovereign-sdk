@@ -40,7 +40,7 @@ base64 = { workspace = true }
 insta = { workspace = true }
 reqwest = { workspace = true, features = ["rustls-tls", "json"] }
 sov-db = { workspace = true }
-sov-ledger-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 tempfile = "3"
