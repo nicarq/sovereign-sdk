@@ -45,6 +45,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             proof_blobs: Default::default(),
             batch_blobs: vec![blob],
         };
+
         let result =
             runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S>>(unregistered_blobs);
 
@@ -122,6 +123,8 @@ fn execute_seq_registration_failure_test() {
 }
 
 mod helpers {
+    use sov_modules_api::PrivateKey;
+
     use super::*;
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
@@ -153,36 +156,78 @@ mod helpers {
         }
     }
 
-    fn create_tx_blob_valid(
+    // Creates a forced-registration blob that will be sent to the sequencer.
+    fn create_tx_blob(
         nonce: u64,
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
         da_address: <<S as Spec>::Da as DaSpec>::Address,
+        chain_id: u64,
     ) -> MockBlob {
-        let encoded_message =
-            <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::encode_call(
-                sov_sequencer_registry::CallMessage::Register {
-                    da_address,
-                    amount: BOND_AMOUNT,
-                },
-            );
+        let encoded_message = encode_message(da_address, BOND_AMOUNT);
 
         let utx = UnsignedTransaction::new(
             encoded_message.clone(),
-            config_value!("CHAIN_ID"),
+            chain_id,
             max_priority_fee_bips,
             200_000,
             nonce,
             None,
         );
 
-        let transaction = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
+        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
+        encode_tx(signed_tx, da_address)
+    }
 
-        let tx_data = borsh::to_vec(&transaction).unwrap();
-        let raw_tx = RawTx { data: tx_data };
-        let tx_blob = borsh::to_vec(&raw_tx).unwrap();
+    // Creates a forced-registration blob to be sent to the sequencer, the transaction will be reverted.
+    fn create_tx_blob_reverted(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        signer: &TestUser<S>,
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+        chain_id: u64,
+    ) -> MockBlob {
+        // Here, we attempt to bond more funds than are available for a given user, causing the transaction to be reverted.
+        let encoded_message = encode_message(da_address, signer.available_gas_balance + 1);
 
-        MockBlob::new_with_hash(tx_blob, da_address)
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            chain_id,
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
+        encode_tx(signed_tx, da_address)
+    }
+
+    // Creates a forced-registration blob with invalid signature.
+    fn create_tx_blob_bad_sig(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        signer: &TestUser<S>,
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+        chain_id: u64,
+    ) -> MockBlob {
+        let encoded_message = encode_message(da_address, BOND_AMOUNT);
+
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            chain_id,
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        let mut signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
+
+        // Create a signature for a different message so it won't verify in the stf.
+        let bad_signature = signer.private_key.sign(&[1, 2, 3]);
+        signed_tx.signature = bad_signature;
+        encode_tx(signed_tx, da_address)
     }
 
     pub(crate) fn create_blobs_from_unregistered_seq(
@@ -205,21 +250,63 @@ mod helpers {
         potential_seq: &PotentialSequencer,
     ) -> MockBlob {
         match status {
-            TxStatus::Success => create_tx_blob_valid(
+            TxStatus::Success => create_tx_blob(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 potential_seq.da_address,
+                config_value!("CHAIN_ID"),
             ),
-            TxStatus::BadNonce => create_tx_blob_valid(
+            TxStatus::BadNonce => create_tx_blob(
                 999,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 potential_seq.da_address,
+                config_value!("CHAIN_ID"),
             ),
-            TxStatus::BadChainId => todo!(),
-            TxStatus::BadSignature => todo!(),
-            TxStatus::Reverted => todo!(),
+            TxStatus::BadChainId => create_tx_blob(
+                0,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                potential_seq.da_address,
+                config_value!("CHAIN_ID") + 1,
+            ),
+            TxStatus::BadSignature => create_tx_blob_bad_sig(
+                0,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                potential_seq.da_address,
+                config_value!("CHAIN_ID"),
+            ),
+            TxStatus::Reverted => create_tx_blob_reverted(
+                0,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                potential_seq.da_address,
+                config_value!("CHAIN_ID"),
+            ),
         }
+    }
+
+    fn encode_message(
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+        bond_amount: u64,
+    ) -> Vec<u8> {
+        <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::encode_call(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address,
+                amount: bond_amount,
+            },
+        )
+    }
+
+    fn encode_tx(
+        signed_tx: Transaction<S>,
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
+        let tx_data = borsh::to_vec(&signed_tx).unwrap();
+        let raw_tx = RawTx { data: tx_data };
+        let tx_blob = borsh::to_vec(&raw_tx).unwrap();
+        MockBlob::new_with_hash(tx_blob, da_address)
     }
 }
