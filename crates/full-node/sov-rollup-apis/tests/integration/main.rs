@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use sov_api_spec::Client;
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
-use sov_rollup_json_client::Client;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
 use sov_modules_api::prelude::tokio;

@@ -31,7 +31,7 @@ base64 = { workspace = true }
 sov-rest-utils = { workspace = true }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
-sov-rollup-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-nonces = { workspace = true }
 

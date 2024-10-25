@@ -5,8 +5,8 @@ use std::future::Future;
 use std::str::FromStr;
 
 use assert_json_diff::assert_json_eq;
-use sov_ledger_json_client::types;
-use sov_ledger_json_client::types::IntOrHash;
+use sov_api_spec::types;
+use sov_api_spec::types::IntOrHash;
 use sov_test_utils::ledger_db::{LedgerTestService, LedgerTestServiceData};
 use utils::ledger_response_body;
 
@@ -188,7 +188,7 @@ mod utils {
 
     pub async fn ledger_response_body<T, F, Fut>(api_call: F) -> serde_json::Value
     where
-        F: FnOnce(sov_ledger_json_client::Client) -> Fut + Send + Sync + 'static,
+        F: FnOnce(sov_api_spec::Client) -> Fut + Send + Sync + 'static,
         T: serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
         Fut: Future<Output = T> + Send + Sync + 'static,
     {

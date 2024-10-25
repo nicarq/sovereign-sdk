@@ -5,10 +5,12 @@ use std::slice::Iter;
 
 use anyhow::Context;
 use base64::prelude::*;
+use borsh::BorshSerialize;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof;
+use sov_rollup_interface::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
 pub extern crate tokio_tungstenite;
@@ -16,7 +18,7 @@ pub extern crate tokio_tungstenite;
 pub type WsSubscription<T> = Result<BoxStream<'static, anyhow::Result<T>>, WsError>;
 
 progenitor::generate_api!(
-    spec = "../sov-api-spec/openapi-v3.yaml",
+    spec = "./openapi-v3.yaml",
     derives = [Debug, Clone, PartialEq],
 );
 
@@ -29,6 +31,36 @@ impl Client {
 
     pub async fn subscribe_aggregated_proof(&self) -> WsSubscription<types::AggregatedProof> {
         self.subscribe_to_ws("/ledger/aggregated-proofs/latest/ws")
+            .await
+    }
+    /// Sends a transaction to the sequencer for immediate publication.
+    pub async fn publish_batch_with_serialized_txs<Tx: BorshSerialize>(
+        &self,
+        txs: &[Tx],
+    ) -> Result<types::SubmittedBatchInfo, Error<types::PublishBatchResponse>> {
+        for tx in txs {
+            let tx_bytes =
+                borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
+            let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
+
+            self.accept_tx(&types::AcceptTxBody { body: tx_b64 })
+                .await
+                .map_err(|err| Error::PreHookError(err.to_string()))?;
+        }
+
+        let publish_batch_response = self
+            .publish_batch(&types::PublishBatchBody {
+                transactions: vec![],
+            })
+            .await?;
+        Ok(publish_batch_response.data.clone().unwrap())
+    }
+
+    pub async fn subscribe_to_tx_status_updates(
+        &self,
+        tx_hash: TxHash,
+    ) -> WsSubscription<types::TxInfo> {
+        self.subscribe_to_ws(&format!("/sequencer/txs/{}/ws", tx_hash))
             .await
     }
 

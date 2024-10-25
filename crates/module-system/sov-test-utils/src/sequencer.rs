@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
+use sov_api_spec::Client;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
@@ -18,7 +19,6 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{GenericSequencerSpec, SeqDbTx, Sequencer, SequencerDb};
-use sov_sequencer_json_client::Client;
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;

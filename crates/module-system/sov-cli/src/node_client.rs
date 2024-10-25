@@ -8,15 +8,14 @@ use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
 use reqwest::{ClientBuilder, StatusCode};
+use sov_api_spec::types;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
-use sov_ledger_json_client::Client as LedgerClient;
 use sov_modules_api::prelude::tracing;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_rollup_interface::crypto::{CredentialId, PublicKey};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::CryptoSpec;
-use sov_sequencer_json_client::types;
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct NonceResponse {
@@ -56,14 +55,12 @@ pub struct NodeClient {
     pub base_url: String,
     /// Client that used to communicate with Runtime REST API.
     http_client: reqwest::Client,
-    /// A [`sov_sequencer_json_client::Client`] for communication with the sequencer.
-    pub ledger: sov_ledger_json_client::Client,
-    /// A [`sov_ledger_json_client::Client`] for communication with the ledger.
-    pub sequencer: sov_sequencer_json_client::Client,
+    /// A [`sov_api_spec::Client`] for communication with the full node endpoints.
+    pub client: sov_api_spec::Client,
 }
 
 impl NodeClient {
-    /// Constructor. Implies base url for rollup node, as sequencer and ledger are appended.
+    /// Constructor. Implies base url for rollup node.
     pub async fn new(api_url: &str) -> anyhow::Result<Self> {
         let base_url = api_url.to_string();
         let http_client = ClientBuilder::default()
@@ -72,14 +69,12 @@ impl NodeClient {
         if !check_if_rollup_has_standard_modules(&http_client, &base_url).await? {
             anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
         }
-        let ledger = LedgerClient::new(api_url);
-        let sequencer = sov_sequencer_json_client::Client::new(api_url);
+        let client = sov_api_spec::Client::new(api_url);
 
         Ok(NodeClient {
             base_url,
             http_client,
-            ledger,
-            sequencer,
+            client,
         })
     }
 
@@ -209,7 +204,7 @@ impl NodeClient {
         wait_for_processing: bool,
     ) -> anyhow::Result<()> {
         let response = self
-            .sequencer
+            .client
             .publish_batch(&types::PublishBatchBody {
                 transactions: raw_txs
                     .into_iter()
@@ -242,7 +237,7 @@ impl NodeClient {
             let start_wait = Instant::now();
 
             // Subscribe to slots only to check our batch if the slot has been published.
-            let mut slot_subscription = self.ledger.subscribe_slots().await?;
+            let mut slot_subscription = self.client.subscribe_slots().await?;
 
             while start_wait.elapsed() < max_waiting_time {
                 if let Some(latest_slot) = slot_subscription.next().await.transpose()? {

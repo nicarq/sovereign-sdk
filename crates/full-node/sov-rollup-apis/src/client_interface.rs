@@ -1,5 +1,6 @@
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
+use sov_api_spec::types;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::prelude::anyhow::Context;
 use sov_modules_api::transaction::{PriorityFeeBips, TransactionConsumption, TxDetails};
@@ -8,7 +9,6 @@ use sov_modules_stf_blueprint::{
     ApplyTxResult, RevertedTxContents, SkippedTxContents, SuccessfulTxContents, TransactionReceipt,
 };
 use sov_rollup_interface::common::HexString;
-use sov_rollup_json_client::types;
 
 use crate::SimulateExecutionContainer;
 

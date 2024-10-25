@@ -5,6 +5,7 @@
 use axum::extract::State;
 use axum::routing::{get, post};
 use axum::Json;
+use sov_api_spec::types::{self, SimulateExecutionResponse};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_modules_api::rest::StorageReceiver;
@@ -13,7 +14,6 @@ use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_modules_stf_blueprint::Runtime;
 use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
-use sov_rollup_json_client::types::{self, SimulateExecutionResponse};
 
 mod client_interface;
 

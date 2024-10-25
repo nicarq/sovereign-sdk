@@ -1,5 +1,5 @@
 use futures::stream::StreamExt;
-use sov_sequencer_json_client::types::TxStatus;
+use sov_api_spec::types::TxStatus;
 use sov_test_utils::sequencer::TestSequencerSetup;
 
 use crate::utils::generate_txs;

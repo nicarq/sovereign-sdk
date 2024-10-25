@@ -2,12 +2,12 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use base64::prelude::*;
+use sov_api_spec::types;
 use sov_mock_da::MockDaService;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer_json_client::types;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;

@@ -9408,8 +9408,23 @@ dependencies = [
 name = "sov-api-spec"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "borsh",
+ "chrono",
+ "futures",
  "openapiv3",
+ "progenitor",
+ "rand 0.8.5",
+ "regress 0.4.1",
+ "reqwest 0.12.5",
+ "serde",
+ "serde_json",
  "sov-modules-api",
+ "sov-rollup-interface",
+ "tokio",
+ "tokio-tungstenite 0.23.1",
+ "tracing",
 ]
 
 [[package]]
@@ -9579,12 +9594,11 @@ dependencies = [
  "semver 1.0.23",
  "serde",
  "serde_json",
+ "sov-api-spec",
  "sov-bank",
- "sov-ledger-json-client",
  "sov-mock-da",
  "sov-modules-api",
  "sov-rollup-interface",
- "sov-sequencer-json-client",
  "sov-test-utils",
  "tempfile",
 ]
@@ -9683,6 +9697,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-accounts",
+ "sov-api-spec",
  "sov-bank",
  "sov-celestia-adapter",
  "sov-chain-state",
@@ -9691,7 +9706,6 @@ dependencies = [
  "sov-db",
  "sov-ethereum",
  "sov-kernels",
- "sov-ledger-json-client",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -9833,8 +9847,8 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "sov-api-spec",
  "sov-db",
- "sov-ledger-json-client",
  "sov-mock-da",
  "sov-modules-api",
  "sov-rest-utils",
@@ -9844,27 +9858,6 @@ dependencies = [
  "tokio",
  "tracing",
  "utoipa-swagger-ui",
-]
-
-[[package]]
-name = "sov-ledger-json-client"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "borsh",
- "chrono",
- "futures",
- "progenitor",
- "rand 0.8.5",
- "regress 0.4.1",
- "reqwest 0.12.5",
- "serde",
- "serde_json",
- "sov-rollup-interface",
- "tokio",
- "tokio-tungstenite 0.23.1",
- "tracing",
 ]
 
 [[package]]
@@ -10226,6 +10219,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "sov-api-spec",
  "sov-bank",
  "sov-kernels",
  "sov-modules-api",
@@ -10233,7 +10227,6 @@ dependencies = [
  "sov-nonces",
  "sov-rest-utils",
  "sov-rollup-interface",
- "sov-rollup-json-client",
  "sov-state",
  "sov-test-utils",
  "strum 0.26.3",
@@ -10269,21 +10262,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sov-rollup-json-client"
-version = "0.3.0"
-dependencies = [
- "chrono",
- "futures",
- "progenitor",
- "regress 0.4.1",
- "reqwest 0.12.5",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite 0.23.1",
-]
-
-[[package]]
 name = "sov-sequencer"
 version = "0.3.0"
 dependencies = [
@@ -10310,6 +10288,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serde_yaml",
+ "sov-api-spec",
  "sov-blob-storage",
  "sov-db",
  "sov-kernels",
@@ -10319,7 +10298,6 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-rest-utils",
  "sov-rollup-interface",
- "sov-sequencer-json-client",
  "sov-state",
  "sov-test-utils",
  "sov-value-setter",
@@ -10331,26 +10309,6 @@ dependencies = [
  "tracing",
  "utoipa-swagger-ui",
  "uuid 1.10.0",
-]
-
-[[package]]
-name = "sov-sequencer-json-client"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "base64 0.22.1",
- "borsh",
- "chrono",
- "futures",
- "progenitor",
- "rand 0.8.5",
- "regress 0.4.1",
- "reqwest 0.12.5",
- "serde",
- "serde_json",
- "sov-rollup-interface",
- "tokio",
- "tokio-tungstenite 0.23.1",
 ]
 
 [[package]]
@@ -10496,10 +10454,10 @@ dependencies = [
  "rand 0.8.5",
  "serde",
  "serde_json",
+ "sov-api-spec",
  "sov-bank",
  "sov-celestia-adapter",
  "sov-cli",
- "sov-ledger-json-client",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -10537,6 +10495,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-accounts",
+ "sov-api-spec",
  "sov-attester-incentives",
  "sov-bank",
  "sov-blob-storage",
@@ -10545,7 +10504,6 @@ dependencies = [
  "sov-db",
  "sov-kernels",
  "sov-ledger-apis",
- "sov-ledger-json-client",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
@@ -10556,7 +10514,6 @@ dependencies = [
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer",
- "sov-sequencer-json-client",
  "sov-sequencer-registry",
  "sov-state",
  "sov-stf-runner",

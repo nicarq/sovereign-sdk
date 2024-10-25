@@ -39,7 +39,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-bank = { workspace = true, features = ["native", "arbitrary"] }
 sov-cli = { workspace = true }
-sov-ledger-json-client = { workspace = true }
+sov-api-spec = { workspace = true }
 sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-mock-da = { workspace = true, features = ["native", "arbitrary"] }
 sov-modules-api = { workspace = true, features = ["native", "arbitrary"] }

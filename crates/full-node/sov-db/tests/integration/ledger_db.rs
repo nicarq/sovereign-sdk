@@ -7,7 +7,7 @@ use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
-use sov_test_utils::ledger_db::sov_ledger_json_client::types::IntOrHash;
+use sov_test_utils::ledger_db::sov_api_spec::types::IntOrHash;
 use sov_test_utils::ledger_db::{LedgerTestService, LedgerTestServiceData};
 use sov_test_utils::storage::SimpleLedgerStorageManager;
 

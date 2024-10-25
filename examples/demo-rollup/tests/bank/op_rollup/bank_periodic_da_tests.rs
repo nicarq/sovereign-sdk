@@ -44,7 +44,7 @@ async fn send_test_bank_txs(
     client: &NodeClient,
     tx_sender: impl TxSender,
 ) -> anyhow::Result<()> {
-    let mut slots_subscription = client.ledger.subscribe_slots().await?;
+    let mut slots_subscription = client.client.subscribe_slots().await?;
 
     let (key, user_address, token_id, _recipient_address) = create_keys_and_addresses();
     let token_id_response = client

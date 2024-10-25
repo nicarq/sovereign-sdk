@@ -7,8 +7,8 @@ use anyhow::Context;
 use demo_stf::runtime::Runtime;
 use futures::StreamExt;
 use reqwest::StatusCode;
+use sov_api_spec::types::{IntOrHash, Slot};
 use sov_cli::NodeClient;
-use sov_ledger_json_client::types::{IntOrHash, Slot};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::Transaction;
@@ -58,13 +58,13 @@ impl TxSender for DaLayerTxSender {
         let fee = self.da_service.estimate_fee(batch_bytes.len()).await?;
 
         let slot_subscription = client
-            .ledger
+            .client
             .subscribe_slots()
             .await
             .context("Failed to subscribe to slots!")?;
         self.da_service.send_transaction(&batch_bytes, fee).await?;
 
-        wait_for_batch_to_be_processed(slot_subscription, &client.ledger).await
+        wait_for_batch_to_be_processed(slot_subscription, &client.client).await
     }
 }
 
@@ -77,24 +77,24 @@ impl TxSender for SequencerTxSender {
         transactions: &[Transaction<TestSpec>],
     ) -> anyhow::Result<u64> {
         let slot_subscription = client
-            .ledger
+            .client
             .subscribe_slots()
             .await
             .context("Failed to subscribe to slots!")?;
 
         let _submitted_batch_info = client
-            .sequencer
+            .client
             .publish_batch_with_serialized_txs(transactions)
             .await?;
 
-        wait_for_batch_to_be_processed(slot_subscription, &client.ledger).await
+        wait_for_batch_to_be_processed(slot_subscription, &client.client).await
     }
 }
 
 // Wait for the first non empty batch.
 async fn wait_for_batch_to_be_processed(
     mut slot_subscription: futures::stream::BoxStream<'_, anyhow::Result<Slot>>,
-    ledger_client: &sov_ledger_json_client::Client,
+    ledger_client: &sov_api_spec::Client,
 ) -> anyhow::Result<u64> {
     let wait_for = 1_000;
     for _ in 0..wait_for {

@@ -73,10 +73,10 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         ]));
 
     let tx = default_test_signed_transaction(&key_and_address.private_key, &msg, 0);
-    let mut slot_subscription = test_rollup.client.ledger.subscribe_slots().await?;
+    let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
     test_rollup
         .client
-        .sequencer
+        .client
         .publish_batch_with_serialized_txs(&[tx])
         .await?;
     slot_subscription.next().await;

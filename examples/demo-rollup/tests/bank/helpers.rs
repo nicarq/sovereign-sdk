@@ -128,7 +128,7 @@ pub(crate) async fn assert_aggregated_proof(
     final_slot: u64,
     client: &NodeClient,
 ) -> anyhow::Result<()> {
-    let proof_response = client.ledger.get_latest_aggregated_proof().await?;
+    let proof_response = client.client.get_latest_aggregated_proof().await?;
 
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
     verifier.verify(
@@ -148,7 +148,7 @@ pub(crate) async fn assert_aggregated_proof(
     assert!(initial_slot <= proof_pub_data.initial_slot_number);
     assert!(final_slot <= proof_pub_data.final_slot_number);
 
-    let proof_data_info_response = client.ledger.get_latest_aggregated_proof().await?;
+    let proof_data_info_response = client.client.get_latest_aggregated_proof().await?;
 
     assert!(
         initial_slot
@@ -178,11 +178,8 @@ pub(crate) async fn assert_slot_finality(
     expected_finality: FinalityStatus,
 ) {
     let slot = client
-        .ledger
-        .get_slot_by_id(
-            &sov_ledger_json_client::types::IntOrHash::Integer(slot_number),
-            None,
-        )
+        .client
+        .get_slot_by_id(&sov_api_spec::types::IntOrHash::Integer(slot_number), None)
         .await
         .unwrap();
 
@@ -198,7 +195,7 @@ pub(crate) async fn assert_bank_event<S: Spec>(
     event_number: u64,
     expected_event: BankEvent<S>,
 ) -> anyhow::Result<()> {
-    let event_response = client.ledger.get_event_by_id(event_number).await?;
+    let event_response = client.client.get_event_by_id(event_number).await?;
 
     // Ensure "Bank" is present in response json
     assert_eq!(event_response.data.as_ref().unwrap().module.name, "Bank");

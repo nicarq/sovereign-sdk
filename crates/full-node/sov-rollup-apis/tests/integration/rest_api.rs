@@ -1,3 +1,4 @@
+use sov_api_spec::types;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::tokio::{self};
@@ -5,7 +6,6 @@ use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{Gas, GasSpec, PrivateKey, Spec, SyncStatus};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_apis::{PartialTransaction, SimulateExecutionContainer};
-use sov_rollup_json_client::types;
 use sov_test_utils::{AsUser, EncodeCall, TransactionTestCase, TEST_DEFAULT_MAX_FEE};
 
 use crate::{TestData, RT, S};
