@@ -1,5 +1,8 @@
 ## 2024-10-25
+- #1741 Update the `BatchReceipt` structure. Now the gas related information is tracked in `BatchSequencerReceipt`.
+
 - #1748 adds a `tx_hash` field to the object format used by `/sequencer/events/ws`.
+
 
 ## 2024-10-24
 - #1738 Adds a new field `gas_payer` to `StandardProvenRollupCapabilities`. To retain the previous behavior, use `self.bank` in this field. If you wish to opt into the new Paymaster module (which the sequncer to pay gas on behalf of users), add the  `sov_paymaster::Paymaster` module to your runtime and use it as the `gas_payer` instead.

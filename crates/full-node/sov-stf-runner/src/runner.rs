@@ -121,12 +121,8 @@ where
     let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_header)?;
 
     let (genesis_state_root, initialized_storage) = stf.init_chain(stf_state, genesis_params);
-    let data_to_commit: SlotCommit<
-        _,
-        Stf::BatchReceiptContents,
-        Stf::TxReceiptContents,
-        Stf::GasPrice,
-    > = SlotCommit::new(genesis_block);
+    let data_to_commit: SlotCommit<_, Stf::BatchReceiptContents, Stf::TxReceiptContents> =
+        SlotCommit::new(genesis_block);
     let mut ledger_change_set =
         ledger_db.materialize_slot(data_to_commit, genesis_state_root.as_ref())?;
 

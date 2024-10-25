@@ -177,7 +177,7 @@ pub(crate) fn apply_batch<S, RT>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>, S::Gas)
+) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>)
 where
     S: Spec,
     RT: Runtime<S>,
@@ -191,14 +191,15 @@ where
 
     let mut scratchpad = checkpoint.to_tx_scratchpad();
 
-    let ignored_batch = |reason, seq_da_address| BatchReceipt {
+    let ignored_batch = |reason, seq_da_address, gas_used| BatchReceipt {
         batch_hash: batch_with_id.id,
         tx_receipts: Vec::new(),
         inner: BatchSequencerReceipt {
             da_address: seq_da_address,
+            gas_price: gas_price.clone(),
+            gas_used,
             outcome: BatchSequencerOutcome::Ignored(reason),
         },
-        gas_price: gas_price.clone(),
     };
 
     let batch_hook_gas = runtime.gas_enforcer().batch_hook_gas();
@@ -221,9 +222,8 @@ where
             );
 
             return (
-                ignored_batch(err_str, sequencer_da_address),
+                ignored_batch(err_str, sequencer_da_address, S::Gas::zero()),
                 scratchpad.revert(),
-                S::Gas::zero(),
             );
         }
     }
@@ -239,9 +239,12 @@ where
         );
 
         return (
-            ignored_batch(BEGIN_BATCH_HOOK_ERR.to_string(), sequencer_da_address),
+            ignored_batch(
+                BEGIN_BATCH_HOOK_ERR.to_string(),
+                sequencer_da_address,
+                gas_used.clone(),
+            ),
             scratchpad.revert(),
-            gas_used,
         );
     }
     let raw_txs = batch_with_id.batch.txs;
@@ -267,9 +270,9 @@ where
                     "The calculation of the maximum authentication cost resulted in an overflow"
                         .to_string(),
                     sequencer_da_address,
+                    gas_used.clone(),
                 ),
                 scratchpad.commit(),
-                gas_used,
             );
         }
     };
@@ -293,9 +296,8 @@ where
             );
 
             return (
-                ignored_batch(err_str, sequencer_da_address),
+                ignored_batch(err_str, sequencer_da_address, gas_used.clone()),
                 scratchpad.commit(),
-                gas_used,
             );
         }
     };
@@ -414,16 +416,17 @@ where
         tx_receipts,
         inner: BatchSequencerReceipt {
             da_address: sequencer_da_address,
+            gas_price: gas_price.clone(),
+            gas_used: gas_used.clone(),
             outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
         },
-        gas_price: gas_price.clone(),
     };
 
     runtime.end_batch_hook(&batch_receipt.inner, &mut batch_scratchpad);
     checkpoint = batch_scratchpad.commit();
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
-    (batch_receipt, checkpoint, gas_used)
+    (batch_receipt, checkpoint)
 }
 
 /// The output of the authentication phase.

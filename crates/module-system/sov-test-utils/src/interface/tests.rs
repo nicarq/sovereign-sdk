@@ -1,8 +1,7 @@
 use borsh::BorshDeserialize;
-use sov_mock_da::MockDaSpec;
 use sov_modules_api::{
-    ApiStateAccessor, BatchSequencerReceipt, DaSpec, Gas, Module, ProofReceipt,
-    RuntimeEventProcessor, Spec, TransactionReceipt, TxEffect,
+    ApiStateAccessor, BatchSequencerReceipt, DaSpec, Module, ProofReceipt, RuntimeEventProcessor,
+    Spec, TransactionReceipt, TxEffect,
 };
 pub use sov_modules_stf_blueprint::TxReceiptContents;
 use sov_state::{Storage, StorageProof};
@@ -10,11 +9,8 @@ use sov_state::{Storage, StorageProof};
 use super::{BatchType, ProofInput, TransactionType};
 
 type TestAssertion<Context, S> = Box<dyn FnOnce(Context, &mut ApiStateAccessor<S>)>;
-type BatchReceipt<S> = sov_modules_api::BatchReceipt<
-    BatchSequencerReceipt<MockDaSpec>,
-    TxReceiptContents<S>,
-    <<S as Spec>::Gas as Gas>::Price,
->;
+type BatchReceipt<S> =
+    sov_modules_api::BatchReceipt<BatchSequencerReceipt<S>, TxReceiptContents<S>>;
 
 /// Context that is passed to [`TransactionTestCase::assert`] to check the outcome of a test.
 pub struct TransactionAssertContext<S: Spec, RT: RuntimeEventProcessor> {

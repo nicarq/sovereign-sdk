@@ -51,7 +51,7 @@ pub trait Runtime<S: Spec>:
     + SlotHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<<S as Spec>::Da>>
+    + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<S>>
     + Default
     + RuntimeEventProcessor
 {
@@ -233,10 +233,9 @@ where
     }
 }
 
-impl<S, RT, Da> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, Da> for StfBlueprint<S, RT>
+impl<S, RT> StateTransitionFunction<S::InnerZkvm, S::OuterZkvm, S::Da> for StfBlueprint<S, RT>
 where
-    S: Spec<Da = Da>,
-    Da: DaSpec,
+    S: Spec,
     RT: Runtime<S>,
     RT: HasKernel<S, BlobType = BlobDataWithId>,
 {
@@ -252,13 +251,13 @@ where
 
     type TxReceiptContents = TxReceiptContents<S>;
 
-    type BatchReceiptContents = BatchSequencerReceipt<Da>;
+    type BatchReceiptContents = BatchSequencerReceipt<S>;
 
     type StorageProof = StorageProof<<S::Storage as Storage>::Proof>;
 
     type Witness = <S::Storage as Storage>::Witness;
 
-    type Condition = Da::ValidityCondition;
+    type Condition = <S::Da as DaSpec>::ValidityCondition;
 
     fn init_chain(
         &self,
@@ -298,13 +297,13 @@ where
         pre_state_root: &Self::StateRoot,
         pre_state: Self::PreState,
         witness: Self::Witness,
-        slot_header: &Da::BlockHeader,
-        validity_condition: &Da::ValidityCondition,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         relevant_blobs: RelevantBlobIters<I>,
         execution_context: ExecutionContext,
-    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, Da, Self>
+    ) -> ApplySlotOutput<S::InnerZkvm, S::OuterZkvm, S::Da, Self>
     where
-        I: IntoIterator<Item = &'a mut Da::BlobTransaction>,
+        I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
     {
         let mut state =
             StateCheckpoint::with_witness(pre_state.clone(), witness, &self.runtime.kernel());
@@ -376,7 +375,7 @@ where
         for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
             match blob.data {
                 BlobData::Batch(batch) => {
-                    let (batch_receipt, next_checkpoint, gas_used) = registered::apply_batch::<S, RT>(
+                    let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT>(
                         &self.runtime,
                         state,
                         BatchWithId { batch, id: blob.id },
@@ -387,28 +386,27 @@ where
                         execution_context,
                     );
 
+                    total_gas.combine(&batch_receipt.inner.gas_used);
                     batch_receipts.push(batch_receipt);
-                    total_gas.combine(&gas_used);
                     state = next_checkpoint;
                 }
                 BlobData::EmergencyRegistration(tx) => {
-                    let (batch_receipt, next_checkpoint, gas_used) =
-                        unregistered::apply_batch::<S, RT>(
-                            &self.runtime,
-                            state,
-                            BatchWithSingleTx {
-                                fully_baked_tx: RT::encode_with_standard_auth(tx),
-                                id: blob.id,
-                            },
-                            blob_idx,
-                            sender,
-                            &gas_price,
-                            visible_height,
-                            execution_context,
-                        );
+                    let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
+                        &self.runtime,
+                        state,
+                        BatchWithSingleTx {
+                            fully_baked_tx: RT::encode_with_standard_auth(tx),
+                            id: blob.id,
+                        },
+                        blob_idx,
+                        sender,
+                        &gas_price,
+                        visible_height,
+                        execution_context,
+                    );
 
+                    total_gas.combine(&batch_receipt.inner.gas_used);
                     batch_receipts.push(batch_receipt);
-                    total_gas.combine(&gas_used);
                     state = next_checkpoint;
                 }
                 BlobData::Proof(proof) => {

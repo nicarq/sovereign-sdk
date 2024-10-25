@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::DaSpec;
 
 use crate::transaction::SequencerReward;
+use crate::{Gas, Spec};
 
 /// FullyBakedTx represents a serialized signed rollup transaction that has been encoded with
 /// authentication information and is ready to be placed on the DA layer.
@@ -132,9 +133,14 @@ pub enum BatchSequencerOutcome {
 
 /// A receipt for a batch that was submitted by a sequencer to the DA layer.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct BatchSequencerReceipt<Da: DaSpec> {
+#[serde(bound = "S: Spec")]
+pub struct BatchSequencerReceipt<S: Spec> {
     /// The da address of the sequencer that submitted the batch.
-    pub da_address: Da::Address,
+    pub da_address: <<S as Spec>::Da as DaSpec>::Address,
+    /// Gas price for a given batch.
+    pub gas_price: <S::Gas as Gas>::Price,
+    /// Gas used during the batch execution.
+    pub gas_used: S::Gas,
     /// The sequencer outcome for this batch.
     pub outcome: BatchSequencerOutcome,
 }

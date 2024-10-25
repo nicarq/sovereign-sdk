@@ -123,13 +123,12 @@ where
         S: SlotData,
         B: serde::Serialize,
         T: TxReceiptContents,
-        GasPrice: std::fmt::Debug,
     >(
         &mut self,
         last_finalized_height: u64,
         stf_changes: Sm::StfChangeSet,
         transition_witness: StateTransitionWitness<StateRoot, Witness, Da::Spec>,
-        slot_commit: SlotCommit<S, B, T, GasPrice>,
+        slot_commit: SlotCommit<S, B, T>,
         aggregated_proofs: Vec<AggregatedProof>,
     ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
         let slot_number = self.get_slot_number()?;
@@ -342,7 +341,7 @@ mod tests {
         <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
         MockDaSpec,
     >>::Witness;
-    type MockSlotCommit = SlotCommit<MockBlock, Witness, TestTxReceiptContents, ()>;
+    type MockSlotCommit = SlotCommit<MockBlock, Witness, TestTxReceiptContents>;
     type TestStateManager =
         StateManager<StateRoot, Witness, NativeStorageManager<MockDaSpec, ProverStorage<S>>, Da>;
 

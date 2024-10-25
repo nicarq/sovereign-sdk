@@ -111,9 +111,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
     );
 
     assert_eq!(result.batch_receipts.len(), 1);
-    let gas_price =
-        <<S as Spec>::Gas as Gas>::Price::try_from(result.batch_receipts[0].gas_price.clone())
-            .unwrap();
+    let gas_price = result.batch_receipts[0].inner.gas_price.clone();
 
     let initial_gas_price = S::initial_base_fee_per_gas();
 
@@ -160,9 +158,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
     );
 
     assert_eq!(result.batch_receipts.len(), 1);
-    let gas_price =
-        <<S as Spec>::Gas as Gas>::Price::try_from(result.batch_receipts[0].gas_price.clone())
-            .unwrap();
+    let gas_price = result.batch_receipts[0].inner.gas_price.clone();
 
     let initial_gas_price = S::initial_base_fee_per_gas();
 

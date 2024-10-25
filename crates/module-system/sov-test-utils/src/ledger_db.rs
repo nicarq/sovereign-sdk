@@ -31,8 +31,7 @@ pub async fn materialize_simple_ledger_db_data(
 ) -> anyhow::Result<SchemaBatch> {
     let block_a = MockBlock::default();
 
-    let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents, [u64; 3]> =
-        SlotCommit::new(block_a);
+    let mut slot: SlotCommit<MockBlock, i32, TestTxReceiptContents> = SlotCommit::new(block_a);
 
     let tx_receipts = vec![TransactionReceipt {
         tx_hash: TxHash::new([1; 32]),
@@ -45,7 +44,6 @@ pub async fn materialize_simple_ledger_db_data(
         batch_hash: [10; 32],
         tx_receipts,
         inner: 0,
-        gas_price: [0, 1, u64::MAX],
     });
 
     let mut ledger_data = ledger_db.materialize_slot(slot, b"state-root")?;
@@ -104,7 +102,7 @@ fn events() -> Vec<StoredEvent> {
 
 /// Materialize some complex data for the [`LedgerDb`]. Returns a [`SchemaBatch`] containing the description of the data to be stored.
 pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Result<SchemaBatch> {
-    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents, [u64; 2]>> =
+    let mut slots: Vec<SlotCommit<MockBlock, u32, TestTxReceiptContents>> =
         vec![SlotCommit::new(MockBlock {
             header: MockBlockHeader {
                 prev_hash: MockHash(sha2::Sha256::digest(b"prev_header").into()),
@@ -138,13 +136,11 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
                 },
             ],
             inner: 0,
-            gas_price: [0, 0],
         },
         BatchReceipt {
             batch_hash: sha2::Sha256::digest(b"batch_receipt2").into(),
             tx_receipts: batch2_tx_receipts(),
             inner: 1,
-            gas_price: [0, 0],
         },
     ];
 
