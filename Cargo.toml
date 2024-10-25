@@ -89,6 +89,7 @@ float_arithmetic = "deny"              # Can cause subtle bugs due to different 
 [workspace.dependencies]
 # Workspace packages
 arrayvec = { version = "0.7.6", features = ["serde", "borsh"] }
+console-subscriber = "0.4"
 const-rollup-config = { path = "examples/const-rollup-config", default-features = false, version = "0.3" }
 demo-stf = { path = "examples/demo-rollup/stf", default-features = false, version = "0.3" }
 demo-stf-json-client = { path = "examples/demo-rollup/stf/demo-stf-json-client", default-features = false, version = "0.3" }

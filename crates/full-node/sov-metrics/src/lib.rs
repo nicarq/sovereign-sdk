@@ -19,7 +19,7 @@ where
         static METRICS: OnceLock<Metrics> = OnceLock::new();
 
         f(OnceLock::get_or_init(&METRICS, || {
-            tracing::info!("Registering rollup metrics with prometheus");
+            tracing::info!("Initializing and registering Prometheus rollup metrics");
             Metrics::new(prometheus::default_registry())
                 .expect("failed to create new metrics; this is a bug in the Sovereign SDK")
         }));

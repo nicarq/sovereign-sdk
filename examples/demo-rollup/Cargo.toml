@@ -34,6 +34,7 @@ async-trait = { workspace = true }
 anyhow = { workspace = true }
 axum = { workspace = true }
 backon = { workspace = true }
+console-subscriber = { workspace = true }
 jsonrpsee = { workspace = true, features = [
     "http-client",
     "server",
@@ -48,6 +49,7 @@ tokio = { workspace = true, features = [
     "sync",
     "time",
     "macros",
+    "tracing",
 ] }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 tracing-panic = "0.1.2"

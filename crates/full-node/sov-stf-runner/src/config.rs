@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
@@ -94,20 +92,16 @@ pub struct RollupConfig<Address, Da: DaService> {
 
 /// Reads toml file as a specific type.
 pub fn from_toml_path<P: AsRef<Path>, R: DeserializeOwned>(path: P) -> anyhow::Result<R> {
-    let mut contents = String::new();
-    {
-        let mut file = File::open(path)?;
-        file.read_to_string(&mut contents)?;
-    }
-    tracing::debug!(
+    let contents = std::fs::read_to_string(&path)?;
+
+    tracing::info!(
+        path = path.as_ref().to_string_lossy().to_string(),
         size_in_bytes = contents.len(),
-        contents,
-        "Parsing config file"
+        line_count = contents.lines().count(),
+        "Parsing rollup configuration file"
     );
 
-    let result: R = toml::from_str(&contents)?;
-
-    Ok(result)
+    Ok(toml::from_str(&contents)?)
 }
 
 #[cfg(test)]

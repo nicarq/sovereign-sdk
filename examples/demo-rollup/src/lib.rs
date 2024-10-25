@@ -10,6 +10,7 @@ use sov_celestia_adapter::types::Namespace;
 mod mock_rollup;
 
 pub use mock_rollup::*;
+use tracing::info;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -30,15 +31,22 @@ pub const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_PROOF_N
 
 /// Default initialization of logging
 pub fn initialize_logging() {
-    tracing_subscriber::registry()
-        .with(fmt::layer())
-        .with(
-            EnvFilter::from_str(
-                &env::var("RUST_LOG").unwrap_or_else(|_| DEFAULT_SOV_ROLLUP_LOGGING.to_string()),
-            )
-            .unwrap(),
+    let tracing_layers = tracing_subscriber::registry().with(fmt::layer()).with(
+        EnvFilter::from_str(
+            &env::var("RUST_LOG").unwrap_or_else(|_| DEFAULT_SOV_ROLLUP_LOGGING.to_string()),
         )
-        .init();
+        .unwrap(),
+    );
+
+    if cfg!(tokio_unstable) {
+        tracing_layers.with(console_subscriber::spawn()).init();
+    } else {
+        tracing_layers.init();
+        info!(
+            info_url = "https://github.com/tokio-rs/console",
+            "The Tokio debugging console will not be available; must compile with `cfg(tokio_unstable)` to enable"
+        );
+    }
 
     let prev_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic_info| {
