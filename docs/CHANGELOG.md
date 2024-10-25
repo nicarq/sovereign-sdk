@@ -1,3 +1,6 @@
+## 2024-10-24
+- #1738 Adds a new field `gas_payer` to `StandardProvenRollupCapabilities`. To retain the previous behavior, use `self.bank` in this field. If you wish to opt into the new Paymaster module (which the sequncer to pay gas on behalf of users), add the  `sov_paymaster::Paymaster` module to your runtime and use it as the `gas_payer` instead.
+
 ## 2024-10-23
 - #1730 Renames the `sov_modules_api::EnumUtils` function to `NestedEnumUtils` to better reflect its purpose.
 

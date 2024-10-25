@@ -145,6 +145,7 @@ pub fn test_genesis_paths(operating_mode: OperatingMode) -> GenesisPaths {
         attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
         nft_path: dir.as_ref().join("nft.json"),
         evm_genesis_path: dir.as_ref().join("evm.json"),
+        paymaster_genesis_path: dir.as_ref().join("paymaster.json"),
         chain_state_genesis_path: {
             match operating_mode {
                 OperatingMode::Zk => dir.as_ref().join("chain_state_zk.json"),

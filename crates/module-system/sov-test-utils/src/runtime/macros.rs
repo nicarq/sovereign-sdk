@@ -119,6 +119,7 @@ macro_rules! generate_bare_runtime {
                 ::sov_modules_api::capabilities::Guard::new(
                     $crate::runtime::StandardProvenRollupCapabilities {
                         bank: &self.bank,
+                        gas_payer: &self.bank,
                         sequencer_registry: &self.sequencer_registry,
                         accounts: &self.accounts,
                         nonces: &self.nonces,

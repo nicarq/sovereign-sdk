@@ -20,7 +20,7 @@ use crate::call::SafeVec;
     JsonSchema,
     UniversalWallet,
 )]
-#[serde(bound = "S: Spec")]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
 #[schemars(bound = "S: Spec", rename = "PayeePolicy")]
 pub enum PayeePolicy<S: Spec> {
     /// The paymaster pays the fees for a particular sender when the policy allows it...
@@ -150,7 +150,7 @@ impl<S: Spec> PayeePolicy<S> {
     JsonSchema,
     UniversalWallet,
 )]
-#[serde(bound = "Da: DaSpec")]
+#[serde(bound = "Da: DaSpec", rename_all = "snake_case")]
 #[schemars(bound = "Da: DaSpec", rename = "AuthorizedSequencers")]
 pub enum AuthorizedSequencers<Da: DaSpec> {
     /// All sequencers are authorized to use this payer (according to its policy).

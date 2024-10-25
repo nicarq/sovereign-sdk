@@ -14,6 +14,7 @@ pub use sov_evm::EvmConfig;
 use sov_modules_api::prelude::*;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 pub use sov_nft::NonFungibleTokenConfig;
+use sov_paymaster::PaymasterConfig;
 use sov_prover_incentives::ProverIncentivesConfig;
 pub use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
@@ -44,6 +45,8 @@ pub struct GenesisPaths {
     pub evm_genesis_path: PathBuf,
     /// Chain State genesis path.
     pub chain_state_genesis_path: PathBuf,
+    /// Paymaster genesis paty
+    pub paymaster_genesis_path: PathBuf,
 }
 
 impl GenesisPaths {
@@ -63,6 +66,7 @@ impl GenesisPaths {
             nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
             chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
+            paymaster_genesis_path: dir.as_ref().join("paymaster.json"),
         }
     }
 }
@@ -100,7 +104,8 @@ where
 
     let chain_state_config: ChainStateConfig<S> =
         read_genesis_json(&genesis_paths.chain_state_genesis_path)?;
-
+    let paymaster_config: PaymasterConfig<S> =
+        read_genesis_json(&genesis_paths.paymaster_genesis_path)?;
     let blob_storage_config = ();
 
     Ok(GenesisConfig::new(
@@ -114,6 +119,7 @@ where
         nft_config,
         chain_state_config,
         blob_storage_config,
+        paymaster_config,
         evm_config,
     ))
 }

@@ -292,6 +292,7 @@ Commands:
   nft                  A subcommand for the `Nft` module
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
+  paymaster            A subcommand for the `Paymaster` module
   help                 Print this message or the help of the given subcommand(s)
 
 Options:

@@ -27,6 +27,7 @@ sov-modules-api = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true }
 sov-nft = { workspace = true }
 sov-nonces = { workspace = true }
+sov-paymaster = { workspace = true }
 sov-prover-incentives = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-sequencer-registry = { workspace = true }
@@ -51,25 +52,26 @@ sov-mock-da = { workspace = true }
 default = []
 offchain = ["demo-stf/offchain", "sov-nft/offchain"]
 native = [
-  "demo-stf/native",
-  "sov-accounts/native",
-  "sov-attester-incentives/native",
-  "sov-bank/native",
-  "sov-capabilities/native",
-  "sov-chain-state/native",
-  "sov-evm/native",
-  "sov-kernels/native",
-  "sov-mock-da/native",
-  "sov-mock-zkvm/native",
-  "sov-modules-api/native",
-  "sov-modules-stf-blueprint/native",
-  "sov-nft/native",
-  "sov-nonces/native",
-  "sov-prover-incentives/native",
-  "sov-rollup-interface/native",
-  "sov-sequencer-registry/native",
-  "sov-state/native",
-  "sov-value-setter/native",
-  "sov-blob-storage/native",
-  "sov-rollup-apis",
+	"demo-stf/native",
+	"sov-accounts/native",
+	"sov-attester-incentives/native",
+	"sov-bank/native",
+	"sov-capabilities/native",
+	"sov-chain-state/native",
+	"sov-evm/native",
+	"sov-kernels/native",
+	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
+	"sov-modules-api/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-nft/native",
+	"sov-nonces/native",
+	"sov-prover-incentives/native",
+	"sov-rollup-interface/native",
+	"sov-sequencer-registry/native",
+	"sov-state/native",
+	"sov-value-setter/native",
+	"sov-blob-storage/native",
+	"sov-rollup-apis",
+	"sov-paymaster/native"
 ]

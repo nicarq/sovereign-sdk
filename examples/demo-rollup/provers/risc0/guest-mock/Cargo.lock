@@ -568,9 +568,13 @@ checksum = "6b4930d2cb77ce62f89ee5d5289b4ac049559b1c45539271f5ed4fdc7db34545"
 
 [[package]]
 name = "arrayvec"
-version = "0.7.4"
+version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96d30a06541fbafbc7f82ed10c06164cfbd2c401138f6addd8404629c4b16711"
+checksum = "7c02d123df017efcdfbd739ef81735b36c5ba83ec3c59c80a9d7ecc718f92e50"
+dependencies = [
+ "borsh",
+ "serde",
+]
 
 [[package]]
 name = "async-trait"
@@ -1122,6 +1126,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-nft",
  "sov-nonces",
+ "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -3062,6 +3067,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-nonces",
+ "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
@@ -3281,6 +3287,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-paymaster"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "arrayvec",
+ "bcs",
+ "borsh",
+ "derivative",
+ "schemars",
+ "serde",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-state",
+ "sov-universal-wallet",
+ "tracing",
+]
+
+[[package]]
 name = "sov-prover-incentives"
 version = "0.3.0"
 dependencies = [
@@ -3375,6 +3399,7 @@ dependencies = [
 name = "sov-universal-wallet"
 version = "0.1.0"
 dependencies = [
+ "arrayvec",
  "bech32",
  "borsh",
  "bs58",

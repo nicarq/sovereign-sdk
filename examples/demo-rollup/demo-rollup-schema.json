@@ -363,11 +363,19 @@
             }
           },
           {
+            "name": "Paymaster",
+            "serde_name": "paymaster",
+            "template": null,
+            "value": {
+              "ByIndex": 61
+            }
+          },
+          {
             "name": "Evm",
             "serde_name": "evm",
             "template": null,
             "value": {
-              "ByIndex": 61
+              "ByIndex": 86
             }
           }
         ]
@@ -1599,6 +1607,588 @@
       }
     },
     {
+      "Enum": {
+        "type_name": "CallMessage",
+        "serde_type_name": "CallMessage",
+        "variants": [
+          {
+            "name": "RegisterPaymaster",
+            "serde_name": "register_paymaster",
+            "template": null,
+            "value": {
+              "ByIndex": 63
+            }
+          },
+          {
+            "name": "SetPayerForSequencer",
+            "serde_name": "set_payer_for_sequencer",
+            "template": null,
+            "value": {
+              "ByIndex": 75
+            }
+          },
+          {
+            "name": "UpdatePolicy",
+            "serde_name": "update_policy",
+            "template": null,
+            "value": {
+              "ByIndex": 76
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
+        "serde_type_name": "__SovVirtualWallet_CallMessage_RegisterPaymaster",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "policy",
+            "serde_display_name": "policy",
+            "silent": false,
+            "value": {
+              "ByIndex": 64
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "PaymasterPolicy",
+        "serde_type_name": "PaymasterPolicy",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "default_payee_policy",
+            "serde_display_name": "default_payee_policy",
+            "silent": false,
+            "value": {
+              "ByIndex": 65
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "payees",
+            "serde_display_name": "payees",
+            "silent": false,
+            "value": {
+              "ByIndex": 70
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "authorized_updaters",
+            "serde_display_name": "authorized_updaters",
+            "silent": false,
+            "value": {
+              "ByIndex": 14
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "authorized_sequencers",
+            "serde_display_name": "authorized_sequencers",
+            "silent": false,
+            "value": {
+              "ByIndex": 72
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "PayeePolicy",
+        "serde_type_name": "PayeePolicy",
+        "variants": [
+          {
+            "name": "Allow",
+            "serde_name": "allow",
+            "template": null,
+            "value": {
+              "ByIndex": 66
+            }
+          },
+          {
+            "name": "Deny",
+            "serde_name": "deny",
+            "template": null,
+            "value": null
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_PayeePolicy_Allow",
+        "serde_type_name": "__SovVirtualWallet_PayeePolicy_Allow",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "max_fee",
+            "serde_display_name": "max_fee",
+            "silent": false,
+            "value": {
+              "ByIndex": 67
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "gas_limit",
+            "serde_display_name": "gas_limit",
+            "silent": false,
+            "value": {
+              "ByIndex": 5
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "max_gas_price",
+            "serde_display_name": "max_gas_price",
+            "silent": false,
+            "value": {
+              "ByIndex": 68
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 69
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 7
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Vec": {
+        "value": {
+          "ByIndex": 71
+        }
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 13
+            },
+            "silent": false,
+            "doc": ""
+          },
+          {
+            "value": {
+              "ByIndex": 65
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "AuthorizedSequencers",
+        "serde_type_name": "AuthorizedSequencers",
+        "variants": [
+          {
+            "name": "All",
+            "serde_name": "all",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "some",
+            "template": null,
+            "value": {
+              "ByIndex": 73
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 74
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Vec": {
+        "value": {
+          "ByIndex": 24
+        }
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
+        "serde_type_name": "__SovVirtualWallet_CallMessage_SetPayerForSequencer",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "payer",
+            "serde_display_name": "payer",
+            "silent": false,
+            "value": {
+              "ByIndex": 13
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
+        "serde_type_name": "__SovVirtualWallet_CallMessage_UpdatePolicy",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "payer",
+            "serde_display_name": "payer",
+            "silent": false,
+            "value": {
+              "ByIndex": 13
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "update",
+            "serde_display_name": "update",
+            "silent": false,
+            "value": {
+              "ByIndex": 77
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "PolicyUpdate",
+        "serde_type_name": "PolicyUpdate",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "sequencer_update",
+            "serde_display_name": "sequencer_update",
+            "silent": false,
+            "value": {
+              "ByIndex": 78
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "updaters_to_add",
+            "serde_display_name": "updaters_to_add",
+            "silent": false,
+            "value": {
+              "ByIndex": 83
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "updaters_to_remove",
+            "serde_display_name": "updaters_to_remove",
+            "silent": false,
+            "value": {
+              "ByIndex": 83
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "payee_policies_to_set",
+            "serde_display_name": "payee_policies_to_set",
+            "silent": false,
+            "value": {
+              "ByIndex": 84
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "payee_policies_to_delete",
+            "serde_display_name": "payee_policies_to_delete",
+            "silent": false,
+            "value": {
+              "ByIndex": 83
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "default_policy",
+            "serde_display_name": "default_policy",
+            "silent": false,
+            "value": {
+              "ByIndex": 85
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 79
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "SequencerSetUpdate",
+        "serde_type_name": "SequencerSetUpdate",
+        "variants": [
+          {
+            "name": "AllowAll",
+            "serde_name": "allow_all",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Update",
+            "serde_name": "update",
+            "template": null,
+            "value": {
+              "ByIndex": 80
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 81
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "AllowedSequencerUpdate",
+        "serde_type_name": "AllowedSequencerUpdate",
+        "template": null,
+        "fields": [
+          {
+            "display_name": "to_add",
+            "serde_display_name": "to_add",
+            "silent": false,
+            "value": {
+              "ByIndex": 82
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "to_remove",
+            "serde_display_name": "to_remove",
+            "silent": false,
+            "value": {
+              "ByIndex": 82
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 74
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 14
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 70
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "Option",
+        "serde_type_name": "Option",
+        "variants": [
+          {
+            "name": "None",
+            "serde_name": "None",
+            "template": null,
+            "value": null
+          },
+          {
+            "name": "Some",
+            "serde_name": "Some",
+            "template": null,
+            "value": {
+              "ByIndex": 65
+            }
+          }
+        ]
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 87
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
       "Struct": {
         "type_name": "CallMessage",
         "serde_type_name": "CallMessage",
@@ -1609,7 +2199,7 @@
             "serde_display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 63
+              "ByIndex": 88
             },
             "doc": ""
           }

@@ -145,6 +145,7 @@ fn initialize_rollup(
         NonFungibleTokenConfig {},
         chain_state,
         blob_storage,
+        Default::default(),
         EvmConfig::default(),
     );
     let genesis_config = GenesisParams {
