@@ -41,7 +41,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         assert: Box::new(move |result, state| {
             let batch_receipt = result.batch_receipt.as_ref().unwrap();
 
-            let gas_price = &batch_receipt.gas_price;
+            let gas_price = &batch_receipt.inner.gas_price;
             let tx_receipts = &batch_receipt.tx_receipts;
 
             assert_eq!(tx_receipts.len(), txs_len);
@@ -211,7 +211,7 @@ fn not_enough_stake_to_execute_batch_hook_test() {
             let batch_receipt = result.batch_receipt.as_ref().unwrap();
             assert!(batch_receipt.tx_receipts.is_empty());
 
-            let gas_price = &batch_receipt.gas_price;
+            let gas_price = &batch_receipt.inner.gas_price;
             let batch_hook_gas_value = batch_hook_gas.value(gas_price);
 
             let err_str = format!("Not enough gas to execute `begin_batch_hook`: Sequencer's: {} stake is too low. Current stake: {}, amount to deduct: {}", seq_address, start.sequencer_bond, batch_hook_gas_value);
@@ -269,7 +269,7 @@ fn not_enough_stake_auth_batch_test() {
             let batch_receipt = result.batch_receipt.as_ref().unwrap();
             assert!(batch_receipt.tx_receipts.is_empty());
 
-            let gas_price = &batch_receipt.gas_price;
+            let gas_price = &batch_receipt.inner.gas_price;
             // Sequencer paid for the batch hook execution.
             let batch_hook_gas_value = batch_hook_gas.value(gas_price);
             let stake_left = start.sequencer_bond - batch_hook_gas_value;

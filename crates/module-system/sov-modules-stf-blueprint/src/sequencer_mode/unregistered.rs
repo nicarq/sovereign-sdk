@@ -182,7 +182,7 @@ pub(crate) fn apply_batch<S, RT>(
     gas_price: &<S::Gas as Gas>::Price,
     height: u64,
     execution_context: ExecutionContext,
-) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>, S::Gas)
+) -> (BatchReceipt<S>, StateCheckpoint<S::Storage>)
 where
     S: Spec,
     RT: Runtime<S>,
@@ -210,12 +210,12 @@ where
                 tx_receipts: Vec::new(),
                 inner: BatchSequencerReceipt {
                     da_address: sequencer_da_address,
+                    gas_price: gas_price.clone(),
+                    gas_used: S::Gas::zero(),
                     outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
                 },
-                gas_price: gas_price.clone(),
             },
             scratchpad.commit(),
-            S::Gas::zero(),
         );
     }
 
@@ -246,13 +246,13 @@ where
                     tx_receipts: Vec::new(),
                     inner: BatchSequencerReceipt {
                         da_address: sequencer_da_address,
+                        gas_price: gas_price.clone(),
+                        // The sequencer is not bonded so we don't charge for the authentication cost.
+                        gas_used: S::Gas::zero(),
                         outcome: BatchSequencerOutcome::Ignored(err.to_string()),
                     },
-                    gas_price: gas_price.clone(),
                 },
                 scratchpad.commit(),
-                // The sequencer is not bonded so we don't charge for the authentication cost.
-                S::Gas::zero(),
             );
         }
     };
@@ -298,9 +298,10 @@ where
         tx_receipts,
         inner: BatchSequencerReceipt {
             da_address: sequencer_da_address,
+            gas_price: gas_price.clone(),
+            gas_used: gas_used.clone(),
             outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
         },
-        gas_price: gas_price.clone(),
     };
 
     runtime.end_batch_hook(&batch_receipt.inner, &mut scratchpad);
@@ -308,5 +309,5 @@ where
 
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
-    (batch_receipt, checkpoint, gas_used)
+    (batch_receipt, checkpoint)
 }

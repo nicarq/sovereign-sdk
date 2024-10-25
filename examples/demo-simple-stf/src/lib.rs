@@ -97,7 +97,6 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 batch_hash: hash,
                 tx_receipts: vec![],
                 inner: result,
-                gas_price: (),
             });
         }
 

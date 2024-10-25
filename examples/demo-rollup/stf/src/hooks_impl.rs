@@ -14,7 +14,7 @@ impl<S: Spec> TxHooks for Runtime<S> {
 
 impl<S: Spec> ApplyBatchHooks for Runtime<S> {
     type Spec = S;
-    type BatchResult = BatchSequencerReceipt<S::Da>;
+    type BatchResult = BatchSequencerReceipt<S>;
 
     fn begin_batch_hook(
         &self,

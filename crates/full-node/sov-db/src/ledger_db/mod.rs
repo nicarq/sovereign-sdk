@@ -45,21 +45,21 @@ pub struct ItemNumbers {
 
 /// All the data to be committed to the ledger db for a single slot.
 #[derive(Debug)]
-pub struct SlotCommit<S: SlotData, B, T: TxReceiptContents, GasPrice: Debug> {
+pub struct SlotCommit<S: SlotData, B, T: TxReceiptContents> {
     slot_data: S,
-    batch_receipts: Vec<BatchReceipt<B, T, GasPrice>>,
+    batch_receipts: Vec<BatchReceipt<B, T>>,
     num_txs: usize,
     num_events: usize,
 }
 
-impl<S: SlotData, B, T: TxReceiptContents, GasPrice: Debug> SlotCommit<S, B, T, GasPrice> {
+impl<S: SlotData, B, T: TxReceiptContents> SlotCommit<S, B, T> {
     /// Returns a reference to the commit's slot_data
     pub fn slot_data(&self) -> &S {
         &self.slot_data
     }
 
     /// Returns a reference to the commit's batch_receipts
-    pub fn batch_receipts(&self) -> &[BatchReceipt<B, T, GasPrice>] {
+    pub fn batch_receipts(&self) -> &[BatchReceipt<B, T>] {
         &self.batch_receipts
     }
 
@@ -73,7 +73,7 @@ impl<S: SlotData, B, T: TxReceiptContents, GasPrice: Debug> SlotCommit<S, B, T, 
         }
     }
     /// Add a `batch` (of transactions) to the commit
-    pub fn add_batch(&mut self, batch: BatchReceipt<B, T, GasPrice>) {
+    pub fn add_batch(&mut self, batch: BatchReceipt<B, T>) {
         self.num_txs += batch.tx_receipts.len();
         let events_this_batch: usize = batch.tx_receipts.iter().map(|r| r.events.len()).sum();
         self.batch_receipts.push(batch);
@@ -295,9 +295,9 @@ impl LedgerDb {
 
     /// Materializes [`SlotCommit`] into [`SchemaBatch`] by inserting its events,
     /// transactions, and batches before inserting the slot metadata.
-    pub fn materialize_slot<S: SlotData, B: Serialize, T: TxReceiptContents, GasPrice: Debug>(
+    pub fn materialize_slot<S: SlotData, B: Serialize, T: TxReceiptContents>(
         &self,
-        data_to_commit: SlotCommit<S, B, T, GasPrice>,
+        data_to_commit: SlotCommit<S, B, T>,
         state_root: &[u8],
     ) -> anyhow::Result<SchemaBatch> {
         // Create a scope to ensure that the lock is released before we materialize data

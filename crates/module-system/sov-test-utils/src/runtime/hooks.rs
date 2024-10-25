@@ -49,7 +49,7 @@ macro_rules! impl_runtime_hook {
             S: ::sov_modules_api::Spec,
         {
             type Spec = S;
-            type BatchResult = ::sov_modules_api::BatchSequencerReceipt<S::Da>;
+            type BatchResult = ::sov_modules_api::BatchSequencerReceipt<S>;
 
             fn begin_batch_hook(
                 &self,

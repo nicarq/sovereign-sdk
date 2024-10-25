@@ -64,6 +64,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
         .last()
         .unwrap()
         .last_batch_receipt()
+        .inner
         .gas_price
         .clone();
 

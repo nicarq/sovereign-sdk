@@ -108,6 +108,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
             .batch_receipts
             .last()
             .unwrap()
+            .inner
             .gas_price
             .clone(),
     )

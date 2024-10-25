@@ -7,7 +7,7 @@ use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_bank::{Bank, Coins, TokenId};
 use sov_db::storage_manager::NativeChangeSet;
-use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MOCK_SEQUENCER_DA_ADDRESS};
+use sov_mock_da::{MockAddress, MockBlob, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::capabilities::TransactionAuthenticator;
@@ -35,11 +35,8 @@ use tempfile::TempDir;
 type BenchSpec = sov_test_utils::TestSpec;
 type Stf = StfBlueprint<BenchSpec, Runtime<BenchSpec>>;
 
-type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
-    BatchSequencerReceipt<MockDaSpec>,
-    TxReceiptContents<S>,
-    <<S as Spec>::Gas as Gas>::Price,
->;
+type BatchReceipt<S> =
+    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<S>, TxReceiptContents<S>>;
 
 fn config_chain_id() -> u64 {
     config_value!("CHAIN_ID")

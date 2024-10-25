@@ -3,7 +3,7 @@ use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchSequencerReceipt, Context, DispatchCall, Error, Gas, Spec, TxScratchpad, WorkingSet,
+    BatchSequencerReceipt, Context, DispatchCall, Error, Spec, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
@@ -124,11 +124,8 @@ pub type AuthTxOutput<S, R> = AuthenticationOutput<
 >;
 
 /// The receipt for a batch using the STF blueprint.
-pub type BatchReceipt<S> = sov_rollup_interface::stf::BatchReceipt<
-    BatchSequencerReceipt<<S as Spec>::Da>,
-    TxReceiptContents<S>,
-    <<S as Spec>::Gas as Gas>::Price,
->;
+pub type BatchReceipt<S> =
+    sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<S>, TxReceiptContents<S>>;
 
 pub(crate) const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
 
