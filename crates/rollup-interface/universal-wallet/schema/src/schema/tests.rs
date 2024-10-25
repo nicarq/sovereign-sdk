@@ -340,6 +340,16 @@ pub struct NestedGeneric<T> {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub struct StructWithBase58 {
+    #[cfg_attr(test, sov_wallet(display(base58)))]
+    address: [u8; 32],
+    #[cfg_attr(test, sov_wallet(display(base58)))]
+    extra_bytes: Vec<u8>,
+    role: Role,
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct AThirdComplexType {
     #[cfg_attr(test, sov_wallet(display(bech32(prefix = "PREFIX_CELESTIA"))))]
     address: [u8; 32],
@@ -749,6 +759,19 @@ fn test_vec_schema() {
 
     encode_decode_tests!(RuntimeCall, my_call,
         "TestCall.RegisterMany [{ address: 0x1717171717171717171717171717171717171717171717171717171717171717, some_bytes: 0x0102030405, extra_complexity: [{ address: celestia1zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zyg3zygsr0ealj, extra_bytes: [6, 7, 8, 9, 10], role: Attester }] }]"
+    );
+}
+
+#[test]
+fn test_base58() {
+    let my_call = StructWithBase58 {
+        address: [17; 32],
+        extra_bytes: vec![6, 7, 8, 9, 10],
+        role: Role::Attester,
+    };
+
+    encode_decode_tests!(StructWithBase58, my_call,
+        "{ address: 29d2S7vB453rNYFdR5Ycwt7y9haRT5fwVwL9zTmBhfV2, extra_bytes: gScbNR, role: Attester }"
     );
 }
 
