@@ -34,29 +34,25 @@ fn get_seq_bond(
 }
 
 #[allow(clippy::type_complexity)]
-fn setup() -> (
+fn setup(
+    nb_of_users: usize,
+) -> (
     TestRunner<IntegTestRuntime<S>, S>,
-    TestUser<S>,
-    TestUser<S>,
+    Vec<TestUser<S>>,
     TestSequencer<S>,
 ) {
     let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
-    genesis_config
-        .additional_accounts
-        .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
 
-    genesis_config
-        .additional_accounts
-        .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
-
-    let user_1 = genesis_config.additional_accounts[0].clone();
-    let user_2 = genesis_config.additional_accounts[1].clone();
+    for _ in 0..nb_of_users {
+        genesis_config
+            .additional_accounts
+            .push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
+    }
+    let admin = genesis_config.additional_accounts[0].address();
 
     let genesis = GenesisConfig::from_minimal_config(
         genesis_config.clone().into(),
-        sov_value_setter::ValueSetterConfig {
-            admin: user_1.address(),
-        },
+        sov_value_setter::ValueSetterConfig { admin },
     );
 
     let runner: TestRunner<IntegTestRuntime<S>, S> =
@@ -64,7 +60,11 @@ fn setup() -> (
 
     let sequencer_account = genesis_config.initial_sequencer.clone();
 
-    (runner, user_1, user_2, sequencer_account)
+    (
+        runner,
+        genesis_config.additional_accounts,
+        sequencer_account,
+    )
 }
 
 #[derive(PartialEq, Eq)]
