@@ -219,7 +219,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         }
     }
 
-    /// Returns a new accessor which accesses the rollup
+    /// Returns a new accessor which accesses the rollup at the given true `height`.
     pub fn get_archival_at(&self, height: u64) -> ApiStateAccessor<S> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
