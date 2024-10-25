@@ -34,11 +34,7 @@ pub struct Inner<Ss: SequencerSpec> {
     // We simply cache a copy so that we don't need to lock the builder to retrieve it.
     api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
     pub(crate) sequencer_db: SequencerDb,
-    events_sender: broadcast::Sender<
-        RuntimeEventResponse<
-            <<Ss::BatchBuilder as BatchBuilder>::Confirmation as DataWithEvents>::EventInner,
-        >,
-    >,
+    events_sender: broadcast::Sender<SequencerEvent<Ss::BatchBuilder>>,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
     automatic_batch_production: bool,
@@ -156,13 +152,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// Subscribes to events emitted by the sequencer.
-    pub async fn subscribe_events(
-        &self,
-    ) -> broadcast::Receiver<
-        RuntimeEventResponse<
-            <<Ss::BatchBuilder as BatchBuilder>::Confirmation as DataWithEvents>::EventInner,
-        >,
-    > {
+    pub async fn subscribe_events(&self) -> broadcast::Receiver<SequencerEvent<Ss::BatchBuilder>> {
         self.events_sender.subscribe()
     }
 
@@ -196,7 +186,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
             if let Ok(accepted) = &result {
                 for event in accepted.confirmation.events() {
-                    self.events_sender.send(event).ok();
+                    self.events_sender
+                        .send(SequencerEvent {
+                            tx_hash: accepted.tx_hash,
+                            event,
+                        })
+                        .ok();
                 }
                 let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
 
@@ -250,7 +245,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let accepted = batch_builder.accept_tx(tx_input.clone()).await?;
 
         for event in accepted.confirmation.events() {
-            self.events_sender.send(event).ok();
+            self.events_sender
+                .send(SequencerEvent {
+                    tx_hash: accepted.tx_hash,
+                    event,
+                })
+                .ok();
         }
 
         let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx_input);
@@ -286,6 +286,15 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         }
         Ok(None)
     }
+}
+
+#[derive(derivative::Derivative, serde::Serialize, serde::Deserialize)]
+#[derivative(Clone(bound = ""))]
+#[serde(bound = "")]
+pub struct SequencerEvent<Bb: BatchBuilder> {
+    tx_hash: TxHash,
+    #[serde(flatten)]
+    event: RuntimeEventResponse<<<Bb as BatchBuilder>::Confirmation as DataWithEvents>::EventInner>,
 }
 
 pub async fn sequencer_background_task<Ss: SequencerSpec>(
