@@ -303,7 +303,13 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
     mut drop_notification: DropNotification,
 ) -> anyhow::Result<()> {
     let mut sub = ledger_db.subscribe_slots();
+
+    // FIXME(neysofu): we're assuming that the last received storage always
+    // refers to the latest known slot number. This is not necessarily true, and
+    // simply assumes that both pieces of information arrive at the exact same
+    // time. A single channel would be more appropriate.
     let mut storage_receiver = inner.batch_builder.lock().await.storage_receiver();
+    let mut latest_slot_number = ledger_db.get_head_slot()?.map(|s| s.0 .0).unwrap_or(0);
 
     loop {
         tokio::select! {
@@ -318,7 +324,7 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
 
                 // Update storage.
                 let storage = storage_receiver.borrow().clone();
-                inner.batch_builder.lock().await.set_state(0, storage).await;
+                inner.batch_builder.lock().await.set_state(latest_slot_number, storage).await;
 
                 if inner.automatic_batch_production {
                     inner.produce_batch().await?;
@@ -326,6 +332,7 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
             },
             slot_number_opt = sub.next() => {
                 if let Some(slot_number) = slot_number_opt {
+                    latest_slot_number = slot_number;
                     notify_processed_slot::<Ss>(inner.clone(), &ledger_db,  slot_number).await?;
                 } else {
                     break;

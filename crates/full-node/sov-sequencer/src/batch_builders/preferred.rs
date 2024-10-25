@@ -19,6 +19,7 @@ use sov_modules_stf_blueprint::{
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
+use tracing::{error, info, trace};
 
 use super::{
     pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth, DataWithEvents,
@@ -82,94 +83,11 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     admin_addresses: Vec<<Z::Spec as Spec>::Address>,
 }
 
-#[async_trait]
-impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
-    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
-    type Confirmation = Confirmation<Z>;
-    type Batch = PreferredBatchData;
-    type Config = ();
-    type Spec = Z::Spec;
-
-    async fn create(
-        storage: StorageReceiver<Z::Spec>,
-        da_sync_state: Arc<DaSyncState>,
-        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
-        seq_db_txs: Vec<SeqDbTx>,
-        admin_addresses: Vec<<Self::Spec as Spec>::Address>,
-        _config: &Self::Config,
-    ) -> anyhow::Result<Self> {
-        let runtime: Z::Rt = Default::default();
-        let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
-            storage.borrow().clone(),
-            &runtime.kernel(),
-        ));
-        let api_state = ApiState::build(
-            Arc::new(()),
-            checkpoint_receiver,
-            runtime.kernel_with_slot_mapping(),
-            None,
-        );
-
-        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
-
-        let mut bb = Self {
-            runtime: Default::default(),
-            storage,
-            sequencer_address,
-            checkpoint: Some(initial_checkpoint),
-            checkpoint_sender,
-            api_state,
-            last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
-            da_sync_state,
-            txs_in_next_batch: vec![],
-            admin_addresses,
-        };
-
-        // Restore persisted transactions.
-        for seq_db_tx in seq_db_txs {
-            bb.accept_tx(seq_db_tx.tx_input::<Self>())
-                .await
-                .map_err(|err| anyhow::anyhow!("Failed to restore transactions: {:?}", err))?;
-        }
-
-        Ok(bb)
-    }
-
-    fn is_ready(&self) -> bool {
-        let distance = self.da_sync_state.status().distance();
-        distance <= sov_blob_storage::config_deferred_slots_count()
-    }
-
-    fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
-        self.storage.clone()
-    }
-
-    fn api_state(&self) -> ApiState<Self::Spec> {
-        self.api_state.clone()
-    }
-
-    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
-        TxStatusManager::default()
-    }
-
-    async fn set_state(&mut self, _da_height: u64, _stf_state: <Z::Spec as Spec>::Storage) {
-        // FIXME: don't ignore rollup state. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1390>.
-
-        //let checkpoint = StateCheckpoint::new(stf_state, &*self.kernel);
-        //self.checkpoint_sender
-        //    .send(checkpoint.clone_with_empty_witness())
-        //    .ok();
-        //self.checkpoint = Some(checkpoint);
-    }
-
-    fn encode_tx(raw: RawTx) -> Self::TxInput {
-        Z::Rt::add_standard_auth(raw)
-    }
-
-    async fn accept_tx(
+impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
+    async fn accept_tx_internal(
         &mut self,
-        tx_input: Self::TxInput,
-    ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
+        tx_input: <Self as BatchBuilder>::TxInput,
+    ) -> Result<AcceptedTx<Confirmation<Z>>, AcceptTxError> {
         let state_checkpoint = self
             .checkpoint
             .take()
@@ -286,14 +204,142 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             )
         })(state_checkpoint);
 
-        self.checkpoint_sender
-            .send(new_checkpoint.clone_with_empty_witness())
-            .ok();
         self.checkpoint = Some(new_checkpoint);
 
         response.map(|response| {
             response.map_confirmation(|confirmation| confirmation.try_into().unwrap())
         })
+    }
+}
+
+#[async_trait]
+impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
+    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
+    type Confirmation = Confirmation<Z>;
+    type Batch = PreferredBatchData;
+    type Config = ();
+    type Spec = Z::Spec;
+
+    async fn create(
+        storage: StorageReceiver<Z::Spec>,
+        da_sync_state: Arc<DaSyncState>,
+        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
+        seq_db_txs: Vec<SeqDbTx>,
+        admin_addresses: Vec<<Self::Spec as Spec>::Address>,
+        _config: &Self::Config,
+    ) -> anyhow::Result<Self> {
+        let runtime: Z::Rt = Default::default();
+        let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
+            storage.borrow().clone(),
+            &runtime.kernel(),
+        ));
+        let api_state = ApiState::build(
+            Arc::new(()),
+            checkpoint_receiver,
+            runtime.kernel_with_slot_mapping(),
+            None,
+        );
+
+        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
+
+        let mut bb = Self {
+            runtime: Default::default(),
+            storage,
+            sequencer_address,
+            checkpoint: Some(initial_checkpoint),
+            checkpoint_sender,
+            api_state,
+            last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
+            da_sync_state,
+            txs_in_next_batch: vec![],
+            admin_addresses,
+        };
+
+        // Restore persisted transactions.
+        for seq_db_tx in seq_db_txs {
+            bb.accept_tx(seq_db_tx.tx_input::<Self>())
+                .await
+                .map_err(|err| anyhow::anyhow!("Failed to restore transactions: {:?}", err))?;
+        }
+
+        Ok(bb)
+    }
+
+    fn is_ready(&self) -> bool {
+        let distance = self.da_sync_state.status().distance();
+        distance <= sov_blob_storage::config_deferred_slots_count()
+    }
+
+    fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
+        self.storage.clone()
+    }
+
+    fn api_state(&self) -> ApiState<Self::Spec> {
+        self.api_state.clone()
+    }
+
+    fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
+        TxStatusManager::default()
+    }
+
+    async fn set_state(&mut self, da_height: u64, stf_state: <Z::Spec as Spec>::Storage) {
+        let txs_to_process = self.txs_in_next_batch.clone();
+
+        info!(
+            da_height,
+            num_txs_to_process = txs_to_process.len(),
+            "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
+        );
+
+        let checkpoint = {
+            let rt = Z::Rt::default();
+            let kernel = rt.kernel();
+            StateCheckpoint::new(stf_state, &kernel)
+        };
+        self.checkpoint = Some(checkpoint);
+
+        for (idx, tx) in txs_to_process.iter().enumerate() {
+            trace!(
+                idx,
+                tx_hash = %tx.hash,
+                "Re-applying state changes for the soft-confirmed transaction"
+            );
+
+            let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
+                .expect("Failed to deserialize transaction");
+            if let Err(error) = self.accept_tx(tx_input).await {
+                error!(
+                    ?error,
+                    "Transaction was soft-confirmed but failed to be re-applied"
+                );
+            }
+        }
+
+        self.checkpoint_sender
+            .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
+            .ok();
+    }
+
+    fn encode_tx(raw: RawTx) -> Self::TxInput {
+        Z::Rt::add_standard_auth(raw)
+    }
+
+    async fn accept_tx(
+        &mut self,
+        tx_input: Self::TxInput,
+    ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
+        let response = self.accept_tx_internal(tx_input).await;
+
+        self.checkpoint_sender
+            .send(
+                self.checkpoint
+                    .as_ref()
+                    .expect("Missing internal checkpoint; this is a bug, please report it")
+                    .clone_with_empty_witness(),
+            )
+            .ok();
+
+        response
     }
 
     async fn build_next_batch(&mut self, height: u64) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
