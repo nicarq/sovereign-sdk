@@ -21,17 +21,24 @@ type S = sov_test_utils::TestSpec;
 const BOND_AMOUNT: u64 = 100;
 
 fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
-    let (mut runner, user_1, _, _) = setup();
+    let (mut runner, users, _) = setup(tx_statuses.len());
 
-    let da_address = MockAddress::new([42; 32]);
-    let potential_seq = PotentialSequencer {
-        user: user_1,
-        da_address,
-    };
+    // Every potential sequencer gets a unique DA address.
+    let mut potential_sequencers_with_statuses = Vec::new();
+    for (i, status) in tx_statuses.into_iter().enumerate() {
+        let da_address = MockAddress::new([i as u8; 32]);
+        let potential_seq = PotentialSequencer {
+            user: users[i].clone(),
+            da_address,
+        };
 
-    let blobs = create_blobs_from_unregistered_seq(&tx_statuses, priority_fee_bips, &potential_seq);
+        potential_sequencers_with_statuses.push((status, potential_seq));
+    }
 
-    for blob in blobs {
+    let blobs_with_pot_sequencers =
+        create_blobs_from_unregistered_seq(priority_fee_bips, potential_sequencers_with_statuses);
+
+    for (blob, potential_seq) in blobs_with_pot_sequencers {
         let start = runner.query_state(|state| potential_seq.balances(state));
 
         let unregistered_blobs = RelevantBlobs {
@@ -48,14 +55,20 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
         let gas_value_charged_to_user;
         let seq_fee;
+        let bond_amount;
         match &tx_receipt.receipt {
             TxEffect::Successful(tx_contents) => {
                 let gas_value = tx_contents.gas_used.value(gas_price);
                 gas_value_charged_to_user = gas_value;
                 seq_fee = priority_fee_bips.apply(gas_value).unwrap();
+                bond_amount = BOND_AMOUNT;
             }
             TxEffect::Skipped(_tx_contents) => {
-                todo!()
+                // The sequencer is not bonded so we can't penalize them for skipped transactions.
+                // In this case no one is charged for the failed transaction.
+                gas_value_charged_to_user = 0;
+                seq_fee = 0;
+                bond_amount = 0;
             }
             TxEffect::Reverted(_tx_contents) => {
                 todo!()
@@ -65,7 +78,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         let end = runner.query_state(|state| potential_seq.balances(state));
 
         // Sequencer fees are transferred to the bond in the sequencer registry.
-        assert_eq!(end.potential_seq_bond, seq_fee + BOND_AMOUNT);
+        assert_eq!(end.potential_seq_bond, seq_fee + bond_amount);
         // The `seq_fee`` is redundant here, but I am leaving it as documentation to explain what is happening.
         // The user acts as a sequencer, transferring the fee from their bank balance to the bond in the sequencer registry.
         assert_eq!(
@@ -88,12 +101,23 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
     }
 }
 
+// Execute batch of valid registrations.
 #[test]
 #[serial]
-fn execute_seq_registration_test() {
+fn execute_seq_registration_success_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
-    let tx_statuses = vec![TxStatus::Success];
+    let tx_statuses = vec![TxStatus::Success, TxStatus::Success];
+    check_unreg_txs(tx_statuses, priority_fee_bips);
+}
+
+// Execute batch of invalid registrations.
+#[test]
+#[serial]
+fn execute_seq_registration_failure_test() {
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    let tx_statuses = vec![TxStatus::BadNonce, TxStatus::BadNonce];
     check_unreg_txs(tx_statuses, priority_fee_bips);
 }
 
@@ -162,32 +186,40 @@ mod helpers {
     }
 
     pub(crate) fn create_blobs_from_unregistered_seq(
-        statuses: &[TxStatus],
         max_priority_fee_bips: PriorityFeeBips,
-        potential_seq: &PotentialSequencer,
-    ) -> Vec<MockBlob> {
-        let mut nonce = 0;
-        let mut _reverted_tx_nonce = 0;
+        potential_seqs_with_statuses: Vec<(TxStatus, PotentialSequencer)>,
+    ) -> Vec<(MockBlob, PotentialSequencer)> {
         let mut blobs = Vec::new();
-        for status in statuses {
-            match status {
-                TxStatus::Success => {
-                    let blob = create_tx_blob_valid(
-                        nonce,
-                        max_priority_fee_bips,
-                        &potential_seq.user,
-                        potential_seq.da_address,
-                    );
-                    blobs.push(blob);
-                    nonce += 1;
-                }
-                TxStatus::BadNonce => todo!(),
-                TxStatus::BadChainId => todo!(),
-                TxStatus::BadSignature => todo!(),
-                TxStatus::Reverted => todo!(),
-            };
+
+        for (status, pot_seq) in potential_seqs_with_statuses.into_iter() {
+            let blob = create_blob(&status, max_priority_fee_bips, &pot_seq);
+            blobs.push((blob, pot_seq));
         }
 
         blobs
+    }
+
+    pub(crate) fn create_blob(
+        status: &TxStatus,
+        max_priority_fee_bips: PriorityFeeBips,
+        potential_seq: &PotentialSequencer,
+    ) -> MockBlob {
+        match status {
+            TxStatus::Success => create_tx_blob_valid(
+                0,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                potential_seq.da_address,
+            ),
+            TxStatus::BadNonce => create_tx_blob_valid(
+                999,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                potential_seq.da_address,
+            ),
+            TxStatus::BadChainId => todo!(),
+            TxStatus::BadSignature => todo!(),
+            TxStatus::Reverted => todo!(),
+        }
     }
 }

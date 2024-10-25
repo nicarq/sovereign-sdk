@@ -15,11 +15,11 @@ use crate::stf_blueprint::setup;
 type S = sov_test_utils::TestSpec;
 
 fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
-    let (mut runner, user_1, user_2, sequencer_account) = setup();
+    let (mut runner, users, sequencer_account) = setup(2);
 
     let actors = Actors {
-        admin_account: user_1,
-        not_admin_account: user_2,
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
         sequencer_account,
     };
 
@@ -185,11 +185,11 @@ fn not_enough_stake_to_execute_batch_hook_test() {
         TxStatus::Success,
     ];
 
-    let (mut runner, user_1, user_2, sequencer_account) = setup();
+    let (mut runner, users, sequencer_account) = setup(2);
 
     let actors = Actors {
-        admin_account: user_1,
-        not_admin_account: user_2,
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
         sequencer_account,
     };
 
@@ -243,11 +243,11 @@ fn not_enough_stake_auth_batch_test() {
         TxStatus::Success,
     ];
 
-    let (mut runner, user_1, user_2, sequencer_account) = setup();
+    let (mut runner, users, sequencer_account) = setup(2);
 
     let actors = Actors {
-        admin_account: user_1,
-        not_admin_account: user_2,
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
         sequencer_account,
     };
 
