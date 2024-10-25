@@ -8,10 +8,20 @@ use crate::{Paymaster, PaymasterPolicy};
 /// The genesis configuration of the paymaster module, consisting of a list of
 /// payers and their policies.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(rename_all = "snake_case", bound = "S: Spec")]
 pub struct PaymasterConfig<S: Spec> {
     #[allow(missing_docs)]
-    pub payers: SafeVec<PayerGenesisConfig<S>>,
+    // We set a conservative limit of 5 payers to prevent stack overflows, since
+    // `SafeVec` is stack allocated and PayerGenesisConfig has nested SafeVecs
+    pub payers: SafeVec<PayerGenesisConfig<S>, 5>,
+}
+
+impl<S: Spec> Default for PaymasterConfig<S> {
+    fn default() -> Self {
+        Self {
+            payers: SafeVec::new(),
+        }
+    }
 }
 
 /// The genesis config for a particular payer. Unlike standard payer registration,
@@ -23,10 +33,10 @@ pub struct PayerGenesisConfig<S: Spec> {
     /// The address of the newly registered payer.
     pub payer_address: S::Address,
     /// The policy that this payer will use.
-    pub policy: PaymasterPolicy<S, PayeePolicyList<S>>,
+    pub policy: PaymasterPolicy<S, PayeePolicyList<S, 10>>,
     /// The list of sequencers that should be configured to use this payer after genesis. Any sequencers in this
     /// list must also be authorized by the payer's policy.
-    pub sequencers_to_register: SafeVec<<S::Da as DaSpec>::Address>,
+    pub sequencers_to_register: SafeVec<<S::Da as DaSpec>::Address, 10>,
 }
 
 impl<S: Spec> Paymaster<S> {

@@ -15,8 +15,9 @@ use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_sequencer_registry::SequencerRegistry;
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
-pub struct StandardProvenRollupCapabilities<'a, S: Spec> {
+pub struct StandardProvenRollupCapabilities<'a, S: Spec, GasPayer = sov_bank::Bank<S>> {
     pub bank: &'a sov_bank::Bank<S>,
+    pub gas_payer: &'a GasPayer,
     pub sequencer_registry: &'a SequencerRegistry<S>,
     pub accounts: &'a sov_accounts::Accounts<S>,
     pub nonces: &'a sov_nonces::Nonces<S>,
@@ -24,7 +25,7 @@ pub struct StandardProvenRollupCapabilities<'a, S: Spec> {
     pub attester_incentives: &'a sov_attester_incentives::AttesterIncentives<S>,
 }
 
-impl<'a, S: Spec> StandardProvenRollupCapabilities<'a, S> {
+impl<'a, S: Spec, T> StandardProvenRollupCapabilities<'a, S, T> {
     fn get_prover_token_holder(
         &self,
         state: &mut impl InfallibleStateAccessor,
@@ -47,17 +48,61 @@ impl<'a, S: Spec> StandardProvenRollupCapabilities<'a, S> {
     }
 }
 
-impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
+trait HasGasPayer<S: Spec> {
+    fn try_reserve_gas_from_payer(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        context: &mut Context<S>,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> Result<(), TryReserveGasError>;
+}
+
+impl<'a, S: Spec> HasGasPayer<S> for StandardProvenRollupCapabilities<'a, S> {
     /// Reserves enough gas for the transaction to be processed, if possible.
-    fn try_reserve_gas(
+    fn try_reserve_gas_from_payer(
         &self,
         tx: &AuthenticatedTransactionData<S>,
         gas_price: &<S::Gas as Gas>::Price,
         context: &mut Context<S>,
         scratchpad: &mut impl InfallibleStateAccessor,
     ) -> Result<(), TryReserveGasError> {
-        self.bank
+        self.gas_payer
             .reserve_gas(tx, gas_price, context.sender(), scratchpad)
+            .map_err(Into::into)
+    }
+}
+
+impl<'a, S: Spec> HasGasPayer<S>
+    for StandardProvenRollupCapabilities<'a, S, sov_paymaster::Paymaster<S>>
+{
+    /// Reserves enough gas for the transaction to be processed, if possible.
+    fn try_reserve_gas_from_payer(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        context: &mut Context<S>,
+        scratchpad: &mut impl InfallibleStateAccessor,
+    ) -> Result<(), TryReserveGasError> {
+        self.gas_payer
+            .try_reserve_gas(tx, gas_price, context, scratchpad)
+            .map_err(Into::into)
+    }
+}
+
+impl<'a, S: Spec, T> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S, T>
+where
+    Self: HasGasPayer<S>,
+{
+    /// Reserves enough gas for the transaction to be processed, if possible.
+    fn try_reserve_gas(
+        &self,
+        tx: &AuthenticatedTransactionData<S>,
+        gas_price: &<S::Gas as Gas>::Price,
+        context: &mut Context<S>,
+        state: &mut impl InfallibleStateAccessor,
+    ) -> Result<(), TryReserveGasError> {
+        self.try_reserve_gas_from_payer(tx, gas_price, context, state)
             .map_err(Into::into)
     }
 
@@ -122,7 +167,7 @@ impl<'a, S: Spec> GasEnforcer<S> for StandardProvenRollupCapabilities<'a, S> {
     }
 }
 
-impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'a, S> {
+impl<'a, S: Spec, T> SequencerAuthorization<S> for StandardProvenRollupCapabilities<'a, S, T> {
     fn authorize_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,
@@ -134,7 +179,7 @@ impl<'a, S: Spec> SequencerAuthorization<S> for StandardProvenRollupCapabilities
     }
 }
 
-impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S> {
+impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<'a, S, T> {
     type AuthorizationData = AuthorizationData<S>;
 
     /// Prevents duplicate transactions from running.
@@ -214,7 +259,7 @@ impl<'a, S: Spec> TransactionAuthorizer<S> for StandardProvenRollupCapabilities<
     }
 }
 
-impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> {
+impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S, T> {
     fn process_aggregated_proof(
         &self,
         proof: SerializedAggregatedProof,
@@ -259,7 +304,7 @@ impl<'a, S: Spec> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S> 
     }
 }
 
-impl<'a, S: Spec> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S> {
+impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabilities<'a, S, T> {
     fn reward_sequencer(
         &self,
         sequencer: &<S::Da as DaSpec>::Address,

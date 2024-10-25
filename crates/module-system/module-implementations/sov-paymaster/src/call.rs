@@ -22,7 +22,8 @@ pub type SafeVec<T, const LEN: usize = DEFAULT_SAFE_VEC_LEN> = ArrayVec<T, LEN>;
 ///
 /// A type alias for [`SafeVec`] where the elements have type `(S::Address, PayeePolicy<S>)`.
 #[allow(type_alias_bounds)]
-pub type PayeePolicyList<S: Spec> = SafeVec<(S::Address, PayeePolicy<S>)>;
+pub type PayeePolicyList<S: Spec, const LEN: usize = DEFAULT_SAFE_VEC_LEN> =
+    SafeVec<(S::Address, PayeePolicy<S>), LEN>;
 
 /// Call messages for interacting with the `Paymaster` module.
 ///
@@ -191,7 +192,7 @@ impl<S: Spec> PolicyUpdate<S> {
     JsonSchema,
     UniversalWallet,
 )]
-#[serde(bound = "Da: DaSpec")]
+#[serde(bound = "Da: DaSpec", rename_all = "snake_case")]
 #[schemars(bound = "Da: DaSpec", rename = "SequencerUpdate")]
 pub enum SequencerSetUpdate<Da: DaSpec> {
     /// Authorizes any sequencer to use this payer.
@@ -318,11 +319,11 @@ impl<S: Spec> Paymaster<S> {
 
     /// Registers a new paymaster with the given policy. Sets the provided sequencer addresses
     /// to use that paymaster, if the paymaster policy permits it.
-    pub(crate) fn do_registration<'a>(
+    pub(crate) fn do_registration<'a, const N: usize>(
         &self,
         new_payer: &S::Address,
         sequencer_addresses_to_register: impl Iterator<Item = &'a <S::Da as DaSpec>::Address>,
-        policy: PaymasterPolicy<S, PayeePolicyList<S>>,
+        policy: PaymasterPolicy<S, PayeePolicyList<S, N>>,
         state: &mut impl TxState<S>,
     ) -> Result<CallResponse> {
         if self.payers.get(new_payer, state)?.is_some() {
@@ -466,10 +467,10 @@ impl<S: Spec> Paymaster<S> {
         Ok(Default::default())
     }
 
-    fn add_payee_policies(
+    fn add_payee_policies<const N: usize>(
         &self,
         payer: &S::Address,
-        to_add: SafeVec<(S::Address, PayeePolicy<S>)>,
+        to_add: SafeVec<(S::Address, PayeePolicy<S>), N>,
         payee_policies: &PayeePolicyMap<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {

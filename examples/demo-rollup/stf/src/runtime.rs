@@ -75,6 +75,8 @@ pub struct Runtime<S: Spec> {
     pub chain_state: sov_chain_state::ChainState<S>,
     /// The Blob storage module.
     pub blob_storage: sov_blob_storage::BlobStorage<S>,
+    /// The Paymaster  module.
+    pub paymaster: sov_paymaster::Paymaster<S>,
     #[cfg_attr(feature = "native", cli_skip)]
     /// The EVM module.
     pub evm: sov_evm::Evm<S>,
@@ -116,11 +118,12 @@ where
 }
 
 impl<S: Spec> HasCapabilities<S> for Runtime<S> {
-    type Capabilities<'a> = StandardCapabilities<'a, S>;
+    type Capabilities<'a> = StandardCapabilities<'a, S, sov_paymaster::Paymaster<S>>;
     type AuthorizationData = AuthorizationData<S>;
     fn capabilities(&self) -> Guard<Self::Capabilities<'_>> {
         Guard::new(StandardCapabilities {
             bank: &self.bank,
+            gas_payer: &self.paymaster,
             sequencer_registry: &self.sequencer_registry,
             accounts: &self.accounts,
             nonces: &self.nonces,

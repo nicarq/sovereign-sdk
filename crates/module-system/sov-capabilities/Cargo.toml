@@ -16,6 +16,7 @@ anyhow = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-bank = { workspace = true }
+sov-paymaster = { workspace = true }
 sov-accounts = { workspace = true }
 sov-nonces = { workspace = true }
 sov-sequencer-registry = { workspace = true }
@@ -29,13 +30,14 @@ workspace = true
 [features]
 default = []
 native = [
-    "sov-accounts/native",
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-state/native",
-    "sov-nonces/native",
-    "sov-prover-incentives/native",
-    "sov-attester-incentives/native",
-    "sov-sequencer-registry/native",
-    "sov-rollup-interface/native",
+	"sov-accounts/native",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-state/native",
+	"sov-nonces/native",
+	"sov-prover-incentives/native",
+	"sov-attester-incentives/native",
+	"sov-sequencer-registry/native",
+	"sov-rollup-interface/native",
+	"sov-paymaster/native"
 ]

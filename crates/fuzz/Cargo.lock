@@ -5005,6 +5005,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-nonces",
+ "sov-paymaster",
  "sov-prover-incentives",
  "sov-rollup-interface",
  "sov-sequencer-registry",
