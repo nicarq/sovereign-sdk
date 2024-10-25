@@ -250,6 +250,7 @@ pub enum ByteDisplay {
         )]
         prefix: Hrp,
     },
+    Base58,
 }
 
 mod hrp_borsh {
@@ -310,6 +311,10 @@ impl ByteDisplay {
             }
             ByteDisplay::Bech32m { prefix } => {
                 bech32::encode_to_fmt::<Bech32m, _>(f, *prefix, input)?
+            }
+            ByteDisplay::Base58 => {
+                let out = bs58::encode(input).into_string();
+                f.write_str(&out)?;
             }
         }
         Ok(())

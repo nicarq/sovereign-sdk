@@ -26,6 +26,7 @@ pub enum DisplayType {
         #[darling(with = "darling::util::parse_expr::parse_str_literal")]
         prefix: syn::Expr,
     },
+    Base58,
 }
 
 #[derive(Debug, FromMeta, Default, Clone)]
@@ -613,6 +614,9 @@ impl InputField {
                 }
                 DisplayType::Bech32m { prefix } => {
                     quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Bech32m { prefix: #crate_prefix::sov_universal_wallet::bech32::Hrp::parse(#prefix).expect("Invalid bech32 prefix") } }
+                }
+                DisplayType::Base58 => {
+                    quote! { #crate_prefix::sov_universal_wallet::ty::ByteDisplay::Base58 }
                 }
             };
             quote! {

@@ -10532,6 +10532,7 @@ dependencies = [
  "arrayvec",
  "bech32 0.11.0",
  "borsh",
+ "bs58",
  "nmt-rs",
  "serde",
  "serde_arrays",

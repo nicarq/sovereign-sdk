@@ -7,6 +7,7 @@ license = "MIT OR Apache-2.0"
 [dependencies]
 arrayvec = { workspace = true, optional = true }
 bech32 = { workspace = true }
+bs58 = { workspace = true }
 thiserror = { workspace = true }
 
 borsh = { workspace = true, features = [] }
