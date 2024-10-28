@@ -225,14 +225,14 @@ where
     }
 
     /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_state`]
-    /// followed by [`ApiStateAccessor::get_archival_at`].
+    /// followed by [`ApiStateAccessor::get_state_at_height`].
     pub fn query_archival_state<Output>(
         &self,
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
         let current_state = self.current_state();
-        query(&mut current_state.get_archival_at(height))
+        query(&mut current_state.get_state_at_height(height))
     }
 
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.

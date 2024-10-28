@@ -216,7 +216,7 @@ fn test_cannot_attest_genesis_height() {
         let chain_state = sov_chain_state::ChainState::<S>::default();
         let genesis_root_hash = chain_state.get_genesis_hash(state).unwrap().unwrap();
 
-        let mut archival_state = state.get_archival_at(genesis_height);
+        let mut archival_state = state.get_state_at_height(genesis_height);
 
         let proof_of_bond = TestAttesterIncentives::default()
             .bonded_attesters

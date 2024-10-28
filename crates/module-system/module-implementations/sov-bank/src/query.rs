@@ -34,7 +34,7 @@ impl<S: Spec> Bank<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> BalanceResponse {
         let amount = if let Some(v) = version {
-            self.get_balance_of(&user_address, token_id, &mut state.get_archival_at(v))
+            self.get_balance_of(&user_address, token_id, &mut state.get_state_at_height(v))
         } else {
             self.get_balance_of(&user_address, token_id, state)
         }
@@ -50,7 +50,7 @@ impl<S: Spec> Bank<S> {
         state: &mut ApiStateAccessor<S>,
     ) -> TotalSupplyResponse {
         let amount = if let Some(v) = version {
-            self.get_total_supply_of(&token_id, &mut state.get_archival_at(v))
+            self.get_total_supply_of(&token_id, &mut state.get_state_at_height(v))
         } else {
             self.get_total_supply_of(&token_id, state)
         }
