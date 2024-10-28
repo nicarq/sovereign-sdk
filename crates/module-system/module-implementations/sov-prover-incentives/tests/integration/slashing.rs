@@ -178,7 +178,7 @@ fn test_invalid_initial_slot_number() {
 #[test]
 fn test_invalid_final_slot_number() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.final_slot_number = 0;
+    aggregated_proof.final_slot_number = 6;
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
