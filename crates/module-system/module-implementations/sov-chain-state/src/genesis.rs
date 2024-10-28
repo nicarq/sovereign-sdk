@@ -1,9 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use sov_modules_api::da::Time;
-use sov_modules_api::{GenesisState, Module, OperatingMode, Spec, Zkvm};
+use sov_modules_api::da::{BlockHeaderTrait, Time};
+use sov_modules_api::{DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec, Zkvm};
 
-use crate::{ChainState, TransitionHeight};
+use crate::{BlockGasInfo, ChainState, SlotInformation, TransitionHeight};
 
 /// Initial configuration of the chain state
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
@@ -30,6 +30,8 @@ pub struct ChainStateConfig<S: Spec> {
 impl<S: Spec> ChainState<S> {
     pub(crate) fn init_module(
         &self,
+        genesis_slot_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
@@ -59,9 +61,18 @@ impl<S: Spec> ChainState<S> {
 
         self.slots.initialize(state);
 
-        // TODO(@theochap): for now we extend the vector by one to ensure that the first transition starts at height 1.
-        // This is a temporary solution until we can fix the issue <`https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1701`>
-        self.slots.extend(1, state);
+        self.slots.push(
+            &SlotInformation::new(
+                genesis_slot_header.hash(),
+                *validity_condition,
+                BlockGasInfo {
+                    gas_used: S::Gas::zero(),
+                    base_fee_per_gas: S::initial_base_fee_per_gas(),
+                    gas_limit: S::Gas::zero(),
+                },
+            ),
+            state,
+        );
 
         self.state_roots.initialize(state);
 

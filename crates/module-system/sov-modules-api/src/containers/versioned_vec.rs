@@ -25,10 +25,6 @@ use crate::{
 /// This choice is motivated by the fact that the vector is used in the soft-confirmations context, so there shouldn't be
 /// any way to modify older keys from the vector without breaking the soft-confirmations mechanism.
 /// - This data structure *needs* to be initialized at genesis. Otherwise, the state vector will be in an invalid state.
-///
-/// ## WARNING (@theochap - see `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1728>`)
-/// Values may be `None` at indexes `< len`. Be careful when unwrapping the values retrieved with the getters such as
-/// [`VersionedStateVec::get`].
 #[derive(
     Debug,
     Clone,
@@ -166,19 +162,25 @@ where
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
     /// This only works with accessors following the `true_slot_number`.
-    pub fn prev_len<S: Storage>(&self, state: &mut KernelStateAccessor<'_, S>) -> u64
+    pub fn prev_len<Accessor: KernelWriter + VersionReader<Error = Infallible>>(
+        &self,
+        state: &mut Accessor,
+    ) -> u64
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        self.len_value().get(&(state.rollup_height_to_access() - 1), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
+        self.len_value().get(&(state.rollup_height_to_access().saturating_sub(1)), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
     }
 
     /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelStateAccessor`].
     ///
     /// ## Warning
     /// If used within the module system, this method may break soft-confirmations
-    pub fn push<Vq, S: Storage>(&self, value: &Vq, state: &mut KernelStateAccessor<'_, S>)
-    where
+    pub fn push<Vq, Accessor: KernelWriter + VersionReader<Error = Infallible>>(
+        &self,
+        value: &Vq,
+        state: &mut Accessor,
+    ) where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
     {
@@ -186,25 +188,6 @@ where
 
         self.elems().set(&len, value, state).unwrap_infallible();
         self.set_true_len(len + 1, state);
-    }
-
-    /// Extends the vector by increasing the length by `size`. Queries for the new indices will return `None` until they are overwritten.
-    ///
-    /// ## Note
-    /// This method is only available for kernel space writers and should be used carefully.
-    /// Indeed, this means that the resulting vector can have `None` values at valid indexes.
-    ///
-    /// ## TODO(@theochap) `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1728>`
-    /// This method should be removed once `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1701>` is fixed.
-    /// Indeed, this can lead to confusing behavior because the vector can have `None` values at indexes `< len`.
-    pub fn extend<Accessor: KernelWriter + VersionReader<Error = Infallible>>(
-        &self,
-        size: u64,
-        state: &mut Accessor,
-    ) {
-        let len = self.len(state).unwrap_infallible();
-        let new_len = len + size;
-        self.set_true_len(new_len, state);
     }
 
     /// Returns the previous last value in the vector at the true height.
