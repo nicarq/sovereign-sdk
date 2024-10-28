@@ -45,7 +45,7 @@ fn transfer_token_and_query_old_balances() {
 
         for height_to_query in 0..height {
             runner.query_state(|state| {
-                let archival_state = &mut state.get_archival_at(height_to_query);
+                let archival_state = &mut state.get_state_at_height(height_to_query);
 
                 // Sender query deducted at every height
                 assert_eq!(

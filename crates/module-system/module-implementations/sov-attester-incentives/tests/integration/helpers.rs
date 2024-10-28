@@ -144,7 +144,7 @@ pub(crate) fn build_proof(
     }
     .unwrap();
 
-    let mut archival_state = state.get_archival_at(rollup_height_to_attest);
+    let mut archival_state = state.get_state_at_height(rollup_height_to_attest);
 
     let proof_of_bond = TestAttesterIncentives::default()
         .bonded_attesters
