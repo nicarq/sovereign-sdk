@@ -4,8 +4,10 @@ use helpers::*;
 use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
-use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, Transaction};
-use sov_modules_api::{ApiStateAccessor, BatchSequencerOutcome, Gas, GasSpec, ModuleInfo, RawTx};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
+use sov_modules_api::{
+    ApiStateAccessor, BatchSequencerOutcome, Gas, GasArray, GasSpec, ModuleInfo, RawTx, Rewards,
+};
 use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::{BatchTestCase, TestSequencer, TransactionType};
 
@@ -54,21 +56,25 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
             let mut valid_tx_count = 0;
             let mut skipped_tx_count = 0;
+            let mut total_gas = <S as GasSpec>::batch_hook_gas();
             for tx_receipt in tx_receipts {
                 match &tx_receipt.receipt {
                     TxEffect::Successful(tx_contents) => {
+                        total_gas.combine(&tx_contents.gas_used);
                         let gas_value = tx_contents.gas_used.value(gas_price);
                         gas_value_charged_to_user += gas_value;
                         seq_fee += priority_fee_bips.apply(gas_value).unwrap();
                         valid_tx_count += 1;
                     }
                     TxEffect::Skipped(tx_contents) => {
+                        total_gas.combine(&tx_contents.gas_used);
                         let gas_value = tx_contents.gas_used.value(gas_price);
                         // Sequencer doesn't get the fee and is penalized
                         seq_penalty += gas_value;
                         skipped_tx_count += 1;
                     }
                     TxEffect::Reverted(tx_contents) => {
+                        total_gas.combine(&tx_contents.gas_used);
                         // From gas usage point of view the `Successful & Reverted` cases are the same.
                         let gas_value = tx_contents.gas_used.value(gas_price);
                         gas_value_charged_to_user += gas_value;
@@ -109,9 +115,14 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
 
             assert_eq!(
                 batch_receipt.inner.outcome,
-                // TODO account for batch_hook_gas_value
-                sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(seq_fee))
+                sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
+                    accumulated_reward: seq_fee,
+                    accumulated_penalty: seq_penalty,
+                    hooks_cost: batch_hook_gas_value,
+                })
             );
+
+            assert_eq!(batch_receipt.inner.gas_used, total_gas);
         }),
     });
 }

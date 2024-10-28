@@ -2,7 +2,7 @@ use std::path::Path;
 
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
-use sov_modules_api::{Batch, DaSpec, RawTx, Spec};
+use sov_modules_api::{Batch, DaSpec, RawTx, Rewards, Spec};
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, StfBlueprint};
 
 use crate::genesis_config::{create_genesis_config, GenesisPaths};
@@ -75,4 +75,12 @@ pub fn has_tx_events<S: Spec>(apply_blob_outcome: &BatchReceipt<S>) -> bool {
         .flat_map(|receipts| receipts.events.iter());
 
     events.peekable().peek().is_some()
+}
+
+fn default_rewards() -> Rewards {
+    Rewards {
+        accumulated_reward: 0,
+        accumulated_penalty: 0,
+        hooks_cost: 0,
+    }
 }

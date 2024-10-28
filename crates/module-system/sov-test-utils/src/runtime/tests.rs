@@ -4,7 +4,7 @@ use sov_mock_da::MockAddress;
 use sov_modules_api::da::Time;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::transaction::{PriorityFeeBips, SequencerReward, TxDetails};
+use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{DaSpec, Gas, GasMeter, GasUnit};
 use sov_modules_stf_blueprint::TxProcessingError;
 use sov_paymaster::{PaymasterConfig, SafeVec};
@@ -244,10 +244,12 @@ fn test_custom_transaction_details_chain_id() {
                 unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
             }
 
-            assert_eq!(
-                batch_receipt.inner.outcome,
-                sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-            );
+            match &batch_receipt.inner.outcome {
+                sov_modules_api::BatchSequencerOutcome::Executed(rewards) => {
+                    assert!(rewards.accumulated_penalty > 0);
+                }
+                sov_modules_api::BatchSequencerOutcome::Ignored(_) => todo!(),
+            }
         }),
     });
 }

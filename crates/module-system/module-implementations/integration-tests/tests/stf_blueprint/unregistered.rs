@@ -6,10 +6,10 @@ use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::transaction::{
-    PriorityFeeBips, SequencerReward, Transaction, UnsignedTransaction,
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::{
+    ApiStateAccessor, DaSpec, Gas, GasArray, ModuleInfo, RawTx, Rewards, Spec, TxEffect,
 };
-use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, ModuleInfo, RawTx, Spec, TxEffect};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{EncodeCall, TestUser};
@@ -57,14 +57,17 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         let gas_value_charged_to_user;
         let seq_fee;
         let bond_amount;
+        let mut total_gas = <<S as Spec>::Gas>::zero();
         match &tx_receipt.receipt {
             TxEffect::Successful(tx_contents) => {
+                total_gas.combine(&tx_contents.gas_used);
                 let gas_value = tx_contents.gas_used.value(gas_price);
                 gas_value_charged_to_user = gas_value;
                 seq_fee = priority_fee_bips.apply(gas_value).unwrap();
                 bond_amount = BOND_AMOUNT;
             }
-            TxEffect::Skipped(_tx_contents) => {
+            TxEffect::Skipped(tx_contents) => {
+                total_gas.combine(&tx_contents.gas_used);
                 // The sequencer is not bonded so we can't penalize them for skipped transactions.
                 // In this case no one is charged for the failed transaction.
                 gas_value_charged_to_user = 0;
@@ -96,9 +99,14 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
         assert_eq!(
             batch_receipt.inner.outcome,
-            // TODO account for batch_hook_gas_value
-            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(seq_fee))
+            sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
+                accumulated_reward: seq_fee,
+                accumulated_penalty: 0,
+                hooks_cost: 0
+            })
         );
+
+        assert_eq!(batch_receipt.inner.gas_used, total_gas);
     }
 }
 

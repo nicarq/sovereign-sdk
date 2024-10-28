@@ -4,10 +4,9 @@ use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationError, AuthorizeSequencerError, GasEnforcer,
     SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
-use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
-    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Spec,
+    ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Rewards, Spec,
     StateCheckpoint, TxScratchpad, WorkingSet,
 };
 use sov_rollup_interface::TxHash;
@@ -203,12 +202,13 @@ where
     };
 
     let batch_hook_gas = runtime.gas_enforcer().batch_hook_gas();
+    let batch_hook_gas_value = batch_hook_gas.value(gas_price);
 
     // Charge gas for batch hooks.
     match runtime
         .gas_enforcer()
         .transfer_funds_from_sequencer_to_prover(
-            batch_hook_gas.value(gas_price),
+            batch_hook_gas_value,
             &sequencer_da_address,
             &mut scratchpad,
         ) {
@@ -308,7 +308,8 @@ where
     let mut auth_outputs: Vec<(usize, ValidatedAuthOutput<S, RT>, S::Gas)> = Vec::new();
 
     let mut tx_receipts = Vec::with_capacity(raw_txs.len());
-    let mut accumulated_reward = SequencerReward::ZERO;
+    let mut accumulated_reward = 0;
+    let mut accumulated_penalty = 0;
 
     for (idx, raw_tx) in raw_txs.iter().enumerate() {
         pre_exec_working_set.start_recording_gas_usage();
@@ -389,6 +390,9 @@ where
                     "The sequencer paid for the transaction.",
                 );
 
+                accumulated_penalty += gas_used_for_authentication.value(gas_price);
+                gas_used.combine(&gas_used_for_authentication);
+
                 let skipped = SkippedTxContents {
                     error,
                     gas_used: gas_used_for_authentication,
@@ -405,7 +409,7 @@ where
                 tx_receipts.push(receipt);
 
                 let sequencer_reward = transaction_consumption.priority_fee();
-                accumulated_reward.accumulate(sequencer_reward);
+                accumulated_reward += sequencer_reward.0;
             }
         }
     }
@@ -418,7 +422,11 @@ where
             da_address: sequencer_da_address,
             gas_price: gas_price.clone(),
             gas_used: gas_used.clone(),
-            outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+            outcome: BatchSequencerOutcome::Executed(Rewards {
+                accumulated_reward,
+                accumulated_penalty,
+                hooks_cost: batch_hook_gas_value,
+            }),
         },
     };
 
