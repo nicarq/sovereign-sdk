@@ -315,4 +315,29 @@ impl<'a, S: Spec, T> SequencerRemuneration<S> for StandardProvenRollupCapabiliti
             .add_to_stake(self.bank.id().to_payable(), sequencer, reward.into(), state)
             .unwrap_or_else(|e| panic!("Unable to increase the sequencer's stake {}", e));
     }
+
+    fn reward_sequencer_or_refund(
+        &self,
+        sequencer: &<S::Da as DaSpec>::Address,
+        sequencer_rollup_address: &S::Address,
+        reward: SequencerReward,
+        state: &mut impl InfallibleStateAccessor,
+    ) {
+        let stake_increased = self.sequencer_registry.add_to_stake(
+            self.bank.id().to_payable(),
+            sequencer,
+            reward.0,
+            state,
+        );
+
+        // The error indicates that the forced registration was reverted.
+        // In this case, we will refund the rewards to the user.
+        if stake_increased.is_err() {
+            self.bank.refund_remaining_gas(
+                sequencer_rollup_address,
+                &RemainingFunds(reward.0),
+                state,
+            );
+        }
+    }
 }

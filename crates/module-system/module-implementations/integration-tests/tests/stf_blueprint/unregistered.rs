@@ -23,6 +23,9 @@ const BOND_AMOUNT: u64 = 100;
 fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let (mut runner, users, _) = setup(tx_statuses.len());
 
+    let nb_of_valid_txs = TxStatus::nb_of_valid_txs(&tx_statuses);
+    let nb_of_skipped_txs = TxStatus::nb_of_skipped_txs(&tx_statuses);
+
     // Every potential sequencer gets a unique DA address.
     let mut potential_sequencers_with_statuses = Vec::new();
     for (i, status) in tx_statuses.into_iter().enumerate() {
@@ -37,6 +40,9 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
     let blobs_with_pot_sequencers =
         create_blobs_from_unregistered_seq(priority_fee_bips, potential_sequencers_with_statuses);
+
+    let mut valid_tx_count = 0;
+    let mut skipped_tx_count = 0;
 
     for (blob, potential_seq) in blobs_with_pot_sequencers {
         let start = runner.query_state(|state| potential_seq.balances(state));
@@ -65,6 +71,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 gas_value_charged_to_user = gas_value;
                 seq_fee = priority_fee_bips.apply(gas_value).unwrap();
                 bond_amount = BOND_AMOUNT;
+                valid_tx_count += 1;
             }
             TxEffect::Skipped(tx_contents) => {
                 total_gas.combine(&tx_contents.gas_used);
@@ -73,9 +80,15 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
                 gas_value_charged_to_user = 0;
                 seq_fee = 0;
                 bond_amount = 0;
+                skipped_tx_count += 1;
             }
-            TxEffect::Reverted(_tx_contents) => {
-                todo!()
+            TxEffect::Reverted(tx_contents) => {
+                total_gas.combine(&tx_contents.gas_used);
+                let gas_value = tx_contents.gas_used.value(gas_price);
+                gas_value_charged_to_user = gas_value;
+                seq_fee = 0;
+                bond_amount = 0;
+                valid_tx_count += 1;
             }
         }
 
@@ -108,6 +121,9 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 
         assert_eq!(batch_receipt.inner.gas_used, total_gas);
     }
+
+    assert_eq!(nb_of_valid_txs, valid_tx_count);
+    assert_eq!(nb_of_skipped_txs, skipped_tx_count);
 }
 
 // Execute batch of valid registrations.
@@ -131,6 +147,7 @@ fn execute_seq_registration_failure_test() {
         TxStatus::BadNonce,
         TxStatus::BadSignature,
         TxStatus::BadChainId,
+        TxStatus::Reverted,
     ];
     check_unreg_txs(tx_statuses, priority_fee_bips);
 }

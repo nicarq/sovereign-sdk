@@ -122,8 +122,9 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
         .reward_prover(&transaction_consumption.base_fee_value(), &mut scratchpad);
 
     let sequencer_reward = transaction_consumption.priority_fee();
-    runtime.sequencer_remuneration().reward_sequencer(
+    runtime.sequencer_remuneration().reward_sequencer_or_refund(
         sequencer_da_address,
+        ctx.gas_refund_recipient(),
         sequencer_reward,
         &mut scratchpad,
     );
@@ -299,11 +300,13 @@ where
             transaction_consumption,
             receipt,
         }) => {
+            // We reward sequencer only if the registration transaction is successful.
+            if receipt.receipt.is_successful() {
+                let sequencer_reward = transaction_consumption.priority_fee();
+                accumulated_reward += sequencer_reward.0;
+            }
             gas_used.combine(&get_gas_used(&receipt));
             tx_receipts.push(receipt);
-
-            let sequencer_reward = transaction_consumption.priority_fee();
-            accumulated_reward += sequencer_reward.0;
         }
     }
 
