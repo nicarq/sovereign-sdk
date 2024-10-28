@@ -9,9 +9,9 @@ use sov_modules_api::{
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Rewards, Spec,
     StateCheckpoint, TxScratchpad, WorkingSet,
 };
-use sov_rollup_interface::TxHash;
 use tracing::{debug, error, warn};
 
+use super::common::ValidatedAuthOutput;
 pub use crate::sequencer_mode::common::PreExecError;
 use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
@@ -46,13 +46,13 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
 
     let (auth_tx, auth_data, message) = match validated_output {
         ValidatedAuthOutput::Valid(valid) => valid,
-        ValidatedAuthOutput::Invalid(hex_string) => {
+        ValidatedAuthOutput::Invalid { tx_hash, error } => {
             penalize(&mut scratchpad);
 
             return (
                 Err(TxProcessingError::AuthenticationFailed(format!(
-                    "Authentication failed for tx: {}",
-                    hex_string
+                    "Authentication failed for tx: {}. Error: {}",
+                    tx_hash, error
                 ))),
                 scratchpad,
             );
@@ -338,11 +338,14 @@ where
                 ));
             }
             Err(pre_exec_error) => match pre_exec_error {
-                AuthenticationError::FatalError(err, hash) => {
+                AuthenticationError::FatalError(err, tx_hash) => {
                     error!(error = ?err, "Authentication failed");
                     auth_outputs.push((
                         idx,
-                        ValidatedAuthOutput::Invalid(hash),
+                        ValidatedAuthOutput::Invalid {
+                            tx_hash,
+                            error: err,
+                        },
                         gas_used_for_authentication,
                     ));
                 }
@@ -435,22 +438,4 @@ where
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 
     (batch_receipt, checkpoint)
-}
-
-/// The output of the authentication phase.
-pub enum ValidatedAuthOutput<S: Spec, R: Runtime<S>> {
-    /// Transaction data after the authentication phase.
-    Valid(AuthTxOutput<S, R>),
-    /// Hash of the invalid transaction.
-    Invalid(TxHash),
-}
-
-impl<S: Spec, R: Runtime<S>> ValidatedAuthOutput<S, R> {
-    /// Get hash of the Validated Auth Output.
-    pub fn hash(&self) -> TxHash {
-        match self {
-            ValidatedAuthOutput::Valid(valid) => valid.0.raw_tx_hash,
-            ValidatedAuthOutput::Invalid(hash) => *hash,
-        }
-    }
 }

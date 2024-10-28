@@ -191,7 +191,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         match &tx_receipts[0].receipt {
             sov_modules_api::TxEffect::Skipped(skipped) => assert_eq!(
                 skipped.error,
-                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0xcb9c1de47ae8f504c9eaf58ae0200a3287115a5f9d57ed69be9baa20315d7acb".to_string())
+                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0xcb9c1de47ae8f504c9eaf58ae0200a3287115a5f9d57ed69be9baa20315d7acb. Error: Signature verification failed: Invalid signature: signature error: Verification equation was not satisfied".to_string())
             ),
             unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
         }
@@ -383,7 +383,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         match &tx_receipts[0].receipt {
             sov_modules_api::TxEffect::Skipped(skipped) => assert_eq!(
                 skipped.error,
-                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0x7854d0c36ed4082872e60c1029b16b06ca9ef7c4b040c3a5c9548921c612da23".to_string())
+                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0x7854d0c36ed4082872e60c1029b16b06ca9ef7c4b040c3a5c9548921c612da23. Error: Transaction decoding error: IO error: Unexpected variant tag: 110".to_string())
             ),
             unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
         }
