@@ -382,9 +382,7 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
         receipt.inner.outcome,
-        BatchSequencerOutcome::Ignored(
-            "Transaction authentication raised a fatal error, error: Other: The runtime call included in the transaction was invalid.".to_string()
-        )
+        BatchSequencerOutcome::Executed(default_rewards())
     );
 
     let runtime = &mut Runtime::<TestSpec>::default();
@@ -489,9 +487,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
         let receipt = &apply_block_result.batch_receipts[i];
         assert_eq!(
             receipt.inner.outcome,
-            BatchSequencerOutcome::Ignored(
-                "Transaction authentication raised a fatal error, error: Other: The runtime call included in the transaction was invalid.".to_string()
-            )
+            BatchSequencerOutcome::Executed(default_rewards())
         );
     }
 

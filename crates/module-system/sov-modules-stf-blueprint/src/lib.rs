@@ -10,8 +10,10 @@ mod sequencer_mode;
 mod utils;
 /// We export the `apply_tx` function to use inside the simulation endpoints.
 pub use sequencer_mode::apply_tx;
-pub use sequencer_mode::common::{get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt};
-pub use sequencer_mode::registered::{process_tx, PreExecError, ValidatedAuthOutput};
+pub use sequencer_mode::common::{
+    get_gas_used, AuthTxOutput, BatchReceipt, TransactionReceipt, ValidatedAuthOutput,
+};
+pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{

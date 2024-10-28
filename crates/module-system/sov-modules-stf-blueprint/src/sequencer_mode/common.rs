@@ -1,6 +1,6 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
-use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput};
+use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput, FatalError};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BatchSequencerReceipt, Context, DispatchCall, Error, Spec, TxScratchpad, WorkingSet,
@@ -186,5 +186,28 @@ pub(crate) fn apply_batch_logs<S: Spec>(
             gas_used = ?get_gas_used(tx_receipt),
             "Tx receipt"
         );
+    }
+}
+
+/// The output of the authentication phase.
+pub enum ValidatedAuthOutput<S: Spec, R: Runtime<S>> {
+    /// Transaction data after the authentication phase.
+    Valid(AuthTxOutput<S, R>),
+    /// Transaction failed authentication.
+    Invalid {
+        /// Transaction hash.
+        tx_hash: TxHash,
+        /// Authentication error.
+        error: FatalError,
+    },
+}
+
+impl<S: Spec, R: Runtime<S>> ValidatedAuthOutput<S, R> {
+    /// Get hash of the Validated Auth Output.
+    pub fn hash(&self) -> TxHash {
+        match self {
+            ValidatedAuthOutput::Valid(valid) => valid.0.raw_tx_hash,
+            ValidatedAuthOutput::Invalid { tx_hash, error: _ } => *tx_hash,
+        }
     }
 }

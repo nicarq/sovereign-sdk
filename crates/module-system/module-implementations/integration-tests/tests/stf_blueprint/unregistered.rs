@@ -114,7 +114,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 #[test]
 #[serial]
 fn execute_seq_registration_success_test() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 100]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![TxStatus::Success, TxStatus::Success];
     check_unreg_txs(tx_statuses, priority_fee_bips);
@@ -124,9 +124,14 @@ fn execute_seq_registration_success_test() {
 #[test]
 #[serial]
 fn execute_seq_registration_failure_test() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
-    let tx_statuses = vec![TxStatus::BadNonce, TxStatus::BadNonce];
+    let tx_statuses = vec![
+        TxStatus::BadNonce,
+        TxStatus::BadNonce,
+        TxStatus::BadSignature,
+        TxStatus::BadChainId,
+    ];
     check_unreg_txs(tx_statuses, priority_fee_bips);
 }
 
