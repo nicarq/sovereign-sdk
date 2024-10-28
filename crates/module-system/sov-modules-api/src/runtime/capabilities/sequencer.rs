@@ -53,4 +53,14 @@ pub trait SequencerRemuneration<S: Spec> {
         reward: SequencerReward,
         state: &mut impl InfallibleStateAccessor,
     );
+
+    /// Reward the sequencer for correctly processing the forced registration.
+    /// If the registration was reverted, refund the sequencer rollup address.
+    fn reward_sequencer_or_refund(
+        &self,
+        sequencer: &<S::Da as DaSpec>::Address,
+        sequencer_rollup_address: &S::Address,
+        reward: SequencerReward,
+        state: &mut impl InfallibleStateAccessor,
+    );
 }
