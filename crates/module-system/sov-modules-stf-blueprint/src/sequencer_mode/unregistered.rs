@@ -5,10 +5,9 @@ use sov_modules_api::capabilities::{
     TransactionAuthenticator, TransactionAuthorizer, TryReserveGasError,
     UnregisteredAuthenticationError,
 };
-use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
-    FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Spec, TxScratchpad,
+    FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, TxScratchpad,
     WorkingSet,
 };
 use tracing::{debug, error, warn};
@@ -221,7 +220,7 @@ where
 
     let mut tx_receipts = Vec::new();
     let mut gas_used = S::Gas::zero();
-    let mut accumulated_reward = SequencerReward::ZERO;
+    let mut accumulated_reward = 0;
 
     debug!(
         batch_id = hex::encode(batch.id),
@@ -289,7 +288,7 @@ where
             tx_receipts.push(receipt);
 
             let sequencer_reward = transaction_consumption.priority_fee();
-            accumulated_reward.accumulate(sequencer_reward);
+            accumulated_reward += sequencer_reward.0;
         }
     }
 
@@ -300,7 +299,12 @@ where
             da_address: sequencer_da_address,
             gas_price: gas_price.clone(),
             gas_used: gas_used.clone(),
-            outcome: BatchSequencerOutcome::Rewarded(accumulated_reward),
+            outcome: BatchSequencerOutcome::Executed(Rewards {
+                accumulated_reward,
+                accumulated_penalty: 0,
+                // In the unregistered case, the sequencer does not cover the costs for the hooks.
+                hooks_cost: 0,
+            }),
         },
     };
 

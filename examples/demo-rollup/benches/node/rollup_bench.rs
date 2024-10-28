@@ -97,8 +97,8 @@ fn build_send_tx(sender: &TestUser<BenchSpec>, nonce: u64, token_id: TokenId) ->
 
 fn assert_batch_receipts<S: Spec>(batch_receipts: &[BatchReceipt<S>]) {
     for batch in batch_receipts {
-        if let BatchSequencerOutcome::Rewarded(r) = batch.inner.outcome {
-            assert_eq!(0, r.0);
+        if let BatchSequencerOutcome::Executed(r) = &batch.inner.outcome {
+            assert_eq!(0, r.accumulated_reward);
         } else {
             panic!("Unexpected batch outcome: {:?}", batch.inner.outcome);
         }

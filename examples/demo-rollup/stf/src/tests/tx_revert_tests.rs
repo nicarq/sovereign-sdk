@@ -2,7 +2,6 @@ use std::convert::Infallible;
 
 use sov_bank::config_gas_token_id;
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
-use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, PrivateKey, PublicKey, Spec,
 };
@@ -19,10 +18,21 @@ use crate::tests::da_simulation::{
     simulate_da_with_bad_nonce, simulate_da_with_bad_serialization, simulate_da_with_bad_sig,
     simulate_da_with_revert_msg,
 };
-use crate::tests::{has_tx_events, new_test_blob_from_batch, StfBlueprintTest};
+use crate::tests::{default_rewards, has_tx_events, new_test_blob_from_batch, StfBlueprintTest};
 
 // Assume there was a proper address and we converted it to bytes already.
 const SEQUENCER_DA_ADDRESS: [u8; 32] = [1; 32];
+
+fn assert_outcome(outcome: &BatchSequencerOutcome) {
+    match outcome {
+        BatchSequencerOutcome::Executed(rewards) => {
+            assert_eq!(rewards.accumulated_reward, 0);
+            assert!(rewards.accumulated_penalty > 0);
+            assert_eq!(rewards.hooks_cost, 0);
+        }
+        BatchSequencerOutcome::Ignored(_) => todo!(),
+    }
+}
 
 #[test]
 fn test_tx_revert() -> Result<(), Infallible> {
@@ -71,9 +81,9 @@ fn test_tx_revert() -> Result<(), Infallible> {
         let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
+            BatchSequencerOutcome::Executed(default_rewards()),
             apply_blob_outcome.inner.outcome,
-            "Unexpected outcome: Batch execution should have succeeded",
+            "Sequencer execution should have succeeded but failed "
         );
 
         let txn_receipts = apply_block_result.batch_receipts[0].tx_receipts.clone();
@@ -172,10 +182,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
 
         let batch_receipt = &apply_block_result.batch_receipts[0];
 
-        assert_eq!(
-            batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-        );
+        assert_outcome(&batch_receipt.inner.outcome);
 
         let tx_receipts = &batch_receipt.tx_receipts;
 
@@ -189,10 +196,7 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
             unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
         }
 
-        assert_eq!(
-            batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-        );
+        assert_outcome(&batch_receipt.inner.outcome);
 
         // The batch receipt contains no events.
         assert!(!has_tx_events(batch_receipt));
@@ -297,12 +301,7 @@ fn test_tx_bad_nonce() {
 
         // Since the sequencer is penalized, he is rewarded with 0 tokens.
         let sequencer_outcome = apply_block_result.batch_receipts[0].inner.clone().outcome;
-        assert_eq!(
-            sequencer_outcome,
-            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
-            "Unexpected outcome: Batch execution should have succeeded"
-        );
-
+        assert_outcome(&sequencer_outcome);
         // We can check that the sequencer staked amount went down.
         storage_manager.commit(apply_block_result.change_set);
 
@@ -375,10 +374,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
 
         let batch_receipt = &apply_block_result.batch_receipts[0];
 
-        assert_eq!(
-            batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-        );
+        assert_outcome(&batch_receipt.inner.outcome);
 
         let tx_receipts = &batch_receipt.tx_receipts;
 
@@ -392,10 +388,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
             unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
         }
 
-        assert_eq!(
-            batch_receipt.inner.outcome,
-            sov_modules_api::BatchSequencerOutcome::Rewarded(SequencerReward(0))
-        );
+        assert_outcome(&batch_receipt.inner.outcome);
 
         // The batch receipt contains no events.
         assert!(!has_tx_events(batch_receipt));

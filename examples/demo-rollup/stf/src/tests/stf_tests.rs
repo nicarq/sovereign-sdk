@@ -3,7 +3,6 @@ use std::vec;
 
 use sov_mock_da::{MockAddress, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_modules_api::capabilities::HasKernel;
-use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     ApiStateAccessor, Batch, BatchSequencerOutcome, ExecutionContext, FullyBakedTx, Spec,
     StateCheckpoint,
@@ -23,8 +22,9 @@ use crate::tests::da_simulation::{
     simulate_da, simulate_da_with_incorrect_direct_registration_msg,
 };
 use crate::tests::{
-    create_genesis_config_for_tests, has_tx_events, new_test_blob_for_direct_registration,
-    new_test_blob_from_batch, read_private_keys, StfBlueprintTest, S,
+    create_genesis_config_for_tests, default_rewards, has_tx_events,
+    new_test_blob_for_direct_registration, new_test_blob_from_batch, read_private_keys,
+    StfBlueprintTest, S,
 };
 
 #[test]
@@ -71,8 +71,9 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
         assert_eq!(4, result.batch_receipts[0].tx_receipts.len());
 
         let apply_blob_outcome = result.batch_receipts[0].clone();
+
         assert_eq!(
-            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
+            BatchSequencerOutcome::Executed(default_rewards()),
             apply_blob_outcome.inner.outcome,
             "Sequencer execution should have succeeded but failed "
         );
@@ -147,7 +148,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let apply_blob_outcome = apply_block_result.batch_receipts[0].clone();
 
     assert_eq!(
-        BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
+        BatchSequencerOutcome::Executed(default_rewards()),
         apply_blob_outcome.inner.outcome,
         "Sequencer execution should have succeeded but failed"
     );
@@ -234,7 +235,7 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     for batch_receipt in apply_block_result.batch_receipts.iter() {
         assert_eq!(
             batch_receipt.inner.outcome,
-            BatchSequencerOutcome::Rewarded(SequencerReward::ZERO),
+            BatchSequencerOutcome::Executed(default_rewards()),
         );
         let tx_receipt = &batch_receipt.tx_receipts;
 
@@ -480,7 +481,7 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     let first_registered_receipt = &apply_block_result.batch_receipts[0];
     assert_eq!(
         first_registered_receipt.inner.outcome,
-        BatchSequencerOutcome::Rewarded(SequencerReward::ZERO)
+        BatchSequencerOutcome::Executed(default_rewards())
     );
 
     // ensure the filler blobs have the right outcome
