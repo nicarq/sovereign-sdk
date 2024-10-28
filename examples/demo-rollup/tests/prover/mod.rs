@@ -59,7 +59,12 @@ async fn test_proof_generation() {
     let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
-    let (mut prev_state_root, stf_state) = stf.init_chain(stf_state, genesis_config);
+    let (mut prev_state_root, stf_state) = stf.init_chain(
+        &Default::default(),
+        &Default::default(),
+        stf_state,
+        genesis_config,
+    );
     storage_manager
         .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
         .unwrap();

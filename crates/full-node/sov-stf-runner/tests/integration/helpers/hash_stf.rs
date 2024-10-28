@@ -80,6 +80,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
 
     fn init_chain(
         &self,
+        _genesis_rollup_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {

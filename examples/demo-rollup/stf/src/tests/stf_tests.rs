@@ -43,7 +43,8 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
     {
         let stf: StfBlueprintTest = StfBlueprint::new();
         let stf_state = storage_manager.create_storage();
-        let (genesis_root, stf_change_set) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_change_set) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
         storage_manager.commit(stf_change_set);
 
         let txs = simulate_da(admin_private_key);
@@ -113,7 +114,8 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let (stf_state, _) = storage_manager
         .create_state_for(genesis_block.header())
         .unwrap();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+    let (genesis_root, stf_state) =
+        stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
     storage_manager
         .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
         .unwrap();
@@ -197,7 +199,8 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
     let mut storage_manager = SimpleStorageManager::new(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
     let stf_state = storage_manager.create_storage();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+    let (genesis_root, stf_state) =
+        stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
     storage_manager.commit(stf_state);
 
     let direct_sequencer: [u8; 32] = [121; 32];
@@ -277,7 +280,8 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
     let mut storage_manager = SimpleStorageManager::new(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
     let stf_state = storage_manager.create_storage();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+    let (genesis_root, stf_state) =
+        stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
     storage_manager.commit(stf_state);
 
     let genesis_block = MockBlock::default();
@@ -352,7 +356,8 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
     let mut storage_manager = SimpleStorageManager::new(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
     let stf_state = storage_manager.create_storage();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+    let (genesis_root, stf_state) =
+        stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
     storage_manager.commit(stf_state);
 
     let genesis_block = MockBlock::default();
@@ -409,7 +414,8 @@ fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_
     let mut storage_manager = SimpleStorageManager::new(path);
     let stf: StfBlueprintTest = StfBlueprint::new();
     let stf_state = storage_manager.create_storage();
-    let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+    let (genesis_root, stf_state) =
+        stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
     storage_manager.commit(stf_state);
 
     let genesis_block = MockBlock::default();

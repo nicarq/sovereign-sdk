@@ -55,7 +55,8 @@ fn test_tx_revert() -> Result<(), Infallible> {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let stf_state = storage_manager.create_storage();
-        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_changes) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
         storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_revert_msg(admin_key.clone());
@@ -155,7 +156,8 @@ fn test_tx_bad_signature() -> Result<(), Infallible> {
         let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
         let stf_state = storage_manager.create_storage();
-        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_changes) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
         storage_manager.commit(stf_changes);
 
         let txs = simulate_da_with_bad_sig(admin_key.clone());
@@ -251,7 +253,8 @@ fn test_tx_bad_nonce() {
         let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(path);
         let stf: StfBlueprintTest = StfBlueprint::new();
         let stf_state = storage_manager.create_storage();
-        let (genesis_root, stf_state) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_state) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
         storage_manager.commit(stf_state);
 
         let txs = simulate_da_with_bad_nonce(admin_key);
@@ -332,7 +335,8 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         let stf: StfBlueprintTest = StfBlueprint::new();
 
         let stf_state = storage_manager.create_storage();
-        let (genesis_root, stf_changes) = stf.init_chain(stf_state, config);
+        let (genesis_root, stf_changes) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, config);
         storage_manager.commit(stf_changes);
 
         let balance = {

@@ -149,7 +149,12 @@ fn initialize_rollup(
         runtime: rt_genesis,
     };
 
-    stf.init_chain(stf_state, genesis_config)
+    stf.init_chain(
+        &Default::default(),
+        &Default::default(),
+        stf_state,
+        genesis_config,
+    )
 }
 
 fn prefill_state(

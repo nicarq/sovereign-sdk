@@ -31,9 +31,9 @@ pub use reth_primitives::Address as EvmAddress;
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
-    AccessoryStateVec, CallResponse, Context, Error, GenesisState, InfallibleStateReaderAndWriter,
-    Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, StateVec,
-    TxState, UnmeteredStateWrapper,
+    AccessoryStateVec, CallResponse, Context, DaSpec, Error, GenesisState,
+    InfallibleStateReaderAndWriter, Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap,
+    StateReader, StateValue, StateVec, TxState, UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -133,6 +133,8 @@ impl<S: Spec> Module for Evm<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

@@ -222,6 +222,8 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     /// If the init chain fails we panic.
     fn init_chain(
         &self,
+        genesis_rollup_header: &Da::BlockHeader,
+        validity_condition: &Da::ValidityCondition,
         genesis_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet);

@@ -9,8 +9,8 @@ pub use event::Event;
 pub use query::*;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, TxState,
+    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateValue, TxState,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +48,8 @@ impl<S: Spec> Module for ExampleModule<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

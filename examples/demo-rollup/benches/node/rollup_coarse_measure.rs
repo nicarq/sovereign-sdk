@@ -211,7 +211,12 @@ fn setup(
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
 
-    let (mut current_root, stf_state) = stf.init_chain(stf_state, demo_genesis_config);
+    let (mut current_root, stf_state) = stf.init_chain(
+        &Default::default(),
+        &Default::default(),
+        stf_state,
+        demo_genesis_config,
+    );
 
     let data_to_commit: SlotCommit<MockBlock, BatchSequencerOutcome, ()> =
         SlotCommit::new(MockBlock {

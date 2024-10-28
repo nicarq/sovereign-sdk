@@ -56,6 +56,8 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     // Perform one-time initialization for the genesis block.
     fn init_chain(
         &self,
+        _genesis_block_header: &Da::BlockHeader,
+        _validity_condition: &Da::ValidityCondition,
         _base_state: Self::PreState,
         _params: Self::GenesisParams,
     ) -> ([u8; 0], ()) {

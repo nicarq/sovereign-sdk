@@ -1,3 +1,6 @@
+## 2024-10-28
+- #1757 Adds two new parameters to the `genesis` method of the modules. Please ensure to reflect that change in your `genesis` implementations.
+
 ## 2024-10-25
 - #1741 Update the `BatchReceipt` structure. Now the gas related information is tracked in `BatchSequencerReceipt`.
 

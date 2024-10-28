@@ -11,8 +11,8 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    TxState,
+    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, TxState,
 };
 mod event;
 pub use crate::event::Event;
@@ -45,6 +45,8 @@ impl<S: Spec> Module for NonFungibleToken<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

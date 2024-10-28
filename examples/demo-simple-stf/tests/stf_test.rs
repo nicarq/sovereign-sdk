@@ -10,7 +10,13 @@ fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
     let stf = &mut CheckHashPreimageStf::<MockValidityCond>::default();
-    StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::init_chain(stf, (), ());
+    StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::init_chain(
+        stf,
+        &MockBlockHeader::default(),
+        &MockValidityCond::default(),
+        (),
+        (),
+    );
 
     let mut batch_blobs = {
         let incorrect_preimage = vec![1; 32];
