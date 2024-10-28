@@ -60,6 +60,8 @@ pub mod first_test_module {
 
         fn genesis(
             &self,
+            _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
@@ -131,6 +133,8 @@ pub mod second_test_module {
 
         fn genesis(
             &self,
+            _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
@@ -216,6 +220,8 @@ pub mod third_test_module {
 
         fn genesis(
             &self,
+            _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
@@ -305,7 +311,14 @@ mod derive_genesis {
         let config = GenesisConfig::new((), (), ());
         let mut genesis_state =
             state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
-        runtime.genesis(&config, &mut genesis_state).unwrap();
+        runtime
+            .genesis(
+                &Default::default(),
+                &Default::default(),
+                &config,
+                &mut genesis_state,
+            )
+            .unwrap();
         let mut working_set = state.to_working_set_unmetered();
 
         {
@@ -365,7 +378,14 @@ mod derive_dispatch {
         let config = GenesisConfig::new((), (), ());
         let mut genesis_state =
             state.to_genesis_state_accessor::<Runtime<ZkTestSpec, u32>, ZkTestSpec>(&config);
-        runtime.genesis(&config, &mut genesis_state).unwrap();
+        runtime
+            .genesis(
+                &Default::default(),
+                &Default::default(),
+                &config,
+                &mut genesis_state,
+            )
+            .unwrap();
         let mut working_set = state.to_working_set_unmetered();
 
         let sender = Address::try_from([0; 32].as_ref()).unwrap();

@@ -19,8 +19,8 @@ pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{
-    CallResponse, Context, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, TxState,
+    CallResponse, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateMap, TxState,
 };
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -88,6 +88,8 @@ impl<S: Spec> Module for Bank<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

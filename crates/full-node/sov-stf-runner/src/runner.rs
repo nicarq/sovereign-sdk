@@ -120,7 +120,13 @@ where
     // Ledger state is not used, as we know it should be empty
     let (stf_state, _ledger_state) = storage_manager.create_state_for(&block_header)?;
 
-    let (genesis_state_root, initialized_storage) = stf.init_chain(stf_state, genesis_params);
+    let (genesis_state_root, initialized_storage) = stf.init_chain(
+        &block_header,
+        &genesis_block.validity_condition(),
+        stf_state,
+        genesis_params,
+    );
+
     let data_to_commit: SlotCommit<_, Stf::BatchReceiptContents, Stf::TxReceiptContents> =
         SlotCommit::new(genesis_block);
     let mut ledger_change_set =

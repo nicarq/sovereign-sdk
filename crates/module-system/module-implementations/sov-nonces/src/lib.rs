@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod capabilities;
 use sov_modules_api::{
-    CallResponse, Context, CredentialId, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    CallResponse, Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, NotInstantiable, Spec, StateMap, StateReader, TxState,
 };
 use sov_state::User;
@@ -44,6 +44,8 @@ impl<S: Spec> Module for Nonces<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

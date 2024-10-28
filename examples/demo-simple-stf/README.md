@@ -54,13 +54,24 @@ Now that we have defined the necessary types, we need to implement the following
 
 ```rust, ignore
     // Perform one-time initialization for the genesis block.
-    fn init_chain(&mut self, _params: Self::InitialState) {
+    fn init_chain(&mut self, 
+        genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+        pre_state: Self::PreState,
+        params: Self::GenesisParams) {
         // Do nothing
     }
 
     // Called at the beginning of each DA-layer block - whether or not that block contains any
     // data relevant to the rollup.
-    fn begin_slot(&mut self, _witness: Self::Witness) {
+    fn begin_slot(
+        &self,
+        state: &mut StateCheckpoint<S::Storage>,
+        slot_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
+        pre_state_root: &<S::Storage as Storage>::Root,
+        visible_hash: &<S::Storage as Storage>::Root,
+    ) {
         // Do nothing
     }
 ```
@@ -123,8 +134,11 @@ The above function reads the data from the blob, computes the `hash`, compares i
 The last method is `end_slot`, like before the implementation is trivial:
 
 ```rust, ignore
-   fn end_slot(
-        &mut self,
+    fn end_slot(
+        &self,
+        storage: S::Storage,
+        gas_used: &S::Gas,
+        mut checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         Self::StateRoot,
         Self::Witness,
@@ -163,7 +177,7 @@ fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
     let stf = &mut CheckHashPreimageStf::<MockValidityCond>::default();
-    StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::init_chain(stf, (), ());
+    StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::init_chain(stf, &Default::default(), &Default::default(), (), ());
 
     let mut batch_blobs = {
         let incorrect_preimage = vec![1; 32];

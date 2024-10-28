@@ -2,7 +2,7 @@ use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, CallResponse, Context,
-    GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
+    DaSpec, GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
     StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
@@ -41,6 +41,8 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
     ) -> Result<(), ModuleError> {

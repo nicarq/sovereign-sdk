@@ -58,6 +58,8 @@ pub mod my_module {
 
         fn genesis(
             &self,
+            _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+            _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
             config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
         ) -> Result<(), Error> {
@@ -126,7 +128,14 @@ fn associated_types() {
     let runtime = &mut Runtime::<S, ActualSpec>::default();
     let config = GenesisConfig::new(22);
     let mut genesis_state = state.to_genesis_state_accessor::<RT, S>(&config);
-    runtime.genesis(&config, &mut genesis_state).unwrap();
+    runtime
+        .genesis(
+            &Default::default(),
+            &Default::default(),
+            &config,
+            &mut genesis_state,
+        )
+        .unwrap();
     let mut working_set = state.to_working_set_unmetered();
 
     let message: u32 = 33;

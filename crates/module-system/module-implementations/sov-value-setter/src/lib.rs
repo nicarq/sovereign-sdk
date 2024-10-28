@@ -8,8 +8,8 @@ pub use call::*;
 pub use event::Event;
 pub use genesis::*;
 use sov_modules_api::{
-    CallResponse, Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, StateVec, TxState,
+    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateValue, StateVec, TxState,
 };
 
 /// A new module:
@@ -47,6 +47,8 @@ impl<S: Spec> Module for ValueSetter<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

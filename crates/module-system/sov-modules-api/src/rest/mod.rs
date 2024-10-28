@@ -127,6 +127,8 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// #
 /// #    fn genesis(
 /// #        &self,
+/// #        _genesis_slot_header: &<S::Da as DaSpec>::BlockHeader,
+/// #        _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
 /// #        _config: &Self::Config,
 /// #        _state: &mut impl sov_modules_api::state::GenesisState<S>,
 /// #    ) -> Result<(), sov_modules_api::Error> {

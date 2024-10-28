@@ -25,8 +25,8 @@ use sov_modules_api::hooks::TransitionHeight;
 pub use sov_modules_api::optimistic::Attestation;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
-    StateReader, StateValue, TxState,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -132,6 +132,8 @@ where
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

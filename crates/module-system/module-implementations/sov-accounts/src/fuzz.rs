@@ -1,5 +1,5 @@
 use arbitrary::{Arbitrary, Unstructured};
-use sov_modules_api::{CryptoSpec, Module, Spec, StateCheckpoint};
+use sov_modules_api::{CryptoSpec, DaSpec, Module, Spec, StateCheckpoint};
 
 use crate::{Account, AccountConfig, AccountData, Accounts, CallMessage};
 
@@ -47,6 +47,8 @@ impl<'a, S> Accounts<S>
 where
     S: Spec,
     S::Address: Arbitrary<'a>,
+    <S::Da as DaSpec>::BlockHeader: Default,
+    <S::Da as DaSpec>::ValidityCondition: Default,
     <S::CryptoSpec as CryptoSpec>::PublicKey: Arbitrary<'a>,
 {
     /// Creates an arbitrary set of accounts and stores it under `state`.
@@ -61,7 +63,15 @@ where
         let accounts = Accounts::default();
         let mut genesis_state = state.to_genesis_state_accessor::<Accounts<S>, S>(&config);
 
-        if accounts.genesis(&config, &mut genesis_state).is_err() {
+        if accounts
+            .genesis(
+                &Default::default(),
+                &Default::default(),
+                &config,
+                &mut genesis_state,
+            )
+            .is_err()
+        {
             return Err(arbitrary::Error::IncorrectFormat);
         };
 

@@ -120,7 +120,8 @@ where
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
         let sequencer_db = SequencerDb::new(dir.path(), Duration::ZERO)?;
 
-        let (_genesis_root, stf_state) = stf.init_chain(stf_state, params);
+        let (_genesis_root, stf_state) =
+            stf.init_chain(&Default::default(), &Default::default(), stf_state, params);
         storage_manager
             .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
             .unwrap();

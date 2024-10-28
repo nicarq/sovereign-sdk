@@ -12,8 +12,8 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    CallResponse, Context, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateMap, StateReader, StateValue, TxState,
+    CallResponse, Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -72,6 +72,8 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<(), Error> {

@@ -43,6 +43,8 @@ pub trait Module {
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         _config: &Self::Config,
         _state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
@@ -194,6 +196,8 @@ pub trait Genesis {
     /// Initializes the state of the rollup.
     fn genesis(
         &self,
+        genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError>;
@@ -209,9 +213,17 @@ where
 
     fn genesis(
         &self,
+        genesis_rollup_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {
-        <Self as Module>::genesis(self, config, state)
+        <Self as Module>::genesis(
+            self,
+            genesis_rollup_header,
+            validity_condition,
+            config,
+            state,
+        )
     }
 }

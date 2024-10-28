@@ -263,6 +263,8 @@ where
 
     fn init_chain(
         &self,
+        genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
@@ -273,7 +275,12 @@ where
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
 
-        if let Err(e) = self.runtime.genesis(&params.runtime, &mut genesis_accessor) {
+        if let Err(e) = self.runtime.genesis(
+            genesis_rollup_header,
+            validity_condition,
+            &params.runtime,
+            &mut genesis_accessor,
+        ) {
             tracing::error!(error = %e, "Runtime initialization must succeed");
             panic!("Runtime initialization must succeed {}", e);
         }

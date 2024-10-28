@@ -440,6 +440,8 @@ impl<S: Spec> Module for ChainState<S> {
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.
     fn genesis(
         &self,
+        _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<S as Spec>::Da as DaSpec>::ValidityCondition,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
     ) -> Result<(), ModuleError> {

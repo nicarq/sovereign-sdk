@@ -1,7 +1,7 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, GenesisState, Module, ModuleError, ModuleId,
-    ModuleInfo, Spec, StateAccessor, TxState,
+    AccessoryStateValue, CallResponse, Context, DaSpec, GenesisState, Module, ModuleError,
+    ModuleId, ModuleInfo, Spec, StateAccessor, TxState,
 };
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -46,6 +46,8 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
 
     fn genesis(
         &self,
+        _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<S::Da as DaSpec>::ValidityCondition,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
     ) -> Result<(), ModuleError> {

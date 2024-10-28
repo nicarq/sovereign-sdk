@@ -222,7 +222,12 @@ where
 
     println!("Starting from empty storage, initializing chain");
     let stf_state = storage_manager.create_storage();
-    let (mut prev_state_root, stf_changes) = stf.init_chain(stf_state, genesis_config);
+    let (mut prev_state_root, stf_changes) = stf.init_chain(
+        &Default::default(),
+        &Default::default(),
+        stf_state,
+        genesis_config,
+    );
     storage_manager.commit(stf_changes);
 
     // TODO: Fix this with genesis logic.

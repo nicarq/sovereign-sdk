@@ -209,12 +209,17 @@ fn get_result_from_blocks(
 
     let stf = HashStf::<MockValidityCond>::new();
 
-    let (genesis_state_root, change_set) =
-        <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkVerifier,
-            MockZkVerifier,
-            MockDaSpec,
-        >>::init_chain(&stf, storage, genesis_params.to_vec());
+    let (genesis_state_root, change_set) = <HashStf<MockValidityCond> as StateTransitionFunction<
+        MockZkVerifier,
+        MockZkVerifier,
+        MockDaSpec,
+    >>::init_chain(
+        &stf,
+        &Default::default(),
+        &Default::default(),
+        storage,
+        genesis_params.to_vec(),
+    );
     storage_manager.commit(change_set);
 
     let mut state_root = genesis_state_root;
