@@ -3,12 +3,14 @@ use std::convert::Infallible;
 use sov_attester_incentives::Attestation;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
+use sov_db::sequencer_db::SequencerDb;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{
-    ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer, SerializedAttestation,
-    SerializedChallenge, SovApiProofSerializer, Spec, StateTransitionPublicData,
+    ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
+    SerializedChallenge, Spec, StateTransitionPublicData,
 };
+use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_state::{Storage, StorageProof};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{AttesterIncentives, TestRunner};
@@ -16,6 +18,8 @@ use sov_test_utils::{
     assert_matches, generate_optimistic_runtime, AsUser, AtomicNumber, ProofInput, ProofTestCase,
     TestAttester, TestChallenger, TestUser, TransactionType,
 };
+use tokio::runtime::{self, Handle};
+use tokio::task;
 
 pub(crate) type S = sov_test_utils::TestSpec;
 
@@ -171,10 +175,26 @@ pub(crate) fn make_attestation_blob(
     >,
 ) -> Vec<u8> {
     let serialized_attestation = SerializedAttestation::from_attestation(&attestation).unwrap();
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let seq_db = SequencerDb::new(tmp_dir.path(), Default::default()).unwrap();
 
-    SovApiProofSerializer::<S>::new()
-        .serialize_attestation_blob_with_metadata(serialized_attestation)
-        .unwrap()
+    tokio::task::block_in_place(|| {
+        let f = async move {
+            SovApiProofSerializer::<S>::new(&seq_db, false)
+                .serialize_attestation_blob_with_metadata(serialized_attestation)
+                .await
+                .unwrap()
+        };
+
+        if let Ok(handle) = Handle::try_current() {
+            handle.block_on(f)
+        } else {
+            runtime::Builder::new_multi_thread()
+                .build()
+                .unwrap()
+                .block_on(f)
+        }
+    })
 }
 
 pub(crate) fn create_test_case(
@@ -271,7 +291,24 @@ pub(crate) fn make_challenge_blob(
         raw_challenge: serialized_challenge,
     };
 
-    SovApiProofSerializer::<S>::new()
-        .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
-        .unwrap()
+    let tmp_dir = tempfile::tempdir().unwrap();
+    let seq_db = SequencerDb::new(tmp_dir.path(), Default::default()).unwrap();
+
+    task::block_in_place(move || {
+        let f = async move {
+            SovApiProofSerializer::<S>::new(&seq_db, false)
+                .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
+                .await
+                .unwrap()
+        };
+
+        if let Ok(handle) = Handle::try_current() {
+            handle.block_on(f)
+        } else {
+            runtime::Builder::new_multi_thread()
+                .build()
+                .unwrap()
+                .block_on(f)
+        }
+    })
 }

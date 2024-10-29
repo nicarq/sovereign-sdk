@@ -24,8 +24,8 @@ impl<S> BatchBuilderConfig<S> {
             mode: BatchBuilderMode::Standard(config),
         }
     }
-    /// Build a config for the preferred sequencing mode with no admin addresses
 
+    /// Build a config for the preferred sequencing mode with no admin addresses
     pub fn preferred() -> Self {
         Self {
             admin_addresses: Vec::new(),
@@ -82,17 +82,10 @@ pub struct SequencerConfig<Da: DaSpec, BbConfig> {
     pub batch_builder: BbConfig,
 }
 
-impl<Da: DaSpec> SequencerConfig<Da, ()> {
-    /// Returns a new [`SequencerConfig`] with the batch builder config set
-    /// to the unit struct `()`.
-    pub fn without_bb_config(&self) -> SequencerConfig<Da, ()> {
-        SequencerConfig {
-            automatic_batch_production: self.automatic_batch_production,
-            max_allowed_blocks_behind: self.max_allowed_blocks_behind,
-            dropped_tx_ttl_secs: self.dropped_tx_ttl_secs,
-            da_address: self.da_address.clone(),
-            batch_builder: (),
-        }
+impl<Da: DaSpec, Addr> SequencerConfig<Da, BatchBuilderConfig<Addr>> {
+    /// Returns true if the batch builder uses [`BatchBuilderMode::Preferred`].
+    pub fn is_preferred_sequencer(&self) -> bool {
+        self.batch_builder.mode == BatchBuilderMode::Preferred
     }
 }
 

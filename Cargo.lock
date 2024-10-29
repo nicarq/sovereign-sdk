@@ -9513,9 +9513,11 @@ dependencies = [
  "sov-attester-incentives",
  "sov-bank",
  "sov-chain-state",
+ "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-rollup-blueprint",
  "sov-rollup-interface",
  "sov-state",
  "sov-test-utils",
@@ -9732,6 +9734,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -10224,9 +10227,11 @@ dependencies = [
  "serde",
  "sov-bank",
  "sov-chain-state",
+ "sov-db",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-rollup-blueprint",
  "sov-prover-incentives",
  "sov-state",
  "sov-test-utils",
@@ -12591,6 +12596,7 @@ version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
+ "arbitrary",
  "getrandom 0.2.15",
 ]
 

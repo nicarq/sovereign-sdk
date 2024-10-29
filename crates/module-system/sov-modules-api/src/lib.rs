@@ -111,7 +111,6 @@ pub use state::*;
 pub use {schemars, sov_universal_wallet};
 
 pub use crate::common::ModuleError as Error;
-pub use crate::proof_metadata::SovApiProofSerializer;
 pub use crate::state::StateReaderAndWriter;
 
 /// Prelude with re-exports of external crates used by macros, as well as

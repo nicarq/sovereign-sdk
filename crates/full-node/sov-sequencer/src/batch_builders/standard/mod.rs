@@ -35,8 +35,7 @@ use crate::batch_builders::{
     pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
     FreshlyBuiltBatch, TxWithHash,
 };
-use crate::db::SeqDbTx;
-use crate::{TxHash, TxStatus, TxStatusManager};
+use crate::{SeqDbTx, SeqDbTxExtend, TxHash, TxStatus, TxStatusManager};
 
 /// Configuration for [`StdBatchBuilder`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, JsonSchema)]
@@ -407,7 +406,11 @@ where
 
     /// Builds a new batch of valid transactions in order they were added to mempool.
     /// Only transactions which are dispatched successfully are included in the batch.
-    async fn build_next_batch(&mut self, _height: u64) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
+    async fn build_next_batch(
+        &mut self,
+        _height: u64,
+        _sequence_number: u64,
+    ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
         tracing::debug!("build_next_batch has been called");
 
         let state_checkpoint = self.checkpoint.take().unwrap();

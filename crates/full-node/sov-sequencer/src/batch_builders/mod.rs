@@ -8,6 +8,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use borsh::BorshSerialize;
+use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{
     AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
     SequencerAuthorization, TransactionAuthenticator,
@@ -21,7 +22,7 @@ use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
 use tracing::error;
 
-use crate::{SeqDbTx, TxHash, TxStatusManager};
+use crate::{TxHash, TxStatusManager};
 
 pub mod preferred;
 pub mod standard;
@@ -114,7 +115,11 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// Builds a new batch out of transactions in mempool.
     /// The logic of which transactions and how many of them are included in
     /// batch is up to implementation.
-    async fn build_next_batch(&mut self, height: u64) -> anyhow::Result<FreshlyBuiltBatch<Self>>;
+    async fn build_next_batch(
+        &mut self,
+        height: u64,
+        sequence_number: u64,
+    ) -> anyhow::Result<FreshlyBuiltBatch<Self>>;
 
     /// Called after [`BatchBuilder::build_next_batch`] to reset the batch
     /// builder.

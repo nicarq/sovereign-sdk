@@ -17,7 +17,7 @@ use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, DataWithEvents, FreshlyBuiltBatch,
 };
 use crate::drop_notifier::{DropNotification, DropNotifier};
-use crate::{SeqDbTx, SequencerDb, SequencerSpec};
+use crate::{SeqDbTx, SeqDbTxExtend, SequencerDb, SequencerSpec};
 
 /// Single data structure that manages mempool and batch producing.
 #[derive(Clone, derive_more::Deref)]
@@ -46,10 +46,17 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         da_height: u64,
         batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
     ) -> anyhow::Result<SubmittedBatchInfo> {
+        let sequence_number = self
+            .sequencer_db
+            .get_and_increase_next_sequence_number()
+            .await?;
+
         let FreshlyBuiltBatch {
             inner: next_batch,
             hashes: tx_hashes,
-        } = batch_builder.build_next_batch(da_height).await?;
+        } = batch_builder
+            .build_next_batch(da_height, sequence_number)
+            .await?;
         let num_txs = tx_hashes.len();
         let serialized_batch = borsh::to_vec(&next_batch)
             .expect("Failed to serialize batch inside sequencer; this is a bug, please report it");
@@ -193,6 +200,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                         })
                         .ok();
                 }
+
                 let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
 
                 // Send notification.
@@ -281,7 +289,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         // TTL'd where it will report `Submitted` instead of `Dropped`
         if let Some(status) = self.tx_status_manager.get_cached(tx_hash) {
             return Ok(Some(status));
-        } else if self.sequencer_db.contains_tx(tx_hash).await? {
+        } else if self.sequencer_db.get(tx_hash).await?.is_some() {
             return Ok(Some(TxStatus::Submitted));
         }
         Ok(None)

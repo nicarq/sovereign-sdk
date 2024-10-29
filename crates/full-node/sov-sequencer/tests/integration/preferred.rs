@@ -8,6 +8,7 @@ use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
+use sov_sequencer::SeqDbTxExtend;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;
@@ -76,7 +77,7 @@ async fn restore_txs_from_seq_db() {
     .await
     .unwrap();
 
-    let batch = restored_batch_builder.build_next_batch(0).await.unwrap();
+    let batch = restored_batch_builder.build_next_batch(0, 0).await.unwrap();
 
     assert_eq!(batch.hashes.len(), 1);
 }
