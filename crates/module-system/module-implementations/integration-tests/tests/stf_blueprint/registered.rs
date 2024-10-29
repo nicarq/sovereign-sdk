@@ -151,6 +151,7 @@ fn execute_batch_of_valid_and_invalid_tx_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::SignerDoesNotExist,
         TxStatus::Success,
         TxStatus::BadSignature,
         TxStatus::Success,
@@ -174,6 +175,7 @@ fn execute_batch_of_invalid_tx_test() {
         TxStatus::BadNonce,
         TxStatus::BadChainId,
         TxStatus::BadSignature,
+        TxStatus::SignerDoesNotExist,
     ];
     check_txs(tx_statuses, priority_fee_bips);
 }
@@ -354,9 +356,7 @@ mod helpers {
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
     ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
-            CallMessage::SetValue(8),
-        );
+        let encoded_message = encode_message();
 
         let utx = UnsignedTransaction::new(
             encoded_message.clone(),
@@ -375,9 +375,7 @@ mod helpers {
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
     ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
-            CallMessage::SetValue(8),
-        );
+        let encoded_message = encode_message();
 
         let utx = UnsignedTransaction::<S>::new(
             encoded_message.clone(),
@@ -398,14 +396,31 @@ mod helpers {
         TransactionType::PreSigned(RawTx { data: tx })
     }
 
+    fn create_tx_bad_sender(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+    ) -> TransactionType<ValueSetter<S>, S> {
+        let encoded_message = encode_message();
+
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            config_value!("CHAIN_ID"),
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        let signer = TestUser::<S>::generate(0);
+        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
+    }
+
     fn create_tx_valid(
         nonce: u64,
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
     ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
-            CallMessage::SetValue(8),
-        );
+        let encoded_message = encode_message();
 
         let utx = UnsignedTransaction::new(
             encoded_message.clone(),
@@ -427,6 +442,7 @@ mod helpers {
     ) -> Vec<TransactionType<ValueSetter<S>, S>> {
         let mut nonce = 0;
         let mut reverted_tx_nonce = 0;
+        let mut bad_signer_nonce = 0;
         let mut txs = Vec::new();
         for status in statuses {
             match status {
@@ -453,8 +469,17 @@ mod helpers {
                     let tx = create_tx_bad_sig(nonce, max_priority_fee_bips, admin);
                     txs.push(tx);
                 }
+                TxStatus::SignerDoesNotExist => {
+                    let tx = create_tx_bad_sender(bad_signer_nonce, max_priority_fee_bips);
+                    txs.push(tx);
+                    bad_signer_nonce += 1;
+                }
             }
         }
         txs
+    }
+
+    fn encode_message() -> Vec<u8> {
+        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8))
     }
 }
