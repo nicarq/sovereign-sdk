@@ -64,6 +64,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
         let seq_fee;
         let bond_amount;
         let mut total_gas = <<S as Spec>::Gas>::zero();
+
         match &tx_receipt.receipt {
             TxEffect::Successful(tx_contents) => {
                 total_gas.combine(&tx_contents.gas_used);
@@ -143,6 +144,7 @@ fn execute_seq_registration_failure_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::SignerDoesNotExist,
         TxStatus::BadNonce,
         TxStatus::BadNonce,
         TxStatus::BadSignature,
@@ -184,6 +186,28 @@ mod helpers {
         pub(crate) fn total_balance(&self) -> u64 {
             self.potential_seq_bank_balance + self.potential_seq_bond + self.attester_module_balance
         }
+    }
+
+    fn create_tx_bad_sender(
+        nonce: u64,
+        max_priority_fee_bips: PriorityFeeBips,
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+        chain_id: u64,
+    ) -> MockBlob {
+        let encoded_message = encode_message(da_address, BOND_AMOUNT);
+
+        let utx = UnsignedTransaction::new(
+            encoded_message.clone(),
+            chain_id,
+            max_priority_fee_bips,
+            200_000,
+            nonce,
+            None,
+        );
+
+        let signer = TestUser::<S>::generate(0);
+        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
+        encode_tx(signed_tx, da_address)
     }
 
     // Creates a forced-registration blob that will be sent to the sequencer.
@@ -312,6 +336,12 @@ mod helpers {
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
+                potential_seq.da_address,
+                config_value!("CHAIN_ID"),
+            ),
+            TxStatus::SignerDoesNotExist => create_tx_bad_sender(
+                0,
+                max_priority_fee_bips,
                 potential_seq.da_address,
                 config_value!("CHAIN_ID"),
             ),
