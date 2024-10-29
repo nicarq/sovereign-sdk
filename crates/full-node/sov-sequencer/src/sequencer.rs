@@ -123,6 +123,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         let (drop_notifier, dropped) = DropNotifier::build();
         let api_state = batch_builder.api_state();
+
         let inner = Arc::new(Inner {
             batch_builder: Mutex::new(batch_builder),
             events_sender,
@@ -332,7 +333,10 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
 
                 // Update storage.
                 let storage = storage_receiver.borrow().clone();
-                inner.batch_builder.lock().await.set_state(latest_slot_number, storage).await;
+
+                let mut bb = inner.batch_builder.lock().await;
+                let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
+                bb.set_state(latest_slot_number, storage, last_event_number).await;
 
                 if inner.automatic_batch_production {
                     inner.produce_batch().await?;

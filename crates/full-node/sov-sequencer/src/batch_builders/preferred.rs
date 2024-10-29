@@ -52,22 +52,25 @@ impl<Z: RtAwareBatchBuilderSpec> DataWithEvents for Confirmation<Z> {
     }
 }
 
-impl<Z: RtAwareBatchBuilderSpec> TryFrom<TransactionReceipt<Z::Spec>> for Confirmation<Z> {
-    type Error = anyhow::Error;
-
-    fn try_from(value: TransactionReceipt<Z::Spec>) -> Result<Self, Self::Error> {
-        Ok(Self {
-            tx_hash: value.tx_hash,
-            tx: value.body_to_save.map(TxBody),
-            events: value
-                .events
-                .into_iter()
-                .enumerate()
-                .map(|(idx, event)| <RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((idx as u64, event)))
-                .collect::<anyhow::Result<Vec<_>>>()?,
-            receipt: value.receipt,
-        })
-    }
+fn confirmation<Z: RtAwareBatchBuilderSpec>(
+    receipt: TransactionReceipt<Z::Spec>,
+    next_event_number: u64,
+) -> anyhow::Result<Confirmation<Z>> {
+    Ok(Confirmation {
+        tx_hash: receipt.tx_hash,
+        tx: receipt.body_to_save.map(TxBody),
+        events: receipt
+            .events
+            .into_iter()
+            .zip(next_event_number..)
+            .map(|(event, number)| {
+                <RuntimeEventResponse<<Z::Rt as RuntimeEventProcessor>::RuntimeEvent>>::try_from((
+                    number, event,
+                ))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?,
+        receipt: receipt.receipt,
+    })
 }
 
 /// A batch builder with instant transaction confirmation.
@@ -82,6 +85,7 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     last_da_height: u64,
     txs_in_next_batch: Vec<TxWithHash>,
     admin_addresses: Vec<<Z::Spec as Spec>::Address>,
+    next_event_number: u64,
 }
 
 impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
@@ -208,7 +212,8 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
         self.checkpoint = Some(new_checkpoint);
 
         response.map(|response| {
-            response.map_confirmation(|confirmation| confirmation.try_into().unwrap())
+            response
+                .map_confirmation(|receipt| confirmation(receipt, self.next_event_number).unwrap())
         })
     }
 }
@@ -228,6 +233,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         seq_db_txs: Vec<SeqDbTx>,
         admin_addresses: Vec<<Self::Spec as Spec>::Address>,
         _config: &Self::Config,
+        last_event_number: u64,
     ) -> anyhow::Result<Self> {
         let runtime: Z::Rt = Default::default();
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
@@ -254,6 +260,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             da_sync_state,
             txs_in_next_batch: vec![],
             admin_addresses,
+            next_event_number: last_event_number + 1,
         };
 
         // Restore persisted transactions.
@@ -283,7 +290,12 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         TxStatusManager::default()
     }
 
-    async fn set_state(&mut self, da_height: u64, stf_state: <Z::Spec as Spec>::Storage) {
+    async fn set_state(
+        &mut self,
+        da_height: u64,
+        stf_state: <Z::Spec as Spec>::Storage,
+        last_event_number: u64,
+    ) {
         let txs_to_process = self.txs_in_next_batch.clone();
 
         info!(
@@ -308,7 +320,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
             let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
                 .expect("Failed to deserialize transaction");
-            if let Err(error) = self.accept_tx(tx_input).await {
+            if let Err(error) = self.accept_tx_internal(tx_input).await {
                 error!(
                     ?error,
                     "Transaction was soft-confirmed but failed to be re-applied"
@@ -316,6 +328,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             }
         }
 
+        self.next_event_number = last_event_number + 1;
         self.checkpoint_sender
             .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
             .ok();
@@ -339,6 +352,10 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     .clone_with_empty_witness(),
             )
             .ok();
+
+        if let Ok(ref ok) = response {
+            self.next_event_number += ok.confirmation.events.len() as u64;
+        }
 
         response
     }

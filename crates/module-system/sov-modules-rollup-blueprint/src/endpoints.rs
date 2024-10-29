@@ -11,6 +11,7 @@ use sov_modules_api::rest::{HasRestApi, StorageReceiver};
 use sov_modules_api::{RuntimeEventProcessor, Spec, SyncStatus};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
@@ -47,6 +48,8 @@ where
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
     let da_address = sequencer_config.da_address.clone();
+    let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
+
     let (api_state, sequencer_router) = match &sequencer_config.batch_builder.mode {
         BatchBuilderMode::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
@@ -56,6 +59,7 @@ where
                 sequencer_db.read_all()?,
                 sequencer_config.batch_builder.admin_addresses.clone(),
                 bb_config,
+                last_event_number,
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
@@ -80,6 +84,7 @@ where
                 sequencer_db.read_all()?,
                 sequencer_config.batch_builder.admin_addresses.clone(),
                 &(),
+                last_event_number,
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();

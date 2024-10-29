@@ -73,6 +73,7 @@ async fn restore_txs_from_seq_db() {
         db_txs,
         Vec::new(),
         &(),
+        0,
     )
     .await
     .unwrap();
