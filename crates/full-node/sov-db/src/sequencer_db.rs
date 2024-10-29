@@ -1,36 +1,48 @@
+//! Database for sequencer-related data.
+
 use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use rockbound::SchemaBatch;
-use sov_db::rocks_db_config::gen_rocksdb_options;
-use sov_db::{
-    define_table_with_seek_key_codec, define_table_without_codec, impl_borsh_value_codec,
-};
-use sov_modules_api::FullyBakedTx;
 use sov_rollup_interface::TxHash;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::batch_builders::BatchBuilder;
+use crate::rocks_db_config::gen_rocksdb_options;
+use crate::{
+    define_table_with_default_codec, define_table_with_seek_key_codec, define_table_without_codec,
+    impl_borsh_value_codec,
+};
 
 /// Transactions within [`SequencerDb`] are identified by a monotonically
 /// increasing
 /// [UUIDv7](https://en.wikipedia.org/wiki/Universally_unique_identifier#Version_7_(timestamp_and_random)),
 /// which is then converted to a [`u128`].
 pub type SeqDbTxId = u128;
+
+/// Incremental sequence number assigned to each batch. Used by the preferred
+/// sequencer, ignored by the standard sequencer.
+pub type SequenceNumber = u64;
+
 /// A database holding transactions that have been submitted to the sequencer
 /// and other related data.
 #[derive(Clone, Debug)]
 pub struct SequencerDb {
     db: Arc<rockbound::DB>,
     entry_ttl_after_use: Duration,
+    seq_number_lock: Arc<Mutex<()>>,
 }
 
 impl SequencerDb {
     const DB_PATH_SUFFIX: &'static str = "sequencer";
     const DB_NAME: &'static str = "sequencer-db";
-    const TABLES: &'static [&'static str] = &[SeqDbTxByHash::table_name()];
+    const TABLES: &'static [&'static str] = &[
+        AcceptedTxs::table_name(),
+        AcceptedTxsByHash::table_name(),
+        NextSequenceNumber::table_name(),
+    ];
 
     /// Initializes a new [`SequencerDb`] at the given path.
     pub fn new(path: impl AsRef<Path>, entry_ttl_after_use: Duration) -> anyhow::Result<Self> {
@@ -46,13 +58,14 @@ impl SequencerDb {
         Ok(Self {
             db: Arc::new(db),
             entry_ttl_after_use,
+            seq_number_lock: Default::default(),
         })
     }
 
     /// Returns all transactions stored in the database.
     pub fn read_all(&self) -> anyhow::Result<Vec<SeqDbTx>> {
         let mut txs = vec![];
-        for iter_res in self.db.iter::<SeqDbTxByHash>()? {
+        for iter_res in self.db.iter::<AcceptedTxs>()? {
             let item = iter_res?;
             txs.push(item.value);
         }
@@ -63,7 +76,10 @@ impl SequencerDb {
     pub fn remove(&self, hashes: &[TxHash]) -> anyhow::Result<()> {
         let mut batch = SchemaBatch::new();
         for hash in hashes {
-            batch.delete::<SeqDbTxByHash>(hash)?;
+            if let Some(id) = self.db.get::<AcceptedTxsByHash>(hash)? {
+                batch.delete::<AcceptedTxs>(&id)?;
+                batch.delete::<AcceptedTxsByHash>(hash)?;
+            }
         }
         self.db.write_schemas(&batch)?;
         Ok(())
@@ -75,16 +91,37 @@ impl SequencerDb {
     }
 
     /// Returns true if a transaction with the given hash is present in the database.
-    pub async fn contains_tx(&self, tx_hash: &TxHash) -> anyhow::Result<bool> {
-        self.db
-            .get::<SeqDbTxByHash>(tx_hash)
-            .map(|value| value.is_some())
+    pub async fn get(&self, tx_hash: &TxHash) -> anyhow::Result<Option<SeqDbTx>> {
+        let id = self.db.get::<AcceptedTxsByHash>(tx_hash)?;
+
+        if let Some(id) = id {
+            Ok(self.db.get::<AcceptedTxs>(&id)?)
+        } else {
+            Ok(None)
+        }
     }
 
     /// Inserts a single transaction into the mempool.
     pub async fn insert(&self, tx: &SeqDbTx) -> anyhow::Result<()> {
-        self.db.put::<SeqDbTxByHash>(&tx.hash, tx)?;
+        let mut batch = SchemaBatch::new();
+
+        batch.put::<AcceptedTxsByHash>(&tx.hash, &tx.uuid_v7)?;
+        batch.put::<AcceptedTxs>(&tx.uuid_v7, tx)?;
+
+        self.db.write_schemas(&batch)?;
         Ok(())
+    }
+
+    /// Returns the next sequence number to use for serializing preferred
+    /// sequencer blobs. Subsequent calls to this method will return a different
+    /// (higher) next sequence number.
+    pub async fn get_and_increase_next_sequence_number(&self) -> anyhow::Result<u64> {
+        let _lock = self.seq_number_lock.lock().await;
+        let next_sequence_number = self.db.get::<NextSequenceNumber>(&())?.unwrap_or(0);
+        self.db
+            .put::<NextSequenceNumber>(&(), &(next_sequence_number + 1))?;
+
+        Ok(next_sequence_number)
     }
 }
 
@@ -92,9 +129,9 @@ impl SequencerDb {
 #[derive(Debug, Clone, PartialEq, Eq, BorshSerialize, BorshDeserialize)]
 pub struct SeqDbTx {
     /// The encoded transaction bytes.
-    tx_bytes: Vec<u8>,
+    pub tx_bytes: Vec<u8>,
     /// The hash of the transaction, as calculated by
-    /// [`BatchBuilder::accept_tx`](crate::batch_builders::BatchBuilder::accept_tx).
+    /// the batch builder.
     pub hash: TxHash,
     /// A monotonically increasing UUIDv7 counter used to order transactions by
     /// insertion time. Gaps are allowed.
@@ -103,33 +140,32 @@ pub struct SeqDbTx {
 
 impl SeqDbTx {
     /// Creates a new [`SeqDbTx`] from the given transaction bytes.
-    pub fn new<Bb: BatchBuilder>(hash: TxHash, tx_input: Bb::TxInput) -> Self {
+    pub fn new_with_tx_bytes(hash: TxHash, tx_bytes: Vec<u8>) -> Self {
         Self {
-            tx_bytes: borsh::to_vec(&tx_input).unwrap(),
+            tx_bytes,
             hash,
             // UUIDv7 are monotonically increasing. See here:
             // <https://github.com/uuid-rs/uuid/releases/tag/1.9.0>.
             uuid_v7: Uuid::now_v7().as_u128(),
         }
     }
-
-    /// Decodes the transaction bytes stored in the [`SeqDbTx`] into appropriate
-    /// transaction type.
-    pub fn tx_input<Bb: BatchBuilder>(&self) -> Bb::TxInput {
-        borsh::from_slice(&self.tx_bytes)
-            .expect("Failed to deserialize stored transaction; this is a bug, please report it")
-    }
-
-    /// Returns the fully baked transaction bytes stored in the [`SeqDbTx`].
-    pub fn fully_baked_tx(&self) -> FullyBakedTx {
-        FullyBakedTx::new(self.tx_bytes.clone())
-    }
 }
 
 define_table_with_seek_key_codec!(
     /// Accepted transactions waiting to be published as part of a batch and
     /// stored in the [`SequencerDb`], keyed by hash.
-    (SeqDbTxByHash) TxHash => SeqDbTx
+    (AcceptedTxs) SeqDbTxId => SeqDbTx
+);
+
+define_table_with_seek_key_codec!(
+    /// Accepted transactions waiting to be published as part of a batch and
+    /// stored in the [`SequencerDb`], keyed by hash.
+    (AcceptedTxsByHash) TxHash => SeqDbTxId
+);
+
+define_table_with_default_codec!(
+    /// Next sequence number to use for serializing preferred sequencer blobs.
+    (NextSequenceNumber) () => u64
 );
 
 #[cfg(test)]

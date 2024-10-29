@@ -7,6 +7,7 @@ use async_trait::async_trait;
 use axum::http::StatusCode;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
+use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthenticator};
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
@@ -28,7 +29,7 @@ use super::{
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
-use crate::{SeqDbTx, TxStatusManager};
+use crate::{SeqDbTxExtend, TxStatusManager};
 
 #[serde_with::serde_as]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -342,7 +343,11 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         response
     }
 
-    async fn build_next_batch(&mut self, height: u64) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
+    async fn build_next_batch(
+        &mut self,
+        height: u64,
+        sequence_number: u64,
+    ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
         let (txs, hashes) = self
             .txs_in_next_batch
             .iter()
@@ -357,7 +362,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     .min(1)
                     .try_into()
                     .unwrap_or(u8::MAX),
-                sequence_number: 0,
+                sequence_number,
             },
             hashes,
         };
@@ -368,6 +373,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
     async fn clear_batch(&mut self) -> anyhow::Result<()> {
         self.txs_in_next_batch.clear();
+
         Ok(())
     }
 }

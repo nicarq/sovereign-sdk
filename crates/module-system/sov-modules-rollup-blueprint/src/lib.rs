@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
+pub mod proof_serializer;
+#[cfg(feature = "native")]
 mod wallet;
 #[cfg(feature = "native")]
 pub use endpoints::*;
@@ -176,6 +178,13 @@ mod blueprint {
             rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> anyhow::Result<Self::StorageManager>;
 
+        /// Instantiates [`FullNodeBlueprint::ProofSerializer`].
+        fn create_proof_serializer(
+            &self,
+            rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+            sequencer_db: &SequencerDb,
+        ) -> anyhow::Result<Self::ProofSerializer>;
+
         /// Creates an instance of a LedgerDb.
         fn create_ledger_db(
             &self,
@@ -275,7 +284,7 @@ mod blueprint {
                         da_service.clone(),
                         ledger_db.clone(),
                         genesis_state_root,
-                        Box::new(Self::ProofSerializer::new()),
+                        Box::new(self.create_proof_serializer(&rollup_config, &sequencer_db)?),
                     );
 
                     let st_info_sender = match operating_mode {

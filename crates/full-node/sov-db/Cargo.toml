@@ -37,6 +37,7 @@ tokio-stream = { workspace = true }
 hex = { workspace = true }
 tracing = { workspace = true }
 rand = { workspace = true, optional = true }
+uuid = { workspace = true, features = ["std", "v7"] }
 
 [dev-dependencies]
 sov-db = { path = ".", features = ["test-utils"] }
@@ -63,7 +64,8 @@ arbitrary = [
 	"sov-rollup-interface/arbitrary",
 	"sov-test-utils/arbitrary",
 	"sov-mock-da/arbitrary",
-	"sov-db/arbitrary"
+	"sov-db/arbitrary",
+	"uuid/arbitrary"
 ]
 test-utils = ["dep:rand"]
 

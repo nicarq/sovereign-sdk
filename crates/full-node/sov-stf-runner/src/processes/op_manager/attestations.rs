@@ -68,7 +68,8 @@ where
 
             let serialized_blob = self
                 .proof_serializer
-                .serialize_attestation_blob_with_metadata(serialized_attestation)?;
+                .serialize_attestation_blob_with_metadata(serialized_attestation)
+                .await?;
 
             let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
 

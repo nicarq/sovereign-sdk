@@ -158,7 +158,8 @@ where
 
                 let serialized_proof = self
                     .proof_serializer
-                    .serialize_proof_blob_with_metadata(agg_proof)?;
+                    .serialize_proof_blob_with_metadata(agg_proof)
+                    .await?;
 
                 let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 

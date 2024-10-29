@@ -10,8 +10,7 @@ use sov_rollup_interface::TxHash;
 use tracing::debug;
 
 use crate::batch_builders::BatchBuilder;
-use crate::db::{SeqDbTx, SeqDbTxId};
-use crate::{TxStatus, TxStatusManager};
+use crate::{SeqDbTx, SeqDbTxExtend, SeqDbTxId, TxStatus, TxStatusManager};
 
 // mempool picks transactions in this order:
 // - next_priority
@@ -158,7 +157,7 @@ impl MempoolCursor {
 
     pub fn from_db_tx(tx: &SeqDbTx) -> Self {
         Self {
-            tx_size_in_bytes: tx.fully_baked_tx().data.len(),
+            tx_size_in_bytes: tx.tx_bytes.len(),
             uuid_v7: tx.uuid_v7,
         }
     }

@@ -10,8 +10,9 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
 use sov_modules_api::higher_kinded_types::Generic;
-use sov_modules_api::{CryptoSpec, OperatingMode, SovApiProofSerializer, Spec, SyncStatus, Zkvm};
+use sov_modules_api::{CryptoSpec, OperatingMode, Spec, SyncStatus, Zkvm};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
+use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
@@ -180,5 +181,16 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
     ) -> anyhow::Result<Self::StorageManager> {
         NativeStorageManager::new(&rollup_config.storage.path)
+    }
+
+    fn create_proof_serializer(
+        &self,
+        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+        sequencer_db: &SequencerDb,
+    ) -> anyhow::Result<Self::ProofSerializer> {
+        Ok(Self::ProofSerializer::new(
+            sequencer_db,
+            rollup_config.sequencer.is_preferred_sequencer(),
+        ))
     }
 }

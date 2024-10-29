@@ -1,6 +1,7 @@
 use std::str::FromStr;
 use std::sync::Arc;
 
+use axum::async_trait;
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
 use sha2::Sha256;
@@ -112,26 +113,23 @@ impl TestNode {
 
 struct DummyProofSerializer {}
 
+#[async_trait]
 impl ProofSerializer for DummyProofSerializer {
-    fn new() -> Self {
-        DummyProofSerializer {}
-    }
-
-    fn serialize_proof_blob_with_metadata(
+    async fn serialize_proof_blob_with_metadata(
         &self,
         serialized_proof: SerializedAggregatedProof,
     ) -> anyhow::Result<Vec<u8>> {
         Ok(serialized_proof.raw_aggregated_proof)
     }
 
-    fn serialize_attestation_blob_with_metadata(
+    async fn serialize_attestation_blob_with_metadata(
         &self,
         _serialized_attestation: sov_modules_api::SerializedAttestation,
     ) -> anyhow::Result<Vec<u8>> {
         unimplemented!()
     }
 
-    fn serialize_challenge_blob_with_metadata(
+    async fn serialize_challenge_blob_with_metadata(
         &self,
         _serialized_challenge: sov_modules_api::SerializedChallenge,
         _slot_height: u64,
@@ -233,7 +231,7 @@ pub async fn initialize_runner(
                 da_service.clone(),
                 ledger_db.clone(),
                 genesis_state_root,
-                Box::new(DummyProofSerializer::new()),
+                Box::new(DummyProofSerializer {}),
             );
 
             let (st_info_sender, handle) = process_manager
