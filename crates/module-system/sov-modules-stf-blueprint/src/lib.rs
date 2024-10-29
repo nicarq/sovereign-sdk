@@ -404,7 +404,7 @@ where
                         &self.runtime,
                         state,
                         BatchWithSingleTx {
-                            fully_baked_tx: RT::encode_with_standard_auth(tx),
+                            auth_input: RT::add_standard_auth(tx),
                             id: blob.id,
                         },
                         blob_idx,

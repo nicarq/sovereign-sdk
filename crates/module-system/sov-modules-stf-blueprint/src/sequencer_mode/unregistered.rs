@@ -1,13 +1,12 @@
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    calculate_hash, FatalError, GasEnforcer, SequencerRemuneration, TransactionAuthorizer,
+    GasEnforcer, SequencerRemuneration, TransactionAuthenticator, TransactionAuthorizer,
     TryReserveGasError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::{
-    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
-    FullyBakedTx, Gas, GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, TxScratchpad,
-    WorkingSet,
+    BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
+    GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, error, warn};
 
@@ -136,7 +135,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
     runtime: &R,
     meter: BasicGasMeter<S::Gas>,
-    tx: &FullyBakedTx,
+    input: &<R as TransactionAuthenticator<S>>::Input,
     scratchpad: TxScratchpad<S::Storage>,
 ) -> (
     Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
@@ -144,7 +143,7 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
 ) {
     let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
 
-    let res = authenticate_unregistered_with_cycle_count(runtime, tx, &mut pre_exec_working_set);
+    let res = authenticate_unregistered_with_cycle_count(runtime, input, &mut pre_exec_working_set);
     let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     match res {
@@ -156,23 +155,14 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>>(
     runtime: &R,
-    tx: &FullyBakedTx,
+    input: &<R as TransactionAuthenticator<S>>::Input,
     pre_exec_working_set: &mut PreExecWorkingSet<S>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
-    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
-        match calculate_hash::<PreExecWorkingSet<S>, S>(&tx.data, pre_exec_working_set) {
-            Ok(hash) => UnregisteredAuthenticationError::FatalError(
-                FatalError::DeserializationFailed(e.to_string()),
-                hash,
-            ),
-            Err(err) => UnregisteredAuthenticationError::OutOfGas(err.to_string()),
-        }
-    })?;
-    runtime.authenticate_unregistered(&auth_input, pre_exec_working_set)
+    runtime.authenticate_unregistered(input, pre_exec_working_set)
 }
 
-pub(crate) struct BatchWithSingleTx {
-    pub(crate) fully_baked_tx: FullyBakedTx,
+pub(crate) struct BatchWithSingleTx<Input> {
+    pub(crate) auth_input: Input,
     pub(crate) id: [u8; 32],
 }
 
@@ -182,7 +172,7 @@ pub(crate) struct BatchWithSingleTx {
 pub(crate) fn apply_batch<S, RT>(
     runtime: &RT,
     mut checkpoint: StateCheckpoint<S::Storage>,
-    batch: BatchWithSingleTx,
+    batch: BatchWithSingleTx<<RT as TransactionAuthenticator<S>>::Input>,
     blob_idx: usize,
     sequencer_da_address: <S::Da as DaSpec>::Address,
     gas_price: &<S::Gas as Gas>::Price,
@@ -238,7 +228,7 @@ where
     let meter = BasicGasMeter::new(max_auth_cost, gas_price.clone());
 
     let authentication_result =
-        authenticate_unregistered_tx(runtime, meter, &batch.fully_baked_tx, scratchpad);
+        authenticate_unregistered_tx(runtime, meter, &batch.auth_input, scratchpad);
 
     let (validated_output, gas_info, scratchpad) = match authentication_result {
         (Ok((auth_output, gas_info)), scratchpad) => (
