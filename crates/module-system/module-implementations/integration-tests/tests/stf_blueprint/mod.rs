@@ -1,9 +1,9 @@
 mod registered;
 mod unregistered;
-
 use sov_bank::Bank;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, DaSpec, Spec};
+use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
+use sov_modules_api::{ApiStateAccessor, DaSpec, PrivateKey, Spec};
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
@@ -98,4 +98,67 @@ impl TxStatus {
         // Reverted transactions pass the authentication process; therefore, we count them as valid.
         matches!(self, TxStatus::Success | TxStatus::Reverted)
     }
+}
+
+fn create_tx_bad_sig(
+    nonce: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+    signer: &TestUser<S>,
+    chain_id: u64,
+    encoded_message: Vec<u8>,
+) -> Transaction<S> {
+    let utx = UnsignedTransaction::<S>::new(
+        encoded_message.clone(),
+        chain_id,
+        max_priority_fee_bips,
+        200_000,
+        nonce,
+        None,
+    );
+
+    let mut signed_tx = Transaction::new_signed_tx(&signer.private_key, utx);
+
+    // Create a signature for a different message so it won't verify in the stf.
+    let bad_signature = signer.private_key.sign(&[1, 2, 3]);
+    signed_tx.signature = bad_signature;
+
+    signed_tx
+}
+
+fn create_tx_bad_sender(
+    nonce: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+    chain_id: u64,
+    encoded_message: Vec<u8>,
+) -> Transaction<S> {
+    let utx = UnsignedTransaction::new(
+        encoded_message.clone(),
+        chain_id,
+        max_priority_fee_bips,
+        200_000,
+        nonce,
+        None,
+    );
+
+    let signer = TestUser::<S>::generate(0);
+    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+}
+
+fn create_tx_valid(
+    nonce: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+    signer: &TestUser<S>,
+    chain_id: u64,
+    encoded_message: Vec<u8>,
+) -> Transaction<S> {
+    let utx = UnsignedTransaction::new(
+        encoded_message.clone(),
+        chain_id,
+        max_priority_fee_bips,
+        200_000,
+        nonce,
+        None,
+    );
+
+    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
 }

@@ -155,9 +155,8 @@ fn execute_seq_registration_failure_test() {
 }
 
 mod helpers {
-    use sov_modules_api::PrivateKey;
-
     use super::*;
+    use crate::stf_blueprint::{create_tx_bad_sig, create_tx_valid};
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
         pub(crate) user: TestUser<S>,
@@ -191,11 +190,9 @@ mod helpers {
     fn create_tx_bad_sender(
         nonce: u64,
         max_priority_fee_bips: PriorityFeeBips,
-        da_address: <<S as Spec>::Da as DaSpec>::Address,
         chain_id: u64,
-    ) -> MockBlob {
-        let encoded_message = encode_message(da_address, BOND_AMOUNT);
-
+        encoded_message: Vec<u8>,
+    ) -> Transaction<S> {
         let utx = UnsignedTransaction::new(
             encoded_message.clone(),
             chain_id,
@@ -206,41 +203,17 @@ mod helpers {
         );
 
         let signer = TestUser::<S>::generate(0);
-        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
-        encode_tx(signed_tx, da_address)
-    }
-
-    // Creates a forced-registration blob that will be sent to the sequencer.
-    fn create_tx_blob(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        signer: &TestUser<S>,
-        da_address: <<S as Spec>::Da as DaSpec>::Address,
-        chain_id: u64,
-    ) -> MockBlob {
-        let encoded_message = encode_message(da_address, BOND_AMOUNT);
-
-        let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
-            chain_id,
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
-        encode_tx(signed_tx, da_address)
+        Transaction::<S>::new_signed_tx(signer.private_key(), utx)
     }
 
     // Creates a forced-registration blob to be sent to the sequencer, the transaction will be reverted.
-    fn create_tx_blob_reverted(
+    fn create_tx_reverted(
         nonce: u64,
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
         da_address: <<S as Spec>::Da as DaSpec>::Address,
         chain_id: u64,
-    ) -> MockBlob {
+    ) -> Transaction<S> {
         // Here, we attempt to bond more funds than are available for a given user, causing the transaction to be reverted.
         let encoded_message = encode_message(da_address, signer.available_gas_balance + 1);
 
@@ -253,35 +226,7 @@ mod helpers {
             None,
         );
 
-        let signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
-        encode_tx(signed_tx, da_address)
-    }
-
-    // Creates a forced-registration blob with invalid signature.
-    fn create_tx_blob_bad_sig(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        signer: &TestUser<S>,
-        da_address: <<S as Spec>::Da as DaSpec>::Address,
-        chain_id: u64,
-    ) -> MockBlob {
-        let encoded_message = encode_message(da_address, BOND_AMOUNT);
-
-        let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
-            chain_id,
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        let mut signed_tx = Transaction::<S>::new_signed_tx(signer.private_key(), utx);
-
-        // Create a signature for a different message so it won't verify in the stf.
-        let bad_signature = signer.private_key.sign(&[1, 2, 3]);
-        signed_tx.signature = bad_signature;
-        encode_tx(signed_tx, da_address)
+        Transaction::<S>::new_signed_tx(signer.private_key(), utx)
     }
 
     pub(crate) fn create_blobs_from_unregistered_seq(
@@ -303,36 +248,36 @@ mod helpers {
         max_priority_fee_bips: PriorityFeeBips,
         potential_seq: &PotentialSequencer,
     ) -> MockBlob {
-        match status {
-            TxStatus::Success => create_tx_blob(
+        let tx = match status {
+            TxStatus::Success => create_tx_valid(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
-                potential_seq.da_address,
                 config_value!("CHAIN_ID"),
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
             ),
-            TxStatus::BadNonce => create_tx_blob(
+            TxStatus::BadNonce => create_tx_valid(
                 999,
                 max_priority_fee_bips,
                 &potential_seq.user,
-                potential_seq.da_address,
                 config_value!("CHAIN_ID"),
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
             ),
-            TxStatus::BadChainId => create_tx_blob(
+            TxStatus::BadChainId => create_tx_valid(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
-                potential_seq.da_address,
                 config_value!("CHAIN_ID") + 1,
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
             ),
-            TxStatus::BadSignature => create_tx_blob_bad_sig(
+            TxStatus::BadSignature => create_tx_bad_sig(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
-                potential_seq.da_address,
                 config_value!("CHAIN_ID"),
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
             ),
-            TxStatus::Reverted => create_tx_blob_reverted(
+            TxStatus::Reverted => create_tx_reverted(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
@@ -342,10 +287,12 @@ mod helpers {
             TxStatus::SignerDoesNotExist => create_tx_bad_sender(
                 0,
                 max_priority_fee_bips,
-                potential_seq.da_address,
                 config_value!("CHAIN_ID"),
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
             ),
-        }
+        };
+
+        encode_tx(tx, potential_seq.da_address)
     }
 
     fn encode_message(
