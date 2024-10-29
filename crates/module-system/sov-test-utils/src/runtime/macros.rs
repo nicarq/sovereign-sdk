@@ -12,6 +12,8 @@ macro_rules! generate_bare_runtime {
         $(gas_enforcer_override: $gas_enforcer_override_fn:ident,)?
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
         kernel_type: $kernel_type:ty
+        // optional final comma
+        $(,)?
     ) => {
         /// Generated test runtime implementation using the testing framework.
         #[derive(
@@ -267,7 +269,7 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
             impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             runtime_trait_impl_bounds: [],
-            kernel_type: $kernel_ty
+            kernel_type: $kernel_ty,
         }
     };
 }
