@@ -4,12 +4,16 @@ use helpers::*;
 use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
 use sov_bank::IntoPayable;
+use sov_mock_da::MockBlob;
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction};
 use sov_modules_api::{
-    ApiStateAccessor, BatchSequencerOutcome, Gas, GasArray, GasSpec, ModuleInfo, RawTx, Rewards,
+    ApiStateAccessor, Batch, BatchSequencerOutcome, Gas, GasArray, GasSpec, ModuleInfo, RawTx,
+    Rewards,
 };
 use sov_modules_stf_blueprint::TxEffect;
-use sov_test_utils::{BatchTestCase, TestSequencer, TransactionType};
+use sov_rollup_interface::da::RelevantBlobs;
+use sov_value_setter::ValueSetter;
 
 use super::{get_balance, get_seq_bond, TxStatus};
 use crate::stf_blueprint::setup;
@@ -35,96 +39,101 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let start = runner.query_state(|state| actors.balances(state));
 
     let txs_len = txs.len();
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
+    };
+
     let nb_of_valid_txs = TxStatus::nb_of_valid_txs(&tx_statuses);
     let nb_of_skipped_txs = TxStatus::nb_of_skipped_txs(&tx_statuses);
 
-    runner.execute_batch(BatchTestCase {
-        input: txs.into(),
-        assert: Box::new(move |result, state| {
-            let batch_receipt = result.batch_receipt.as_ref().unwrap();
+    {
+        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let batch_receipt = result.batch_receipts[0].clone();
 
-            let gas_price = &batch_receipt.inner.gas_price;
-            let tx_receipts = &batch_receipt.tx_receipts;
+        let gas_price = &batch_receipt.inner.gas_price;
+        let tx_receipts = &batch_receipt.tx_receipts;
 
-            assert_eq!(tx_receipts.len(), txs_len);
+        assert_eq!(tx_receipts.len(), txs_len);
 
-            let mut seq_fee = 0;
-            let mut seq_penalty = 0;
-            let mut gas_value_charged_to_user = 0;
+        let mut seq_fee = 0;
+        let mut seq_penalty = 0;
+        let mut gas_value_charged_to_user = 0;
 
-            let batch_hook_gas_value = <S as GasSpec>::batch_hook_gas().value(gas_price);
+        let batch_hook_gas_value = <S as GasSpec>::batch_hook_gas().value(gas_price);
 
-            let mut valid_tx_count = 0;
-            let mut skipped_tx_count = 0;
-            let mut total_gas = <S as GasSpec>::batch_hook_gas();
-            for tx_receipt in tx_receipts {
-                match &tx_receipt.receipt {
-                    TxEffect::Successful(tx_contents) => {
-                        total_gas.combine(&tx_contents.gas_used);
-                        let gas_value = tx_contents.gas_used.value(gas_price);
-                        gas_value_charged_to_user += gas_value;
-                        seq_fee += priority_fee_bips.apply(gas_value).unwrap();
-                        valid_tx_count += 1;
-                    }
-                    TxEffect::Skipped(tx_contents) => {
-                        total_gas.combine(&tx_contents.gas_used);
-                        let gas_value = tx_contents.gas_used.value(gas_price);
-                        // Sequencer doesn't get the fee and is penalized
-                        seq_penalty += gas_value;
-                        skipped_tx_count += 1;
-                    }
-                    TxEffect::Reverted(tx_contents) => {
-                        total_gas.combine(&tx_contents.gas_used);
-                        // From gas usage point of view the `Successful & Reverted` cases are the same.
-                        let gas_value = tx_contents.gas_used.value(gas_price);
-                        gas_value_charged_to_user += gas_value;
-                        seq_fee += priority_fee_bips.apply(gas_value).unwrap();
-                        valid_tx_count += 1;
-                    }
+        let mut valid_tx_count = 0;
+        let mut skipped_tx_count = 0;
+        let mut total_gas = <S as GasSpec>::batch_hook_gas();
+        for tx_receipt in tx_receipts {
+            match &tx_receipt.receipt {
+                TxEffect::Successful(tx_contents) => {
+                    total_gas.combine(&tx_contents.gas_used);
+                    let gas_value = tx_contents.gas_used.value(gas_price);
+                    gas_value_charged_to_user += gas_value;
+                    seq_fee += priority_fee_bips.apply(gas_value).unwrap();
+                    valid_tx_count += 1;
+                }
+                TxEffect::Skipped(tx_contents) => {
+                    total_gas.combine(&tx_contents.gas_used);
+                    let gas_value = tx_contents.gas_used.value(gas_price);
+                    // Sequencer doesn't get the fee and is penalized
+                    seq_penalty += gas_value;
+                    skipped_tx_count += 1;
+                }
+                TxEffect::Reverted(tx_contents) => {
+                    total_gas.combine(&tx_contents.gas_used);
+                    // From gas usage point of view the `Successful & Reverted` cases are the same.
+                    let gas_value = tx_contents.gas_used.value(gas_price);
+                    gas_value_charged_to_user += gas_value;
+                    seq_fee += priority_fee_bips.apply(gas_value).unwrap();
+                    valid_tx_count += 1;
                 }
             }
+        }
 
-            assert_eq!(nb_of_valid_txs, valid_tx_count);
-            assert_eq!(nb_of_skipped_txs, skipped_tx_count);
+        assert_eq!(nb_of_valid_txs, valid_tx_count);
+        assert_eq!(nb_of_skipped_txs, skipped_tx_count);
 
-            let end = actors.balances(state);
+        //let end = actors.balances(state);
+        let end = runner.query_state(|state| actors.balances(state));
 
-            // Check user balances.
-            assert_eq!(
-                end.admin_balance + end.not_admin_balance,
-                start.admin_balance + start.not_admin_balance - seq_fee - gas_value_charged_to_user
-            );
+        // Check user balances.
+        assert_eq!(
+            end.admin_balance + end.not_admin_balance,
+            start.admin_balance + start.not_admin_balance - seq_fee - gas_value_charged_to_user
+        );
 
-            // Check sequencer rewards.
-            assert_eq!(
-                end.sequencer_bond,
-                start.sequencer_bond + seq_fee - batch_hook_gas_value - seq_penalty
-            );
+        // Check sequencer rewards.
+        assert_eq!(
+            end.sequencer_bond,
+            start.sequencer_bond + seq_fee - batch_hook_gas_value - seq_penalty
+        );
 
-            // Check prover rewards.
-            assert_eq!(
-                end.attester_module_balance,
-                start.attester_module_balance
-                    + gas_value_charged_to_user
-                    + batch_hook_gas_value
-                    + seq_penalty
-            );
+        // Check prover rewards.
+        assert_eq!(
+            end.attester_module_balance,
+            start.attester_module_balance
+                + gas_value_charged_to_user
+                + batch_hook_gas_value
+                + seq_penalty
+        );
 
-            // This has already been tested by previous assertions, but here we explicitly clarify that no money is created or lost.
-            assert_eq!(end.total_balance(), start.total_balance());
+        // This has already been tested by previous assertions, but here we explicitly clarify that no money is created or lost.
+        assert_eq!(end.total_balance(), start.total_balance());
 
-            assert_eq!(
-                batch_receipt.inner.outcome,
-                sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
-                    accumulated_reward: seq_fee,
-                    accumulated_penalty: seq_penalty,
-                    hooks_cost: batch_hook_gas_value,
-                })
-            );
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
+                accumulated_reward: seq_fee,
+                accumulated_penalty: seq_penalty,
+                hooks_cost: batch_hook_gas_value,
+            })
+        );
 
-            assert_eq!(batch_receipt.inner.gas_used, total_gas);
-        }),
-    });
+        assert_eq!(batch_receipt.inner.gas_used, total_gas);
+    }
 }
 
 // Execute batch of valid transactions and ensure that the relevant balances ware updated correctly
@@ -218,27 +227,31 @@ fn not_enough_stake_to_execute_batch_hook_test() {
 
     let start = runner.query_state(|state| actors.balances(state));
 
-    runner.execute_batch(BatchTestCase {
-        input: txs.into(),
-        assert: Box::new(move |result,state| {
-            let batch_receipt = result.batch_receipt.as_ref().unwrap();
-            assert!(batch_receipt.tx_receipts.is_empty());
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
+    };
 
-            let gas_price = &batch_receipt.inner.gas_price;
-            let batch_hook_gas_value = batch_hook_gas.value(gas_price);
+    {
+        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let batch_receipt = result.batch_receipts[0].clone();
 
-            let err_str = format!("Not enough gas to execute `begin_batch_hook`: Sequencer's: {} stake is too low. Current stake: {}, amount to deduct: {}", seq_address, start.sequencer_bond, batch_hook_gas_value);
-            assert_eq!(
-                batch_receipt.inner.outcome,
-                BatchSequencerOutcome::Ignored(err_str)
-            );
+        assert!(batch_receipt.tx_receipts.is_empty());
 
-            let end = actors.balances(state);
+        let gas_price = &batch_receipt.inner.gas_price;
+        let batch_hook_gas_value = batch_hook_gas.value(gas_price);
 
-            // Balances didn't change.
-            assert_eq!(end, start);
-        }),
-    });
+        let err_str = format!("Not enough gas to execute `begin_batch_hook`: Sequencer's: {} stake is too low. Current stake: {}, amount to deduct: {}", seq_address, start.sequencer_bond, batch_hook_gas_value);
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            BatchSequencerOutcome::Ignored(err_str)
+        );
+
+        let end = runner.query_state(|state| actors.balances(state));
+
+        // Balances didn't change.
+        assert_eq!(end, start);
+    }
 }
 
 // If the sequencer can't pay for the batch authentication, we exit early without processing the transactions.
@@ -276,45 +289,59 @@ fn not_enough_stake_auth_batch_test() {
 
     let start = runner.query_state(|state| actors.balances(state));
 
-    runner.execute_batch(BatchTestCase {
-        input: txs.into(),
-        assert: Box::new(move |result, state| {
-            let batch_receipt = result.batch_receipt.as_ref().unwrap();
-            assert!(batch_receipt.tx_receipts.is_empty());
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
+    };
 
-            let gas_price = &batch_receipt.inner.gas_price;
-            // Sequencer paid for the batch hook execution.
-            let batch_hook_gas_value = batch_hook_gas.value(gas_price);
-            let stake_left = start.sequencer_bond - batch_hook_gas_value;
-            let batch_auth_gas_value = max_tx_check_costs.value(gas_price)*(tx_statuses.len() as u64);
-            // TODO add sequencer address to the error str.
-            let err_str = format!("Not enough gas to authenticate the batch: The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {}, minimum bond amount: {}.", stake_left, batch_auth_gas_value);
-            assert_eq!(
-                batch_receipt.inner.outcome,
-                BatchSequencerOutcome::Ignored(err_str)
-            );
+    {
+        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let batch_receipt = result.batch_receipts[0].clone();
 
-            let end = actors.balances(state);
-            assert_eq!(end.sequencer_bond, start.sequencer_bond - batch_hook_gas_value);
-            assert_eq!(end.attester_module_balance, start.attester_module_balance + batch_hook_gas_value);
+        //let batch_receipt = result.batch_receipt.as_ref().unwrap();
+        assert!(batch_receipt.tx_receipts.is_empty());
 
-            assert_eq!(end.admin_balance, start.admin_balance);
-            assert_eq!(end.not_admin_balance, start.not_admin_balance);
+        let gas_price = &batch_receipt.inner.gas_price;
+        // Sequencer paid for the batch hook execution.
+        let batch_hook_gas_value = batch_hook_gas.value(gas_price);
+        let stake_left = start.sequencer_bond - batch_hook_gas_value;
+        let batch_auth_gas_value = max_tx_check_costs.value(gas_price) * (tx_statuses.len() as u64);
+        // TODO add sequencer address to the error str.
+        let err_str = format!("Not enough gas to authenticate the batch: The amount staked by the sequencer is less than the minimum bond. Amount currently staked: {}, minimum bond amount: {}.", stake_left, batch_auth_gas_value);
+        assert_eq!(
+            batch_receipt.inner.outcome,
+            BatchSequencerOutcome::Ignored(err_str)
+        );
 
-            assert_eq!(end.total_balance(), start.total_balance());
-        }),
-    });
+        //let end = actors.balances(state);
+        let end = runner.query_state(|state| actors.balances(state));
+
+        assert_eq!(
+            end.sequencer_bond,
+            start.sequencer_bond - batch_hook_gas_value
+        );
+        assert_eq!(
+            end.attester_module_balance,
+            start.attester_module_balance + batch_hook_gas_value
+        );
+
+        assert_eq!(end.admin_balance, start.admin_balance);
+        assert_eq!(end.not_admin_balance, start.not_admin_balance);
+
+        assert_eq!(end.total_balance(), start.total_balance());
+    }
 }
 
 mod helpers {
     use sov_modules_api::macros::config_value;
-    use sov_modules_api::transaction::{PriorityFeeBips, UnsignedTransaction};
-    use sov_modules_api::PrivateKey;
-    use sov_test_utils::{EncodeCall, TestUser};
+    use sov_modules_api::transaction::PriorityFeeBips;
+    use sov_modules_api::{DaSpec, Spec};
+    use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
     use sov_value_setter::{CallMessage, ValueSetter};
 
     use super::super::IntegTestRuntime;
     use super::*;
+    use crate::stf_blueprint::{create_tx_bad_sender, create_tx_bad_sig, create_tx_valid};
 
     pub(crate) struct Actors {
         pub(crate) admin_account: TestUser<S>,
@@ -351,95 +378,12 @@ mod helpers {
         }
     }
 
-    fn create_tx_bad_chain_id(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        signer: &TestUser<S>,
-    ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = encode_message();
-
-        let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
-            config_value!("CHAIN_ID") + 1,
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
-    }
-
-    fn create_tx_bad_sig(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        signer: &TestUser<S>,
-    ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = encode_message();
-
-        let utx = UnsignedTransaction::<S>::new(
-            encoded_message.clone(),
-            config_value!("CHAIN_ID"),
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        let mut signed_tx = Transaction::new_signed_tx(&signer.private_key, utx);
-
-        // Create a signature for a different message so it won't verify in the stf.
-        let bad_signature = signer.private_key.sign(&[1, 2, 3]);
-        signed_tx.signature = bad_signature;
-        let tx = borsh::to_vec(&signed_tx).unwrap();
-
-        TransactionType::PreSigned(RawTx { data: tx })
-    }
-
-    fn create_tx_bad_sender(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-    ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = encode_message();
-
-        let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
-            config_value!("CHAIN_ID"),
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        let signer = TestUser::<S>::generate(0);
-        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
-    }
-
-    fn create_tx_valid(
-        nonce: u64,
-        max_priority_fee_bips: PriorityFeeBips,
-        signer: &TestUser<S>,
-    ) -> TransactionType<ValueSetter<S>, S> {
-        let encoded_message = encode_message();
-
-        let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
-            config_value!("CHAIN_ID"),
-            max_priority_fee_bips,
-            200_000,
-            nonce,
-            None,
-        );
-
-        TransactionType::<ValueSetter<S>, S>::pre_signed(utx, signer.private_key())
-    }
-
     pub(crate) fn create_txs(
         statuses: &[TxStatus],
         max_priority_fee_bips: PriorityFeeBips,
         admin: &TestUser<S>,
         not_admin: &TestUser<S>,
-    ) -> Vec<TransactionType<ValueSetter<S>, S>> {
+    ) -> Vec<Transaction<S>> {
         let mut nonce = 0;
         let mut reverted_tx_nonce = 0;
         let mut bad_signer_nonce = 0;
@@ -447,30 +391,66 @@ mod helpers {
         for status in statuses {
             match status {
                 TxStatus::Success => {
-                    let tx = create_tx_valid(nonce, max_priority_fee_bips, admin);
+                    let tx = create_tx_valid(
+                        nonce,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
                     txs.push(tx);
                     nonce += 1;
                 }
-                TxStatus::Reverted => {
-                    // A call message send by not admin will be reverted.
-                    let tx = create_tx_valid(reverted_tx_nonce, max_priority_fee_bips, not_admin);
-                    txs.push(tx);
-                    reverted_tx_nonce += 1;
-                }
                 TxStatus::BadNonce => {
-                    let tx = create_tx_valid(9999, max_priority_fee_bips, admin);
+                    let tx = create_tx_valid(
+                        9999,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
                     txs.push(tx);
                 }
                 TxStatus::BadChainId => {
-                    let tx = create_tx_bad_chain_id(nonce, max_priority_fee_bips, admin);
+                    let tx = create_tx_valid(
+                        nonce,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID") + 1,
+                        encode_message(),
+                    );
                     txs.push(tx);
                 }
+
                 TxStatus::BadSignature => {
-                    let tx = create_tx_bad_sig(nonce, max_priority_fee_bips, admin);
+                    let tx = create_tx_bad_sig(
+                        nonce,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
                     txs.push(tx);
+                }
+                TxStatus::Reverted => {
+                    // A call message send by not admin will be reverted.
+                    let tx = create_tx_valid(
+                        reverted_tx_nonce,
+                        max_priority_fee_bips,
+                        not_admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
+                    txs.push(tx);
+                    reverted_tx_nonce += 1;
                 }
                 TxStatus::SignerDoesNotExist => {
-                    let tx = create_tx_bad_sender(bad_signer_nonce, max_priority_fee_bips);
+                    let tx = create_tx_bad_sender(
+                        bad_signer_nonce,
+                        max_priority_fee_bips,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
                     txs.push(tx);
                     bad_signer_nonce += 1;
                 }
@@ -481,5 +461,22 @@ mod helpers {
 
     fn encode_message() -> Vec<u8> {
         <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8))
+    }
+
+    pub(crate) fn make_blob(
+        txs: Vec<Transaction<S>>,
+        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
+        let txs = txs
+            .into_iter()
+            .map(|tx| {
+                <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(
+                    RawTx::new(borsh::to_vec(&tx).unwrap()),
+                )
+            })
+            .collect();
+
+        let blob = borsh::to_vec(&Batch::new(txs)).unwrap();
+        MockBlob::new_with_hash(blob, seq_da_address)
     }
 }
