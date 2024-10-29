@@ -10196,7 +10196,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "arbitrary",
- "arrayvec",
  "bcs",
  "borsh",
  "derivative",
@@ -10324,6 +10323,7 @@ dependencies = [
  "arbitrary",
  "async-trait",
  "backon",
+ "bincode",
  "borsh",
  "bytes",
  "derive_more 1.0.0",

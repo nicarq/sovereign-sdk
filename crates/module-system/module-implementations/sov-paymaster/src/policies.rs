@@ -156,9 +156,7 @@ pub enum AuthorizedSequencers<Da: DaSpec> {
     /// All sequencers are authorized to use this payer (according to its policy).
     All,
     /// Only the specified sequencers may use this payer.
-    Some(
-        #[schemars(with = "Vec<Da::Address>", length = DEFAULT_SAFE_VEC_LEN)] SafeVec<Da::Address>,
-    ),
+    Some(SafeVec<Da::Address>),
 }
 
 impl<Da: DaSpec> AuthorizedSequencers<Da> {
@@ -188,27 +186,17 @@ impl<Da: DaSpec> AuthorizedSequencers<Da> {
     UniversalWallet,
 )]
 #[serde(bound = "S: Spec, P: Serialize + DeserializeOwned")]
-#[schemars(bound = "S: Spec, P: JsonSchemaOverride", rename = "PaymasterPolicy")]
+#[schemars(bound = "S: Spec, P: JsonSchema", rename = "PaymasterPolicy")]
 pub struct PaymasterPolicy<S: Spec, P> {
     /// Default payee policy for users that are not in the balances map.
     pub default_payee_policy: PayeePolicy<S>,
 
     /// A mapping from user address to the policy for that user.
-    #[schemars(with = "P::To")]
     pub payees: P,
 
     /// Users who are authorized to update this policy.
-    #[schemars(with = "Vec<S::Address>", length = DEFAULT_SAFE_VEC_LEN)]
     pub authorized_updaters: SafeVec<S::Address>,
 
     /// Sequencers who are authorized to use this payer.
     pub authorized_sequencers: AuthorizedSequencers<S::Da>,
-}
-
-trait JsonSchemaOverride {
-    type To: JsonSchema;
-}
-
-impl<T: JsonSchema> JsonSchemaOverride for SafeVec<T> {
-    type To = Vec<T>;
 }
