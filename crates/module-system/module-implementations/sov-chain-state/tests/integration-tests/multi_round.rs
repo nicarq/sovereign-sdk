@@ -1,7 +1,7 @@
 use sov_chain_state::ChainState;
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Gas, GasArray, KernelStateAccessor, Spec, VersionReader};
+use sov_modules_api::{ApiStateAccessor, Gas, GasArray, Spec, VersionReader};
 use sov_test_utils::runtime::TestApplySlotOutput;
 use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
@@ -34,7 +34,7 @@ fn check_chain_state_update(
         // Round number
         u64,
         // Kernel working set
-        &mut KernelStateAccessor<<S as Spec>::Storage>,
+        &mut ApiStateAccessor<S>,
         // The immediate result of the apply slot function
         TestApplySlotOutput<TestChainStateRuntime<S>, S>,
     ),
@@ -51,7 +51,7 @@ fn check_chain_state_update(
         // Sanity check: there should be only one batch executed
         assert_eq!(result.batch_receipts.len(), 1);
 
-        runner.query_kernel_state(|kernel| post_round_closure(round, kernel, result));
+        runner.query_state_at_true_height(|state| post_round_closure(round, state, result));
     }
 }
 
@@ -141,17 +141,11 @@ fn test_chain_state_kernel_updates() {
     check_chain_state_update(
         NUM_ROUNDS,
         NUM_TXS_PER_ROUND,
-        &mut |round, kernel, _result| {
+        &mut |round, state, _result| {
             assert_eq!(
-                kernel.rollup_height_to_access(),
+                state.rollup_height_to_access(),
                 round + 1,
                 "The kernel should be updated to the current round"
-            );
-
-            assert_eq!(
-                kernel.virtual_slot_number(),
-                round + 1,
-                "The kernel virtual slot should be updated to the current round"
             );
         },
     );

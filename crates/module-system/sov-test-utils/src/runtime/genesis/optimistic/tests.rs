@@ -200,15 +200,15 @@ fn test_slot_number() {
     let runtime = TestRuntime::default();
 
     let mut runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), runtime);
-    assert_eq!(runner.curr_slot_number(), 1);
+    assert_eq!(runner.true_rollup_height(), 0);
 
     runner.advance_slots(2);
 
-    assert_eq!(runner.curr_slot_number(), 3);
+    assert_eq!(runner.true_rollup_height(), 2);
 
     runner.advance_slots(2);
 
-    assert_eq!(runner.curr_slot_number(), 5);
+    assert_eq!(runner.true_rollup_height(), 4);
 }
 
 #[test]

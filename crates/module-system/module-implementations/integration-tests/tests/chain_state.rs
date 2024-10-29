@@ -35,15 +35,17 @@ fn setup() -> (TestUser<S>, TestRunner<TestKernelUpdatesRuntime<S>, S>) {
 fn chain_state_kernel_updates_basic_kernel() {
     let (admin, mut runner) = setup();
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|state| {
         assert_eq!(
-            kernel.rollup_height_to_access(),
+            state.rollup_height_to_access(),
             0,
             "The kernel should be initialized to zero"
         );
+    });
 
+    runner.query_state(|state| {
         assert_eq!(
-            kernel.virtual_slot_number(),
+            state.rollup_height_to_access(),
             0,
             "The kernel virtual slot should be initialized to zero"
         );
@@ -53,15 +55,17 @@ fn chain_state_kernel_updates_basic_kernel() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|state| {
         assert_eq!(
-            kernel.rollup_height_to_access(),
+            state.rollup_height_to_access(),
             1,
             "The kernel should be updated to one"
         );
+    });
 
+    runner.query_state(|state| {
         assert_eq!(
-            kernel.virtual_slot_number(),
+            state.rollup_height_to_access(),
             1,
             "The kernel virtual slot should be updated to one"
         );
@@ -78,7 +82,7 @@ fn test_chain_state_gas_updates() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         assert_eq!(
             ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
@@ -112,7 +116,7 @@ fn test_chain_state_root_updates() {
 
     let post_state_root = *runner.state_root();
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         assert_eq!(
             ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
@@ -124,7 +128,7 @@ fn test_chain_state_root_updates() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         let first_transition = ChainState::<S>::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()
@@ -146,7 +150,7 @@ fn test_chain_state_historical_transition_update() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    let in_progress_transition = runner.query_kernel_state(|kernel| {
+    let in_progress_transition = runner.query_state_at_true_height(|kernel| {
         ChainState::<S>::default()
             .get_last_slot(kernel)
             .unwrap_infallible()
@@ -157,7 +161,7 @@ fn test_chain_state_historical_transition_update() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         let first_transition = ChainState::<S, >::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()

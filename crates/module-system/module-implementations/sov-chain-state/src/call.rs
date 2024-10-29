@@ -9,18 +9,18 @@ where
 {
     /// Increment the current slot number
     /// This function also modifies the kernel working set to update the true height.
-    pub(crate) fn increment_true_slot_number(&self, state: &mut KernelStateAccessor<S::Storage>) {
+    pub(crate) fn increment_true_rollup_height(&self, state: &mut KernelStateAccessor<S::Storage>) {
         let current_height = self
-            .true_slot_number
+            .true_rollup_height
             .get(state)
             .unwrap_infallible()
             .unwrap_or_default();
         let new_height = current_height.saturating_add(1);
 
-        self.true_slot_number
+        self.true_rollup_height
             .set(&(new_height), state)
             .unwrap_infallible();
 
-        state.update_true_slot_number(new_height);
+        state.update_true_rollup_height(new_height);
     }
 }

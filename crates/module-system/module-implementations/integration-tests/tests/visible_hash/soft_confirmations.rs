@@ -130,7 +130,7 @@ fn visible_hash_soft_confirmations_kernel() {
     );
 
     // We expect that the new kernel root matches the one after the first transition (deferred update).
-    let expected_visible_hash = runner.query_kernel_state(|state| {
+    let expected_visible_hash = runner.query_state_at_true_height(|state| {
         ChainState::<S>::default()
             .get_historical_transitions(1, state)
             .unwrap_infallible()

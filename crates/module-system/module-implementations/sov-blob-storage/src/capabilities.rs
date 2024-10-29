@@ -61,7 +61,7 @@ impl<S: Spec> BlobStorage<S> {
 
         self.set_next_visible_slot_number(state.rollup_height_to_access(), state);
 
-        state.update_virtual_slot_number(state.rollup_height_to_access());
+        state.update_visible_rollup_height(state.rollup_height_to_access());
 
         self.select_blobs_da_ordering(current_blobs, state)
     }
@@ -249,7 +249,7 @@ impl<S: Spec> BlobStorage<S> {
         // First, decide how many slots worth of stored blobs we need. It could be 0, 1, or 2.
         let batches_needed_from_this_slot = match state
             .rollup_height_to_access()
-            .saturating_sub(state.virtual_slot_number())
+            .saturating_sub(state.visible_rollup_height())
         {
             // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
             // In this case, we act like a normal "based" rollup
@@ -265,7 +265,7 @@ impl<S: Spec> BlobStorage<S> {
                 let new_batches = self.select_blobs_da_ordering(current_blobs, state);
                 self.store_batches(state.rollup_height_to_access(), &new_batches, state);
                 self.set_next_visible_slot_number(
-                    state.virtual_slot_number().saturating_add(2),
+                    state.visible_rollup_height().saturating_add(2),
                     state,
                 );
                 2
@@ -273,7 +273,7 @@ impl<S: Spec> BlobStorage<S> {
         };
 
         for slot in 0..=batches_needed_from_this_slot {
-            let slot_to_check = state.virtual_slot_number().saturating_add(slot);
+            let slot_to_check = state.visible_rollup_height().saturating_add(slot);
             let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
@@ -468,7 +468,7 @@ impl<S: Spec> BlobStorage<S> {
         // - Otherwise, advance only if we would otherwise exceed the maximum deferred slots count
         let max_slots_to_advance = state
             .rollup_height_to_access()
-            .saturating_sub(state.virtual_slot_number())
+            .saturating_sub(state.visible_rollup_height())
             .saturating_add(1);
         self.next_sequence_number
             .set(&next_sequence_number, state)
@@ -498,7 +498,7 @@ impl<S: Spec> BlobStorage<S> {
         } else {
             // If there's no preferred blob, advance only if the we would otherwise exceed the maximum deferred slots count
             if state
-                .virtual_slot_number()
+                .visible_rollup_height()
                 .saturating_add(config_deferred_slots_count())
                 <= state.rollup_height_to_access()
             {
@@ -515,7 +515,7 @@ impl<S: Spec> BlobStorage<S> {
 
         // Load all the necessary batches from storage
         for slot in 0..=num_slots_to_advance {
-            let slot_to_check = state.virtual_slot_number().saturating_add(slot);
+            let slot_to_check = state.visible_rollup_height().saturating_add(slot);
             let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
             tracing::trace!(
                 "Found {} additional blobs in slot {} ",
@@ -527,7 +527,7 @@ impl<S: Spec> BlobStorage<S> {
 
         // Check if we also need the blobs from the current slot. Add them to the set to be processed or store them as appropriate.
         let next_virtual_height = state
-            .virtual_slot_number()
+            .visible_rollup_height()
             .saturating_add(num_slots_to_advance);
         if next_virtual_height >= state.rollup_height_to_access() {
             blobs_to_process.extend(new_forced_blobs);

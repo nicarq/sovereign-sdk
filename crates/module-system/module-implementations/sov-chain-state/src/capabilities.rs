@@ -18,7 +18,7 @@ impl<S: Spec> ChainState<S> {
         let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
 
         let kernel_root = if let Some(root) = self
-            .get_root_at_height(state.virtual_slot_number(), state)
+            .get_root_at_height(state.visible_rollup_height(), state)
             .unwrap_infallible()
         {
             root.clone()
@@ -41,7 +41,7 @@ impl<S: Spec> ChainState<S> {
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
         // We increment the slot number at the very beginning of the slot execution
-        self.increment_true_slot_number(state);
+        self.increment_true_rollup_height(state);
 
         // The previous state root is set at the beginning of the next slot execution
         self.state_roots.push(pre_state_root, state);
@@ -90,10 +90,10 @@ impl<S: Spec> ChainState<S> {
             .set_last(&in_progress_slot, state)
             .expect("An error occurred while setting the last slot in progress. This is a bug. Please report it.");
 
-        self.true_to_virtual_slot_number_history
+        self.true_to_visible_rollup_height_history
             .set(
-                &state.true_slot_number(),
-                &state.virtual_slot_number(),
+                &state.true_rollup_height(),
+                &state.visible_rollup_height(),
                 state,
             )
             .unwrap_infallible();
@@ -142,10 +142,10 @@ impl<S: Spec> ChainState<S> {
 impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
     fn visible_slot_number_at(
         &self,
-        true_slot_number: u64,
+        true_rollup_height: u64,
         state: &mut sov_modules_api::state::ApiStateAccessor<S>,
     ) -> u64 {
-        self.visible_slot_number_at(true_slot_number, state)
+        self.visible_slot_number_at(true_rollup_height, state)
             .unwrap_infallible()
     }
 

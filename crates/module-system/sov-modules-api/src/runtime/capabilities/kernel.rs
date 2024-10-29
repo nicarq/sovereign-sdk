@@ -9,7 +9,7 @@ pub trait KernelWithSlotMapping<S: Spec>: Sync + Send + 'static {
     // we need it to be object safe
     fn visible_slot_number_at(
         &self,
-        true_slot_number: u64,
+        true_rollup_height: u64,
         state: &mut crate::state::ApiStateAccessor<S>,
     ) -> u64;
 
@@ -42,7 +42,7 @@ pub trait Kernel<S: Spec> {
     }
 
     /// Return the current slot number
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
+    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
     /// Return the next value of the slot number at which transactions currently *appear* to be executing.
     fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64;
 }

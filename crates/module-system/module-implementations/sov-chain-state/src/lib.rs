@@ -222,13 +222,13 @@ pub struct ChainState<S: Spec> {
     next_visible_slot_number: KernelStateValue<TransitionHeight>,
 
     #[state]
-    true_to_virtual_slot_number_history:
+    true_to_visible_rollup_height_history:
         sov_modules_api::KernelStateMap<TransitionHeight, TransitionHeight>,
 
     /// The real slot number of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
-    true_slot_number: KernelStateValue<TransitionHeight>,
+    true_rollup_height: KernelStateValue<TransitionHeight>,
 
     /// The current time, as reported by the DA layer
     #[state]
@@ -253,9 +253,9 @@ pub struct ChainState<S: Spec> {
 
     /// The height of the first DA block.
     /// Set at the rollup genesis. Since the rollup is always delayed by a constant amount of blocks,
-    /// we can use this value with the `true_slot_number` to get the current height of the DA layer,
+    /// we can use this value with the `true_rollup_height` to get the current height of the DA layer,
     /// using the following formula:
-    /// `current_da_height = true_slot_number + genesis_da_height`.
+    /// `current_da_height = true_rollup_height + genesis_da_height`.
     /// Should be the same as the `genesis_height` field in the `RunnerConfig` (`sov-stf-runner` crate)
     #[state]
     genesis_da_height: StateValue<TransitionHeight>,
@@ -276,14 +276,14 @@ pub struct ChainState<S: Spec> {
 
 impl<S: Spec> ChainState<S> {
     /// Returns transition height in the current slot
-    pub fn true_slot_number<T>(
+    pub fn true_rollup_height<T>(
         &self,
         state: &mut T,
     ) -> Result<TransitionHeight, <T as StateReader<Kernel>>::Error>
     where
         T: StateReaderAndWriter<Kernel>,
     {
-        Ok(self.true_slot_number.get(state)?.unwrap_or_default())
+        Ok(self.true_rollup_height.get(state)?.unwrap_or_default())
     }
 
     /// Returns transition height for the next slot to start execution
@@ -300,18 +300,18 @@ impl<S: Spec> ChainState<S> {
     /// Returns the visible slot number corresponding to the provided real slot.
     pub fn visible_slot_number_at<T>(
         &self,
-        true_slot_number: u64,
+        true_rollup_height: u64,
         state: &mut T,
     ) -> Result<TransitionHeight, T::Error>
     where
         T: StateReader<Kernel>,
     {
         let visible_slot_number = self
-            .true_to_virtual_slot_number_history
-            .get(&true_slot_number, state)?
+            .true_to_visible_rollup_height_history
+            .get(&true_rollup_height, state)?
             .unwrap_or_default();
 
-        dbg!(true_slot_number, visible_slot_number);
+        dbg!(true_rollup_height, visible_slot_number);
         Ok(visible_slot_number)
     }
 

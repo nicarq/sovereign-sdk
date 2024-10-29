@@ -8,9 +8,11 @@ use crate::{setup, S};
 fn chain_state_kernel_genesis() {
     let (_, runner) = setup();
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         assert_eq!(
-            ChainState::<S>::default().true_slot_number(kernel).unwrap(),
+            ChainState::<S>::default()
+                .true_rollup_height(kernel)
+                .unwrap(),
             0,
             "The kernel should be initialized to zero"
         );
@@ -33,7 +35,7 @@ fn test_chain_state_genesis_root() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_kernel_state(|kernel| {
+    runner.query_state_at_true_height(|kernel| {
         assert_eq!(
             ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),

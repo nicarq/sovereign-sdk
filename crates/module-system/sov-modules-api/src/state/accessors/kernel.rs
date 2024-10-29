@@ -45,7 +45,7 @@ impl<'a, S: Storage> VersionReader for KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Storage> KernelWriter for KernelStateAccessor<'a, S> {
-    fn true_slot_number(&self) -> u64 {
+    fn true_rollup_height(&self) -> u64 {
         self.true_slot_num
     }
 }
@@ -60,7 +60,7 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
             inner: &mut checkpoint.delta,
         };
 
-        let true_slot_num = kernel.true_slot_number(&mut bootstrap);
+        let true_slot_num = kernel.true_rollup_height(&mut bootstrap);
 
         Self {
             checkpoint,
@@ -71,17 +71,17 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
     /// Returns the virtual slot number contained in the accessor
-    pub fn virtual_slot_number(&self) -> u64 {
+    pub fn visible_rollup_height(&self) -> u64 {
         self.checkpoint.virtual_slot_num
     }
 
     /// Updates the true slot number contained in the accessor
-    pub fn update_true_slot_number(&mut self, true_slot_num: u64) {
+    pub fn update_true_rollup_height(&mut self, true_slot_num: u64) {
         self.true_slot_num = true_slot_num;
     }
 
     /// Updates the virtual slot number contained in the accessor
-    pub fn update_virtual_slot_number(&mut self, virtual_slot_num: u64) {
+    pub fn update_visible_rollup_height(&mut self, virtual_slot_num: u64) {
         self.checkpoint.virtual_slot_num = virtual_slot_num;
     }
 }
