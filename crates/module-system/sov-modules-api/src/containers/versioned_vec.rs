@@ -161,7 +161,7 @@ where
     }
 
     /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
-    /// This only works with accessors following the `true_slot_number`.
+    /// This only works with accessors following the `true_rollup_height`.
     pub fn prev_len<Accessor: KernelWriter + VersionReader<Error = Infallible>>(
         &self,
         state: &mut Accessor,
@@ -387,7 +387,7 @@ mod test {
         state_vec.initialize(&mut kernel.accessor(&mut state));
 
         let mut kernel = MockKernel::<TestSpec>::default();
-        kernel.true_slot_number = 1;
+        kernel.true_rollup_height = 1;
 
         test_cases().into_iter().for_each(|test_case_action| {
             check_test_case_action(&state_vec, test_case_action, &mut kernel, &mut state);
@@ -497,7 +497,7 @@ mod test {
             TestCaseAction::Push(value) => {
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 state_vec.push(&value, state);
-                kernel.true_slot_number += 1;
+                kernel.true_rollup_height += 1;
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec.get(index, state).unwrap_infallible();
@@ -521,7 +521,7 @@ mod test {
             } => {
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 assert_eq!(state.rollup_height_to_access(), true_slot_num);
-                assert_eq!(state.virtual_slot_number(), virtual_slot_num);
+                assert_eq!(state.visible_rollup_height(), virtual_slot_num);
             }
         }
     }

@@ -106,7 +106,7 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
 
             let kernel_ws =
                 KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
-            let visible_height = kernel_ws.virtual_slot_number();
+            let visible_height = kernel_ws.visible_rollup_height();
             let tx_scratchpad = checkpoint.to_tx_scratchpad();
 
             let (tx_scratchpad, output_res) = tx_auth(

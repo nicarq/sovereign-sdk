@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockBlob, MockDaSpec, MockHash};
-use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec};
+use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec, VersionReader};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::traits::MinimalGenesis;
@@ -33,7 +33,7 @@ type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 pub fn virtual_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
     runner: &TestRunner<RT>,
 ) -> u64 {
-    runner.query_kernel_state(|kernel| kernel.virtual_slot_number())
+    runner.query_state(|state| state.rollup_height_to_access())
 }
 
 /// Returns the last `k` slot receipts

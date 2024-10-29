@@ -166,7 +166,7 @@ pub mod mocks {
     #[derive(Debug, Clone, Default)]
     pub struct MockKernel<S> {
         /// The current slot number
-        pub true_slot_number: u64,
+        pub true_rollup_height: u64,
         /// The slot number at which transactions appear to be executing
         pub visible_slot_number: u64,
         phantom: core::marker::PhantomData<S>,
@@ -174,9 +174,9 @@ pub mod mocks {
 
     impl<S: Spec> MockKernel<S> {
         /// Create a new mock kernel with the given slot number
-        pub fn new(true_slot_number: u64, visible_height: u64) -> Self {
+        pub fn new(true_rollup_height: u64, visible_height: u64) -> Self {
             Self {
-                true_slot_number,
+                true_rollup_height,
                 visible_slot_number: visible_height,
                 phantom: core::marker::PhantomData,
             }
@@ -184,7 +184,7 @@ pub mod mocks {
 
         /// Simply increases all the heights by one
         pub fn increase_heights(&mut self) {
-            self.true_slot_number += 1;
+            self.true_rollup_height += 1;
             self.visible_slot_number += 1;
         }
     }
@@ -193,10 +193,10 @@ pub mod mocks {
     impl<S: Spec> KernelWithSlotMapping<S> for MockKernel<S> {
         fn visible_slot_number_at(
             &self,
-            true_slot_number: u64,
+            true_rollup_height: u64,
             _state: &mut crate::ApiStateAccessor<S>,
         ) -> u64 {
-            true_slot_number
+            true_rollup_height
         }
 
         fn base_fee_per_gas_at(
@@ -209,8 +209,8 @@ pub mod mocks {
     }
 
     impl<S: Spec> Kernel<S> for MockKernel<S> {
-        fn true_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
-            self.true_slot_number
+        fn true_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+            self.true_rollup_height
         }
         fn next_visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.visible_slot_number

@@ -32,7 +32,7 @@ impl<Store: Storage> StateCheckpoint<Store> {
 }
 
 impl<S: Spec> KernelWriter for GenesisStateAccessor<'_, S> {
-    fn true_slot_number(&self) -> u64 {
+    fn true_rollup_height(&self) -> u64 {
         0
     }
 }

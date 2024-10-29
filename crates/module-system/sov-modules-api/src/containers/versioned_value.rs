@@ -93,7 +93,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     {
         StateWriter::<Kernel>::set(
             state,
-            &self.encode_key(&(state.true_slot_number())),
+            &self.encode_key(&(state.true_rollup_height())),
             SlotValue::new(value, self.codec.value_codec()),
         )
         .unwrap_infallible();

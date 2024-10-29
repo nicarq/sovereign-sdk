@@ -31,12 +31,16 @@ impl<'a, S: Spec> BasicKernel<'a, S> {
 }
 
 impl<'a, S: Spec> Kernel<S> for BasicKernel<'a, S> {
-    fn true_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
-        self.chain_state.true_slot_number(state).unwrap_infallible()
+    fn true_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+        self.chain_state
+            .true_rollup_height(state)
+            .unwrap_infallible()
     }
 
     fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
-        self.chain_state.true_slot_number(state).unwrap_infallible()
+        self.chain_state
+            .true_rollup_height(state)
+            .unwrap_infallible()
     }
 }
 

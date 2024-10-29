@@ -22,8 +22,8 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, Genesis, InfallibleStateAccessor, KernelStateAccessor, Module, PrivateKey,
-    RuntimeEventProcessor, Spec, StateCheckpoint, TxEffect,
+    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, RuntimeEventProcessor, Spec,
+    StateCheckpoint, TxEffect, VersionReader,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -150,14 +150,19 @@ where
         &self.state_root
     }
 
-    /// Returns the current slot number. The genesis slot is 0 but since genesis doesn't generate a receipt, we need to return the length of the execution slot receipts + 1.
-    pub fn curr_slot_number(&self) -> u64 {
-        self.slot_receipts.len() as u64 + 1
+    /// Returns the current "true" rollup height.
+    ///
+    /// ## Note (soft-confirmations)
+    /// This value may be different from the value that would be returned by the [`ApiStateAccessor::rollup_height_to_access`] method inside
+    /// [`TestRunner::query_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
+    /// current _visible height_. See our soft-confirmation documentation for more details.
+    pub fn true_rollup_height(&self) -> u64 {
+        self.slot_receipts.len() as u64
     }
 
-    /// Returns the current virtual slot number.
-    pub fn virtual_slot(&self) -> u64 {
-        self.query_kernel_state(|kernel| kernel.virtual_slot_number())
+    /// Returns the current rollup height accessible from the transaction context.
+    pub fn visible_rollup_height(&self) -> u64 {
+        self.query_state(|state| state.rollup_height_to_access())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -224,9 +229,22 @@ where
         query(&mut self.current_state())
     }
 
+    /// This method queries the state of the rollup at the latest _true_ height.
+    ///
+    /// ## Note
+    /// This method is mostly useful in the `soft-confirmations` context. In that case, the _true_ height may be higher than the
+    /// current _visible_ height from the default [`TestRunner::query_state`] method. This is because the execution of
+    /// blocks from non-preferred sequencers may be deferred to later.
+    pub fn query_state_at_true_height<Output>(
+        &self,
+        query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
+    ) -> Output {
+        self.query_state_at_height(self.true_rollup_height(), query)
+    }
+
     /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_state`]
     /// followed by [`ApiStateAccessor::get_state_at_height`].
-    pub fn query_archival_state<Output>(
+    pub fn query_state_at_height<Output>(
         &self,
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
@@ -254,7 +272,7 @@ where
             &mut kernel_state,
         );
 
-        kernel_state.update_virtual_slot_number(kernel_state.virtual_slot_number() + 1);
+        kernel_state.update_visible_rollup_height(kernel_state.visible_rollup_height() + 1);
 
         query(&mut state);
 
@@ -265,22 +283,6 @@ where
             .unwrap();
 
         self.storage_manager.commit(change_set);
-    }
-
-    /// Allows to query the current kernel state.
-    pub fn query_kernel_state<Output>(
-        &self,
-        query: impl FnOnce(&mut KernelStateAccessor<S::Storage>) -> Output,
-    ) -> Output {
-        let stf_state = self.storage_manager.create_storage();
-
-        let runtime = self.runtime();
-
-        let state = &mut StateCheckpoint::new(stf_state, &runtime.kernel());
-
-        let mut kernel = runtime.kernel().accessor(state);
-
-        query(&mut kernel)
     }
 
     /// Builds a new test runner and runs genesis.
@@ -327,7 +329,7 @@ where
     }
 
     fn next_header(&mut self) -> MockBlockHeader {
-        let height = self.curr_slot_number() + 1;
+        let height = self.true_rollup_height() + 1;
         if let Some(timestamp) = &self.config.freeze_time {
             MockBlockHeader::new(height, timestamp.clone())
         } else {

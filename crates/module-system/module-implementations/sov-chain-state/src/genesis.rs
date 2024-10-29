@@ -44,7 +44,7 @@ impl<S: Spec> ChainState<S> {
             "Starting chain state genesis...",
         );
 
-        self.true_slot_number.set(&0, state)?;
+        self.true_rollup_height.set(&0, state)?;
         self.next_visible_slot_number.set(&0, state)?;
 
         self.time.set_true_current(&config.current_time, state);

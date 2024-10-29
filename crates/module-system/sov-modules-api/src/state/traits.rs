@@ -495,5 +495,5 @@ pub trait VersionReader: StateReader<namespaces::Kernel> {
 /// A trait indicating that this state accessor can write to the kernel at the true slot height
 pub trait KernelWriter: StateWriter<namespaces::Kernel, Error = Infallible> {
     /// Returns the current true slot number contained in the accessor
-    fn true_slot_number(&self) -> u64;
+    fn true_rollup_height(&self) -> u64;
 }
