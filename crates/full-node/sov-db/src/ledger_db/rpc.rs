@@ -193,6 +193,13 @@ impl LedgerRpcReader {
         Ok(out)
     }
 
+    pub(crate) async fn get_latest_event_number(&self) -> anyhow::Result<Option<u64>> {
+        match self.db.get_largest_async::<EventByNumber>().await? {
+            Some(e) => Ok(Some(e.0 .0)),
+            None => Ok(None),
+        }
+    }
+
     async fn collect_transaction_numbers(
         &self,
         tx_range: std::ops::Range<([u8; 32], TxNumber)>,
@@ -784,6 +791,10 @@ impl LedgerStateProvider for LedgerDb {
         self.get_events::<E>(&[EventIdentifier::Number(number)])
             .await
             .map(|mut events| events.pop().flatten())
+    }
+
+    async fn get_latest_event_number(&self) -> Result<Option<u64>, Self::Error> {
+        self.get_rpc_reader().get_latest_event_number().await
     }
 
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> anyhow::Result<Vec<E>>

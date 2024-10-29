@@ -219,6 +219,7 @@ where
         seq_db_txs: Vec<SeqDbTx>,
         admin_addresses: Vec<<Z::Spec as Spec>::Address>,
         config: &StdBatchBuilderConfig,
+        _last_event_number: u64,
     ) -> anyhow::Result<Self> {
         let runtime = Z::Rt::default();
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
@@ -283,7 +284,12 @@ where
         self.api_state.clone()
     }
 
-    async fn set_state(&mut self, _da_height: u64, stf_state: <Z::Spec as Spec>::Storage) {
+    async fn set_state(
+        &mut self,
+        _da_height: u64,
+        stf_state: <Z::Spec as Spec>::Storage,
+        _last_event_number: u64,
+    ) {
         let checkpoint = StateCheckpoint::new(stf_state, &Z::Rt::default().kernel());
         self.checkpoint_sender
             .send(checkpoint.clone_with_empty_witness())

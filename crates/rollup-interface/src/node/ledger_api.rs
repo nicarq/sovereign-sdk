@@ -428,6 +428,9 @@ pub trait LedgerStateProvider {
             .map(|mut events| events.pop().flatten())
     }
 
+    /// Gets the latest (as it, by event ID) event, if any exists.
+    async fn get_latest_event_number(&self) -> Result<Option<u64>, Self::Error>;
+
     /// Get events by transaction hash.
     async fn get_events_by_txn_hash<E>(&self, txn_hash: &[u8; 32]) -> Result<Vec<E>, Self::Error>
     where

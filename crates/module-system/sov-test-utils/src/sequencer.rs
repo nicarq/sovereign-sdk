@@ -152,6 +152,7 @@ where
             seq_db_txs,
             admin_addresses,
             &batch_builder_config,
+            0,
         )
         .await?;
         let status_manager = batch_builder.tx_status_manager();

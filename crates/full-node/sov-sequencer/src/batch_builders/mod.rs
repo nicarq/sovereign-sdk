@@ -93,6 +93,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
         seq_db_txs: Vec<SeqDbTx>,
         admin_addresses: Vec<<Self::Spec as Spec>::Address>,
         config: &Self::Config,
+        last_event_number: u64,
     ) -> anyhow::Result<Self>;
 
     /// Returns a copy of the [`TxStatusManager`] that the [`BatchBuilder`] uses
@@ -101,7 +102,12 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
 
     /// Informs the [`BatchBuilder`] that the DA layer has progressed to a new
     /// slot.
-    async fn set_state(&mut self, da_height: u64, stf_state: <Self::Spec as Spec>::Storage);
+    async fn set_state(
+        &mut self,
+        da_height: u64,
+        stf_state: <Self::Spec as Spec>::Storage,
+        last_event_number: u64,
+    );
 
     /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
     /// implementation itself is responsible for "encoding" the transaction.
