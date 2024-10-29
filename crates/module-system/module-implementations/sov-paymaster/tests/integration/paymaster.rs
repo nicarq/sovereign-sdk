@@ -1,10 +1,9 @@
-use arrayvec::ArrayVec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::TxEffect;
 use sov_paymaster::{
     AllowedSequencerUpdate, CallMessage as PaymasterCallMessage, Event as PaymasterEvent,
-    PayeePolicy, Paymaster, PaymasterPolicy, PolicyUpdate,
+    PayeePolicy, Paymaster, PaymasterPolicy, PolicyUpdate, SafeVec,
 };
 use sov_test_utils::runtime::{TestRunner, TokenId, ValueSetter, ValueSetterCallMessage};
 use sov_test_utils::{
@@ -107,7 +106,7 @@ fn test_registering_new_payer() {
                         gas_limit: None,
                         max_gas_price: None,
                     },
-                    payees: ArrayVec::new(),
+                    payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
                     authorized_updaters: [setup.payer.address()].as_ref().try_into().unwrap(),
                 },
@@ -150,7 +149,7 @@ fn test_setting_payer_for_sequencer() {
                         gas_limit: None,
                         max_gas_price: None,
                     },
-                    payees: ArrayVec::new(),
+                    payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
                     authorized_updaters: [setup.user.address()].as_ref().try_into().unwrap(),
                 },
@@ -404,7 +403,8 @@ fn test_updates_using_alternate_address() {
         .payer_setup()
         .policy
         .authorized_updaters
-        .push(user_address);
+        .try_push(user_address)
+        .unwrap();
     let mut runner = TestRunner::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
         PaymasterRuntime::default(),
@@ -484,7 +484,7 @@ fn test_setting_payer_with_insufficient_balance() {
                         gas_limit: None,
                         max_gas_price: None,
                     },
-                    payees: ArrayVec::new(),
+                    payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
                     authorized_updaters: [setup.user.address()].as_ref().try_into().unwrap(),
                 },

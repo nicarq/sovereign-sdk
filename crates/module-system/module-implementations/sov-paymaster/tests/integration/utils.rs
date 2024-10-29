@@ -1,5 +1,4 @@
-use arrayvec::ArrayVec;
-use sov_modules_api::{BlobDataWithId, CryptoSpec, Spec};
+use sov_modules_api::{BlobDataWithId, CryptoSpec, SafeVec, Spec};
 use sov_paymaster::{PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicy};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -95,7 +94,7 @@ pub fn setup(user_balance: u64) -> Setup {
                         gas_limit: None,
                         max_gas_price: None,
                     },
-                    payees: ArrayVec::new(),
+                    payees: SafeVec::new(),
                     authorized_sequencers: sov_paymaster::AuthorizedSequencers::All,
                     authorized_updaters: [payer.address()].as_ref().try_into().unwrap(),
                 },

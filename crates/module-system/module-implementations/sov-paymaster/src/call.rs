@@ -1,10 +1,9 @@
 use std::fmt::Debug;
 
 use anyhow::{bail, Result};
-pub use arrayvec::ArrayVec;
-use arrayvec::CapacityError;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::safe_vec::CapacityError;
 use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
 
 use crate::{
@@ -14,9 +13,8 @@ use crate::{
 
 /// The default length of a [`SafeVec`].
 pub const DEFAULT_SAFE_VEC_LEN: usize = 20;
-/// A [`Vec`]-like type with a reasonable limit on its length. This is implemented
-/// as an [`ArrayVec`] under the hood.
-pub type SafeVec<T, const LEN: usize = DEFAULT_SAFE_VEC_LEN> = ArrayVec<T, LEN>;
+/// A [`Vec`]-like type with a reasonable limit on its length.
+pub type SafeVec<T, const LEN: usize = DEFAULT_SAFE_VEC_LEN> = sov_modules_api::SafeVec<T, LEN>;
 
 /// A list of payees and the policies that apply to them.
 ///
@@ -88,13 +86,9 @@ pub enum CallMessage<S: Spec> {
 #[derivative(Default(bound = ""))]
 pub struct PolicyUpdate<S: Spec> {
     sequencer_update: Option<SequencerSetUpdate<S::Da>>,
-    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
     updaters_to_add: Option<SafeVec<S::Address>>,
-    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
     updaters_to_remove: Option<SafeVec<S::Address>>,
-    #[schemars(with = "&[(S::Address, PayeePolicy<S>)]", length = DEFAULT_SAFE_VEC_LEN)]
     payee_policies_to_set: Option<SafeVec<(S::Address, PayeePolicy<S>)>>,
-    #[schemars(with = "&[S::Address]", length = DEFAULT_SAFE_VEC_LEN)]
     payee_policies_to_delete: Option<SafeVec<S::Address>>,
     default_policy: Option<PayeePolicy<S>>,
 }
@@ -134,8 +128,9 @@ impl<S: Spec> PolicyUpdate<S> {
             updater_to_remove != &updater_to_add
         });
         self.updaters_to_add
-            .get_or_insert(ArrayVec::new())
-            .push(updater_to_add);
+            .get_or_insert(SafeVec::new())
+            .try_push(updater_to_add)
+            .unwrap();
         self
     }
 
@@ -145,8 +140,9 @@ impl<S: Spec> PolicyUpdate<S> {
             updater_to_add != &updater_to_remove
         });
         self.updaters_to_remove
-            .get_or_insert(ArrayVec::new())
-            .push(updater_to_remove);
+            .get_or_insert(SafeVec::new())
+            .try_push(updater_to_remove)
+            .unwrap();
         self
     }
 
@@ -156,8 +152,9 @@ impl<S: Spec> PolicyUpdate<S> {
             payee_to_delete != &payee_to_add
         });
         self.payee_policies_to_set
-            .get_or_insert(ArrayVec::new())
-            .push((payee_to_add, policy));
+            .get_or_insert(SafeVec::new())
+            .try_push((payee_to_add, policy))
+            .unwrap();
         self
     }
 
@@ -167,8 +164,9 @@ impl<S: Spec> PolicyUpdate<S> {
             payee_to_add.0 != payee_to_delete
         });
         self.payee_policies_to_delete
-            .get_or_insert(ArrayVec::new())
-            .push(payee_to_delete);
+            .get_or_insert(SafeVec::new())
+            .try_push(payee_to_delete)
+            .unwrap();
         self
     }
 
@@ -219,9 +217,7 @@ pub enum SequencerSetUpdate<Da: DaSpec> {
 #[schemars(bound = "Da: DaSpec", rename = "SequencerUpdateList")]
 #[derivative(Default(bound = ""))]
 pub struct AllowedSequencerUpdate<Da: DaSpec> {
-    #[schemars(with = "&[Da::Address]", length = DEFAULT_SAFE_VEC_LEN)]
     to_add: Option<SafeVec<Da::Address>>,
-    #[schemars(with = "&[Da::Address]", length = DEFAULT_SAFE_VEC_LEN)]
     to_remove: Option<SafeVec<Da::Address>>,
 }
 
@@ -237,7 +233,9 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
     /// Create a new update which removes the sequencer
     pub fn remove(address: Da::Address) -> Self {
         let mut to_remove = SafeVec::new();
-        to_remove.push(address);
+        to_remove
+            .try_push(address)
+            .expect("Pushing to an empty safe vec is infallible");
         Self {
             to_add: None,
             to_remove: Some(to_remove),
@@ -247,7 +245,9 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
     /// Create a new update which adds the given sequencer.
     pub fn add(address: Da::Address) -> Self {
         let mut to_add = SafeVec::new();
-        to_add.push(address);
+        to_add
+            .try_push(address)
+            .expect("Pushing to an empty safe vec is infallible");
         Self {
             to_add: Some(to_add),
             to_remove: None,
@@ -264,7 +264,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
         });
         match self
             .to_remove
-            .get_or_insert(ArrayVec::new())
+            .get_or_insert(SafeVec::new())
             .try_push(sequencer_to_add)
         {
             Ok(_) => Ok(self),
@@ -282,7 +282,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
         });
         match self
             .to_remove
-            .get_or_insert(ArrayVec::new())
+            .get_or_insert(SafeVec::new())
             .try_push(sequencer_to_remove)
         {
             Ok(_) => Ok(self),
@@ -291,7 +291,7 @@ impl<Da: DaSpec> AllowedSequencerUpdate<Da> {
     }
 }
 
-fn retain_elts_if<T>(collection: &mut Option<SafeVec<T>>, f: impl FnMut(&mut T) -> bool) {
+fn retain_elts_if<T>(collection: &mut Option<SafeVec<T>>, f: impl FnMut(&T) -> bool) {
     if let Some(contents) = collection {
         contents.retain(f);
         if contents.is_empty() {
@@ -531,11 +531,9 @@ impl<S: Spec> Paymaster<S> {
     ) -> Result<()> {
         let authorized_updaters = &mut policy.authorized_updaters;
         if let Some(to_add) = to_add {
-            if authorized_updaters.len() + to_add.len() > authorized_updaters.capacity() {
-                bail!("Attempted to add too many updaters to policy for payer {}. Only {} updaters are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, authorized_updaters.len())
-            } else {
-                authorized_updaters.extend(to_add);
-            }
+            authorized_updaters.try_extend(to_add).map_err(|_| anyhow::anyhow!(
+                "Attempted to add too many updaters to policy for payer {}. Only {} updaters are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, authorized_updaters.len()
+            ))?;
         }
         Ok(())
     }
@@ -578,10 +576,6 @@ impl<S: Spec> Paymaster<S> {
                     }
                     AuthorizedSequencers::Some(existing_list) => {
                         remove_elts_from_list(to_remove, existing_list);
-                        if sequencers_to_add.len() + existing_list.len() > existing_list.capacity()
-                        {
-                            bail!("Attempted to add too many sequencers to policy for payer {}. Only {} sequencers are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, existing_list.len())
-                        }
                         if sequencers_to_add.contains(context.sequencer_da_address()) {
                             self.sequencer_to_payer.set(
                                 context.sequencer_da_address(),
@@ -596,7 +590,7 @@ impl<S: Spec> Paymaster<S> {
                                 },
                             );
                         }
-                        existing_list.extend(sequencers_to_add);
+                        existing_list.try_extend(sequencers_to_add).map_err(|_| anyhow::anyhow!("Attempted to add too many sequencers to policy for payer {}. Only {} sequencers are allowed and the policy already has {}.", payer, DEFAULT_SAFE_VEC_LEN, existing_list.len()))?;
                     }
                 }
             }
