@@ -1,3 +1,6 @@
+## 2024-10-29
+- #1778 ensures that the slot hooks only run when the visible slot number increases. This may be breaking behaviors that assume the slot hooks to run on every slot.
+
 ## 2024-10-28
 - #1757 Adds two new parameters to the `genesis` method of the modules. Please ensure to reflect that change in your `genesis` implementations.
 

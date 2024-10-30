@@ -11,6 +11,15 @@ pub enum BlobOrigin<'a, T> {
     Proof(&'a mut T),
 }
 
+/// Output of the [`BlobSelector::get_blobs_for_this_slot`] method from the [`BlobSelector`] trait.
+pub struct BlobSelectorOutput<S: Spec, BlobType> {
+    /// The blobs selected by the module.
+    pub selected_blobs: Vec<(BlobType, <S::Da as DaSpec>::Address)>,
+    /// Whether the slot hooks should be executed. We should execute slot hooks whenever we accept blobs for execution
+    /// or when we increase the virtual slot number.
+    pub should_execute_slot_hooks: bool,
+}
+
 /// BlobSelector decides which blobs to process in a current slot.
 pub trait BlobSelector {
     /// Spec type
@@ -25,12 +34,7 @@ pub trait BlobSelector {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<
-        Vec<(
-            Self::BlobType,
-            <<Self::Spec as Spec>::Da as DaSpec>::Address,
-        )>,
-    >
+    ) -> anyhow::Result<BlobSelectorOutput<Self::Spec, Self::BlobType>>
     where
         I: IntoIterator<
             Item = BlobOrigin<'a, <<Self::Spec as Spec>::Da as DaSpec>::BlobTransaction>,

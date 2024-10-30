@@ -92,7 +92,7 @@ fn test_chain_state_gas_updates() {
         let gas_consumed = get_gas_used(&output.batch_receipts[0].tx_receipts[0]);
 
         let in_progress_transition = ChainState::<S>::default()
-            .get_last_slot(kernel)
+            .last_slot(kernel)
             .unwrap_infallible()
             .unwrap();
 
@@ -152,7 +152,7 @@ fn test_chain_state_historical_transition_update() {
 
     let in_progress_transition = runner.query_state_at_true_height(|kernel| {
         ChainState::<S>::default()
-            .get_last_slot(kernel)
+            .last_slot(kernel)
             .unwrap_infallible()
             .unwrap()
     });

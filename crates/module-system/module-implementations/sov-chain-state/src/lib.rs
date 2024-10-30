@@ -380,11 +380,19 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the last slot processed by the module.
-    pub fn get_last_slot<Reader: VersionReader>(
+    pub fn last_slot<Reader: VersionReader>(
         &self,
         state: &mut Reader,
     ) -> Result<Option<SlotInformation<S>>, Reader::Error> {
-        self.slots.get(state.rollup_height_to_access(), state)
+        self.slots.last(state)
+    }
+
+    /// Returns the last root processed by the module.
+    pub fn last_root<Reader: VersionReader>(
+        &self,
+        state: &mut Reader,
+    ) -> Result<Option<<S::Storage as Storage>::Root>, Reader::Error> {
+        self.state_roots.last(state)
     }
 
     /// Returns the root hash of the state at the provided height.

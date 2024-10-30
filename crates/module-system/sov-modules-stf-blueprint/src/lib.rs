@@ -176,49 +176,15 @@ where
     RT: Runtime<S>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn begin_slot(
-        &self,
-        state: &mut StateCheckpoint<S::Storage>,
-        slot_header: &<S::Da as DaSpec>::BlockHeader,
-        validity_condition: &<S::Da as DaSpec>::ValidityCondition,
-        pre_state_root: &<S::Storage as Storage>::Root,
-        visible_hash: &<S::Storage as Storage>::Root,
-    ) {
-        let mut kernel_state_accessor = self.runtime.kernel().accessor(state);
-
-        KernelSlotHooks::begin_slot_hook(
-            &self.runtime,
-            slot_header,
-            validity_condition,
-            pre_state_root,
-            &mut kernel_state_accessor,
-        );
-
-        SlotHooks::begin_slot_hook(&self.runtime, visible_hash, state);
-    }
-
-    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-    fn end_slot(
+    fn materialize_slot(
         &self,
         storage: S::Storage,
-        gas_used: &S::Gas,
-        mut checkpoint: StateCheckpoint<S::Storage>,
+        checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
         <S::Storage as Storage>::ChangeSet,
     ) {
-        // Run end_slot_hook
-        SlotHooks::end_slot_hook(&self.runtime, &mut checkpoint);
-
-        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut checkpoint);
-
-        self.runtime
-            .chain_state()
-            .finalise_chain_state(gas_used, &mut kernel_state_accessor);
-
-        KernelSlotHooks::end_slot_hook(&self.runtime, gas_used, &mut kernel_state_accessor);
-
         let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
 
         let (next_root_hash, mut state_update) = storage
@@ -349,18 +315,18 @@ where
                     .map(BlobOrigin::Proof),
             );
 
-        let selected_blobs = self
+        let blob_selector_output = self
             .runtime
             .blob_selector()
             .get_blobs_for_this_slot(all_blobs, &mut kernel)
             .expect("blob selection must succeed, probably serialization failed");
 
-        self.begin_slot(
-            &mut state,
+        KernelSlotHooks::begin_slot_hook(
+            &self.runtime,
             slot_header,
             validity_condition,
             pre_state_root,
-            &visible_hash,
+            &mut kernel,
         );
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
@@ -369,19 +335,27 @@ where
 
         let visible_height = state.rollup_height_to_access();
 
-        if !selected_blobs.is_empty() {
-            info!(
-                blob_count = selected_blobs.len(),
-                virtual_slot = visible_height,
-                "Selected batch(es) for execution in current slot"
-            );
+        info!(
+            blob_count = blob_selector_output.selected_blobs.len(),
+            virtual_slot = visible_height,
+            "Selected batch(es) for execution in current slot"
+        );
+
+        // We run [`SlotHooks::begin_slot_hook`] if the visible height is updated. This is to ensure that we have the
+        // following invariant: the `user_space` root only updates when the `virtual_slot_height`` gets increased.
+        // If not enforced, this may break soft-confirmations because it will not be possible to deterministically
+        // predict the user space state when executing priority blobs.
+        if blob_selector_output.should_execute_slot_hooks {
+            SlotHooks::begin_slot_hook(&self.runtime, &visible_hash, &mut state);
         }
 
         let mut proof_receipts = Vec::new();
         let mut batch_receipts = vec![];
 
         let mut total_gas = S::Gas::zero();
-        for (blob_idx, (blob, sender)) in selected_blobs.into_iter().enumerate() {
+        for (blob_idx, (blob, sender)) in
+            blob_selector_output.selected_blobs.into_iter().enumerate()
+        {
             match blob.data {
                 BlobData::Batch(batch) => {
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT>(
@@ -429,7 +403,20 @@ where
             }
         }
 
-        let (state_root, witness, change_set) = self.end_slot(pre_state, &total_gas, state);
+        if blob_selector_output.should_execute_slot_hooks {
+            SlotHooks::end_slot_hook(&self.runtime, &mut state);
+        }
+
+        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut state);
+
+        self.runtime
+            .chain_state()
+            .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
+
+        KernelSlotHooks::end_slot_hook(&self.runtime, &total_gas, &mut kernel_state_accessor);
+
+        let (state_root, witness, change_set) = self.materialize_slot(pre_state, state);
+
         ApplySlotOutput {
             state_root,
             change_set,
