@@ -1,3 +1,5 @@
+## 2024-10-30
+- #1786 Removes the `BondingService` associated type and `create_bonding_service` method on `FullNodeBlueprint`. These items can now be deleted.
 ## 2024-10-29
 - #1778 ensures that the slot hooks only run when the visible slot number increases. This may be breaking behaviors that assume the slot hooks to run on every slot.
 

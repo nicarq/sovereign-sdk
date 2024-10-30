@@ -44,6 +44,7 @@ mod blueprint {
     use async_trait::async_trait;
     use sov_db::ledger_db::LedgerDb;
     use sov_db::schema::{DeltaReader, SchemaBatch};
+    use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::rest::StorageReceiver;
@@ -56,7 +57,6 @@ mod blueprint {
     };
     use sov_rollup_interface::node::da::DaService;
     use sov_rollup_interface::node::DaSyncState;
-    use sov_rollup_interface::optimistic::BondingProofService;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
     use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_sequencer::batch_builders::BatchBuilder;
@@ -109,20 +109,10 @@ mod blueprint {
         /// Serialize proof blob and adds metadata needed for verification.
         type ProofSerializer: ProofSerializer + 'static;
 
-        /// Service that is used during Attestation generation.
-        type BondingProofService: BondingProofService;
-
         /// Gets the operating mode of the rollup (Zk or Optimistic).
         fn get_operating_mode(
             genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
         ) -> OperatingMode;
-
-        /// Creates a new [`BondingProofService`] service.
-        fn create_bonding_proof_service(
-            &self,
-            attester_address: <Self::Spec as Spec>::Address,
-            storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
-        ) -> Self::BondingProofService;
 
         /// Creates code commitments for the outer zkVM program.
         fn create_outer_code_commitment(
@@ -291,8 +281,13 @@ mod blueprint {
                         OperatingMode::Optimistic => {
                             let prover_address = rollup_config.proof_manager.prover_address.clone();
                             let receiver = api_storage_sender.subscribe();
-                            let bonding_proof_service =
-                                self.create_bonding_proof_service(prover_address, receiver);
+                            let bonding_proof_service = Self::Runtime::default()
+                                .proof_processor()
+                                .create_bonding_proof_service(
+                                    prover_address,
+                                    receiver,
+                                    Self::Runtime::default(),
+                                );
 
                             process_manager
                                 .start_op_workflow_in_background(bonding_proof_service)
