@@ -29,20 +29,21 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         sequencer_account,
     };
 
-    let txs = create_txs(
+    let start = runner.query_state(|state| actors.balances(state));
+
+    let txs_len = tx_statuses.len();
+
+    let mock_blob = create_txs(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
         &actors.not_admin_account,
+        runner.config.sequencer_da_address,
     );
-
-    let start = runner.query_state(|state| actors.balances(state));
-
-    let txs_len = txs.len();
 
     let blobs = RelevantBlobs {
         proof_blobs: Default::default(),
-        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
+        batch_blobs: vec![mock_blob],
     };
 
     let nb_of_valid_txs = TxStatus::nb_of_valid_txs(&tx_statuses);
@@ -76,6 +77,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
                     valid_tx_count += 1;
                 }
                 TxEffect::Skipped(tx_contents) => {
+                    println!("Skipped tx: {:?}", tx_contents);
                     total_gas.combine(&tx_contents.gas_used);
                     let gas_value = tx_contents.gas_used.value(gas_price);
                     // Sequencer doesn't get the fee and is penalized
@@ -160,6 +162,7 @@ fn execute_batch_of_valid_and_invalid_tx_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::BadSerialization,
         TxStatus::SignerDoesNotExist,
         TxStatus::Success,
         TxStatus::BadSignature,
@@ -215,22 +218,23 @@ fn not_enough_stake_to_execute_batch_hook_test() {
         sequencer_account,
     };
 
-    let txs = create_txs(
+    let mock_blob = create_txs(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
         &actors.not_admin_account,
+        runner.config.sequencer_da_address,
     );
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![mock_blob],
+    };
 
     let batch_hook_gas = <S as GasSpec>::batch_hook_gas();
     let seq_address = actors.sequencer_account.da_address;
 
     let start = runner.query_state(|state| actors.balances(state));
-
-    let blobs = RelevantBlobs {
-        proof_blobs: Default::default(),
-        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
-    };
 
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
@@ -277,22 +281,23 @@ fn not_enough_stake_auth_batch_test() {
         sequencer_account,
     };
 
-    let txs = create_txs(
+    let mock_blob = create_txs(
         &tx_statuses,
         priority_fee_bips,
         &actors.admin_account,
         &actors.not_admin_account,
+        runner.config.sequencer_da_address,
     );
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![mock_blob],
+    };
 
     let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
     let batch_hook_gas = <S as GasSpec>::batch_hook_gas();
 
     let start = runner.query_state(|state| actors.balances(state));
-
-    let blobs = RelevantBlobs {
-        proof_blobs: Default::default(),
-        batch_blobs: vec![make_blob(txs, runner.config.sequencer_da_address)],
-    };
 
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
@@ -332,10 +337,46 @@ fn not_enough_stake_auth_batch_test() {
     }
 }
 
+// The batch from an unregistered sequencer is ignored, and no batch receipt is returned.
+#[test]
+#[serial]
+fn non_existing_seq_da_tests() {
+    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
+
+    let priority_fee_bips = PriorityFeeBips::from_percentage(5);
+    let tx_statuses = vec![TxStatus::Success];
+
+    let (mut runner, users, sequencer_account) = setup(2);
+
+    let actors = Actors {
+        admin_account: users[0].clone(),
+        not_admin_account: users[1].clone(),
+        sequencer_account,
+    };
+
+    let bad_da_address: [u8; 32] = [33u8; 32];
+
+    let mock_blob = create_txs(
+        &tx_statuses,
+        priority_fee_bips,
+        &actors.admin_account,
+        &actors.not_admin_account,
+        bad_da_address.into(),
+    );
+
+    let blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![mock_blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+    assert!(result.batch_receipts.is_empty());
+}
+
 mod helpers {
     use sov_modules_api::macros::config_value;
     use sov_modules_api::transaction::PriorityFeeBips;
-    use sov_modules_api::{DaSpec, Spec};
+    use sov_modules_api::{DaSpec, FullyBakedTx, Spec};
     use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
     use sov_value_setter::{CallMessage, ValueSetter};
 
@@ -383,7 +424,8 @@ mod helpers {
         max_priority_fee_bips: PriorityFeeBips,
         admin: &TestUser<S>,
         not_admin: &TestUser<S>,
-    ) -> Vec<Transaction<S>> {
+        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
         let mut nonce = 0;
         let mut reverted_tx_nonce = 0;
         let mut bad_signer_nonce = 0;
@@ -398,7 +440,7 @@ mod helpers {
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                     nonce += 1;
                 }
                 TxStatus::BadNonce => {
@@ -409,7 +451,7 @@ mod helpers {
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                 }
                 TxStatus::BadChainId => {
                     let tx = create_tx_valid(
@@ -419,7 +461,7 @@ mod helpers {
                         config_value!("CHAIN_ID") + 1,
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                 }
 
                 TxStatus::BadSignature => {
@@ -430,7 +472,7 @@ mod helpers {
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                 }
                 TxStatus::Reverted => {
                     // A call message send by not admin will be reverted.
@@ -441,8 +483,12 @@ mod helpers {
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                     reverted_tx_nonce += 1;
+                }
+                TxStatus::BadSerialization => {
+                    let tx = FullyBakedTx::new(vec![1, 2, 3]);
+                    txs.push(tx);
                 }
                 TxStatus::SignerDoesNotExist => {
                     let tx = create_tx_bad_sender(
@@ -451,32 +497,22 @@ mod helpers {
                         config_value!("CHAIN_ID"),
                         encode_message(),
                     );
-                    txs.push(tx);
+                    txs.push(encode(tx));
                     bad_signer_nonce += 1;
                 }
             }
         }
-        txs
+        let blob = borsh::to_vec(&Batch::new(txs)).unwrap();
+        MockBlob::new_with_hash(blob, seq_da_address)
     }
 
     fn encode_message() -> Vec<u8> {
         <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8))
     }
 
-    pub(crate) fn make_blob(
-        txs: Vec<Transaction<S>>,
-        seq_da_address: <<S as Spec>::Da as DaSpec>::Address,
-    ) -> MockBlob {
-        let txs = txs
-            .into_iter()
-            .map(|tx| {
-                <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(
-                    RawTx::new(borsh::to_vec(&tx).unwrap()),
-                )
-            })
-            .collect();
-
-        let blob = borsh::to_vec(&Batch::new(txs)).unwrap();
-        MockBlob::new_with_hash(blob, seq_da_address)
+    fn encode(tx: Transaction<S>) -> FullyBakedTx {
+        <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(RawTx::new(
+            borsh::to_vec(&tx).unwrap(),
+        ))
     }
 }

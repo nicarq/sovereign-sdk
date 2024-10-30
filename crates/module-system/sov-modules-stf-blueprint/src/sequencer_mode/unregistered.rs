@@ -8,7 +8,7 @@ use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
     GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, TxScratchpad, WorkingSet,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use crate::sequencer_mode::common::{
     apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
@@ -194,7 +194,7 @@ where
     // The sequencer is not bonded so we don't charge for the batch hook gas.
     // ApplyBlobHook: begin
     if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
-        error!(
+        warn!(
             error = %e,
             batch_id = hex::encode(batch.id),
             BEGIN_BATCH_HOOK_ERR,
@@ -237,7 +237,7 @@ where
             scratchpad,
         ),
         (Err(UnregisteredAuthenticationError::FatalError(err, tx_hash)), scratchpad) => {
-            error!(error = ?err, "Authentication failed");
+            warn!(error = ?err, "Authentication failed");
             (
                 ValidatedAuthOutput::Invalid {
                     tx_hash,

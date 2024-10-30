@@ -28,6 +28,7 @@ enum BlobDiscardReason {
     MaxAllowedUnregisteredBlobs,
 }
 
+#[derive(Debug)]
 enum SequencerStatus {
     Registered,
     Unregistered,
