@@ -9,7 +9,7 @@ use sov_modules_api::{
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Rewards, Spec,
     StateCheckpoint, TxScratchpad, WorkingSet,
 };
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use super::common::ValidatedAuthOutput;
 pub use crate::sequencer_mode::common::PreExecError;
@@ -215,7 +215,7 @@ where
         Ok(_) => (),
         Err(e) => {
             let err_str = format!("Not enough gas to execute `begin_batch_hook`: {}", e);
-            error!(
+            warn!(
                 error = %e,
                 batch_id = hex::encode(batch_with_id.id),
                 "Not enough gas to execute `begin_batch_hook` ",
@@ -232,7 +232,7 @@ where
 
     // ApplyBlobHook: begin
     if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
-        error!(
+        warn!(
             error = %e,
             batch_id = hex::encode(batch_with_id.id),
             BEGIN_BATCH_HOOK_ERR,
@@ -289,7 +289,7 @@ where
         Err(AuthorizeSequencerError { reason }) => {
             let err_str = format!("Not enough gas to authenticate the batch: {}", reason);
 
-            error!(
+            warn!(
                 error = %reason,
                 batch_id = hex::encode(batch_with_id.id),
                 "Not enough gas to authenticate the batch",
@@ -339,7 +339,7 @@ where
             }
             Err(pre_exec_error) => match pre_exec_error {
                 AuthenticationError::FatalError(err, tx_hash) => {
-                    error!(error = ?err, "Authentication failed");
+                    warn!(error = ?err, "Authentication failed");
                     auth_outputs.push((
                         idx,
                         ValidatedAuthOutput::Invalid {

@@ -144,6 +144,7 @@ fn execute_seq_registration_failure_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::BadSerialization,
         TxStatus::SignerDoesNotExist,
         TxStatus::BadNonce,
         TxStatus::BadNonce,
@@ -249,50 +250,51 @@ mod helpers {
         potential_seq: &PotentialSequencer,
     ) -> MockBlob {
         let tx = match status {
-            TxStatus::Success => create_tx_valid(
+            TxStatus::Success => encode_tx(create_tx_valid(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 config_value!("CHAIN_ID"),
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
-            ),
-            TxStatus::BadNonce => create_tx_valid(
+            )),
+            TxStatus::BadNonce => encode_tx(create_tx_valid(
                 999,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 config_value!("CHAIN_ID"),
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
-            ),
-            TxStatus::BadChainId => create_tx_valid(
+            )),
+            TxStatus::BadChainId => encode_tx(create_tx_valid(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 config_value!("CHAIN_ID") + 1,
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
-            ),
-            TxStatus::BadSignature => create_tx_bad_sig(
+            )),
+            TxStatus::BadSignature => encode_tx(create_tx_bad_sig(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 config_value!("CHAIN_ID"),
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
-            ),
-            TxStatus::Reverted => create_tx_reverted(
+            )),
+            TxStatus::BadSerialization => RawTx::new(vec![1, 2, 3]),
+            TxStatus::Reverted => encode_tx(create_tx_reverted(
                 0,
                 max_priority_fee_bips,
                 &potential_seq.user,
                 potential_seq.da_address,
                 config_value!("CHAIN_ID"),
-            ),
-            TxStatus::SignerDoesNotExist => create_tx_bad_sender(
+            )),
+            TxStatus::SignerDoesNotExist => encode_tx(create_tx_bad_sender(
                 0,
                 max_priority_fee_bips,
                 config_value!("CHAIN_ID"),
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
-            ),
+            )),
         };
 
-        encode_tx(tx, potential_seq.da_address)
+        make_blob(tx, potential_seq.da_address)
     }
 
     fn encode_message(
@@ -307,12 +309,12 @@ mod helpers {
         )
     }
 
-    fn encode_tx(
-        signed_tx: Transaction<S>,
-        da_address: <<S as Spec>::Da as DaSpec>::Address,
-    ) -> MockBlob {
-        let tx_data = borsh::to_vec(&signed_tx).unwrap();
-        let raw_tx = RawTx { data: tx_data };
+    fn encode_tx(tx: Transaction<S>) -> RawTx {
+        let tx_data = borsh::to_vec(&tx).unwrap();
+        RawTx { data: tx_data }
+    }
+
+    fn make_blob(raw_tx: RawTx, da_address: <<S as Spec>::Da as DaSpec>::Address) -> MockBlob {
         let tx_blob = borsh::to_vec(&raw_tx).unwrap();
         MockBlob::new_with_hash(tx_blob, da_address)
     }

@@ -73,6 +73,7 @@ enum TxStatus {
     BadNonce,
     BadChainId,
     BadSignature,
+    BadSerialization,
     SignerDoesNotExist,
     Reverted,
 }
