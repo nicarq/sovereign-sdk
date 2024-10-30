@@ -1,3 +1,4 @@
+use sov_chain_state::ChainState;
 use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
@@ -6,7 +7,7 @@ use sov_modules_api::{
     StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
-use sov_state::{ProvableNamespace, StateRoot, Storage};
+use sov_state::Storage;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::TestUser;
@@ -29,8 +30,8 @@ pub struct TestVisibleHashModule<S: Spec> {
     #[state]
     begin_slot_hash: StateVec<<S::Storage as Storage>::Root>,
 
-    #[phantom]
-    phantom: std::marker::PhantomData<S>,
+    #[module]
+    chain_state: ChainState<S>,
 }
 
 impl<S: Spec> Module for TestVisibleHashModule<S> {
@@ -81,18 +82,18 @@ impl<S: Spec> TestVisibleHashModule<S> {
     }
 }
 
-struct TestClosureArgs {
-    prev_finalize_hook_hash: [u8; 32],
-    begin_slot_hash: [u8; 32],
-    finalize_hook_hash: [u8; 32],
-    current_slot_hash: [u8; 32],
+struct TestClosureArgs<S: Storage> {
+    prev_finalize_hook_hash: S::Root,
+    prev_slot_hash: S::Root,
+    finalize_hook_hash: S::Root,
+    current_slot_hash: S::Root,
 }
 
 /// A helper method for the visible hash tests. It advances the module state by `num_slots` and runs a closure with
 /// the specified test arguments after each iteration.
 
 fn last_state_root_closure<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
-    test_closure: &mut impl FnMut(TestClosureArgs),
+    test_closure: &mut impl FnMut(TestClosureArgs<<S as Spec>::Storage>),
     runner: &mut TestRunner<RT>,
     num_slots: u64,
 ) {
@@ -101,37 +102,31 @@ fn last_state_root_closure<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGe
     let mut prev_finalize_hook_hash = runner.query_state(|state| {
         module
             .finalize_hook_hash
-            .get(0, state)
+            .last(state)
             .unwrap_infallible()
             .unwrap()
-            .namespace_root(ProvableNamespace::Kernel)
     });
 
     for _ in 0..num_slots {
         runner.advance_slots(1_usize);
 
-        runner.query_state(|state| {
-            let begin_slot_hash = module
-                .begin_slot_hash
-                .last(state)
+        runner.query_state_at_true_height(|state| {
+            let prev_slot_hash = module
+                .chain_state
+                .last_root(state)
                 .unwrap_infallible()
-                .unwrap()
-                .namespace_root(ProvableNamespace::Kernel);
+                .unwrap();
 
             let finalize_hook_hash = module
                 .finalize_hook_hash
                 .last(state)
                 .unwrap_infallible()
-                .unwrap()
-                .namespace_root(ProvableNamespace::Kernel);
+                .unwrap();
 
-            let current_slot_hash = runner
-                .state_root()
-                .clone()
-                .namespace_root(ProvableNamespace::Kernel);
+            let current_slot_hash = *runner.state_root();
 
             test_closure(TestClosureArgs {
-                begin_slot_hash,
+                prev_slot_hash,
                 finalize_hook_hash,
                 prev_finalize_hook_hash,
                 current_slot_hash,

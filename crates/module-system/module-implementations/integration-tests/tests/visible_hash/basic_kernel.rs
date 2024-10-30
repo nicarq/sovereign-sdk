@@ -1,5 +1,6 @@
 use sov_modules_api::hooks::SlotHooks;
 use sov_modules_api::{Spec, Storage};
+use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator};
 
 use crate::visible_hash::{
@@ -71,23 +72,35 @@ fn visible_hash_basic_kernel() {
     last_state_root_closure(
         &mut |TestClosureArgs {
                   prev_finalize_hook_hash,
-                  begin_slot_hash,
+                  prev_slot_hash,
                   finalize_hook_hash,
                   current_slot_hash,
               }| {
             assert_eq!(
-                prev_finalize_hook_hash, begin_slot_hash,
-                "The previous finalize slot hash should match the current begin slot hash"
-            );
-
-            assert_ne!(
-                finalize_hook_hash, begin_slot_hash,
-                "The begin and finalize slot hashes should not match"
+                prev_finalize_hook_hash, prev_slot_hash,
+                "The previous finalize hash should always match the previous slot hash"
             );
 
             assert_eq!(
                 finalize_hook_hash, current_slot_hash,
-                "The last finalize slot hash should match the current slot hash"
+                "The current finalize hash should always match the current slot hash"
+            );
+
+            assert_ne!(
+                current_slot_hash, prev_slot_hash,
+                "The slot hash should always update"
+            );
+
+            assert_ne!(
+                current_slot_hash.namespace_root(ProvableNamespace::Kernel),
+                prev_slot_hash.namespace_root(ProvableNamespace::Kernel),
+                "The kernel hash should always update in the basic kernel"
+            );
+
+            assert_ne!(
+                current_slot_hash.namespace_root(ProvableNamespace::User),
+                prev_slot_hash.namespace_root(ProvableNamespace::User),
+                "The user hash should always update in the basic kernel"
             );
         },
         &mut runner,

@@ -4,7 +4,7 @@ use std::convert::Infallible;
 
 use sov_blob_storage::BlobStorage;
 use sov_chain_state::ChainState;
-use sov_modules_api::capabilities::BlobOrigin;
+use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
@@ -37,7 +37,7 @@ impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, <S::Da as DaSpec>::Address)>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

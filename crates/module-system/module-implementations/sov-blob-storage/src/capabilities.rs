@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use borsh::BorshDeserialize;
-use sov_modules_api::capabilities::BlobOrigin;
+use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
@@ -55,7 +55,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
+    ) -> BlobSelectorOutput<S, BlobDataWithId>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -65,7 +65,10 @@ impl<S: Spec> BlobStorage<S> {
 
         state.update_visible_rollup_height(state.rollup_height_to_access());
 
-        self.select_blobs_da_ordering(current_blobs, state)
+        BlobSelectorOutput {
+            selected_blobs: self.select_blobs_da_ordering(current_blobs, state),
+            should_execute_slot_hooks: true,
+        }
     }
 
     fn select_blobs_da_ordering<'a, 'k, I>(
@@ -241,7 +244,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
+    ) -> BlobSelectorOutput<S, BlobDataWithId>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -280,7 +283,10 @@ impl<S: Spec> BlobStorage<S> {
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
-        batches_to_process
+        BlobSelectorOutput {
+            selected_blobs: batches_to_process,
+            should_execute_slot_hooks: true,
+        }
     }
 
     /// Select the blobs to execute this slot based on the preferred sequencer and set the next virtual_height.
@@ -304,7 +310,7 @@ impl<S: Spec> BlobStorage<S> {
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
         preferred_sender: &<S::Da as DaSpec>::Address,
-    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
+    ) -> BlobSelectorOutput<S, BlobDataWithId>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -539,7 +545,10 @@ impl<S: Spec> BlobStorage<S> {
 
         self.set_next_visible_rollup_height(next_virtual_height, state);
 
-        blobs_to_process
+        BlobSelectorOutput {
+            selected_blobs: blobs_to_process,
+            should_execute_slot_hooks: num_slots_to_advance > 0,
+        }
     }
 
     /// Deserialize a blob into a `Batch` or slash the sender if it's malformed.
@@ -596,7 +605,7 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> anyhow::Result<Vec<(Self::BlobType, <S::Da as DaSpec>::Address)>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

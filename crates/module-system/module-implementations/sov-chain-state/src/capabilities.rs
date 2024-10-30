@@ -80,7 +80,7 @@ impl<S: Spec> ChainState<S> {
     ) {
         // We retrieve the last slot in progress, update its gas information and store it back to the state
         let mut in_progress_slot = self
-            .get_last_slot(state)
+            .last_slot(state)
             .unwrap_infallible()
             .expect("There should always be a transition in progress");
 
