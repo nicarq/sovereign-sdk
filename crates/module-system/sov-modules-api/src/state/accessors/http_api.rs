@@ -226,7 +226,7 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
 
         let kernel = self.kernel.clone();
 
-        let visible_height = kernel.visible_slot_number_at(height, &mut state);
+        let visible_height = kernel.visible_rollup_height_at(height, &mut state);
         state.rollup_height = height;
 
         // Set the state's base fee per gas if there is a relevant value to retrieve from the state.

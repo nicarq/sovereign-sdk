@@ -131,12 +131,12 @@ where
         slot_commit: SlotCommit<S, B, T>,
         aggregated_proofs: Vec<AggregatedProof>,
     ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
-        let slot_number = self.get_slot_number()?;
+        let rollup_height = self.get_rollup_height()?;
         let new_state_root = transition_witness.final_state_root.clone();
         let block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
             transition_witness.da_block_header.clone();
         tracing::debug!(
-            slot_number,
+            rollup_height,
             block_header = %block_header.display(),
             current_state_root = hex::encode(self.get_state_root().as_ref()),
             next_state_root = hex::encode(new_state_root.as_ref()),
@@ -145,7 +145,7 @@ where
 
         self.seen_state_transitions.push_back(StateTransitionInfo {
             data: transition_witness,
-            rollup_height: slot_number,
+            rollup_height,
         });
 
         let finalized_transitions = self
@@ -300,8 +300,8 @@ where
         &self.state_root
     }
 
-    fn get_slot_number(&self) -> anyhow::Result<u64> {
-        Ok(self.ledger_db.get_next_items_numbers()?.slot_number)
+    fn get_rollup_height(&self) -> anyhow::Result<u64> {
+        Ok(self.ledger_db.get_next_items_numbers()?.rollup_height)
     }
 }
 

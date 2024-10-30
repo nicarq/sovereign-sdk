@@ -2,8 +2,8 @@
 //!
 //!
 //! Slot Tables:
-//! - `SlotNumber -> StoredSlot`
-//! - `SlotNumber -> Vec<BatchNumber>`
+//! - `RollupHeight -> StoredSlot`
+//! - `RollupHeight -> Vec<BatchNumber>`
 //!
 //! Batch Tables:
 //! - `BatchNumber -> StoredBatch`
@@ -36,7 +36,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use super::types::{
     AccessoryKey, AccessoryStateValue, BatchNumber, DbHash, EventNumber,
-    LatestFinalizedSlotSingleton, ProofUniqueId, SlotNumber, StfInfoUniqueId, StoredBatch,
+    LatestFinalizedSlotSingleton, ProofUniqueId, RollupHeight, StfInfoUniqueId, StoredBatch,
     StoredSlot, StoredStfInfo, StoredTransaction, TxNumber,
 };
 
@@ -45,7 +45,7 @@ use super::types::{
 /// A list of all tables used by the LedgerDb. These tables store rollup "history" - meaning
 /// transaction, events, receipts, etc.
 pub const LEDGER_TABLES: &[ColumnFamilyName] = &[
-    SlotByNumber::table_name(),
+    SlotByRollupHeight::table_name(),
     SlotByHash::table_name(),
     BatchByHash::table_name(),
     BatchByNumber::table_name(),
@@ -210,22 +210,22 @@ macro_rules! define_table_with_seek_key_codec {
 
 define_table_with_seek_key_codec!(
     /// The primary source for slot data
-    (SlotByNumber) SlotNumber => StoredSlot
+    (SlotByRollupHeight) RollupHeight => StoredSlot
 );
 
 define_table_with_seek_key_codec!(
-    /// A table containing a single entry with the slot number of the latest finalized slot
-    (FinalizedSlots) LatestFinalizedSlotSingleton => SlotNumber
+    /// A table containing a single entry with the rollup height of the latest finalized slot
+    (FinalizedSlots) LatestFinalizedSlotSingleton => RollupHeight
 );
 
 define_table_with_seek_key_codec!(
     /// The primary source for state transition info data.
-    (StfInfoByNumber) SlotNumber => StoredStfInfo
+    (StfInfoByNumber) RollupHeight => StoredStfInfo
 );
 
 define_table_with_default_codec!(
     /// A "secondary index" for slot data by hash
-    (SlotByHash) DbHash => SlotNumber
+    (SlotByHash) DbHash => RollupHeight
 );
 
 define_table_with_seek_key_codec!(
@@ -267,7 +267,7 @@ define_table_with_seek_key_codec!(
 
 define_table_with_seek_key_codec!(
     /// The STF Info metadata.
-    (StfInfoMetadata) StfInfoUniqueId => SlotNumber
+    (StfInfoMetadata) StfInfoUniqueId => RollupHeight
 );
 
 define_table_without_codec!(

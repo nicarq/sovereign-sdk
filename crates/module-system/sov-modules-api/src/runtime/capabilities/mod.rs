@@ -165,19 +165,19 @@ pub mod mocks {
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
     pub struct MockKernel<S> {
-        /// The current slot number
+        /// The current rollup height
         pub true_rollup_height: u64,
-        /// The slot number at which transactions appear to be executing
-        pub visible_slot_number: u64,
+        /// The rollup height at which transactions appear to be executing
+        pub visible_rollup_height: u64,
         phantom: core::marker::PhantomData<S>,
     }
 
     impl<S: Spec> MockKernel<S> {
-        /// Create a new mock kernel with the given slot number
+        /// Create a new mock kernel with the given rollup height
         pub fn new(true_rollup_height: u64, visible_height: u64) -> Self {
             Self {
                 true_rollup_height,
-                visible_slot_number: visible_height,
+                visible_rollup_height: visible_height,
                 phantom: core::marker::PhantomData,
             }
         }
@@ -185,13 +185,13 @@ pub mod mocks {
         /// Simply increases all the heights by one
         pub fn increase_heights(&mut self) {
             self.true_rollup_height += 1;
-            self.visible_slot_number += 1;
+            self.visible_rollup_height += 1;
         }
     }
 
     #[cfg(feature = "native")]
     impl<S: Spec> KernelWithSlotMapping<S> for MockKernel<S> {
-        fn visible_slot_number_at(
+        fn visible_rollup_height_at(
             &self,
             true_rollup_height: u64,
             _state: &mut crate::ApiStateAccessor<S>,
@@ -212,8 +212,8 @@ pub mod mocks {
         fn true_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
             self.true_rollup_height
         }
-        fn next_visible_slot_number(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
-            self.visible_slot_number
+        fn next_visible_rollup_height(&self, _ws: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+            self.visible_rollup_height
         }
     }
 }

@@ -29,10 +29,10 @@ impl core::fmt::Display for CodeCommitment {
 pub struct AggregatedProofPublicData {
     /// Contains the validity conditions for each block in the aggregated proof.
     pub validity_conditions: Vec<SerializedValidityCondition>,
-    /// Initial slot number.
-    pub initial_slot_number: u64,
-    /// Final slot number.
-    pub final_slot_number: u64,
+    /// Initial rollup height.
+    pub initial_rollup_height: u64,
+    /// Final rollup height.
+    pub final_rollup_height: u64,
     /// The genesis state root of the aggregated proof.
     pub genesis_state_root: Vec<u8>,
     /// The initial state root of the aggregated proof.
@@ -53,9 +53,9 @@ impl core::fmt::Display for AggregatedProofPublicData {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
-            "AggregatedProofPublicData(initial_slot_number: {}, final_slot_number: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
-            self.initial_slot_number,
-            self.final_slot_number,
+            "AggregatedProofPublicData(initial_rollup_height: {}, final_rollup_height: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
+            self.initial_rollup_height,
+            self.final_rollup_height,
             hex::encode(&self.genesis_state_root),
             hex::encode(&self.initial_state_root),
             hex::encode(&self.final_state_root),

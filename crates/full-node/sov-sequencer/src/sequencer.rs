@@ -314,11 +314,11 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
     let mut sub = ledger_db.subscribe_slots();
 
     // FIXME(neysofu): we're assuming that the last received storage always
-    // refers to the latest known slot number. This is not necessarily true, and
+    // refers to the latest known rollup height. This is not necessarily true, and
     // simply assumes that both pieces of information arrive at the exact same
     // time. A single channel would be more appropriate.
     let mut storage_receiver = inner.batch_builder.lock().await.storage_receiver();
-    let mut latest_slot_number = ledger_db.get_head_slot()?.map(|s| s.0 .0).unwrap_or(0);
+    let mut latest_rollup_height = ledger_db.get_head_slot()?.map(|s| s.0 .0).unwrap_or(0);
 
     loop {
         tokio::select! {
@@ -336,16 +336,16 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
 
                 let mut bb = inner.batch_builder.lock().await;
                 let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
-                bb.set_state(latest_slot_number, storage, last_event_number).await;
+                bb.set_state(latest_rollup_height, storage, last_event_number).await;
 
                 if inner.automatic_batch_production {
                     inner.produce_batch().await?;
                 }
             },
-            slot_number_opt = sub.next() => {
-                if let Some(slot_number) = slot_number_opt {
-                    latest_slot_number = slot_number;
-                    notify_processed_slot::<Ss>(inner.clone(), &ledger_db,  slot_number).await?;
+            rollup_height_opt = sub.next() => {
+                if let Some(rollup_height) = rollup_height_opt {
+                    latest_rollup_height = rollup_height;
+                    notify_processed_slot::<Ss>(inner.clone(), &ledger_db,  rollup_height).await?;
                 } else {
                     break;
                 }
@@ -359,11 +359,11 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
 async fn notify_processed_slot<Ss: SequencerSpec>(
     inner: Arc<Inner<Ss>>,
     ledger_db: &LedgerDb,
-    slot_number: u64,
+    rollup_height: u64,
 ) -> anyhow::Result<()> {
     let slot = ledger_db
-        .get_slot_by_number::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
-            slot_number,
+        .get_slot_by_rollup_height::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
+            rollup_height,
             QueryMode::Full,
         )
         .await?

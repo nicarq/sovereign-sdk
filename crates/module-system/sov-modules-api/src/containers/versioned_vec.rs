@@ -406,7 +406,7 @@ mod test {
         // it increases the virtual height of the kernel.
         IncreaseVirtualHeight,
         // This is a special case for the soft-confirmations mechanism,
-        // it checks that the true slot number and the virtual slot number are updated correctly.
+        // it checks that the true rollup height and the virtual rollup height are updated correctly.
         CheckHeights {
             true_slot_num: u64,
             virtual_slot_num: u64,

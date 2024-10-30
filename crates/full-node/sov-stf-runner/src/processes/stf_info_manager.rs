@@ -8,7 +8,7 @@ use rockbound::SchemaBatch;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_db::ledger_db::LedgerDb;
-use sov_db::schema::types::{SlotNumber, StoredStfInfo};
+use sov_db::schema::types::{RollupHeight, StoredStfInfo};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use tokio::sync::mpsc;
@@ -19,7 +19,7 @@ use tokio::sync::mpsc;
 pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
     /// Public input to the per block zk proof.
     pub(crate) data: StateTransitionWitness<StateRoot, Witness, Da>,
-    /// Slot number.
+    /// Rollup height.
     pub(crate) rollup_height: u64,
 }
 
@@ -176,7 +176,7 @@ where
 
         // Save the stf info in the db.
         let mut schema =
-            ledger_db.materialize_stf_info(&stored_stf_info, &SlotNumber(write_rollup_height))?;
+            ledger_db.materialize_stf_info(&stored_stf_info, &RollupHeight(write_rollup_height))?;
 
         // Update the write rollup height.
         schema.merge(ledger_db.materialize_stf_info_write_rollup_height(write_rollup_height)?);
@@ -257,7 +257,7 @@ where
         &self,
         rollup_height: u64,
     ) -> anyhow::Result<Option<StateTransitionInfo<StateRoot, Witness, Da>>> {
-        let maybe_stored_stf_info = self.ledger_db.get_stf_info(&SlotNumber(rollup_height))?;
+        let maybe_stored_stf_info = self.ledger_db.get_stf_info(&RollupHeight(rollup_height))?;
 
         if let Some(stored_stf_info) = maybe_stored_stf_info {
             Ok(Some(bincode::deserialize(&stored_stf_info.data[..])?))

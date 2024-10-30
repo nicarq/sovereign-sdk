@@ -6,8 +6,8 @@ use sov_rollup_interface::stf::{EventKey, StoredEvent};
 use crate::ledger_db::rpc::LedgerRpcReader;
 use crate::ledger_db::rpc_constants::MAX_BATCHES_PER_REQUEST;
 use crate::ledger_db::LedgerDb;
-use crate::schema::tables::{BatchByNumber, EventByKey, SlotByNumber};
-use crate::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
+use crate::schema::tables::{BatchByNumber, EventByKey, SlotByRollupHeight};
+use crate::schema::types::{BatchNumber, EventNumber, RollupHeight, TxNumber};
 
 impl LedgerRpcReader {
     async fn get_events_by_key_helper<E>(
@@ -90,7 +90,7 @@ impl LedgerRpcReader {
             None => {
                 let read_slot = |slot_num| async move {
                     self.db
-                        .get_async::<SlotByNumber>(&SlotNumber(slot_num))
+                        .get_async::<SlotByRollupHeight>(&RollupHeight(slot_num))
                         .await
                         .with_context(|| format!("Failed to query slot with number: {}", slot_num))
                         .and_then(|slot_opt| {

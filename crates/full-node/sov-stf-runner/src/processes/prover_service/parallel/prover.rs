@@ -158,7 +158,7 @@ where
                             validity_condition,
                             prover_address,
                         },
-                        slot_number: state_transition_info.rollup_height,
+                        rollup_height: state_transition_info.rollup_height,
                     });
 
                     prover_state.set_to_proved(block_header_hash, block_proof);
@@ -218,8 +218,8 @@ where
         let public_data = AggregatedProofPublicData {
             validity_conditions,
             rewarded_addresses,
-            initial_slot_number: initial_block_proof.slot_number,
-            final_slot_number: final_block_proof.slot_number,
+            initial_rollup_height: initial_block_proof.rollup_height,
+            final_rollup_height: final_block_proof.rollup_height,
             genesis_state_root: genesis_state_root.0.to_vec(),
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),

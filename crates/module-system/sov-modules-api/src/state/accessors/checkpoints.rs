@@ -12,7 +12,7 @@ use crate::{Spec, VersionReader};
 ///  2. With [`crate::WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
     pub(super) delta: Delta<S>,
-    /// The slot number visible to user-space modules
+    /// The rollup height visible to user-space modules
     pub(super) virtual_slot_num: u64,
 }
 
@@ -47,7 +47,7 @@ impl<S: Storage> StateCheckpoint<S> {
         let mut delta = Delta::with_witness(inner.clone(), witness, None);
         let mut bootstrap_state = BootstrapWorkingSet { inner: &mut delta };
 
-        let virtual_slot_num = kernel.next_visible_slot_number(&mut bootstrap_state);
+        let virtual_slot_num = kernel.next_visible_rollup_height(&mut bootstrap_state);
 
         Self {
             delta,
@@ -64,7 +64,7 @@ impl<S: Storage> StateCheckpoint<S> {
         self.delta.freeze()
     }
 
-    /// Updates the true slot number and the virtual slot number.
+    /// Updates the true rollup height and the virtual rollup height.
     /// This method is used in tests.
     #[cfg(test)]
     pub fn update_version(&mut self, virtual_slot_num: u64) {

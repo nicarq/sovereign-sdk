@@ -59,8 +59,8 @@ pub async fn materialize_simple_ledger_db_data(
         // it's just for testing.
         AggregatedProofPublicData {
             validity_conditions: vec![],
-            initial_slot_number: u64::MAX,
-            final_slot_number: u64::MAX,
+            initial_rollup_height: u64::MAX,
+            final_rollup_height: u64::MAX,
             genesis_state_root: b"genesis-state-root".to_vec(),
             initial_state_root: b"initial-state-root".to_vec(),
             final_state_root: b"final-state-root".to_vec(),
@@ -165,8 +165,8 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
         // it's just for testing.
         AggregatedProofPublicData {
             validity_conditions: vec![],
-            initial_slot_number: u64::MAX,
-            final_slot_number: u64::MAX,
+            initial_rollup_height: u64::MAX,
+            final_rollup_height: u64::MAX,
             genesis_state_root: b"genesis-state-root".to_vec(),
             initial_state_root: b"initial-state-root".to_vec(),
             final_state_root: b"final-state-root".to_vec(),

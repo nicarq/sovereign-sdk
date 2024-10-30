@@ -64,18 +64,18 @@ impl<S: Spec> BlobStorage<S> {
     /// Store blobs for given block number, overwrite if already exists
     pub fn store_batches(
         &self,
-        slot_number: TransitionHeight,
+        rollup_height: TransitionHeight,
         batches: &[(BlobDataWithId, <S::Da as DaSpec>::Address)],
         state: &mut impl InfallibleKernelStateAccessor,
     ) {
         self.deferred_blobs
-            .set(&slot_number, batches, state)
+            .set(&rollup_height, batches, state)
             .unwrap_infallible();
     }
 
     /// Take all blobs for given block number, return empty vector if not exists
     /// Returned blobs are removed from the storage
-    pub fn take_blobs_for_slot_number(
+    pub fn take_blobs_for_rollup_height(
         &self,
         slot_height: TransitionHeight,
         state: &mut impl InfallibleKernelStateAccessor,

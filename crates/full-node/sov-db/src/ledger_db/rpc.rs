@@ -21,10 +21,10 @@ use crate::ledger_db::rpc_constants::{
 use crate::ledger_db::{LedgerDb, DB_LOCK_POISONED};
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByNumber, FinalizedSlots, ProofByUniqueId, SlotByHash,
-    SlotByNumber, TxByHash, TxByNumber,
+    SlotByRollupHeight, TxByHash, TxByNumber,
 };
 use crate::schema::types::{
-    BatchNumber, EventNumber, LatestFinalizedSlotSingleton, SlotNumber, StoredBatch, StoredSlot,
+    BatchNumber, EventNumber, LatestFinalizedSlotSingleton, RollupHeight, StoredBatch, StoredSlot,
     StoredTransaction, TxNumber,
 };
 
@@ -35,14 +35,14 @@ pub(crate) struct LedgerRpcReader {
 }
 
 impl LedgerRpcReader {
-    async fn get_head_slot_number(&self) -> anyhow::Result<Option<u64>> {
+    async fn get_head_rollup_height(&self) -> anyhow::Result<Option<u64>> {
         self.db
-            .get_largest_async::<SlotByNumber>()
+            .get_largest_async::<SlotByRollupHeight>()
             .await
             .map(|opt| opt.map(|(slot_num, _)| slot_num.0))
     }
 
-    async fn get_latest_finalized_slot_number(&self) -> anyhow::Result<u64> {
+    async fn get_latest_finalized_rollup_height(&self) -> anyhow::Result<u64> {
         let finalized_slot = self
             .db
             .get_async::<FinalizedSlots>(&LatestFinalizedSlotSingleton)
@@ -73,8 +73,10 @@ impl LedgerRpcReader {
             let slot_num = self.resolve_slot_identifier(slot_id).await?;
             out.push(match slot_num {
                 Some(num) => {
-                    if let Some(stored_slot) =
-                        self.db.get_async::<SlotByNumber>(&SlotNumber(num)).await?
+                    if let Some(stored_slot) = self
+                        .db
+                        .get_async::<SlotByRollupHeight>(&RollupHeight(num))
+                        .await?
                     {
                         Some(
                             self.populate_slot_response(num, stored_slot, query_mode)
@@ -368,7 +370,7 @@ impl LedgerRpcReader {
                 if let Some(slot_num) = self.resolve_slot_identifier(slot_id).await? {
                     Ok(self
                         .db
-                        .get_async::<SlotByNumber>(&SlotNumber(slot_num))
+                        .get_async::<SlotByRollupHeight>(&RollupHeight(slot_num))
                         .await?
                         .map(|slot: StoredSlot| slot.batches.start.0 + offset))
                 } else {
@@ -505,7 +507,7 @@ impl LedgerRpcReader {
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
         let state_root = slot.state_root.as_ref().to_vec();
-        let finality_status = if self.get_latest_finalized_slot_number().await? >= number {
+        let finality_status = if self.get_latest_finalized_rollup_height().await? >= number {
             FinalityStatus::Finalized
         } else {
             FinalityStatus::Pending
@@ -563,13 +565,13 @@ impl LedgerRpcReader {
 impl LedgerStateProvider for LedgerDb {
     type Error = anyhow::Error;
 
-    async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error> {
-        self.get_rpc_reader().get_head_slot_number().await
+    async fn get_head_rollup_height(&self) -> Result<Option<u64>, Self::Error> {
+        self.get_rpc_reader().get_head_rollup_height().await
     }
 
-    async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error> {
+    async fn get_latest_finalized_rollup_height(&self) -> Result<u64, Self::Error> {
         self.get_rpc_reader()
-            .get_latest_finalized_slot_number()
+            .get_latest_finalized_rollup_height()
             .await
     }
 
@@ -660,7 +662,7 @@ impl LedgerStateProvider for LedgerDb {
             .await?
             .ok_or_else(slot_not_found_err)?;
         let slot: SlotResponse<B, T, E> = self
-            .get_slot_by_number(slot_num, QueryMode::Full)
+            .get_slot_by_rollup_height(slot_num, QueryMode::Full)
             .await?
             .ok_or_else(slot_not_found_err)?;
 
@@ -754,7 +756,7 @@ impl LedgerStateProvider for LedgerDb {
     }
 
     // Get X by number
-    async fn get_slot_by_number<B, T, E>(
+    async fn get_slot_by_rollup_height<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,

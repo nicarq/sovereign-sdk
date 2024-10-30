@@ -23,12 +23,12 @@ async fn get_latest_slot() {
     });
 
     // By number.
-    let slot_number = slot["data"]["number"].as_u64().unwrap();
+    let rollup_height = slot["data"]["number"].as_u64().unwrap();
     assert_json_eq!(
         slot,
         ledger_response_body(move |client| async move {
             client
-                .get_slot_by_id(&IntOrHash::Integer(slot_number), None)
+                .get_slot_by_id(&IntOrHash::Integer(rollup_height), None)
                 .await
                 .unwrap()
                 .into_inner()

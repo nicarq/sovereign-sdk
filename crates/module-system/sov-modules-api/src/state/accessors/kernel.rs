@@ -31,7 +31,7 @@ impl<'a, S: Storage, N: CompileTimeNamespace> CachedAccessor<N> for BootstrapWor
 /// A special wrapper over [`StateCheckpoint`] that allows access to kernel values
 ///
 /// ## Note
-/// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true slot number.
+/// This struct implements [`VersionReader`], and the value returned by [`VersionReader::rollup_height_to_access`] is the true rollup height.
 pub struct KernelStateAccessor<'a, S: Storage> {
     /// The inner working set
     pub checkpoint: &'a mut StateCheckpoint<S>,
@@ -70,17 +70,17 @@ impl<'a, S: Storage> KernelStateAccessor<'a, S> {
 }
 
 impl<'a, S: Storage> KernelStateAccessor<'a, S> {
-    /// Returns the virtual slot number contained in the accessor
+    /// Returns the virtual rollup height contained in the accessor
     pub fn visible_rollup_height(&self) -> u64 {
         self.checkpoint.virtual_slot_num
     }
 
-    /// Updates the true slot number contained in the accessor
+    /// Updates the true rollup height contained in the accessor
     pub fn update_true_rollup_height(&mut self, true_slot_num: u64) {
         self.true_slot_num = true_slot_num;
     }
 
-    /// Updates the virtual slot number contained in the accessor
+    /// Updates the virtual rollup height contained in the accessor
     pub fn update_visible_rollup_height(&mut self, virtual_slot_num: u64) {
         self.checkpoint.virtual_slot_num = virtual_slot_num;
     }

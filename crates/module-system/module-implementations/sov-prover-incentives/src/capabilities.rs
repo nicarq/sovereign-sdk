@@ -137,8 +137,8 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         match self.calculate_reward(
-            public_outputs.initial_slot_number,
-            public_outputs.final_slot_number,
+            public_outputs.initial_rollup_height,
+            public_outputs.final_rollup_height,
             state,
         )? {
             Paycheck::Penalized => {
@@ -181,10 +181,10 @@ impl<S: Spec> ProverIncentives<S> {
             .expect("The last claimed reward should be set at genesis")
             + 1;
 
-        // The first reward we can claim is the maximum between the initial slot number and the first available reward
+        // The first reward we can claim is the maximum between the initial rollup height and the first available reward
         let first_claimed_reward = max(init_slot_num, first_available_reward);
 
-        // Here the final slot number is inclusive
+        // Here the final rollup height is inclusive
         for slot_num in first_claimed_reward..=final_slot_num {
             // Check if the reward was already claimed
 
@@ -275,7 +275,7 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         // We start with the initial state values
-        let initial_slot_num = public_outputs.initial_slot_number;
+        let initial_slot_num = public_outputs.initial_rollup_height;
 
         let initial_transition = match self
             .chain_state
@@ -305,7 +305,7 @@ impl<S: Spec> ProverIncentives<S> {
         }
 
         // Let's move on to the final state values
-        let final_slot_num = public_outputs.final_slot_number;
+        let final_slot_num = public_outputs.final_rollup_height;
 
         let expected_final_transition = match self
             .chain_state

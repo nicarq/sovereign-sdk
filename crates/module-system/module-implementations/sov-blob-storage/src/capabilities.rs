@@ -40,12 +40,13 @@ enum ValidateBlobOutcome {
 }
 
 impl<S: Spec> BlobStorage<S> {
-    fn set_next_visible_slot_number(
+    fn set_next_visible_rollup_height(
         &self,
         value: u64,
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
-        self.chain_state.set_next_visible_slot_number(&value, state);
+        self.chain_state
+            .set_next_visible_rollup_height(&value, state);
     }
 
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
@@ -60,7 +61,7 @@ impl<S: Spec> BlobStorage<S> {
     {
         tracing::trace!("On based sequencer path");
 
-        self.set_next_visible_slot_number(state.rollup_height_to_access(), state);
+        self.set_next_visible_rollup_height(state.rollup_height_to_access(), state);
 
         state.update_visible_rollup_height(state.rollup_height_to_access());
 
@@ -265,7 +266,7 @@ impl<S: Spec> BlobStorage<S> {
             _ => {
                 let new_batches = self.select_blobs_da_ordering(current_blobs, state);
                 self.store_batches(state.rollup_height_to_access(), &new_batches, state);
-                self.set_next_visible_slot_number(
+                self.set_next_visible_rollup_height(
                     state.visible_rollup_height().saturating_add(2),
                     state,
                 );
@@ -275,7 +276,7 @@ impl<S: Spec> BlobStorage<S> {
 
         for slot in 0..=batches_needed_from_this_slot {
             let slot_to_check = state.visible_rollup_height().saturating_add(slot);
-            let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
+            let batches_from_next_slot = self.take_blobs_for_rollup_height(slot_to_check, state);
             batches_to_process.extend(batches_from_next_slot.into_iter());
         }
 
@@ -286,17 +287,17 @@ impl<S: Spec> BlobStorage<S> {
     ///
     /// During each `slot`, we process up to one `Batch` of transactions from the preferred sequencer, plus all of the proofs
     /// and batches that the preferred sequencer had seen by the time they submitted their batch. This is accomplished using
-    /// a sequencer number (to prevent re-ordering of data submitted by the preferred sequencer) and a virtual slot number.
-    /// In each of their batches, the sequencer gets to choose how far to advance the virtual slot number. For example, if
+    /// a sequencer number (to prevent re-ordering of data submitted by the preferred sequencer) and a virtual rollup height.
+    /// In each of their batches, the sequencer gets to choose how far to advance the virtual rollup height. For example, if
     /// the preferred sequencer had seen all the data up to slot 10 but hadn't posted a batch since slot 5, they would choose
-    /// to increment the virtual slot number by 5 in their next on-chain message.
+    /// to increment the virtual rollup height by 5 in their next on-chain message.
     ///
     /// During each `slot`, we process all proofs...
     /// - (If sent by the prferred sequencer) whose sequence number is less than that of the next preferred batch
-    /// - (If sent by anyone else) which appeared on chain before or during the current *virtual* slot number
+    /// - (If sent by anyone else) which appeared on chain before or during the current *virtual* rollup height
     /// For batches, we select
     /// - The next one sent by the preferred sequencer (if available)
-    /// - Any batches  which appeared on chain before or during the current *virtual* slot number
+    /// - Any batches  which appeared on chain before or during the current *virtual* rollup height
     #[tracing::instrument(skip_all)]
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
@@ -511,13 +512,13 @@ impl<S: Spec> BlobStorage<S> {
         tracing::debug!(
             num_slots_to_advance,
             current_real_slot = state.rollup_height_to_access(),
-            "Advancing virtual slot number"
+            "Advancing virtual rollup height"
         );
 
         // Load all the necessary batches from storage
         for slot in 0..=num_slots_to_advance {
             let slot_to_check = state.visible_rollup_height().saturating_add(slot);
-            let batches_from_next_slot = self.take_blobs_for_slot_number(slot_to_check, state);
+            let batches_from_next_slot = self.take_blobs_for_rollup_height(slot_to_check, state);
             tracing::trace!(
                 "Found {} additional blobs in slot {} ",
                 batches_from_next_slot.len(),
@@ -536,7 +537,7 @@ impl<S: Spec> BlobStorage<S> {
             self.store_batches(state.rollup_height_to_access(), &new_forced_blobs, state);
         }
 
-        self.set_next_visible_slot_number(next_virtual_height, state);
+        self.set_next_visible_rollup_height(next_virtual_height, state);
 
         blobs_to_process
     }

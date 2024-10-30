@@ -224,8 +224,8 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_data.initial_slot_number, 0);
-                assert_eq!(public_data.final_slot_number, (jump - 1) as u64);
+                assert_eq!(public_data.initial_rollup_height, 0);
+                assert_eq!(public_data.final_rollup_height, (jump - 1) as u64);
             }
             ProofAggregationStatus::ProofGenerationInProgress => panic!("Prover should succeed"),
         }
@@ -258,9 +258,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
                     &MockCodeCommitment::default(),
                 )
                 .unwrap();
-                assert_eq!(public_data.initial_slot_number as usize, jump);
+                assert_eq!(public_data.initial_rollup_height as usize, jump);
                 assert_eq!(
-                    public_data.final_slot_number as usize,
+                    public_data.final_rollup_height as usize,
                     total_nb_of_blocks - 1
                 );
             }

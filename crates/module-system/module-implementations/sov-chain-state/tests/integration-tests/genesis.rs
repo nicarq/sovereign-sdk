@@ -19,7 +19,7 @@ fn chain_state_kernel_genesis() {
 
         assert_eq!(
             0,
-            ChainState::<S>::default().get_next_visible_slot_number(kernel),
+            ChainState::<S>::default().get_next_visible_rollup_height(kernel),
             "The kernel virtual slot should be initialized to zero"
         );
     });

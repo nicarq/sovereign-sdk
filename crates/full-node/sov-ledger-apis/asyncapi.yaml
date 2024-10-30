@@ -46,7 +46,7 @@ components:
       payload:
         type: object
         properties:
-          slot_number:
+          rollup_height:
             type: integer
             description: The height of the block that emitted the event.
           events:

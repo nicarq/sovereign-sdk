@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
-use sov_db::schema::types::{SlotNumber, StoredStfInfo};
+use sov_db::schema::types::{RollupHeight, StoredStfInfo};
 use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
@@ -82,8 +82,8 @@ async fn test_save_aggregated_proof() {
     for i in 0..10 {
         let public_data = AggregatedProofPublicData {
             validity_conditions: vec![],
-            initial_slot_number: i as u64,
-            final_slot_number: i as u64,
+            initial_rollup_height: i as u64,
+            final_rollup_height: i as u64,
             genesis_state_root: vec![1],
             initial_state_root: vec![i],
             final_state_root: vec![i + 1],
@@ -127,11 +127,11 @@ async fn test_stf_info() {
     };
 
     let schema_batch = ledger_db
-        .materialize_stf_info(&original_stored_inf_info, &SlotNumber(0))
+        .materialize_stf_info(&original_stored_inf_info, &RollupHeight(0))
         .unwrap();
 
     storage_manager.commit(schema_batch);
 
-    let stored_stf_info = ledger_db.get_stf_info(&SlotNumber(0)).unwrap().unwrap();
+    let stored_stf_info = ledger_db.get_stf_info(&RollupHeight(0)).unwrap().unwrap();
     assert_eq!(original_stored_inf_info, stored_stf_info);
 }

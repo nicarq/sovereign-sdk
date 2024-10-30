@@ -29,7 +29,7 @@ pub struct TestData<S: Spec> {
 
 type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 
-/// Returns the current virtual slot number in the runner.
+/// Returns the current virtual rollup height in the runner.
 pub fn virtual_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
     runner: &TestRunner<RT>,
 ) -> u64 {

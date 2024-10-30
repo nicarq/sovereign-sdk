@@ -37,7 +37,7 @@ pub struct Chunk {
 pub struct BlocksRoot {
     /// The accumulated digest for all the merkle roots for each blob that is successfully "accumulated" during that slot
     pub digest: [u8; 32],
-    /// The current slot number in Solana when this root is recorded.
+    /// The current rollup height in Solana when this root is recorded.
     pub slot: u64,
 }
 
@@ -58,11 +58,11 @@ impl BlocksRoot {
         }
     }
 
-    /// Updates the root of the `BlocksRoot` with given block root and slot number.
-    /// If the slot number is greater than the current slot, the digest is updated.
+    /// Updates the root of the `BlocksRoot` with given block root and rollup height.
+    /// If the rollup height is greater than the current slot, the digest is updated.
     /// Otherwise, an accumulator function is used to merge the current digest with the given block root.
     pub fn update_root(&mut self, blockroot: &[u8; 32], slot_num: u64) {
-        // slot number switched
+        // rollup height switched
         if slot_num > self.slot {
             self.digest = *blockroot;
             self.slot = self.slot;

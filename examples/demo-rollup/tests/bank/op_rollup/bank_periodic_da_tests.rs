@@ -55,13 +55,13 @@ async fn send_test_bank_txs(
     // create token. height 1
     let initial_balance = 1000;
     let tx = build_create_token_tx(&key, 0, initial_balance);
-    let batch_1_slot_number = tx_sender.send_txs(client, &[tx]).await?;
+    let batch_1_rollup_height = tx_sender.send_txs(client, &[tx]).await?;
 
-    assert!(batch_1_slot_number >= 1);
+    assert!(batch_1_rollup_height >= 1);
 
     assert_slot_finality(
         client,
-        batch_1_slot_number,
+        batch_1_rollup_height,
         test_case.expected_head_finality(),
     )
     .await;
@@ -78,7 +78,7 @@ async fn send_test_bank_txs(
     // How many slots rollup allowed to lag behind in posting attestations
     let attestation_publish_threshold = 1000;
 
-    while verified_attested_height <= batch_1_slot_number {
+    while verified_attested_height <= batch_1_rollup_height {
         let slot = slots_subscription.next().await.unwrap()?;
         assert!(slot.number >= rollup_height);
 
@@ -88,7 +88,7 @@ async fn send_test_bank_txs(
             verified_attested_height = max_attested_height;
         }
         rollup_height += 1;
-        if rollup_height > (batch_1_slot_number + attestation_publish_threshold) {
+        if rollup_height > (batch_1_rollup_height + attestation_publish_threshold) {
             panic!(
                 "Attestations haven't been posted after {} slots passed since batch publication",
                 attestation_publish_threshold

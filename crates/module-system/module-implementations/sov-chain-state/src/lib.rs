@@ -40,7 +40,7 @@ use sov_state::namespaces::Kernel;
 use sov_state::{Storage, User};
 
 /// Type alias that contains the height of a given transition
-pub type VirtualSlotNumber = u64;
+pub type VirtualRollupHeight = u64;
 
 /// A structure that contains block gas information.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, BorshSerialize, BorshDeserialize)]
@@ -219,13 +219,13 @@ pub struct ChainState<S: Spec> {
 
     /// The height that should be loaded as the visible set at the start of the next block
     #[state]
-    next_visible_slot_number: KernelStateValue<TransitionHeight>,
+    next_visible_rollup_height: KernelStateValue<TransitionHeight>,
 
     #[state]
     true_to_visible_rollup_height_history:
         sov_modules_api::KernelStateMap<TransitionHeight, TransitionHeight>,
 
-    /// The real slot number of the rollup.
+    /// The real rollup height of the rollup.
     /// This value is also required to create a [`sov_state::storage::KernelStateAccessor`]. See note on `visible_height` above.
     #[state]
     true_rollup_height: KernelStateValue<TransitionHeight>,
@@ -287,18 +287,18 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns transition height for the next slot to start execution
-    pub fn next_visible_slot_number(
+    pub fn next_visible_rollup_height(
         &self,
         state: &mut BootstrapWorkingSet<'_, S::Storage>,
     ) -> TransitionHeight {
-        self.next_visible_slot_number
+        self.next_visible_rollup_height
             .get(state)
             .unwrap_infallible()
             .unwrap_or_default()
     }
 
-    /// Returns the visible slot number corresponding to the provided real slot.
-    pub fn visible_slot_number_at<T>(
+    /// Returns the visible rollup height corresponding to the provided real slot.
+    pub fn visible_rollup_height_at<T>(
         &self,
         true_rollup_height: u64,
         state: &mut T,
@@ -306,24 +306,24 @@ impl<S: Spec> ChainState<S> {
     where
         T: StateReader<Kernel>,
     {
-        let visible_slot_number = self
+        let visible_rollup_height = self
             .true_to_visible_rollup_height_history
             .get(&true_rollup_height, state)?
             .unwrap_or_default();
 
-        dbg!(true_rollup_height, visible_slot_number);
-        Ok(visible_slot_number)
+        dbg!(true_rollup_height, visible_rollup_height);
+        Ok(visible_rollup_height)
     }
 
     /// Returns transition height in the current slot
-    pub fn set_next_visible_slot_number(
+    pub fn set_next_visible_rollup_height(
         &self,
         value: &u64,
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
-        tracing::debug!(slot_number = value, "Setting next visible slot number");
+        tracing::debug!(rollup_height = value, "Setting next visible rollup height");
 
-        self.next_visible_slot_number
+        self.next_visible_rollup_height
             .set(value, state)
             .unwrap_infallible();
     }

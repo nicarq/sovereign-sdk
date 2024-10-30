@@ -10,7 +10,7 @@ use crate::args::Args;
 
 pub(crate) fn start_slot_watcher_task(
     config: &Args,
-    should_stop: Arc<AtomicBool>, // FIXME use this instead of updating slot numbers
+    should_stop: Arc<AtomicBool>, // FIXME use this instead of updating rollup heights
 ) -> JoinHandle<(u64, u64)> {
     let ledger_url = format!("{}/ledger", config.node_url.clone());
     tracing::info!(url = ledger_url, "Using Ledger API");
@@ -29,7 +29,7 @@ pub(crate) fn start_slot_watcher_task(
             .expect("should be able to subscribe to slots");
 
         loop {
-            let slot_number = match slot_subscription.next().await.transpose() {
+            let rollup_height = match slot_subscription.next().await.transpose() {
                 Ok(slot) => slot.map(|s| s.number).unwrap_or_default(),
                 Err(e) => {
                     tracing::error!(error = ?e, "Error during next slot subscription, resubscribing");
@@ -40,11 +40,11 @@ pub(crate) fn start_slot_watcher_task(
                     continue;
                 }
             };
-            tracing::info!(slot = ?slot_number, "Received processed slot");
+            tracing::info!(slot = ?rollup_height, "Received processed slot");
 
             let slot_response = ledger_client
                 .get_slot_by_id(
-                    &ledger_api_types::IntOrHash::Integer(slot_number),
+                    &ledger_api_types::IntOrHash::Integer(rollup_height),
                     Some(ledger_api_types::GetSlotByIdChildren::_1),
                 )
                 .await
@@ -78,7 +78,7 @@ pub(crate) fn start_slot_watcher_task(
             }
 
             if should_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                tracing::info!(slot = ?slot_number, "slot watcher exiting loop");
+                tracing::info!(slot = ?rollup_height, "slot watcher exiting loop");
                 break;
             }
         }

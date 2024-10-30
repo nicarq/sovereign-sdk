@@ -117,7 +117,7 @@ $ ../../target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path de
 2024-03-05T14:42:29.122392Z DEBUG sov_stf_runner::runner: Requesting DA block for next_da_height=4
 2024-03-05T14:42:39.608515Z  INFO sov_stf_runner::runner: Extracted relevant blobs blobs_count=0 next_da_height=4 blobs=[]
 2024-03-05T14:42:39.610889Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
-2024-03-05T14:42:39.611847Z DEBUG sov_chain_state: Setting next visible slot number slot_number=2
+2024-03-05T14:42:39.611847Z DEBUG sov_chain_state: Setting next visible rollup height rollup_height=2
 2024-03-05T14:42:39.611923Z  INFO sov_modules_stf_blueprint: Selected batch(es) for execution in current slot batches_count=0 virtual_slot=1 true_slot=1
 2024-03-05T14:42:39.614143Z  INFO sov_stf_runner::runner: Sync in progress synced_da_height=3 target_da_height=4
 2024-03-05T14:42:39.618315Z  INFO sov_stf_runner::prover_service::manager: Saving aggregated proof height=4

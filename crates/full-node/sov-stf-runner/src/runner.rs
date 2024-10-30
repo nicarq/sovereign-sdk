@@ -172,7 +172,7 @@ impl<
                 // QueryModeCompact prevents us from actually fetching them, but we still need to provide a value for
                 // the event generic, so we use a dummy type.
                 let raw_genesis_state_root = ledger_db
-                    .get_slot_by_number::<Stf::BatchReceiptContents, Stf::TxReceiptContents, DiscardEvents>(
+                    .get_slot_by_rollup_height::<Stf::BatchReceiptContents, Stf::TxReceiptContents, DiscardEvents>(
                         0,
                         QueryMode::Compact,
                     )
@@ -249,7 +249,7 @@ where
 
         // Start the main rollup loop
         let next_item_numbers = ledger_db.get_next_items_numbers()?;
-        let last_slot_processed_before_shutdown = next_item_numbers.slot_number.saturating_sub(1);
+        let last_slot_processed_before_shutdown = next_item_numbers.rollup_height.saturating_sub(1);
 
         let da_height_processed =
             runner_config.genesis_height + last_slot_processed_before_shutdown;

@@ -11,7 +11,7 @@ fn empty_test() {
 
     runner.query_state(|state| {
         assert!(BlobStorage::<S>::default()
-            .take_blobs_for_slot_number(1, state)
+            .take_blobs_for_rollup_height(1, state)
             .is_empty());
     });
 }
@@ -32,10 +32,18 @@ fn store_and_retrieve_standard_basic_kernel() {
     runner.query_state(|state| {
         let blob_storage = BlobStorage::<S>::default();
 
-        assert!(blob_storage.take_blobs_for_slot_number(1, state).is_empty());
-        assert!(blob_storage.take_blobs_for_slot_number(2, state).is_empty());
-        assert!(blob_storage.take_blobs_for_slot_number(3, state).is_empty());
-        assert!(blob_storage.take_blobs_for_slot_number(4, state).is_empty());
+        assert!(blob_storage
+            .take_blobs_for_rollup_height(1, state)
+            .is_empty());
+        assert!(blob_storage
+            .take_blobs_for_rollup_height(2, state)
+            .is_empty());
+        assert!(blob_storage
+            .take_blobs_for_rollup_height(3, state)
+            .is_empty());
+        assert!(blob_storage
+            .take_blobs_for_rollup_height(4, state)
+            .is_empty());
     });
 
     runner.advance_slots(1);

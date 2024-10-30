@@ -157,7 +157,7 @@ impl Default for QueryMode {
     bound = "B: Serialize + DeserializeOwned, Tx: TxReceiptContents, E: Serialize + DeserializeOwned"
 )]
 pub struct SlotResponse<B, Tx: TxReceiptContents, E> {
-    /// The slot number.
+    /// The rollup height.
     pub number: u64,
     /// The hex encoded slot hash.
     #[serde(with = "hex_string_serde")]
@@ -191,8 +191,8 @@ pub struct BatchResponse<B, Tx: TxReceiptContents, E> {
     /// The custom receipt specified by the rollup. This typically contains
     /// information about the outcome of the batch.
     pub receipt: B,
-    /// The slot number this batch belongs to.
-    pub slot_number: u64,
+    /// The rollup height this batch belongs to.
+    pub rollup_height: u64,
 }
 
 /// The response to a JSON-RPC request for a particular transaction.
@@ -230,10 +230,10 @@ pub enum ItemOrHash<T> {
 /// An RPC response for the latest aggregated proof info.
 #[derive(Debug, PartialEq, Eq, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ProofInfoResponse {
-    /// Initial slot number
-    pub initial_slot_number: u64,
-    /// Final slot number.
-    pub final_slot_number: u64,
+    /// Initial rollup height
+    pub initial_rollup_height: u64,
+    /// Final rollup height.
+    pub final_rollup_height: u64,
 }
 
 /// An RPC response for the latest aggregated proof.
@@ -259,11 +259,11 @@ pub trait LedgerStateProvider {
     /// The error type for fallible methods on this trait.
     type Error: ToString + Send + Sync + 'static;
 
-    /// Get the latest slot number in the ledger.
-    async fn get_head_slot_number(&self) -> Result<Option<u64>, Self::Error>;
+    /// Get the latest rollup height in the ledger.
+    async fn get_head_rollup_height(&self) -> Result<Option<u64>, Self::Error>;
 
-    /// Get the latest slot number in the ledger.
-    async fn get_latest_finalized_slot_number(&self) -> Result<u64, Self::Error>;
+    /// Get the latest rollup height in the ledger.
+    async fn get_latest_finalized_rollup_height(&self) -> Result<u64, Self::Error>;
 
     /// Get the latest slot in the ledger.
     async fn get_head<B, T, E>(
@@ -275,8 +275,9 @@ pub trait LedgerStateProvider {
         T: TxReceiptContents,
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync,
     {
-        if let Some(head_number) = self.get_head_slot_number().await? {
-            self.get_slot_by_number(head_number, query_mode).await
+        if let Some(head_number) = self.get_head_rollup_height().await? {
+            self.get_slot_by_rollup_height(head_number, query_mode)
+                .await
         } else {
             Ok(None)
         }
@@ -387,7 +388,7 @@ pub trait LedgerStateProvider {
     async fn get_tx_numbers_by_hash(&self, hash: &[u8; 32]) -> Result<Vec<u64>, Self::Error>;
 
     /// Get a single slot by number.
-    async fn get_slot_by_number<B, T, E>(
+    async fn get_slot_by_rollup_height<B, T, E>(
         &self,
         number: u64,
         query_mode: QueryMode,
@@ -497,7 +498,7 @@ pub trait LedgerStateProvider {
         T: TxReceiptContents,
         E: TryFrom<(u64, StoredEvent), Error = anyhow::Error> + Send + Sync;
 
-    /// Resolve a [`SlotIdentifier`] into a slot number.
+    /// Resolve a [`SlotIdentifier`] into a rollup height.
     async fn resolve_slot_identifier(
         &self,
         slot_id: &SlotIdentifier,
