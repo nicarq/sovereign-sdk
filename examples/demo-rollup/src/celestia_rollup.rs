@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use backon::ExponentialBuilder;
-use demo_stf::runtime::{BondingProofServiceImpl, EthereumToRollupAddressConverter, Runtime};
+use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
@@ -72,26 +72,10 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
 
-    type BondingProofService = BondingProofServiceImpl<Self::Spec, Self::Runtime>;
-
     fn get_operating_mode(
         genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
     ) -> OperatingMode {
         genesis.chain_state.operating_mode
-    }
-
-    fn create_bonding_proof_service(
-        &self,
-        attester_address: <Self::Spec as Spec>::Address,
-        storage: tokio::sync::watch::Receiver<<Self::Spec as Spec>::Storage>,
-    ) -> Self::BondingProofService {
-        let runtime = Runtime::<Self::Spec>::default();
-        BondingProofServiceImpl::new(
-            attester_address,
-            runtime.attester_incentives.clone(),
-            storage,
-            runtime,
-        )
     }
 
     fn create_outer_code_commitment(

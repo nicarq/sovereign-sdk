@@ -56,6 +56,7 @@ pub trait Runtime<S: Spec>:
     + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<S>>
     + Default
     + RuntimeEventProcessor
+    + 'static
 {
     /// GenesisConfig type.
     type GenesisConfig: Send + Sync;

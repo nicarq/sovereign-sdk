@@ -1,5 +1,9 @@
+#[cfg(feature = "native")]
+use sov_attester_incentives::BondingProofServiceImpl;
 use sov_bank::utils::TokenHolderRef;
 use sov_bank::IntoPayable;
+#[cfg(feature = "native")]
+use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::capabilities::{
     AllowedSequencer, AuthorizationData, AuthorizeSequencerError, GasEnforcer, ProofProcessor,
     SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
@@ -260,6 +264,26 @@ impl<'a, S: Spec, T> TransactionAuthorizer<S> for StandardProvenRollupCapabiliti
 }
 
 impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, S, T> {
+    #[cfg(feature = "native")]
+    type BondingProofService<K: HasKernel<S>> = BondingProofServiceImpl<S, K>;
+
+    #[cfg(feature = "native")]
+    fn create_bonding_proof_service<K: HasKernel<S>>(
+        &self,
+        attester_address: <S as Spec>::Address,
+        storage: sov_modules_api::prelude::tokio::sync::watch::Receiver<<S as Spec>::Storage>,
+        kernel: K,
+    ) -> Self::BondingProofService<K> {
+        use sov_attester_incentives::BondingProofServiceImpl;
+
+        BondingProofServiceImpl::new(
+            attester_address,
+            self.attester_incentives.clone(),
+            storage,
+            kernel,
+        )
+    }
+
     fn process_aggregated_proof(
         &self,
         proof: SerializedAggregatedProof,

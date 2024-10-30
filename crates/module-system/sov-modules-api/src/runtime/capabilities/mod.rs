@@ -107,7 +107,7 @@ pub trait HasCapabilities<S: Spec> {
 }
 
 /// Indicates that a type provides the necessary kernel capabilities for a runtime.
-pub trait HasKernel<S: Spec> {
+pub trait HasKernel<S: Spec>: Send + Sync + 'static {
     /// The type of blobs that the kernel can process.
     type BlobType;
 
