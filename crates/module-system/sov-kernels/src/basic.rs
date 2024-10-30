@@ -37,7 +37,7 @@ impl<'a, S: Spec> Kernel<S> for BasicKernel<'a, S> {
             .unwrap_infallible()
     }
 
-    fn next_visible_slot_number(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
+    fn next_visible_rollup_height(&self, state: &mut BootstrapWorkingSet<'_, S::Storage>) -> u64 {
         self.chain_state
             .true_rollup_height(state)
             .unwrap_infallible()

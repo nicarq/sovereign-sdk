@@ -94,8 +94,8 @@ pub struct StoredBatch {
     pub txs: std::ops::Range<TxNumber>,
     /// A customer "receipt" for this batch defined by the rollup.
     pub receipt: DbBytes,
-    /// This batch's parent slot number.
-    pub slot_number: SlotNumber,
+    /// This batch's parent rollup height.
+    pub rollup_height: RollupHeight,
 }
 
 impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for BatchResponse<B, T, E> {
@@ -106,7 +106,7 @@ impl<B: DeserializeOwned, T: TxReceiptContents, E> TryFrom<StoredBatch> for Batc
             receipt: bincode::deserialize(&value.receipt.0)?,
             tx_range: value.txs.start.into()..value.txs.end.into(),
             txs: None,
-            slot_number: value.slot_number.0,
+            rollup_height: value.rollup_height.0,
         })
     }
 }
@@ -241,7 +241,7 @@ macro_rules! u64_wrapper {
 }
 
 u64_wrapper!(TxIncrId);
-u64_wrapper!(SlotNumber);
+u64_wrapper!(RollupHeight);
 u64_wrapper!(BatchNumber);
 u64_wrapper!(TxNumber);
 u64_wrapper!(EventNumber);

@@ -229,7 +229,7 @@ impl<S: Spec, T> ApiState<S, T> {
             .map(|height| {
                 let kernel = self.kernel.clone();
                 let mut state = ApiStateAccessor::new(&*checkpoint, self.kernel.clone());
-                kernel.visible_slot_number_at(height, &mut state)
+                kernel.visible_rollup_height_at(height, &mut state)
             })
             .unwrap_or(checkpoint.rollup_height_to_access());
 

@@ -242,8 +242,8 @@ impl<S: Spec> Context<S> {
         self.sender_credentials.get::<T>()
     }
 
-    /// Returns the current slot number.
-    pub fn visible_slot_number(&self) -> u64 {
+    /// Returns the current rollup height.
+    pub fn visible_rollup_height(&self) -> u64 {
         self.visible_height
     }
 }

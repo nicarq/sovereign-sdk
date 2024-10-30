@@ -80,8 +80,8 @@ async fn send_test_bank_txs(
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
         let pub_data = aggregated_proof_resp.public_data;
-        assert!(slot_batch_1 >= pub_data.initial_slot_number);
-        assert!(slot_batch_1 >= pub_data.final_slot_number);
+        assert!(slot_batch_1 >= pub_data.initial_rollup_height);
+        assert!(slot_batch_1 >= pub_data.final_rollup_height);
         // We can only check this under periodic block producing.
         // More thorough checks should be done in "OnSubmit" batch producing
         assert_aggregated_proof(1, 1, client).await?;

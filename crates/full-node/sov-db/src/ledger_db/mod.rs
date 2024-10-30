@@ -11,12 +11,12 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
-    SlotByHash, SlotByNumber, StfInfoByNumber, StfInfoMetadata, TxByHash, TxByNumber,
+    SlotByHash, SlotByRollupHeight, StfInfoByNumber, StfInfoMetadata, TxByHash, TxByNumber,
     LEDGER_TABLES,
 };
 use crate::schema::types::{
     split_tx_for_storage, BatchNumber, EventNumber, LatestFinalizedSlotSingleton, ProofUniqueId,
-    SlotNumber, StfInfoUniqueId, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction,
+    RollupHeight, StfInfoUniqueId, StoredBatch, StoredSlot, StoredStfInfo, StoredTransaction,
     TxNumber,
 };
 use crate::DbOptions;
@@ -28,13 +28,13 @@ mod rpc_constants;
 
 pub(crate) const DB_LOCK_POISONED: &str = "Internal db lock is poisoned";
 
-/// A SlotNumber, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
+/// A RollupHeight, BatchNumber, TxNumber, and EventNumber which are grouped together, typically representing
 /// the respective heights at the start or end of slot processing.
 #[derive(Default, Clone, Debug)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct ItemNumbers {
-    /// The slot number
-    pub slot_number: u64,
+    /// The rollup height
+    pub rollup_height: u64,
     /// The batch number
     pub batch_number: u64,
     /// The transaction number
@@ -107,18 +107,18 @@ impl LedgerNotificationService {
         }
     }
 
-    pub(crate) fn register_slot_notification(&self, slot_number: u64) {
+    pub(crate) fn register_slot_notification(&self, rollup_height: u64) {
         self.slot_notifications
             .lock()
             .expect("Slot notification lock is poisoned")
-            .push(slot_number);
+            .push(rollup_height);
     }
 
-    pub(crate) fn register_finalized_slot_notification(&self, slot_number: u64) {
+    pub(crate) fn register_finalized_slot_notification(&self, rollup_height: u64) {
         self.finalized_slot_notifications
             .lock()
             .expect("Finalized slot notification lock is poisoned")
-            .push(slot_number);
+            .push(rollup_height);
     }
 
     pub(crate) fn register_aggregated_proof_notification(
@@ -137,12 +137,12 @@ impl LedgerNotificationService {
                 .slot_notifications
                 .lock()
                 .expect("Slot notification lock is poisoned");
-            let slot_numbers = std::mem::take(&mut *slot_notifications);
-            for slot_number in slot_numbers {
+            let rollup_heights = std::mem::take(&mut *slot_notifications);
+            for rollup_height in rollup_heights {
                 // Notify subscribers.
                 // This call returns an error if there are no subscribers,
                 // so we don't need to check the result
-                let _ = self.slot_subscriptions.send(slot_number);
+                let _ = self.slot_subscriptions.send(rollup_height);
             }
         }
 
@@ -151,10 +151,10 @@ impl LedgerNotificationService {
                 .finalized_slot_notifications
                 .lock()
                 .expect("Finalized slot notification lock is poisoned");
-            let finalized_slot_numbers = std::mem::take(&mut *finalized_slot_notifications);
-            for slot_number in finalized_slot_numbers {
+            let finalized_rollup_heights = std::mem::take(&mut *finalized_slot_notifications);
+            for rollup_height in finalized_rollup_heights {
                 // Notify subscribers. This call returns an error if there are no subscribers, so we don't need to check the result
-                let _ = self.finalized_slot_subscriptions.send(slot_number);
+                let _ = self.finalized_slot_subscriptions.send(rollup_height);
             }
         }
 
@@ -225,7 +225,7 @@ impl LedgerDb {
     pub fn get_next_items_numbers(&self) -> anyhow::Result<ItemNumbers> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(ItemNumbers {
-            slot_number: Self::last_version_written(&db, SlotByNumber)?
+            rollup_height: Self::last_version_written(&db, SlotByRollupHeight)?
                 .map(|x| x + 1)
                 .unwrap_or_default(),
             batch_number: Self::last_version_written(&db, BatchByNumber)?
@@ -246,20 +246,20 @@ impl LedgerDb {
     /// directly via rpc.
     pub(crate) async fn _get_slot_range(
         &self,
-        range: &std::ops::Range<SlotNumber>,
+        range: &std::ops::Range<RollupHeight>,
     ) -> anyhow::Result<Vec<StoredSlot>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
-        LedgerDb::_get_data_range_from::<SlotByNumber, _, _>(&db, range).await
+        LedgerDb::_get_data_range_from::<SlotByRollupHeight, _, _>(&db, range).await
     }
 
     fn put_slot(
         &self,
         slot: &StoredSlot,
-        slot_number: &SlotNumber,
+        rollup_height: &RollupHeight,
         schema_batch: &mut SchemaBatch,
     ) -> anyhow::Result<()> {
-        schema_batch.put::<SlotByNumber>(slot_number, slot)?;
-        schema_batch.put::<SlotByHash>(&slot.hash, slot_number)
+        schema_batch.put::<SlotByRollupHeight>(rollup_height, slot)?;
+        schema_batch.put::<SlotByHash>(&slot.hash, rollup_height)
     }
 
     fn put_batch(
@@ -304,7 +304,7 @@ impl LedgerDb {
         let mut current_item_numbers = self.get_next_items_numbers()?;
         let mut schema_batch = SchemaBatch::new();
 
-        let slot_number = SlotNumber(current_item_numbers.slot_number);
+        let rollup_height = RollupHeight(current_item_numbers.rollup_height);
 
         let first_batch_number = current_item_numbers.batch_number;
         let last_batch_number = first_batch_number + data_to_commit.batch_receipts.len() as u64;
@@ -342,7 +342,7 @@ impl LedgerDb {
                 receipt: bincode::serialize(&batch_receipt.inner)
                     .expect("serialization to vec is infallible")
                     .into(),
-                slot_number,
+                rollup_height,
             };
             self.put_batch(&batch_to_store, &batch_number, &mut schema_batch)?;
             current_item_numbers.batch_number += 1;
@@ -356,10 +356,10 @@ impl LedgerDb {
             extra_data: vec![].into(),
             batches: BatchNumber(first_batch_number)..BatchNumber(last_batch_number),
         };
-        self.put_slot(&slot_to_store, &slot_number, &mut schema_batch)?;
+        self.put_slot(&slot_to_store, &rollup_height, &mut schema_batch)?;
 
         self.notification_service
-            .register_slot_notification(current_item_numbers.slot_number);
+            .register_slot_notification(current_item_numbers.rollup_height);
 
         Ok(schema_batch)
     }
@@ -372,13 +372,13 @@ impl LedgerDb {
     /// Materializes latest finalized slot and registers notification.
     pub fn materialize_latest_finalize_slot(
         &self,
-        slot_number: u64,
+        rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch
-            .put::<FinalizedSlots>(&LatestFinalizedSlotSingleton, &SlotNumber(slot_number))?;
+            .put::<FinalizedSlots>(&LatestFinalizedSlotSingleton, &RollupHeight(rollup_height))?;
         self.notification_service
-            .register_finalized_slot_notification(slot_number);
+            .register_finalized_slot_notification(rollup_height);
         Ok(schema_batch)
     }
 
@@ -395,14 +395,14 @@ impl LedgerDb {
     }
 
     /// Get the most recent committed slot, if any.
-    pub fn get_head_slot(&self) -> anyhow::Result<Option<(SlotNumber, StoredSlot)>> {
+    pub fn get_head_slot(&self) -> anyhow::Result<Option<(RollupHeight, StoredSlot)>> {
         // Clone immediately, so instance is short-lived, reducing the probability of race-condition
         // according to [`tokio::sync::watch::Receiver::borrow`] documentation
         self.db
             .read()
             .expect(DB_LOCK_POISONED)
             .clone()
-            .get_largest::<SlotByNumber>()
+            .get_largest::<SlotByRollupHeight>()
     }
 
     /// Materializes aggregated zk proof
@@ -423,7 +423,7 @@ impl LedgerDb {
     pub fn materialize_stf_info(
         &self,
         stf_info: &StoredStfInfo,
-        rollup_height: &SlotNumber,
+        rollup_height: &RollupHeight,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<StfInfoByNumber>(rollup_height, stf_info)?;
@@ -433,7 +433,7 @@ impl LedgerDb {
     /// Get [`StoredStfInfo`] for the given rollup height.
     pub fn get_stf_info(
         &self,
-        rollup_height: &SlotNumber,
+        rollup_height: &RollupHeight,
     ) -> anyhow::Result<Option<StoredStfInfo>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         db.get::<StfInfoByNumber>(rollup_height)
@@ -447,7 +447,7 @@ impl LedgerDb {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<StfInfoMetadata>(
             &WRITE_ROLLUP_HEIGHT_ID,
-            &SlotNumber(stf_write_rollup_height),
+            &RollupHeight(stf_write_rollup_height),
         )?;
         Ok(schema_batch)
     }
@@ -458,7 +458,7 @@ impl LedgerDb {
         Ok(db
             .get_async::<StfInfoMetadata>(&WRITE_ROLLUP_HEIGHT_ID)
             .await?
-            .map(|slot_number| slot_number.0))
+            .map(|rollup_height| rollup_height.0))
     }
 
     /// Materializes the latest height of the retrieved STF info.
@@ -468,7 +468,7 @@ impl LedgerDb {
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch
-            .put::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID, &SlotNumber(read_rollup_height))?;
+            .put::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID, &RollupHeight(read_rollup_height))?;
         Ok(schema_batch)
     }
 
@@ -478,7 +478,7 @@ impl LedgerDb {
         Ok(db
             .get_async::<StfInfoMetadata>(&READ_ROLLUP_HEIGHT_ID)
             .await?
-            .map(|slot_number| slot_number.0))
+            .map(|rollup_height| rollup_height.0))
     }
 
     /// Materializes the oldest height of the retrieved STF info.
@@ -488,14 +488,14 @@ impl LedgerDb {
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch
-            .put::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID, &SlotNumber(read_rollup_height))?;
+            .put::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID, &RollupHeight(read_rollup_height))?;
         Ok(schema_batch)
     }
 
     /// Delete STF info for the given rollup height.
     pub fn delete_stf_info(&self, rollup_height: u64) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
-        schema_batch.delete::<StfInfoByNumber>(&SlotNumber(rollup_height))?;
+        schema_batch.delete::<StfInfoByNumber>(&RollupHeight(rollup_height))?;
         Ok(schema_batch)
     }
 
@@ -505,6 +505,6 @@ impl LedgerDb {
         Ok(db
             .get_async::<StfInfoMetadata>(&LAST_ROLLUP_HEIGHT_ID)
             .await?
-            .map(|slot_number| slot_number.0))
+            .map(|rollup_height| rollup_height.0))
     }
 }

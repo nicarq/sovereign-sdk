@@ -13,7 +13,7 @@ use crate::{KernelStateAccessor, KernelWriter, StateReader, StateWriter, Version
 /// via a `VersionedStateReadWriter`, only one version of this value is accessible. Inside the kernel,
 /// (where access is mediated by a [`KernelStateAccessor`]), all versions of this value are accessible.
 ///
-/// Under the hood, a versioned value is implemented as a map from a slot number to a value. From the kernel, any
+/// Under the hood, a versioned value is implemented as a map from a rollup height to a value. From the kernel, any
 /// value can be accessed
 // TODO: Automatically clear out old versions from state https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/383
 #[derive(
@@ -162,10 +162,10 @@ mod tests {
             Some(100)
         );
 
-        // Try to read the value from kernel space with the slot number set to 1. Should fail.
+        // Try to read the value from kernel space with the rollup height set to 1. Should fail.
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);
 
-        // Try to read the value from kernel space with the slot number set to 4. Should succeed.
+        // Try to read the value from kernel space with the rollup height set to 4. Should succeed.
         state.update_version(4);
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
     }
@@ -191,15 +191,15 @@ mod tests {
         );
         value.set_true_current(&17, &mut kernel_state);
 
-        // Try to read the value from user space with the slot number set to 1. Should fail.
+        // Try to read the value from user space with the rollup height set to 1. Should fail.
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), None);
 
-        // Try to read the value from user space with the slot number set to 2. Should succeed.
+        // Try to read the value from user space with the rollup height set to 2. Should succeed.
         state.update_version(2);
 
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(100));
 
-        // Try to read the value from user space with the slot number set to 4. Should succeed.
+        // Try to read the value from user space with the rollup height set to 4. Should succeed.
         state.update_version(4);
         assert_eq!(value.get_current(&mut state).unwrap_infallible(), Some(17));
     }

@@ -116,8 +116,8 @@ impl TryInto<aggregated_proof::AggregatedProof> for types::AggregatedProof {
             aggregated_proof::AggregatedProofPublicData {
                 validity_conditions: decode_b64_vec(public_data.validity_conditions.iter())?,
                 rewarded_addresses: decode_b64_vec(public_data.rewarded_addresses.iter())?,
-                initial_slot_number: public_data.initial_slot_number,
-                final_slot_number: public_data.final_slot_number,
+                initial_rollup_height: public_data.initial_rollup_height,
+                final_rollup_height: public_data.final_rollup_height,
                 genesis_state_root: decode_b64(&public_data.genesis_state_root)?,
                 initial_state_root: decode_b64(&public_data.initial_state_root)?,
                 final_state_root: decode_b64(&public_data.final_state_root)?,

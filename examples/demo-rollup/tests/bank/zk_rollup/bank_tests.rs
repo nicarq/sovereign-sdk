@@ -121,9 +121,9 @@ async fn send_test_bank_txs(
 
     // create token. height 2
     let tx = build_create_token_tx(&key, 0, 1000);
-    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
-    assert_eq!(1, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+    assert_eq!(1, rollup_height);
+    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
     let gas_balance_height_1 = client
         .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(1))
         .await?;
@@ -133,13 +133,13 @@ async fn send_test_bank_txs(
 
     // transfer 100 tokens. assert sender balance. height 3
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 100, 1);
-    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
-    assert_eq!(2, slot_number);
+    let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+    assert_eq!(2, rollup_height);
     let gas_balance_height_2 = client
         .get_balance::<TestSpec>(&user_address, &sov_bank::config_gas_token_id(), Some(2))
         .await?;
     assert!(gas_balance_height_2 < gas_balance_height_1);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
 
     if test_case.wait_for_aggregated_proof {
         aggregated_proofs_posted_to_da_subscription.recv().await?;
@@ -148,9 +148,9 @@ async fn send_test_bank_txs(
     assert_balance(client, 900, token_id, user_address, None).await?;
     // transfer 200 tokens. assert sender balance. height 4
     let tx = build_transfer_token_tx(&key, token_id, recipient_address, 200, 2);
-    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
-    assert_eq!(3, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+    assert_eq!(3, rollup_height);
+    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
 
     assert_balance(client, 700, token_id, user_address, None).await?;
 
@@ -166,9 +166,9 @@ async fn send_test_bank_txs(
     // 10 transfers of 10,11..20
     let transfer_amounts: Vec<u64> = (10u64..20).collect();
     let txs = build_multiple_transfers(&transfer_amounts, &key, token_id, recipient_address, 3);
-    let slot_number = tx_sender.send_txs(client, &txs).await?;
-    assert_eq!(4, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    let rollup_height = tx_sender.send_txs(client, &txs).await?;
+    assert_eq!(4, rollup_height);
+    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
 
     assert_bank_event::<TestSpec>(
         client,
@@ -214,14 +214,15 @@ async fn send_test_bank_txs(
     if test_case.wait_for_aggregated_proof {
         let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
         let pub_data = aggregated_proof_resp.public_data;
-        // Because da blocks produced only on submit to DA layer, we can guarantee those slot numbers:
-        assert_eq!(1, pub_data.initial_slot_number);
-        assert_eq!(1, pub_data.final_slot_number);
+        // Because da blocks produced only on submit to DA layer, we can guarantee those rollup heights:
+        assert_eq!(1, pub_data.initial_rollup_height);
+        assert_eq!(1, pub_data.final_rollup_height);
         assert_aggregated_proof(1, 1, client).await?;
     }
 
-    if let Some(finalized_slot_number) = test_case.get_latest_finalized_slot_after(slot_number) {
-        assert_slot_finality(client, finalized_slot_number, FinalityStatus::Finalized).await;
+    if let Some(finalized_rollup_height) = test_case.get_latest_finalized_slot_after(rollup_height)
+    {
+        assert_slot_finality(client, finalized_rollup_height, FinalityStatus::Finalized).await;
     }
 
     Ok(())

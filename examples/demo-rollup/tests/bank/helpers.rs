@@ -26,8 +26,8 @@ impl TestCase {
         }
     }
 
-    pub(crate) fn get_latest_finalized_slot_after(&self, slot_number: u64) -> Option<u64> {
-        slot_number.checked_sub(self.finalization_blocks as u64)
+    pub(crate) fn get_latest_finalized_slot_after(&self, rollup_height: u64) -> Option<u64> {
+        rollup_height.checked_sub(self.finalization_blocks as u64)
     }
 }
 
@@ -145,8 +145,8 @@ pub(crate) async fn assert_aggregated_proof(
         .ok_or_else(|| anyhow!("data should be defined"))?
         .public_data;
     // We test inequality because proofs are saved asynchronously in the db.
-    assert!(initial_slot <= proof_pub_data.initial_slot_number);
-    assert!(final_slot <= proof_pub_data.final_slot_number);
+    assert!(initial_slot <= proof_pub_data.initial_rollup_height);
+    assert!(final_slot <= proof_pub_data.final_rollup_height);
 
     let proof_data_info_response = client.client.get_latest_aggregated_proof().await?;
 
@@ -157,7 +157,7 @@ pub(crate) async fn assert_aggregated_proof(
                 .as_ref()
                 .ok_or_else(|| anyhow!("data should be defined"))?
                 .public_data
-                .initial_slot_number
+                .initial_rollup_height
     );
     assert!(
         final_slot
@@ -166,7 +166,7 @@ pub(crate) async fn assert_aggregated_proof(
                 .as_ref()
                 .ok_or_else(|| anyhow!("data should be defined"))?
                 .public_data
-                .final_slot_number
+                .final_rollup_height
     );
 
     Ok(())
@@ -174,19 +174,22 @@ pub(crate) async fn assert_aggregated_proof(
 
 pub(crate) async fn assert_slot_finality(
     client: &NodeClient,
-    slot_number: u64,
+    rollup_height: u64,
     expected_finality: FinalityStatus,
 ) {
     let slot = client
         .client
-        .get_slot_by_id(&sov_api_spec::types::IntOrHash::Integer(slot_number), None)
+        .get_slot_by_id(
+            &sov_api_spec::types::IntOrHash::Integer(rollup_height),
+            None,
+        )
         .await
         .unwrap();
 
     assert_eq!(
         expected_finality,
         slot.data.as_ref().unwrap().finality_status.into(),
-        "Wrong finality status for slot number {slot_number}"
+        "Wrong finality status for rollup height {rollup_height}"
     );
 }
 

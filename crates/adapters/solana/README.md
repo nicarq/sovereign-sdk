@@ -255,12 +255,12 @@ Chunk1 Chunk2  Chunk3     Chunk4
 * Chunks can arrive in any order since they get inserted into the right slots of the tree in the `ChunkAccumulator` account's on-chain space
 * Once the final chunk arrives and the merkle root is available, the root is "accumulated" into the `BlocksRoot` PDA account
   * This accumulation takes the form of a hashlist (since we don't really need merkelization here)
-  * The `BlocksRoot` account also keeps track of the current slot number
+  * The `BlocksRoot` account also keeps track of the current rollup height
   * If multiple chunks arrive and finish multiple blobs in a single slot, then all their merkle roots will be written into the blocksroot account
   * As an example, assume 4 final chunks arrive and 4 merkle roots are available (M1, M2, M3, M4) at slot 4200
-    * The first merkle root to finish, M1, observes that the slot number is < 4200, so it's the first root.
-    * The digest is set to M1 and slot_number is changed to 4200 (digest = M1)
-    * The second merkle root, M2 observes that the slot_number in the account is equal to the current slot number, so its not the first blob to finish
+    * The first merkle root to finish, M1, observes that the rollup height is < 4200, so it's the first root.
+    * The digest is set to M1 and rollup_height is changed to 4200 (digest = M1)
+    * The second merkle root, M2 observes that the rollup_height in the account is equal to the current rollup height, so its not the first blob to finish
     * Therefore, it accumulates itself into the digest (digest = hashv(digest|M2)) which is just hashv(M1|M2)
     * By the time the final root is accumulated the Digest would be hashv(hashv(hashv(M1|M2)|M3)|M4)
 * A solana Bank Hash stores the account delta hash in each block. Since 4 blob roots were accumulated in slot 4200, this means that the account value for `BlocksRoot` changed, so it's hash would be part of the Bank Hash

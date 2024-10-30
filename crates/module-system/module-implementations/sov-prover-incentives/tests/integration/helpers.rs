@@ -86,8 +86,8 @@ pub(crate) fn build_proof(
             vec_validity_cond.clone();
             (end_slot - initial_slot + 1) as usize
         ],
-        initial_slot_number: initial_slot,
-        final_slot_number: end_slot,
+        initial_rollup_height: initial_slot,
+        final_rollup_height: end_slot,
         initial_state_root: genesis_hash.as_ref().to_vec(),
         genesis_state_root: genesis_hash.as_ref().to_vec(),
         final_state_root: end_transition.post_state_root().as_ref().to_vec(),

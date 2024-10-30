@@ -158,9 +158,9 @@ fn test_invalid_initial_slot_hash() {
 }
 
 #[test]
-fn test_invalid_initial_slot_number() {
+fn test_invalid_initial_rollup_height() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.initial_slot_number = 5555;
+    aggregated_proof.initial_rollup_height = 5555;
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),
@@ -176,9 +176,9 @@ fn test_invalid_initial_slot_number() {
 }
 
 #[test]
-fn test_invalid_final_slot_number() {
+fn test_invalid_final_rollup_height() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
-    aggregated_proof.final_slot_number = 6;
+    aggregated_proof.final_rollup_height = 6;
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),

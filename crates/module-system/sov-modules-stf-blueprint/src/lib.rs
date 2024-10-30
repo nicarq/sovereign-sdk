@@ -364,7 +364,7 @@ where
         );
 
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
-        // most recent version of the virtual slot number.
+        // most recent version of the virtual rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
 
         let visible_height = state.rollup_height_to_access();

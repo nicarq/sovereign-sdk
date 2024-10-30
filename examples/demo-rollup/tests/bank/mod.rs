@@ -98,7 +98,7 @@ async fn wait_for_batch_to_be_processed(
 ) -> anyhow::Result<u64> {
     let wait_for = 1_000;
     for _ in 0..wait_for {
-        let slot_number = slot_subscription
+        let rollup_height = slot_subscription
             .next()
             .await
             .transpose()?
@@ -106,7 +106,7 @@ async fn wait_for_batch_to_be_processed(
             .unwrap_or_default();
 
         let batch_response = match ledger_client
-            .get_batch_by_slot_id_and_offset(&IntOrHash::Integer(slot_number), 0, None)
+            .get_batch_by_slot_id_and_offset(&IntOrHash::Integer(rollup_height), 0, None)
             .await
         {
             Ok(response) => response,
@@ -121,12 +121,12 @@ async fn wait_for_batch_to_be_processed(
         let txs_count = tx_range.end.saturating_sub(tx_range.start);
         // TODO: Later we can assert `submitted_batch_info.batch_hash` with `batch_response.data.hash`.
         if txs_count > 0 {
-            return Ok(slot_number);
+            return Ok(rollup_height);
         }
     }
 
     anyhow::bail!(
-        "Couldn't reach slot number being published after {} slots",
+        "Couldn't reach rollup height being published after {} slots",
         wait_for
     );
 }

@@ -9,7 +9,7 @@ pub struct TestAttester<S: Spec> {
     pub user_info: TestUser<S>,
     /// The amount of tokens bonded by the attester.
     pub bond: u64,
-    /// The next slot number at which the attester is supposed to attest.
+    /// The next rollup height at which the attester is supposed to attest.
     pub slot_to_attest: u64,
 }
 
@@ -22,7 +22,7 @@ pub struct TestAttesterConfig {
 }
 
 impl<S: Spec> TestAttester<S> {
-    /// Returns the slot number at which the attester is supposed to attest.
+    /// Returns the rollup height at which the attester is supposed to attest.
     pub fn slot_to_attest(&self) -> u64 {
         self.slot_to_attest
     }

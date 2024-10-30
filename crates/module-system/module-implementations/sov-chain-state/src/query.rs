@@ -8,19 +8,19 @@ use crate::{ChainState, TransitionHeight};
 
 impl<S: Spec> ChainState<S> {
     /// Get the visible height of the next slot.
-    /// Panics if the slot number is not set
-    pub fn get_next_visible_slot_number<Accessor: StateReader<Kernel, Error = Infallible>>(
+    /// Panics if the rollup height is not set
+    pub fn get_next_visible_rollup_height<Accessor: StateReader<Kernel, Error = Infallible>>(
         &self,
         accessor: &mut Accessor,
     ) -> TransitionHeight {
-        self.next_visible_slot_number
+        self.next_visible_rollup_height
             .get(accessor)
             .unwrap_infallible()
-            .expect("The visible slot number should always be set")
+            .expect("The visible rollup height should always be set")
     }
 
     /// Get the true height of the current slot.
-    /// Panics if the slot number is not set
+    /// Panics if the rollup height is not set
     pub fn get_true_rollup_height(
         &self,
         kernel_working_set: &mut KernelStateAccessor<S::Storage>,

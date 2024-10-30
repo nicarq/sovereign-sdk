@@ -193,7 +193,7 @@ fn create_test_rt_genesis_config<S: Spec>(
 generate_optimistic_runtime!(TestRuntime <=);
 
 #[test]
-fn test_slot_number() {
+fn test_rollup_height() {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate();
     let genesis_config = GenesisConfig::from_minimal_config(genesis_config.clone().into());
 

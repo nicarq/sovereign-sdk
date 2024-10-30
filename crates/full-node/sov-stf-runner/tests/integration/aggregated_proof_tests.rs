@@ -48,7 +48,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
     for _ in (0..nb_of_batches).step_by(jump) {
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
         let pub_data = resp.proof.public_data();
-        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
+        init_slot = calculate_and_check_rollup_height(init_slot, jump, pub_data);
     }
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
@@ -91,7 +91,7 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
     for _ in (0..nb_of_batches).step_by(jump) {
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
         let pub_data = resp.proof.public_data();
-        init_slot = calculate_and_check_slot_number(init_slot, jump, pub_data);
+        init_slot = calculate_and_check_rollup_height(init_slot, jump, pub_data);
     }
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
@@ -101,15 +101,15 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
     Ok(())
 }
 
-fn calculate_and_check_slot_number(
+fn calculate_and_check_rollup_height(
     init_slot: u64,
     jump: usize,
     pub_data: &AggregatedProofPublicData,
 ) -> u64 {
-    assert_eq!(init_slot, pub_data.initial_slot_number);
+    assert_eq!(init_slot, pub_data.initial_rollup_height);
 
     let final_slot = init_slot + jump as u64 - 1;
-    assert_eq!(final_slot, pub_data.final_slot_number);
+    assert_eq!(final_slot, pub_data.final_rollup_height);
 
     final_slot + 1
 }
@@ -156,7 +156,7 @@ struct Input {
 
 #[derive(Clone, Copy)]
 struct Output {
-    initial_slot_number: u64,
+    initial_rollup_height: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -169,16 +169,16 @@ impl TestCase {
     fn new(jump: usize) -> Self {
         // Generate 7 aggregate-proofs worth of blocks
         let nb_of_batches = 7 * jump;
-        // The initial slot number of the final proof.
+        // The initial rollup height of the final proof.
         // The first proof covers slots 1..=jump, the second jump+1..=(2*jump), etc.
-        let initial_slot_number = (6 * jump + 1) as u64;
+        let initial_rollup_height = (6 * jump + 1) as u64;
         Self {
             input: Input {
                 jump,
                 nb_of_batches,
             },
             output: Output {
-                initial_slot_number,
+                initial_rollup_height,
             },
         }
     }
@@ -187,16 +187,16 @@ impl TestCase {
         self.input.jump
     }
 
-    fn final_slot_number(&self) -> u64 {
-        self.output.initial_slot_number + (self.input.jump as u64) - 1
+    fn final_rollup_height(&self) -> u64 {
+        self.output.initial_rollup_height + (self.input.jump as u64) - 1
     }
 
     fn assert(&self, public_data: &AggregatedProofPublicData) {
         assert_eq!(
-            self.output.initial_slot_number,
-            public_data.initial_slot_number,
+            self.output.initial_rollup_height,
+            public_data.initial_rollup_height,
         );
 
-        assert_eq!(self.final_slot_number(), public_data.final_slot_number);
+        assert_eq!(self.final_rollup_height(), public_data.final_rollup_height);
     }
 }

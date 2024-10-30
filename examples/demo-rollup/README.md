@@ -352,7 +352,7 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg87
 ```
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.public_data.initial_slot_number >= 1 then true else false end'
+$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.public_data.initial_rollup_height >= 1 then true else false end'
 true
 ```
 

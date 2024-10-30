@@ -52,18 +52,18 @@ async fn send_test_bank_txs(
     // create token. height 2
     let initial_balance = 1000;
     let tx = build_create_token_tx(&key, 0, initial_balance);
-    let slot_number = tx_sender.send_txs(client, &[tx]).await?;
-    assert_eq!(1, slot_number);
-    assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+    let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+    assert_eq!(1, rollup_height);
+    assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
 
     assert_balance(client, initial_balance, token_id, user_address, None).await?;
 
     // Make 10 transfers
     for i in 1..11 {
         let tx = build_transfer_token_tx(&key, token_id, recipient_address, 10, i);
-        let slot_number = tx_sender.send_txs(client, &[tx]).await?;
-        assert_eq!(i + 1, slot_number);
-        assert_slot_finality(client, slot_number, test_case.expected_head_finality()).await;
+        let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
+        assert_eq!(i + 1, rollup_height);
+        assert_slot_finality(client, rollup_height, test_case.expected_head_finality()).await;
         assert_balance(
             client,
             initial_balance - i * 10,

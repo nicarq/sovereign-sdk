@@ -8,7 +8,7 @@ use sov_state::{Kernel, StateRoot, Storage};
 use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
 impl<S: Spec> ChainState<S> {
-    /// Computes the current root hash available at the current *virtual* slot number.
+    /// Computes the current root hash available at the current *virtual* rollup height.
     /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
     pub fn current_visible_hash(
         &self,
@@ -40,7 +40,7 @@ impl<S: Spec> ChainState<S> {
         pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<S::Storage>,
     ) {
-        // We increment the slot number at the very beginning of the slot execution
+        // We increment the rollup height at the very beginning of the slot execution
         self.increment_true_rollup_height(state);
 
         // The previous state root is set at the beginning of the next slot execution
@@ -140,12 +140,12 @@ impl<S: Spec> ChainState<S> {
 
 #[cfg(feature = "native")]
 impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
-    fn visible_slot_number_at(
+    fn visible_rollup_height_at(
         &self,
         true_rollup_height: u64,
         state: &mut sov_modules_api::state::ApiStateAccessor<S>,
     ) -> u64 {
-        self.visible_slot_number_at(true_rollup_height, state)
+        self.visible_rollup_height_at(true_rollup_height, state)
             .unwrap_infallible()
     }
 

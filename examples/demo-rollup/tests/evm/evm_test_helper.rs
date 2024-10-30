@@ -184,7 +184,7 @@ pub(crate) async fn gas_check(
     // get initial gas price
     let initial_base_fee_per_gas = client.eth_gas_price().await;
 
-    let mut last_slot_number = u64::MAX;
+    let mut last_rollup_height = u64::MAX;
     // send 10 "set" transactions with high gas fee in 5 batches to increase gas price
     for _ in 0..5 {
         let values: Vec<u32> = (0..10).collect();
@@ -193,7 +193,7 @@ pub(crate) async fn gas_check(
             .await;
         client.send_publish_batch_request().await;
         let slot = slot_subscription.next().await.transpose()?.unwrap();
-        last_slot_number = std::cmp::min(last_slot_number, slot);
+        last_rollup_height = std::cmp::min(last_rollup_height, slot);
         let receipts: Vec<Result<Option<_>, ProviderError>> = join_all(requests).await;
         assert!(receipts
             .into_iter()
@@ -209,7 +209,7 @@ pub(crate) async fn gas_check(
         "Failed gas check initial={:?} latest={:?} after slots={}",
         initial_base_fee_per_gas,
         latest_gas_price,
-        last_slot_number
+        last_rollup_height
     );
     Ok(())
 }

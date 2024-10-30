@@ -138,7 +138,7 @@ pub struct ProcessChunk<'info> {
     /// The built-in Solana system program.
     pub system_program: Program<'info, System>,
 
-    /// The Solana sysvar to fetch the current slot number.
+    /// The Solana sysvar to fetch the current rollup height.
     pub clock: Sysvar<'info, Clock>,
 }
 

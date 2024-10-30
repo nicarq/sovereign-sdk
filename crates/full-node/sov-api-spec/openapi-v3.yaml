@@ -286,9 +286,9 @@ paths:
                 required:
                   - data
                   - meta
-        "400": 
+        "400":
           "$ref": "#/components/responses/ApiErrorResponse"
-        "403": 
+        "403":
           "$ref": "#/components/responses/ApiErrorResponse"
   /sequencer/txs/{txHash}:
     get:
@@ -615,10 +615,10 @@ components:
           $ref: "#/components/schemas/RewardedAddresses"
         validity_conditions:
           $ref: "#/components/schemas/ValidityConditions"
-        initial_slot_number:
+        initial_rollup_height:
           type: integer
           format: uint64
-        final_slot_number:
+        final_rollup_height:
           type: integer
           format: uint64
         genesis_state_root:
@@ -641,8 +641,8 @@ components:
       required:
         - rewarded_addresses
         - validity_conditions
-        - initial_slot_number
-        - final_slot_number
+        - initial_rollup_height
+        - final_rollup_height
         - genesis_state_root
         - initial_state_root
         - final_state_root
@@ -730,7 +730,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/LedgerTx"
-        slot_number:
+        rollup_height:
           type: integer
           format: uint64
       required:
@@ -739,7 +739,7 @@ components:
         - hash
         - tx_range
         - receipt
-        - slot_number
+        - rollup_height
     TxReceipt:
       type: object
       properties:

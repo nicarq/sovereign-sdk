@@ -231,7 +231,7 @@ impl NodeClient {
                 .expect("da_height is out of range");
             let max_waiting_time = Duration::from_secs(300);
             println!(
-                "Going to wait for target slot number {} to be processed, up to {:?}",
+                "Going to wait for target rollup height {} to be processed, up to {:?}",
                 target_da_height, max_waiting_time
             );
             let start_wait = Instant::now();

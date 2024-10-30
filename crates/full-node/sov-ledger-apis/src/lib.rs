@@ -14,7 +14,7 @@ use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use sov_db::schema::types::{BatchNumber, EventNumber, SlotNumber, TxNumber};
+use sov_db::schema::types::{BatchNumber, EventNumber, RollupHeight, TxNumber};
 use sov_modules_api::{EventModuleName, RuntimeEventResponse};
 use sov_rest_utils::errors::{
     self, database_error_response_500, internal_server_error_response_500, not_found_404,
@@ -203,30 +203,30 @@ where
     async fn get_slot(
         State(ledger): State<T>,
         include_children_opt: Option<Query<IncludeChildren>>,
-        Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
+        Extension(RollupHeight(rollup_height)): Extension<RollupHeight>,
     ) -> ApiResult<Slot<B, TxReceipt, E>> {
         match ledger
-            .get_slot_by_number::<B, TxReceipt, Event<E>>(
-                slot_number,
+            .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
+                rollup_height,
                 include_children_opt.map(|q| q.0).unwrap_or_default().into(),
             )
             .await
         {
             Ok(Some(slot_response)) => Ok(Slot::new(slot_response).into()),
-            Ok(None) => Err(errors::not_found_404("Slot", slot_number)),
+            Ok(None) => Err(errors::not_found_404("Slot", rollup_height)),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
     }
 
     async fn get_slot_events(
         State(ledger): State<T>,
-        Extension(SlotNumber(slot_number)): Extension<SlotNumber>,
+        Extension(RollupHeight(rollup_height)): Extension<RollupHeight>,
         event_key_prefix_opt: Option<Query<EventFilter>>,
     ) -> ApiResult<Vec<Event<E>>> {
         let filter = event_key_prefix_opt.map(|q| q.0.prefix.into());
         let events = ledger
             .get_filtered_slot_events::<B, TxReceipt, Event<E>>(
-                &SlotIdentifier::Number(slot_number),
+                &SlotIdentifier::Number(rollup_height),
                 filter,
             )
             .await
@@ -336,12 +336,12 @@ where
         next: Next,
     ) -> Result<Response, Response> {
         let latest_slot = ledger
-            .get_head_slot_number()
+            .get_head_rollup_height()
             .await
             .map_err(database_error_response_500)?
             .ok_or_else(|| not_found_404("Slot", "latest"))?;
 
-        request.extensions_mut().insert(SlotNumber(latest_slot));
+        request.extensions_mut().insert(RollupHeight(latest_slot));
         Ok(next.run(request).await)
     }
 
@@ -356,7 +356,7 @@ where
             NumberOrHash::Hash(hash) => SlotIdentifier::Hash(hash.0),
         };
 
-        let slot_number = ledger
+        let rollup_height = ledger
             .resolve_slot_identifier(&identifier)
             .await
             .map_err(database_error_response_500)?
@@ -369,7 +369,7 @@ where
             // can remove this workaround and do the right thing.
             .ok_or_else(|| not_found_404("Slot", "unknown"))?;
 
-        request.extensions_mut().insert(SlotNumber(slot_number));
+        request.extensions_mut().insert(RollupHeight(rollup_height));
         Ok(next.run(request).await)
     }
 
@@ -443,14 +443,14 @@ where
     async fn resolve_batch_offset(
         State(ledger): State<T>,
         path_values: PathMap,
-        Extension(slot_number): Extension<SlotNumber>,
+        Extension(rollup_height): Extension<RollupHeight>,
         mut request: Request,
         next: Next,
     ) -> Result<Response, Response> {
         let batch_offset = get_path_number(&path_values, "batchOffset")?;
 
         let identifier = BatchIdentifier::SlotIdAndOffset(SlotIdAndOffset {
-            slot_id: SlotIdentifier::Number(slot_number.0),
+            slot_id: SlotIdentifier::Number(rollup_height.0),
             offset: batch_offset,
         });
         let batch_number = ledger
@@ -560,7 +560,7 @@ where
                             .collect::<Vec<_>>();
 
                         Ok(SlotEvents {
-                            slot_number: slot_num,
+                            rollup_height: slot_num,
                             events,
                         })
                     }
@@ -592,7 +592,7 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let Ok(Some(slot)) = ledger
-                            .get_slot_by_number::<B, TxReceipt, Event<E>>(
+                            .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
                                 slot_num,
                                 QueryMode::Compact,
                             )
@@ -614,7 +614,7 @@ where
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
         ws.on_upgrade(|socket| async move {
-            let Ok(last_notified_slot) = ledger.get_latest_finalized_slot_number().await else {
+            let Ok(last_notified_slot) = ledger.get_latest_finalized_rollup_height().await else {
                 return;
             };
 
@@ -624,10 +624,10 @@ where
                     let ledger = ledger.clone();
                     async move {
                         let mut slots = vec![];
-                        for slot_number in last_notified_slot..=slot_num {
+                        for rollup_height in last_notified_slot..=slot_num {
                             let slot_result = match ledger
-                                .get_slot_by_number::<B, TxReceipt, Event<E>>(
-                                    slot_number,
+                                .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
+                                    rollup_height,
                                     QueryMode::Compact,
                                 )
                                 .await
@@ -635,7 +635,7 @@ where
                                 Ok(Some(slot)) => Ok(slot),
                                 Ok(None) => Err(anyhow::anyhow!(
                                     "Slot with number {} does not exist",
-                                    slot_number
+                                    rollup_height
                                 )),
                                 Err(err) => Err(anyhow::anyhow!(
                                     "Failed to query slot with number: {}",
@@ -686,7 +686,7 @@ impl From<IncludeChildren> for QueryMode {
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 struct SlotEvents<E> {
-    slot_number: u64,
+    rollup_height: u64,
     events: Vec<Event<E>>,
 }
 
@@ -757,7 +757,7 @@ struct Batch<B, TxReceipt: TxReceiptContents, E> {
     pub tx_range: Range<u64>,
     pub receipt: B,
     pub txs: Vec<Transaction<TxReceipt, E>>,
-    pub slot_number: u64,
+    pub rollup_height: u64,
 }
 
 impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
@@ -776,7 +776,7 @@ impl<B, TxReceipt: TxReceiptContents, E> Batch<B, TxReceipt, E> {
             tx_range: batch.tx_range,
             receipt: batch.receipt,
             txs,
-            slot_number: batch.slot_number,
+            rollup_height: batch.rollup_height,
         }
     }
 }
@@ -902,8 +902,8 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
                 .map(|v| RewardedAddresses(v.clone()))
                 .collect(),
 
-            initial_slot_number: data.initial_slot_number,
-            final_slot_number: data.final_slot_number,
+            initial_rollup_height: data.initial_rollup_height,
+            final_rollup_height: data.final_rollup_height,
             genesis_state_root: data.genesis_state_root.clone(),
             initial_state_root: data.initial_state_root.clone(),
             final_state_root: data.final_state_root.clone(),
@@ -928,8 +928,8 @@ struct RewardedAddresses(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>)
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 struct AggregatedProofPublicData {
     pub validity_conditions: Vec<ValidityCondition>,
-    pub initial_slot_number: u64,
-    pub final_slot_number: u64,
+    pub initial_rollup_height: u64,
+    pub final_rollup_height: u64,
     #[serde_as(as = "serde_with::base64::Base64")]
     pub genesis_state_root: Vec<u8>,
     #[serde_as(as = "serde_with::base64::Base64")]
