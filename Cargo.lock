@@ -9353,7 +9353,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "jsonrpsee",
  "schemars",
  "serde",
@@ -9467,7 +9466,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap",
  "schemars",
  "serde",
  "serde_with",
@@ -9534,7 +9532,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "derive_more 1.0.0",
  "proptest",
  "schemars",
@@ -9639,7 +9636,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "derivative",
  "schemars",
  "serde",
@@ -10080,7 +10076,6 @@ dependencies = [
  "bech32 0.11.0",
  "blake2",
  "borsh",
- "clap",
  "convert_case 0.6.0",
  "darling",
  "derive_more 1.0.0",
@@ -10400,7 +10395,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap",
  "proptest",
  "proptest-derive",
  "risc0-zkvm",
@@ -10654,7 +10648,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "schemars",
  "serde",
  "sov-modules-api",

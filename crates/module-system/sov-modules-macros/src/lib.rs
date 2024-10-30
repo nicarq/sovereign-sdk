@@ -322,7 +322,7 @@ pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
             syn::parse_quote! { sov_modules_api },
         )
         .and_then(|path_to_sov_modules_api| {
-            cli_parser::derive_cli_wallet_arg(input, path_to_sov_modules_api)
+            cli_parser::derive_cli_wallet_arg(input, &path_to_sov_modules_api)
         }),
     )
 }

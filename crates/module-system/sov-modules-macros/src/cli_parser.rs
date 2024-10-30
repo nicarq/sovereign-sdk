@@ -290,13 +290,13 @@ pub(crate) fn derive_cli_wallet(
 
 pub(crate) fn derive_cli_wallet_arg(
     ast: DeriveInput,
-    path_to_sov_modules_api: syn::TypePath,
+    path_to_sov_modules_api: &syn::TypePath,
 ) -> syn::Result<proc_macro::TokenStream> {
     let (named_type_defn, conversion_logic, subcommand_ident) = match &ast.data {
         // Creating an enum "_WithNamedFields" which is identical to the first enum
         // except that all fields are named.
-        Data::Enum(inner) => derive_cli_wallet_arg_enum(&ast, inner),
-        Data::Struct(inner) => derive_cli_wallet_arg_struct(&ast, inner),
+        Data::Enum(inner) => derive_cli_wallet_arg_enum(&ast, inner, path_to_sov_modules_api),
+        Data::Struct(inner) => derive_cli_wallet_arg_struct(&ast, inner, path_to_sov_modules_api),
         Data::Union(_) => {
             return Err(syn::Error::new_spanned(
                 ast,
@@ -328,7 +328,11 @@ pub(crate) fn derive_cli_wallet_arg(
     Ok(expanded.into())
 }
 
-fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> CliWalletArgSpec {
+fn derive_cli_wallet_arg_enum(
+    ast: &DeriveInput,
+    data_enum: &syn::DataEnum,
+    path_to_sov_modules_api: &syn::TypePath,
+) -> CliWalletArgSpec {
     let item_name = &ast.ident;
     let generics = &ast.generics;
     let item_with_named_fields_ident = format_ident!("{}WithNamedFields", item_name);
@@ -396,6 +400,7 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
         #[allow(non_snake_case)]
         mod #inner_module_ident {
             use super::*;
+            use #path_to_sov_modules_api::prelude::clap;
 
             /// An auto-generated version of the #ident_name::CallMessage enum which is guaranteed to have
             /// no anonymous fields. This is necessary to enable `clap`'s automatic CLI parsing.
@@ -417,6 +422,7 @@ fn derive_cli_wallet_arg_enum(ast: &DeriveInput, data_enum: &syn::DataEnum) -> C
 fn derive_cli_wallet_arg_struct(
     ast: &DeriveInput,
     data_struct: &syn::DataStruct,
+    path_to_sov_modules_api: &syn::TypePath,
 ) -> CliWalletArgSpec {
     let item_name = &ast.ident;
     let generics = &ast.generics;
@@ -458,6 +464,7 @@ fn derive_cli_wallet_arg_struct(
         #[allow(non_snake_case)]
         mod #inner_module_ident {
             use super::*;
+            use #path_to_sov_modules_api::prelude::clap;
 
             // An auto-generated version of the #ident_name::CallMessage struct which is guaranteed to have
             // no anonymous fields. This is necessary to enable `clap`'s automatic CLI parsing.
