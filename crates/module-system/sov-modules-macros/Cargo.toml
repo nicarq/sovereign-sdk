@@ -41,7 +41,6 @@ sov-universal-wallet-macro-helpers = { workspace = true }
 
 [dev-dependencies]
 borsh = { workspace = true }
-clap = { workspace = true }
 jsonrpsee = { workspace = true, features = ["http-client", "macros", "server"] }
 schemars = { workspace = true }
 serde = { workspace = true }

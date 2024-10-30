@@ -4909,7 +4909,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap",
  "schemars",
  "serde",
  "serde_with",
@@ -4963,7 +4962,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "derive_more 1.0.0",
  "proptest",
  "schemars",
@@ -5046,7 +5044,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "derivative",
  "schemars",
  "serde",
@@ -5479,7 +5476,6 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "borsh",
- "clap",
  "proptest",
  "proptest-derive",
  "schemars",
@@ -5635,7 +5631,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "clap",
  "schemars",
  "serde",
  "sov-modules-api",
