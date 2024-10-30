@@ -62,9 +62,6 @@ pub mod hooks;
 pub mod traits;
 use traits::MinimalGenesis;
 
-#[cfg(test)]
-mod tests;
-
 type DefaultSpecWithHasher<S> = DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>;
 
 type NoncesMap<S> = HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>;
