@@ -43,7 +43,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for past_height in 0..current_height {
-            let mut archival_api_accessor = api_accessor.state_at_height(past_height);
+            let mut archival_api_accessor = api_accessor.state_at_height(past_height).unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;
 
@@ -56,7 +56,8 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
         let api_accessor = ApiStateAccessor::new(&state_checkpoint, Arc::new(kernel.clone()));
 
         for another_past_height in 0..=current_height {
-            let mut archival_api_accessor = api_accessor.state_at_height(another_past_height);
+            let mut archival_api_accessor =
+                api_accessor.state_at_height(another_past_height).unwrap();
 
             let value = state_value.get(&mut archival_api_accessor)?;
 

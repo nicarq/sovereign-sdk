@@ -46,6 +46,8 @@ impl<S: Spec> ChainState<S> {
 
         self.true_rollup_height.set(&0, state)?;
         self.next_visible_rollup_height.set(&0, state)?;
+        self.true_to_visible_rollup_height_history
+            .set(&0, &0, state)?;
 
         self.time.set_true_current(&config.current_time, state);
         self.operating_mode.set(&config.operating_mode, state)?;

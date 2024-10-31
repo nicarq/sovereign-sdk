@@ -302,14 +302,13 @@ impl<S: Spec> ChainState<S> {
         &self,
         true_rollup_height: u64,
         state: &mut T,
-    ) -> Result<TransitionHeight, T::Error>
+    ) -> Result<Option<TransitionHeight>, T::Error>
     where
         T: StateReader<Kernel>,
     {
         let visible_rollup_height = self
             .true_to_visible_rollup_height_history
-            .get(&true_rollup_height, state)?
-            .unwrap_or_default();
+            .get(&true_rollup_height, state)?;
 
         dbg!(true_rollup_height, visible_rollup_height);
         Ok(visible_rollup_height)

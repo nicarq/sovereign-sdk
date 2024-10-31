@@ -150,7 +150,7 @@ where
             self.has_kernel.kernel_with_slot_mapping(),
             height,
         );
-        let mut state = state.state_at_height(height);
+        let mut state = state.state_at_height(height).ok()?;
         let proof = self
             .attester_incentives
             .get_bond_proof(self.attester_address.clone(), &mut state)?;

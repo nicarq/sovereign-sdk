@@ -97,7 +97,7 @@ impl RpcImplBlock {
             Ok(quote! {
                 #( #docs )*
                 #signature {
-                    let #api_state_accessor_ident = &mut Self::build_api_state_accessor(self, None);
+                    let #api_state_accessor_ident = &mut Self::build_api_state_accessor(self, None).expect("Impossible to build a default api state accessor. This is a bug. Please report it.");
                     <#module_type>::#method_name(#(#arg_names),*)
                 }
             })

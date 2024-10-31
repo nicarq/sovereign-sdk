@@ -92,7 +92,10 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
             runtime
                 .bank
                 .supply_of(None, get_default_token_id::<S>(&admin_address), &mut state);
-        assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
+        assert_eq!(
+            resp.unwrap(),
+            sov_bank::TotalSupplyResponse { amount: Some(1000) }
+        );
 
         assert_eq!(runtime.value_setter.value.get(&mut state)?, Some(33));
     }
@@ -178,7 +181,10 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
     let resp = runtime
         .bank
         .supply_of(None, get_default_token_id::<S>(&admin_address), &mut state);
-    assert_eq!(resp, sov_bank::TotalSupplyResponse { amount: Some(1000) });
+    assert_eq!(
+        resp.unwrap(),
+        sov_bank::TotalSupplyResponse { amount: Some(1000) }
+    );
 
     assert_eq!(runtime.value_setter.value.get(&mut state)?, Some(33));
 

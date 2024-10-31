@@ -3,6 +3,7 @@ use std::str::FromStr;
 use anyhow::Context;
 use demo_stf::runtime::RuntimeCall;
 use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
+use demo_stf_json_client::Error;
 use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::config_gas_token_id;
@@ -352,24 +353,45 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     assert_eq!(0, info);
 
     // StateVec info is zero in the future
-    let state_vec_info = client
+    let state_vec_err = client
         .value_setter_many_values_get_state_vec_info(Some(u32::MAX as u64))
-        .await?;
-    let info = state_vec_info.data.clone().length.unwrap();
-    assert_eq!(0, info);
+        .await
+        .unwrap_err();
+
+    match &state_vec_err {
+        Error::UnexpectedResponse(response) => {
+            assert_eq!(response.status(), 400);
+        }
+        _ => panic!("Should have gotten an unexpected response"),
+    }
 
     let state_vec_element_response = client
         .value_setter_many_values_get_state_vec_element(1, Some(u32::MAX as u64))
         .await
         .unwrap_err();
-    check_not_found_error(
+    check_bad_request_error(
         state_vec_element_response,
-        "many_values '1' not found",
-        // TODO: Should it be index. Offloading it to item of better id handling.
-        "id",
-        "1",
+        "impossible to build a state accessor given the provided `rollup_height`",
     );
     Ok(())
+}
+
+fn check_bad_request_error(
+    credential_id_response: demo_stf_json_client::Error<RuntimeErrorContainer>,
+    expected_title: &str,
+) {
+    match credential_id_response {
+        demo_stf_json_client::Error::ErrorResponse(inner_err) => {
+            assert_eq!(1, inner_err.errors.len());
+            let error = inner_err.errors.first().unwrap();
+
+            assert_eq!(expected_title, error.title);
+            assert_eq!(400, error.status);
+        }
+        _ => {
+            panic!("Unexpected error response: {:?}", credential_id_response)
+        }
+    };
 }
 
 fn check_not_found_error(

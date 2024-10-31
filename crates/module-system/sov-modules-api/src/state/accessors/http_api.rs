@@ -225,15 +225,21 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// ## Note
     /// This method has a similar effect to [`ApiStateAccessor::state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
     /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::state_at_height`].
-    pub fn set_state_to_height(&mut self, height: u64) {
+    pub fn set_state_to_height(&mut self, height: u64) -> Result<(), anyhow::Error> {
         self.rollup_height = height;
         self.events = vec![];
         self.witness = Default::default();
 
         // Set the state's base fee per gas if there is a relevant value to retrieve from the state.
-        if let Some(base_fee_per_gas) = self.kernel.clone().base_fee_per_gas_at(height, self) {
-            self.gas_meter.set_gas_price(base_fee_per_gas);
-        }
+        let Some(base_fee_per_gas) = self.kernel.clone().base_fee_per_gas_at(height, self) else {
+            return Err(anyhow::anyhow!(
+                "Impossible to retrieve the base fee per gas for the specified slot."
+            ));
+        };
+
+        self.gas_meter.set_gas_price(base_fee_per_gas);
+
+        Ok(())
     }
 
     /// Sets the underlying [`ApiStateAccessor`] to the _visible_ state at the specified `height`.
@@ -242,11 +248,13 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     /// ## Note
     /// This method has a similar effect to [`ApiStateAccessor::visible_state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
     /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::visible_state_at_height`].
-    pub fn set_state_to_visible_height(&mut self, height: u64) {
+    pub fn set_state_to_visible_height(&mut self, height: u64) -> Result<(), anyhow::Error> {
         // We are mapping the provided height to the visible height to have access to the correct visible state.
-        let visible_height = self.kernel.clone().visible_rollup_height_at(height, self);
+        let visible_height = self.kernel.clone().visible_rollup_height_at(height, self).ok_or_else(|| anyhow::anyhow!("Impossible to retrieve the visible rollup height associated with the provided input. Please ensure you're querying a valid height"))?;
 
-        self.set_state_to_height(visible_height);
+        self.set_state_to_height(visible_height)?;
+
+        Ok(())
     }
 
     /// Returns a new accessor which accesses the rollup at the specified `height`.
@@ -254,13 +262,13 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     ///
     /// ## Note
     /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
-    pub fn state_at_height(&self, height: u64) -> ApiStateAccessor<S> {
+    pub fn state_at_height(&self, height: u64) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
 
-        state.set_state_to_height(height);
+        state.set_state_to_height(height)?;
 
-        state
+        Ok(state)
     }
 
     /// Returns a new accessor which accesses the _visible_ state of the rollup at the specified height.
@@ -268,13 +276,16 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
     ///
     /// ## Note
     /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
-    pub fn visible_state_at_height(&self, height: u64) -> ApiStateAccessor<S> {
+    pub fn visible_state_at_height(
+        &self,
+        height: u64,
+    ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
 
-        state.set_state_to_visible_height(height);
+        state.set_state_to_visible_height(height)?;
 
-        state
+        Ok(state)
     }
 }
 

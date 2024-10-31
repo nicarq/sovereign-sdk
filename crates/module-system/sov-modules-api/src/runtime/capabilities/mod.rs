@@ -161,6 +161,8 @@ pub mod mocks {
     use super::KernelWithSlotMapping;
     use super::{Kernel, Spec};
     use crate::BootstrapWorkingSet;
+    #[cfg(feature = "native")]
+    use crate::GasMeter;
 
     /// A mock kernel for use in tests
     #[derive(Debug, Clone, Default)]
@@ -195,16 +197,16 @@ pub mod mocks {
             &self,
             true_rollup_height: u64,
             _state: &mut crate::ApiStateAccessor<S>,
-        ) -> u64 {
-            true_rollup_height
+        ) -> Option<u64> {
+            Some(true_rollup_height)
         }
 
         fn base_fee_per_gas_at(
             &self,
             _height: u64,
-            _state: &mut crate::state::ApiStateAccessor<S>,
+            state: &mut crate::state::ApiStateAccessor<S>,
         ) -> Option<<<S as Spec>::Gas as crate::Gas>::Price> {
-            None
+            Some(state.gas_info().gas_price)
         }
     }
 
