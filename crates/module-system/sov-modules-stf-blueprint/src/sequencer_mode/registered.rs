@@ -112,8 +112,15 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
 
     // Recover the authentication cost form the user.
     if let Err(err) = working_set.charge_gas(gas_used_for_authentication) {
-        let (mut scratchpad, _transaction_consumption) = working_set.revert();
+        let (mut scratchpad, transaction_consumption) = working_set.revert();
         penalize(&mut scratchpad);
+
+        // Refund the remaining gas to the sender.
+        runtime.gas_enforcer().refund_remaining_gas(
+            ctx.gas_refund_recipient(),
+            &transaction_consumption.remaining_funds(),
+            &mut scratchpad,
+        );
 
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),

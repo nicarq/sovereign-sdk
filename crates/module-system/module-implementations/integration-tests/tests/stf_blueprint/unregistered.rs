@@ -144,6 +144,7 @@ fn execute_seq_registration_failure_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::OutOfGas,
         TxStatus::BadSerialization,
         TxStatus::SignerDoesNotExist,
         TxStatus::BadNonce,
@@ -157,7 +158,7 @@ fn execute_seq_registration_failure_test() {
 
 mod helpers {
     use super::*;
-    use crate::stf_blueprint::{create_tx_bad_sig, create_tx_valid};
+    use crate::stf_blueprint::{create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid};
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
         pub(crate) user: TestUser<S>,
@@ -279,6 +280,13 @@ mod helpers {
                 encode_message(potential_seq.da_address, BOND_AMOUNT),
             )),
             TxStatus::BadSerialization => RawTx::new(vec![1, 2, 3]),
+            TxStatus::OutOfGas => encode_tx(create_tx_out_of_gas(
+                0,
+                max_priority_fee_bips,
+                &potential_seq.user,
+                config_value!("CHAIN_ID"),
+                encode_message(potential_seq.da_address, BOND_AMOUNT),
+            )),
             TxStatus::Reverted => encode_tx(create_tx_reverted(
                 0,
                 max_priority_fee_bips,

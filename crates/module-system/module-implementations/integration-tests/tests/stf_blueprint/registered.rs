@@ -182,6 +182,7 @@ fn execute_batch_of_invalid_tx_test() {
     env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
+        TxStatus::OutOfGas,
         TxStatus::BadChainId,
         TxStatus::BadNonce,
         TxStatus::BadNonce,
@@ -382,7 +383,9 @@ mod helpers {
 
     use super::super::IntegTestRuntime;
     use super::*;
-    use crate::stf_blueprint::{create_tx_bad_sender, create_tx_bad_sig, create_tx_valid};
+    use crate::stf_blueprint::{
+        create_tx_bad_sender, create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid,
+    };
 
     pub(crate) struct Actors {
         pub(crate) admin_account: TestUser<S>,
@@ -466,6 +469,16 @@ mod helpers {
 
                 TxStatus::BadSignature => {
                     let tx = create_tx_bad_sig(
+                        nonce,
+                        max_priority_fee_bips,
+                        admin,
+                        config_value!("CHAIN_ID"),
+                        encode_message(),
+                    );
+                    txs.push(encode(tx));
+                }
+                TxStatus::OutOfGas => {
+                    let tx = create_tx_out_of_gas(
                         nonce,
                         max_priority_fee_bips,
                         admin,
