@@ -23,7 +23,7 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
         mut runner,
     ) = setup_soft_confirmation_kernel();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage

@@ -125,7 +125,7 @@ fn test_reward_sequencer_registry() {
     let (roles, gas_consumed, mut runner) = reward_mechanism_test_setup();
 
     let sequencer_registry_balance = |runner: &TestRunner<RT, S>| {
-        runner.query_state(|state| {
+        runner.query_visible_state(|state| {
             let sequencer_id = *SequencerRegistry::<S>::default().id();
 
             Bank::<S>::default()
@@ -209,7 +209,7 @@ fn produce_malformed_tx(
 ) -> TransactionType<sov_value_setter::ValueSetter<S>, S> {
     let mut nonces = runner.nonces().clone();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let mut tx = admin
             .create_plain_message::<sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(10),

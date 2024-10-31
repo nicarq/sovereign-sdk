@@ -42,11 +42,13 @@ fn test_process_valid_attestation() {
     // Submit the attestations
     for (i, reward) in rewards.into_iter().enumerate() {
         let initial_balance = runner
-            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .query_visible_state(|state| {
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state)
+            })
             .unwrap();
 
         let attestation_proof = runner
-            .query_state(|state| build_proof(state, (i + 1) as u64, &attester_address))
+            .query_visible_state(|state| build_proof(state, (i + 1) as u64, &attester_address))
             .unwrap();
 
         let attest_slot = create_test_case(
@@ -94,11 +96,13 @@ fn test_burn_on_invalid_attestation() {
     // Test that the attester is not slashed when the bond is invalid.
     {
         let initial_balance = runner
-            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .query_visible_state(|state| {
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state)
+            })
             .unwrap();
 
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 1, &attester_address))
+            .query_visible_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
         attestation_proof.proof_of_bond.claimed_rollup_height = 2;
@@ -112,11 +116,13 @@ fn test_burn_on_invalid_attestation() {
     // Test valid attestation.
     {
         let initial_balance = runner
-            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .query_visible_state(|state| {
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state)
+            })
             .unwrap();
         let valid_attestation = {
             let attestation_proof_2 = runner
-                .query_state(|state| build_proof(state, 1, &attester_address))
+                .query_visible_state(|state| build_proof(state, 1, &attester_address))
                 .unwrap();
 
             create_test_case(
@@ -132,11 +138,13 @@ fn test_burn_on_invalid_attestation() {
     // Test that the attester is slashed when the initial state is invalid.
     {
         let initial_balance = runner
-            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .query_visible_state(|state| {
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state)
+            })
             .unwrap();
 
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 1, &attester_address))
+            .query_visible_state(|state| build_proof(state, 1, &attester_address))
             .unwrap();
 
         attestation_proof.initial_state_root =
@@ -177,11 +185,13 @@ fn test_burn_on_invalid_attestation() {
     // Test that the attester is slashed when the post state is invalid.
     {
         let initial_balance = runner
-            .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&attester_address, state))
+            .query_visible_state(|state| {
+                TestRunner::<RT, S>::bank_gas_balance(&attester_address, state)
+            })
             .unwrap();
 
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 2, &attester_address))
+            .query_visible_state(|state| build_proof(state, 2, &attester_address))
             .unwrap();
 
         attestation_proof.post_state_root =

@@ -45,7 +45,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
     let mut skipped_tx_count = 0;
 
     for (blob, potential_seq) in blobs_with_pot_sequencers {
-        let start = runner.query_state(|state| potential_seq.balances(state));
+        let start = runner.query_visible_state(|state| potential_seq.balances(state));
 
         let unregistered_blobs = RelevantBlobs {
             proof_blobs: Default::default(),
@@ -93,7 +93,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             }
         }
 
-        let end = runner.query_state(|state| potential_seq.balances(state));
+        let end = runner.query_visible_state(|state| potential_seq.balances(state));
 
         // Sequencer fees are transferred to the bond in the sequencer registry.
         assert_eq!(end.potential_seq_bond, seq_fee + bond_amount);

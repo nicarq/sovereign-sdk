@@ -33,7 +33,7 @@ type TestRunner<RT> = sov_test_utils::runtime::TestRunner<RT, S>;
 pub fn virtual_slot<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S>>(
     runner: &TestRunner<RT>,
 ) -> u64 {
-    runner.query_state(|state| state.rollup_height_to_access())
+    runner.query_visible_state(|state| state.rollup_height_to_access())
 }
 
 /// Returns the last `k` slot receipts

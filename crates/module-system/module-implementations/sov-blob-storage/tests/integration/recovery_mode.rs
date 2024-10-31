@@ -77,7 +77,7 @@ fn test_recovery_mode_with_deferred_blobs() {
         })
         .collect::<Vec<_>>();
 
-    let slashing_slot = runner.query_state(|state| {
+    let slashing_slot = runner.query_visible_state(|state| {
         TestRunner::<SoftConfRT>::batches_to_blobs::<sov_bank::Bank<S>>(
             vec![(BatchType(vec![]), preferred_sequencer.da_address)],
             &mut nonces,

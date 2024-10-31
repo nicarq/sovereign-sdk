@@ -69,7 +69,7 @@ pub fn build_basic_blobs(
         batches.push((BatchType(vec![]), sequencer.da_address));
     }
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         TestRunner::<BasicRT>::batches_to_blobs::<ValueSetter<S>>(batches, nonces, state)
     })
 }

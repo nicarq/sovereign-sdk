@@ -18,7 +18,7 @@ pub(crate) type S = sov_test_utils::TestSpec;
 fn test_genesis_bond() {
     let (runner, genesis_prover, _) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             TestProverIncentives::default()
                 .bonded_provers
@@ -175,9 +175,9 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
 
     let additional_prover_bond = minimal_bond(&runner);
 
-    let initial_gas_price = runner.query_state(|state| state.gas_info().gas_price);
+    let initial_gas_price = runner.query_visible_state(|state| state.gas_info().gas_price);
 
-    let (bank_signed, register_signed) = runner.query_state(|state| {
+    let (bank_signed, register_signed) = runner.query_visible_state(|state| {
         let bank_signed = prover
             .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
@@ -231,7 +231,7 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
 
     let new_bond_amount = minimal_bond(&runner);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let new_gas_price = state.gas_info().gas_price;
 
         assert!(

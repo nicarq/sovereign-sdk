@@ -39,7 +39,7 @@ fn prepare_for_slashing() -> (TestRunner<RT, S>, TestProver<S>, AggregatedProofP
     }
 
     let aggregated_proof = runner
-        .query_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
+        .query_visible_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
         .unwrap();
 
     (runner, prover, aggregated_proof)

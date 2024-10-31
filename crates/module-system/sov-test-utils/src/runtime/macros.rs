@@ -251,8 +251,7 @@ macro_rules! impl_standard_runtime_authenticator {
 macro_rules! generate_optimistic_runtime {
     ($id:ident <= $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_optimistic_runtime_with_kernel! {
-            kernel_type: $crate::runtime::BasicKernel<'a, S>,
-            $id <= $($module_name : $module_ty),*
+            $id <= kernel_type: $crate::runtime::BasicKernel<'a, S>, $($module_name : $module_ty),*
         }
     };
 }
@@ -261,7 +260,7 @@ macro_rules! generate_optimistic_runtime {
 /// and [`SequencerRegistry`](sov_sequencer_registry::SequencerRegistry) modules in addition to any provided as arguments. The runtime implements a custom kernel.
 #[macro_export]
 macro_rules! generate_optimistic_runtime_with_kernel {
-    (kernel_type: $kernel_ty:ty, $id:ident <= $($module_name:ident : $module_ty:path),*) => {
+    ($id:ident <= kernel_type: $kernel_ty:ty, $($module_name:ident : $module_ty:path),*) => {
         $crate::generate_runtime! {
             name: $id,
             modules: [$($module_name : $module_ty),*],

@@ -33,7 +33,7 @@ fn setup_with_wrong_attestation() -> (
     let genesis_attester_bond = genesis_attester.bond;
 
     let genesis_challenger_address = genesis_challenger.user_info.address();
-    let genesis_challenger_bond = runner.query_state(|state| {
+    let genesis_challenger_bond = runner.query_visible_state(|state| {
         TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
     });
 
@@ -77,14 +77,14 @@ fn setup_with_wrong_attestation() -> (
         BondedTestChallenger::from_challenger(genesis_challenger, genesis_challenger_bond);
 
     let initial_attester_balance = runner
-        .query_state(|state| {
+        .query_visible_state(|state| {
             TestRunner::<RT, S>::bank_gas_balance(&genesis_attester_address, state)
         })
         .unwrap();
 
     {
         let mut attestation_proof = runner
-            .query_state(|state| build_proof(state, 1, &genesis_attester_address))
+            .query_visible_state(|state| build_proof(state, 1, &genesis_attester_address))
             .unwrap();
 
         attestation_proof.post_state_root =
@@ -142,11 +142,11 @@ fn test_valid_challenge() -> Result<(), Infallible> {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let challenge_proof = runner
-        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
         .unwrap();
 
     let initial_challenger_balance = runner
-        .query_state(|state| {
+        .query_visible_state(|state| {
             TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state)
         })
         .unwrap();
@@ -187,7 +187,7 @@ fn test_invalid_challenge_helper(
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let initial_challenger_balance = runner
-        .query_state(|state| {
+        .query_visible_state(|state| {
             TestRunner::<RT, S>::bank_gas_balance(&bonded_challenger_address, state)
         })
         .unwrap();
@@ -238,7 +238,7 @@ fn test_invalid_challenge_initial_state_root() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let mut challenge_proof = runner
-        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
         .unwrap();
 
     challenge_proof.initial_state_root = StorageRoot::new(RootHash([255; 32]), RootHash([255; 32]));
@@ -259,7 +259,7 @@ fn test_invalid_challenge_transition() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let mut challenge_proof = runner
-        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
         .unwrap();
 
     challenge_proof.slot_hash = MockHash([255; 32]);
@@ -279,7 +279,7 @@ fn test_invalid_challenge_proof() {
     let bonded_challenger_address = bonded_challenger.user_info.address();
 
     let challenge_proof = runner
-        .query_state(|state| build_challenge(state, 1, bonded_challenger_address))
+        .query_visible_state(|state| build_challenge(state, 1, bonded_challenger_address))
         .unwrap();
 
     test_invalid_challenge_helper(

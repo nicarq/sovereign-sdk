@@ -151,7 +151,7 @@ where
     ///
     /// ## Note (soft-confirmations)
     /// This value may be different from the value that would be returned by the [`ApiStateAccessor::rollup_height_to_access`] method inside
-    /// [`TestRunner::query_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
+    /// [`TestRunner::query_visible_state`], the reason for that is that this version of the [`ApiStateAccessor`] only has access to the state up to the
     /// current _visible height_. See our soft-confirmation documentation for more details.
     pub fn true_rollup_height(&self) -> u64 {
         self.slot_receipts.len() as u64
@@ -159,7 +159,7 @@ where
 
     /// Returns the current rollup height accessible from the transaction context.
     pub fn visible_rollup_height(&self) -> u64 {
-        self.query_state(|state| state.rollup_height_to_access())
+        self.query_visible_state(|state| state.rollup_height_to_access())
     }
 
     /// A simple helper function to get the balance of a given address in the gas token currency with an [`InfallibleStateAccessor`].
@@ -193,7 +193,8 @@ where
         &self.nonces
     }
 
-    fn current_state(&self) -> ApiStateAccessor<S> {
+    /// Returns the state of the rollup at the visible height.
+    fn visible_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
         let runtime = self.runtime();
         let kernel = runtime.kernel();
@@ -211,6 +212,26 @@ where
         )
     }
 
+    /// Returns the state of the rollup at the most recent version of the rollup.
+    fn state_at_true_height(&self) -> ApiStateAccessor<S> {
+        let stf_state = self.storage_manager.create_storage();
+        let runtime = self.runtime();
+        let kernel = runtime.kernel();
+
+        let mut state_checkpoint = StateCheckpoint::<S::Storage>::new(stf_state.clone(), &kernel);
+
+        let base_fee_per_gas = runtime
+            .chain_state()
+            .base_fee_per_gas(&mut state_checkpoint).expect("Impossible to get the base fee per gas for the current slot. This is a bug. Please report it");
+
+        ApiStateAccessor::<S>::new_with_price_and_height(
+            &state_checkpoint,
+            runtime.kernel_with_slot_mapping(),
+            self.true_rollup_height(),
+            base_fee_per_gas,
+        )
+    }
+
     /// Queries the state of the rollup. Calls the given closure with an [`ApiStateAccessor`] and returns the result.
     /// This method does not commit any changes to the state, it simply queries the state and discards the changes
     /// like what would happen by sending RPC/REST requests.
@@ -219,35 +240,51 @@ where
     /// We are using a closure here to ensure that we are accessing the most recent state of the rollup.
     /// Simply returning the [`ApiStateAccessor`] would not be sufficient because the state may be updated while
     /// the [`ApiStateAccessor`] still exists.
-    pub fn query_state<Output>(
+    pub fn query_visible_state<Output>(
         &self,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
-        query(&mut self.current_state())
+        query(&mut self.visible_state())
     }
 
     /// This method queries the state of the rollup at the latest _true_ height.
     ///
     /// ## Note
     /// This method is mostly useful in the `soft-confirmations` context. In that case, the _true_ height may be higher than the
-    /// current _visible_ height from the default [`TestRunner::query_state`] method. This is because the execution of
+    /// current _visible_ height from the default [`TestRunner::query_visible_state`] method. This is because the execution of
     /// blocks from non-preferred sequencers may be deferred to later.
-    pub fn query_state_at_true_height<Output>(
+    pub fn query_state<Output>(
         &self,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
-        self.query_state_at_height(self.true_rollup_height(), query)
+        query(&mut self.state_at_true_height())
     }
 
-    /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_state`]
-    /// followed by [`ApiStateAccessor::get_state_at_height`].
+    /// This method queries the visible state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_state_at_height`]
+    /// except that the provided height is mapped to the visible state at the specified height.
+    ///
+    /// ## Note
+    /// This method is mostly useful in the `soft-confirmations` context. In that case, the _true_ height may be higher than the
+    /// current _visible_ height from the default [`TestRunner::query_state_at_height`] method. This is because the execution of
+    /// blocks from non-preferred sequencers may be deferred to later.
+    pub fn query_visible_state_at_height<Output>(
+        &self,
+        height: u64,
+        query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
+    ) -> Output {
+        let mut current_state = self.state_at_true_height().visible_state_at_height(height);
+        query(&mut current_state)
+    }
+
+    /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_visible_state`]
+    /// followed by [`ApiStateAccessor::state_at_height`].
     pub fn query_state_at_height<Output>(
         &self,
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
     ) -> Output {
-        let current_state = self.current_state();
-        query(&mut current_state.get_state_at_height(height))
+        let mut current_state = self.state_at_true_height().state_at_height(height);
+        query(&mut current_state)
     }
 
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.
@@ -440,7 +477,7 @@ where
         let stf_state = self.storage_manager.create_storage();
         let slot_input: SlotInput<S, M> = input.into();
         let sequencer = self.config.sequencer_da_address;
-        let mut state = self.current_state();
+        let mut state = self.visible_state();
         let mut nonces = self.nonces.clone();
 
         let mut blobs = match slot_input {
@@ -545,7 +582,7 @@ where
             tx_receipt,
             gas_used.value(&gas_price),
         );
-        (transaction_test.assert)(ctx, &mut self.current_state());
+        (transaction_test.assert)(ctx, &mut self.visible_state());
         self
     }
 
@@ -597,7 +634,7 @@ where
             sender_da_address: self.config.sequencer_da_address,
             batch_receipt: result.batch_receipts.first().cloned(),
         };
-        (batch_test.assert)(ctx, &mut self.current_state());
+        (batch_test.assert)(ctx, &mut self.visible_state());
         self
     }
 
@@ -641,7 +678,7 @@ where
             proof_receipt,
             gas_value_used,
         };
-        (proof_test.assert)(ctx, &mut self.current_state());
+        (proof_test.assert)(ctx, &mut self.visible_state());
 
         self
     }

@@ -39,7 +39,7 @@ fn test_example_module() {
         }),
     });
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             ExampleModule::<S>::default().query_value(state),
             Response { value: Some(99) }

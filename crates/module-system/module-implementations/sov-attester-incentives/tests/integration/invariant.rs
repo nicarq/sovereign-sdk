@@ -30,7 +30,7 @@ fn setup_invariant_tests() -> (TestRunner<RT, S>, TestAttester<S>, u64) {
 
         let genesis_attester = genesis_attester.clone();
         let attestation_proof = runner
-            .query_state(|state| {
+            .query_visible_state(|state| {
                 build_proof(
                     state,
                     height_to_attest,
@@ -86,7 +86,7 @@ fn test_cannot_attest_below_max_attested_height() {
     let (mut runner, genesis_attester, expected_max_attested_height) = setup_invariant_tests();
 
     let attestation_proof = runner
-        .query_state(|state| build_proof(state, 1, &genesis_attester.user_info.address()))
+        .query_visible_state(|state| build_proof(state, 1, &genesis_attester.user_info.address()))
         .unwrap();
 
     // Now try to attest to a block at height 1. This is stricly below `MAX_ATTESTED_HEIGHT - TEST_ROLLUP_FINALITY_PERIOD`.
@@ -131,7 +131,7 @@ fn test_cannot_attest_above_max_attested_height_plus_one() {
     let (mut runner, genesis_attester, expected_max_attested_height) = setup_invariant_tests();
 
     let attestation_proof = runner
-        .query_state(|state| build_proof(state, 1, &genesis_attester.user_info.address()))
+        .query_visible_state(|state| build_proof(state, 1, &genesis_attester.user_info.address()))
         .unwrap();
 
     runner.execute_proof::<TestAttesterIncentives>(ProofTestCase {
@@ -173,7 +173,7 @@ fn test_can_attest_within_allowed_range() {
 
     for rollup_height_to_attest in start_height_to_attest..max_attested_height {
         let attestation_proof = runner
-            .query_state(|state| {
+            .query_visible_state(|state| {
                 build_proof(
                     state,
                     rollup_height_to_attest,
@@ -211,12 +211,12 @@ fn test_cannot_attest_genesis_height() {
     runner.advance_slots(1);
     // Building genesis attestation
 
-    let attestation_proof = runner.query_state(|state| {
+    let attestation_proof = runner.query_visible_state(|state| {
         let genesis_height = 0;
         let chain_state = sov_chain_state::ChainState::<S>::default();
         let genesis_root_hash = chain_state.get_genesis_hash(state).unwrap().unwrap();
 
-        let mut archival_state = state.get_state_at_height(genesis_height);
+        let mut archival_state = state.state_at_height(genesis_height);
 
         let proof_of_bond = TestAttesterIncentives::default()
             .bonded_attesters

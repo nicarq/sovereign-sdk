@@ -6,12 +6,12 @@ use sov_value_setter::ValueSetter;
 
 use crate::helpers::{setup, S};
 
-/// Ensures that [`TestRunner::query_state`] returns an [`sov_modules_api::ApiStateAccessor`] on the latest (most recent) state.
+/// Ensures that [`TestRunner::query_visible_state`] returns an [`sov_modules_api::ApiStateAccessor`] on the latest (most recent) state.
 #[test]
 fn test_query_runtime() {
     let (admin, mut runner) = setup();
 
-    let admin_genesis_address = runner.query_state(|state| {
+    let admin_genesis_address = runner.query_visible_state(|state| {
         assert_eq!(
             ValueSetter::<S>::default()
                 .value
@@ -52,7 +52,7 @@ fn test_query_runtime() {
 fn test_query_archival_state() {
     let (admin, mut runner) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             ValueSetter::<S>::default()
                 .value
@@ -93,20 +93,17 @@ fn test_freeze_time() {
     let chain_state = ChainState::<S>::default();
 
     runner.config.freeze_time = Some(Time::from_secs(200));
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
     // not frozen until the next slot.
     assert_ne!(time, Time::from_secs(200));
 
     runner.advance_slots(1);
 
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
     assert_eq!(time, Time::from_secs(200));
 
     runner.advance_slots(1);
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
     // time is still frozen
     assert_eq!(time, Time::from_secs(200));
 
@@ -116,22 +113,19 @@ fn test_freeze_time() {
 
     runner.advance_slots(1);
 
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
     // frozen time is updated
     assert_eq!(time, Time::from_secs(5000));
 
     // timestamps should revert to the current time
     runner.config.freeze_time = None;
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
     // frozen time is still frozen until next slot
     assert_eq!(time, Time::from_secs(5000));
 
     runner.advance_slots(1);
 
-    let time =
-        runner.query_state_at_true_height(|state| chain_state.get_time(state).unwrap_infallible());
+    let time = runner.query_state(|state| chain_state.get_time(state).unwrap_infallible());
 
     assert!(
         Time::from_secs(5000) < time,

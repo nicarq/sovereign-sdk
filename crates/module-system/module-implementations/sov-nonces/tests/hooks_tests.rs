@@ -59,7 +59,7 @@ fn send_tx_works() {
 
     let admin_credential_id: CredentialId = admin.credential_id();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             Nonces::<S>::default()
                 .nonce(&admin_credential_id, state)

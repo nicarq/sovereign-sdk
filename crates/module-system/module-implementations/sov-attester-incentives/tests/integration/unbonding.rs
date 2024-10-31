@@ -27,7 +27,7 @@ fn check_attester_bonded_and_start_unbond(
     let gas_consumed_attester_ref_1 = AtomicNumber::new(0);
     let gas_consumed_attester_ref_2 = gas_consumed_attester_ref_1.clone();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             TestAttesterIncentives::default()
                 .bonded_attesters
@@ -176,7 +176,7 @@ fn try_unbond_without_bonding() {
 
     let additional_account_address = additional_account.address();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         // Check that the additional account is not bonded
 
         assert_eq!(

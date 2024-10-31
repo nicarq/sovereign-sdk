@@ -33,7 +33,7 @@ fn test_invalid_contract_execution() {
 
     runner.execute(TransactionType::<Evm<S>, S>::PreSigned(raw_tx));
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let evm = Evm::<S>::default();
         let mut evm_db = evm.get_db(state);
         let tx_request = TypedTransactionRequest::EIP1559(EIP1559TransactionRequest {

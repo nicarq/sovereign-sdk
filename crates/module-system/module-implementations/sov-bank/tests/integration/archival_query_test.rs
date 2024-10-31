@@ -34,7 +34,7 @@ fn transfer_token_and_query_old_balances() {
         ));
 
         // Test queries for latest height.
-        runner.query_state(|state| {
+        runner.query_visible_state(|state| {
             assert_eq!(
                 Bank::<TestSpec>::default()
                     .get_balance_of(&receiver.address(), token_id, state)
@@ -44,8 +44,8 @@ fn transfer_token_and_query_old_balances() {
         });
 
         for height_to_query in 0..height {
-            runner.query_state(|state| {
-                let archival_state = &mut state.get_state_at_height(height_to_query);
+            runner.query_visible_state(|state| {
+                let archival_state = &mut state.state_at_height(height_to_query);
 
                 // Sender query deducted at every height
                 assert_eq!(

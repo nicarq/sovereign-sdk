@@ -56,7 +56,7 @@ pub fn setup_with_custom_runtime(runtime: RT) -> (TestRoles, TestRunner<TestRunt
 
     let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         // Check that the sequencer account is bonded
         assert_eq!(
             TestSequencerRegistry::default()

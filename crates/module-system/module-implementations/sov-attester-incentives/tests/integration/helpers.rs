@@ -38,14 +38,14 @@ pub type SetupParams = (
 
 /// Returns the minimal bond required to register an attester at the current slot.
 pub fn minimal_attester_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         TestAttesterIncentives::default().get_minimal_attester_bond_value(state)
     })
 }
 
 /// Returns the minimal bond required to register a challenger at the current slot.
 pub fn minimal_challenger_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         TestAttesterIncentives::default().get_minimal_challenger_bond_value(state)
     })
 }
@@ -71,7 +71,7 @@ pub(crate) fn setup_with_custom_runtime(runtime: TestRuntime<S>) -> SetupParams 
 
     let runner = TestRunner::new_with_genesis(genesis.into_genesis_params(), runtime);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         // Check that the attester account is bonded
         assert_eq!(
             TestAttesterIncentives::default()
@@ -148,7 +148,7 @@ pub(crate) fn build_proof(
     }
     .unwrap();
 
-    let mut archival_state = state.get_state_at_height(rollup_height_to_attest);
+    let mut archival_state = state.state_at_height(rollup_height_to_attest);
 
     let proof_of_bond = TestAttesterIncentives::default()
         .bonded_attesters

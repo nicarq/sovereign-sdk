@@ -219,20 +219,60 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         }
     }
 
-    /// Returns a new accessor which accesses the rollup at the given true `height`.
-    pub fn get_state_at_height(&self, height: u64) -> ApiStateAccessor<S> {
+    /// Sets the underlying [`ApiStateAccessor`] to the state at the specified `height`.
+    /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
+    ///
+    /// ## Note
+    /// This method has a similar effect to [`ApiStateAccessor::state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
+    /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::state_at_height`].
+    pub fn set_state_to_height(&mut self, height: u64) {
+        self.rollup_height = height;
+        self.events = vec![];
+        self.witness = Default::default();
+
+        // Set the state's base fee per gas if there is a relevant value to retrieve from the state.
+        if let Some(base_fee_per_gas) = self.kernel.clone().base_fee_per_gas_at(height, self) {
+            self.gas_meter.set_gas_price(base_fee_per_gas);
+        }
+    }
+
+    /// Sets the underlying [`ApiStateAccessor`] to the _visible_ state at the specified `height`.
+    /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
+    ///
+    /// ## Note
+    /// This method has a similar effect to [`ApiStateAccessor::visible_state_at_height`], but it does not clone the underlying [`ApiStateAccessor`].
+    /// Events and witness contents are wiped out from the underlying [`ApiStateAccessor`] to ensure consistency with [`ApiStateAccessor::visible_state_at_height`].
+    pub fn set_state_to_visible_height(&mut self, height: u64) {
+        // We are mapping the provided height to the visible height to have access to the correct visible state.
+        let visible_height = self.kernel.clone().visible_rollup_height_at(height, self);
+
+        self.set_state_to_height(visible_height);
+    }
+
+    /// Returns a new accessor which accesses the rollup at the specified `height`.
+    /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
+    ///
+    /// ## Note
+    /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
+    pub fn state_at_height(&self, height: u64) -> ApiStateAccessor<S> {
         // TODO: Is cloning the caches the correct behavior here?
         let mut state = self.clone_without_witness_or_events();
 
-        let kernel = self.kernel.clone();
+        state.set_state_to_height(height);
 
-        let visible_height = kernel.visible_rollup_height_at(height, &mut state);
-        state.rollup_height = height;
+        state
+    }
 
-        // Set the state's base fee per gas if there is a relevant value to retrieve from the state.
-        if let Some(base_fee_per_gas) = kernel.base_fee_per_gas_at(visible_height, &mut state) {
-            state.gas_meter.set_gas_price(base_fee_per_gas);
-        }
+    /// Returns a new accessor which accesses the _visible_ state of the rollup at the specified height.
+    /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
+    ///
+    /// ## Note
+    /// This method _clones_ the underlying [`ApiStateAccessor`] without its witness contents or associated events.
+    pub fn visible_state_at_height(&self, height: u64) -> ApiStateAccessor<S> {
+        // TODO: Is cloning the caches the correct behavior here?
+        let mut state = self.clone_without_witness_or_events();
+
+        state.set_state_to_visible_height(height);
 
         state
     }

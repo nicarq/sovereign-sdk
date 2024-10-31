@@ -54,7 +54,7 @@ fn test_config_account() {
     ) = setup();
 
     // The account is registered at genesis.
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
         let response = accounts.get_account(user.credential_id(), state);
         assert_eq!(
@@ -144,7 +144,7 @@ fn test_register_new_account() {
     // The account is empty at the start because it is not registered at genesis.
     assert_eq!(non_registered_account.custom_credential_id, None);
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
         let response = accounts.get_account(non_registered_account.credential_id(), state);
         assert_eq!(response, Response::AccountEmpty);
@@ -193,7 +193,7 @@ fn test_resolve_sender_address_non_default_address() {
         runner,
     ) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
 
         assert_eq!(
@@ -224,7 +224,7 @@ fn test_resolve_sender_address_non_default_address() {
 fn test_resolve_sender_address_default_address() {
     let (TestData { account_1, .. }, runner) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
 
         assert_eq!(
@@ -276,7 +276,7 @@ fn test_resolve_address_if_more_than_one_credential() {
             .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_2)),
     );
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
 
         assert_eq!(
@@ -304,7 +304,7 @@ fn test_resolve_with_different_default_address() {
         .pub_key()
         .credential_id::<TestHasher>();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let accounts = Accounts::<S>::default();
 
         assert_eq!(
