@@ -92,7 +92,14 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
 
     // Here we charge the gas for the transaction sig & pre-execution checks.
     if let Err(err) = working_set.charge_gas(&gas_info.gas_used) {
-        let (scratchpad, _) = working_set.revert();
+        let (mut scratchpad, transaction_consumption) = working_set.revert();
+
+        // Refund the remaining gas to the sender.
+        runtime.gas_enforcer().refund_remaining_gas(
+            ctx.gas_refund_recipient(),
+            &transaction_consumption.remaining_funds(),
+            &mut scratchpad,
+        );
         return (
             Err(TxProcessingError::OutOfGas(err.to_string())),
             scratchpad,

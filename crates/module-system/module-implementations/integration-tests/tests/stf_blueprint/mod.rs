@@ -3,7 +3,7 @@ mod unregistered;
 use sov_bank::Bank;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{ApiStateAccessor, DaSpec, PrivateKey, Spec};
+use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, PrivateKey, Spec};
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
@@ -75,6 +75,7 @@ enum TxStatus {
     BadSignature,
     BadSerialization,
     SignerDoesNotExist,
+    OutOfGas,
     Reverted,
 }
 
@@ -159,6 +160,26 @@ fn create_tx_valid(
         200_000,
         nonce,
         None,
+    );
+
+    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+}
+
+// Transaction with zero gas limit.
+fn create_tx_out_of_gas(
+    nonce: u64,
+    max_priority_fee_bips: PriorityFeeBips,
+    signer: &TestUser<S>,
+    chain_id: u64,
+    encoded_message: Vec<u8>,
+) -> Transaction<S> {
+    let utx = UnsignedTransaction::new(
+        encoded_message.clone(),
+        chain_id,
+        max_priority_fee_bips,
+        200_000,
+        nonce,
+        Some(<<S as Spec>::Gas as Gas>::zero()),
     );
 
     Transaction::<S>::new_signed_tx(signer.private_key(), utx)
