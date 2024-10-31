@@ -271,9 +271,12 @@ where
         &self,
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
-    ) -> Output {
-        let mut current_state = self.state_at_true_height().visible_state_at_height(height);
-        query(&mut current_state)
+    ) -> Option<Output> {
+        let mut current_state = self
+            .state_at_true_height()
+            .visible_state_at_height(height)
+            .ok()?;
+        Some(query(&mut current_state))
     }
 
     /// Queries the state of the rollup at the given height. This is essentially the same thing as [`TestRunner::query_visible_state`]
@@ -282,9 +285,9 @@ where
         &self,
         height: u64,
         query: impl FnOnce(&mut ApiStateAccessor<S>) -> Output,
-    ) -> Output {
-        let mut current_state = self.state_at_true_height().state_at_height(height);
-        query(&mut current_state)
+    ) -> Option<Output> {
+        let mut current_state = self.state_at_true_height().state_at_height(height).ok()?;
+        Some(query(&mut current_state))
     }
 
     /// TODO(@theochap): A temporary solution until `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1192` is resolved.

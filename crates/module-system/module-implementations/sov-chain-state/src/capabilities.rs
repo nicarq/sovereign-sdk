@@ -146,7 +146,7 @@ impl<S: Spec> KernelWithSlotMapping<S> for ChainState<S> {
         &self,
         true_rollup_height: u64,
         state: &mut sov_modules_api::state::ApiStateAccessor<S>,
-    ) -> u64 {
+    ) -> Option<u64> {
         self.visible_rollup_height_at(true_rollup_height, state)
             .unwrap_infallible()
     }

@@ -32,14 +32,15 @@ impl<S: Spec> Bank<S> {
         user_address: S::Address,
         token_id: TokenId,
         state: &mut ApiStateAccessor<S>,
-    ) -> BalanceResponse {
+    ) -> Result<BalanceResponse, anyhow::Error> {
         let amount = if let Some(v) = version {
-            self.get_balance_of(&user_address, token_id, &mut state.state_at_height(v))
+            let state = &mut state.state_at_height(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
+            self.get_balance_of(&user_address, token_id, state)
         } else {
             self.get_balance_of(&user_address, token_id, state)
         }
         .unwrap_infallible();
-        BalanceResponse { amount }
+        Ok(BalanceResponse { amount })
     }
 
     /// Method that returns the supply of a token stored at the address `token_id`.
@@ -48,14 +49,15 @@ impl<S: Spec> Bank<S> {
         version: Option<u64>,
         token_id: TokenId,
         state: &mut ApiStateAccessor<S>,
-    ) -> TotalSupplyResponse {
+    ) -> Result<TotalSupplyResponse, anyhow::Error> {
         let amount = if let Some(v) = version {
-            self.get_total_supply_of(&token_id, &mut state.state_at_height(v))
+            let mut state = state.state_at_height(v).map_err(|e| anyhow::anyhow!("Impossible to retrieve the state at the provided height. Please ensure you're querying a valid state. Error: {e}"))?;
+            self.get_total_supply_of(&token_id, &mut state)
         } else {
             self.get_total_supply_of(&token_id, state)
         }
         .unwrap_infallible();
-        TotalSupplyResponse { amount }
+        Ok(TotalSupplyResponse { amount })
     }
 }
 

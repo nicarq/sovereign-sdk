@@ -18,13 +18,14 @@ use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
 use serde::Serialize;
 use sov_rest_utils::errors::not_found_404;
-use sov_rest_utils::{ApiResult, Path, Query};
+use sov_rest_utils::{ApiResult, ErrorObject, Path, Query};
 use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
 use super::{ApiState, ModuleSendSync, RollupHeightQueryParam, StateItemInfo};
 use crate::map::NamespacedStateMap;
+use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
 use crate::vec::NamespacedStateVec;
 use crate::{ApiStateAccessor, Module, StateReader};
@@ -62,7 +63,17 @@ where
             .ok()
             .map(|q| q.0.rollup_height);
 
-        Ok(state.api_state.build_api_state_accessor(rollup_height))
+        state
+            .api_state
+            .build_api_state_accessor(rollup_height)
+            .map_err(|e| ErrorObject {
+                status: StatusCode::BAD_REQUEST,
+                title: "impossible to build a state accessor given the provided `rollup_height`"
+                    .to_string(),
+                details: json_obj!({
+                    "message": e.to_string(),
+                }),
+            })
     }
 }
 

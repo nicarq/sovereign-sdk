@@ -28,9 +28,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{FromRequestParts, State};
+use axum::http::StatusCode;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
-use sov_rest_utils::Query;
+use sov_rest_utils::{json_obj, ErrorObject, Query};
 use tokio::sync::watch;
 use utoipa::openapi::OpenApi;
 
@@ -216,26 +217,50 @@ impl<S: Spec, T> ApiState<S, T> {
     /// Returns an [`ApiStateAccessor`] that you can use to read state from within REST API. This accessor
     /// honors the rollup_height query param. If you want to read state from a different height,
     /// use [`Self::build_api_state_accessor`] instead.
+    ///
+    /// ## Note
+    /// This method can return an error if the requested height is invalid (ie the rollup has not reached it yet for instance).
     pub fn default_api_state_accessor(&self) -> ApiStateAccessor<S> {
-        self.build_api_state_accessor(self.requested_height)
+        self.build_api_state_accessor(self.requested_height).expect(
+            "Impossible to build a default api state accessor. This is a bug. Please report it.",
+        )
     }
 
     /// Returns an [`ApiStateAccessor`] that you can use to read state from within REST
     /// API. The new accessor can be set to read any historical rollup state available to the node,
     /// or to read the rollup's latest state (by passing `None` as the height parameter).
-    pub fn build_api_state_accessor(&self, height: Option<u64>) -> ApiStateAccessor<S> {
+    ///
+    /// ## Note
+    /// This method tries to retrieve the base fee per gas at the requested height. In case of failure, it
+    /// uses a zeroed gas price.
+    pub fn build_api_state_accessor(
+        &self,
+        height: Option<u64>,
+    ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
+
+        let kernel = self.kernel.clone();
+
+        let mut state = ApiStateAccessor::new(&*checkpoint, kernel.clone());
+
         let visible_height = height
-            .map(|height| {
-                let kernel = self.kernel.clone();
-                let mut state = ApiStateAccessor::new(&*checkpoint, self.kernel.clone());
-                kernel.visible_rollup_height_at(height, &mut state)
-            })
+            .map(|height| kernel.visible_rollup_height_at(height, &mut state)            .ok_or_else(|| anyhow::anyhow!("Impossible to retrieve the visible rollup height associated with the provided input. Please ensure you're querying a valid height")))
+            .transpose()?
             .unwrap_or(checkpoint.rollup_height_to_access());
 
-        // TODO(@theochap, `<https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1471>`): use a non-zero gas price.
+        let gas_price = self
+            .kernel
+            .base_fee_per_gas_at(visible_height, &mut state)
+            .ok_or_else(|| {
+                anyhow::anyhow!("Impossible to get the base fee per gas for the specified slot.")
+            })?;
 
-        ApiStateAccessor::new_with_height(&*checkpoint, self.kernel.clone(), visible_height)
+        Ok(ApiStateAccessor::new_with_price_and_height(
+            &*checkpoint,
+            self.kernel.clone(),
+            visible_height,
+            gas_price,
+        ))
     }
 }
 
@@ -278,7 +303,16 @@ where
             .ok()
             .map(|q| q.0.rollup_height);
 
-        Ok(state.build_api_state_accessor(rollup_height))
+        state
+            .build_api_state_accessor(rollup_height)
+            .map_err(|e| ErrorObject {
+                status: StatusCode::BAD_REQUEST,
+                title: "impossible to build a state accessor given the provided `rollup_height`"
+                    .to_string(),
+                details: json_obj!({
+                    "message": e.to_string(),
+                }),
+            })
     }
 }
 
