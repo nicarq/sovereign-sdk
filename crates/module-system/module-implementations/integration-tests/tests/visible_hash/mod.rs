@@ -87,6 +87,7 @@ struct TestClosureArgs<S: Storage> {
     prev_slot_hash: S::Root,
     finalize_hook_hash: S::Root,
     current_slot_hash: S::Root,
+    begin_slot_hash: Option<S::Root>,
 }
 
 /// A helper method for the visible hash tests. It advances the module state by `num_slots` and runs a closure with
@@ -125,11 +126,14 @@ fn last_state_root_closure<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGe
 
             let current_slot_hash = *runner.state_root();
 
+            let begin_slot_hash = module.begin_slot_hash.last(state).unwrap_infallible();
+
             test_closure(TestClosureArgs {
                 prev_slot_hash,
                 finalize_hook_hash,
                 prev_finalize_hook_hash,
                 current_slot_hash,
+                begin_slot_hash,
             });
 
             prev_finalize_hook_hash = finalize_hook_hash;

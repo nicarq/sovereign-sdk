@@ -396,7 +396,7 @@ impl<S: Spec> ChainState<S> {
     }
 
     /// Returns the root hash of the state at the provided height.
-    pub fn get_root_at_height<Accessor: VersionReader>(
+    pub fn root_at_height<Accessor: VersionReader>(
         &self,
         transition_num: TransitionHeight,
         state: &mut Accessor,

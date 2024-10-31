@@ -1,5 +1,6 @@
 use sov_modules_api::hooks::SlotHooks;
 use sov_modules_api::macros::config_value;
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Spec, Storage};
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator, TestSequencer};
@@ -79,6 +80,7 @@ fn visible_hash_soft_confirmations_kernel() {
                   current_slot_hash,
                   prev_slot_hash,
                   prev_finalize_hook_hash,
+                  ..
               }| {
             assert_eq!(
                 current_slot_hash.namespace_root(ProvableNamespace::User),
@@ -136,6 +138,75 @@ fn visible_hash_soft_confirmations_kernel() {
             assert_eq!(
                 finalize_hook_hash, current_slot_hash,
                 "The finalize hash should always match the most recent slot hash"
+            );
+        },
+        &mut runner,
+        1,
+    );
+}
+
+#[test]
+fn begin_slot_hash_soft_confirmations_kernel() {
+    let (_, _, mut runner) = setup();
+
+    let genesis_hash = *runner.state_root();
+
+    let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
+
+    let module = TestVisibleHashModule::<S>::default();
+
+    // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The user hash should not update
+    runner.advance_slots(num_slots as usize);
+
+    // We run 1 more slot. The begin slot hash should update
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  begin_slot_hash, ..
+              }| {
+            assert_eq!(begin_slot_hash.unwrap(), genesis_hash);
+        },
+        &mut runner,
+        1,
+    );
+
+    let expected_begin_slot_hash = runner.query_state(|state| {
+        let pre_state_root = runner.state_root();
+
+        let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
+
+        let root_at_height = module
+            .chain_state
+            .root_at_height(runner.visible_rollup_height(), state)
+            .unwrap_infallible()
+            .unwrap();
+
+        let kernel_root = root_at_height.namespace_root(sov_state::ProvableNamespace::Kernel);
+
+        <<S as Spec>::Storage as Storage>::Root::from_namespace_roots(user_root, kernel_root)
+    });
+
+    let slot_hash_at_height_one = runner.query_state(|state| {
+        module
+            .chain_state
+            .root_at_height(1, state)
+            .unwrap_infallible()
+            .unwrap()
+    });
+
+    // We run 1 more slot. The begin slot hash should update
+    last_state_root_closure(
+        &mut |TestClosureArgs {
+                  begin_slot_hash, ..
+              }| {
+            assert_eq!(
+                begin_slot_hash.unwrap(),
+                expected_begin_slot_hash,
+                "The begin slot hash should be the same as the computed visible hash"
+            );
+
+            assert_ne!(
+                begin_slot_hash.unwrap(), slot_hash_at_height_one,
+                "The begin slot hash should be different than the slot hash at height 1. That is because the user space root should have updated afterwards"
             );
         },
         &mut runner,

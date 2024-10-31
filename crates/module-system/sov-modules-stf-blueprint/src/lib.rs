@@ -303,7 +303,8 @@ where
         let visible_hash = self
             .runtime
             .chain_state()
-            .current_visible_hash(pre_state_root, &mut kernel);
+            .current_visible_hash( &mut kernel)
+            .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
         let all_blobs = relevant_blobs
             .batch_blobs

@@ -8,28 +8,30 @@ use sov_state::{Kernel, StateRoot, Storage};
 use crate::{BlockGasInfo, ChainState, SlotInformation, VersionReader};
 
 impl<S: Spec> ChainState<S> {
-    /// Computes the current root hash available at the current *virtual* rollup height.
+    /// Computes the current root hash available at the current *virtual* slot number.
     /// This is the kernel root hash at the *virtual* rollup height with the user root hash at the current height.
+    /// Pratically, it merges the user root hash from the pre-state root with the kernel root hash at the specified height.
+    ///
+    /// ## Note
+    /// If the state root at the current height is not available yet, this method will return `None`.
     pub fn current_visible_hash(
         &self,
-        pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<'_, S::Storage>,
-    ) -> <S::Storage as Storage>::Root {
-        let user_root = pre_state_root.namespace_root(sov_state::ProvableNamespace::User);
+    ) -> Option<<S::Storage as Storage>::Root> {
+        let current_root = self.state_roots.last(state).unwrap_infallible()?;
 
-        let kernel_root = if let Some(root) = self
-            .get_root_at_height(state.visible_rollup_height(), state)
-            .unwrap_infallible()
-        {
-            root.clone()
-        } else {
-            self.get_genesis_hash(state)
-                .unwrap_infallible()
-                .expect("Genesis height should always be set.")
-        }
-        .namespace_root(sov_state::ProvableNamespace::Kernel);
+        let user_root = current_root.namespace_root(sov_state::ProvableNamespace::User);
 
-        <S::Storage as Storage>::Root::from_namespace_roots(user_root, kernel_root)
+        let root_at_height = self
+            .root_at_height(state.visible_rollup_height(), state)
+            .unwrap_infallible()?;
+
+        let kernel_root = root_at_height.namespace_root(sov_state::ProvableNamespace::Kernel);
+
+        Some(<S::Storage as Storage>::Root::from_namespace_roots(
+            user_root,
+            kernel_root,
+        ))
     }
 
     /// Update the chain state at the beginning of the slot. Compute the next gas price
