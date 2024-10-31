@@ -9,7 +9,7 @@ use crate::{TestData, S};
 fn empty_test() {
     let (_, runner) = setup_basic_kernel();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert!(BlobStorage::<S>::default()
             .take_blobs_for_rollup_height(1, state)
             .is_empty());
@@ -29,7 +29,7 @@ fn store_and_retrieve_standard_basic_kernel() {
         mut runner,
     ) = setup_basic_kernel();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let blob_storage = BlobStorage::<S>::default();
 
         assert!(blob_storage

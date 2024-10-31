@@ -35,7 +35,7 @@ fn setup() -> (TestUser<S>, TestRunner<TestKernelUpdatesRuntime<S>, S>) {
 fn chain_state_kernel_updates_basic_kernel() {
     let (admin, mut runner) = setup();
 
-    runner.query_state_at_true_height(|state| {
+    runner.query_state(|state| {
         assert_eq!(
             state.rollup_height_to_access(),
             0,
@@ -43,7 +43,7 @@ fn chain_state_kernel_updates_basic_kernel() {
         );
     });
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             state.rollup_height_to_access(),
             0,
@@ -55,7 +55,7 @@ fn chain_state_kernel_updates_basic_kernel() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_state_at_true_height(|state| {
+    runner.query_state(|state| {
         assert_eq!(
             state.rollup_height_to_access(),
             1,
@@ -63,7 +63,7 @@ fn chain_state_kernel_updates_basic_kernel() {
         );
     });
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             state.rollup_height_to_access(),
             1,
@@ -82,7 +82,7 @@ fn test_chain_state_gas_updates() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_state_at_true_height(|kernel| {
+    runner.query_state(|kernel| {
         assert_eq!(
             ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
@@ -116,7 +116,7 @@ fn test_chain_state_root_updates() {
 
     let post_state_root = *runner.state_root();
 
-    runner.query_state_at_true_height(|kernel| {
+    runner.query_state(|kernel| {
         assert_eq!(
             ChainState::<S>::default().get_genesis_hash(kernel).unwrap(),
             Some(genesis_state_root),
@@ -128,7 +128,7 @@ fn test_chain_state_root_updates() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_state_at_true_height(|kernel| {
+    runner.query_state(|kernel| {
         let first_transition = ChainState::<S>::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()
@@ -150,7 +150,7 @@ fn test_chain_state_historical_transition_update() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    let in_progress_transition = runner.query_state_at_true_height(|kernel| {
+    let in_progress_transition = runner.query_state(|kernel| {
         ChainState::<S>::default()
             .last_slot(kernel)
             .unwrap_infallible()
@@ -161,7 +161,7 @@ fn test_chain_state_historical_transition_update() {
         admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
     );
 
-    runner.query_state_at_true_height(|kernel| {
+    runner.query_state(|kernel| {
         let first_transition = ChainState::<S, >::default()
             .get_historical_transitions(1, kernel)
             .unwrap_infallible()
@@ -188,7 +188,7 @@ fn test_archival_state_updates_gas_price() {
     let (admin, mut runner) = setup();
 
     let initial_base_fee_per_gas = runner
-        .query_state(|state| {
+        .query_visible_state(|state| {
             ChainState::<S>::default()
                 .base_fee_per_gas(state)
                 .unwrap_infallible()
@@ -202,7 +202,7 @@ fn test_archival_state_updates_gas_price() {
     runner.advance_slots(1);
 
     let current_gas_price = runner
-        .query_state(|state| {
+        .query_visible_state(|state| {
             ChainState::<S>::default()
                 .base_fee_per_gas(state)
                 .unwrap_infallible()
@@ -214,7 +214,7 @@ fn test_archival_state_updates_gas_price() {
         "The gas price should have changed"
     );
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         let gas_price = state.gas_info().gas_price;
 
         assert_eq!(
@@ -222,7 +222,7 @@ fn test_archival_state_updates_gas_price() {
             "The gas price stored in the accessor should be the same as the current gas price"
         );
 
-        let archival_state = state.get_state_at_height(1);
+        let archival_state = state.state_at_height(1);
 
         assert_eq!(
             archival_state.gas_info().gas_price,

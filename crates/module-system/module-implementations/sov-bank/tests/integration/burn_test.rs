@@ -76,7 +76,7 @@ fn burn_deployed_tokens_no_balance_fails() {
     let user_address = user_no_token_balance.address();
     const BURN_AMOUNT: u64 = 1;
 
-    let initial_total_supply = runner.query_state(|state| {
+    let initial_total_supply = runner.query_visible_state(|state| {
         Bank::<S>::default()
             .get_total_supply_of(&token_id, state)
             .unwrap_infallible()
@@ -149,7 +149,7 @@ fn burn_more_than_deployed_tokens_fails() {
         mut runner,
     ) = setup();
 
-    let total_token_supply = runner.query_state(|state| {
+    let total_token_supply = runner.query_visible_state(|state| {
         Bank::<S>::default()
             .get_total_supply_of(&token_id, state)
             .unwrap_infallible()
@@ -223,7 +223,7 @@ fn burn_more_than_available_balance_fails() {
         mut runner,
     ) = setup();
 
-    let initial_token_supply = runner.query_state(|state| {
+    let initial_token_supply = runner.query_visible_state(|state| {
         Bank::<S>::default()
             .get_total_supply_of(&token_id, state)
             .unwrap_infallible()

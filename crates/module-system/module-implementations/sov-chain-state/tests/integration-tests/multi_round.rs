@@ -51,7 +51,7 @@ fn check_chain_state_update(
         // Sanity check: there should be only one batch executed
         assert_eq!(result.batch_receipts.len(), 1);
 
-        runner.query_state_at_true_height(|state| post_round_closure(round, state, result));
+        runner.query_state(|state| post_round_closure(round, state, result));
     }
 }
 

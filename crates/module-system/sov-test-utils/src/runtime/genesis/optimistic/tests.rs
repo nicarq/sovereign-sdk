@@ -303,7 +303,7 @@ fn test_define_token_with_state() {
         TestOptimisticRuntime::<TestSpec>::default(),
     );
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             Bank::<TestSpec>::default()
                 .get_token_name(&token_0_name.id(), state)

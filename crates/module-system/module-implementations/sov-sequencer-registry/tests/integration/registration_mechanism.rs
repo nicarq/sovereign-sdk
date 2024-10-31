@@ -383,7 +383,7 @@ fn test_get_preferred_sequencer() {
         runner,
     ) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             Some(default_sequencer.da_address),
             TestSequencerRegistry::default()
@@ -428,7 +428,7 @@ fn test_get_preferred_sequencer_after_exit() {
     runner.execute(exit_default_sequencer);
 
     // Check that the normal sequencer is no longer the preferred sequencer
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert_eq!(
             None,
             TestSequencerRegistry::default()
@@ -481,7 +481,7 @@ fn test_balance_increase_fails_if_insufficient_funds() {
 fn test_non_registered_sequencer_is_not_allowed() {
     let (_, runner) = setup();
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         assert!(
             TestSequencerRegistry::default()
                 .is_sender_allowed(&MockAddress::from(NON_DEFAULT_SEQUENCER_DA_ADDRESS), state)

@@ -17,7 +17,7 @@ fn test_valid_proof() {
 
     let prover_address = prover.user_info.address();
     let initial_balance = runner
-        .query_state(|state| TestRunner::<RT, S>::bank_gas_balance(&prover_address, state))
+        .query_visible_state(|state| TestRunner::<RT, S>::bank_gas_balance(&prover_address, state))
         .unwrap();
 
     let reward = AtomicNumber::new(0);
@@ -36,7 +36,7 @@ fn test_valid_proof() {
     runner.execute(consume_gas_tx_for_signer(&other_user));
 
     let aggregated_proof = runner
-        .query_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
+        .query_visible_state(|state| build_proof(state, 1, 2, prover.user_info.address()))
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
@@ -77,7 +77,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
     }
 
     let aggregated_proof = runner
-        .query_state(|state| build_proof(state, 1, 2, prover_address))
+        .query_visible_state(|state| build_proof(state, 1, 2, prover_address))
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
@@ -106,7 +106,7 @@ fn test_valid_proof_penalized_if_reward_already_claimed() {
     });
 
     let aggregated_proof = runner
-        .query_state(|state| build_proof(state, 1, 2, prover_address))
+        .query_visible_state(|state| build_proof(state, 1, 2, prover_address))
         .unwrap();
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {

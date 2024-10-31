@@ -50,7 +50,7 @@ fn test_register_sequencer() {
 
     let new_sequencer_address = MockAddress::from([42; 32]);
 
-    let user_stake_value = runner.query_state(|state| {
+    let user_stake_value = runner.query_visible_state(|state| {
         <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
             .value(&state.gas_info().gas_price)
     });

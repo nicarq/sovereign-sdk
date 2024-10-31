@@ -29,7 +29,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
         sequencer_account,
     };
 
-    let start = runner.query_state(|state| actors.balances(state));
+    let start = runner.query_visible_state(|state| actors.balances(state));
 
     let txs_len = tx_statuses.len();
 
@@ -235,7 +235,7 @@ fn not_enough_stake_to_execute_batch_hook_test() {
     let batch_hook_gas = <S as GasSpec>::batch_hook_gas();
     let seq_address = actors.sequencer_account.da_address;
 
-    let start = runner.query_state(|state| actors.balances(state));
+    let start = runner.query_visible_state(|state| actors.balances(state));
 
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
@@ -298,7 +298,7 @@ fn not_enough_stake_auth_batch_test() {
     let max_tx_check_costs = <S as GasSpec>::max_tx_check_costs();
     let batch_hook_gas = <S as GasSpec>::batch_hook_gas();
 
-    let start = runner.query_state(|state| actors.balances(state));
+    let start = runner.query_visible_state(|state| actors.balances(state));
 
     {
         let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);

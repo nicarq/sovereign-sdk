@@ -31,7 +31,7 @@ generate_zk_runtime!(TestRuntime <= );
 
 /// Returns the minimal bond required to register a prover at the current slot.
 pub fn minimal_bond(runner: &TestRunner<TestRuntime<S>, S>) -> u64 {
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         TestProverIncentives::default()
             .get_minimum_bond(state)
             .unwrap_infallible()

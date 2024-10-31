@@ -17,7 +17,7 @@ fn test_genesis_data() {
     let cfg = default_config();
     let runner = basic_setup(cfg.clone());
 
-    runner.query_state(move |state| {
+    runner.query_visible_state(move |state| {
         let evm = Evm::<S>::default();
         let account = &cfg.data[0];
         let db_account = evm.get_account(&account.address, state).unwrap().unwrap();
@@ -39,7 +39,7 @@ fn test_genesis_cfg() {
     let cfg = default_config();
     let runner = basic_setup(cfg.clone());
 
-    runner.query_state(move |state| {
+    runner.query_visible_state(move |state| {
         let evm = Evm::<S>::default();
 
         assert_eq!(
@@ -63,7 +63,7 @@ fn test_empty_spec_defaults_to_shanghai() {
     cfg.spec.clear();
     let runner = basic_setup(cfg);
 
-    runner.query_state(move |state| {
+    runner.query_visible_state(move |state| {
         let evm = Evm::<S>::default();
         let evm_cfg = evm.cfg(state).unwrap().unwrap();
         assert_eq!(evm_cfg.spec, vec![(0, SpecId::SHANGHAI)]);
@@ -95,7 +95,7 @@ fn test_genesis_block() {
     let (runner, _, _, _) = setup();
     let beneficiary = Address::new([0u8; 20]);
 
-    runner.query_state(move |state| {
+    runner.query_visible_state(move |state| {
         let evm = Evm::<S>::default();
 
         let actual_block = &evm.blocks(state)[0_usize];

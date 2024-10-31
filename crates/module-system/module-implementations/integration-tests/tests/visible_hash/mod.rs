@@ -99,7 +99,7 @@ fn last_state_root_closure<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGe
 ) {
     let module = TestVisibleHashModule::<S>::default();
 
-    let mut prev_finalize_hook_hash = runner.query_state(|state| {
+    let mut prev_finalize_hook_hash = runner.query_visible_state(|state| {
         module
             .finalize_hook_hash
             .last(state)
@@ -110,7 +110,7 @@ fn last_state_root_closure<RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGe
     for _ in 0..num_slots {
         runner.advance_slots(1_usize);
 
-        runner.query_state_at_true_height(|state| {
+        runner.query_state(|state| {
             let prev_slot_hash = module
                 .chain_state
                 .last_root(state)

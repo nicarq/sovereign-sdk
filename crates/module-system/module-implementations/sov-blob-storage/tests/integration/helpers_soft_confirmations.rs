@@ -68,7 +68,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     let regular_sequencer = &test_data.regular_sequencer;
     let regular_sequencer_da_address = regular_sequencer.da_address;
 
-    let user_stake_value = runner.query_state(|state| {
+    let user_stake_value = runner.query_visible_state(|state| {
         <S as Spec>::Gas::from(config_value!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
             .value(&state.gas_info().gas_price)
     });
@@ -76,7 +76,7 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     // We currently have to manually build the soft-confirmation blob
     // There is an issue to fix that: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1330`
     let mut nonces = runner.nonces().clone();
-    let blob = runner.query_state(|state| {
+    let blob = runner.query_visible_state(|state| {
         TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<SequencerRegistry<S>>(
             vec![SoftConfirmationBlobInfo {
                 batch_type: BatchType(vec![regular_sequencer
@@ -120,7 +120,7 @@ pub fn build_soft_confirmation_blobs(
         });
     }
 
-    runner.query_state(|state| {
+    runner.query_visible_state(|state| {
         TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<ValueSetter<S>>(
             batches, nonces, state,
         )
