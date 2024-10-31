@@ -94,9 +94,8 @@ impl<'a, S: Spec> sov_modules_api::capabilities::ChainState for BasicKernel<'a, 
 
     fn current_visible_hash(
         &self,
-        pre_state_root: &<S::Storage as Storage>::Root,
         state: &mut sov_modules_api::KernelStateAccessor<S::Storage>,
-    ) -> <<Self::Spec as Spec>::Storage as Storage>::Root {
-        self.chain_state.current_visible_hash(pre_state_root, state)
+    ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root> {
+        self.chain_state.current_visible_hash(state)
     }
 }

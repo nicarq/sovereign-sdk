@@ -39,9 +39,11 @@ pub trait ChainState {
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
     /// Returns the visible root hash accessible at the current *virtual* rollup height
+    ///
+    /// ## Note
+    /// This method can return `None` if the visible root hash for the current rollup height cannot be determined yet.
     fn current_visible_hash(
         &self,
-        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
         state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
-    ) -> <<Self::Spec as Spec>::Storage as Storage>::Root;
+    ) -> Option<<<Self::Spec as Spec>::Storage as Storage>::Root>;
 }

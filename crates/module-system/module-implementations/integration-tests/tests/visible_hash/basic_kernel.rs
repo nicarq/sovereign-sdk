@@ -75,6 +75,7 @@ fn visible_hash_basic_kernel() {
                   prev_slot_hash,
                   finalize_hook_hash,
                   current_slot_hash,
+                  begin_slot_hash,
               }| {
             assert_eq!(
                 prev_finalize_hook_hash, prev_slot_hash,
@@ -84,6 +85,12 @@ fn visible_hash_basic_kernel() {
             assert_eq!(
                 finalize_hook_hash, current_slot_hash,
                 "The current finalize hash should always match the current slot hash"
+            );
+
+            assert_eq!(
+                begin_slot_hash.unwrap(),
+                prev_slot_hash,
+                "The begin slot hash should be the same as the previous slot hash"
             );
 
             assert_ne!(
