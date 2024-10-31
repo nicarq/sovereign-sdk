@@ -1,3 +1,5 @@
+## 2024-10-31
+- #1795 Adds a new `cors` field to the `runner.[rpc|axum]_config` section of the rollup configuration file, which can be used to disable CORS with `"disabled"`. `fn register_endpoints` now requires the entire `rollup_config` as a parameter.
 ## 2024-10-30
 - #1786 Removes the `BondingService` associated type and `create_bonding_service` method on `FullNodeBlueprint`. These items can now be deleted.
 ## 2024-10-29

@@ -8,6 +8,7 @@ use axum::ServiceExt;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
+use sov_rest_utils::cors_layer_opt;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
@@ -24,6 +25,7 @@ use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
 use tracing::{debug, error, info};
 
+use crate::config::CorsConfiguration;
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{RawGenesisStateRoot, Sender};
 use crate::state_manager::StateManager;
@@ -58,6 +60,7 @@ where
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_rpc: SocketAddr,
     listen_address_axum: SocketAddr,
+    rpc_cors_config: CorsConfiguration,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
 }
@@ -280,6 +283,7 @@ where
             state_manager,
             listen_address_rpc,
             listen_address_axum,
+            rpc_cors_config: runner_config.rpc_config.cors,
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
@@ -298,7 +302,12 @@ where
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
     pub async fn start_rpc_server(&self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
+        let middleware = tower::ServiceBuilder::new().layer(cors_layer_opt(matches!(
+            self.rpc_cors_config,
+            CorsConfiguration::Enabled
+        )));
         let server = jsonrpsee::server::ServerBuilder::default()
+            .set_http_middleware(middleware)
             .build([self.listen_address_rpc].as_ref())
             .await?;
         let rpc_address = server.local_addr()?;

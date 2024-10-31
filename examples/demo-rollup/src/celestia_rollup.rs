@@ -101,8 +101,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             sequencer_db,
             da_service,
             da_sync_state,
-            &rollup_config.sequencer,
-            &rollup_config.runner,
+            rollup_config,
         )
         .await?;
 

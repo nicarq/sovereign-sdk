@@ -43,6 +43,27 @@ pub struct HttpServerConfig {
     /// public_address = "https://rollup.example.com"
     /// ```
     pub public_address: Option<String>,
+    /// Enable or disable CORS policy headers. Enabled by default.
+    #[serde(default)]
+    pub cors: CorsConfiguration,
+}
+
+/// See [`HttpServerConfig::cors`].
+///
+/// # Default
+///
+/// CORS makes local development easier, so it's enabled by default.
+///
+/// In production, one may want to disable it and let your reverse proxy
+/// handle CORS instead.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CorsConfiguration {
+    /// Enables CORS with a permissive policy, intended for local development.
+    #[default]
+    Enabled,
+    /// Disables CORS.
+    Disabled,
 }
 
 impl HttpServerConfig {
@@ -53,6 +74,7 @@ impl HttpServerConfig {
             bind_host: "127.0.0.1".to_string(),
             bind_port: 0,
             public_address: None,
+            cors: CorsConfiguration::Enabled,
         }
     }
 }
@@ -147,6 +169,7 @@ mod tests {
             bind_host = "127.0.0.1"
             bind_port = 12346
             public_address = "https://rollup.sovereign.xyz"
+            cors = "disabled"
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
@@ -169,11 +192,13 @@ mod tests {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12345,
                     public_address: None,
+                    cors: CorsConfiguration::Enabled,
                 },
                 axum_config: HttpServerConfig {
                     bind_host: "127.0.0.1".to_string(),
                     bind_port: 12346,
                     public_address: Some("https://rollup.sovereign.xyz".to_string()),
+                    cors: CorsConfiguration::Disabled,
                 },
                 concurrent_sync_tasks: Some(18),
             },

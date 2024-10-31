@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
-use sov_modules_api::rest::utils::errors;
+use sov_modules_api::rest::utils::{cors_layer, errors};
 use sov_modules_api::rest::{HasRestApi, StorageReceiver};
 use sov_modules_api::{RuntimeEventProcessor, Spec, SyncStatus};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxReceiptContents};
@@ -17,8 +17,8 @@ use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig, SequencerDb};
-use sov_stf_runner::RunnerConfig;
+use sov_sequencer::{BatchBuilderMode, SequencerDb};
+use sov_stf_runner::{CorsConfiguration, RollupConfig, RunnerConfig};
 use tracing::warn;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
@@ -32,11 +32,7 @@ pub async fn register_endpoints<B, M>(
     sequencer_db: &SequencerDb,
     da_service: &B::DaService,
     da_sync_state: Arc<DaSyncState>,
-    sequencer_config: &SequencerConfig<
-        <B::Spec as Spec>::Da,
-        BatchBuilderConfig<<B::Spec as Spec>::Address>,
-    >,
-    runner_config: &RunnerConfig,
+    config: &RollupConfig<<B::Spec as Spec>::Address, B::DaService>,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
@@ -47,17 +43,17 @@ where
     <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
     <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
-    let da_address = sequencer_config.da_address.clone();
+    let da_address = config.sequencer.da_address.clone();
     let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
 
-    let (api_state, sequencer_router) = match &sequencer_config.batch_builder.mode {
+    let (api_state, sequencer_router) = match &config.sequencer.batch_builder.mode {
         BatchBuilderMode::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
                 storage.clone(),
                 da_sync_state.clone(),
                 da_address,
                 sequencer_db.read_all()?,
-                sequencer_config.batch_builder.admin_addresses.clone(),
+                config.sequencer.batch_builder.admin_addresses.clone(),
                 bb_config,
                 last_event_number,
             )
@@ -69,7 +65,7 @@ where
                 tx_status_manager,
                 sequencer_db.clone(),
                 ledger_db.clone(),
-                sequencer_config.automatic_batch_production,
+                config.sequencer.automatic_batch_production,
             );
 
             (sequencer.api_state(), sequencer.rest_api_server())
@@ -82,7 +78,7 @@ where
                 da_sync_state.clone(),
                 da_address,
                 sequencer_db.read_all()?,
-                sequencer_config.batch_builder.admin_addresses.clone(),
+                config.sequencer.batch_builder.admin_addresses.clone(),
                 &(),
                 last_event_number,
             )
@@ -94,7 +90,7 @@ where
                 tx_status_manager,
                 sequencer_db.clone(),
                 ledger_db.clone(),
-                sequencer_config.automatic_batch_production,
+                config.sequencer.automatic_batch_production,
             );
 
             (sequencer.api_state(), sequencer.rest_api_server())
@@ -129,7 +125,7 @@ where
             std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Runtime>>,
         >::axum_router(
             storage,
-            sequencer_config.da_address.clone(),
+            config.sequencer.da_address.clone(),
             sync_status_receiver,
         );
         endpoints.axum_router = endpoints.axum_router.merge(rollup_router);
@@ -150,13 +146,17 @@ where
 
     merge_specs(&mut combined_spec, sov_api_spec::open_api_v3_spec(), "")?;
 
-    combined_spec.servers = vec![server_url_from_runner_config(runner_config)];
+    combined_spec.servers = vec![server_url_from_runner_config(&config.runner)];
 
     endpoints.axum_router = endpoints.axum_router.merge(
         sov_modules_api::prelude::utoipa_swagger_ui::SwaggerUi::new("/swagger-ui")
             .external_url_unchecked("/openapi-v3.json", serde_json::to_value(&combined_spec)?)
             .config(Config::from("/openapi-v3.json")),
     );
+
+    if let CorsConfiguration::Enabled = config.runner.axum_config.cors {
+        endpoints.axum_router = endpoints.axum_router.layer(cors_layer());
+    }
 
     Ok(endpoints)
 }
@@ -408,6 +408,7 @@ mod tests {
                 bind_host: bind_host.to_string(),
                 bind_port,
                 public_address: public_address.map(|s| s.to_string()),
+                cors: CorsConfiguration::Enabled,
             },
             concurrent_sync_tasks: None,
         }

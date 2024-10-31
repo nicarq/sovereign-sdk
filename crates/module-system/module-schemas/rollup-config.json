@@ -77,6 +77,25 @@
         }
       ]
     },
+    "CorsConfiguration": {
+      "description": "See [`HttpServerConfig::cors`].\n\n# Default\n\nCORS makes local development easier, so it's enabled by default.\n\nIn production, one may want to disable it and let your reverse proxy handle CORS instead.",
+      "oneOf": [
+        {
+          "description": "Enables CORS with a permissive policy, intended for local development.",
+          "type": "string",
+          "enum": [
+            "enabled"
+          ]
+        },
+        {
+          "description": "Disables CORS.",
+          "type": "string",
+          "enum": [
+            "disabled"
+          ]
+        }
+      ]
+    },
     "HttpServerConfig": {
       "description": "Configuration for HTTP server(s) exposed by the node.",
       "type": "object",
@@ -94,6 +113,14 @@
           "type": "integer",
           "format": "uint16",
           "minimum": 0.0
+        },
+        "cors": {
+          "description": "Enable or disable CORS policy headers. Enabled by default.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/CorsConfiguration"
+            }
+          ]
         },
         "public_address": {
           "description": "The fully qualified public name of the server, in case the rollup node is running behind a proxy. For instance: ```toml public_address = \"https://rollup.example.com\" ```",

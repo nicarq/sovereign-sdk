@@ -201,13 +201,23 @@ where
                     "x-request-id",
                 ))),
         )
-        // Allowing CORS is necessary for Metamask Snap.
-        .layer(
-            CorsLayer::new()
-                .allow_origin(tower_http::cors::Any) // Allow all origins
-                .allow_methods(tower_http::cors::Any) // Allow all methods
-                .allow_headers(tower_http::cors::Any), // Allow all headers
-        )
+}
+
+/// A pre-configured [`CorsLayer`] with permissive configurations.
+///
+/// Note that  allowing CORS is necessary for Metamask Snap.
+pub fn cors_layer() -> CorsLayer {
+    CorsLayer::new()
+        .allow_origin(tower_http::cors::Any) // Allow all origins
+        .allow_methods(tower_http::cors::Any) // Allow all methods
+        .allow_headers(tower_http::cors::Any) // Allow all headers
+}
+
+/// Optional CORS layer.
+pub fn cors_layer_opt(
+    enable: bool,
+) -> tower::util::Either<CorsLayer, tower::layer::util::Identity> {
+    tower::util::option_layer(if enable { Some(cors_layer()) } else { None })
 }
 
 /// A utility function for serving some data inside a [`futures::Stream`] over a
