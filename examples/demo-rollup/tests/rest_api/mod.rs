@@ -360,7 +360,7 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
 
     match &state_vec_err {
         Error::UnexpectedResponse(response) => {
-            assert_eq!(response.status(), 400);
+            assert_eq!(response.status(), 404);
         }
         _ => panic!("Should have gotten an unexpected response"),
     }
@@ -369,29 +369,13 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
         .value_setter_many_values_get_state_vec_element(1, Some(u32::MAX as u64))
         .await
         .unwrap_err();
-    check_bad_request_error(
+    check_not_found_error(
         state_vec_element_response,
-        "impossible to build a state accessor given the provided `rollup_height`",
+        "invalid rollup height",
+        "message",
+        "Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.",
     );
     Ok(())
-}
-
-fn check_bad_request_error(
-    credential_id_response: demo_stf_json_client::Error<RuntimeErrorContainer>,
-    expected_title: &str,
-) {
-    match credential_id_response {
-        demo_stf_json_client::Error::ErrorResponse(inner_err) => {
-            assert_eq!(1, inner_err.errors.len());
-            let error = inner_err.errors.first().unwrap();
-
-            assert_eq!(expected_title, error.title);
-            assert_eq!(400, error.status);
-        }
-        _ => {
-            panic!("Unexpected error response: {:?}", credential_id_response)
-        }
-    };
 }
 
 fn check_not_found_error(

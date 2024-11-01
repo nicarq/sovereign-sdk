@@ -303,9 +303,8 @@ where
         state
             .build_api_state_accessor(rollup_height)
             .map_err(|e| ErrorObject {
-                status: StatusCode::BAD_REQUEST,
-                title: "impossible to build a state accessor given the provided `rollup_height`"
-                    .to_string(),
+                status: StatusCode::NOT_FOUND,
+                title: "invalid rollup height".to_string(),
                 details: json_obj!({
                     "message": e.to_string(),
                 }),
