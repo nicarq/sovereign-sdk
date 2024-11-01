@@ -235,7 +235,7 @@ impl<S: Spec, T> ApiState<S, T> {
     /// uses a zeroed gas price.
     pub fn build_api_state_accessor(
         &self,
-        height: Option<u64>,
+        maybe_height: Option<u64>,
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
@@ -243,22 +243,19 @@ impl<S: Spec, T> ApiState<S, T> {
 
         let mut state = ApiStateAccessor::new(&*checkpoint, kernel.clone());
 
-        let visible_height = height
-            .map(|height| kernel.visible_rollup_height_at(height, &mut state)            .ok_or_else(|| anyhow::anyhow!("Impossible to retrieve the visible rollup height associated with the provided input. Please ensure you're querying a valid height")))
-            .transpose()?
-            .unwrap_or(checkpoint.rollup_height_to_access());
+        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
 
         let gas_price = self
             .kernel
-            .base_fee_per_gas_at(visible_height, &mut state)
+            .base_fee_per_gas_at(height, &mut state)
             .ok_or_else(|| {
-                anyhow::anyhow!("Impossible to get the base fee per gas for the specified slot.")
+                anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
             })?;
 
         Ok(ApiStateAccessor::new_with_price_and_height(
             &*checkpoint,
             self.kernel.clone(),
-            visible_height,
+            height,
             gas_price,
         ))
     }
