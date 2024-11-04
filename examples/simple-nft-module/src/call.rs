@@ -1,12 +1,9 @@
 use anyhow::{bail, Result};
 use schemars::JsonSchema;
-#[cfg(feature = "native")]
-use sov_modules_api::macros::CliWalletArg;
 use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, StateAccessor, TxState};
 
 use crate::{Event, NonFungibleToken};
 
-#[cfg_attr(feature = "native", derive(CliWalletArg))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,

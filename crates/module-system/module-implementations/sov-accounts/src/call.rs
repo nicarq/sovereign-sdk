@@ -7,7 +7,6 @@ use sov_state::namespaces::User;
 use crate::{Account, Accounts};
 
 /// Represents the available call messages for interacting with the sov-accounts module.
-#[cfg_attr(feature = "native", derive(sov_modules_api::macros::CliWalletArg))]
 #[derive(
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
