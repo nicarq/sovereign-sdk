@@ -3,17 +3,17 @@ use std::collections::VecDeque;
 use serde::Serialize;
 
 use crate::notifier::NotificationManager;
-use crate::{Empty, Inner, MockZkGuest, Proof};
+use crate::{Empty, Inner, MockCodeCommitment, MockZkGuest, Proof};
 
 /// A mock implementing the zkVM trait.
 #[derive(Clone)]
-pub struct MockZkvm {
+pub struct MockZkvmHost {
     notification_manager: NotificationManager,
     committed_data: VecDeque<Vec<u8>>,
     wait_for_proof: bool,
 }
 
-impl MockZkvm {
+impl MockZkvmHost {
     /// Creates a new MockZkvm.
     pub fn new() -> Self {
         Self {
@@ -49,22 +49,24 @@ impl MockZkvm {
     }
 }
 
-impl Default for MockZkvm {
+impl Default for MockZkvmHost {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
+impl sov_rollup_interface::zk::ZkvmHost for MockZkvmHost {
     type Guest = MockZkGuest;
+
+    type HostArgs = ();
 
     fn add_hint<T: Serialize>(&mut self, item: T) {
         let data = bincode::serialize(&item).unwrap();
         self.committed_data.push_back(data);
     }
 
-    fn simulate_with_hints(&mut self) -> Self::Guest {
-        MockZkGuest {}
+    fn code_commitment(&self) -> <<Self::Guest as sov_rollup_interface::zk::ZkvmGuest>::Verifier as sov_rollup_interface::zk::ZkVerifier>::CodeCommitment{
+        MockCodeCommitment::default()
     }
 
     fn run(&mut self, _with_proof: bool) -> anyhow::Result<Vec<u8>> {
@@ -79,5 +81,9 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvm {
             is_valid: true,
             pub_data: data,
         }))?)
+    }
+
+    fn from_args(_args: Self::HostArgs) -> Self {
+        Self::default()
     }
 }

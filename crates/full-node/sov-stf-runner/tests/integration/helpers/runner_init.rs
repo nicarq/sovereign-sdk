@@ -11,7 +11,7 @@ use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
     MockValidityCond,
 };
-use sov_mock_zkvm::{MockZkVerifier, MockZkvm};
+use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer, SyncStatus};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
@@ -35,12 +35,8 @@ use tokio::task::JoinHandle;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant = InitVariant<
-    HashStf<MockValidityCond>,
-    MockZkVerifier,
-    MockZkVerifier,
-    DaServiceWithRetries<MockDaService>,
->;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
 type S = DefaultStorageSpec<Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
 
@@ -49,8 +45,8 @@ pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
     agg_proof_saved_in_db_sub: BoxStream<'static, AggregatedProofResponse>,
     da: Arc<DaServiceWithRetries<MockDaService>>,
-    inner_vm: MockZkvm,
-    _outer_vm: MockZkvm,
+    inner_vm: MockZkvmHost,
+    _outer_vm: MockZkvmHost,
     ledger_db: LedgerDb,
     prover_handle: Option<JoinHandle<()>>,
 }
@@ -200,8 +196,8 @@ pub async fn initialize_runner(
         target_da_height: 0,
     });
 
-    let inner_vm = MockZkvm::new();
-    let outer_vm = MockZkvm::new_non_blocking();
+    let inner_vm = MockZkvmHost::new();
+    let outer_vm = MockZkvmHost::new_non_blocking();
     let verifier = MockDaVerifier::default();
 
     let (prev_state_root, genesis_state_root) = init_variant
@@ -213,14 +209,11 @@ pub async fn initialize_runner(
 
     let (st_info_sender, handle) = match nb_of_prover_threads {
         Some(threads) => {
-            let prover_service = ParallelProverService::new(
+            let prover_service = ParallelProverService::<_, _, _, _, MockZkvm, MockZkvm>::new(
                 inner_vm.clone(),
                 outer_vm.clone(),
-                stf.clone(),
                 verifier,
                 prover_config,
-                // Should be ZkStorage, but we don't need it for this test
-                genesis_storage,
                 threads,
                 Default::default(),
                 Vec::<u8>::default(),

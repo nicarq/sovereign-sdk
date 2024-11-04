@@ -8,7 +8,6 @@ use axum::ServiceExt;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
-use sov_rest_utils::cors_layer_opt;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
@@ -19,13 +18,12 @@ use sov_rollup_interface::stf::{
 };
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
-use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm, ZkvmGuest, ZkvmHost};
+use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
 use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
 use tracing::{debug, error, info};
 
-use crate::config::CorsConfiguration;
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{RawGenesisStateRoot, Sender};
 use crate::state_manager::StateManager;
@@ -34,8 +32,6 @@ use crate::RunnerConfig;
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
 
-type Verifier<Host> = <<Host as ZkvmHost>::Guest as ZkvmGuest>::Verifier;
-
 type NextDaHeightToProcess = u64;
 
 /// Combines `DaService` with `StateTransitionFunction` and "runs" the rollup.
@@ -43,12 +39,12 @@ type NextDaHeightToProcess = u64;
 pub struct StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
     Da: DaService,
-    InnerVm: ZkvmHost,
-    OuterVm: ZkvmHost,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
     Sm: HierarchicalStorageManager<Da::Spec>,
     Stf: StateTransitionFunction<
-        Verifier<InnerVm>,
-        Verifier<OuterVm>,
+        InnerVm,
+        OuterVm,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
     >,
@@ -60,7 +56,6 @@ where
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_rpc: SocketAddr,
     listen_address_axum: SocketAddr,
-    rpc_cors_config: CorsConfiguration,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
 }
@@ -211,8 +206,8 @@ impl<
 impl<Stf, Sm, Da, InnerVm, OuterVm> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
     Da: DaService<Error = anyhow::Error> + Clone,
-    InnerVm: ZkvmHost,
-    OuterVm: ZkvmHost,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
     Sm: HierarchicalStorageManager<
         Da::Spec,
         LedgerChangeSet = SchemaBatch,
@@ -220,8 +215,8 @@ where
     >,
     Sm::StfState: Clone,
     Stf: StateTransitionFunction<
-        <InnerVm::Guest as ZkvmGuest>::Verifier,
-        <OuterVm::Guest as ZkvmGuest>::Verifier,
+        InnerVm,
+        OuterVm,
         Da::Spec,
         Condition = <Da::Spec as DaSpec>::ValidityCondition,
         PreState = Sm::StfState,
@@ -283,7 +278,6 @@ where
             state_manager,
             listen_address_rpc,
             listen_address_axum,
-            rpc_cors_config: runner_config.rpc_config.cors,
             sync_state: Arc::new(DaSyncState {
                 synced_da_height: AtomicU64::new(da_height_processed),
                 target_da_height: AtomicU64::new(u64::MAX),
@@ -302,12 +296,7 @@ where
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
     pub async fn start_rpc_server(&self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
-        let middleware = tower::ServiceBuilder::new().layer(cors_layer_opt(matches!(
-            self.rpc_cors_config,
-            CorsConfiguration::Enabled
-        )));
         let server = jsonrpsee::server::ServerBuilder::default()
-            .set_http_middleware(middleware)
             .build([self.listen_address_rpc].as_ref())
             .await?;
         let rpc_address = server.local_addr()?;

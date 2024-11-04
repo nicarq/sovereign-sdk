@@ -10,7 +10,7 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_rollup_interface::zk::Zkvm;
+use sov_rollup_interface::zk::ZkVerifier;
 use thiserror::Error;
 
 pub use crate::processes::StateTransitionInfo;
@@ -19,17 +19,27 @@ pub use crate::processes::StateTransitionInfo;
 #[derive(Clone, Debug)]
 pub struct RawGenesisStateRoot(pub Vec<u8>);
 
-/// The possible configurations of the prover.
-#[derive(PartialEq, Eq, strum::EnumString, strum::Display)]
+/// The possible configurations of the prover with the arguments needed to construct them
+#[derive(PartialEq, Eq, strum::Display)]
+#[strum(serialize_all = "snake_case")]
+pub enum ProverMode<Args> {
+    /// Skip proving.
+    Skip,
+    /// Run the rollup verifier in a zkVM executor.
+    Execute(Args),
+    /// Run the rollup verifier and create a SNARK of execution.
+    Prove(Args),
+}
+
+/// The possible configurations of the prover
 // Note: it's best if all string conversions to and from this type (even
 // `Debug`) use the same casing, to avoid bad UX or confusion around env. vars
 // expected behavior.
+#[derive(PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display)]
 #[strum(serialize_all = "snake_case")]
 pub enum RollupProverConfig {
     /// Skip proving.
     Skip,
-    /// Run the rollup verification logic inside the current process.
-    Simulate,
     /// Run the rollup verifier in a zkVM executor.
     Execute,
     /// Run the rollup verifier and create a SNARK of execution.
@@ -39,6 +49,16 @@ pub enum RollupProverConfig {
 impl std::fmt::Debug for RollupProverConfig {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self)
+    }
+}
+
+impl<Args> From<&ProverMode<Args>> for RollupProverConfig {
+    fn from(value: &ProverMode<Args>) -> Self {
+        match value {
+            ProverMode::Skip => Self::Skip,
+            ProverMode::Execute(_) => Self::Execute,
+            ProverMode::Prove(_) => Self::Prove,
+        }
     }
 }
 
@@ -106,7 +126,7 @@ pub trait ProverService: Send + Sync + 'static {
     type DaService: DaService;
 
     /// Verifier for the aggregated proof.
-    type Verifier: Zkvm;
+    type Verifier: ZkVerifier;
 
     /// Creates ZK proof for a block corresponding to `block_header_hash`.
     async fn prove(

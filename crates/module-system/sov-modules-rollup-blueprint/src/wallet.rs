@@ -9,7 +9,6 @@ use sov_modules_api::clap::Parser;
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg, JsonStringArg};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{CliWallet, DispatchCall, Spec};
-use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 
 use crate::{FullNodeBlueprint, RollupBlueprint};
 
@@ -37,8 +36,6 @@ pub trait WalletBlueprint<M: ExecutionMode>: FullNodeBlueprint<M>
 where
     // The types here are quite complicated, but they are never exposed to the user
     // as the WalletTemplate is implemented for any types that implements FullNodeBlueprint.
-    <Self::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <Self::Spec as Spec>::InnerZkvm>,
-    <Self::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <Self::Spec as Spec>::OuterZkvm>,
     Self::Spec: serde::Serialize + serde::de::DeserializeOwned + Send + Sync,
 
     <Self as RollupBlueprint<M>>::Runtime: CliWallet,

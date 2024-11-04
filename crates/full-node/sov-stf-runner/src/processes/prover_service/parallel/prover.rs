@@ -7,13 +7,12 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec, DaVerifier};
 use sov_rollup_interface::node::da::DaService;
-use sov_rollup_interface::stf::{StateTransitionFunction, StateTransitionVerifier};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_rollup_interface::zk::{
-    StateTransitionPublicData, StateTransitionWitness, StateTransitionWitnessWithAddress,
-    ZkvmGuest, ZkvmHost,
+    StateTransitionPublicData, StateTransitionWitness, StateTransitionWitnessWithAddress, Zkvm,
+    ZkvmHost,
 };
 use tracing::{debug, error, info};
 
@@ -66,28 +65,18 @@ where
         }
     }
 
-    pub(crate) fn start_proving<InnerVm, OuterVm, V>(
+    pub(crate) fn start_proving<InnerVm>(
         &self,
         state_transition_info: StateTransitionInfo<StateRoot, Witness, <Da as DaService>::Spec>,
         config: Arc<RollupProverConfig>,
-        mut inner_vm: InnerVm,
-        zk_storage: V::PreState,
-        verifier: Arc<Verifier<Da, InnerVm, OuterVm, V>>,
+        mut inner_vm: InnerVm::Host,
+        verifier: Arc<Verifier<Da>>,
     ) -> Result<
         ProofProcessingStatus<StateRoot, Witness, <Da as DaService>::Spec>,
         ProverServiceError,
     >
     where
-        InnerVm: ZkvmHost + 'static,
-        OuterVm: ZkvmHost + 'static,
-        V: StateTransitionFunction<
-                <InnerVm::Guest as ZkvmGuest>::Verifier,
-                <OuterVm::Guest as ZkvmGuest>::Verifier,
-                Da::Spec,
-            > + Send
-            + Sync
-            + 'static,
-        V::PreState: Send + Sync + 'static,
+        InnerVm: Zkvm + 'static,
     {
         let block_header_hash = state_transition_info.da_block_header().hash();
 
@@ -126,12 +115,7 @@ where
 
             self.pool.spawn(move || {
                 tracing::info_span!("guest_execution").in_scope(|| {
-                    let proof = make_inner_proof::<_, InnerVm, OuterVm, Da>(
-                        inner_vm,
-                        config,
-                        zk_storage,
-                        &verifier.stf_verifier,
-                    );
+                    let proof = make_inner_proof::<InnerVm>(inner_vm, config);
 
                     let mut prover_state = prover_state_clone.write().expect("Lock was poisoned");
 
@@ -243,31 +227,15 @@ where
     }
 }
 
-fn make_inner_proof<V, InnerVm, OuterVm, Da>(
-    mut vm: InnerVm,
+fn make_inner_proof<InnerVm>(
+    mut vm: InnerVm::Host,
     config: Arc<RollupProverConfig>,
-    zk_storage: V::PreState,
-    stf_verifier: &StateTransitionVerifier<V, Da::Verifier, InnerVm::Guest, OuterVm::Guest>,
 ) -> anyhow::Result<Vec<u8>>
 where
-    Da: DaService,
-    InnerVm: ZkvmHost + 'static,
-    OuterVm: ZkvmHost + 'static,
-    V: StateTransitionFunction<
-            <InnerVm::Guest as ZkvmGuest>::Verifier,
-            <OuterVm::Guest as ZkvmGuest>::Verifier,
-            Da::Spec,
-        > + Send
-        + Sync
-        + 'static,
-    V::PreState: Send + Sync + 'static,
+    InnerVm: Zkvm + 'static,
 {
     let result = match config.deref() {
         RollupProverConfig::Skip => Ok(Vec::default()),
-        RollupProverConfig::Simulate => stf_verifier
-            .run_block(vm.simulate_with_hints(), zk_storage)
-            .map(|_| Vec::default())
-            .map_err(|e| anyhow::anyhow!("Guest execution must succeed but failed with {:?}", e)),
         RollupProverConfig::Execute => {
             info!(
                 "Executing in VM without constructing proof using {}",

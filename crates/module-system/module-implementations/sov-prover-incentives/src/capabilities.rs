@@ -4,7 +4,7 @@ use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec, TxState,
-    VersionReader, Zkvm,
+    VersionReader, ZkVerifier, Zkvm,
 };
 use thiserror::Error;
 
@@ -104,10 +104,9 @@ impl<S: Spec> ProverIncentives<S> {
             .map_err(Into::<anyhow::Error>::into)?
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
-        let verification_result = <S as Spec>::OuterZkvm::verify::<AggregatedProofPublicData>(
-            &proof.raw_aggregated_proof,
-            &code_commitment,
-        );
+        let verification_result = <<S as Spec>::OuterZkvm as Zkvm>::Verifier::verify::<
+            AggregatedProofPublicData,
+        >(&proof.raw_aggregated_proof, &code_commitment);
 
         let public_outputs = match verification_result {
             Ok(public_outputs) => public_outputs,

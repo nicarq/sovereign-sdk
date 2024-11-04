@@ -3,7 +3,7 @@ use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::execution_mode;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
-use sov_rollup_interface::zk::{CryptoSpec, Zkvm};
+use sov_rollup_interface::zk::{CryptoSpec, ZkVerifier, Zkvm};
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 use crate::higher_kinded_types::{Generic, HigherKindedHelper};
@@ -68,7 +68,7 @@ mod default_impls {
 impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec
     for DefaultSpec<Da, InnerZkvm, OuterZkvm, WitnessGeneration>
 where
-    InnerZkvm::CryptoSpec: crate::CryptoSpecExt,
+    <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
@@ -80,7 +80,7 @@ where
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
 
-    type CryptoSpec = InnerZkvm::CryptoSpec;
+    type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
 
     type Witness = ArrayWitness;
 }
@@ -89,7 +89,7 @@ where
 impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec
     for DefaultSpec<Da, InnerZkvm, OuterZkvm, Native>
 where
-    InnerZkvm::CryptoSpec: crate::CryptoSpecExt,
+    <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
@@ -102,7 +102,7 @@ where
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
 
-    type CryptoSpec = InnerZkvm::CryptoSpec;
+    type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
 
     // TODO: Replace Array witness with an empty struct
     type Witness = ArrayWitness;
@@ -111,7 +111,7 @@ where
 impl<Da: DaSpec, InnerZkvm: Zkvm, OuterZkvm: Zkvm> Spec
     for DefaultSpec<Da, InnerZkvm, OuterZkvm, execution_mode::Zk>
 where
-    InnerZkvm::CryptoSpec: crate::CryptoSpecExt,
+    <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec: crate::CryptoSpecExt,
 {
     type Da = Da;
     type Address = Address<<Self::CryptoSpec as CryptoSpec>::Hasher>;
@@ -123,7 +123,7 @@ where
     type InnerZkvm = InnerZkvm;
     type OuterZkvm = OuterZkvm;
 
-    type CryptoSpec = InnerZkvm::CryptoSpec;
+    type CryptoSpec = <InnerZkvm::Verifier as ZkVerifier>::CryptoSpec;
 
     type Witness = ArrayWitness;
 }

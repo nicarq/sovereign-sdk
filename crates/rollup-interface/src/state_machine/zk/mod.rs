@@ -54,24 +54,53 @@ pub trait CryptoSpec: PartialEq + Debug + Clone + Send + Sync + 'static {
         + for<'a> serde::Deserialize<'a>;
 }
 
-/// A trait implemented by the prover ("host") of a zkVM program.
-pub trait ZkvmHost: Clone + Send + Sync {
+/// A complete Zkvm implementation.
+pub trait Zkvm: Default + Clone + Send + Sync + 'static {
+    /// The verifier for the ZkCircuit
+    type Verifier: ZkVerifier;
+
+    /// The guest for the ZkCircuit
+    type Guest: ZkvmGuest;
+
+    /// The proof generator. Only available under the `"native"` feature.
+    #[cfg(feature = "native")]
+    type Host: ZkvmHost<Guest: ZkvmGuest<Verifier = Self::Verifier>>;
+}
+
+/// The arguments required by the [`Zkvm::Host`]'s constructor function.
+#[cfg(feature = "native")]
+pub type HostArgs<Vm> = <<Vm as Zkvm>::Host as ZkvmHost>::HostArgs;
+
+/// The code commitment for the Zkvm
+pub type CodeCommitmentFor<Vm> = <<Vm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment;
+
+/// A prover instance for a particular Zkvm program/circuit.
+pub trait ZkvmHost: Clone + Send + Sync + 'static {
     /// The associated guest type
     type Guest: ZkvmGuest;
+
+    /// The required arguments to the constructor - usually either a `Vec<u8>`` or a path to the file containing an `ELF`.
+    #[cfg(feature = "native")]
+    type HostArgs: Send + 'static;
+
+    /// Constructs a new `ZkvmHost`.
+    #[cfg(feature = "native")]
+    fn from_args(args: Self::HostArgs) -> Self;
+
     /// Give the guest a piece of advice non-deterministically
     fn add_hint<T: Serialize>(&mut self, item: T);
 
-    /// Simulate running the guest using the provided hints.
-    ///
-    /// Provides a simulated version of the guest which can be
-    /// accessed in the current process.
-    fn simulate_with_hints(&mut self) -> Self::Guest;
+    /// Returns a commitment to the program to be proven. This method does a lot of heavy cryptographic work - caller beware!
+    #[cfg(feature = "native")]
+    fn code_commitment(
+        &self,
+    ) -> <<Self::Guest as ZkvmGuest>::Verifier as ZkVerifier>::CodeCommitment;
 
     /// Run the guest in the true zk environment using the provided hints.
     ///
     /// This runs the guest binary compiled for the zkVM target, optionally
     /// creating a SNARK of correct execution. Running the true guest binary comes
-    /// with some mild performance overhead and is not as easy to debug as [`simulate_with_hints`](ZkvmHost::simulate_with_hints).
+    /// with some mild performance overhead, but it is orders of magnitude less expensive than generating a proof.
     fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>>;
 }
 
@@ -94,7 +123,7 @@ pub trait CodeCommitment:
 
 /// A Zk proof system capable of proving and verifying arbitrary Rust code
 /// Must support recursive proofs.
-pub trait Zkvm: Default + Clone + Send + Sync + 'static {
+pub trait ZkVerifier: Default + Clone + Send + Sync + 'static {
     /// A commitment to the zkVM program which is being proven
     type CodeCommitment: CodeCommitment;
 
@@ -115,7 +144,7 @@ pub trait Zkvm: Default + Clone + Send + Sync + 'static {
 /// A trait which is accessible from within a zkVM program.
 pub trait ZkvmGuest: Send + Sync {
     /// The verifier type associated with this vm.
-    type Verifier: Zkvm;
+    type Verifier: ZkVerifier;
     /// Obtain "advice" non-deterministically from the host
     fn read_from_host<T: DeserializeOwned>(&self) -> T;
     /// Add a public output to the zkVM proof

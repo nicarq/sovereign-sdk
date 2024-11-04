@@ -2,7 +2,7 @@ use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
 use sov_mock_da::MockAddress;
-use sov_modules_api::{Gas, GasArray, GasSpec, Genesis, Spec, Zkvm};
+use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
 use sov_sequencer_registry::SequencerRegistry;
@@ -48,9 +48,9 @@ pub struct HighLevelZkGenesisConfig<S: Spec> {
     /// The name of the gas token
     pub gas_token_name: String,
     /// The inner code commitment.
-    pub inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+    pub inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
     /// The outer code commitment.
-    pub outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
+    pub outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 }
 
 impl<S: Spec> HighLevelZkGenesisConfig<S> {
@@ -60,8 +60,8 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
         initial_prover: TestProver<S>,
         initial_sequencer: TestSequencer<S>,
         additional_accounts: Vec<TestUser<S>>,
-        inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
-        outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
+        inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
+        outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
     ) -> Self {
         Self {
             initial_prover,
@@ -138,8 +138,8 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
         initial_sequencer: TestSequencer<S>,
         additional_accounts: &[TestUser<S>],
         gas_token_name: String,
-        inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
-        outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
+        inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
+        outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
     ) -> Self {
         let attester_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
         let default_user_stake = S::Gas::from(TEST_DEFAULT_USER_STAKE);

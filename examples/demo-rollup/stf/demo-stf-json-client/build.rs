@@ -1,10 +1,9 @@
 use demo_stf::runtime::Runtime;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::HasRestApi;
-type S =
-    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+type S = sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn main() {
     println!("cargo:rerun-if-changed=../../../../crates/module-system/sov-modules-api");

@@ -13,7 +13,6 @@ use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, TxRec
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::DaSyncState;
-use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
 use sov_sequencer::batch_builders::BatchBuilder;
@@ -40,8 +39,6 @@ where
     B::Runtime: RuntimeEventProcessor
         + HasRestApi<B::Spec>
         + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
-    <B::InnerZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::InnerZkvm>,
-    <B::OuterZkvmHost as ZkvmHost>::Guest: ZkvmGuest<Verifier = <B::Spec as Spec>::OuterZkvm>,
 {
     let da_address = config.sequencer.da_address.clone();
     let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);

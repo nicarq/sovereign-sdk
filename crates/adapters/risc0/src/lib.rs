@@ -13,7 +13,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 #[cfg(not(target_os = "zkvm"))]
 use sov_rollup_interface::zk::Proof;
-use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Zkvm};
+use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, ZkVerifier};
 use thiserror::Error;
 
 pub mod crypto;
@@ -94,7 +94,7 @@ impl CryptoSpec for Risc0CryptoSpec {
 pub struct Risc0Verifier;
 
 #[cfg(not(target_os = "zkvm"))]
-impl Zkvm for Risc0Verifier {
+impl ZkVerifier for Risc0Verifier {
     type CodeCommitment = Risc0MethodId;
     type CryptoSpec = Risc0CryptoSpec;
     type Error = anyhow::Error;
@@ -114,8 +114,20 @@ impl Zkvm for Risc0Verifier {
     }
 }
 
+/// The Risc0 Zkvm.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Risc0;
+
+impl sov_rollup_interface::zk::Zkvm for Risc0 {
+    type Guest = crate::guest::Risc0Guest;
+    type Verifier = Risc0Verifier;
+
+    #[cfg(feature = "native")]
+    type Host = crate::host::Risc0Host<'static>;
+}
+
 #[cfg(target_os = "zkvm")]
-impl Zkvm for Risc0Verifier {
+impl ZkVerifier for Risc0Verifier {
     type CodeCommitment = Risc0MethodId;
 
     type CryptoSpec = Risc0CryptoSpec;

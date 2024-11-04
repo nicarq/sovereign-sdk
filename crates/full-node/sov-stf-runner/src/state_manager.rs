@@ -315,7 +315,6 @@ mod tests {
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::node::da::DaServiceWithRetries;
     use sov_rollup_interface::stf::StateTransitionFunction;
-    use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_state::{
         ArrayWitness, NativeStorage, ProverStorage, SlotKey, SlotValue, StateAccesses, Storage,
     };
@@ -326,21 +325,10 @@ mod tests {
     type Vm = MockZkvm;
     type Stf = MockStf<MockValidityCond>;
     type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
-    type StateRoot = <Stf as StateTransitionFunction<
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        MockDaSpec,
-    >>::StateRoot;
-    type TestTxReceiptContents = <Stf as StateTransitionFunction<
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        MockDaSpec,
-    >>::TxReceiptContents;
-    type Witness = <Stf as StateTransitionFunction<
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        <<Vm as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-        MockDaSpec,
-    >>::Witness;
+    type StateRoot = <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::StateRoot;
+    type TestTxReceiptContents =
+        <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::TxReceiptContents;
+    type Witness = <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::Witness;
     type MockSlotCommit = SlotCommit<MockBlock, Witness, TestTxReceiptContents>;
     type TestStateManager =
         StateManager<StateRoot, Witness, NativeStorageManager<MockDaSpec, ProverStorage<S>>, Da>;

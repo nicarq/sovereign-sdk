@@ -2,7 +2,9 @@ use sov_accounts::AccountConfig;
 use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Address, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec, Zkvm};
+use sov_modules_api::{
+    Address, CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec,
+};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_prover_incentives::ProverIncentivesConfig;
@@ -119,8 +121,8 @@ fn create_test_rt_genesis_config<S: Spec>(
     seq_bond: u64,
     token_name: String,
     init_balance: u64,
-    inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
-    outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
+    inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
+    outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 ) -> crate::runtime::GenesisConfig<S> {
     let user_stake = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let prover_placeholder = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);

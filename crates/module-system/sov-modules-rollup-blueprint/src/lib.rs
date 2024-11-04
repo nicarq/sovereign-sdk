@@ -50,7 +50,7 @@ mod blueprint {
     use sov_modules_api::rest::StorageReceiver;
     use sov_modules_api::{
         OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec,
-        SyncStatus, Zkvm,
+        SyncStatus, ZkVerifier,
     };
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
@@ -58,7 +58,6 @@ mod blueprint {
     use sov_rollup_interface::node::da::DaService;
     use sov_rollup_interface::node::DaSyncState;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
-    use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
     use sov_sequencer::batch_builders::BatchBuilder;
     use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
@@ -74,21 +73,9 @@ mod blueprint {
     /// This trait defines how to crate all the necessary dependencies required by a rollup.
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[async_trait]
-    pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M>
-    where
-        <Self::InnerZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<Self as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
-        <Self::OuterZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<Self as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
-    {
+    pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         /// Data Availability service.
         type DaService: DaService<Spec = <Self::Spec as Spec>::Da, Error = anyhow::Error> + Clone;
-
-        /// Host of the inner zkVM program.
-        type InnerZkvmHost: ZkvmHost + Send;
-
-        /// Host of the outer zkVM program.
-        type OuterZkvmHost: ZkvmHost + Send;
 
         /// Manager for the native storage lifecycle.
         type StorageManager: HierarchicalStorageManager<
@@ -117,7 +104,7 @@ mod blueprint {
         /// Creates code commitments for the outer zkVM program.
         fn create_outer_code_commitment(
             &self,
-        ) -> <<Self::ProverService as ProverService>::Verifier as Zkvm>::CodeCommitment;
+        ) -> <<Self::ProverService as ProverService>::Verifier as ZkVerifier>::CodeCommitment;
 
         /// Creates RPC methods for the rollup.
         async fn create_endpoints(
@@ -346,34 +333,22 @@ mod blueprint {
     }
 
     /// Dependencies needed to run the rollup.
-    pub struct Rollup<S: FullNodeBlueprint<M>, M: ExecutionMode>
-    where
-        <S::InnerZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<S as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
-        <S::OuterZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<S as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
-    {
+    pub struct Rollup<S: FullNodeBlueprint<M>, M: ExecutionMode> {
         /// The State Transition Runner.
         #[allow(clippy::type_complexity)]
         pub runner: StateTransitionRunner<
             StfBlueprint<S::Spec, S::Runtime>,
             S::StorageManager,
             S::DaService,
-            S::InnerZkvmHost,
-            S::OuterZkvmHost,
+            <S::Spec as Spec>::InnerZkvm,
+            <S::Spec as Spec>::OuterZkvm,
         >,
 
         /// Server endpoints for the rollup.
         pub endpoints: RuntimeEndpoints,
     }
 
-    impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M>
-    where
-        <S::InnerZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<S as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
-        <S::OuterZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<S as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
-    {
+    impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
         /// Runs the rollup.
         pub async fn run(self) -> anyhow::Result<()> {
             self.run_and_report_addr(None, None).await
@@ -424,12 +399,6 @@ mod blueprint {
     where
         B: FullNodeBlueprint<M> + Send + Sync + 'static,
         M: ExecutionMode + Send + Sync + 'static,
-        // Bounds required by `FullNodeBlueprint`:
-        // --------------------------
-        <B::InnerZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::InnerZkvm>,
-        <B::OuterZkvmHost as ZkvmHost>::Guest:
-            ZkvmGuest<Verifier = <<B as RollupBlueprint<M>>::Spec as Spec>::OuterZkvm>,
         Bb: BatchBuilder<Spec = B::Spec>,
     {
         type BatchBuilder = Bb;

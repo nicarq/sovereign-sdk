@@ -7,7 +7,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_rollup_interface::zk::{ValidityCondition, Zkvm};
+use sov_rollup_interface::zk::{ValidityCondition, ZkVerifier, Zkvm};
 use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
@@ -146,7 +146,10 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
                 continue;
             }
             let public_data: AggregatedProofPublicData =
-                match <MockZkVerifier as Zkvm>::verify(raw_proof, &MockCodeCommitment::default()) {
+                match <MockZkVerifier as ZkVerifier>::verify(
+                    raw_proof,
+                    &MockCodeCommitment::default(),
+                ) {
                     Ok(public_data) => public_data,
                     Err(err) => {
                         panic!("Error when processing proof: {:?}", err);

@@ -4,7 +4,7 @@ use core::marker::PhantomData;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
-use super::Zkvm;
+use super::ZkVerifier;
 
 type SerializedValidityCondition = Vec<u8>;
 type SerializedAddress = Vec<u8>;
@@ -104,12 +104,12 @@ pub struct SerializedAggregatedProof {
 }
 
 /// Validates an Aggregated Proof.
-pub struct AggregateProofVerifier<Vm: Zkvm> {
+pub struct AggregateProofVerifier<Vm: ZkVerifier> {
     _vm: PhantomData<Vm>,
     outer_proof_code_commitment: Vm::CodeCommitment,
 }
 
-impl<Vm: Zkvm> AggregateProofVerifier<Vm> {
+impl<Vm: ZkVerifier> AggregateProofVerifier<Vm> {
     /// Creates a new `AggregateProofVerifier`.
     pub fn new(outer_proof_code_commitment: Vm::CodeCommitment) -> Self {
         Self {

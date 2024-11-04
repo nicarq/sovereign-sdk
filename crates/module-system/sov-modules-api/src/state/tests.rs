@@ -1,4 +1,4 @@
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_macros::config_value;
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::{SlotKey, SlotValue, User};
@@ -9,7 +9,7 @@ use super::traits::{StateReader, StateWriter};
 use crate::default_spec::DefaultSpec;
 use crate::{Gas, GasMeter, Spec, WorkingSet};
 
-type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn create_working_set(
     remaining_funds: u64,

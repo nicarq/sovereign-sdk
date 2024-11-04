@@ -14,7 +14,7 @@ pub use interface::*;
 use serde::{Deserialize, Serialize};
 pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
-pub use sov_mock_zkvm::MockZkVerifier;
+pub use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 pub use sov_modules_api::EncodeCall;
@@ -46,13 +46,13 @@ pub mod storage;
 /// Utilities that specify an interface for testing.
 pub mod interface;
 
-/// The default test spec. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
+/// The default test spec. Uses a [`MockZkvm`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
 pub type TestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
-/// The default test spec for ZK. Uses a [`MockZkVerifier`] for both inner and outer vm verification.
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+/// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.
 pub type ZkTestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Zk>;
+    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;
 /// The default address type. This is the [`sov_modules_api::RollupAddress`] type defined by the [`TestSpec`].
 pub type TestAddress = <TestSpec as Spec>::Address;
 /// The default test crypto spec type. This is the [`CryptoSpec`] type defined by the [`TestSpec`].

@@ -1,7 +1,9 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::{BlockHeaderTrait, Time};
-use sov_modules_api::{DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec, Zkvm};
+use sov_modules_api::{
+    CodeCommitmentFor, DaSpec, Gas, GasSpec, GenesisState, Module, OperatingMode, Spec,
+};
 
 use crate::{BlockGasInfo, ChainState, SlotInformation, TransitionHeight};
 
@@ -17,11 +19,11 @@ pub struct ChainStateConfig<S: Spec> {
     pub operating_mode: OperatingMode,
 
     /// The code commitment to be used for verifying the rollup's execution.
-    pub inner_code_commitment: <S::InnerZkvm as Zkvm>::CodeCommitment,
+    pub inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
 
     /// The code commitment to be used for verifying the rollup's execution from genesis to the current slot.
     /// This value is used by the `ProverIncentives` module to verify the proofs posted on the DA layer.
-    pub outer_code_commitment: <S::OuterZkvm as Zkvm>::CodeCommitment,
+    pub outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
 
     /// The height of the first DA block.
     pub genesis_da_height: TransitionHeight,
@@ -46,8 +48,6 @@ impl<S: Spec> ChainState<S> {
 
         self.true_rollup_height.set(&0, state)?;
         self.next_visible_rollup_height.set(&0, state)?;
-        self.true_to_visible_rollup_height_history
-            .set(&0, &0, state)?;
 
         self.time.set_true_current(&config.current_time, state);
         self.operating_mode.set(&config.operating_mode, state)?;
