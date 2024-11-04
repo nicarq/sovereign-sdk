@@ -24,8 +24,8 @@ use crate::{InfallibleStateReaderAndWriter, StateReader, StateReaderAndWriter, S
 pub struct NamespacedStateVec<N, V, Codec = BorshCodec> {
     _phantom: PhantomData<(N, V)>,
     pub(crate) prefix: Prefix,
-    pub(crate) len_value: NamespacedStateValue<N, usize, Codec>,
-    pub(crate) elems: NamespacedStateMap<N, usize, V, Codec>,
+    pub(crate) len_value: NamespacedStateValue<N, u64, Codec>,
+    pub(crate) elems: NamespacedStateMap<N, u64, V, Codec>,
 }
 
 /// An error type for vector getters.
@@ -33,10 +33,10 @@ pub struct NamespacedStateVec<N, V, Codec = BorshCodec> {
 pub enum StateVecError<N> {
     /// Operation failed because the index was out of bounds.
     #[error("Index out of bounds for index: {0} with namespace {}", std::any::type_name::<N>())]
-    IndexOutOfBounds(usize),
+    IndexOutOfBounds(u64),
     /// Value not found.
     #[error("Value not found for prefix: {0} and index: {1} with namespace {}", std::any::type_name::<N>())]
-    MissingValue(Prefix, usize, PhantomData<N>),
+    MissingValue(Prefix, u64, PhantomData<N>),
 }
 
 type StateVecResult<N, V> = Result<V, StateVecError<N>>;
@@ -63,8 +63,8 @@ where
 impl<N: CompileTimeNamespace, V, Codec: Clone> NamespacedStateVec<N, V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
 {
     /// Creates a new [`StateVec`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
@@ -89,17 +89,17 @@ where
 
     fn set_len<Writer: StateWriter<N>>(
         &self,
-        length: usize,
+        length: u64,
         state: &mut Writer,
     ) -> Result<(), Writer::Error> {
         self.len_value.set(&length, state)
     }
 
-    fn elems(&self) -> &NamespacedStateMap<N, usize, V, Codec> {
+    fn elems(&self) -> &NamespacedStateMap<N, u64, V, Codec> {
         &self.elems
     }
 
-    fn len_value(&self) -> &NamespacedStateValue<N, usize, Codec> {
+    fn len_value(&self) -> &NamespacedStateValue<N, u64, Codec> {
         &self.len_value
     }
 
@@ -108,7 +108,7 @@ where
     /// To push a value to the end of the StateVec, use [`NamespacedStateVec::push`].
     pub fn set<Vq, ReaderAndWriter>(
         &self,
-        index: usize,
+        index: u64,
         value: &Vq,
         state: &mut ReaderAndWriter,
     ) -> Result<Result<(), StateVecError<N>>, <ReaderAndWriter as StateWriter<N>>::Error>
@@ -130,7 +130,7 @@ where
     /// Returns the value for the given index.
     pub fn get<Reader: StateReader<N>>(
         &self,
-        index: usize,
+        index: u64,
         state: &mut Reader,
     ) -> Result<Option<V>, Reader::Error> {
         self.elems().get(&index, state)
@@ -141,7 +141,7 @@ where
     /// If the value is absent, returns an error.
     pub fn get_or_err<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
-        index: usize,
+        index: u64,
         state: &mut ReaderAndWriter,
     ) -> Result<StateVecResult<N, V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
@@ -156,7 +156,7 @@ where
     }
 
     /// Returns the length of the vector.
-    pub fn len<Reader: StateReader<N>>(&self, state: &mut Reader) -> Result<usize, Reader::Error> {
+    pub fn len<Reader: StateReader<N>>(&self, state: &mut Reader) -> Result<u64, Reader::Error> {
         Ok(self.len_value().get(state)?.unwrap_or_default())
     }
 
@@ -204,7 +204,7 @@ where
     /// Removes the value at the specified index and returns it
     pub fn remove<ReaderAndWriter: StateReaderAndWriter<N>>(
         &self,
-        index: usize,
+        index: u64,
         state: &mut ReaderAndWriter,
     ) -> Result<Option<V>, <ReaderAndWriter as StateWriter<N>>::Error> {
         let len = self.len(state)?;
@@ -263,14 +263,14 @@ where
         ReaderAndWriter: StateReaderAndWriter<N>,
     {
         let old_len = self.len(state)?;
-        let new_len = values.len();
+        let new_len = values.len() as u64;
 
         for i in new_len..old_len {
             self.elems().delete(&i, state)?;
         }
 
         for (i, value) in values.into_iter().enumerate() {
-            self.elems().set(&i, &value, state)?;
+            self.elems().set(&(i as u64), &value, state)?;
         }
 
         self.set_len(new_len, state)
@@ -329,23 +329,23 @@ where
 pub struct StateVecIter<'a, 'ws, N, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     N: CompileTimeNamespace,
     W: StateReaderAndWriter<N>,
 {
     state_vec: &'a NamespacedStateVec<N, V, Codec>,
     state: &'ws mut W,
-    len: usize,
-    next_i: usize,
+    len: u64,
+    next_i: u64,
     _phantom: std::marker::PhantomData<(N, V, Codec)>,
 }
 
 impl<'a, 'ws, N, V, Codec, W> Iterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     N: CompileTimeNamespace,
     W: StateReaderAndWriter<N>,
 {
@@ -366,21 +366,21 @@ where
 impl<'a, 'ws, N, V, Codec, W> ExactSizeIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     N: CompileTimeNamespace,
     W: InfallibleStateReaderAndWriter<N>,
 {
     fn len(&self) -> usize {
-        self.len - self.next_i
+        (self.len - self.next_i).try_into().unwrap()
     }
 }
 
 impl<'a, 'ws, N, V, Codec, W> FusedIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     N: CompileTimeNamespace,
     W: InfallibleStateReaderAndWriter<N>,
 {
@@ -389,8 +389,8 @@ where
 impl<'a, 'ws, N, V, Codec, W> DoubleEndedIterator for StateVecIter<'a, 'ws, N, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<usize>,
-    Codec::KeyCodec: StateItemCodec<usize>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     N: CompileTimeNamespace,
     W: StateReaderAndWriter<N>,
 {
@@ -439,14 +439,14 @@ mod test {
     enum TestCaseAction<T> {
         Push(T),
         Pop(T),
-        Remove(usize, T),
+        Remove(u64, T),
         Last(T),
-        Set(usize, T),
+        Set(u64, T),
         SetAll(Vec<T>),
-        CheckLen(usize),
+        CheckLen(u64),
         CheckContents(Vec<T>),
         CheckContentsReverse(Vec<T>),
-        CheckGet(usize, Option<T>),
+        CheckGet(u64, Option<T>),
         Clear,
     }
 

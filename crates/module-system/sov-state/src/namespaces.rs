@@ -79,7 +79,18 @@ impl ProvableCompileTimeNamespace for User {
     const PROVABLE_NAMESPACE: ProvableNamespace = ProvableNamespace::User;
 }
 /// A type-level representation of the kernel namespace
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Default,
+    borsh::BorshDeserialize,
+    borsh::BorshSerialize,
+    serde::Serialize,
+    serde::Deserialize,
+)]
 pub struct Kernel;
 
 impl CompileTimeNamespace for Kernel {

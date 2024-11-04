@@ -1,12 +1,11 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use sov_state::{
-    BorshCodec, Kernel, Namespace, Prefix, SlotKey, SlotValue, StateCodec, StateItemCodec, Storage,
-};
+use sov_state::{BorshCodec, Kernel, Namespace, Prefix, StateCodec, StateItemCodec, Storage};
 use unwrap_infallible::UnwrapInfallible;
 
-use crate::{KernelStateAccessor, KernelWriter, StateReader, StateWriter, VersionReader};
+use super::map::NamespacedStateMap;
+use crate::{KernelStateAccessor, KernelWriter, StateReader, VersionReader};
 
 /// A `versioned` value stored in kernel state. The semantics of this type are different
 /// depending on the priveleges of the accessor. For a standard ("user space") interaction
@@ -17,22 +16,18 @@ use crate::{KernelStateAccessor, KernelWriter, StateReader, StateWriter, Version
 /// value can be accessed
 // TODO: Automatically clear out old versions from state https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/383
 #[derive(
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    BorshDeserialize,
-    BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
+    Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, serde::Serialize, serde::Deserialize,
 )]
 pub struct VersionedStateValue<V, Codec = BorshCodec> {
     _phantom: PhantomData<V>,
-    codec: Codec,
-    prefix: Prefix,
+    elems: NamespacedStateMap<Kernel, u64, V, Codec>,
 }
 
-impl<V> VersionedStateValue<V> {
+impl<V> VersionedStateValue<V>
+where
+    V: BorshSerialize,
+    V: BorshDeserialize,
+{
     /// Crates a new [`VersionedStateValue`] with the given prefix and the default
     /// [`StateItemCodec`] (i.e. [`BorshCodec`]).
     pub fn new(prefix: Prefix) -> Self {
@@ -40,7 +35,12 @@ impl<V> VersionedStateValue<V> {
     }
 }
 
-impl<V, Codec> VersionedStateValue<V, Codec> {
+impl<V, Codec> VersionedStateValue<V, Codec>
+where
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+{
     /// The namespace where the versioned state value is stored.
     pub const NAMESPACE: Namespace = Namespace::Kernel;
 
@@ -48,55 +48,40 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
         Self {
             _phantom: PhantomData,
-            codec,
-            prefix,
+            elems: NamespacedStateMap::with_codec(prefix, codec),
         }
     }
 
     /// Returns the prefix used when this [`VersionedStateValue`] was created.
     pub fn prefix(&self) -> &Prefix {
-        &self.prefix
+        &self.elems.prefix
     }
 }
 
-impl<V, Codec> VersionedStateValue<V, Codec> {
-    fn encode_key(&self, slot: &u64) -> SlotKey
-    where
-        Codec: StateCodec,
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
-        SlotKey::new(self.prefix(), slot, self.codec.key_codec())
+impl<V, Codec> VersionedStateValue<V, Codec>
+where
+    Codec: StateCodec,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+{
+    /// Returns the codec used by the versioned state value.
+    pub fn codec(&self) -> &Codec {
+        self.elems.codec()
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
     pub fn get_current<Reader: VersionReader>(
         &self,
         state: &mut Reader,
-    ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error>
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
-        state.get_decoded(
-            &self.encode_key(&state.rollup_height_to_access()),
-            &self.codec,
-        )
+    ) -> Result<Option<V>, <Reader as StateReader<Kernel>>::Error> {
+        self.elems.get(&state.rollup_height_to_access(), state)
     }
 
     /// Only the kernel working set can write to versioned values
-    pub fn set_true_current(&self, value: &V, state: &mut impl KernelWriter)
-    where
-        Codec: StateCodec,
-        Codec::ValueCodec: StateItemCodec<V>,
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
-        StateWriter::<Kernel>::set(
-            state,
-            &self.encode_key(&(state.true_rollup_height())),
-            SlotValue::new(value, self.codec.value_codec()),
-        )
-        .unwrap_infallible();
+    pub fn set_true_current<Accessor: KernelWriter>(&self, value: &V, state: &mut Accessor) {
+        self.elems
+            .set(&state.true_rollup_height(), value, state)
+            .unwrap_infallible();
     }
 
     /// Only the kernel working set can write to versioned values
@@ -106,12 +91,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateWriter::<Kernel>::set(
-            state,
-            &self.encode_key(key),
-            SlotValue::new(value, self.codec.value_codec()),
-        )
-        .unwrap_infallible();
+        self.elems.set(key, value, state).unwrap_infallible();
     }
 
     /// Any version_aware working set can read the current contents of a versioned value.
@@ -122,7 +102,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
         Codec::ValueCodec: StateItemCodec<V>,
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        StateReader::<Kernel>::get_decoded(state, &self.encode_key(key), &self.codec)
+        self.elems.get(key, state)
     }
 }
 

@@ -105,7 +105,7 @@ impl<S: Spec> Evm<S> {
         let transactions_with_ids = block.transactions.clone().map(|id| {
             let tx = self
                 .transactions
-                .get(id as usize, state)
+                .get(id, state)
                 .unwrap_infallible()
                 .expect("Transaction must be set");
             (id, tx)
@@ -279,7 +279,7 @@ impl<S: Spec> Evm<S> {
         let transaction = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, state)
+                .get(number, state)
             .unwrap_infallible()
                 .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
                                           hash,
@@ -289,7 +289,7 @@ impl<S: Spec> Evm<S> {
 
             let block = self
                 .blocks
-                .get(tx.block_number as usize, state)
+                .get(tx.block_number, state)
                 .unwrap_infallible()
                 .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
                                           tx.block_number,
@@ -333,18 +333,18 @@ impl<S: Spec> Evm<S> {
         let receipt = tx_number.map(|number| {
             let tx = self
                 .transactions
-                .get(number as usize, state)
+                .get(number, state)
                 .unwrap_infallible()
                 .expect("Transaction with known hash must be set");
             let block = self
                 .blocks
-                .get(tx.block_number as usize, state)
+                .get(tx.block_number, state)
                 .unwrap_infallible()
                 .expect("Block number for known transaction must be set");
 
             let receipt = self
                 .receipts
-                .get(tx_number.unwrap() as usize, state)
+                .get(tx_number.unwrap(), state)
                 .unwrap_infallible()
                 .expect("Receipt for known transaction must be set");
 
@@ -638,7 +638,7 @@ impl<S: Spec> Evm<S> {
                 .expect("Head block must be set"),
             Some(ref block_number) => {
                 // hex representation may have 0x prefix
-                let block_number = usize::from_str_radix(block_number.trim_start_matches("0x"), 16)
+                let block_number = u64::from_str_radix(block_number.trim_start_matches("0x"), 16)
                     .expect("Block number must be a valid hex number, with or without 0x prefix");
                 self.blocks
                     .get(block_number, state)

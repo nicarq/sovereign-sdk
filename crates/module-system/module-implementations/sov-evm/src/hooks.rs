@@ -191,7 +191,7 @@ impl<S: Spec> Evm<S> {
         root_hash: &<S::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,
     ) {
-        let expected_block_number = self.blocks.len(state).unwrap_infallible() as u64;
+        let expected_block_number = self.blocks.len(state).unwrap_infallible();
 
         let mut block = self
             .pending_head

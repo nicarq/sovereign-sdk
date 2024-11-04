@@ -9,8 +9,8 @@ use crate::{ModuleId, ModuleInfo};
 #[serde(rename_all = "snake_case", untagged)]
 pub enum StateItemContents<K, V> {
     Value { value: Option<V> },
-    Vec { length: usize },
-    VecElement { index: usize, value: V },
+    Vec { length: u64 },
+    VecElement { index: u64, value: V },
     MapElement { key: K, value: V },
 }
 
