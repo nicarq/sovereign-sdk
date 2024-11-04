@@ -129,7 +129,7 @@ impl<V, Codec> VersionedStateValue<V, Codec> {
 #[cfg(test)]
 mod tests {
 
-    use sov_mock_zkvm::MockZkVerifier;
+    use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::Prefix;
     use sov_test_utils::storage::new_finalized_storage;
@@ -140,8 +140,7 @@ mod tests {
     use crate::runtime::capabilities::Kernel as _;
     use crate::{StateCheckpoint, VersionedStateValue};
 
-    type TestSpec =
-        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
     fn test_kernel_state_value_as_value() {

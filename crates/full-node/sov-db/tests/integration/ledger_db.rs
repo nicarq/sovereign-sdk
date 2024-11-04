@@ -2,7 +2,7 @@ use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::types::{RollupHeight, StoredStfInfo};
 use sov_mock_da::{MockBlob, MockBlock};
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::MockZkvmHost;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
@@ -93,7 +93,7 @@ async fn test_save_aggregated_proof() {
             rewarded_addresses: Default::default(),
         };
 
-        let raw_aggregated_proof = MockZkvm::create_serialized_proof(true, public_data.clone());
+        let raw_aggregated_proof = MockZkvmHost::create_serialized_proof(true, public_data.clone());
 
         let agg_proof = AggregatedProof::new(
             SerializedAggregatedProof {

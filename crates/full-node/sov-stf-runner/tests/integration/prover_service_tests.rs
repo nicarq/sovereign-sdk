@@ -1,12 +1,9 @@
-use sov_mock_da::{
-    MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash, MockValidityCond,
-};
-use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
-use sov_modules_api::Zkvm;
+use sov_mock_da::{MockBlockHeader, MockDaService, MockDaSpec, MockDaVerifier, MockHash};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm, MockZkvmHost};
+use sov_modules_api::ZkVerifier;
 use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs, Time};
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
-use sov_stf_runner::mock::MockStf;
 use sov_stf_runner::processes::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
     ProverServiceError, RawGenesisStateRoot, RollupProverConfig, StateTransitionInfo,
@@ -219,11 +216,12 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_data = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicData>(
-                    proof.raw_aggregated_proof.as_ref(),
-                    &MockCodeCommitment::default(),
-                )
-                .unwrap();
+                let public_data =
+                    <MockZkVerifier as ZkVerifier>::verify::<AggregatedProofPublicData>(
+                        proof.raw_aggregated_proof.as_ref(),
+                        &MockCodeCommitment::default(),
+                    )
+                    .unwrap();
                 assert_eq!(public_data.initial_rollup_height, 0);
                 assert_eq!(public_data.final_rollup_height, (jump - 1) as u64);
             }
@@ -253,11 +251,12 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_data = <MockZkVerifier as Zkvm>::verify::<AggregatedProofPublicData>(
-                    proof.raw_aggregated_proof.as_ref(),
-                    &MockCodeCommitment::default(),
-                )
-                .unwrap();
+                let public_data =
+                    <MockZkVerifier as ZkVerifier>::verify::<AggregatedProofPublicData>(
+                        proof.raw_aggregated_proof.as_ref(),
+                        &MockCodeCommitment::default(),
+                    )
+                    .unwrap();
                 assert_eq!(public_data.initial_rollup_height as usize, jump);
                 assert_eq!(
                     public_data.final_rollup_height as usize,
@@ -272,16 +271,9 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 }
 
 struct TestProver {
-    prover_service: ParallelProverService<
-        Address,
-        StateRoot,
-        Vec<u8>,
-        MockDaService,
-        MockZkvm,
-        MockZkvm,
-        MockStf<MockValidityCond>,
-    >,
-    inner_vm: MockZkvm,
+    prover_service:
+        ParallelProverService<Address, StateRoot, Vec<u8>, MockDaService, MockZkvm, MockZkvm>,
+    inner_vm: MockZkvmHost,
     num_worker_threads: usize,
 }
 
@@ -295,7 +287,6 @@ async fn wait_for_aggregated_proof(
         MockDaService,
         MockZkvm,
         MockZkvm,
-        MockStf<MockValidityCond>,
     >,
 ) -> anyhow::Result<ProofAggregationStatus> {
     let mut counter = 0;
@@ -319,20 +310,17 @@ async fn wait_for_aggregated_proof(
 
 fn make_new_prover() -> TestProver {
     let num_threads = 10;
-    let inner_vm = MockZkvm::new();
-    let outer_vm = MockZkvm::new_non_blocking();
+    let inner_vm = MockZkvmHost::new();
+    let outer_vm = MockZkvmHost::new_non_blocking();
 
     let prover_config = RollupProverConfig::Execute;
-    let zk_stf = MockStf::<MockValidityCond>::default();
     let da_verifier = MockDaVerifier::default();
     TestProver {
         prover_service: ParallelProverService::new(
             inner_vm.clone(),
             outer_vm,
-            zk_stf,
             da_verifier,
             prover_config,
-            (),
             num_threads,
             Default::default(),
             Default::default(),

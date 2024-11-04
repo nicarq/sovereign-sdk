@@ -10,7 +10,7 @@ use anyhow::Error;
 use crypto::{SP1PublicKey, SP1Signature};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, Zkvm};
+use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, ZkVerifier};
 #[cfg(not(target_os = "zkvm"))]
 use sp1_sdk::{ProverClient, SP1ProofWithPublicValues};
 
@@ -66,7 +66,7 @@ impl CryptoSpec for SP1CryptoSpec {
 pub struct SP1Verifier;
 
 #[cfg(not(target_os = "zkvm"))]
-impl Zkvm for SP1Verifier {
+impl ZkVerifier for SP1Verifier {
     type CodeCommitment = SP1MethodId;
     type CryptoSpec = SP1CryptoSpec;
     type Error = anyhow::Error;
@@ -85,8 +85,20 @@ impl Zkvm for SP1Verifier {
     }
 }
 
+/// The SP1 Zkvm.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SP1;
+
+impl sov_rollup_interface::zk::Zkvm for SP1 {
+    type Guest = crate::guest::SP1Guest;
+    type Verifier = SP1Verifier;
+
+    #[cfg(feature = "native")]
+    type Host = crate::host::SP1Host<'static>;
+}
+
 #[cfg(target_os = "zkvm")]
-impl Zkvm for SP1Verifier {
+impl ZkVerifier for SP1Verifier {
     type CodeCommitment = SP1MethodId;
 
     type CryptoSpec = SP1CryptoSpec;

@@ -387,12 +387,11 @@ impl<S: Spec> VersionReader for WorkingSet<S> {
 #[cfg(test)]
 mod tests {
     use sov_test_utils::storage::new_finalized_storage;
-    use sov_test_utils::{MockDaSpec, MockZkVerifier};
+    use sov_test_utils::{MockDaSpec, MockZkvm};
 
     use super::*;
     use crate::execution_mode::Native;
-    type TestSpec =
-        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     use crate::capabilities::mocks::MockKernel;
     use crate::{PreExecWorkingSet, Spec};

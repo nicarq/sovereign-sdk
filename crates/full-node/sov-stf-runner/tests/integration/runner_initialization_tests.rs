@@ -1,18 +1,14 @@
 use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockValidityCond};
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_stf_runner::InitVariant;
 
 use crate::helpers::hash_stf::HashStf;
 use crate::helpers::runner_init::initialize_runner;
-type MockInitVariant = InitVariant<
-    HashStf<MockValidityCond>,
-    MockZkVerifier,
-    MockZkVerifier,
-    DaServiceWithRetries<MockDaService>,
->;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {

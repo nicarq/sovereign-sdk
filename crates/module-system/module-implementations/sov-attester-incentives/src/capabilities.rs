@@ -3,7 +3,7 @@ use core::result::Result::Ok;
 
 use sov_modules_api::{
     Gas, InvalidProofError, SerializedAttestation, SerializedChallenge, SovAttestation,
-    SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, Zkvm,
+    SovStateTransitionPublicData, Spec, StateTransitionPublicData, TxState, ZkVerifier, Zkvm,
 };
 use sov_state::storage::Storage;
 use thiserror::Error;
@@ -343,7 +343,7 @@ where
             }
         };
 
-        let public_outputs_opt = <S::InnerZkvm as Zkvm>::verify::<
+        let public_outputs_opt = <<S::InnerZkvm as Zkvm>::Verifier as ZkVerifier>::verify::<
             StateTransitionPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
         >(proof, &code_commitment)
         .map_err(|e| anyhow::format_err!("{:?}", e));

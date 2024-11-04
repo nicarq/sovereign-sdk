@@ -14,18 +14,16 @@ use sov_db::storage_manager::NativeChangeSet;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::WitnessGeneration;
-use sov_modules_api::{CryptoSpecExt, SlotData, Spec, Zkvm};
+use sov_modules_api::{CryptoSpecExt, SlotData, Spec, ZkVerifier, Zkvm};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0Verifier;
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
-use sov_sp1_adapter::host::SP1Host;
-use sov_sp1_adapter::SP1Verifier;
+use sov_sp1_adapter::SP1;
 use sov_state::Storage;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
@@ -78,11 +76,11 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
     table.printstd();
 }
 
-type BenchRisc0Spec = DefaultSpec<MockDaSpec, Risc0Verifier, Risc0Verifier, WitnessGeneration>;
+type BenchRisc0Spec = DefaultSpec<MockDaSpec, Risc0, Risc0, WitnessGeneration>;
 
 type BenchRisc0STF = StfBlueprint<BenchRisc0Spec, Runtime<BenchRisc0Spec>>;
 
-type BenchSP1Spec = DefaultSpec<MockDaSpec, SP1Verifier, SP1Verifier, WitnessGeneration>;
+type BenchSP1Spec = DefaultSpec<MockDaSpec, SP1, SP1, WitnessGeneration>;
 
 type BenchSP1STF = StfBlueprint<BenchSP1Spec, Runtime<BenchSP1Spec>>;
 
@@ -159,32 +157,16 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-impl BenchZkvm for Risc0Verifier {
-    type Host<'a> = Risc0Host<'a>;
-    fn from_elf(da_elf: &[u8]) -> Self::Host<'_> {
-        Risc0Host::new(da_elf)
-    }
-}
-
-impl BenchZkvm for SP1Verifier {
-    type Host<'a> = SP1Host<'a>;
-    fn from_elf(da_elf: &[u8]) -> Self::Host<'_> {
-        SP1Host::new(da_elf)
-    }
-}
-trait BenchZkvm: Zkvm {
-    type Host<'a>: ZkvmHost;
-    fn from_elf(da_elf: &[u8]) -> Self::Host<'_>;
-}
-
-async fn run<InnerVm: Zkvm + BenchZkvm, OuterVm: Zkvm, Stf>(
+async fn run<InnerVm: Zkvm, OuterVm: Zkvm, Stf>(
     stf: Stf,
-    elf: &[u8],
+    elf: &'static [u8],
     bench_mode: BenchMode,
 ) -> anyhow::Result<()>
 where
-    InnerVm::CryptoSpec: CryptoSpecExt,
-    OuterVm::CryptoSpec: CryptoSpecExt,
+    <InnerVm::Verifier as ZkVerifier>::CryptoSpec: CryptoSpecExt,
+    <OuterVm::Verifier as ZkVerifier>::CryptoSpec: CryptoSpecExt,
+    InnerVm::Host: ZkvmHost<HostArgs = &'static [u8]>,
+    OuterVm::Host:  ZkvmHost<HostArgs = &'static [u8]>,
     Stf: StateTransitionFunction<
     InnerVm,
     OuterVm,
@@ -235,7 +217,7 @@ where
 
     for filtered_block in blocks {
         num_blocks += 1;
-        let mut host = InnerVm::from_elf(elf);
+        let mut host = InnerVm::Host::from_args(elf);
 
         let height = filtered_block.header().height();
         println!(

@@ -8,17 +8,9 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::{ModuleCallJsonSchema, Spec};
 use sov_rollup_interface::execution_mode;
-use sov_rollup_interface::zk::{ZkvmGuest, ZkvmHost};
 use sov_stf_runner::RollupConfig;
 
-type InnerZkvmHost = MockZkvm;
-type OuterZkvmHost = MockZkvm;
-type S = DefaultSpec<
-    MockDaSpec,
-    <<InnerZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-    <<OuterZkvmHost as ZkvmHost>::Guest as ZkvmGuest>::Verifier,
-    execution_mode::Native,
->;
+type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, execution_mode::Native>;
 
 fn main() -> io::Result<()> {
     // Call message schemas.

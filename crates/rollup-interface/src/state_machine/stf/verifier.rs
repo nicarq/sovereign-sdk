@@ -2,15 +2,15 @@ use std::marker::PhantomData;
 
 use crate::da::{BlockHeaderTrait, DaVerifier};
 use crate::stf::{ExecutionContext, StateTransitionFunction};
-use crate::zk::{StateTransitionPublicData, StateTransitionWitnessWithAddress, ZkvmGuest};
+use crate::zk::{StateTransitionPublicData, StateTransitionWitnessWithAddress, Zkvm, ZkvmGuest};
 
 /// Verifies a state transition.
 pub struct StateTransitionVerifier<ST, Da, InnerVm, OuterVm>
 where
     Da: DaVerifier,
-    InnerVm: ZkvmGuest,
-    OuterVm: ZkvmGuest,
-    ST: StateTransitionFunction<InnerVm::Verifier, OuterVm::Verifier, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    ST: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     app: ST,
     da_verifier: Da,
@@ -20,9 +20,9 @@ where
 impl<Stf, Da, InnerVm, OuterVm> StateTransitionVerifier<Stf, Da, InnerVm, OuterVm>
 where
     Da: DaVerifier,
-    InnerVm: ZkvmGuest,
-    OuterVm: ZkvmGuest,
-    Stf: StateTransitionFunction<InnerVm::Verifier, OuterVm::Verifier, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
 {
     /// Create a [`StateTransitionVerifier`]
     pub fn new(app: Stf, da_verifier: Da) -> Self {
@@ -34,7 +34,11 @@ where
     }
 
     /// Verify the next block
-    pub fn run_block(&self, zkvm: InnerVm, pre_state: Stf::PreState) -> Result<(), Da::Error> {
+    pub fn run_block(
+        &self,
+        zkvm: InnerVm::Guest,
+        pre_state: Stf::PreState,
+    ) -> Result<(), Da::Error> {
         let data: StateTransitionWitnessWithAddress<Stf::Address, _, _, Da::Spec> =
             zkvm.read_from_host();
 

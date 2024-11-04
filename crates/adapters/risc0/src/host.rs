@@ -4,6 +4,7 @@ use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Journal, Receipt, Session};
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 
 use crate::guest::Risc0Guest;
+use crate::Risc0MethodId;
 
 /// A [`Risc0Host`] stores a binary to execute in the Risc0 VM, and accumulates hints to be
 /// provided to its execution.
@@ -56,9 +57,20 @@ impl<'a> Risc0Host<'a> {
         let session = self.run_without_proving()?;
         Ok(session.prove()?.receipt)
     }
+
+    /// Generate a Risc0Guest with provided hints
+    pub fn simulate_with_hints(&mut self) -> Risc0Guest {
+        Risc0Guest::with_hints(std::mem::take(&mut self.env))
+    }
 }
 
-impl<'a> ZkvmHost for Risc0Host<'a> {
+impl ZkvmHost for Risc0Host<'static> {
+    type HostArgs = &'static [u8];
+
+    fn from_args(args: Self::HostArgs) -> Self {
+        Self::new(args)
+    }
+
     type Guest = Risc0Guest;
 
     fn add_hint<T: serde::Serialize>(&mut self, item: T) {
@@ -83,10 +95,6 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
             .expect("Risc0 hint serialization is infallible");
     }
 
-    fn simulate_with_hints(&mut self) -> Self::Guest {
-        Risc0Guest::with_hints(std::mem::take(&mut self.env))
-    }
-
     fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>> {
         let proof = if with_proof {
             let receipt = self.run()?;
@@ -98,5 +106,13 @@ impl<'a> ZkvmHost for Risc0Host<'a> {
         };
 
         Ok(bincode::serialize(&proof)?)
+    }
+
+    fn code_commitment(&self) -> <<Self::Guest as sov_rollup_interface::zk::ZkvmGuest>::Verifier as sov_rollup_interface::zk::ZkVerifier>::CodeCommitment{
+        Risc0MethodId(
+            risc0_zkvm::compute_image_id(self.elf)
+                .expect("Invalid ELF; could not compute image ID")
+                .into(),
+        )
     }
 }

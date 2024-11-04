@@ -7,12 +7,12 @@ use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier};
-use sov_mock_zkvm::{MockZkGuest, MockZkVerifier};
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
-use sov_risc0_adapter::Risc0Verifier;
+use sov_risc0_adapter::Risc0;
 use sov_state::ZkStorage;
 
 // The rollup stores its data in the namespace b"sov-test" on Celestia
@@ -24,12 +24,10 @@ risc0_zkvm::guest::entry!(main);
 pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
-    let stf: StfBlueprint<
-        DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, Zk>,
-        Runtime<_>,
-    > = StfBlueprint::new();
+    let stf: StfBlueprint<DefaultSpec<CelestiaSpec, Risc0, MockZkvm, Zk>, Runtime<_>> =
+        StfBlueprint::new();
 
-    let stf_verifier = StfVerifier::<_, _, _, Risc0Guest, MockZkGuest>::new(
+    let stf_verifier = StfVerifier::<_, _, _, _, _>::new(
         stf,
         CelestiaVerifier {
             rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,

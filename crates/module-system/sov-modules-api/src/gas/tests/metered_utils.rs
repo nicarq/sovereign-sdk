@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use sha2::Sha256;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_mock_zkvm::crypto::Ed25519Signature;
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::execution_mode::Native;
 use sov_test_utils::storage::new_finalized_storage;
@@ -14,7 +14,7 @@ use crate::{
     Gas, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
     MeteredSigVerificationError, MeteredSignature, Spec, WorkingSet,
 };
-type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn create_working_set(
     remaining_funds: u64,

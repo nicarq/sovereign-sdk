@@ -3,14 +3,14 @@ use std::str::FromStr;
 use demo_stf::runtime::RuntimeCall;
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 
-type S = DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 #[test]
 fn test_display_tx() {

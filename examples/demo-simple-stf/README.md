@@ -169,7 +169,7 @@ The following test checks the rollup logic. In the test, we call `init_chain, be
 ```rust
 use demo_simple_stf::{ApplySlotResult, CheckHashPreimageStf};
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaSpec, MockValidityCond};
-use sov_mock_zkvm::{MockZkvm, MockZkVerifier};
+use sov_mock_zkvm::MockZkvm;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 
@@ -177,7 +177,7 @@ fn test_stf_success() {
     let address = MockAddress::from([1; 32]);
 
     let stf = &mut CheckHashPreimageStf::<MockValidityCond>::default();
-    StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::init_chain(stf, &Default::default(), &Default::default(), (), ());
+    StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::init_chain(stf, &Default::default(), &Default::default(), (), ());
 
     let mut batch_blobs = {
         let incorrect_preimage = vec![1; 32];
@@ -210,7 +210,7 @@ fn test_stf_success() {
         batch_blobs: &mut batch_blobs,
     };
 
-    let result = StateTransitionFunction::<MockZkVerifier, MockZkVerifier, MockDaSpec>::apply_slot(
+    let result = StateTransitionFunction::<MockZkvm, MockZkvm, MockDaSpec>::apply_slot(
         stf,
         &[],
         (),

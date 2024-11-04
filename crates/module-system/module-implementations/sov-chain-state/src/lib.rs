@@ -9,8 +9,9 @@ mod gas;
 #[cfg(test)]
 mod tests;
 use sov_modules_api::{
-    BootstrapWorkingSet, GenesisState, KernelStateAccessor, ModuleError, ModuleId, ModuleInfo,
-    Spec, StateAccessor, StateReader, StateReaderAndWriter, VersionedStateVec, Zkvm,
+    BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, ModuleError,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateReader, StateReaderAndWriter,
+    VersionedStateVec,
 };
 
 mod genesis;
@@ -264,14 +265,14 @@ pub struct ChainState<S: Spec> {
     /// This value is initialized at genesis and can be used to verify the rollup's execution.
     /// This value is used by the `AttesterIncentives` module to verify challenges of attestations.
     #[state]
-    inner_code_commitment: StateValue<<S::InnerZkvm as Zkvm>::CodeCommitment, BcsCodec>,
+    inner_code_commitment: StateValue<CodeCommitmentFor<S::InnerZkvm>, BcsCodec>,
 
     /// Aggregated code commitment.
     /// This value is initialized at genesis and can be used in the aggregated proving circuit to
     /// verify the rollup execution from genesis to the current slot.
     /// This value is used by the `ProverIncentives` module to verify the proofs posted on the DA layer.
     #[state]
-    outer_code_commitment: StateValue<<S::OuterZkvm as Zkvm>::CodeCommitment, BcsCodec>,
+    outer_code_commitment: StateValue<CodeCommitmentFor<S::OuterZkvm>, BcsCodec>,
 }
 
 impl<S: Spec> ChainState<S> {
@@ -351,10 +352,8 @@ impl<S: Spec> ChainState<S> {
     pub fn inner_code_commitment<Accessor: StateAccessor>(
         &self,
         state: &mut Accessor,
-    ) -> Result<
-        Option<<S::InnerZkvm as Zkvm>::CodeCommitment>,
-        <Accessor as StateReader<User>>::Error,
-    > {
+    ) -> Result<Option<CodeCommitmentFor<S::InnerZkvm>>, <Accessor as StateReader<User>>::Error>
+    {
         self.inner_code_commitment.get(state)
     }
 
@@ -363,10 +362,8 @@ impl<S: Spec> ChainState<S> {
     pub fn outer_code_commitment<Accessor: StateAccessor>(
         &self,
         state: &mut Accessor,
-    ) -> Result<
-        Option<<S::OuterZkvm as Zkvm>::CodeCommitment>,
-        <Accessor as StateReader<User>>::Error,
-    > {
+    ) -> Result<Option<CodeCommitmentFor<S::OuterZkvm>>, <Accessor as StateReader<User>>::Error>
+    {
         self.outer_code_commitment.get(state)
     }
 

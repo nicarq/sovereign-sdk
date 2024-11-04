@@ -11,8 +11,8 @@ use sov_test_utils::MessageGenerator;
 use crate::test_helpers::read_private_keys;
 type S = sov_modules_api::default_spec::DefaultSpec<
     sov_mock_da::MockDaSpec,
-    sov_risc0_adapter::Risc0Verifier,
-    sov_mock_zkvm::MockZkVerifier,
+    sov_risc0_adapter::Risc0,
+    sov_mock_zkvm::MockZkvm,
     WitnessGeneration,
 >;
 

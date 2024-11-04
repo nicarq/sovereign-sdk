@@ -4,12 +4,12 @@ use risc0::MOCK_DA_PATH;
 use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::WitnessGeneration;
 use sov_modules_api::{OperatingMode, SlotData};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0Verifier;
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -26,8 +26,8 @@ use crate::test_helpers::test_genesis_paths;
 
 type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
     sov_mock_da::MockDaSpec,
-    sov_risc0_adapter::Risc0Verifier,
-    sov_mock_zkvm::MockZkVerifier,
+    sov_risc0_adapter::Risc0,
+    sov_mock_zkvm::MockZkvm,
     WitnessGeneration,
 >;
 
@@ -110,8 +110,8 @@ async fn test_proof_generation() {
         );
 
         let data = StateTransitionWitness::<
-            <TestSTF as StateTransitionFunction<Risc0Verifier, MockZkVerifier, MockDaSpec>>::StateRoot,
-            <TestSTF as StateTransitionFunction<Risc0Verifier, MockZkVerifier, MockDaSpec>>::Witness,
+            <TestSTF as StateTransitionFunction<Risc0, MockZkvm, MockDaSpec>>::StateRoot,
+            <TestSTF as StateTransitionFunction<Risc0, MockZkvm, MockDaSpec>>::Witness,
             MockDaSpec,
         > {
             initial_state_root: prev_state_root,

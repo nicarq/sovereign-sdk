@@ -408,7 +408,7 @@ where
 mod test {
     use std::fmt::Debug;
 
-    use sov_mock_zkvm::MockZkVerifier;
+    use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
@@ -420,8 +420,7 @@ mod test {
     use crate::capabilities::mocks::MockKernel;
     use crate::{Spec, StateCheckpoint};
 
-    type TestSpec =
-        crate::default_spec::DefaultSpec<MockDaSpec, MockZkVerifier, MockZkVerifier, Native>;
+    type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
     fn test_state_vec() {

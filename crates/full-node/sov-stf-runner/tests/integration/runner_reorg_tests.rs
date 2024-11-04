@@ -6,7 +6,7 @@ use sov_mock_da::{
     MockAddress, MockBlob, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockValidityCond,
     PlannedFork,
 };
-use sov_mock_zkvm::MockZkVerifier;
+use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{Batch, FullyBakedTx, StateTransitionFunction};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
@@ -19,12 +19,8 @@ use tempfile::TempDir;
 use crate::helpers::hash_stf::{HashStf, S};
 use crate::helpers::runner_init::initialize_runner;
 
-type MockInitVariant = InitVariant<
-    HashStf<MockValidityCond>,
-    MockZkVerifier,
-    MockZkVerifier,
-    DaServiceWithRetries<MockDaService>,
->;
+type MockInitVariant =
+    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_simple_reorg_case() {
@@ -210,8 +206,8 @@ fn get_result_from_blocks(
     let stf = HashStf::<MockValidityCond>::new();
 
     let (genesis_state_root, change_set) = <HashStf<MockValidityCond> as StateTransitionFunction<
-        MockZkVerifier,
-        MockZkVerifier,
+        MockZkvm,
+        MockZkvm,
         MockDaSpec,
     >>::init_chain(
         &stf,
@@ -231,8 +227,8 @@ fn get_result_from_blocks(
 
         let storage = storage_manager.create_storage();
         let result = <HashStf<MockValidityCond> as StateTransitionFunction<
-            MockZkVerifier,
-            MockZkVerifier,
+            MockZkvm,
+            MockZkvm,
             MockDaSpec,
         >>::apply_slot::<&mut [MockBlob]>(
             &stf,

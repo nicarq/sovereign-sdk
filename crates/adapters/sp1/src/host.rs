@@ -79,6 +79,11 @@ impl<'host> SP1Host<'host> {
             stdin: SP1Stdin::new(),
         }
     }
+
+    /// Create a new `Sp1Guest` that reads the provided hints
+    pub fn simulate_with_hints(&mut self) -> SP1Guest {
+        SP1Guest::with_hints(self.stdin.buffer.clone())
+    }
 }
 
 impl<'host> Clone for SP1Host<'host> {
@@ -96,15 +101,16 @@ impl<'host> core::fmt::Debug for SP1Host<'host> {
     }
 }
 
-impl<'host> ZkvmHost for SP1Host<'host> {
+impl ZkvmHost for SP1Host<'static> {
+    type HostArgs = &'static [u8];
     type Guest = SP1Guest;
+
+    fn from_args(args: Self::HostArgs) -> Self {
+        Self::new(args)
+    }
 
     fn add_hint<T: Serialize>(&mut self, item: T) {
         self.stdin.write(&item);
-    }
-
-    fn simulate_with_hints(&mut self) -> Self::Guest {
-        SP1Guest::with_hints(self.stdin.buffer.clone())
     }
 
     fn run(&mut self, with_proof: bool) -> anyhow::Result<Vec<u8>> {
@@ -122,5 +128,10 @@ impl<'host> ZkvmHost for SP1Host<'host> {
             Proof::PublicData(output.0)
         };
         Ok(bincode::serialize(&proof)?)
+    }
+
+    fn code_commitment(&self) -> <<Self::Guest as sov_rollup_interface::zk::ZkvmGuest>::Verifier as sov_rollup_interface::zk::ZkVerifier>::CodeCommitment{
+        let verifying_key = ProverClient::new().setup(self.elf).1;
+        crate::SP1MethodId(bincode::serialize(&verifying_key).unwrap())
     }
 }

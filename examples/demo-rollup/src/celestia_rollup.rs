@@ -7,22 +7,21 @@ use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParam
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
-use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier, MockZkvm};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::default_spec::DefaultSpec;
-use sov_modules_api::execution_mode::{ExecutionMode, Native, Zk};
-use sov_modules_api::{CryptoSpec, OperatingMode, Spec, SyncStatus};
+use sov_modules_api::execution_mode::{ExecutionMode, Native};
+use sov_modules_api::{CryptoSpec, OperatingMode, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlueprint};
-use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint};
+use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, RuntimeEndpoints};
 use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0Verifier;
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::SequencerDb;
-use sov_state::{DefaultStorageSpec, ProverStorage, Storage, ZkStorage};
+use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
 use tokio::sync::watch;
@@ -37,20 +36,17 @@ pub struct CelestiaDemoRollup<M> {
 
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
-    DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M>: PluggableSpec,
+    DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>: PluggableSpec,
     EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M> as Spec>::Address>,
+        TryInto<<DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M> as Spec>::Address>,
 {
-    type Spec = DefaultSpec<CelestiaSpec, Risc0Verifier, MockZkVerifier, M>;
+    type Spec = DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>;
     type Runtime = Runtime<Self::Spec>;
 }
 
 #[async_trait]
 impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     type DaService = DaServiceWithRetries<CelestiaService>;
-
-    type InnerZkvmHost = Risc0Host<'static>;
-    type OuterZkvmHost = MockZkvm;
 
     type StorageManager = NativeStorageManager<
         CelestiaSpec,
@@ -62,12 +58,8 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         <<Self::Spec as Spec>::Storage as Storage>::Root,
         <<Self::Spec as Spec>::Storage as Storage>::Witness,
         Self::DaService,
-        Self::InnerZkvmHost,
-        Self::OuterZkvmHost,
-        StfBlueprint<
-            <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Spec,
-            <CelestiaDemoRollup<Zk> as RollupBlueprint<Zk>>::Runtime,
-        >,
+        <Self::Spec as Spec>::InnerZkvm,
+        <Self::Spec as Spec>::OuterZkvm,
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
@@ -80,7 +72,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     fn create_outer_code_commitment(
         &self,
-    ) -> <<Self::ProverService as ProverService>::Verifier as Zkvm>::CodeCommitment {
+    ) -> <<Self::ProverService as ProverService>::Verifier as ZkVerifier>::CodeCommitment {
         MockCodeCommitment::default()
     }
 
@@ -156,10 +148,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             Risc0Host::new(elf)
         };
 
-        let outer_vm = MockZkvm::new_non_blocking();
-
-        let zk_stf = StfBlueprint::new();
-        let zk_storage = ZkStorage::new();
+        let outer_vm = MockZkvmHost::new_non_blocking();
 
         let da_verifier = CelestiaVerifier {
             rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
@@ -169,10 +158,8 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         ParallelProverService::new_with_default_workers(
             inner_vm,
             outer_vm,
-            zk_stf,
             da_verifier,
             prover_config,
-            zk_storage,
             CodeCommitment::default(),
             rollup_config.proof_manager.prover_address,
         )

@@ -5,7 +5,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
 use sov_db::sequencer_db::SequencerDb;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkvm;
+use sov_mock_zkvm::MockZkvmHost;
 use sov_modules_api::{
     ApiStateAccessor, DaSpec, ProofOutcome, ProofSerializer as _, SerializedAttestation,
     SerializedChallenge, Spec, StateTransitionPublicData,
@@ -286,7 +286,7 @@ pub(crate) fn make_challenge_blob(
     is_valid: bool,
     challenge_slot: u64,
 ) -> Vec<u8> {
-    let serialized_challenge = MockZkvm::create_serialized_proof(is_valid, challenge);
+    let serialized_challenge = MockZkvmHost::create_serialized_proof(is_valid, challenge);
     let serialized_challenge = SerializedChallenge {
         raw_challenge: serialized_challenge,
     };

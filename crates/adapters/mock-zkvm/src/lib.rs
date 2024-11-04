@@ -10,11 +10,11 @@ pub use guest::MockZkGuest;
 #[cfg(feature = "native")]
 mod host;
 #[cfg(feature = "native")]
-pub use host::MockZkvm;
+pub use host::MockZkvmHost;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub mod crypto;
-use sov_rollup_interface::zk::{CryptoSpec, Proof};
+use sov_rollup_interface::zk::{CryptoSpec, Proof, Zkvm};
 
 use crate::crypto::{Ed25519PublicKey, Ed25519Signature};
 
@@ -30,6 +30,17 @@ impl CryptoSpec for MockZkvmCryptoSpec {
     type Signature = Ed25519Signature;
 }
 
+/// A mock zk virtual machine.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MockZkvm;
+
+impl Zkvm for MockZkvm {
+    type Guest = MockZkGuest;
+    type Verifier = MockZkVerifier;
+
+    #[cfg(feature = "native")]
+    type Host = crate::host::MockZkvmHost;
+}
 /// A mock commitment to a particular zkVM program.
 #[derive(
     Debug, Clone, PartialEq, Eq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Default,
@@ -81,7 +92,7 @@ struct Inner {
 #[derive(Default, Clone, Debug, PartialEq, Eq)]
 pub struct MockZkVerifier;
 
-impl sov_rollup_interface::zk::Zkvm for MockZkVerifier {
+impl sov_rollup_interface::zk::ZkVerifier for MockZkVerifier {
     type CodeCommitment = MockCodeCommitment;
 
     type CryptoSpec = MockZkvmCryptoSpec;
@@ -111,7 +122,7 @@ impl sov_rollup_interface::zk::Zkvm for MockZkVerifier {
 
 #[cfg(test)]
 mod tests {
-    use sov_rollup_interface::zk::{CodeCommitment, Zkvm, ZkvmHost};
+    use sov_rollup_interface::zk::{CodeCommitment, ZkVerifier, ZkvmHost};
 
     use super::*;
 
@@ -126,7 +137,7 @@ mod tests {
             hint: "Test".to_owned(),
         };
 
-        let mut vm = MockZkvm::new();
+        let mut vm = MockZkvmHost::new();
         vm.add_hint(&pub_data);
         vm.make_proof();
 
@@ -140,13 +151,13 @@ mod tests {
 
     #[test]
     fn test_proof_serialization() -> anyhow::Result<()> {
-        let proof = MockZkvm::create_serialized_proof(true, "Valid");
+        let proof = MockZkvmHost::create_serialized_proof(true, "Valid");
         let verified_pub_data =
             MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default());
 
         assert!(verified_pub_data.is_ok());
 
-        let proof = MockZkvm::create_serialized_proof(false, "Invalid");
+        let proof = MockZkvmHost::create_serialized_proof(false, "Invalid");
         let verified_pub_data =
             MockZkVerifier::verify::<TestPublicData>(&proof, &Default::default());
 
