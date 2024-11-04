@@ -142,8 +142,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<usize>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
 {
     fn vec(&self) -> NamespacedStateVec<N, T, Codec> {
         NamespacedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
@@ -162,7 +162,7 @@ where
     async fn get_state_vec_item_route(
         state: State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-        Path(item_index): Path<usize>,
+        Path(item_index): Path<u64>,
     ) -> ApiResult<StateItemContents<T, T>> {
         let state_vec = state.vec();
 
@@ -187,8 +187,8 @@ where
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
     T: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
-    Codec::KeyCodec: StateItemCodec<usize>,
-    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<usize>,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
