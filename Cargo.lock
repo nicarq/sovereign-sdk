@@ -7281,6 +7281,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rest-api-load-testing"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "reqwest 0.12.5",
+ "tokio",
+]
+
+[[package]]
 name = "retain_mut"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9805,6 +9814,13 @@ dependencies = [
  "tracing",
  "tracing-panic",
  "tracing-subscriber 0.3.18",
+]
+
+[[package]]
+name = "sov-demo-rollup-rest-api-load-testing"
+version = "0.3.0"
+dependencies = [
+ "rest-api-load-testing",
 ]
 
 [[package]]
