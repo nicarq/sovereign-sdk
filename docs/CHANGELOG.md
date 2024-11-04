@@ -1,3 +1,7 @@
+## 2024-11-04
+- #1800 Removed the `CliWalletArg` macro, removing support for parsing call messages directly as CLI arguments (for instance, in `sov-cli`). CLI utilities wishing to accept callmessages on the command line should accept a JSON string instead.
+The `CliWalletArg` derives should be deleted on all module callmessages, as the macro no longer exists.
+
 ## 2024-10-31
 - #1795 Adds a new `cors` field to the `runner.[rpc|axum]_config` section of the rollup configuration file, which can be used to disable CORS with `"disabled"`. `fn register_endpoints` now requires the entire `rollup_config` as a parameter.
 ## 2024-10-30

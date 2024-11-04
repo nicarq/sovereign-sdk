@@ -6,10 +6,8 @@
 #[cfg_attr(
     feature = "native",
     derive(schemars::JsonSchema),
-    derive(crate::macros::CliWalletArg),
     derive(crate::macros::UniversalWallet),
     universal_wallet(sov_modules_api_path = crate),
-    cli_wallet_arg(sov_modules_api_path = crate)
 )]
 #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
 pub enum NotInstantiable {}

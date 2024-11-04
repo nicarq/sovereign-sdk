@@ -149,9 +149,6 @@ use offchain::offchain_generator;
 use proc_macro::TokenStream;
 use syn::{parse_macro_input, DeriveInput, ItemFn};
 
-#[cfg(feature = "native")]
-use crate::common::get_derived_struct_subattr;
-
 // Inputs to the [`config_value`](crate::config_value) proc-macro.
 /// Returns the name of the function that invoked the proc-macro.
 // Shamelessly copy-pasted from <https://stackoverflow.com/a/40234666/5148606>.
@@ -306,25 +303,6 @@ pub fn module_metadata_rest_api(input: TokenStream) -> TokenStream {
 pub fn cli_parser(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet("Cmd", input))
-}
-
-#[cfg(feature = "native")]
-#[proc_macro_derive(CliWalletArg, attributes(cli_wallet_arg))]
-pub fn custom_enum_clap(input: TokenStream) -> TokenStream {
-    let input: syn::DeriveInput = parse_macro_input!(input);
-
-    handle_macro_error_and_expand(
-        fn_name!(),
-        get_derived_struct_subattr::<syn::TypePath>(
-            &input,
-            "cli_wallet_arg",
-            "sov_modules_api_path",
-            syn::parse_quote! { sov_modules_api },
-        )
-        .and_then(|path_to_sov_modules_api| {
-            cli_parser::derive_cli_wallet_arg(input, &path_to_sov_modules_api)
-        }),
-    )
 }
 
 #[proc_macro_attribute]

@@ -315,16 +315,6 @@ where
     Ok(sorted_values)
 }
 
-/// This trait is implemented by types that can be used as arguments in the sov-cli wallet.
-/// The recommended way to implement this trait is using the provided derive macro (`#[derive(CliWalletArg)]`).
-/// Currently, this trait is a thin wrapper around [`clap::Parser`]
-#[cfg(feature = "native")]
-pub trait CliWalletArg: From<Self::CliStringRepr> {
-    /// The type that is used to represent this type in the CLI. Typically,
-    /// this type implements the clap::Subcommand trait.
-    type CliStringRepr;
-}
-
 /// A trait that needs to be implemented for a *runtime* to be used with the CLI wallet
 #[cfg(feature = "native")]
 pub trait CliWallet: DispatchCall {

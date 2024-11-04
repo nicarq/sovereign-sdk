@@ -1,4 +1,4 @@
-mod cli_wallet_arg;
+// mod cli_wallet_arg;
 mod custom_state_codec_builder;
 mod derive_wallet;
 mod dispatch;

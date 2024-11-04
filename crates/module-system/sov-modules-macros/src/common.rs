@@ -4,7 +4,7 @@ use quote::{format_ident, ToTokens};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::token::Comma;
-use syn::{DataStruct, Fields, GenericParam, ImplGenerics, Meta, TypeGenerics, Visibility};
+use syn::{DataStruct, GenericParam, ImplGenerics, Meta, TypeGenerics, Visibility};
 
 #[derive(Clone)]
 pub(crate) struct StructNamedField {
@@ -15,14 +15,6 @@ pub(crate) struct StructNamedField {
 }
 
 impl StructNamedField {
-    #[cfg_attr(not(feature = "native"), allow(unused))]
-    pub(crate) fn filter_attrs(&mut self, filter: impl FnMut(&syn::Attribute) -> bool) {
-        self.attrs = std::mem::take(&mut self.attrs)
-            .into_iter()
-            .filter(filter)
-            .collect();
-    }
-
     #[cfg_attr(not(feature = "native"), allow(unused))]
     pub(crate) fn contains_attr(&self, attr_ident: &str) -> bool {
         self.attrs
@@ -68,59 +60,6 @@ impl StructFieldExtractor {
                 un.union_token,
                 format!("The {} macro supports structs only.", self.macro_name),
             )),
-        }
-    }
-
-    /// Extract the named fields from a struct, or generate named fields matching the fields of an unnamed struct.
-    /// Names follow the pattern `field0`, `field1`, etc..
-    ///
-    /// The `public` parameter, if set, makes it so the generated fields are
-    /// public; if not, the parent visibility is used.
-    #[cfg_attr(not(feature = "native"), allow(unused))]
-    pub(crate) fn get_or_generate_named_fields(
-        fields: &Fields,
-        public: bool,
-    ) -> Vec<StructNamedField> {
-        match fields {
-            Fields::Unnamed(unnamed_fields) => unnamed_fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .map(|(i, field)| {
-                    let ident = Ident::new(&format!("field{}", i), field.span());
-                    let ty = &field.ty;
-                    let vis = if public {
-                        Visibility::Public(Default::default())
-                    } else {
-                        field.vis.clone()
-                    };
-                    StructNamedField {
-                        attrs: field.attrs.clone(),
-                        vis,
-                        ident,
-                        ty: ty.clone(),
-                    }
-                })
-                .collect::<Vec<_>>(),
-            Fields::Named(fields_named) => fields_named
-                .named
-                .iter()
-                .map(|field| {
-                    let ty = &field.ty;
-                    let vis = if public {
-                        Visibility::Public(Default::default())
-                    } else {
-                        field.vis.clone()
-                    };
-                    StructNamedField {
-                        attrs: field.attrs.clone(),
-                        vis,
-                        ident: field.ident.clone().expect("Named fields must have names!"),
-                        ty: ty.clone(),
-                    }
-                })
-                .collect::<Vec<_>>(),
-            Fields::Unit => Vec::new(),
         }
     }
 
