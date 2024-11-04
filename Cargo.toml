@@ -14,6 +14,7 @@ members = [
     "examples/demo-simple-stf",
     "examples/demo-rollup",
     "examples/demo-rollup/testing-harness",
+    "examples/demo-rollup/rest-api-load-testing",
     "examples/demo-rollup/stf/demo-stf-json-client",
     "examples/simple-nft-module",
     # Full Node
@@ -29,6 +30,7 @@ members = [
     # Utils
     "crates/utils/sov-rest-utils",
     "crates/utils/test-harness",
+    "crates/utils/rest-api-load-testing",
     # Module System
     "crates/module-system/sov-cli",
     "crates/module-system/sov-modules-stf-blueprint",
@@ -131,6 +133,7 @@ sov-modules-stf-blueprint = { path = "crates/module-system/sov-modules-stf-bluep
 sov-test-utils = { path = "crates/module-system/sov-test-utils", default-features = false, version = "0.3" }
 sov-db = { path = "crates/full-node/sov-db", default-features = false, version = "0.3" }
 sov-test-harness = { path = "crates/utils/test-harness" }
+rest-api-load-testing = { path = "crates/utils/rest-api-load-testing" }
 sov-universal-wallet = { path = "crates/rollup-interface/universal-wallet/schema" }
 sov-universal-wallet-macros = { path = "crates/rollup-interface/universal-wallet/macros" }
 sov-universal-wallet-macro-helpers = { path = "crates/rollup-interface/universal-wallet/macro-helpers" }
