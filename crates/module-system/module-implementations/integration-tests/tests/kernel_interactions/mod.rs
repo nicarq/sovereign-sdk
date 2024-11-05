@@ -12,8 +12,10 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::traits::MinimalGenesis;
 use sov_test_utils::TestUser;
 
-mod basic_kernel;
-mod soft_confirmations;
+mod visible_hash_basic_kernel;
+mod visible_hash_soft_confirmations;
+
+mod gas_price_soft_confirmations;
 
 type S = sov_test_utils::TestSpec;
 

@@ -3,7 +3,7 @@ use sov_modules_api::{Spec, Storage};
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::{generate_bare_runtime, impl_standard_runtime_authenticator};
 
-use crate::visible_hash::{
+use crate::kernel_interactions::{
     last_state_root_closure, FinalizeHook, HighLevelOptimisticGenesisConfig, TestClosureArgs,
     TestUser, TestVisibleHashModule, S,
 };

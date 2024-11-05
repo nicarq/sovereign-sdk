@@ -209,6 +209,11 @@ impl<S: Spec> SlotInformation<S> {
     pub const fn hash(&self) -> &<<S as Spec>::Da as DaSpec>::SlotHash {
         &self.hash
     }
+
+    /// Returns the gas info of the transition.
+    pub fn gas_info(&self) -> &BlockGasInfo<S::Gas> {
+        &self.gas_info
+    }
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
@@ -394,10 +399,19 @@ impl<S: Spec> ChainState<S> {
     /// Returns the root hash of the state at the provided height.
     pub fn root_at_height<Accessor: VersionReader>(
         &self,
-        transition_num: TransitionHeight,
+        rollup_height: TransitionHeight,
         state: &mut Accessor,
     ) -> Result<Option<<S::Storage as Storage>::Root>, Accessor::Error> {
-        self.state_roots.get(transition_num, state)
+        self.state_roots.get(rollup_height, state)
+    }
+
+    /// Returns the slot information from the state at the provided height.
+    pub fn slot_at_height<Accessor: VersionReader>(
+        &self,
+        rollup_height: TransitionHeight,
+        state: &mut Accessor,
+    ) -> Result<Option<SlotInformation<S>>, Accessor::Error> {
+        self.slots.get(rollup_height, state)
     }
 
     /// Returns the completed transition associated with the provided `transition_num`.

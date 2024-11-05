@@ -49,7 +49,11 @@ impl<S: Spec> ChainState<S> {
         self.state_roots.push(pre_state_root, state);
 
         // There may not be a previous slot if the slot comes right after the genesis block
-        let maybe_previous_slot = self.slots.last_entry_from_previous_slot(state);
+        // We first extend the slot map because we are going to read from it before we set it.
+        let maybe_previous_slot = self
+            .slots
+            .get(state.visible_rollup_height(), state)
+            .unwrap_infallible();
 
         // We compute the base fee per gas from the previous slot if it exists
         let base_fee_per_gas = maybe_previous_slot
@@ -115,15 +119,15 @@ impl<S: Spec> ChainState<S> {
         }
 
         Ok(
-            if let Some(in_progress_transition) = self.slots.get(height, state)? {
-                Some(in_progress_transition.gas_info.base_fee_per_gas)
+            if let Some(slot_information) = self.slots.get(height, state)? {
+                Some(slot_information.gas_info.base_fee_per_gas)
             } else {
                 None
             },
         )
     }
 
-    /// Returns the base fee per gas accessible at the current *virtual* slot.
+    /// Returns the base fee per gas accessible at the current slot accessible from the version reader.
     /// This value is safe to be used in the transaction execution context.
     ///
     /// ## Note

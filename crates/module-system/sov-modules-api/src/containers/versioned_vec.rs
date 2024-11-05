@@ -9,7 +9,7 @@ use thiserror::Error;
 use unwrap_infallible::UnwrapInfallible;
 
 use super::map::NamespacedStateMap;
-use super::VersionedStateValue;
+use super::{KernelStateValue, VersionedStateValue};
 use crate::{
     InfallibleStateReaderAndWriter, KernelStateAccessor, KernelWriter, StateReader, VersionReader,
 };
@@ -38,6 +38,8 @@ pub struct VersionedStateVec<V, Codec = BorshCodec> {
     _phantom: PhantomData<V>,
     pub(crate) prefix: Prefix,
     pub(crate) len_value: VersionedStateValue<u64, Codec>,
+    // The maximum length index is used to determine the maximum index at which the `len_value` map is defined.
+    pub(crate) max_len_index: KernelStateValue<u64, Codec>,
     pub(crate) elems: NamespacedStateMap<Kernel, u64, V, Codec>,
 }
 
@@ -78,11 +80,13 @@ where
         // details of `StateValue` and `StateMap` as they both have the right to
         // reserve the whole key space for themselves.
         let len_value = VersionedStateValue::with_codec(prefix.extended(b"l"), codec.clone());
-        let elems = NamespacedStateMap::with_codec(prefix.extended(b"e"), codec);
+        let elems = NamespacedStateMap::with_codec(prefix.extended(b"e"), codec.clone());
+        let max_len_index = KernelStateValue::with_codec(prefix.extended(b"m"), codec);
         Self {
             _phantom: PhantomData,
             prefix,
             len_value,
+            max_len_index,
             elems,
         }
     }
@@ -150,6 +154,12 @@ where
     }
 
     /// Returns the current length of the vector. Ie, the length of the vector at the version visible from the accessor.
+    ///
+    /// ## Note
+    /// If the current height to access is greater than the maximum length stored in `len_value`, we will return
+    /// `len_value[max_len_index]` instead of `None`. This is safe to do because the [`VersionedStateVec`] is an _append-only_ data structure,
+    /// and hence querying the values at indexes below `len_value[max_len_index]` will always return the same value for future heights.
+    /// Also note that if the current height to access is less than `max_len_index`, we will naturally return `len_value[max_len_index]`.
     pub fn len<Reader: VersionReader>(
         &self,
         state: &mut Reader,
@@ -157,25 +167,24 @@ where
     where
         Codec::KeyCodec: StateItemCodec<u64>,
     {
-        Ok(self.len_value().get_current(state)?.expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!"))
-    }
+        if let Some(len_index) = self.max_len_index.get(state)? {
+            // If the current height to access is greater than the maximum length index, we can use the length at the maximum length index.
+            // Otherwise, we can use the length at the current height to access.
+            if state.rollup_height_to_access() > len_index {
+                return Ok(self
+                    .len_value()
+                    .get(&len_index, state)?
+                    .expect("The length should always be defined at the maximum length index"));
+            } else {
+                return Ok(self.len_value().get_current(state)?.expect("All the values of the vector located at indexes below `max_len_index` should be defined"));
+            }
+        }
 
-    /// Returns the previous length of the vector. Ie, the length of the vector at the version immediately before the one visible from the accessor.
-    /// This only works with accessors following the `true_rollup_height`.
-    pub fn prev_len<Accessor: KernelWriter + VersionReader<Error = Infallible>>(
-        &self,
-        state: &mut Accessor,
-    ) -> u64
-    where
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
-        self.len_value().get(&(state.rollup_height_to_access().saturating_sub(1)), state).unwrap_infallible().expect("There should always be a length set. The vector may not have been initialized, this is a bug and it would break soft-confirmations!")
+        // If the `max_len_index` is not set, this means that the vector is empty.
+        Ok(0)
     }
 
     /// Pushes a value to the end of the vector. This operation should be performed by a [`KernelStateAccessor`].
-    ///
-    /// ## Warning
-    /// If used within the module system, this method may break soft-confirmations
     pub fn push<Vq, Accessor: KernelWriter + VersionReader<Error = Infallible>>(
         &self,
         value: &Vq,
@@ -184,23 +193,13 @@ where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
     {
-        let len = self.prev_len(state);
-
+        let len = self.len(state).unwrap_infallible();
         self.elems().set(&len, value, state).unwrap_infallible();
         self.set_true_len(len + 1, state);
-    }
 
-    /// Returns the previous last value in the vector at the true height.
-    pub fn last_entry_from_previous_slot<S: Storage>(
-        &self,
-        state: &mut KernelStateAccessor<'_, S>,
-    ) -> Option<V> {
-        let len = self.prev_len(state);
-        let i = match len.checked_sub(1) {
-            Some(i) => i,
-            None => return None,
-        };
-        self.elems().get(&i, state).unwrap_infallible()
+        self.max_len_index
+            .set(&state.true_rollup_height(), state)
+            .unwrap_infallible();
     }
 
     /// Returns the last value in the vector at the version visible from the accessor, or [`None`] if
@@ -210,6 +209,7 @@ where
         state: &mut VersionedState,
     ) -> Result<Option<V>, VersionedState::Error> {
         let len = self.len(state)?;
+
         let i = match len.checked_sub(1) {
             Some(i) => i,
             None => return Ok(None),
@@ -228,7 +228,7 @@ where
         Vq: ?Sized,
         Codec::ValueCodec: EncodeLike<Vq, V>,
     {
-        let len = self.len(state).unwrap_infallible();
+        let len = self.len(state)?;
         let i = match len.checked_sub(1) {
             Some(i) => i,
             None => anyhow::bail!("Vector is empty, impossible to set last element!"),
@@ -240,9 +240,6 @@ where
     }
 
     /// Returns an iterator over all the values in the vector.
-    ///
-    /// ## Note
-    /// The vector will have a length equal to the `length` at the version visible from the accessor.
     pub fn iter<'a, 'ws, W>(
         &'a self,
         state: &'ws mut W,
@@ -386,7 +383,7 @@ mod test {
         state_vec.initialize(&mut kernel.accessor(&mut state));
 
         let mut kernel = MockKernel::<TestSpec>::default();
-        kernel.true_rollup_height = 1;
+        kernel.true_rollup_height = 0;
 
         test_cases().into_iter().for_each(|test_case_action| {
             check_test_case_action(&state_vec, test_case_action, &mut kernel, &mut state);
@@ -395,8 +392,10 @@ mod test {
 
     #[derive(Debug)]
     enum TestCaseAction<T> {
+        ExtendAndPush(T),
         Push(T),
         Last(T),
+        SetLast(T),
         CheckLen(u64),
         CheckContents(Vec<T>),
         CheckContentsReverse(Vec<T>),
@@ -416,15 +415,15 @@ mod test {
         vec![
             TestCaseAction::CheckLen(0),
             TestCaseAction::CheckContents(vec![]),
-            TestCaseAction::Push(1),
+            TestCaseAction::ExtendAndPush(1),
             TestCaseAction::CheckHeights {
-                true_slot_num: 2,
+                true_slot_num: 1,
                 virtual_slot_num: 0,
             },
             TestCaseAction::CheckLen(0),
-            TestCaseAction::Push(2),
+            TestCaseAction::ExtendAndPush(2),
             TestCaseAction::CheckHeights {
-                true_slot_num: 3,
+                true_slot_num: 2,
                 virtual_slot_num: 0,
             },
             TestCaseAction::CheckLen(0),
@@ -433,7 +432,7 @@ mod test {
             TestCaseAction::CheckGet(1, None),
             TestCaseAction::IncreaseVirtualHeight,
             TestCaseAction::CheckHeights {
-                true_slot_num: 3,
+                true_slot_num: 2,
                 virtual_slot_num: 1,
             },
             TestCaseAction::CheckContents(vec![1]),
@@ -441,9 +440,9 @@ mod test {
             TestCaseAction::IncreaseVirtualHeight,
             TestCaseAction::CheckContents(vec![1, 2]),
             TestCaseAction::CheckLen(2),
-            TestCaseAction::Push(8),
+            TestCaseAction::ExtendAndPush(8),
             TestCaseAction::CheckHeights {
-                true_slot_num: 4,
+                true_slot_num: 3,
                 virtual_slot_num: 2,
             },
             TestCaseAction::CheckContents(vec![1, 2]),
@@ -453,14 +452,14 @@ mod test {
             TestCaseAction::CheckLen(3),
             TestCaseAction::CheckGet(0, Some(1)),
             TestCaseAction::CheckGet(2, Some(8)),
-            TestCaseAction::Push(8),
-            TestCaseAction::Push(0),
+            TestCaseAction::ExtendAndPush(8),
+            TestCaseAction::ExtendAndPush(0),
             TestCaseAction::CheckContents(vec![1, 2, 8]),
             TestCaseAction::CheckContentsReverse(vec![8, 2, 1]),
             TestCaseAction::Last(8),
             TestCaseAction::CheckGet(4, None),
             TestCaseAction::CheckHeights {
-                true_slot_num: 6,
+                true_slot_num: 5,
                 virtual_slot_num: 3,
             },
             TestCaseAction::CheckLen(3),
@@ -470,6 +469,12 @@ mod test {
             TestCaseAction::Last(0),
             TestCaseAction::CheckContentsReverse(vec![0, 8, 8, 2, 1]),
             TestCaseAction::CheckLen(5),
+            TestCaseAction::Push(10),
+            TestCaseAction::Push(15),
+            TestCaseAction::CheckLen(7),
+            TestCaseAction::CheckContents(vec![1, 2, 8, 8, 0, 10, 15]),
+            TestCaseAction::SetLast(11),
+            TestCaseAction::CheckContents(vec![1, 2, 8, 8, 0, 10, 11]),
         ]
     }
 
@@ -493,10 +498,14 @@ mod test {
                 let actual = state_vec.len(state).unwrap_infallible();
                 assert_eq!(actual, expected);
             }
+            TestCaseAction::ExtendAndPush(value) => {
+                kernel.true_rollup_height += 1;
+                let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
+                state_vec.push(&value, state);
+            }
             TestCaseAction::Push(value) => {
                 let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
                 state_vec.push(&value, state);
-                kernel.true_rollup_height += 1;
             }
             TestCaseAction::CheckGet(index, expected) => {
                 let actual = state_vec.get(index, state).unwrap_infallible();
@@ -505,6 +514,10 @@ mod test {
             TestCaseAction::Last(expected) => {
                 let actual = state_vec.last(state).unwrap_infallible();
                 assert_eq!(actual, Some(expected));
+            }
+            TestCaseAction::SetLast(value) => {
+                let state = &mut KernelStateAccessor::from_checkpoint(kernel, state);
+                state_vec.set_last(&value, state).unwrap();
             }
             TestCaseAction::CheckContentsReverse(expected) => {
                 let mut contents = state_vec.collect_infallible::<Vec<T>, _>(state);
