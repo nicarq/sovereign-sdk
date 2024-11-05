@@ -84,5 +84,5 @@ arbitrary = [
 	"sov-mock-da/arbitrary",
 	"sov-bank/arbitrary",
 	"sov-test-utils/arbitrary",
-	"sov-paymaster/arbitrary"
+	"sov-paymaster/arbitrary",
 ]

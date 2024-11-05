@@ -51,6 +51,7 @@ sov-prover-incentives = { workspace = true }
 sov-risc0-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-sp1-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-rollup-interface = { workspace = true, features = ["native", "arbitrary"] }
+indexmap = "2"
 
 [dev-dependencies]
 arbitrary = { workspace = true }

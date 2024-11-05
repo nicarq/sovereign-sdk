@@ -4,6 +4,7 @@ mod get_message_senders;
 pub mod interface;
 mod message_sender;
 mod prover_incentives;
+mod transaction_generator;
 mod utils;
 
 pub use self::bank::{TokenCreationMessageGenerator, TokenTransferMessageGenerator};
