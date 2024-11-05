@@ -10545,6 +10545,7 @@ dependencies = [
  "derive_more 1.0.0",
  "futures",
  "hex",
+ "indexmap 2.5.0",
  "rand 0.8.5",
  "serde",
  "serde_json",

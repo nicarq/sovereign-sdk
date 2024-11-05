@@ -5,10 +5,10 @@ use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 /// Generates a value at random from the provided input. This value will be uniformly random
 /// if the input byte stream is random.
 pub trait RandomUniform: Clone + Sized + Sub<Output = Self> + Add<Output = Self> {
-    /// Select a value in range 0..max uniformly at random.
+    /// Select a value in range 0..max uniformly at random. Panics if the max value is zero.
     fn less_than(max: &Self, u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self>;
 
-    /// Pick a value in the provided range uniformly at random
+    /// Pick a value in the provided range uniformly at random. Panics if the range is empty.
     fn in_range(
         range: std::ops::Range<Self>,
         u: &mut arbitrary::Unstructured<'_>,
@@ -25,6 +25,7 @@ macro_rules! impl_random_uniform_for_uint {
                 max: &Self,
                 u: &mut arbitrary::Unstructured<'_>,
             ) -> arbitrary::Result<Self> {
+                assert!(*max != 0, "Cannot generate a value less than zero");
                 // Say our max value is 10 (0b1010). This has 60 leading zeros. To compute the appropriate
                 // bitmask, we take 0b1111 1111 1111 1111 ...  and shift right by that number of leading zeros.
                 // That yields 0b0000 ... 0000 1111.
