@@ -23,7 +23,8 @@ macro_rules! generate_bare_runtime {
             ::sov_modules_api::DispatchCall,
             ::sov_modules_api::Event,
             ::sov_modules_api::MessageCodec,
-            ::sov_modules_api::macros::CliWallet
+            ::sov_modules_api::macros::CliWallet,
+            ::sov_modules_api::macros::RuntimeRestApi,
         )]
         pub struct $id<S: ::sov_modules_api::Spec> {
             /// The sequencer registry module.

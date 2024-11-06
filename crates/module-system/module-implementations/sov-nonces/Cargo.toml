@@ -43,4 +43,5 @@ native = [
 	"sov-state/native",
 	"sov-value-setter/native",
 	"sov-modules-stf-blueprint/native",
+	"sov-test-utils/native"
 ]

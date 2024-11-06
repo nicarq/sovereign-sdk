@@ -48,4 +48,5 @@ native = [
 	"sov-state/native",
 	"sov-value-setter/native",
 	"sov-bank/native",
+	"sov-test-utils/native"
 ]

@@ -37,4 +37,5 @@ native = [
 	"sov-modules-api/native",
 	"sov-value-setter/native",
 	"sov-state/native",
+	"sov-test-utils/native"
 ]

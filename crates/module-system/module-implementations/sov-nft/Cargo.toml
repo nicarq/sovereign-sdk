@@ -34,4 +34,9 @@ sov-test-utils = { workspace = true }
 [features]
 default = []
 offchain = ["postgres", "sov-nft/offchain", "tokio", "tracing"]
-native = ["sov-modules-api/native", "sov-nft/native", "sov-state/native"]
+native = [
+	"sov-modules-api/native",
+	"sov-nft/native",
+	"sov-state/native",
+	"sov-test-utils/native"
+]
