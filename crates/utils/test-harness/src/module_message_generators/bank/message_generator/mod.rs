@@ -1,49 +1,81 @@
 use std::marker::PhantomData;
 
-use sov_bank::{Coins, TokenId};
+use indexmap::IndexSet;
+use sov_bank::{CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
-use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::{CryptoSpec, Spec};
+use strum::VariantArray;
 use tracing::warn;
+mod mint;
 mod transfer;
 
+use crate::interface::Distribution;
 use crate::module_message_generators::interface::{
-    CallMessageGenerator, GeneratedMessage, GeneratorState, MessageValidity, Percent, RandomUniform,
+    CallMessageGenerator, GeneratedMessage, GeneratorState, MessageValidity, Percent, PickRandomMut,
 };
+
+pub const MESSAGES: &[sov_bank::CallMessageDiscriminants] =
+    sov_bank::CallMessageDiscriminants::VARIANTS;
 
 /// A generator for bank call messages.
 pub struct BankMessageGenerator<S> {
-    // The fraction of each callmessage type to generate.
-    // These percentages must sum to 100.
-    percent_mint: Percent,
-    percent_transfer: Percent,
-    percent_create_token: Percent,
-    percent_freeze: Percent,
-
+    message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
     // The fraction of valid messages that should create a new address. This may be
-    // any valid between 0 and 100.
+    // any valid percent from 0 to 100 (inclusive).
     address_creation_rate: Percent,
-
     phantom: PhantomData<S>,
 }
 
-impl<S> BankMessageGenerator<S> {
+impl<S: Spec> BankMessageGenerator<S> {
     pub fn new(
-        percent_mint: Percent,
-        percent_transfer: Percent,
-        percent_create_token: Percent,
-        percent_freeze: Percent,
+        message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
         address_creation_rate: Percent,
     ) -> Self {
-        assert!(percent_mint + percent_transfer + percent_create_token + percent_freeze == 100);
-
         Self {
-            percent_mint,
-            percent_transfer,
-            percent_create_token,
-            percent_freeze,
+            message_distribution,
             address_creation_rate,
             phantom: PhantomData,
+        }
+    }
+
+    /// Performs callmessage generation, falling back to variants that are more likely to succeed with limited state
+    fn do_generation_with_fallback(
+        &self,
+        message_type: CallMessageDiscriminants,
+        rollup_state_accessor: &(),
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        validity: MessageValidity,
+    ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
+        match message_type {
+            CallMessageDiscriminants::Transfer => {
+                match self
+                    .generate_transfer(u, rollup_state_accessor, generator_state, validity)
+                    .try_to_arbitrary()
+                {
+                    Ok(transfer_result) => Ok(transfer_result?),
+                    Err(e) => {
+                        warn!(
+                            "Failed to generate transfer: {:?}. Generating mint instead",
+                            e
+                        );
+                        self.do_generation_with_fallback(
+                            CallMessageDiscriminants::Mint,
+                            rollup_state_accessor,
+                            u,
+                            generator_state,
+                            validity,
+                        )
+                    }
+                }
+            }
+            CallMessageDiscriminants::CreateToken => todo!(),
+            CallMessageDiscriminants::Burn => todo!(),
+            CallMessageDiscriminants::Mint => {
+                // TODO: Mint should fall back to create token
+                self.generate_mint(u, rollup_state_accessor, generator_state, validity)
+            }
+            CallMessageDiscriminants::Freeze => todo!(),
         }
     }
 }
@@ -72,6 +104,8 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
     type AccountView = BankAccount<S>;
 
+    type Tag = Tag;
+
     type RollupStateReader = ();
 
     type ChangelogEntry = BankChangeLogEntry<S>;
@@ -80,27 +114,23 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         rollup_state_accessor: &Self::RollupStateReader,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag: From<Self::Tag>,
+        >,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>> {
-        let kind = Percent::arbitrary(u)?;
-        if kind < self.percent_transfer {
-            match self
-                .generate_transfer(u, rollup_state_accessor, generator_state, validity)
-                .try_to_arbitrary()
-            {
-                Ok(transfer_result) => transfer_result,
-                Err(e) => {
-                    warn!(
-                        "Failed to generate transfer: {:?}. Generating mint instead",
-                        e
-                    );
-                    todo!()
-                }
-            }
-        } else {
-            todo!()
-        }
+        let message = *self.message_distribution.select_value(u)?;
+        self.do_generation_with_fallback(
+            message,
+            rollup_state_accessor,
+            u,
+            generator_state,
+            validity,
+        )
+        .try_to_arbitrary()
+        .expect("Could not generate bank callmessage")
     }
 
     fn assert_full_state(
@@ -120,10 +150,18 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     }
 }
 
+/// A tag used for indexing by the bank message generator
+#[derive(PartialEq, Eq, Hash)]
+pub enum Tag {
+    HasBalance,
+    CanMint,
+}
 /// The view of an account used by the bank message generator
+#[derive(Clone)]
 pub struct BankAccount<S: Spec> {
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     pub balances: Vec<Coins>,
+    pub can_mint: IndexSet<TokenId>,
 }
 
 impl<S: Spec> BankAccount<S> {
@@ -133,6 +171,24 @@ impl<S: Spec> BankAccount<S> {
         let balance = self.find_or_insert(token_id);
         balance.amount += amount;
         balance.amount
+    }
+
+    /// Find the balance of the given token
+    pub fn balance_of(&self, token_id: TokenId) -> u64 {
+        self.balances
+            .iter()
+            .find(|balance| balance.token_id == token_id)
+            .map(|coins| coins.amount)
+            .unwrap_or(0)
+    }
+
+    /// The maximum amount of the given token that can be received without overflowing
+    pub fn receivable_balance(&self, token_id: TokenId) -> u64 {
+        self.balances
+            .iter()
+            .find(|balance| balance.token_id == token_id)
+            .map(|coins| u64::MAX - coins.amount)
+            .unwrap_or(u64::MAX)
     }
 
     /// Decrements the old balance in place, removing the entry if the balance is drained. Returns a copy of the new balance
@@ -171,8 +227,7 @@ impl<S: Spec> BankAccount<S> {
         if self.balances.is_empty() {
             return Ok(None);
         }
-        let idx = usize::less_than(&self.balances.len(), u)?;
-        Ok(self.balances.get_mut(idx))
+        Ok(Some(self.balances.random_entry_mut(u)?))
     }
 
     /// Return a reference to the balances entry for the given token, creating one
@@ -214,6 +269,15 @@ enum InternalMessageGenError {
     // a create or mint token message.
     #[error("Could not find an account with balance to transfer")]
     NoAccountWithBalance,
+    /// An invalid mint could not be generated because no account without appropriate permissions could be found
+    #[error("Could not find an account that is *not* authorized to mint")]
+    NoNonMintingAccounts,
+    /// A mint could not be generated because no account without appropriate permissions could be found
+    #[error("Could not find an account that is authorized to mint")]
+    NoMintingAccounts,
+    /// A mint could not be generated because no account could receive the token
+    #[error("Could not find an account can receive {0}")]
+    NoAccountsCanReceive(Coins),
 }
 
 type InternalMessageGenResult<T, E = InternalMessageGenError> = Result<T, E>;

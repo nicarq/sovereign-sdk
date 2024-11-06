@@ -3676,6 +3676,7 @@ dependencies = [
  "serde",
  "sov-modules-api",
  "sov-state",
+ "strum",
  "thiserror",
  "tracing",
 ]

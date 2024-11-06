@@ -27,6 +27,7 @@ derive-getters = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
+rand_chacha = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 strum = { version = "0.26", features = ["derive"] }
@@ -55,3 +56,4 @@ indexmap = "2"
 
 [dev-dependencies]
 arbitrary = { workspace = true }
+sov-test-utils = { workspace = true }
