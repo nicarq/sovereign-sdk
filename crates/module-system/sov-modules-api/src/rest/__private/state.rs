@@ -19,7 +19,7 @@ use axum::routing::get;
 use serde::Serialize;
 use sov_rest_utils::errors::not_found_404;
 use sov_rest_utils::{ApiResult, ErrorObject, Path, Query};
-use sov_state::{CompileTimeNamespace, StateCodec, StateItemCodec};
+use sov_state::{CompileTimeNamespace, Kernel, Namespace, StateCodec, StateItemCodec};
 use unwrap_infallible::UnwrapInfallible;
 
 use super::types::StateItemContents;
@@ -28,7 +28,7 @@ use crate::map::NamespacedStateMap;
 use crate::rest::{json_obj, StatusCode};
 use crate::value::NamespacedStateValue;
 use crate::vec::NamespacedStateVec;
-use crate::{ApiStateAccessor, Module, StateReader};
+use crate::{ApiStateAccessor, Module, StateReader, VersionedStateValue, VersionedStateVec};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -240,6 +240,90 @@ where
     }
 }
 
+impl<M, V, Codec> StateItemRestApiImpl<M, VersionedStateValue<V, Codec>>
+where
+    M: ModuleSendSync,
+    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
+    V: Serialize,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V>,
+{
+    async fn get_state_map_route(State(state): State<Self>) -> ApiResult<StateItemInfo> {
+        Ok(StateItemInfo {
+            r#type: StateItemKind::StateMap,
+            prefix: state.state_item_info.prefix,
+            description: state.state_item_info.description.clone(),
+            name: state.state_item_info.name.clone(),
+            namespace: state.state_item_info.namespace,
+        }
+        .into())
+    }
+
+    async fn get_state_map_item_route(
+        State(state): State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
+        Path(key): Path<u64>,
+    ) -> ApiResult<StateItemContents<u64, V>> {
+        let state_map = VersionedStateValue::<V, Codec>::with_codec(
+            state.state_item_info.prefix.0.clone(),
+            Codec::default(),
+        );
+
+        let value = state_map.get(&key, &mut accessor).unwrap_infallible();
+        match value {
+            // Known issue, will be solved later
+            // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/f3b934e33833ec3621f46a3b31824a344de7b433/crates/full-node/sov-ledger-apis/src/lib.rs#L387
+            None => Err(not_found_404(&state.state_item_info.name, "unknown")),
+            Some(value) => Ok(StateItemContents::MapElement { key, value }.into()),
+        }
+    }
+}
+
+impl<M, T, Codec> StateItemRestApiImpl<M, VersionedStateVec<T, Codec>>
+where
+    M: ModuleSendSync,
+    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
+    T: Serialize,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<T> + StateItemCodec<u64>,
+{
+    fn vec(&self) -> VersionedStateVec<T, Codec> {
+        VersionedStateVec::with_codec(self.state_item_info.prefix.0.clone(), Codec::default())
+    }
+
+    async fn get_state_vec_route(
+        state: State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
+    ) -> ApiResult<StateItemContents<T, T>> {
+        let state_vec = state.vec();
+        let length = state_vec.len(&mut accessor).unwrap_infallible();
+
+        Ok(StateItemContents::Vec { length }.into())
+    }
+
+    async fn get_state_vec_item_route(
+        state: State<Self>,
+        mut accessor: ApiStateAccessor<M::Spec>,
+        Path(item_index): Path<u64>,
+    ) -> ApiResult<StateItemContents<T, T>> {
+        let state_vec = state.vec();
+
+        let value = match state_vec.get(item_index, &mut accessor).unwrap_infallible() {
+            None => {
+                return Err(not_found_404(&state.state_item_info.name, item_index));
+            }
+            Some(v) => v,
+        };
+        Ok(StateItemContents::VecElement {
+            index: item_index,
+            value,
+        }
+        .into())
+    }
+}
+
 impl<N, M, K, V, Codec> StateItemRestApi
     for StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Codec>>
 where
@@ -256,6 +340,40 @@ where
         axum::Router::new()
             .route("/", get(Self::get_state_map_route))
             .route("/items/:key", get(Self::get_state_map_item_route))
+            .with_state(self.clone())
+    }
+}
+
+impl<M, V, Codec> StateItemRestApi for StateItemRestApiImpl<M, VersionedStateValue<V, Codec>>
+where
+    M: ModuleSendSync,
+    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
+    V: Serialize + Clone + Send + Sync + 'static,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V>,
+{
+    fn state_item_rest_api(&self) -> axum::Router<()> {
+        axum::Router::new()
+            .route("/", get(Self::get_state_map_route))
+            .route("/items/:key", get(Self::get_state_map_item_route))
+            .with_state(self.clone())
+    }
+}
+
+impl<M, V, Codec> StateItemRestApi for StateItemRestApiImpl<M, VersionedStateVec<V, Codec>>
+where
+    M: ModuleSendSync,
+    ApiStateAccessor<M::Spec>: StateReader<Kernel, Error = Infallible>,
+    V: Serialize + Clone + Send + Sync + 'static,
+    Codec: StateCodec,
+    Codec::KeyCodec: StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+{
+    fn state_item_rest_api(&self) -> axum::Router<()> {
+        axum::Router::new()
+            .route("/", get(Self::get_state_vec_route))
+            .route("/items/:key", get(Self::get_state_vec_item_route))
             .with_state(self.clone())
     }
 }
@@ -278,6 +396,20 @@ where
 
 impl<N, M, K, V, Codec> StateItemRestApiExists
     for StateItemRestApiImpl<M, NamespacedStateMap<N, K, V, Codec>>
+where
+    M: Module,
+    Self: StateItemRestApi,
+{
+}
+
+impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedStateValue<V, Codec>>
+where
+    M: Module,
+    Self: StateItemRestApi,
+{
+}
+
+impl<M, V, Codec> StateItemRestApiExists for StateItemRestApiImpl<M, VersionedStateVec<V, Codec>>
 where
     M: Module,
     Self: StateItemRestApi,
@@ -311,4 +443,14 @@ where
 {
     const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateMap;
     const NAMESPACE: sov_state::Namespace = N::NAMESPACE;
+}
+
+impl<V, Codec> GetStateItemInfo for VersionedStateValue<V, Codec> {
+    const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateMap;
+    const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
+}
+
+impl<V, Codec> GetStateItemInfo for VersionedStateVec<V, Codec> {
+    const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateVec;
+    const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
 }
