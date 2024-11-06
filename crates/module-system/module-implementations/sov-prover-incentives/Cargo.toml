@@ -49,5 +49,6 @@ native = [
 	"sov-modules-api/native",
 	"sov-prover-incentives/native",
 	"sov-state/native",
-	"sov-modules-rollup-blueprint/native"
+	"sov-modules-rollup-blueprint/native",
+	"sov-test-utils/native"
 ]

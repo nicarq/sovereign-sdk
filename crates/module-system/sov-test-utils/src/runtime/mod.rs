@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::net::{Ipv4Addr, SocketAddr};
 
+use reqwest::Client;
 pub use sov_accounts::Accounts;
 pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
@@ -19,7 +21,10 @@ pub use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob, MockBlockHeader, MockDaSpec};
 use sov_modules_api::capabilities::{ChainState as _, Kernel};
 use sov_modules_api::da::Time;
+use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::rest::utils::ResponseObject;
+use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
     Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, RuntimeEventProcessor, Spec,
@@ -41,10 +46,11 @@ pub use sov_value_setter::{
     ValueSetterConfig,
 };
 pub use tokio::sync::watch::Receiver;
+use tokio::sync::watch::{self};
 
 use crate::storage::SimpleStorageManager;
 use crate::{
-    generate_optimistic_runtime, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
+    generate_optimistic_runtime, Arc, BatchAssertContext, BatchReceipt, BatchTestCase, BatchType,
     ProofAssertContext, ProofTestCase, SequencerInfo, SlotInput, SoftConfirmationBlobInfo,
     TestStfBlueprint, TransactionAssertContext, TransactionTestCase, TransactionType,
 };
@@ -95,6 +101,11 @@ pub struct RunnerConfig<Da: DaSpec> {
     /// All blocks produced by the runner will be at the time provided.
     /// This is useful if your tests are dependent on timestamps.
     pub freeze_time: Option<Time>,
+    /// The address to bind the rest API server on.
+    ///
+    /// ## Note
+    /// By default we are using the port 0 to ensure that the allocated port is not taken by another process.
+    pub axum_addr: SocketAddr,
 }
 
 /// Stateful test runner that can be used to run and accumulate slot results for a given runtime.
@@ -104,8 +115,19 @@ pub struct TestRunner<RT: Runtime<S>, S: Spec> {
     slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
+    /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::checkpoint_receiver`].
+    checkpoint_sender: watch::Sender<StateCheckpoint<S::Storage>>,
+    /// The corresponding receiving end of the channel.
+    checkpoint_receiver: watch::Receiver<StateCheckpoint<S::Storage>>,
+    axum_server: axum_server::Handle,
     /// Test runner configuration.
     pub config: RunnerConfig<S::Da>,
+}
+
+impl<RT: Runtime<S>, S: Spec> Drop for TestRunner<RT, S> {
+    fn drop(&mut self) {
+        self.axum_server.shutdown();
+    }
 }
 
 /// The output of the apply slot function that uses the test spec and da spec.
@@ -124,6 +146,18 @@ pub struct RunnerOutput<S: Spec> {
     pub change_set: NativeChangeSet,
     /// The root of the state after the slot execution
     pub root: <<S as Spec>::Storage as Storage>::Root,
+}
+
+/// The default format of the data returned by the rest API GET requests to the module data.
+#[derive(serde::Deserialize, Debug, PartialEq)]
+pub struct ApiGetStateData<T> {
+    /// The value returned by the REST API.
+    pub value: Option<T>,
+}
+
+/// Returns the default path for the API of the given module and state key.
+pub fn default_api_state_path(module_name: &str, state_key: &str) -> String {
+    format!("/modules/{}/state/{}", module_name, state_key)
 }
 
 impl<RT, S> TestRunner<RT, S>
@@ -320,6 +354,15 @@ where
             .unwrap();
 
         self.storage_manager.commit(change_set);
+        self.synchronize_storage_channel();
+    }
+
+    /// Sends the current storage over the [`Self::checkpoint_sender`].
+    fn synchronize_storage_channel(&mut self) {
+        let storage = self.storage_manager.create_storage();
+        self.checkpoint_sender
+            .send(StateCheckpoint::new(storage, &self.runtime().kernel()))
+            .expect("Failed to send storage, the storage channel is closed. This is a bug. Please report it.");
     }
 
     /// Builds a new test runner and runs genesis.
@@ -339,6 +382,12 @@ where
                 .seq_da_address;
 
         let stf_state = storage_manager.create_storage();
+
+        let (sender, receiver) = tokio::sync::watch::channel(StateCheckpoint::new(
+            stf_state.clone(),
+            &stf.runtime().kernel(),
+        ));
+
         let (state_root, change_set) = stf.init_chain(
             &Default::default(),
             &Default::default(),
@@ -353,16 +402,24 @@ where
         let config = RunnerConfig {
             sequencer_da_address,
             freeze_time: None,
+            axum_addr: SocketAddr::from((Ipv4Addr::LOCALHOST, 0)),
         };
 
-        Self {
+        let mut runner = Self {
             nonces: HashMap::new(),
             slot_receipts: Vec::new(),
             state_root,
             storage_manager,
             stf,
+            axum_server: Default::default(),
+            checkpoint_sender: sender,
+            checkpoint_receiver: receiver,
             config,
-        }
+        };
+
+        runner.synchronize_storage_channel();
+
+        runner
     }
 
     fn next_header(&mut self) -> MockBlockHeader {
@@ -533,6 +590,7 @@ where
         nonces: NoncesMap<S>,
     ) {
         self.storage_manager.commit(output.change_set.clone());
+        self.synchronize_storage_channel();
         self.state_root = output.state_root;
         self.slot_receipts.push(SlotReceipt {
             batch_receipts: output.batch_receipts.clone(),
@@ -684,6 +742,122 @@ where
         (proof_test.assert)(ctx, &mut self.visible_state());
 
         self
+    }
+}
+
+impl<RT, S> TestRunner<RT, S>
+where
+    RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + HasRestApi<S>,
+    S: Spec<Storage = ProverStorage<DefaultSpecWithHasher<S>>, Da = MockDaSpec>,
+{
+    /// Sets up a REST-api server for frameworks whose runtime that implements [`HasRestApi`].
+    /// Returns a client to use to query the server.
+    pub async fn setup_rest_api_server(&mut self) -> Client {
+        let state = ApiState::build(
+            Arc::new(()),
+            self.checkpoint_receiver.clone(),
+            self.runtime().kernel_with_slot_mapping(),
+            None,
+        );
+
+        let router = self.runtime().rest_api(state);
+
+        let (axum_addr, axum_server) = {
+            let handle = axum_server::Handle::new();
+            let axum_addr = self.axum_addr();
+
+            let handle_cloned = handle.clone();
+            tokio::spawn(async move {
+                axum_server::Server::bind(axum_addr)
+                    .handle(handle_cloned)
+                    .serve(router.into_make_service())
+                    .await
+                    .unwrap();
+            });
+
+            let axum_addr = handle.listening().await.unwrap();
+
+            (axum_addr, handle)
+        };
+
+        self.config.axum_addr = axum_addr;
+        self.axum_server = axum_server;
+
+        Client::new()
+    }
+
+    /// Returns the OpenAPI spec for the runtime.
+    pub fn open_api_spec(&self) -> Option<OpenApi>
+    where
+        RT: HasRestApi<S>,
+    {
+        self.runtime().openapi_spec()
+    }
+
+    /// Returns a vector of all available paths in the OpenAPI spec associated with the runtime.
+    pub fn available_paths(&self) -> Vec<String> {
+        self.open_api_spec()
+            .unwrap()
+            .paths
+            .paths
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    /// Returns the combined address and port of the REST API server.
+    pub fn axum_addr(&self) -> SocketAddr {
+        self.config.axum_addr
+    }
+
+    /// Returns the base path for the API.
+    pub fn base_path(&self) -> String {
+        self.open_api_spec()
+            .unwrap()
+            .servers
+            .unwrap()
+            .first()
+            .unwrap()
+            .url
+            .replace("localhost:12346", self.axum_addr().to_string().as_str())
+    }
+
+    /// Sends a GET request to the API at the given path.
+    ///
+    /// ## Note
+    /// Paths can be obtained from the openAPI spec (returned by the method [`Self::open_api_spec`]).
+    pub async fn query_api(&self, path: &str, client: &Client) -> reqwest::Response {
+        let base_path = self.base_path();
+
+        let url = format!("{}{}", base_path, path);
+
+        client
+            .get(&url)
+            .send()
+            .await
+            .expect("Failed querying router")
+    }
+
+    /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
+    pub async fn query_api_response<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        client: &Client,
+    ) -> ResponseObject<T> {
+        self.query_api(path, client)
+            .await
+            .json()
+            .await
+            .expect("Impossible to deserialize the response to the expected format")
+    }
+
+    /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
+    pub async fn query_api_unwrap_data<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+        client: &Client,
+    ) -> T {
+        self.query_api_response(path, client).await.data.unwrap()
     }
 }
 

@@ -73,5 +73,6 @@ native = [
 	"sov-value-setter/native",
 	"sov-blob-storage/native",
 	"sov-rollup-apis",
-	"sov-paymaster/native"
+	"sov-paymaster/native",
+	"sov-test-utils/native"
 ]

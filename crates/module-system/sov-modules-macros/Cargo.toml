@@ -61,9 +61,10 @@ anyhow = { workspace = true }
 [features]
 default = []
 native = [
-    "sov-bank/native",
-    "sov-modules-api/native",
-    "sov-modules-macros/native",
-    "sov-rollup-interface/native",
-    "sov-state/native",
+	"sov-bank/native",
+	"sov-modules-api/native",
+	"sov-modules-macros/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+	"sov-test-utils/native"
 ]

@@ -1,0 +1,115 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
+use sov_bank::{config_gas_token_id, Coins};
+use sov_test_utils::runtime::{default_api_state_path, ApiGetStateData};
+use sov_test_utils::{AsUser, TransactionTestCase};
+use sov_value_setter::ValueSetter;
+
+use crate::helpers::{setup, S};
+
+/// Tests that api routes that are automatically generated work and update as expected.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_rest_api_routes_default_state() {
+    let (user, mut runner) = setup();
+
+    let user_addr = user.address();
+
+    let client = runner.setup_rest_api_server().await;
+
+    let admin_addr_api = runner
+        .query_api_unwrap_data::<ApiGetStateData<String>>(
+            &default_api_state_path("value-setter", "admin"),
+            &client,
+        )
+        .await
+        .value;
+
+    assert_eq!(
+        admin_addr_api,
+        Some(user_addr.to_string()),
+        "The value returned by the REST API should be the same as the user address"
+    );
+
+    let value_api = runner
+        .query_api_unwrap_data::<ApiGetStateData<u64>>(
+            &default_api_state_path("value-setter", "value"),
+            &client,
+        )
+        .await
+        .value;
+
+    assert_eq!(
+        value_api, None,
+        "The value returned by the REST API should be `None` because the value is not set"
+    );
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+        }),
+    });
+
+    let value_api = runner
+        .query_api_unwrap_data::<ApiGetStateData<u64>>(
+            &default_api_state_path("value-setter", "value"),
+            &client,
+        )
+        .await
+        .value;
+
+    assert_eq!(
+        value_api, Some(10),
+        "The value returned by the REST API should be `10` because the value has been set in the previous transaction"
+    );
+}
+
+/// Ensures that custom API routes work and update as expected.
+#[tokio::test(flavor = "multi_thread")]
+async fn test_rest_api_routes_custom_api() {
+    let (user, mut runner) = setup();
+
+    let user_addr = user.address();
+    let initial_user_balance = user.available_gas_balance;
+
+    let client = runner.setup_rest_api_server().await;
+
+    let path = format!(
+        "/modules/bank/tokens/{}/balances/{}",
+        config_gas_token_id(),
+        user_addr
+    );
+
+    let api_user_balance = runner
+        .query_api_unwrap_data::<Coins>(path.as_str(), &client)
+        .await;
+
+    assert_eq!(
+        api_user_balance.amount, initial_user_balance,
+        "The user balance should be the same as the user's available gas balance"
+    );
+
+    let gas_used = Arc::new(AtomicU64::new(0));
+    let gas_used_clone = gas_used.clone();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user
+            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            gas_used.fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);
+        }),
+    });
+
+    let api_user_balance: Coins = runner.query_api_unwrap_data(path.as_str(), &client).await;
+
+    let expected_balance =
+        initial_user_balance - gas_used_clone.load(std::sync::atomic::Ordering::SeqCst);
+
+    assert_eq!(
+        api_user_balance.amount, expected_balance,
+        "The user balance should be the same as the user's available gas balance minus the gas used to send the transaction"
+    );
+}

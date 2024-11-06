@@ -44,14 +44,15 @@ tokio = { workspace = true, optional = true }
 [features]
 default = []
 native = [
-    "sov-attester-incentives/native",
-    "sov-bank/native",
-    "sov-chain-state/native",
-    "sov-mock-da/native",
-    "sov-mock-zkvm/native",
-    "sov-modules-api/native",
-    "sov-rollup-interface/native",
-    "sov-state/native",
-    "tokio",
-    "sov-modules-rollup-blueprint/native"
+	"sov-attester-incentives/native",
+	"sov-bank/native",
+	"sov-chain-state/native",
+	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
+	"sov-modules-api/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+	"tokio",
+	"sov-modules-rollup-blueprint/native",
+	"sov-test-utils/native"
 ]
