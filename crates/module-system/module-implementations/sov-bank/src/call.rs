@@ -5,6 +5,7 @@ use sov_modules_api::{
     CallResponse, Context, EventEmitter, Spec, StateAccessor, StateReader, TxState,
 };
 use sov_state::User;
+use strum::{EnumDiscriminants, EnumIs, VariantArray};
 
 use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
@@ -19,10 +20,13 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
     PartialEq,
     Clone,
     JsonSchema,
+    EnumDiscriminants,
+    EnumIs,
     UniversalWallet,
 )]
 #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
+#[strum_discriminants(derive(VariantArray, EnumIs))]
 pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
