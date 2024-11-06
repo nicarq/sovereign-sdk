@@ -5,7 +5,7 @@ use strum::{VariantArray, VariantNames};
 use super::ModuleInfo;
 use crate::common::ModuleError;
 use crate::module::{CallResponse, Context, Spec};
-use crate::{GasMeter, MeteredBorshDeserializeError, ModuleId, WorkingSet};
+use crate::{GasMeter, MeteredBorshDeserializeError, ModuleId, StateProvider, WorkingSet};
 
 /// A helper trait for working with enums like our generated `RuntimeCall` whose variants are tuples
 /// containing a single field
@@ -62,10 +62,10 @@ pub trait DispatchCall: Send + Sync {
     ) -> Result<Self::Decodable, MeteredBorshDeserializeError<<Self::Spec as Spec>::Gas>>;
 
     /// Dispatches a call message to the appropriate module.
-    fn dispatch_call(
+    fn dispatch_call<I: StateProvider<Self::Spec>>(
         &self,
         message: Self::Decodable,
-        state: &mut WorkingSet<Self::Spec>,
+        state: &mut WorkingSet<Self::Spec, I>,
         context: &Context<Self::Spec>,
     ) -> Result<CallResponse, ModuleError>;
 

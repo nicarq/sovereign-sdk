@@ -1,6 +1,6 @@
 use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
 use sov_modules_api::{
-    AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, TxScratchpad, WorkingSet,
+    AccessoryStateReaderAndWriter, BatchSequencerReceipt, Spec, StateProvider, TxScratchpad,
 };
 use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
@@ -9,22 +9,26 @@ use crate::runtime::Runtime;
 
 impl<S: Spec> TxHooks for Runtime<S> {
     type Spec = S;
-    type TxState = WorkingSet<S>;
 }
 
 impl<S: Spec> ApplyBatchHooks for Runtime<S> {
     type Spec = S;
     type BatchResult = BatchSequencerReceipt<S>;
 
-    fn begin_batch_hook(
+    fn begin_batch_hook<I: StateProvider<S>>(
         &self,
         _sender: &<S::Da as DaSpec>::Address,
-        _state: &mut TxScratchpad<S::Storage>,
+        _state: &mut TxScratchpad<S, I>,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    fn end_batch_hook(&self, _result: &Self::BatchResult, _state: &mut TxScratchpad<S::Storage>) {}
+    fn end_batch_hook<I: StateProvider<S>>(
+        &self,
+        _result: &Self::BatchResult,
+        _state: &mut TxScratchpad<S, I>,
+    ) {
+    }
 }
 
 impl<S: Spec> SlotHooks for Runtime<S> {

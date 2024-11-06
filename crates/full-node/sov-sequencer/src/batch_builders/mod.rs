@@ -16,7 +16,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
     BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
-    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, TxScratchpad,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, TxScratchpad,
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
@@ -218,8 +218,8 @@ impl<Z: RtAwareBatchBuilderSpec> DataWithEvents for EmptyConfirmation<Z> {
     }
 }
 
-type AuthRes<S, Rt> = (
-    TxScratchpad<<S as Spec>::Storage>,
+type AuthRes<S, Rt, I> = (
+    TxScratchpad<S, I>,
     Result<
         (
             AuthenticationOutput<
@@ -257,16 +257,17 @@ fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> AcceptTxError {
     }
 }
 
-fn tx_auth<S, Rt>(
+fn tx_auth<S, Rt, I>(
     runtime: &Rt,
-    mut tx_scratchpad: TxScratchpad<<S as Spec>::Storage>,
+    mut tx_scratchpad: TxScratchpad<S, I>,
     gas_price: <S::Gas as Gas>::Price,
     sequencer_address: &<S::Da as DaSpec>::Address,
     input: <Rt as TransactionAuthenticator<S>>::Input,
-) -> AuthRes<S, Rt>
+) -> AuthRes<S, Rt, I>
 where
     S: Spec,
     Rt: Runtime<S>,
+    I: StateProvider<S>,
 {
     let max_auth_cost = runtime
         .gas_enforcer()
@@ -283,7 +284,7 @@ where
         }
     };
 
-    let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set::<S>(gas_meter);
+    let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
     let auth_res = match runtime.authenticate(&input, &mut pre_exec_ws) {
         Ok(ok) => ok,

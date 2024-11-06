@@ -17,7 +17,7 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, RawTx, Spec,
-    StateCheckpoint, VersionReader, WorkingSet,
+    StateCheckpoint, StateProvider, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,

@@ -70,10 +70,10 @@
 /// #   )
 /// # }
 /// #
-/// # fn dispatch_call(
+/// # fn dispatch_call<I: sov_modules_api::StateProvider<S>>(
 /// #     &self,
 /// #     message: Self::Decodable,
-/// #     state: &mut sov_modules_api::WorkingSet<Self::Spec>,
+/// #     state: &mut sov_modules_api::WorkingSet<Self::Spec, I>,
 /// #     context: &sov_modules_api::Context<Self::Spec>,
 /// # ) -> Result<sov_modules_api::CallResponse, sov_modules_api::ModuleError> {
 /// #   Ok(Default::default())

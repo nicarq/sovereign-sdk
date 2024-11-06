@@ -4,7 +4,7 @@ use std::sync::Arc;
 use sov_modules_api::capabilities::{
     AuthorizationData, ChainState, HasCapabilities, TransactionAuthorizer,
 };
-use sov_modules_api::prelude::anyhow;
+use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StorageReceiver;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
@@ -93,7 +93,7 @@ where
             ExecutionContext::Node,
         )?;
 
-        let working_set = WorkingSet::<S>::create_working_set(
+        let working_set = WorkingSet::create_working_set(
             scratchpad,
             // We are using a fresh gas meter here to not include the costs of the pre-execution checks.
             // We may want to change this in the future.

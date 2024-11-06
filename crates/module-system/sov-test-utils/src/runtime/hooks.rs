@@ -50,21 +50,6 @@ macro_rules! impl_runtime_hook {
         {
             type Spec = S;
             type BatchResult = ::sov_modules_api::BatchSequencerReceipt<S>;
-
-            fn begin_batch_hook(
-                &self,
-                _sender: &<<S as ::sov_modules_api::Spec>::Da as ::sov_modules_api::DaSpec>::Address,
-                _state_checkpoint: &mut ::sov_modules_api::TxScratchpad<S::Storage>,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
-
-            fn end_batch_hook(
-                &self,
-                _result: &Self::BatchResult,
-                _state_checkpoint: &mut ::sov_modules_api::TxScratchpad<S::Storage>,
-            ) {
-            }
         }
     };
     ($runtime:ty, TxHooks) => {
@@ -73,24 +58,6 @@ macro_rules! impl_runtime_hook {
             S: ::sov_modules_api::Spec,
         {
             type Spec = S;
-            type TxState = ::sov_modules_api::WorkingSet<S>;
-
-            fn pre_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _state: &mut Self::TxState,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
-
-            fn post_dispatch_tx_hook(
-                &self,
-                _tx: &::sov_modules_api::transaction::AuthenticatedTransactionData<S>,
-                _ctx: &::sov_modules_api::Context<S>,
-                _state: &mut Self::TxState,
-            ) -> anyhow::Result<()> {
-                Ok(())
-            }
         }
     };
 }

@@ -7,7 +7,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Rewards, Spec,
-    StateCheckpoint, TxScratchpad, WorkingSet,
+    StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -21,22 +21,22 @@ use crate::{ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, TxProcessin
 /// Executes the entire transaction lifecycle.
 
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
-pub fn process_tx<S: Spec, R: Runtime<S>>(
+pub fn process_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     validated_output: ValidatedAuthOutput<S, R>,
     gas_price: &<S::Gas as Gas>::Price,
     gas_used_for_authentication: &S::Gas,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
-    mut scratchpad: TxScratchpad<S::Storage>,
+    mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
-    TxScratchpad<S::Storage>,
+    TxScratchpad<S, I>,
 ) {
     let auth_cost = gas_used_for_authentication.value(gas_price);
 
-    let penalize = |tx_scratchpad: &mut TxScratchpad<S::Storage>| {
+    let penalize = |tx_scratchpad: &mut TxScratchpad<S, I>| {
         runtime
             .gas_enforcer()
             .transfer_funds_from_sequencer_to_prover(auth_cost, sequencer_da_address, tx_scratchpad)
@@ -160,13 +160,17 @@ pub fn process_tx<S: Spec, R: Runtime<S>>(
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>>(
+fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     tx: &FullyBakedTx,
-    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
     let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
-        fatal_deserialization_error::<PreExecWorkingSet<S>, S, _>(&tx.data, e, pre_exec_working_set)
+        fatal_deserialization_error::<PreExecWorkingSet<S, I>, S, _>(
+            &tx.data,
+            e,
+            pre_exec_working_set,
+        )
     })?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
 }
@@ -309,7 +313,7 @@ where
         }
     };
 
-    let mut pre_exec_working_set: PreExecWorkingSet<S> =
+    let mut pre_exec_working_set: PreExecWorkingSet<S, _> =
         scratchpad.to_pre_exec_working_set(gas_meter);
 
     let mut auth_outputs: Vec<(usize, ValidatedAuthOutput<S, RT>, S::Gas)> = Vec::new();

@@ -12,7 +12,7 @@ use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthentica
 use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, NestedEnumUtils,
-    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateProvider,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, TransactionReceipt, TxEffect, ValidatedAuthOutput,

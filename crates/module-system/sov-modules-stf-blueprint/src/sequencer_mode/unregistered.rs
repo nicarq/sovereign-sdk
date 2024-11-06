@@ -6,7 +6,8 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, TxScratchpad, WorkingSet,
+    GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, StateProvider, TxScratchpad,
+    WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -19,17 +20,17 @@ use crate::{
 };
 
 #[allow(clippy::result_large_err)]
-pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
+pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     validated_output: ValidatedAuthOutput<S, R>,
     gas_info: GasInfo<S::Gas>,
     sequencer_da_address: &<S::Da as DaSpec>::Address,
     height: u64,
-    mut scratchpad: TxScratchpad<S::Storage>,
+    mut scratchpad: TxScratchpad<S, I>,
     execution_context: ExecutionContext,
 ) -> (
     Result<ApplyTxResult<S>, TxProcessingError>,
-    TxScratchpad<S::Storage>,
+    TxScratchpad<S, I>,
 ) {
     let (auth_tx, auth_data, message) = match validated_output {
         ValidatedAuthOutput::Valid(valid) => valid,
@@ -139,14 +140,14 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>>(
 }
 
 #[allow(clippy::type_complexity)]
-pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
+pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     meter: BasicGasMeter<S::Gas>,
     input: &<R as TransactionAuthenticator<S>>::Input,
-    scratchpad: TxScratchpad<S::Storage>,
+    scratchpad: TxScratchpad<S, I>,
 ) -> (
     Result<(AuthTxOutput<S, R>, GasInfo<S::Gas>), UnregisteredAuthenticationError>,
-    TxScratchpad<S::Storage>,
+    TxScratchpad<S, I>,
 ) {
     let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
 
@@ -160,10 +161,10 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>>(
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>>(
+fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     input: &<R as TransactionAuthenticator<S>>::Input,
-    pre_exec_working_set: &mut PreExecWorkingSet<S>,
+    pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
     runtime.authenticate_unregistered(input, pre_exec_working_set)
 }
