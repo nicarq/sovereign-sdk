@@ -160,6 +160,7 @@ pub mod prelude {
     pub use crate::macros::*;
     #[cfg(feature = "native")]
     pub use crate::rest::ModuleRestApi;
+    pub use crate::state::StateProvider;
     pub use crate::{
         Context, DaSpec, ModuleCallJsonSchema, Spec, StateAccessor, StateReaderAndWriter,
         WorkingSet,

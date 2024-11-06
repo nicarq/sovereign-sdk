@@ -9,7 +9,8 @@ use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, Gas, GasMeter, InvalidProofError, PreExecWorkingSet, ProofOutcome,
-    ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint, TxScratchpad, WorkingSet,
+    ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint, StateProvider, TxScratchpad,
+    WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -193,11 +194,11 @@ pub(crate) struct ProcessProofOutput<S: Spec> {
 
 // Decides if the proof processing workflow should continue or return early.
 #[allow(clippy::large_enum_variant)]
-enum WorkflowResult<Arg, S: Spec> {
+enum WorkflowResult<Arg, S: Spec, I: StateProvider<S>> {
     // Proceed with the proof processing.
     Proceed(Arg),
     // Early return from the proof processing.
-    EarlyReturn(ProcessProofOutput<S>, StateCheckpoint<S::Storage>),
+    EarlyReturn(ProcessProofOutput<S>, I),
 }
 
 struct ProofProcessingWorkflow<'a, S: Spec, RT: Runtime<S>> {
@@ -225,12 +226,12 @@ where
         }
     }
 
-    fn authorize_sequencer(
+    fn authorize_sequencer<I: StateProvider<S>>(
         &self,
         gas_price: &<S::Gas as Gas>::Price,
         max_auth_cost: u64,
-        mut tx_scratchpad: TxScratchpad<S::Storage>,
-    ) -> PreExecWorkingSetResult<S> {
+        mut tx_scratchpad: TxScratchpad<S, I>,
+    ) -> PreExecWorkingSetResult<S, I> {
         match self.runtime.sequencer_authorization().authorize_sequencer(
             self.sequencer_da_address,
             max_auth_cost,
@@ -259,13 +260,13 @@ where
         }
     }
 
-    fn try_reserve_gas(
+    fn try_reserve_gas<I: StateProvider<S>>(
         &self,
         sequencer_rollup_address: &S::Address,
         gas_price: &<S::Gas as Gas>::Price,
         auth_tx: AuthenticatedTransactionData<S>,
-        pre_exec_working_set: PreExecWorkingSet<S>,
-    ) -> WorkflowResult<WorkingSet<S>, S> {
+        pre_exec_working_set: PreExecWorkingSet<S, I>,
+    ) -> WorkflowResult<WorkingSet<S, I>, S, I> {
         let (mut scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
         let gas_info = gas_meter.gas_info();
@@ -319,12 +320,12 @@ where
         WorkflowResult::Proceed(working_set)
     }
 
-    fn charge_sequencer_and_reward_prover(
+    fn charge_sequencer_and_reward_prover<I: StateProvider<S>>(
         &self,
         reason: impl std::fmt::Display,
         max_auth_cost: u64,
-        mut state: TxScratchpad<S::Storage>,
-    ) -> TxScratchpad<S::Storage> {
+        mut state: TxScratchpad<S, I>,
+    ) -> TxScratchpad<S, I> {
         tracing::info!(
             sequencer = %self.sequencer_da_address,
             reason = %reason,
@@ -363,4 +364,5 @@ fn invalid_proof_receipt<S: Spec>(
     }
 }
 
-type PreExecWorkingSetResult<S> = WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S>), S>;
+type PreExecWorkingSetResult<S, I> =
+    WorkflowResult<(<S as Spec>::Address, PreExecWorkingSet<S, I>), S, I>;

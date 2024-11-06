@@ -25,7 +25,7 @@ use sov_modules_api::transaction::TransactionConsumption;
 pub use sov_modules_api::{BatchWithId, BlobData};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
-    RuntimeEventProcessor, Spec, StateCheckpoint, WorkingSet,
+    RuntimeEventProcessor, Spec, StateCheckpoint,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -49,7 +49,7 @@ pub trait Runtime<S: Spec>:
         Decodable = <Self as DispatchCall>::Decodable,
         AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
     > + Genesis<Spec = S, Config = Self::GenesisConfig>
-    + TxHooks<Spec = S, TxState = WorkingSet<S>>
+    + TxHooks<Spec = S>
     + SlotHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
     + FinalizeHook<Spec = S>

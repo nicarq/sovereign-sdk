@@ -1,3 +1,6 @@
+## 2024-11-05
+- #1821 removes the associated type `TxState` from `TxHooks` and adds two new generic parameters to `ApplyBatchHooks::begin_batch_hook` and `ApplyBatchHooks::end_batch_hook`. Please refer to `hooks_impl.rs` for a usage example using the new trait signatures.
+
 ## 2024-11-04
 - #1800 Removed the `CliWalletArg` macro, removing support for parsing call messages directly as CLI arguments (for instance, in `sov-cli`). CLI utilities wishing to accept callmessages on the command line should accept a JSON string instead.
 The `CliWalletArg` derives should be deleted on all module callmessages, as the macro no longer exists.

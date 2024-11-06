@@ -3,7 +3,8 @@ use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{AuthenticationError, AuthenticationOutput, FatalError};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BatchSequencerReceipt, Context, DispatchCall, Error, Spec, TxScratchpad, WorkingSet,
+    BatchSequencerReceipt, Context, DispatchCall, Error, Spec, StateProvider, TxScratchpad,
+    WorkingSet,
 };
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
@@ -23,17 +24,18 @@ pub type TransactionReceipt<S> =
 /// 2. After the post-dispatch hook. This ensures that the transaction can be reverted by the post-dispatch hook if desired.
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 #[allow(clippy::too_many_arguments)]
-pub fn apply_tx<S, RT>(
+pub fn apply_tx<S, RT, I>(
     runtime: &RT,
     ctx: &Context<S>,
     tx: &AuthenticatedTransactionData<S>,
     raw_tx_hash: TxHash,
     message: <RT as DispatchCall>::Decodable,
-    mut working_set: WorkingSet<S>,
-) -> (ApplyTxResult<S>, TxScratchpad<S::Storage>)
+    mut working_set: WorkingSet<S, I>,
+) -> (ApplyTxResult<S>, TxScratchpad<S, I>)
 where
     S: Spec,
     RT: Runtime<S>,
+    I: StateProvider<S>,
 {
     let tx_result = attempt_tx(tx, message, ctx, runtime, &mut working_set);
     let (tx_scratchpad, receipt, transaction_consumption) = match tx_result {
@@ -89,12 +91,12 @@ where
     )
 }
 
-fn attempt_tx<S: Spec, RT: Runtime<S>>(
+fn attempt_tx<S: Spec, RT: Runtime<S>, I: StateProvider<S>>(
     tx: &AuthenticatedTransactionData<S>,
     message: <RT as DispatchCall>::Decodable,
     ctx: &Context<S>,
     runtime: &RT,
-    state: &mut WorkingSet<S>,
+    state: &mut WorkingSet<S, I>,
 ) -> Result<(), Error> {
     runtime.pre_dispatch_tx_hook(tx, state)?;
 

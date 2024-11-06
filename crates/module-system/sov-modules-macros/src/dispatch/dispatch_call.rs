@@ -88,10 +88,10 @@ impl<'a> StructDef<'a> {
                     ::core::result::Result::Ok(c)
                 }
 
-                fn dispatch_call(
+                fn dispatch_call<I: ::sov_modules_api::StateProvider<Self::Spec>>(
                     &self,
                     decodable: Self::Decodable,
-                    state: &mut ::sov_modules_api::WorkingSet<Self::Spec>,
+                    state: &mut ::sov_modules_api::WorkingSet<Self::Spec, I>,
                     context: &::sov_modules_api::Context<Self::Spec>,
                 ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::Error> {
                     ::sov_modules_api::prelude::tracing::debug!("Dispatching call: {:?}", decodable);

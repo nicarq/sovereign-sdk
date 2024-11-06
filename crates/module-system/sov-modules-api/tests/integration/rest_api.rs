@@ -7,7 +7,7 @@ use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     CallResponse, Context, Module, ModuleError, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateCheckpoint, StateValue, TxState, WorkingSet,
+    StateCheckpoint, StateValue, TxState,
 };
 use sov_test_utils::TestSpec;
 use utoipa::openapi::path::ParameterIn;
@@ -100,7 +100,6 @@ pub struct MyRuntime<S: Spec> {
 
 impl<S: Spec> TxHooks for MyRuntime<S> {
     type Spec = S;
-    type TxState = WorkingSet<S>;
 }
 
 #[tokio::test(flavor = "multi_thread")]

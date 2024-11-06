@@ -12,14 +12,14 @@ use crate::default_spec::DefaultSpec;
 use crate::gas::GasArray;
 use crate::{
     Gas, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    MeteredSigVerificationError, MeteredSignature, Spec, WorkingSet,
+    MeteredSigVerificationError, MeteredSignature, Spec, StateCheckpoint, WorkingSet,
 };
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
 fn create_working_set(
     remaining_funds: u64,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
-) -> WorkingSet<S> {
+) -> WorkingSet<S, StateCheckpoint<<S as Spec>::Storage>> {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage = new_finalized_storage(tmpdir.path());
     WorkingSet::new_with_gas_meter(storage, remaining_funds, gas_price)

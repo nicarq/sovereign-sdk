@@ -13,6 +13,7 @@ use super::genesis::GenesisStateAccessor;
 #[cfg(feature = "native")]
 use super::internals::Delta;
 use super::seal::CachedAccessor;
+use super::StateProvider;
 use crate::state::traits::{AccessoryStateWriter, ProvableStateReader, ProvableStateWriter};
 #[cfg(feature = "native")]
 use crate::AccessoryStateCheckpoint;
@@ -197,44 +198,53 @@ impl<S: Storage> StateWriter<Kernel> for StateCheckpoint<S> {
 
 impl<S: Storage> AccessoryStateWriter for StateCheckpoint<S> {}
 
-impl<S: Storage> StateReader<User> for TxScratchpad<S> {
+impl<S, I> StateReader<User> for TxScratchpad<S, I>
+where
+    S: Spec,
+    I: StateProvider<S>,
+{
     inner_impl_unmetered_state_reader!(User);
 }
-impl<S: Storage> StateReader<Kernel> for TxScratchpad<S> {
+impl<S, I> StateReader<Kernel> for TxScratchpad<S, I>
+where
+    S: Spec,
+    I: StateProvider<S>,
+{
     inner_impl_unmetered_state_reader!(Kernel);
 }
-impl<S: Storage> StateWriter<User> for TxScratchpad<S> {
+
+impl<S: Spec, I: StateProvider<S>> StateWriter<User> for TxScratchpad<S, I> {
     inner_impl_unmetered_state_writer!(User);
 }
 
-impl<S: Spec> ProvableStateReader<User> for PreExecWorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for PreExecWorkingSet<S, I> {
     type Spec = S;
 }
 /// TODO: the [`PreExecWorkingSet`] should not be able to read the kernel state. Make sure
 /// to find a way to enforce that.
-impl<S: Spec> ProvableStateReader<Kernel> for PreExecWorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for PreExecWorkingSet<S, I> {
     type Spec = S;
 }
-impl<S: Spec> ProvableStateWriter<User> for PreExecWorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for PreExecWorkingSet<S, I> {
     type Spec = S;
 }
 
-impl<S: Spec> ProvableStateReader<User> for WorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<User> for WorkingSet<S, I> {
     type Spec = S;
 }
 /// TODO: the [`WorkingSet`] should not be able to read the kernel state. Make sure
 /// to find a way to enforce that.
-impl<S: Spec> ProvableStateReader<Kernel> for WorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateReader<Kernel> for WorkingSet<S, I> {
     type Spec = S;
 }
-impl<S: Spec> ProvableStateWriter<User> for WorkingSet<S> {
+impl<S: Spec, I: StateProvider<S>> ProvableStateWriter<User> for WorkingSet<S, I> {
     type Spec = S;
 }
 
-impl<S: Spec> AccessoryStateWriter for WorkingSet<S> {}
+impl<S: Spec, I: StateProvider<S>> AccessoryStateWriter for WorkingSet<S, I> {}
 
 #[cfg(feature = "test-utils")]
-impl<S: Spec> AccessoryStateReader for WorkingSet<S> {}
+impl<S: Spec, I: StateProvider<S>> AccessoryStateReader for WorkingSet<S, I> {}
 
 #[cfg(feature = "native")]
 impl<'a, S: Storage> StateReader<Accessory> for AccessoryStateCheckpoint<'a, S> {
