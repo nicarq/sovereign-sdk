@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::NotInstantiable;
+use sov_modules_api::{ModuleRestApi, NotInstantiable};
 /// Contains the call methods used by the module
 mod call;
 mod gas;
@@ -217,7 +217,7 @@ impl<S: Spec> SlotInformation<S> {
 }
 
 /// The chain state module definition. Contains the current state of the da layer.
-#[derive(Clone, ModuleInfo)]
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
 pub struct ChainState<S: Spec> {
     /// The ID of the module.
     #[id]

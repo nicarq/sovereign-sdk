@@ -38,7 +38,7 @@ where
 impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<u64>,
 {
     /// The namespace where the versioned state value is stored.
@@ -61,7 +61,7 @@ where
 impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<u64>,
 {
     /// Returns the codec used by the versioned state value.

@@ -71,7 +71,7 @@ impl<V, Codec: Clone> VersionedStateVec<V, Codec>
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
-    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
 {
     /// Creates a new [`crate::StateVec`] with the given prefix and codec.
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {
@@ -163,10 +163,7 @@ where
     pub fn len<Reader: VersionReader>(
         &self,
         state: &mut Reader,
-    ) -> Result<u64, <Reader as StateReader<Kernel>>::Error>
-    where
-        Codec::KeyCodec: StateItemCodec<u64>,
-    {
+    ) -> Result<u64, <Reader as StateReader<Kernel>>::Error> {
         if let Some(len_index) = self.max_len_index.get(state)? {
             // If the current height to access is greater than the maximum length index, we can use the length at the maximum length index.
             // Otherwise, we can use the length at the current height to access.
@@ -277,7 +274,7 @@ where
 pub struct VersionedStateVecIter<'a, 'ws, Kernel, V, Codec, W>
 where
     Codec: StateCodec,
-    Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
+    Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<u64>,
     Kernel: CompileTimeNamespace,
     W: VersionReader,
@@ -293,7 +290,7 @@ impl<'a, 'ws, V, Codec, W> Iterator for VersionedStateVecIter<'a, 'ws, Kernel, V
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
-    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     W: VersionReader,
 {
     type Item = Result<V, W::Error>;
@@ -314,7 +311,7 @@ impl<'a, 'ws, V, Codec, W> ExactSizeIterator for VersionedStateVecIter<'a, 'ws, 
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
-    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
     fn len(&self) -> usize {
@@ -326,7 +323,7 @@ impl<'a, 'ws, V, Codec, W> FusedIterator for VersionedStateVecIter<'a, 'ws, Kern
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
-    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     W: VersionReader + InfallibleStateReaderAndWriter<Kernel>,
 {
 }
@@ -336,7 +333,7 @@ impl<'a, 'ws, V, Codec, W> DoubleEndedIterator
 where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V> + StateItemCodec<u64>,
-    Codec::KeyCodec: StateItemCodec<u64> + StateItemCodec<u64>,
+    Codec::KeyCodec: StateItemCodec<u64>,
     W: VersionReader,
 {
     fn next_back(&mut self) -> Option<Self::Item> {
