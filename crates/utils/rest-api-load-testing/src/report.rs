@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::sync::Arc;
 
 use crate::ResponseOutput;
 
@@ -14,13 +15,19 @@ pub struct Measurement {
 /// The Report is a collection of measurements.
 #[derive(Debug)]
 pub struct Report {
+    /// The URL of the request.
+    pub url: Arc<String>,
     /// The measurements for a given report
     pub measurements: Vec<Measurement>,
 }
 
 impl Display for Report {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Report {{ measurements: {:?} }}", self.measurements)?;
+        write!(
+            f,
+            "Report {{url: {:?}, measurements: {:?} }}",
+            self.url, self.measurements
+        )?;
         Ok(())
     }
 }
