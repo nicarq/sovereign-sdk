@@ -14,6 +14,7 @@ resolver = "2"
 workspace = true
 
 [dependencies]
+clap = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 reqwest = { workspace = true }
 anyhow = { workspace = true }

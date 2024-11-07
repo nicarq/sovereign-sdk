@@ -1,10 +1,11 @@
-#![allow(dead_code)]
+use clap::ValueEnum;
 use tokio::task::JoinSet;
 
 use super::{measurement, TestScenario};
 use crate::{Report, RequestSenderFactory, Requests};
 
 /// Connection configuration for the concurrent users scenario.
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum ConnConfig {
     /// All the users share the same connection pool.
     SharedConnectionPool,

@@ -7287,6 +7287,7 @@ name = "rest-api-load-testing"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "clap",
  "reqwest 0.12.5",
  "tokio",
 ]
