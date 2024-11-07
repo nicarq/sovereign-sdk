@@ -15,6 +15,7 @@ workspace = true
 anyhow = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true }
+schemars = { workspace = true }
 
 sov-accounts = { workspace = true }
 sov-attester-incentives = { workspace = true }

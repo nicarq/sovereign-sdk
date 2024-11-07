@@ -31,7 +31,7 @@ impl CryptoSpec for MockZkvmCryptoSpec {
 }
 
 /// A mock zk virtual machine.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, schemars::JsonSchema)]
 pub struct MockZkvm;
 
 impl Zkvm for MockZkvm {

@@ -17,6 +17,7 @@ pub mod first_test_module {
         borsh::BorshSerialize,
         serde::Serialize,
         serde::Deserialize,
+        schemars::JsonSchema,
     )]
     pub struct MyStruct {
         pub first_field: u32,
@@ -85,6 +86,7 @@ pub mod second_test_module {
         borsh::BorshSerialize,
         serde::Serialize,
         serde::Deserialize,
+        schemars::JsonSchema,
     )]
     pub enum MyEnum {
         Foo { first_field: u32, str_field: String },

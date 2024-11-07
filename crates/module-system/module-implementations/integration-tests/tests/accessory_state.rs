@@ -19,6 +19,7 @@ type S = sov_test_utils::TestSpec;
     borsh::BorshDeserialize,
     serde::Serialize,
     serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum CallMessage {

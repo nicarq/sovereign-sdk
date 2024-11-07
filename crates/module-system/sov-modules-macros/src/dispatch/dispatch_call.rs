@@ -153,6 +153,7 @@ impl DispatchCallMacro {
                         sov_modules_api::prelude::strum::EnumTryAs,
                         sov_modules_api::prelude::strum::IntoStaticStr,
                         sov_modules_api::prelude::strum::AsRefStr,
+                        sov_modules_api::prelude::schemars::JsonSchema,
                     )
                 ]
             },

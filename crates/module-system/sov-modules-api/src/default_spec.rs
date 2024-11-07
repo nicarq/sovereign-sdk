@@ -12,7 +12,14 @@ use crate::{Address, GasUnit, Spec};
 /// A default implementation of the [`Spec`] trait. Used for testing but can also be a good
 /// starting point for implementing a custom rollup.
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[derive(Default, serde::Serialize, serde::Deserialize, BorshDeserialize, BorshSerialize)]
+#[derive(
+    Default,
+    serde::Serialize,
+    serde::Deserialize,
+    BorshDeserialize,
+    BorshSerialize,
+    schemars::JsonSchema,
+)]
 #[serde(bound = "")]
 pub struct DefaultSpec<Da, InnerZkvm, OuterZkvm, Mode>(
     std::marker::PhantomData<(Da, InnerZkvm, OuterZkvm, Mode)>,

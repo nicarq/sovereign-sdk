@@ -1,47 +1,47 @@
 error[E0310]: the parameter type `D` may not live long enough
-  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:92:13
+  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:93:13
    |
-92 |         impl<S, D: Data> QueryModule<S, D>
+93 |         impl<S, D: Data> QueryModule<S, D>
    |             ^^^^^^^^^^^^^^^^^^^^^^^^
    |             |
    |             the parameter type `D` must be valid for the static lifetime...
    |             ...so that the type `ApiState<S, QueryModule<S, D>>` will meet its required lifetime bounds...
    |
 note: ...that is required by this bound
-  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:91:9
+  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:92:9
    |
-91 |         #[rpc_gen(client, server, namespace = "queryModule")]
+92 |         #[rpc_gen(client, server, namespace = "queryModule")]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `::jsonrpsee::proc_macros::rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider adding an explicit lifetime bound
    |
-92 |         impl<S, D: Data + 'static> QueryModule<S, D>
+93 |         impl<S, D: Data + 'static> QueryModule<S, D>
    |                         +++++++++
 
 error[E0310]: the parameter type `D` may not live long enough
-  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:92:13
+  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:93:13
    |
-92 |         impl<S, D: Data> QueryModule<S, D>
+93 |         impl<S, D: Data> QueryModule<S, D>
    |             ^^^^^^^^^^^^^^^^^^^^^^^^
    |             |
    |             the parameter type `D` must be valid for the static lifetime...
    |             ...so that the type `D` will meet its required lifetime bounds...
    |
 note: ...that is required by this bound
-  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:91:9
+  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:92:9
    |
-91 |         #[rpc_gen(client, server, namespace = "queryModule")]
+92 |         #[rpc_gen(client, server, namespace = "queryModule")]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the attribute macro `::jsonrpsee::proc_macros::rpc` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider adding an explicit lifetime bound
    |
-92 |         impl<S, D: Data + 'static> QueryModule<S, D>
+93 |         impl<S, D: Data + 'static> QueryModule<S, D>
    |                         +++++++++
 
 error[E0061]: this method takes 4 arguments but 2 arguments were supplied
-   --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:130:13
+   --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:131:13
     |
-130 |     runtime.genesis(&config, &mut genesis_state).unwrap();
+131 |     runtime.genesis(&config, &mut genesis_state).unwrap();
     |             ^^^^^^^ --------------------------- two arguments of type `&sov_mock_da::types::MockBlockHeader` and `&sov_mock_da::validity_condition::MockValidityCond` are missing
     |
 note: method defined here
@@ -51,13 +51,13 @@ note: method defined here
     |        ^^^^^^^
 help: provide the arguments
     |
-130 |     runtime.genesis(/* &sov_mock_da::types::MockBlockHeader */, /* &sov_mock_da::validity_condition::MockValidityCond */, &config, &mut genesis_state).unwrap();
+131 |     runtime.genesis(/* &sov_mock_da::types::MockBlockHeader */, /* &sov_mock_da::validity_condition::MockValidityCond */, &config, &mut genesis_state).unwrap();
     |                    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 error[E0310]: the parameter type `D` may not live long enough
-  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:91:9
+  --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:92:9
    |
-91 |         #[rpc_gen(client, server, namespace = "queryModule")]
+92 |         #[rpc_gen(client, server, namespace = "queryModule")]
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
    |         |
    |         the parameter type `D` must be valid for the static lifetime...
@@ -66,13 +66,13 @@ error[E0310]: the parameter type `D` may not live long enough
    = note: this error originates in the attribute macro `rpc_gen` (in Nightly builds, run with -Z macro-backtrace for more info)
 help: consider adding an explicit lifetime bound
    |
-92 |         impl<S, D: Data + 'static> QueryModule<S, D>
+93 |         impl<S, D: Data + 'static> QueryModule<S, D>
    |                         +++++++++
 
 error[E0310]: the associated type `<T as TestSpec>::Data` may not live long enough
-   --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:110:28
+   --> tests/integration/trybuild/rpc/expose_rpc_associated_type_not_static.rs:111:28
     |
-110 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
+111 | #[derive(Default, Genesis, DispatchCall, MessageCodec)]
     |                            ^^^^^^^^^^^^
     |                            |
     |                            the associated type `<T as TestSpec>::Data` must be valid for the static lifetime...

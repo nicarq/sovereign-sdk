@@ -21,6 +21,7 @@ strum = { workspace = true }
 derive_more = { workspace = true }
 tempfile = { workspace = true }
 serde = { workspace = true }
+schemars = { workspace = true }
 jsonrpsee = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }

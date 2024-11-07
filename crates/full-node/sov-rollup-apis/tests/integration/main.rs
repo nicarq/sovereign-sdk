@@ -6,7 +6,7 @@ use sov_modules_api::prelude::tokio::sync::watch;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
-use sov_modules_api::prelude::tokio;
+use sov_modules_api::prelude::*;
 use sov_modules_api::{Spec, SyncStatus};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;

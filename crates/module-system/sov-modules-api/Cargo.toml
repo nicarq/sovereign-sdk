@@ -16,17 +16,17 @@ workspace = true
 
 [dependencies]
 jsonrpsee = { workspace = true, features = [
-    "macros",
-    "server",
+  "macros",
+  "server",
 ], optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true, features = [
-    "deref",
-    "display",
-    "into",
+  "deref",
+  "display",
+  "into",
 ] }
 serde_yaml = { workspace = true, optional = true }
 sov-rest-utils = { workspace = true, optional = true }
@@ -60,7 +60,7 @@ utoipa-swagger-ui = { workspace = true, optional = true }
 unwrap-infallible = { workspace = true }
 
 risc0-zkvm = { workspace = true, default-features = false, features = [
-    "std",
+  "std",
 ], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 
@@ -81,30 +81,30 @@ openapiv3 = "2.0.0"
 
 [features]
 arbitrary = [
-    "dep:arbitrary",
-    "dep:proptest",
-    "dep:proptest-derive",
-    "proptest/default",
-    "sov-db?/arbitrary",
-    "sov-mock-zkvm/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-rest-utils/arbitrary",
-    "sov-rollup-interface/arbitrary",
-    "sov-state/arbitrary",
-    "sov-sequencer-registry/arbitrary",
-    "sov-test-utils/arbitrary",
-    "sov-risc0-adapter/arbitrary",
-    "sov-mock-da/arbitrary",
-    "sov-bank/arbitrary",
+  "dep:arbitrary",
+  "dep:proptest",
+  "dep:proptest-derive",
+  "proptest/default",
+  "sov-db?/arbitrary",
+  "sov-mock-zkvm/arbitrary",
+  "sov-modules-api/arbitrary",
+  "sov-rest-utils/arbitrary",
+  "sov-rollup-interface/arbitrary",
+  "sov-state/arbitrary",
+  "sov-sequencer-registry/arbitrary",
+  "sov-test-utils/arbitrary",
+  "sov-risc0-adapter/arbitrary",
+  "sov-mock-da/arbitrary",
+  "sov-bank/arbitrary",
 ]
 bench = [
-    "sov-cycle-utils",
-    "risc0-zkvm",
-    "risc0-zkvm-platform",
-    "sov-modules-api/bench",
-    "sov-state/bench",
-    "sov-sequencer-registry/bench",
-    "sov-risc0-adapter/bench",
+  "sov-cycle-utils",
+  "risc0-zkvm",
+  "risc0-zkvm-platform",
+  "sov-modules-api/bench",
+  "sov-state/bench",
+  "sov-sequencer-registry/bench",
+  "sov-risc0-adapter/bench",
 ]
 native = [
 	"async-trait",
