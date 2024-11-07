@@ -45,6 +45,7 @@ impl BlobReaderTrait for MockBlob {
     PartialEq,
     Eq,
     Clone,
+    schemars::JsonSchema,
 )]
 pub struct MockDaSpec;
 

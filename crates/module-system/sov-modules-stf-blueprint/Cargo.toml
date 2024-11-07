@@ -20,6 +20,7 @@ axum = { workspace = true, optional = true }
 thiserror = { workspace = true }
 borsh = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+schemars = { workspace = true }
 tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync"], optional = true }
 hex = { workspace = true }

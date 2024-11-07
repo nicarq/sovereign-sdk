@@ -181,6 +181,7 @@ pub mod prelude {
     pub extern crate proptest;
     #[cfg(feature = "arbitrary")]
     pub extern crate proptest_derive;
+    pub extern crate schemars;
     pub extern crate serde;
     #[cfg(feature = "native")]
     pub extern crate serde_json;

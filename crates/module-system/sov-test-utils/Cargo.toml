@@ -22,6 +22,7 @@ axum-server = { workspace = true }
 borsh = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 serde = { workspace = true }
+schemars = { workspace = true }
 serde_json = { workspace = true }
 hex = { workspace = true }
 

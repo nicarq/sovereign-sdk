@@ -40,6 +40,7 @@ pub mod execution_mode {
         Deserialize,
         BorshDeserialize,
         BorshSerialize,
+        schemars::JsonSchema,
     )]
     #[serde(rename_all = "snake_case")]
     pub enum RuntimeExecutionMode {
@@ -66,7 +67,9 @@ pub mod execution_mode {
         const EXECUTION_MODE: RuntimeExecutionMode = RuntimeExecutionMode::Zk;
     }
     /// A unit struct marking that execution occurs on a full node.
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+    #[derive(
+        Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default, schemars::JsonSchema,
+    )]
     #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
     pub struct Native;
     impl ExecutionMode for Native {

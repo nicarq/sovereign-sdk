@@ -13,7 +13,15 @@ use crate::Amount;
 
 /// This enumeration represents the available call messages for interacting with the `AttesterIncentives` module.
 #[derive(
-    Derivative, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, PartialEq, Eq,
+    Derivative,
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    Clone,
+    PartialEq,
+    Eq,
+    schemars::JsonSchema,
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 #[serde(rename_all = "snake_case")]

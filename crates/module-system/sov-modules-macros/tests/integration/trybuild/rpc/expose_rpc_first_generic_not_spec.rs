@@ -23,6 +23,7 @@ pub trait Data:
     + serde::de::DeserializeOwned
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
+    + schemars::JsonSchema
     + Send
     + Sync
     + 'static

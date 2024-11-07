@@ -27,6 +27,7 @@
 ///    sov_modules_api::prelude::strum::EnumString,
 ///    sov_modules_api::prelude::strum::IntoStaticStr,
 ///    sov_modules_api::prelude::strum::AsRefStr,
+///    sov_modules_api::prelude::schemars::JsonSchema,
 /// ))]
 /// #[serde(rename_all = "snake_case")]
 /// pub enum RuntimeCall<S: Spec> {

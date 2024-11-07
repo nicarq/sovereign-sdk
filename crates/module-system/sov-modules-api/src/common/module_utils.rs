@@ -5,11 +5,12 @@
 /// and that can be used as a placeholder for modules that do not support calls.
 #[cfg_attr(
     feature = "native",
-    derive(schemars::JsonSchema),
     derive(crate::macros::UniversalWallet),
     universal_wallet(sov_modules_api_path = crate),
 )]
-#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone)]
+#[derive(
+    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, crate::schemars::JsonSchema,
+)]
 pub enum NotInstantiable {}
 
 impl borsh::BorshDeserialize for NotInstantiable {

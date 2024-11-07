@@ -22,6 +22,7 @@ use crate::{Evm, PendingTransaction, SpecId};
     Debug,
     PartialEq,
     Clone,
+    schemars::JsonSchema,
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct CallMessage {

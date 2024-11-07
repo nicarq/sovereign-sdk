@@ -14,6 +14,7 @@ use sov_modules_api::macros::UniversalWallet;
     Clone,
     serde::Serialize,
     serde::Deserialize,
+    schemars::JsonSchema,
 )]
 #[cfg_attr(feature = "native", derive(UniversalWallet))]
 pub struct RlpEvmTransaction {
