@@ -1,25 +1,42 @@
+#![allow(dead_code)]
 use tokio::task::JoinSet;
 
-use super::{measurement, RequestSender, TestScenario};
-use crate::{Report, Requests};
+use super::{measurement, TestScenario};
+use crate::{Report, RequestSenderFactory, Requests};
+
+/// Connection configuration for the concurrent users scenario.
+pub enum ConnConfig {
+    /// All the users share the same connection pool.
+    SharedConnectionPool,
+    /// Each user has its own connection pool.
+    PerUserConnectionPool,
+}
 
 pub(crate) struct ConcurrentUsersScenarioConfig {
     pub(crate) nb_of_users: usize,
     pub(crate) nb_of_requests_per_user: usize,
+    pub(crate) connection_config: ConnConfig,
 }
 
 /// Test scenario where a number of concurrent users send requests to the full node.
 /// All the users share the same connection pool.
 pub(crate) struct ConcurrentUsersSameConnectionPool {
     config: ConcurrentUsersScenarioConfig,
-    request_sender: RequestSender,
+    request_sender: RequestSenderFactory,
 }
 
 impl ConcurrentUsersSameConnectionPool {
     pub fn new(config: ConcurrentUsersScenarioConfig) -> Self {
+        let request_sender = match config.connection_config {
+            ConnConfig::SharedConnectionPool => RequestSenderFactory::new_shared_conn_pool(),
+            ConnConfig::PerUserConnectionPool => {
+                RequestSenderFactory::new_individual_conn_pool(config.nb_of_users)
+            }
+        };
+
         Self {
+            request_sender,
             config,
-            request_sender: RequestSender::new(),
         }
     }
 }
@@ -35,13 +52,14 @@ impl TestScenario for ConcurrentUsersSameConnectionPool {
         //For each URL, spawn a user concurrently. Each user sends requests in a busy loop and collects measurements.
         for url in requests.urls {
             let mut set = JoinSet::new();
-            for _ in 0..nb_of_users {
-                let request_sender = self.request_sender.clone();
+            for i in 0..nb_of_users {
+                let request_sender = self.request_sender.get_req_sender(i);
 
                 let url = url.clone();
                 // Spawn a concurrent task for each user.
                 set.spawn(async move {
                     let mut measurements_for_user = Vec::with_capacity(nb_of_requests_per_user);
+                    // Each user sends requests in a busy loop and collects measurements.
                     for _ in 0..nb_of_requests_per_user {
                         let measurement = measurement(&request_sender, &url).await;
                         measurements_for_user.push(measurement);
