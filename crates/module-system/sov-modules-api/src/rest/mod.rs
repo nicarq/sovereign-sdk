@@ -229,11 +229,11 @@ impl<S: Spec, T> ApiState<S, T> {
     ) -> Result<ApiStateAccessor<S>, anyhow::Error> {
         let checkpoint = self.checkpoint_receiver.borrow();
 
+        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
+
         let kernel = self.kernel.clone();
 
-        let mut state = ApiStateAccessor::new(&*checkpoint, kernel.clone());
-
-        let height = maybe_height.unwrap_or(checkpoint.rollup_height_to_access());
+        let mut state = ApiStateAccessor::new_with_height(&*checkpoint, kernel.clone(), height);
 
         let gas_price = self
             .kernel
@@ -242,12 +242,9 @@ impl<S: Spec, T> ApiState<S, T> {
                 anyhow::anyhow!("Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.")
             })?;
 
-        Ok(ApiStateAccessor::new_with_price_and_height(
-            &*checkpoint,
-            self.kernel.clone(),
-            height,
-            gas_price,
-        ))
+        state.set_gas_price(gas_price);
+
+        Ok(state)
     }
 }
 

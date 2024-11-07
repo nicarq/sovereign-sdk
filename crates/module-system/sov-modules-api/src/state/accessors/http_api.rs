@@ -242,6 +242,11 @@ impl<S: Spec + 'static> ApiStateAccessor<S> {
         Ok(())
     }
 
+    /// Sets the gas price for the accessor.
+    pub fn set_gas_price(&mut self, gas_price: <S::Gas as Gas>::Price) {
+        self.gas_meter.set_gas_price(gas_price);
+    }
+
     /// Sets the underlying [`ApiStateAccessor`] to the _visible_ state at the specified `height`.
     /// The gas price contained in the accessor is set to the base fee per gas at the specified height.
     ///

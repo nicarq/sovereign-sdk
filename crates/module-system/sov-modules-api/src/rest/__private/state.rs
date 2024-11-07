@@ -249,34 +249,17 @@ where
     Codec::KeyCodec: StateItemCodec<u64>,
     Codec::ValueCodec: StateItemCodec<V>,
 {
-    async fn get_state_map_route(State(state): State<Self>) -> ApiResult<StateItemInfo> {
-        Ok(StateItemInfo {
-            r#type: StateItemKind::StateMap,
-            prefix: state.state_item_info.prefix,
-            description: state.state_item_info.description.clone(),
-            name: state.state_item_info.name.clone(),
-            namespace: state.state_item_info.namespace,
-        }
-        .into())
-    }
-
-    async fn get_state_map_item_route(
+    async fn get_state_value_route(
         State(state): State<Self>,
         mut accessor: ApiStateAccessor<M::Spec>,
-        Path(key): Path<u64>,
-    ) -> ApiResult<StateItemContents<u64, V>> {
+    ) -> ApiResult<StateItemContents<V, V>> {
         let state_map = VersionedStateValue::<V, Codec>::with_codec(
             state.state_item_info.prefix.0.clone(),
             Codec::default(),
         );
 
-        let value = state_map.get(&key, &mut accessor).unwrap_infallible();
-        match value {
-            // Known issue, will be solved later
-            // https://github.com/Sovereign-Labs/sovereign-sdk-wip/blob/f3b934e33833ec3621f46a3b31824a344de7b433/crates/full-node/sov-ledger-apis/src/lib.rs#L387
-            None => Err(not_found_404(&state.state_item_info.name, "unknown")),
-            Some(value) => Ok(StateItemContents::MapElement { key, value }.into()),
-        }
+        let value = state_map.get_current(&mut accessor).unwrap_infallible();
+        Ok(StateItemContents::Value { value }.into())
     }
 }
 
@@ -355,8 +338,7 @@ where
 {
     fn state_item_rest_api(&self) -> axum::Router<()> {
         axum::Router::new()
-            .route("/", get(Self::get_state_map_route))
-            .route("/items/:key", get(Self::get_state_map_item_route))
+            .route("/", get(Self::get_state_value_route))
             .with_state(self.clone())
     }
 }
@@ -446,7 +428,7 @@ where
 }
 
 impl<V, Codec> GetStateItemInfo for VersionedStateValue<V, Codec> {
-    const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateMap;
+    const STATE_ITEM_KIND: StateItemKind = StateItemKind::StateValue;
     const NAMESPACE: sov_state::Namespace = Namespace::Kernel;
 }
 
