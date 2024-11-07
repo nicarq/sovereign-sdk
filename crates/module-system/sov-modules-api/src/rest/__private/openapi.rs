@@ -266,7 +266,7 @@ where
     Codec::ValueCodec: StateItemCodec<V>,
 {
     fn state_item_open_api(&self, module_name: &str) -> OpenApi {
-        let paths = state_map_paths(module_name, &self.state_item_info.name);
+        let paths = state_value_paths(module_name, &self.state_item_info.name);
         spec_from_json_paths(paths)
     }
 }
