@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -31,20 +32,13 @@ impl Requests {
     }
 }
 
+/// A request sender that can be used to send requests to the full node.
 #[derive(Clone)]
 pub(crate) struct RequestSender {
     client: Client,
 }
 
 impl RequestSender {
-    pub(crate) fn new() -> Self {
-        let client = ClientBuilder::new()
-            .timeout(REQUEST_TIMEOUT)
-            .build()
-            .unwrap();
-        Self { client }
-    }
-
     pub(crate) async fn request(&self, url: &str) -> anyhow::Result<ResponseOutput> {
         let response = self.client.get(url).send().await?;
         let status = response.status().as_u16();
@@ -54,5 +48,54 @@ impl RequestSender {
             status,
             body_size: body.len(),
         })
+    }
+}
+
+enum ConnMode {
+    SharedConnPool(Client),
+    IndividualConnPool(Vec<Client>),
+}
+
+/// A factory that creates request senders.
+#[derive(Clone)]
+pub(crate) struct RequestSenderFactory {
+    mode: Arc<ConnMode>,
+}
+
+impl RequestSenderFactory {
+    pub(crate) fn new_shared_conn_pool() -> Self {
+        // All the users share the same http client.
+        let client = ClientBuilder::new()
+            .timeout(REQUEST_TIMEOUT)
+            .build()
+            .unwrap();
+
+        Self {
+            mode: Arc::new(ConnMode::SharedConnPool(client)),
+        }
+    }
+
+    pub(crate) fn new_individual_conn_pool(nb_of_users: usize) -> Self {
+        // Each user has its own http client.
+        let clients = (0..nb_of_users)
+            .map(|_| {
+                ClientBuilder::new()
+                    .timeout(REQUEST_TIMEOUT)
+                    .build()
+                    .unwrap()
+            })
+            .collect();
+
+        Self {
+            mode: Arc::new(ConnMode::IndividualConnPool(clients)),
+        }
+    }
+
+    pub(crate) fn get_req_sender(&self, i: usize) -> RequestSender {
+        let client = match self.mode.as_ref() {
+            ConnMode::SharedConnPool(client) => client.clone(),
+            ConnMode::IndividualConnPool(clients) => clients[i].clone(),
+        };
+        RequestSender { client }
     }
 }
