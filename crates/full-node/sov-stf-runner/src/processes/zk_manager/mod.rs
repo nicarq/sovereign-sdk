@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
-use super::RawGenesisStateRoot;
+use super::{RawGenesisStateRoot, StateTransitionInfo};
 use crate::processes::{ProverService, Receiver};
 
 mod types;
@@ -30,6 +30,7 @@ pub struct ZkProofManager<Ps: ProverService> {
     backoff_policy: ExponentialBuilder,
     genesis_state_root: RawGenesisStateRoot,
     st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
 }
 
 impl<Ps: ProverService> ZkProofManager<Ps>
@@ -45,6 +46,7 @@ where
         proof_serializer: Box<dyn ProofSerializer>,
         genesis_state_root: RawGenesisStateRoot,
         st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         Self {
             da_service,
@@ -58,6 +60,7 @@ where
                 .with_max_times(BACKOFF_POLICY_MAX_NUM_RETRIES),
             genesis_state_root,
             st_info_receiver,
+            shutdown_receiver,
         }
     }
 
@@ -109,6 +112,7 @@ where
     /// Starts a background task for `AggregatedProof` generation.
     pub async fn post_aggregated_proof_to_da_in_background(self) -> JoinHandle<()> {
         tokio::spawn(async move {
+            tracing::info!("Spawning an aggregated proof posting background task");
             if let Err(e) = self.post_aggregated_proof_to_da_when_ready().await {
                 tracing::error!(error = ?e, "Failed to post aggregated proof to DA");
             }
@@ -118,53 +122,83 @@ where
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.
     /// The proof is created only when there are enough of inner proofs in the `ProverService`` queue.
     async fn post_aggregated_proof_to_da_when_ready(mut self) -> anyhow::Result<()> {
-        while let Some(stf_info) = self.st_info_receiver.read_next().await? {
-            let prover_service = &self.prover_service;
-            let block_hash = stf_info.da_block_header().hash();
-            // Save the transition for later proving. This is temporarily redundant
-            // since we always just try to prove blocks right away (because we don't have fee
-            // estimates for proving built out yet).
-            self.proofs_to_create.append(BlockProofInfo {
-                status: BlockProofStatus::Waiting(stf_info),
-                hash: block_hash,
-                // TODO(@preston-evans98): estimate public data size. This requires a new API on the `prover_service`.
-                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/440>
-                public_data_size: 0,
-            });
-
-            // Start proving the next block right away... for now.
-            self.proofs_to_create
-                .oldest_mut()
-                .prove_any_unproven_blocks(prover_service)
-                .await;
-
-            // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
-            if self.proofs_to_create.current_proof_jump() >= self.aggregated_proof_block_jump {
-                self.proofs_to_create.close_newest_proof();
-                let metadata = self.proofs_to_create.take_oldest();
-
-                let agg_proof = self
-                    .create_aggregate_proof_with_retries(
-                        metadata,
-                        prover_service,
-                        &self.genesis_state_root,
-                    )
-                    .await?;
-
-                tracing::debug!(
-                    bytes = agg_proof.raw_aggregated_proof.len(),
-                    "Sending aggregated proof to DA"
-                );
-
-                let serialized_proof = self
-                    .proof_serializer
-                    .serialize_proof_blob_with_metadata(agg_proof)
-                    .await?;
-
-                let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
-
-                self.da_service.send_proof(&serialized_proof, fee).await?;
+        loop {
+            tokio::select! {
+                _ = self.shutdown_receiver.changed() => {
+                    tracing::info!("Shutting down aggregated proof posting task...");
+                    break;
+                }
+                stf_info_result = self.st_info_receiver.read_next() => {
+                    let stf_info = match stf_info_result? {
+                        None => {
+                            tracing::debug!("Received None instead of StateTransitionInfo, shutting down aggregated proof posting task");
+                            break;
+                        },
+                        Some(stf_info) => stf_info,
+                    };
+                    self.proccess_stf_info(stf_info).await?;
+                }
             }
+        }
+        tracing::debug!("Aggregated proofs posting task has been completed");
+        Ok(())
+    }
+
+    /// Processes current STF info and optionally published aggregated proof to DA.
+    async fn proccess_stf_info(
+        &mut self,
+        stf_info: StateTransitionInfo<
+            Ps::StateRoot,
+            Ps::Witness,
+            <Ps::DaService as DaService>::Spec,
+        >,
+    ) -> anyhow::Result<()> {
+        let prover_service = &self.prover_service;
+        let block_hash = stf_info.da_block_header().hash();
+        // Save the transition for later proving. This is temporarily redundant
+        // since we always just try to prove blocks right away (because we don't have fee
+        // estimates for proving built out yet).
+        self.proofs_to_create.append(BlockProofInfo {
+            status: BlockProofStatus::Waiting(stf_info),
+            hash: block_hash,
+            // TODO(@preston-evans98): estimate public data size. This requires a new API on the `prover_service`.
+            // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/440>
+            public_data_size: 0,
+        });
+
+        // Start proving the next block right away... for now.
+        self.proofs_to_create
+            .oldest_mut()
+            .prove_any_unproven_blocks(prover_service)
+            .await;
+
+        // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
+        if self.proofs_to_create.current_proof_jump() >= self.aggregated_proof_block_jump {
+            self.proofs_to_create.close_newest_proof();
+            let metadata = self.proofs_to_create.take_oldest();
+
+            let agg_proof = self
+                .create_aggregate_proof_with_retries(
+                    metadata,
+                    prover_service,
+                    &self.genesis_state_root,
+                )
+                .await?;
+
+            tracing::debug!(
+                bytes = agg_proof.raw_aggregated_proof.len(),
+                "Sending aggregated proof to DA"
+            );
+
+            let serialized_proof = self
+                .proof_serializer
+                .serialize_proof_blob_with_metadata(agg_proof)
+                .await?;
+
+            let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
+
+            let receipt = self.da_service.send_proof(&serialized_proof, fee).await?;
+            tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
         }
         Ok(())
     }

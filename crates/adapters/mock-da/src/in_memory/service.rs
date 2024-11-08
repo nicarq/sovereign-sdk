@@ -365,11 +365,20 @@ impl DaService for MockDaService {
             tracing::debug!("Including buffered proof in block");
             proof_blobs.push(blob);
         }
+        let proofs_included = proof_blobs.len();
+        let blob_size_bytes = blob.len();
 
         let mut blocks = self.blocks.write().await;
         let batch_blob = self.make_blob(blob.to_vec());
 
-        let blob_hash = self.add_block(batch_blob, proof_blobs, &mut blocks).1;
+        let (height, blob_hash) = self.add_block(batch_blob, proof_blobs, &mut blocks);
+
+        tracing::debug!(
+            height,
+            blob_size_bytes,
+            proofs_included,
+            "MockBlock has been saved"
+        );
 
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),

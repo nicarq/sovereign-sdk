@@ -22,7 +22,7 @@ use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
 use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{RawGenesisStateRoot, Sender};
@@ -58,6 +58,8 @@ where
     listen_address_axum: SocketAddr,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
+    shutdown_receiver: watch::Receiver<()>,
+    background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
 }
 
 /// How [`StateTransitionRunner`] is initialized
@@ -236,6 +238,7 @@ where
         prev_state_root: Stf::StateRoot,
         st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
         sync_status_sender: watch::Sender<SyncStatus>,
+        shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<Self> {
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
@@ -284,6 +287,8 @@ where
                 sync_status_sender,
             }),
             sync_fetcher,
+            shutdown_receiver,
+            background_handles: Vec::new(),
         })
     }
 
@@ -295,41 +300,59 @@ where
     /// Starts an RPC server with provided RPC methods and returns [`SocketAddr`] it is bind to.
     ///  # Arguments:
     ///   * methods: [`RpcModule`] with all RPC methods.
-    pub async fn start_rpc_server(&self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
+    pub async fn start_rpc_server(&mut self, methods: RpcModule<()>) -> anyhow::Result<SocketAddr> {
         let server = jsonrpsee::server::ServerBuilder::default()
             .build([self.listen_address_rpc].as_ref())
             .await?;
         let rpc_address = server.local_addr()?;
 
-        let _handle = tokio::spawn(async move {
-            info!(%rpc_address, "Starting RPC server");
-            let _server_handle = server.start(methods);
+        let mut shutdown_receiver = self.shutdown_receiver.clone();
 
-            futures::future::pending::<()>().await;
-        });
+        self.background_handles.push(tokio::spawn(async move {
+            info!(%rpc_address, "Starting RPC server");
+            let server_handle = server.start(methods);
+
+            tokio::select! {
+                _ = shutdown_receiver.changed() => {
+                    info!("Shutting down RPC server...");
+                    server_handle.stop().map_err(|e | anyhow::anyhow!(e))
+                }
+            }
+        }));
 
         Ok(rpc_address)
     }
 
     /// Starts an Axum server with the provided router.
-    pub async fn start_axum_server(&self, router: axum::Router<()>) -> anyhow::Result<SocketAddr> {
+    pub async fn start_axum_server(
+        &mut self,
+        router: axum::Router<()>,
+    ) -> anyhow::Result<SocketAddr> {
         let listener = tokio::net::TcpListener::bind(self.listen_address_axum).await?;
         let rest_address = listener.local_addr()?;
+        let mut shutdown_receiver = self.shutdown_receiver.clone();
 
-        tokio::spawn(async move {
+        self.background_handles.push(tokio::spawn(async move {
             info!(%rest_address, "Starting REST API server");
             let router = NormalizePathLayer::trim_trailing_slash().layer(router);
 
             axum::serve(listener, ServiceExt::<Request>::into_make_service(router))
+                .with_graceful_shutdown(async move {
+                    shutdown_receiver.changed().await.ok();
+                })
                 .await
-                .unwrap();
-        });
+                .map_err(|e| anyhow::anyhow!(e))
+        }));
 
         Ok(rest_address)
     }
 
     /// Spawn a [`tokio::task`] that updates the sync status every `polling_interval`.
-    pub fn spawn_sync_status_updater(&self, polling_interval: Duration) {
+    fn spawn_sync_status_updater(
+        &self,
+        polling_interval: Duration,
+        mut shutdown_receiver: watch::Receiver<()>,
+    ) -> tokio::task::JoinHandle<()> {
         let sync_state = self.sync_state.clone();
         let da_service = self.da_service.clone();
 
@@ -343,31 +366,24 @@ where
             interval.tick().await; // Tick the interval once because it starts at 0ms.
 
             loop {
-                let target_da_height = match da_service.get_head_block_header().await {
-                    Ok(header) => header.height(),
-                    Err(error) => {
-                        error!(
-                            ?error,
-                            "Failed to get the DA head block header during sync status update; will retry in ~{}ms",
-                            polling_interval.as_millis()
-                        );
-                        continue;
+                tokio::select! {
+                    _ = shutdown_receiver.changed() => {
+                            break;
                     }
-                };
-
-                sync_state.update_target(target_da_height);
-
-                if let SyncStatus::Syncing {
-                    synced_da_height,
-                    target_da_height,
-                } = sync_state.status()
-                {
-                    info!(synced_da_height, target_da_height, "Sync in progress");
+                    Ok(header) = da_service.get_head_block_header() => {
+                       let target_da_height = header.height();
+                       sync_state.update_target(target_da_height);
+                        if let SyncStatus::Syncing {
+                            synced_da_height,
+                            target_da_height,
+                        } = sync_state.status() {
+                            info!(synced_da_height, target_da_height, "Sync in progress");
+                        }
+                        interval.tick().await;
+                    }
                 }
-
-                interval.tick().await;
             }
-        });
+        })
     }
 
     /// Runs the rollup.
@@ -376,11 +392,29 @@ where
         let target_da_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state.update_target(target_da_height);
 
-        self.spawn_sync_status_updater(Duration::from_millis(self.da_polling_interval_ms));
+        let status_updater_handle = self.spawn_sync_status_updater(
+            Duration::from_millis(self.da_polling_interval_ms),
+            self.shutdown_receiver.clone(),
+        );
 
+        let mut shutdown_receiver = self.shutdown_receiver.clone();
         loop {
-            next_da_height = self.process_next_slot(next_da_height).await?;
+            tokio::select! {
+                _ = shutdown_receiver.changed() => {
+                        break;
+                }
+                slot_result = self.process_next_slot(next_da_height) => {
+                    next_da_height = slot_result?;
+                }
+            }
         }
+        info!("Shutting down runner...");
+        status_updater_handle.await?;
+        let background_handles = std::mem::take(&mut self.background_handles);
+        for handle in background_handles {
+            let _ = handle.await?;
+        }
+        Ok(())
     }
 
     async fn process_next_slot(

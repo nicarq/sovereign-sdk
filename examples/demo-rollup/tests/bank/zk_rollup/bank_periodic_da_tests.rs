@@ -17,7 +17,7 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         finalization_blocks: 0,
     };
 
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         RollupProverConfig::Skip,
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
@@ -30,8 +30,8 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => res?,
-    };
+        res = send_test_bank_txs(test_case, &test_rollup.client, sender) => Ok(res?),
+    }?;
 
     Ok(())
 }

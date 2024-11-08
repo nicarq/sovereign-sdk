@@ -24,7 +24,7 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
         finalization_blocks: 0,
     };
 
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
@@ -37,8 +37,8 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
-    };
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => Ok(res?),
+    }?;
 
     Ok(())
 }
@@ -49,7 +49,7 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
         wait_for_aggregated_proof: false,
         finalization_blocks: 2,
     };
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
@@ -62,8 +62,8 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
-    };
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => Ok(res?),
+    }?;
 
     Ok(())
 }
@@ -75,7 +75,7 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow
         finalization_blocks: 0,
     };
 
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         get_appropriate_rollup_prover_config(),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
@@ -87,8 +87,8 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => res?,
-    };
+        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => Ok(res?),
+    }?;
 
     Ok(())
 }

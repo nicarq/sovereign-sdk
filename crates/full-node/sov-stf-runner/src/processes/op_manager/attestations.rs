@@ -9,7 +9,7 @@ use sov_rollup_interface::optimistic::{Attestation, BondingProofService, Seriali
 use sov_rollup_interface::stf::ProofSerializer;
 use tokio::task::JoinHandle;
 
-use crate::processes::Receiver;
+use crate::processes::{Receiver, StateTransitionInfo};
 
 /// Manages the lifecycle of the [`Attestation`].
 pub struct AttestationsManager<StateRoot, Witness, Da: DaService, Bps: BondingProofService> {
@@ -17,6 +17,7 @@ pub struct AttestationsManager<StateRoot, Witness, Da: DaService, Bps: BondingPr
     bonding_proof_service: Bps,
     proof_serializer: Box<dyn ProofSerializer>,
     da_service: Arc<Da>,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
 }
 
 impl<StateRoot, Witness, Da, Bps> AttestationsManager<StateRoot, Witness, Da, Bps>
@@ -32,12 +33,14 @@ where
         bonding_proof_service: Bps,
         proof_serializer: Box<dyn ProofSerializer>,
         da_service: Arc<Da>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         Self {
             st_info_receiver,
             bonding_proof_service,
             da_service,
             proof_serializer,
+            shutdown_receiver,
         }
     }
 
@@ -51,31 +54,55 @@ where
     }
 
     async fn post_attestation_to_da(mut self) -> anyhow::Result<()> {
-        while let Some(stf_info) = self.st_info_receiver.read_next().await? {
-            let height = stf_info.rollup_height;
-            let witness = stf_info.witness();
-
-            let attestation = Attestation {
-                initial_state_root: witness.initial_state_root,
-                slot_hash: witness.da_block_header.hash(),
-                post_state_root: witness.final_state_root,
-                proof_of_bond: self.bonding_proof_service.get_bonding_proof(height).ok_or(
-                    anyhow::anyhow!("Cannot get bonding proof, storage is corrupted."),
-                )?,
-            };
-
-            let serialized_attestation = SerializedAttestation::from_attestation(&attestation)?;
-
-            let serialized_blob = self
-                .proof_serializer
-                .serialize_attestation_blob_with_metadata(serialized_attestation)
-                .await?;
-
-            let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
-
-            self.da_service.send_proof(&serialized_blob, fee).await?;
+        loop {
+            tokio::select! {
+                 _ = self.shutdown_receiver.changed() => {
+                    tracing::info!("Shutting down attestations posting task...");
+                    break;
+                }
+                stf_info_result = self.st_info_receiver.read_next() => {
+                    let stf_info = match stf_info_result? {
+                        None => {
+                            tracing::debug!("Received None instead of StateTransitionInfo, shutting down attestations posting task");
+                            break;
+                        },
+                        Some(stf_info) => stf_info,
+                    };
+                    self.process_stf_info(stf_info).await?;
+                }
+            }
         }
+        tracing::debug!("Attestations posting task has been completed");
+        Ok(())
+    }
 
+    async fn process_stf_info(
+        &mut self,
+        stf_info: StateTransitionInfo<StateRoot, Witness, Da::Spec>,
+    ) -> anyhow::Result<()> {
+        let height = stf_info.rollup_height;
+        let witness = stf_info.witness();
+
+        let attestation = Attestation {
+            initial_state_root: witness.initial_state_root,
+            slot_hash: witness.da_block_header.hash(),
+            post_state_root: witness.final_state_root,
+            proof_of_bond: self.bonding_proof_service.get_bonding_proof(height).ok_or(
+                anyhow::anyhow!("Cannot get bonding proof, storage is corrupted."),
+            )?,
+        };
+
+        let serialized_attestation = SerializedAttestation::from_attestation(&attestation)?;
+
+        let serialized_blob = self
+            .proof_serializer
+            .serialize_attestation_blob_with_metadata(serialized_attestation)
+            .await?;
+
+        let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
+
+        let receipt = self.da_service.send_proof(&serialized_blob, fee).await?;
+        tracing::debug!(?receipt, "Attestation has been posted to DA");
         Ok(())
     }
 }

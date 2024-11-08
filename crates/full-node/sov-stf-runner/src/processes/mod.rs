@@ -48,16 +48,18 @@ where
         }
     }
 
-    /// Starts process that generates aggregated proofs in the background.
+    /// Starts a process that generates aggregated proofs in the background.
     pub async fn start_zk_workflow_in_background(
         self,
         aggregated_proof_block_jump: usize,
         max_channel_size: usize,
         max_nb_of_infos_in_db: u64,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<(
         Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         JoinHandle<()>,
     )> {
+        let ledger_db = self.ledger_db.clone();
         let (st_info_sender, st_info_receiver) =
             new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
 
@@ -68,21 +70,30 @@ where
             self.proof_serializer,
             self.genesis_state_root,
             st_info_receiver,
+            shutdown_receiver,
         );
 
         let handle = proof_manager
             .post_aggregated_proof_to_da_in_background()
             .await;
 
+        st_info_sender
+            .notify_about_infos_from_db(&ledger_db)
+            .await?;
+
         Ok((st_info_sender, handle))
     }
 
-    /// Starts process that generates optimistic proofs in the background.
+    /// Starts the process that generates optimistic proofs in the background.
     pub async fn start_op_workflow_in_background<Bps: BondingProofService>(
         self,
         bonding_proof_service: Bps,
-    ) -> anyhow::Result<Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>>
-    {
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
+    ) -> anyhow::Result<(
+        Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
+        JoinHandle<()>,
+    )> {
+        let ledger_db = self.ledger_db.clone();
         let (st_info_sender, st_info_receiver) = new_stf_info_channel(self.ledger_db, 1, 2).await?;
 
         let attestations_manager = AttestationsManager::new(
@@ -90,11 +101,16 @@ where
             bonding_proof_service,
             self.proof_serializer,
             self.da_service,
+            shutdown_receiver,
         );
-        attestations_manager
+        let handle = attestations_manager
             .post_attestation_to_da_in_background()
             .await;
 
-        Ok(st_info_sender)
+        st_info_sender
+            .notify_about_infos_from_db(&ledger_db)
+            .await?;
+
+        Ok((st_info_sender, handle))
     }
 }

@@ -60,10 +60,14 @@ pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
     pub axum_server_handle: axum_server::Handle,
     /// The Axum server address.
     pub axum_addr: SocketAddr,
+    /// Handler for shutdown of sequencer
+    pub shutdown_sender: watch::Sender<()>,
 }
 
 impl<B: BatchBuilder<Spec = TestSpec>> Drop for TestSequencerSetup<B> {
     fn drop(&mut self) {
+        // Error means that senders are already shut down.
+        let _ = self.shutdown_sender.send(());
         self.axum_server_handle.shutdown();
     }
 }
@@ -111,19 +115,15 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         let stf = TestStfBlueprint::with_runtime(runtime.clone());
 
         let genesis_block = MockBlock::default();
-        let (stf_state, ledger_state) = storage_manager
-            .create_state_for(genesis_block.header())
-            .unwrap();
+        let (stf_state, ledger_state) = storage_manager.create_state_for(genesis_block.header())?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
         let sequencer_db = SequencerDb::new(dir.path(), Duration::ZERO)?;
 
         let (_genesis_root, stf_state) =
             stf.init_chain(&Default::default(), &Default::default(), stf_state, params);
-        storage_manager
-            .save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())
-            .unwrap();
-        storage_manager.finalize(&genesis_block.header).unwrap();
-        let stf_state = storage_manager.create_bootstrap_state().unwrap().0;
+        storage_manager.save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())?;
+        storage_manager.finalize(&genesis_block.header)?;
+        let stf_state = storage_manager.create_bootstrap_state()?.0;
 
         let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {
             synced_da_height: 0,
@@ -142,6 +142,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         };
 
         let (_, storage_receiver) = watch::channel(stf_state);
+        let (shutdown_sender, shutdown_receiver) = watch::channel(());
         let batch_builder = B::create(
             storage_receiver,
             da_sync_state,
@@ -160,6 +161,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             sequencer_db,
             ledger_db,
             false,
+            shutdown_receiver,
         );
 
         let (axum_addr, sequencer_axum_server) = {
@@ -185,6 +187,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             admin_private_key: admin.private_key,
             axum_server_handle: sequencer_axum_server,
             axum_addr,
+            shutdown_sender,
         })
     }
 

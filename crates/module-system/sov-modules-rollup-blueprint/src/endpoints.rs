@@ -32,6 +32,7 @@ pub async fn register_endpoints<B, M>(
     da_service: &B::DaService,
     da_sync_state: Arc<DaSyncState>,
     config: &RollupConfig<<B::Spec as Spec>::Address, B::DaService>,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
@@ -63,6 +64,7 @@ where
                 sequencer_db.clone(),
                 ledger_db.clone(),
                 config.sequencer.automatic_batch_production,
+                shutdown_receiver,
             );
 
             (sequencer.api_state(), sequencer.rest_api_server())
@@ -88,6 +90,7 @@ where
                 sequencer_db.clone(),
                 ledger_db.clone(),
                 config.sequencer.automatic_batch_production,
+                shutdown_receiver,
             );
 
             (sequencer.api_state(), sequencer.rest_api_server())
