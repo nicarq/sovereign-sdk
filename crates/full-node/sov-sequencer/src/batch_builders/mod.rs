@@ -244,16 +244,24 @@ fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> AcceptTxError {
 
         },
         PreExecError::AuthError(error) => {
+            // For certain kinds of authentication errors, 401
+            // or 403 would be more appropriate. But we'd have
+            // to inspect the error contents to determine the
+            // most appropriate status code... so 400 will do.
             AcceptTxError {
-                // For certain kinds of authentication errors, 401
-                // or 403 would be more appropriate. But we'd have
-                // to inspect the error contents to determine the
-                // most appropriate status code... so 400 will do.
                 http_status: StatusCode::BAD_REQUEST.as_u16(),
                 title: "The transaction is invalid".to_string(),
                 details:error.to_string(),
             }
         },
+    }
+}
+
+fn generic_accept_tx_error(details: impl std::fmt::Debug) -> AcceptTxError {
+    AcceptTxError {
+        http_status: StatusCode::BAD_REQUEST.as_u16(),
+        title: "The transaction is invalid".to_string(),
+        details: format!("{:?}", details),
     }
 }
 

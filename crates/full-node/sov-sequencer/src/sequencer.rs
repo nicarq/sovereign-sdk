@@ -78,10 +78,11 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         };
 
         batch_builder.clear_batch().await?;
+        self.sequencer_db.remove(&tx_hashes)?;
 
-        for tx_hash in tx_hashes {
+        for tx_hash in &tx_hashes {
             self.tx_status_manager.notify(
-                tx_hash,
+                *tx_hash,
                 TxStatus::Published {
                     da_tx_id: submit_blob_receipt.transaction_id.clone(),
                 },
