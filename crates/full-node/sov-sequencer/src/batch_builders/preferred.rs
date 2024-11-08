@@ -20,11 +20,11 @@ use sov_modules_stf_blueprint::{
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
-use tracing::{error, info, trace};
+use tracing::warn;
 
 use super::{
-    pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth, DataWithEvents,
-    RtAwareBatchBuilderSpec,
+    generic_accept_tx_error, pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth,
+    DataWithEvents, RtAwareBatchBuilderSpec,
 };
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
@@ -75,147 +75,15 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
 
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
-    runtime: Z::Rt,
     storage: StorageReceiver<Z::Spec>,
-    sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
     da_sync_state: Arc<DaSyncState>,
     last_da_height: u64,
     txs_in_next_batch: Vec<TxWithHash>,
-    admin_addresses: Vec<<Z::Spec as Spec>::Address>,
     next_event_number: u64,
-}
-
-impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
-    async fn accept_tx_internal(
-        &mut self,
-        tx_input: <Self as BatchBuilder>::TxInput,
-    ) -> Result<AcceptedTx<Confirmation<Z>>, AcceptTxError> {
-        let state_checkpoint = self
-            .checkpoint
-            .take()
-            .expect("Absent checkpoint; this is a bug, please report it");
-
-        let baked_tx = FullyBakedTx {
-            data: borsh::to_vec(&tx_input).expect(
-                "Failed to serialize transaction inside the batch. This is a bug, please report it",
-            ),
-        };
-
-        // This closure helps us make sure that we always put the
-        // `StateCheckpoint` back into `self` at the end of the function.
-        let (new_checkpoint, response) = (|mut checkpoint| {
-            let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
-
-            let kernel_ws =
-                KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
-            let visible_height = kernel_ws.visible_rollup_height();
-            let tx_scratchpad = checkpoint.to_tx_scratchpad();
-
-            let (tx_scratchpad, output_res) = tx_auth(
-                &self.runtime,
-                tx_scratchpad,
-                gas_price,
-                &self.sequencer_address,
-                tx_input,
-            );
-
-            let (auth_output, gas_meter) = match output_res {
-                Ok(ok) => ok,
-                Err(error) => {
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(pre_exec_err_to_accept_tx_err(error)),
-                    );
-                }
-            };
-            let authz_data = &auth_output.1;
-            let message = &auth_output.2;
-
-            // If the module isn't sequencer safe, the caller must be an admin to proceed
-            if !sender_is_allowed(
-                &self.runtime,
-                message,
-                authz_data.default_address.as_ref(),
-                &self.sequencer_address,
-                &self.admin_addresses,
-            ) {
-                return (
-                    tx_scratchpad.revert(),
-                    Err(AcceptTxError {
-                        http_status: StatusCode::FORBIDDEN.as_u16(),
-                        title: "The transaction is forbidden".to_string(),
-                        details: format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", message.discriminant()),
-                    }),
-                );
-            }
-
-            let gas_info = gas_meter.gas_info();
-
-            let (res, tx_scratchpad) = process_tx(
-                &self.runtime,
-                ValidatedAuthOutput::Valid(auth_output),
-                &gas_info.gas_price,
-                &gas_info.gas_used,
-                &self.sequencer_address,
-                visible_height,
-                tx_scratchpad,
-                ExecutionContext::Sequencer,
-            );
-
-            let ApplyTxResult { receipt, .. } = match res {
-                Ok(x) => x,
-                Err(reason) => {
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(AcceptTxError {
-                            http_status: StatusCode::BAD_REQUEST.as_u16(),
-                            title: "The transaction is invalid".to_string(),
-                            details: format!("{:?}", reason),
-                        }),
-                    );
-                }
-            };
-
-            match receipt.receipt {
-                TxEffect::Successful(_) => {}
-                TxEffect::Skipped(_) | TxEffect::Reverted(_) => {
-                    return (
-                        tx_scratchpad.revert(),
-                        Err(AcceptTxError {
-                            http_status: StatusCode::BAD_REQUEST.as_u16(),
-                            title: "The transaction is invalid".to_string(),
-                            details: format!("{:?}", receipt.receipt),
-                        }),
-                    );
-                }
-            }
-
-            let tx_hash = receipt.tx_hash;
-            self.txs_in_next_batch.push(TxWithHash {
-                fully_baked_tx: baked_tx.clone(),
-                hash: tx_hash,
-            });
-
-            (
-                tx_scratchpad.commit(),
-                Ok(AcceptedTx {
-                    tx: baked_tx,
-                    tx_hash,
-                    confirmation: receipt,
-                }),
-            )
-        })(state_checkpoint);
-
-        self.checkpoint = Some(new_checkpoint);
-
-        response.map(|response| {
-            response
-                .map_confirmation(|receipt| confirmation(receipt, self.next_event_number).unwrap())
-        })
-    }
+    acceptor: TxAcceptor<Z>,
 }
 
 #[async_trait]
@@ -250,24 +118,32 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
 
         let mut bb = Self {
-            runtime: Default::default(),
+            acceptor: TxAcceptor {
+                runtime: Default::default(),
+                sequencer_address,
+                admin_addresses,
+            },
             storage,
-            sequencer_address,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
             last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
             da_sync_state,
             txs_in_next_batch: vec![],
-            admin_addresses,
             next_event_number: last_event_number + 1,
         };
 
         // Restore persisted transactions.
         for seq_db_tx in seq_db_txs {
-            bb.accept_tx(seq_db_tx.tx_input::<Self>())
-                .await
-                .map_err(|err| anyhow::anyhow!("Failed to restore transactions: {:?}", err))?;
+            let res = bb.accept_tx(seq_db_tx.tx_input::<Self>()).await;
+
+            if let Err(err) = res {
+                warn!(
+                    ?err,
+                    "Failed to restore transaction; this is likely indicative of an abrupt sequencer shutdown. Please monitor logs and report any potential issues.",
+                );
+                break;
+            }
         }
 
         Ok(bb)
@@ -292,46 +168,43 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
     async fn set_state(
         &mut self,
-        da_height: u64,
-        stf_state: <Z::Spec as Spec>::Storage,
-        last_event_number: u64,
+        _da_height: u64,
+        _stf_state: <Z::Spec as Spec>::Storage,
+        _last_event_number: u64,
     ) {
-        let txs_to_process = self.txs_in_next_batch.clone();
+        // FIXME: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1834
 
-        info!(
-            da_height,
-            num_txs_to_process = txs_to_process.len(),
-            "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
-        );
+        //let txs_to_process = self.txs_in_next_batch.clone();
 
-        let checkpoint = {
-            let rt = Z::Rt::default();
-            let kernel = rt.kernel();
-            StateCheckpoint::new(stf_state, &kernel)
-        };
-        self.checkpoint = Some(checkpoint);
+        //info!(
+        //    da_height,
+        //    num_txs_to_process = txs_to_process.len(),
+        //    "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
+        //);
 
-        for (idx, tx) in txs_to_process.iter().enumerate() {
-            trace!(
-                idx,
-                tx_hash = %tx.hash,
-                "Re-applying state changes for the soft-confirmed transaction"
-            );
+        //self.checkpoint = Some(StateCheckpoint::new(stf_state, &Z::Rt::default().kernel()));
 
-            let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
-                .expect("Failed to deserialize transaction");
-            if let Err(error) = self.accept_tx_internal(tx_input).await {
-                error!(
-                    ?error,
-                    "Transaction was soft-confirmed but failed to be re-applied"
-                );
-            }
-        }
+        //for (idx, tx) in txs_to_process.iter().enumerate() {
+        //    trace!(
+        //        idx,
+        //        tx_hash = %tx.hash,
+        //        "Re-applying state changes for the soft-confirmed transaction"
+        //    );
 
-        self.next_event_number = last_event_number + 1;
-        self.checkpoint_sender
-            .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
-            .ok();
+        //    let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
+        //        .expect("Failed to deserialize transaction");
+        //    if let Err(error) = self.accept_tx(tx_input).await {
+        //        warn!(
+        //            ?error,
+        //            "Transaction was soft-confirmed but failed to be re-applied"
+        //        );
+        //    }
+        //}
+
+        //self.next_event_number = last_event_number + 1;
+        //self.checkpoint_sender
+        //    .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
+        //    .ok();
     }
 
     fn encode_tx(raw: RawTx) -> Self::TxInput {
@@ -342,19 +215,33 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         &mut self,
         tx_input: Self::TxInput,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
-        let response = self.accept_tx_internal(tx_input).await;
+        let old_checkpoint = self
+            .checkpoint
+            .take()
+            .expect("Absent checkpoint; this is a bug, please report it");
 
-        self.checkpoint_sender
-            .send(
-                self.checkpoint
-                    .as_ref()
-                    .expect("Missing internal checkpoint; this is a bug, please report it")
-                    .clone_with_empty_witness(),
-            )
-            .ok();
+        let (new_checkpoint, response) = self
+            .acceptor
+            .tx_confirmation(tx_input, old_checkpoint, self.next_event_number)
+            .await;
+        self.checkpoint = Some(new_checkpoint);
 
         if let Ok(ref ok) = response {
             self.next_event_number += ok.confirmation.events.len() as u64;
+
+            self.txs_in_next_batch.push(TxWithHash {
+                fully_baked_tx: ok.tx.clone(),
+                hash: ok.tx_hash,
+            });
+
+            self.checkpoint_sender
+                .send(
+                    self.checkpoint
+                        .as_ref()
+                        .expect("Missing internal checkpoint; this is a bug, please report it")
+                        .clone_with_empty_witness(),
+                )
+                .ok();
         }
 
         response
@@ -392,5 +279,115 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         self.txs_in_next_batch.clear();
 
         Ok(())
+    }
+}
+
+type AcceptTxResult<Z> = (
+    StateCheckpoint<<<Z as RtAwareBatchBuilderSpec>::Spec as Spec>::Storage>,
+    Result<AcceptedTx<Confirmation<Z>>, AcceptTxError>,
+);
+
+/// Subset of the [`PreferredBatchBuilder`] state that is needed to accept a
+/// transaction.
+struct TxAcceptor<Z: RtAwareBatchBuilderSpec> {
+    runtime: Z::Rt,
+    sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
+    admin_addresses: Vec<<Z::Spec as Spec>::Address>,
+}
+
+impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
+    async fn tx_confirmation(
+        &self,
+        tx_input: <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input,
+        mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
+        next_event_number: u64,
+    ) -> AcceptTxResult<Z> {
+        let baked_tx = FullyBakedTx {
+            data: borsh::to_vec(&tx_input).expect(
+                "Failed to serialize transaction inside the batch. This is a bug, please report it",
+            ),
+        };
+
+        let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut checkpoint).expect("Impossible to get the gas price for the current slot. This is a bug. Please report it");
+
+        let kernel_ws =
+            KernelStateAccessor::from_checkpoint(&self.runtime.kernel(), &mut checkpoint);
+        let visible_height = kernel_ws.visible_rollup_height();
+        let tx_scratchpad = checkpoint.to_tx_scratchpad();
+
+        let (tx_scratchpad, output_res) = tx_auth(
+            &self.runtime,
+            tx_scratchpad,
+            gas_price,
+            &self.sequencer_address,
+            tx_input,
+        );
+
+        let (auth_output, gas_meter) = match output_res {
+            Ok(ok) => ok,
+            Err(error) => {
+                return (
+                    tx_scratchpad.revert(),
+                    Err(pre_exec_err_to_accept_tx_err(error)),
+                );
+            }
+        };
+        let authz_data = &auth_output.1;
+        let message = &auth_output.2;
+
+        // If the module isn't sequencer safe, the caller must be an admin to proceed
+        if !sender_is_allowed(
+            &self.runtime,
+            message,
+            authz_data.default_address.as_ref(),
+            &self.sequencer_address,
+            &self.admin_addresses,
+        ) {
+            let error = AcceptTxError {
+                http_status: StatusCode::FORBIDDEN.as_u16(),
+                title: "The transaction is forbidden".to_string(),
+                details: format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", message.discriminant()),
+            };
+
+            return (tx_scratchpad.revert(), Err(error));
+        }
+
+        let gas_info = gas_meter.gas_info();
+
+        let (res, tx_scratchpad) = process_tx(
+            &self.runtime,
+            ValidatedAuthOutput::Valid(auth_output),
+            &gas_info.gas_price,
+            &gas_info.gas_used,
+            &self.sequencer_address,
+            visible_height,
+            tx_scratchpad,
+            ExecutionContext::Sequencer,
+        );
+
+        let ApplyTxResult { receipt, .. } = match res {
+            Ok(x) => x,
+            Err(reason) => {
+                return (tx_scratchpad.revert(), Err(generic_accept_tx_error(reason)));
+            }
+        };
+
+        match receipt.receipt {
+            TxEffect::Successful(_) => {}
+            TxEffect::Skipped(_) | TxEffect::Reverted(_) => {
+                return (
+                    tx_scratchpad.revert(),
+                    Err(generic_accept_tx_error(receipt.receipt)),
+                );
+            }
+        }
+
+        let accepted_tx = AcceptedTx {
+            tx: baked_tx,
+            tx_hash: receipt.tx_hash,
+            confirmation: confirmation(receipt, next_event_number).unwrap(),
+        };
+
+        (tx_scratchpad.commit(), Ok(accepted_tx))
     }
 }
