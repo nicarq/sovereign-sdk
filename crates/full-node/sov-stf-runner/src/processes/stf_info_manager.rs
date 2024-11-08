@@ -17,7 +17,7 @@ use tokio::sync::mpsc;
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "StateRoot: Serialize + DeserializeOwned, Witness: Serialize + DeserializeOwned")]
 pub struct StateTransitionInfo<StateRoot, Witness, Da: DaSpec> {
-    /// Public input to the per block zk proof.
+    /// Public input to the per-block zk proof.
     pub(crate) data: StateTransitionWitness<StateRoot, Witness, Da>,
     /// Rollup height.
     pub(crate) rollup_height: u64,
@@ -52,13 +52,61 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
     // Max number of entries we will keep in the Db, older data will be pruned.
     max_nb_of_infos_in_db: u64,
 
-    // The notification channel, does not contain the actual STF info data
+    // The notification channel does not contain the actual STF info data,
     // only the indexes in the Db where the data is stored.
     notifier: mpsc::Sender<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
 }
 
-/// Receives notifications from the associated `Sender` and reads STF info data from the db.
+impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
+    pub(crate) async fn notify_about_infos_from_db(
+        &self,
+        ledger_db: &LedgerDb,
+    ) -> anyhow::Result<()> {
+        let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height().await?;
+        match maybe_write_rollup_height {
+            Some(write_rollup_height) => {
+                let read_rollup_height = ledger_db
+                    .get_stf_info_read_rollup_height()
+                    .await?
+                    .unwrap_or(1);
+                // Sanity check for `write_rollup_height & read_rollup_height`
+                assert!(
+                    write_rollup_height >= read_rollup_height,
+                    "The `write_rollup_height` should always be greater than the `read_rollup_height`"
+                );
+
+                assert!(
+                    (write_rollup_height - read_rollup_height) <= self.max_nb_of_infos_in_db,
+                    "Too many STF infos in the db: {}, vs max allowed {} read={} write={}",
+                    (write_rollup_height - read_rollup_height),
+                    self.max_nb_of_infos_in_db,
+                    read_rollup_height,
+                    write_rollup_height,
+                );
+
+                for height in read_rollup_height..=write_rollup_height {
+                    // It is ok to unwrap here, as we are sure that the sender is alive.
+                    self.notifier
+                        .send(height)
+                        .await
+                        .expect("The stf info receiver was dropped");
+                }
+            }
+            // Db is empty
+            None => {
+                assert!(ledger_db.get_stf_info_read_rollup_height().await?.is_none());
+                assert!(ledger_db
+                    .get_stf_info_oldest_rollup_height()
+                    .await?
+                    .is_none());
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Receives notifications from the associated [`Sender`] and reads STF info data from the db.
 
 pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
     // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
@@ -68,12 +116,12 @@ pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
 }
 
-/// Creates a new [Sender] and [Receiver] channel.
+/// Creates a new [`Sender`] and [`Receiver`] channel.
 ///
 /// The channel's data is retained across Db restarts.
 /// - The sender will block if the channel reaches `max_channel_size` of STF infos.
 /// - If the number of entries in the Db exceeds `max_nb_of_infos_in_db`, the oldest data will be pruned.
-/// The channel can only be created if `max_channel_size` is less than or equal to `max_nb_of_infos_in_db``.
+/// The channel can only be created if `max_channel_size` is less than or equal to `max_nb_of_infos_in_db`.
 pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     ledger_db: LedgerDb,
     max_channel_size: usize,
@@ -87,48 +135,13 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
         "Channel size should be smaller than the max number of STFInfos in the db"
     );
 
-    // Internally the Db keeps the following entries:
+    // Internally, the Db keeps the following entries:
     // 1. The STF info data.
     // 2. The latest height of the written STF info (increased on every `materialize_stf_info`` operation)
     // 3. The latest height of the retrieved STF info (increased on every `read_next`` operation).
 
     // On startup, we need to fill the notification channel with the pending STF info from the db.
     let (notifier, receiver) = tokio::sync::mpsc::channel::<u64>(max_channel_size);
-
-    let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height().await?;
-    match maybe_write_rollup_height {
-        Some(write_rollup_height) => {
-            let read_rollup_height = ledger_db
-                .get_stf_info_read_rollup_height()
-                .await?
-                .unwrap_or(1);
-            // Sanity check for `write_rollup_height & read_rollup_height`
-            assert!(
-                write_rollup_height >= read_rollup_height,
-                "The `write_rollup_height` should always be greater than the `read_rollup_height`"
-            );
-            assert!(
-                write_rollup_height - read_rollup_height <= max_nb_of_infos_in_db,
-                "Too many STF infos in the db"
-            );
-
-            for height in read_rollup_height..=write_rollup_height {
-                // It is ok to unwrap here, as we are sure that the sender is alive.
-                notifier
-                    .send(height)
-                    .await
-                    .expect("The receiver was dropped");
-            }
-        }
-        // Db is empty
-        None => {
-            assert!(ledger_db.get_stf_info_read_rollup_height().await?.is_none());
-            assert!(ledger_db
-                .get_stf_info_oldest_rollup_height()
-                .await?
-                .is_none());
-        }
-    }
 
     let read_rollup_height = Arc::new(AtomicU64::new(
         ledger_db
@@ -160,8 +173,8 @@ where
     StateRoot: Serialize + DeserializeOwned,
     Witness: Serialize + DeserializeOwned,
 {
-    /// Materialized [`StateTransitionInfo`], and and sends a notification to the [`Receiver`] that a new entry was added in the Db.
-    /// This method will block if the channel is full. This can happen if the consumer of the STF info is slower than te producer.
+    /// Materialized [`StateTransitionInfo`] and sends a notification to the [`Receiver`] that a new entry was added in the Db.
+    /// This method will block if the channel is full. This can happen if the consumer of the STF info is slower than the producer.
     pub async fn materialize_stf_info(
         &self,
         stf_info: &StateTransitionInfo<StateRoot, Witness, Da>,
@@ -193,10 +206,27 @@ where
             oldest_height += 1;
         }
 
+        assert!(
+            oldest_height <= read_rollup_height,
+            "oldest({}) is bigger than read_rollup_height){})",
+            oldest_height,
+            read_rollup_height
+        );
+        assert!(
+            read_rollup_height <= write_rollup_height,
+            "write is smaller than read"
+        );
+
+        tracing::debug!(
+            oldest_height,
+            read_rollup_height,
+            write_rollup_height,
+            "Done materializing stf_info"
+        );
         Ok(schema)
     }
 
-    /// Notify the `Receiver` that the data for `rollup_height` is saved in the Db.
+    /// Notify the [`Receiver`] that the data for `rollup_height` is saved in the Db.
     pub async fn notify(&self, rollup_height: u64) -> anyhow::Result<()> {
         self.notifier.send(rollup_height).await?;
         Ok(())
@@ -237,7 +267,10 @@ where
         if let Some(rollup_height) = self.receiver.recv().await {
             let read_rollup_height = self.read_rollup_height.load(Ordering::SeqCst);
 
-            assert_eq!(rollup_height, read_rollup_height);
+            assert_eq!(
+                rollup_height, read_rollup_height,
+                "received rollup height(left) not equal to one from db(right)"
+            );
             let stf_info: StateTransitionInfo<StateRoot, Witness, Da> =
                 self.get(read_rollup_height)?.unwrap_or_else(|| {
                     panic!("The STF for the {} height is missing", read_rollup_height)
@@ -294,7 +327,7 @@ mod tests {
         Receiver<StateRoot, Witness, MockDaSpec>,
     )> {
         let mut storage_manager = SimpleLedgerStorageManager::new(path);
-        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage()).unwrap();
+        let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage())?;
 
         let (sender, receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
             ledger_db.clone(),
@@ -302,6 +335,8 @@ mod tests {
             max_nb_of_infos_in_db,
         )
         .await?;
+
+        sender.notify_about_infos_from_db(&ledger_db).await?;
 
         Ok((ledger_db, storage_manager, sender, receiver))
     }

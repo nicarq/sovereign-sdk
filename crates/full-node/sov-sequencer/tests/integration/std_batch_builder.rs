@@ -1,5 +1,4 @@
 use std::str::FromStr;
-use std::time::Duration;
 
 use axum::http::StatusCode;
 use base64::prelude::*;
@@ -18,23 +17,6 @@ use sov_test_utils::{EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_US
 use crate::utils::{
     build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth,
 };
-
-// This test has to be single-threaded because logs from other threads don't
-// show up in traced_test (https://github.com/dbrgn/tracing-test/issues/23).
-// This also means we have to be on tokio 1.41 or newer,
-// to prevent an indefinite stall due to https://github.com/tokio-rs/tokio/issues/6839.
-#[tokio::test]
-#[traced_test]
-async fn dropping_sequencer_stops_listener() {
-    let sequencer = new_sequencer().await;
-
-    assert!(!logs_contain("stopping listener"));
-
-    drop(sequencer);
-    tokio::time::sleep(Duration::from_millis(20)).await;
-
-    assert!(logs_contain("stopping listener"));
-}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_on_empty_mempool() {

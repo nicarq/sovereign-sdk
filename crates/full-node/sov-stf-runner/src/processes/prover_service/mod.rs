@@ -142,7 +142,7 @@ pub trait ProverService: Send + Sync + 'static {
     >;
 
     /// Sends the ZK proof to the DA.
-    /// This method is noy yet fully implemented: see #1185
+    /// This method is not yet fully implemented: see #1185
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],

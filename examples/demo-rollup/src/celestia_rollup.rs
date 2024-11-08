@@ -85,6 +85,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         da_service: &Self::DaService,
         da_sync_state: Arc<DaSyncState>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
             storage.clone(),
@@ -94,6 +95,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
             da_service,
             da_sync_state,
             rollup_config,
+            shutdown_receiver,
         )
         .await?;
 

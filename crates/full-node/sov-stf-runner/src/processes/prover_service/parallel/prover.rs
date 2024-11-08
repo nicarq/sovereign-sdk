@@ -30,6 +30,13 @@ pub(crate) struct Prover<Address, StateRoot, Witness, Da: DaService> {
     prover_address: Address,
     prover_state: Arc<RwLock<ProverState<Address, StateRoot, Da::Spec>>>,
     num_threads: usize,
+    // From Docs:
+    // """
+    // When the ThreadPool is dropped,
+    // that's a signal for the threads it manages to terminate,
+    // they will complete executing any remaining work that you have spawned,
+    // and automatically terminate.
+    // """
     pool: rayon::ThreadPool,
     code_commitment: CodeCommitment,
     phantom: std::marker::PhantomData<(StateRoot, Witness, Da)>,

@@ -66,11 +66,12 @@ mod blueprint {
         ProverService, RawGenesisStateRoot, RollupProverConfig, WorkflowProcessManager,
     };
     use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
-    use tokio::sync::{oneshot, watch};
+    use tokio::signal::unix::SignalKind;
+    use tokio::sync::oneshot;
 
     use crate::RollupBlueprint;
 
-    /// This trait defines how to crate all the necessary dependencies required by a rollup.
+    /// This trait defines how to create all the necessary dependencies required by a rollup.
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     #[async_trait]
     pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
@@ -116,6 +117,7 @@ mod blueprint {
             da_service: &Self::DaService,
             da_sync_state: Arc<DaSyncState>,
             rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+            shutdown_receiver: tokio::sync::watch::Receiver<()>,
         ) -> anyhow::Result<RuntimeEndpoints>;
 
         /// Creates GenesisConfig from genesis files.
@@ -134,13 +136,13 @@ mod blueprint {
             })
         }
 
-        /// Creates instance of [`DaService`].
+        /// Creates an instance of [`DaService`].
         async fn create_da_service(
             &self,
             rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         ) -> Self::DaService;
 
-        /// Creates instance of [`ProverService`].
+        /// Creates an instance of [`ProverService`].
         async fn create_prover_service(
             &self,
             prover_config: RollupProverConfig,
@@ -148,7 +150,7 @@ mod blueprint {
             da_service: &Self::DaService,
         ) -> Self::ProverService;
 
-        /// Creates instance of [`Self::StorageManager`].
+        /// Creates an instance of [`Self::StorageManager`].
         /// Panics if initialization fails.
         fn create_storage_manager(
             &self,
@@ -224,7 +226,7 @@ mod blueprint {
 
             let prover_storage = if is_genesis {
                 // Re-create bootstrap storage, so it fetches the latest version after initialization.
-                // And can see latest changes. Otherwise Sequencer won't be able to process any batches,
+                // And can see the latest changes. Otherwise Sequencer won't be able to process any batches,
                 // because genesis data won't be visible to it.
                 let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
                 ledger_db.replace_reader(ledger_state);
@@ -239,6 +241,7 @@ mod blueprint {
             };
             let (api_storage_sender, api_storage_receiver) =
                 tokio::sync::watch::channel(prover_storage);
+
             tracing::debug!(
                 prev_root_hash = hex::encode(prev_state_root.as_ref()),
                 raw_genesis_state_root = hex::encode(&genesis_state_root.0),
@@ -249,6 +252,10 @@ mod blueprint {
                 &rollup_config.storage.path,
                 Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
             )?;
+
+            let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
+            shutdown_receiver.mark_unchanged();
+            let mut background_handles = Vec::new();
 
             let st_info_sender = match prover_config {
                 Some(config) => {
@@ -276,19 +283,25 @@ mod blueprint {
                                     Self::Runtime::default(),
                                 );
 
-                            process_manager
-                                .start_op_workflow_in_background(bonding_proof_service)
-                                .await?
+                            let (st_info_sender, pm_handle) = process_manager
+                                .start_op_workflow_in_background(
+                                    bonding_proof_service,
+                                    shutdown_receiver.clone(),
+                                )
+                                .await?;
+                            background_handles.push(pm_handle);
+                            st_info_sender
                         }
                         OperatingMode::Zk => {
-                            let (st_info_sender, _) = process_manager
+                            let (st_info_sender, pm_handle) = process_manager
                                 .start_zk_workflow_in_background(
                                     rollup_config.proof_manager.aggregated_proof_block_jump,
                                     1,
                                     1,
+                                    shutdown_receiver.clone(),
                                 )
                                 .await?;
-
+                            background_handles.push(pm_handle);
                             st_info_sender
                         }
                     };
@@ -298,10 +311,11 @@ mod blueprint {
                 None => None,
             };
 
-            let (sync_status_sender, sync_status_receiver) = watch::channel(SyncStatus::Syncing {
-                synced_da_height: 0,
-                target_da_height: 0,
-            });
+            let (sync_status_sender, sync_status_receiver) =
+                tokio::sync::watch::channel(SyncStatus::Syncing {
+                    synced_da_height: 0,
+                    target_da_height: 0,
+                });
 
             let runner = StateTransitionRunner::new(
                 rollup_config.runner.clone(),
@@ -313,6 +327,7 @@ mod blueprint {
                 prev_state_root,
                 st_info_sender,
                 sync_status_sender,
+                shutdown_receiver.clone(),
             )
             .await?;
 
@@ -325,10 +340,18 @@ mod blueprint {
                     &da_service,
                     runner.da_sync_state(),
                     &rollup_config,
+                    shutdown_receiver,
                 )
                 .await?;
 
-            Ok(Rollup { runner, endpoints })
+            spawn_os_signal_handler(shutdown_sender.clone());
+
+            Ok(Rollup {
+                runner,
+                endpoints,
+                shutdown_sender,
+                background_handles,
+            })
         }
     }
 
@@ -346,6 +369,11 @@ mod blueprint {
 
         /// Server endpoints for the rollup.
         pub endpoints: RuntimeEndpoints,
+
+        /// A way to gracefully shut down background tasks.
+        pub shutdown_sender: tokio::sync::watch::Sender<()>,
+
+        background_handles: Vec<tokio::task::JoinHandle<()>>,
     }
 
     impl<S: FullNodeBlueprint<M>, M: ExecutionMode> Rollup<S, M> {
@@ -354,7 +382,7 @@ mod blueprint {
             self.run_and_report_addr(None, None).await
         }
 
-        /// Runs the rollup. Reports RPC port to the caller using the provided channel.
+        /// Runs the rollup. Reports REST and RPC ports to the caller using the provided channel.
         pub async fn run_and_report_addr(
             self,
             rpc_addr_channel: Option<oneshot::Sender<SocketAddr>>,
@@ -383,6 +411,10 @@ mod blueprint {
             }
 
             runner.run_in_process().await?;
+            tracing::info!("StfRunner has completed execution");
+            for handle in self.background_handles {
+                handle.await?;
+            }
             Ok(())
         }
     }
@@ -406,5 +438,22 @@ mod blueprint {
         type BatchReceipt = <B::Runtime as ApplyBatchHooks>::BatchResult;
         type TxReceipt = TxReceiptContents<B::Spec>;
         type Event = RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>;
+    }
+
+    fn spawn_os_signal_handler(shutdown_sender: tokio::sync::watch::Sender<()>) {
+        tokio::spawn(async move {
+            let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
+                .expect("Failed to set up SIGTERM handler");
+            let mut quit = tokio::signal::unix::signal(SignalKind::quit())
+                .expect("Failed to set up SIGQUIT handler");
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => tracing::info!("Received Ctrl+C"),
+                _ = terminate.recv() => tracing::info!("Received SIGTERM"),
+                _ = quit .recv() => tracing::info!("Received SIGQUIT"),
+            }
+            shutdown_sender
+                .send(())
+                .expect("Failed to send shutdown signal");
+        });
     }
 }

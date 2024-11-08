@@ -23,7 +23,7 @@ struct ValueResponse {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn trailing_slashes_handled() -> anyhow::Result<()> {
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::OnSubmit,
         0,
@@ -58,7 +58,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 }
 
 async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
-    let test_rollup = TestRollup::create_test_rollup(
+    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
         get_appropriate_rollup_prover_config(),
         BlockProducingConfig::OnSubmit,
         0,

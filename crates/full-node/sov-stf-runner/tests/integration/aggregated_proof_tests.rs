@@ -19,7 +19,11 @@ async fn fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
 #[tokio::test(flavor = "multi_thread")]
 async fn fetch_aggregated_proof_test_async() -> anyhow::Result<()> {
     let test_case = TestCase::new(1);
-    run_make_proof_async(test_case, 1).await?;
+    tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        run_make_proof_async(test_case, 1),
+    )
+    .await??;
 
     Ok(())
 }
@@ -53,7 +57,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
-    test_node.abort_prover().await;
+    test_node.stop().await;
     // Joining runner task to avoid error:
     // pthread lock: Invalid argument
     //
@@ -96,8 +100,9 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
 
     let public_data = test_node.get_latest_public_data().await?.unwrap();
     test_case.assert(&public_data);
-    test_node.abort_prover().await;
+    test_node.stop().await;
     let _x = runner_task.await?;
+
     Ok(())
 }
 
@@ -131,7 +136,7 @@ async fn spawn(
     };
 
     let da_service = Arc::new(DaServiceWithRetries::new_fast(
-        MockDaService::new(MockAddress::new([11u8; 32])).with_wait_attempts(20),
+        MockDaService::new(MockAddress::new([11u8; 32])).with_wait_attempts(200),
     ));
 
     let (mut runner, test_node) = initialize_runner(

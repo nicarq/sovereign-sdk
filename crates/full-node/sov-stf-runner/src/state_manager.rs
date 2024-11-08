@@ -140,6 +140,7 @@ where
             block_header = %block_header.display(),
             current_state_root = hex::encode(self.get_state_root().as_ref()),
             next_state_root = hex::encode(new_state_root.as_ref()),
+            aggregated_proofs = aggregated_proofs.len(),
             "Saving changes after applying slot"
         );
 

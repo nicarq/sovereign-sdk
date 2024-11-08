@@ -34,7 +34,7 @@ borsh = { workspace = true }
 openapiv3 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true, optional = true }
-tokio = { workspace = true, features = ["sync"], optional = true }
+tokio = { workspace = true, features = ["sync", "signal"], optional = true }
 tracing = { workspace = true, optional = true }
 hex = { workspace = true, optional = true }
 

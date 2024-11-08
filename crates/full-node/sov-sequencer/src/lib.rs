@@ -3,7 +3,6 @@
 
 pub mod batch_builders;
 mod config;
-mod drop_notifier;
 mod rest_api;
 mod sequencer;
 mod spec;

@@ -20,6 +20,7 @@ use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
 };
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 const PROVER_ADDRESS: &str = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
@@ -92,36 +93,33 @@ pub async fn construct_rollup(
 }
 
 pub async fn start_rollup_in_background(
+    data_path: impl AsRef<Path>,
     rpc_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
     rest_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
     rt_genesis_paths: GenesisPaths,
     rollup_prover_config: RollupProverConfig,
     da_config: MockDaConfig,
 ) -> (
-    JoinHandle<()>,
+    JoinHandle<anyhow::Result<()>>,
     Arc<<MockDemoRollup<Native> as FullNodeBlueprint<Native>>::DaService>,
-    tempfile::TempDir,
+    watch::Sender<()>,
 ) {
-    let temp_dir = tempfile::tempdir().unwrap();
-    let rollup: Rollup<MockDemoRollup<Native>, Native> = construct_rollup(
-        temp_dir.path(),
-        rt_genesis_paths,
-        rollup_prover_config,
-        da_config,
-    )
-    .await;
+    let rollup: Rollup<MockDemoRollup<Native>, Native> =
+        construct_rollup(data_path, rt_genesis_paths, rollup_prover_config, da_config).await;
+
+    let shutdown_sender = rollup.shutdown_sender.clone();
 
     let da_service = rollup.runner.da_service();
-
     (
         tokio::spawn(async move {
             rollup
                 .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
-                .await
-                .unwrap();
+                .await?;
+            tracing::info!("Completed running a rollup");
+            Ok(())
         }),
         da_service,
-        temp_dir,
+        shutdown_sender,
     )
 }
 
@@ -156,29 +154,53 @@ pub fn test_genesis_paths(operating_mode: OperatingMode) -> GenesisPaths {
 }
 
 pub struct TestRollup {
-    pub rollup_task: JoinHandle<()>,
+    pub rollup_task: JoinHandle<anyhow::Result<()>>,
     pub client: NodeClient,
     pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
     // We just hold it together with test rollup, so it is not removed earlier than rollup stopped.
-    #[allow(dead_code)]
-    storage_dir: tempfile::TempDir,
+    pub storage_dir: tempfile::TempDir,
+    pub shutdown_sender: watch::Sender<()>,
 }
 
 impl TestRollup {
-    pub async fn create_test_rollup(
+    pub async fn create_test_rollup_in_memory_da(
         rollup_prover_config: RollupProverConfig,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
         operating_mode: OperatingMode,
     ) -> anyhow::Result<TestRollup> {
+        let storage_dir = tempfile::tempdir()?;
+
+        Self::create_test_rollup(
+            rollup_prover_config,
+            operating_mode,
+            storage_dir,
+            block_producing,
+            finalization_blocks,
+            None,
+        )
+        .await
+    }
+
+    pub async fn create_test_rollup(
+        rollup_prover_config: RollupProverConfig,
+        operating_mode: OperatingMode,
+        storage_dir: tempfile::TempDir,
+        block_producing: BlockProducingConfig,
+        finalization_blocks: u32,
+        mock_da_path: Option<&Path>,
+    ) -> anyhow::Result<TestRollup> {
         let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
-        // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
+        // This value is important and should match `../test-data/genesis/integration-tests/sequencer_registry.json`
         // Otherwise batches are going to be rejected
         let sequencer_address = MockAddress::new([0; 32]);
         let block_time_ms = 100;
-        let storable_mock_da_connection_string = "sqlite::memory:".to_string();
+        let storable_mock_da_connection_string = match mock_da_path {
+            None => "sqlite::memory:".to_string(),
+            Some(p) => format!("sqlite://{}/mock_da.sqlite?mode=rwc", p.display()),
+        };
 
         let mock_da_config = MockDaConfig {
             connection_string: storable_mock_da_connection_string,
@@ -190,7 +212,8 @@ impl TestRollup {
 
         let rt_genesis_paths = test_genesis_paths(operating_mode);
 
-        let (rollup_task, da_service, storage_dir) = start_rollup_in_background(
+        let (rollup_task, da_service, shutdown_sender) = start_rollup_in_background(
+            storage_dir.path(),
             rpc_port_tx,
             rest_port_tx,
             rt_genesis_paths,
@@ -207,6 +230,7 @@ impl TestRollup {
             client,
             da_service,
             storage_dir,
+            shutdown_sender,
         })
     }
 }

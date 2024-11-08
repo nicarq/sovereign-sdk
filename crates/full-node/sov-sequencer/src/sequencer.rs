@@ -16,7 +16,6 @@ use super::SubmittedBatchInfo;
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, DataWithEvents, FreshlyBuiltBatch,
 };
-use crate::drop_notifier::{DropNotification, DropNotifier};
 use crate::{SeqDbTx, SeqDbTxExtend, SequencerDb, SequencerSpec};
 
 /// Single data structure that manages mempool and batch producing.
@@ -24,7 +23,6 @@ use crate::{SeqDbTx, SeqDbTxExtend, SequencerDb, SequencerSpec};
 pub struct Sequencer<Ss: SequencerSpec> {
     #[deref(forward)]
     inner: Arc<Inner<Ss>>,
-    _drop_notifier: Arc<DropNotifier>,
 }
 
 pub struct Inner<Ss: SequencerSpec> {
@@ -119,10 +117,10 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         sequencer_db: SequencerDb,
         ledger_db: LedgerDb,
         automatic_batch_production: bool,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
         let (events_sender, _) = broadcast::channel(100);
 
-        let (drop_notifier, dropped) = DropNotifier::build();
         let api_state = batch_builder.api_state();
 
         let inner = Arc::new(Inner {
@@ -135,19 +133,17 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             automatic_batch_production,
         });
 
+        // TODO: Join this handle to proper stop.
         tokio::spawn({
             let inner = inner.clone();
             async move {
-                sequencer_background_task::<Ss>(inner, ledger_db, dropped)
+                sequencer_background_task::<Ss>(inner, ledger_db, shutdown_receiver)
                     .await
                     .ok();
             }
         });
 
-        Self {
-            inner,
-            _drop_notifier: Arc::new(drop_notifier),
-        }
+        Self { inner }
     }
 
     /// Returns a reference to the underlying [`SequencerDb`].
@@ -310,7 +306,7 @@ pub struct SequencerEvent<Bb: BatchBuilder> {
 pub async fn sequencer_background_task<Ss: SequencerSpec>(
     inner: Arc<Inner<Ss>>,
     ledger_db: LedgerDb,
-    mut drop_notification: DropNotification,
+    mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
 ) -> anyhow::Result<()> {
     let mut sub = ledger_db.subscribe_slots();
 
@@ -323,8 +319,8 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
 
     loop {
         tokio::select! {
-            _ = &mut drop_notification => {
-                info!("Sequencer was dropped, stopping listener for new slots");
+            _ = shutdown_receiver.changed() => {
+                info!("Shutting down sequencer background task...");
                 break;
             },
             changed = storage_receiver.changed() => {

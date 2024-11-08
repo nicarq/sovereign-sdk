@@ -18,13 +18,21 @@ use crate::test_helpers::{start_rollup_in_background, test_genesis_paths};
 pub(crate) async fn start_node(
     rollup_prover_config: RollupProverConfig,
     finalization_blocks: u32,
-) -> (JoinHandle<()>, SocketAddr, SocketAddr, tempfile::TempDir) {
+) -> (
+    JoinHandle<anyhow::Result<()>>,
+    SocketAddr,
+    SocketAddr,
+    tempfile::TempDir,
+) {
     let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
 
-    let (rollup_task, _da_service, storage_dir) =
+    let storage_dir = tempfile::tempdir().unwrap();
+
+    let (rollup_task, _da_service, _shutdown_sender) =
         // Don't provide a prover since the EVM is not currently provable
         start_rollup_in_background(
+            storage_dir.path(),
             rpc_port_tx,
             rest_port_tx,
             test_genesis_paths(sov_modules_api::OperatingMode::Zk),

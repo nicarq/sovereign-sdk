@@ -49,6 +49,9 @@ pub struct TestNode {
     _outer_vm: MockZkvmHost,
     ledger_db: LedgerDb,
     prover_handle: Option<JoinHandle<()>>,
+    // Just to remove warnings from logs
+    _sync_status_receiver: watch::Receiver<SyncStatus>,
+    shutdown_sender: watch::Sender<()>,
 }
 
 impl TestNode {
@@ -100,10 +103,11 @@ impl TestNode {
         Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
     }
 
-    pub async fn abort_prover(self) {
+    pub async fn stop(self) {
         if let Some(handle) = self.prover_handle {
             handle.abort();
         }
+        self.shutdown_sender.send(()).unwrap();
     }
 }
 
@@ -191,10 +195,13 @@ pub async fn initialize_runner(
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
     let api_storage_sender = watch::Sender::new(genesis_storage.clone());
-    let sync_sender = watch::Sender::new(SyncStatus::Syncing {
+
+    let (sync_sender, _sync_status_receiver) = watch::channel(SyncStatus::Syncing {
         synced_da_height: 0,
         target_da_height: 0,
     });
+    let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
+    shutdown_receiver.mark_unchanged();
 
     let inner_vm = MockZkvmHost::new();
     let outer_vm = MockZkvmHost::new_non_blocking();
@@ -232,6 +239,7 @@ pub async fn initialize_runner(
                     rollup_config.proof_manager.aggregated_proof_block_jump,
                     1,
                     1,
+                    shutdown_receiver.clone(),
                 )
                 .await
                 .unwrap();
@@ -257,6 +265,7 @@ pub async fn initialize_runner(
             prev_state_root,
             st_info_sender,
             sync_sender,
+            shutdown_receiver,
         )
         .await
         .unwrap(),
@@ -268,6 +277,8 @@ pub async fn initialize_runner(
             _outer_vm: outer_vm,
             ledger_db,
             prover_handle: handle,
+            shutdown_sender,
+            _sync_status_receiver,
         },
     )
 }
