@@ -48,7 +48,7 @@ pub type TestStdBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<
 /// A `struct` that contains a [`Sequencer`] and a copy of its running Axum
 /// server, for use in tests. See [`TestSequencerSetup::new`] and
 /// [`TestSequencerSetup::with_real_batch_builder`].
-pub struct TestSequencerSetup<B: BatchBuilder> {
+pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
     _dir: TempDir,
     /// The [`MockDaService`] used by the [`Sequencer`].
     pub da_service: MockDaService,
@@ -62,16 +62,13 @@ pub struct TestSequencerSetup<B: BatchBuilder> {
     pub axum_addr: SocketAddr,
 }
 
-impl<B: BatchBuilder> Drop for TestSequencerSetup<B> {
+impl<B: BatchBuilder<Spec = TestSpec>> Drop for TestSequencerSetup<B> {
     fn drop(&mut self) {
         self.axum_server_handle.shutdown();
     }
 }
 
-impl<B> TestSequencerSetup<B>
-where
-    B: BatchBuilder<Spec = TestSpec>,
-{
+impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
     /// Like [`TestSequencerSetup::new`], but with a custom [`NativeStorageManager`].
     pub async fn with_storage_manager(
         dir: TempDir,
