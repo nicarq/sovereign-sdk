@@ -2,7 +2,7 @@ use anyhow::{bail, Context as _, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    CallResponse, Context, EventEmitter, Spec, StateAccessor, StateReader, TxState,
+    CallResponse, Context, EventEmitter, SafeString, Spec, StateAccessor, StateReader, TxState,
 };
 use sov_state::User;
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
@@ -31,7 +31,7 @@ pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {
         /// The name of the new token.
-        token_name: String,
+        token_name: SafeString,
         /// The initial balance of the new token.
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.

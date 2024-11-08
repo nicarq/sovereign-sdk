@@ -1,11 +1,15 @@
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, Spec, TxState};
+use sov_modules_api::{CallResponse, Context, SafeString, SizedSafeString, Spec, TxState};
 
 use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};
 use crate::{Collection, CollectionId, Nft, NftIdentifier, NonFungibleToken, TokenId};
+
+/// A `sov_universal_wallet::schema::SafeString` with an extended length limit to accomodate longer
+/// URLs
+pub type UriString = SizedSafeString<256>;
 
 /// A transaction handled by the NFT module. Mints, Transfers, or Burns an NFT by id
 #[derive(
@@ -25,29 +29,29 @@ pub enum CallMessage<S: Spec> {
     /// Create a new collection
     CreateCollection {
         /// Name of the collection
-        name: String,
+        name: SafeString,
         /// meta data url for collection
-        collection_uri: String,
+        collection_uri: UriString,
     },
     /// update collection metadata
     UpdateCollection {
         /// Name of the collection
-        name: String,
+        name: SafeString,
         /// meta data url for collection
-        collection_uri: String,
+        collection_uri: UriString,
     },
     /// Freeze a collection that is unfrozen.
     /// This prevents new NFTs from being minted.
     FreezeCollection {
         /// collection name
-        collection_name: String,
+        collection_name: SafeString,
     },
     /// mint a new nft
     MintNft {
         /// Name of the collection
-        collection_name: String,
+        collection_name: SafeString,
         /// Meta data url for collection
-        token_uri: String,
+        token_uri: UriString,
         /// nft id. a unique identifier for each NFT
         token_id: TokenId,
         /// Address that the NFT should be minted to
@@ -59,11 +63,11 @@ pub enum CallMessage<S: Spec> {
     /// Update nft metadata url or frozen status
     UpdateNft {
         /// Name of the collection
-        collection_name: String,
+        collection_name: SafeString,
         /// nft id
         token_id: TokenId,
         /// Meta data url for collection
-        token_uri: Option<String>,
+        token_uri: Option<UriString>,
         /// Frozen status
         frozen: Option<bool>,
     },

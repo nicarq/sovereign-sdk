@@ -42,7 +42,11 @@
             },
             "token_name": {
               "description": "The name of the new token.",
-              "type": "string"
+              "allOf": [
+                {
+                  "$ref": "#/definitions/SizedSafeString_for_128"
+                }
+              ]
             }
           }
         }
@@ -201,6 +205,10 @@
           ]
         }
       }
+    },
+    "SizedSafeString_for_128": {
+      "description": "A String wrapper which enforces certain constraints to ensure it is safely displayable as part of a transaction without confusing the user. Only printable ASCII is allowed, and the length is limited.\n\n`SchemaGenerator` implementation is forbidden on `std::String` by default, to avoid the possibility of untrusted input supplying highly confusing text that tricks users into misunderstanding the transaction they are signing. `SafeString` enforces some constraints to mitigate this risk. If you need to encode a large data blob such as a hex string, use a `Vec<u8>` with the `[sov_wallet(display = \"hex\")]` attribute (or any of the other display styles). Avoid raw `String`s if possible. If an actual `String` is absolutely necessary, then a newtype wrapper can be used, on which `SchemaGenerator` is derived manually.",
+      "type": "string"
     },
     "TokenId": {
       "description": "A globally unique identifier.",

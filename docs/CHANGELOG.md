@@ -8,6 +8,9 @@ The `CliWalletArg` derives should be deleted on all module callmessages, as the 
 
 ## 2024-11-01
 - #1803 Changes the `InnerVm` and `OuterVm` types of `Spec` to a new `Zkvm` aggregate trait, and renames the old trait to `ZkVerifier`. It also replaces the old `Zkvm` bounds on `StateTransitionFunction` with the new trait. Finally, it removes the `InnerZkvmHost` and `OuterZkvmHost` bounds from `FullNodeBlueprint` and removes the `StateTransitionVerifier` type on `ParallelProverService`.
+## 2024-11-01
+ - #1801 Replaces usages of `String`s in `CallMessage`s with a new `SafeString` wrapper. This is used to enforce restrictions to ensure the strings are safe to display to users in a non-confusing way as part of a schema. A `SafeString` can be failibly constructed from a `String`.
+Users wishing to continue using unconstrained Strings, despite the potential to affect security by confusing and obfuscating transaction contents when presented to the user during signing, are able to create their own newtype `String` wrapper and implement `SchemaGenerator` manually for it.
 
 ## 2024-10-31
 - #1795 Adds a new `cors` field to the `runner.[rpc|axum]_config` section of the rollup configuration file, which can be used to disable CORS with `"disabled"`. `fn register_endpoints` now requires the entire `rollup_config` as a parameter.

@@ -117,7 +117,7 @@ impl<S: Spec> Module for Bank<S> {
                     .collect::<Vec<_>>();
 
                 self.create_token(
-                    token_name,
+                    token_name.into(),
                     initial_balance,
                     &mint_to_address,
                     authorized_minters,

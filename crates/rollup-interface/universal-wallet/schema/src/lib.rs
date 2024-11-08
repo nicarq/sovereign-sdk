@@ -33,16 +33,22 @@ pub extern crate bech32;
 /// This annotation may only be applied to fields, not items.
 ///
 /// ```rust
-/// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};
+/// use sov_rollup_interface::sov_universal_wallet::schema::{Schema, safe_string::SafeString};
+/// use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
+///
 /// #[derive(UniversalWallet, borsh::BorshSerialize)]
 /// pub struct Unreadable {
-///    name: String,
+///    name: SafeString,
 ///    #[sov_wallet(hidden)]
 ///    opaque_contents: Vec<u8>,
 /// }
-/// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".to_string(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
+/// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".try_into().unwrap(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
 /// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
 /// ```
+/// Notice also the use of the SafeString type here - this is to ensure the string can be safely
+/// displayed to the user. By default, unconstrained Strings are forbidden in schemas; for blobs of
+/// data, use byte arrays/vectors directly. If a String is absolutely required, a newtype wrapper
+/// can be used.
 ///
 /// ## Attributes: `#[sov_wallet(as_ty = "path::to::Type")]`
 ///
@@ -57,16 +63,16 @@ pub extern crate bech32;
 ///
 /// // A foreign type that doesn't derive UniversalWallet
 /// #[derive(borsh::BorshSerialize)]
-/// pub struct Foreign(String);
+/// pub struct Foreign(u64);
 ///
 /// #[derive(UniversalWallet, borsh::BorshSerialize)]
 /// pub struct Tagged {
-///    #[sov_wallet(as_ty = "String")]
+///    #[sov_wallet(as_ty = "u64")]
 ///    data: Foreign,
-///    tag: String,
+///    tag: i8,
 /// }
-/// let serialized = borsh::to_vec(&Tagged { data: Foreign("foo".to_string()), tag: "world".to_string()}).unwrap();
-/// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: "foo", tag: "world" }"#);
+/// let serialized = borsh::to_vec(&Tagged { data: Foreign(300_000), tag: -5 }).unwrap();
+/// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
 /// ```
 ///
 /// ## Attributes: `#[sov_wallet(skip)]`

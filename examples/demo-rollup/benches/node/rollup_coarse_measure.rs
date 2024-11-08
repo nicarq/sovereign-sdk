@@ -238,7 +238,7 @@ fn setup(
     let token_name = "sov-bench-token";
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, token_deployer_address);
     let msg: sov_bank::CallMessage<TestSpec> = sov_bank::CallMessage::<TestSpec>::CreateToken {
-        token_name: token_name.to_string(),
+        token_name: token_name.try_into().unwrap(),
         // Mint for everyone, including themselves.
         initial_balance: 0,
         mint_to_address: *token_deployer_address,
