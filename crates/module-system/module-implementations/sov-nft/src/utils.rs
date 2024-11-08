@@ -1,5 +1,6 @@
+use anyhow::Result;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::CryptoSpec;
+use sov_modules_api::{CryptoSpec, SafeString};
 
 use crate::{CallMessage, CollectionId, UserAddress};
 
@@ -37,16 +38,17 @@ fn get_nft_metadata_url(base_url: &str, collection_id: &str, nft_id: u64) -> Str
 /// Returns a CallMessage Variant which can then be serialized into a transaction
 pub fn get_create_collection_message<S: sov_modules_api::Spec>(
     sender_address: &S::Address,
-    collection_name: &str,
+    collection_name: &SafeString,
     base_uri: &str,
-) -> CallMessage<S> {
-    let collection_id = get_collection_id::<S>(collection_name, sender_address.as_ref());
+) -> Result<CallMessage<S>> {
+    let collection_id = get_collection_id::<S>(collection_name.as_str(), sender_address.as_ref());
 
-    let collection_uri = get_collection_metadata_url(base_uri, &collection_id.to_string());
-    CallMessage::<S>::CreateCollection {
-        name: collection_name.to_string(),
+    let collection_uri =
+        get_collection_metadata_url(base_uri, &collection_id.to_string()).try_into()?;
+    Ok(CallMessage::<S>::CreateCollection {
+        name: collection_name.clone(),
         collection_uri,
-    }
+    })
 }
 
 /// Constructs a CallMessage to mint a new NFT.
@@ -64,20 +66,21 @@ pub fn get_create_collection_message<S: sov_modules_api::Spec>(
 /// Returns a signed transaction for minting a new NFT to a specified user.
 pub fn get_mint_nft_message<S: sov_modules_api::Spec>(
     sender_address: &S::Address,
-    collection_name: &str,
+    collection_name: &SafeString,
     token_id: u64,
     base_uri: &str,
     owner: &S::Address,
-) -> CallMessage<S> {
-    let collection_id = get_collection_id::<S>(collection_name, sender_address.as_ref());
-    let token_uri = get_nft_metadata_url(base_uri, &collection_id.to_string(), token_id);
-    CallMessage::<S>::MintNft {
-        collection_name: collection_name.to_string(),
+) -> Result<CallMessage<S>> {
+    let collection_id = get_collection_id::<S>(collection_name.as_str(), sender_address.as_ref());
+    let token_uri =
+        get_nft_metadata_url(base_uri, &collection_id.to_string(), token_id).try_into()?;
+    Ok(CallMessage::<S>::MintNft {
+        collection_name: collection_name.clone(),
         token_uri,
         token_id,
         owner: UserAddress::new(owner),
         frozen: false,
-    }
+    })
 }
 
 /// Constructs a CallMessage to transfer an NFT to another user.

@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 mod container;
 mod primitive;
+pub mod safe_string;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use container::Container;
 use nmt_rs::simple_merkle::db::MemDb;

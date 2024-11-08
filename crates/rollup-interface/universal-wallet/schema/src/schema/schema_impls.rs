@@ -86,19 +86,6 @@ mod primitive_type_impls {
         }
     }
 
-    impl SchemaGenerator for String {
-        fn scaffold() -> Item<IndexLinking> {
-            Item::Atom(Primitive::String)
-        }
-        fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
-            Vec::new()
-        }
-    }
-
-    impl<'a> OverrideSchema for &'a str {
-        type Output = String;
-    }
-
     impl<T: SchemaGenerator> SchemaGenerator for Vec<T> {
         fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
             vec![T::make_linkable(schema)]

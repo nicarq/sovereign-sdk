@@ -10638,6 +10638,7 @@ dependencies = [
  "borsh",
  "bs58",
  "nmt-rs",
+ "schemars",
  "serde",
  "serde_arrays",
  "serde_json",

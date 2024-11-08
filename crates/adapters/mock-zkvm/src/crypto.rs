@@ -347,7 +347,12 @@ mod test {
 impl From<&Ed25519PublicKey> for PublicKeyHex {
     fn from(pub_key: &Ed25519PublicKey) -> Self {
         let hex = hex::encode(pub_key.pub_key.as_bytes());
-        Self { hex }
+        // UNWRAP: conversion to SafeString can error in only two cases: non-printable-ascii and too long.
+        // A hex::encoded string should always be printable ascii, and a public key is 32 bytes =
+        // 64 hex characters, well below the 128 character SafeString limit.
+        Self {
+            hex: hex.try_into().unwrap(),
+        }
     }
 }
 

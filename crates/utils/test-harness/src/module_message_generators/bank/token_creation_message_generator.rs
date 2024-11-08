@@ -64,7 +64,7 @@ fn get_token_creation_call_message<S: Spec>(
 ) -> sov_bank::CallMessage<S> {
     sov_bank::CallMessage::CreateToken {
         initial_balance: u64::MAX,
-        token_name: format!("token-{message_count}"),
+        token_name: format!("token-{message_count}").try_into().unwrap(),
         mint_to_address: address.clone(),
         authorized_minters: vec![address],
     }

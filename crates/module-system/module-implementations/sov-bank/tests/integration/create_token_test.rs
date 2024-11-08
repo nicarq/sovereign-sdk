@@ -26,12 +26,12 @@ fn create_token() {
     let user_high_token_balance_address = user_high_token_balance.address();
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
-    let token_name = "Token1".to_string();
-    let token_id = get_token_id::<S>(&token_name, &minter_address);
+    let token_name = "Token1";
+    let token_id = get_token_id::<S>(token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
-            token_name: token_name.clone(),
+            token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
             authorized_minters: vec![minter_address],
@@ -42,7 +42,7 @@ fn create_token() {
             assert_eq!(
                 result.events[0],
                 TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenCreated {
-                    token_name: token_name.clone(),
+                    token_name: token_name.to_string(),
                     coins: sov_bank::Coins {
                         amount: INITIAL_TOKEN_BALANCE,
                         token_id
@@ -57,7 +57,7 @@ fn create_token() {
                 Bank::<S>::default()
                     .get_token_name(&token_id, state)
                     .unwrap(),
-                Some(token_name)
+                Some(token_name.to_string())
             );
 
             assert_eq!(
@@ -108,12 +108,12 @@ fn create_token_and_mint() {
 
     let user_no_token_balance_address = user_no_token_balance.address();
     let minter_address = minter.as_user().address();
-    let token_name = "Token1".to_string();
-    let token_id = get_token_id::<S>(&token_name, &minter_address);
+    let token_name = "Token1";
+    let token_id = get_token_id::<S>(token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
         input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
-            token_name: token_name.clone(),
+            token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
             authorized_minters: vec![minter_address],
@@ -124,7 +124,7 @@ fn create_token_and_mint() {
             assert_eq!(
                 result.events[0],
                 TestBankRuntimeEvent::Bank(sov_bank::event::Event::TokenCreated {
-                    token_name: token_name.clone(),
+                    token_name: token_name.to_string(),
                     coins: sov_bank::Coins {
                         amount: INITIAL_TOKEN_BALANCE,
                         token_id

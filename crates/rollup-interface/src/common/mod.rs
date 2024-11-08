@@ -5,3 +5,4 @@ pub mod safe_vec;
 
 pub use hex_string::*;
 pub use safe_vec::SafeVec;
+pub use sov_universal_wallet::schema::safe_string::{SafeString, SizedSafeString};

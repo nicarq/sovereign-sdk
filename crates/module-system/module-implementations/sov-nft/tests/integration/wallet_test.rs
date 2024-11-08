@@ -17,8 +17,8 @@ pub enum RuntimeCall {
 #[test]
 fn test_display_nft_createl() {
     let msg: RuntimeCall = RuntimeCall::Nft(CallMessage::CreateCollection {
-        name: "Cosmic Crabs".to_string(),
-        collection_uri: "https://crab.gang".to_string(),
+        name: "Cosmic Crabs".try_into().unwrap(),
+        collection_uri: "https://crab.gang".try_into().unwrap(),
     });
     let schema = Schema::of_single_type::<RuntimeCall>();
     assert_eq!(
@@ -30,8 +30,8 @@ fn test_display_nft_createl() {
 #[test]
 fn test_display_nft_mint() {
     let msg: RuntimeCall = RuntimeCall::Nft(CallMessage::MintNft {
-        collection_name: "Cosmic Crabs".to_string(),
-        token_uri: "https://crab.gang/ferris".to_string(),
+        collection_name: "Cosmic Crabs".try_into().unwrap(),
+        token_uri: "https://crab.gang/ferris".try_into().unwrap(),
         token_id: 1,
         owner: UserAddress::new(
             &<S as Spec>::Address::from_str(

@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_universal_wallet::schema::safe_string::SafeString;
 use sov_universal_wallet::schema::{
     IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
 };
@@ -126,14 +127,14 @@ pub struct MinimalStruct {
 )]
 pub struct SimpleStructWithTemplate {
     tokens: u64,
-    msg: String,
+    msg: SafeString,
 }
 
 #[test]
 fn test_simple_struct_schema_with_template() {
     let my_registration = SimpleStructWithTemplate {
         tokens: 1000,
-        msg: "abc".to_string(),
+        msg: "abc".to_string().try_into().unwrap(),
     };
 
     encode_decode_tests!(SimpleStructWithTemplate, my_registration, "This is a simple struct, with 1000 tokens, and the following message: \"abc\". End of template!");
@@ -146,19 +147,19 @@ pub enum SimpleEnumWithTemplate {
         test,
         sov_wallet(show_as = "This variant has {} tokens, and the following message: {}. End.")
     )]
-    VariantOne { tokens: u64, msg: String },
+    VariantOne { tokens: u64, msg: SafeString },
     #[cfg_attr(
         test,
         sov_wallet(show_as = "This variant is a tuple with two fields: a string {} an u8 {}.")
     )]
-    VariantTwo(String, u8),
+    VariantTwo(SafeString, u8),
 }
 
 #[test]
 fn test_simple_enum_schema_with_template() {
     let var_one = SimpleEnumWithTemplate::VariantOne {
         tokens: 1000,
-        msg: "abc".to_string(),
+        msg: "abc".to_string().try_into().unwrap(),
     };
     encode_decode_tests!(
         SimpleEnumWithTemplate,
@@ -166,7 +167,7 @@ fn test_simple_enum_schema_with_template() {
         "This variant has 1000 tokens, and the following message: \"abc\". End."
     );
 
-    let var_two = SimpleEnumWithTemplate::VariantTwo("def".to_string(), 19);
+    let var_two = SimpleEnumWithTemplate::VariantTwo("def".to_string().try_into().unwrap(), 19);
     encode_decode_tests!(
         SimpleEnumWithTemplate,
         var_two,
@@ -187,11 +188,11 @@ pub struct Registration {
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
-pub struct StringWrapper(pub String);
+pub struct StringWrapper(pub SafeString);
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(BorshSerialize, BorshDeserialize))]
-pub struct SchemalessStringWrapper(pub String);
+pub struct SchemalessStringWrapper(pub SafeString);
 
 #[cfg(test)]
 impl SchemaGenerator for SchemalessStringWrapper {
@@ -386,7 +387,7 @@ pub enum RuntimeCall {
 pub enum EnumWithStruct {
     Foo {
         first_field: u64,
-        second_field: String,
+        second_field: SafeString,
         third_field: u32,
     },
 }
@@ -396,7 +397,7 @@ pub enum EnumWithStruct {
 pub enum EnumWithTwoStructs {
     Foo {
         first_field: u64,
-        second_field: String,
+        second_field: SafeString,
         third_field: u32,
     },
     Bar {
@@ -440,7 +441,7 @@ pub enum EnumWithStructAndThreeGenerics<T, U, V> {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub enum EnumWithMultiTupleSimple {
-    TheVariant(u64, EnumWithStruct, String),
+    TheVariant(u64, EnumWithStruct, SafeString),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -452,7 +453,7 @@ pub enum EnumWithMultiTuple {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub enum EnumWithMultiTupleAndGenerics<T, U, V> {
-    One(u64, EnumWithStructAndThreeGenerics<T, U, V>, String),
+    One(u64, EnumWithStructAndThreeGenerics<T, U, V>, SafeString),
     Two(Generic<U>),
     Three,
 }
@@ -460,8 +461,8 @@ pub enum EnumWithMultiTupleAndGenerics<T, U, V> {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub enum EnumWithIdenticalTuples {
-    FirstVariant(u64, EnumWithStruct, String),
-    SecondVariant(u64, EnumWithStruct, String),
+    FirstVariant(u64, EnumWithStruct, SafeString),
+    SecondVariant(u64, EnumWithStruct, SafeString),
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -470,7 +471,7 @@ pub struct WithSilentField<T> {
     int: u64,
     #[cfg_attr(test, sov_wallet(hidden))]
     skipped: T,
-    str: &'static str,
+    str: SafeString,
     phantom: PhantomData<u64>,
 }
 
@@ -479,7 +480,7 @@ pub struct WithSilentField<T> {
 struct WithTuples {
     #[allow(unused_parens)]
     double: (u64, u64),
-    mixed: (u64, String, Role),
+    mixed: (u64, SafeString, Role),
     quintuple: (u64, u64, u64, u64, u64),
     octuple: (u64, u64, u64, u64, u64, u64, u64, u64),
 }
@@ -488,7 +489,11 @@ struct WithTuples {
 fn test_tuples() {
     let my_with_tuples = WithTuples {
         double: (5, 8),
-        mixed: (13214, "hello".to_string(), Role::Challenger),
+        mixed: (
+            13214,
+            "hello".to_string().try_into().unwrap(),
+            Role::Challenger,
+        ),
         quintuple: (1, 2, 3, 4, 5),
         octuple: (1, 2, 3, 4, 5, 6, 7, 8),
     };
@@ -509,7 +514,7 @@ fn test_enum_with_complex_tuples() {
         16,
         EnumWithStruct::Foo {
             first_field: 84,
-            second_field: "abcd".to_string(),
+            second_field: "abcd".to_string().try_into().unwrap(),
             third_field: 14,
         },
         runtime_call,
@@ -526,10 +531,10 @@ fn test_enum_with_simple_tuples() {
         16,
         EnumWithStruct::Foo {
             first_field: 84,
-            second_field: "abcd".to_string(),
+            second_field: "abcd".to_string().try_into().unwrap(),
             third_field: 14,
         },
-        "hello".to_string(),
+        "hello".to_string().try_into().unwrap(),
     );
 
     encode_decode_tests!(EnumWithMultiTupleSimple, my_enum,
@@ -543,10 +548,10 @@ fn test_enum_with_identical_tuples() {
         16,
         EnumWithStruct::Foo {
             first_field: 84,
-            second_field: "abcd".to_string(),
+            second_field: "abcd".to_string().try_into().unwrap(),
             third_field: 14,
         },
-        "hello".to_string(),
+        "hello".to_string().try_into().unwrap(),
     );
 
     encode_decode_tests!(EnumWithIdenticalTuples, my_enum,
@@ -558,7 +563,7 @@ fn test_enum_with_identical_tuples() {
 fn test_enum_with_struct() {
     let my_with_tuples = EnumWithStruct::Foo {
         first_field: 84,
-        second_field: "abcd".to_string(),
+        second_field: "abcd".to_string().try_into().unwrap(),
         third_field: 14,
     };
 
@@ -615,7 +620,7 @@ fn test_enum_with_tuples_and_generics() {
             },
             third_field: 73242,
         },
-        "abdsf".to_string(),
+        "abdsf".to_string().try_into().unwrap(),
     );
 
     encode_decode_tests!(EnumWithMultiTupleAndGenerics<u32, u8, i8>, my_var_two, "Two { contents: 19 }");
@@ -785,8 +790,8 @@ fn test_vec_simple_schema() {
 #[test]
 fn test_vec_string() {
     let my_call = vec![
-        StringWrapper("hello".to_string()),
-        StringWrapper("world".to_string()),
+        StringWrapper("hello".to_string().try_into().unwrap()),
+        StringWrapper("world".to_string().try_into().unwrap()),
     ];
 
     encode_decode_tests!(Vec<StringWrapper>, my_call, r#"["hello", "world"]"#);
@@ -798,10 +803,12 @@ fn test_complex_type() {
         rollup_address: [1; 32],
         da_address: [2; 64],
         message: vec![3, 2, 1],
-        first_item: SchemalessStringWrapper("hello".to_string()),
+        first_item: SchemalessStringWrapper("hello".to_string().try_into().unwrap()),
         role: Role::Attester,
         tokens: 1000,
-        memo: vec![SchemalessStringWrapper("This is a memo".to_string())],
+        memo: vec![SchemalessStringWrapper(
+            "This is a memo".to_string().try_into().unwrap(),
+        )],
         registration: Registration {
             address: [17; 32],
             role: Role::Attester,
@@ -829,15 +836,15 @@ fn test_complex_type() {
 
 #[test]
 fn test_silent_simple_field() {
-    let my_call = WithSilentField {
+    let my_call: WithSilentField<SafeString> = WithSilentField {
         int: 123,
-        skipped: "this should be skipped",
-        str: "this should be included",
+        skipped: "this should be skipped".try_into().unwrap(),
+        str: "this should be included".try_into().unwrap(),
         phantom: Default::default(),
     };
 
     encode_decode_tests!(
-        WithSilentField<&'static str>,
+        WithSilentField<SafeString>,
         my_call,
         "{ int: 123, str: \"this should be included\" }"
     );
@@ -876,11 +883,11 @@ fn test_nested_silent_fields() {
         skipped: WithSilentField {
             int: 456,
             skipped: 789,
-            str: "hi",
+            str: "hi".try_into().unwrap(),
             phantom: Default::default(),
         },
         phantom: PhantomData,
-        str: "this should be included",
+        str: "this should be included".try_into().unwrap(),
     };
 
     encode_decode_tests!(

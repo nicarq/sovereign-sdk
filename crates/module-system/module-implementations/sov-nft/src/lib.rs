@@ -73,9 +73,9 @@ impl<S: Spec> Module for NonFungibleToken<S> {
             CallMessage::CreateCollection {
                 name,
                 collection_uri,
-            } => self.create_collection(&name, &collection_uri, context, state),
+            } => self.create_collection(name.as_str(), collection_uri.as_str(), context, state),
             CallMessage::FreezeCollection { collection_name } => {
-                self.freeze_collection(&collection_name, context, state)
+                self.freeze_collection(collection_name.as_str(), context, state)
             }
             CallMessage::MintNft {
                 collection_name,
@@ -85,8 +85,8 @@ impl<S: Spec> Module for NonFungibleToken<S> {
                 frozen,
             } => self.mint_nft(
                 token_id,
-                &collection_name,
-                &token_uri,
+                collection_name.as_str(),
+                token_uri.as_str(),
                 &owner,
                 frozen,
                 context,
@@ -95,7 +95,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
             CallMessage::UpdateCollection {
                 name,
                 collection_uri,
-            } => self.update_collection(&name, &collection_uri, context, state),
+            } => self.update_collection(name.as_str(), collection_uri.as_str(), context, state),
             CallMessage::TransferNft {
                 collection_id,
                 token_id,
@@ -107,9 +107,9 @@ impl<S: Spec> Module for NonFungibleToken<S> {
                 token_uri,
                 frozen,
             } => self.update_nft(
-                &collection_name,
+                collection_name.as_str(),
                 token_id,
-                token_uri,
+                token_uri.map(Into::into),
                 frozen,
                 context,
                 state,

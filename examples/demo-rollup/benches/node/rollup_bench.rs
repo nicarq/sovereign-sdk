@@ -170,7 +170,7 @@ fn prefill_state(
 
     let create_token_msg = bake_bank_tx(
         sov_bank::CallMessage::<BenchSpec>::CreateToken {
-            token_name: token_name.to_string(),
+            token_name: token_name.try_into().unwrap(),
             initial_balance: 0,
             mint_to_address: rollup_mega_admin.address(),
             authorized_minters: vec![rollup_mega_admin.address()],

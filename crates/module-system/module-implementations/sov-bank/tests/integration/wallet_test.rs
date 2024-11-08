@@ -11,7 +11,7 @@ type S = TestSpec;
 fn test_create_token() {
     let schema = Schema::of_single_type::<CallMessage<S>>();
     let msg = CallMessage::CreateToken::<S> {
-        token_name: "my-token".to_string(),
+        token_name: "my-token".try_into().unwrap(),
         initial_balance: 100_000_000,
         mint_to_address: <S as Spec>::Address::from_str(
             "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr",

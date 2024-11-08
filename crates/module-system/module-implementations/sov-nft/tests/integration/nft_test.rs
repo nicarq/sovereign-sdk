@@ -29,8 +29,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let nft = NonFungibleToken::default();
 
     let create_collection_message = CallMessage::CreateCollection {
-        name: collection_name.to_string(),
-        collection_uri: collection_uri.to_string(),
+        name: collection_name.try_into().unwrap(),
+        collection_uri: collection_uri.try_into().unwrap(),
     };
     let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
@@ -68,8 +68,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let owner = UserAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
-        collection_name: collection_name.to_string(),
-        token_uri: token_uri.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
+        token_uri: token_uri.try_into().unwrap(),
         token_id,
         owner: owner.clone(),
         frozen: false,
@@ -92,8 +92,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // Mint NFT to non-existent collection
     let ne_collection_name = "NON_EXISTENT_COLLECTION";
     let mint_nft_message = CallMessage::MintNft {
-        collection_name: ne_collection_name.to_string(),
-        token_uri: token_uri.to_string(),
+        collection_name: ne_collection_name.try_into().unwrap(),
+        token_uri: token_uri.try_into().unwrap(),
         token_id,
         owner,
         frozen: false,
@@ -120,8 +120,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // Update a collection
     let new_collection_uri = "http://new/uri";
     let create_collection_message = CallMessage::UpdateCollection {
-        name: collection_name.to_string(),
-        collection_uri: new_collection_uri.to_string(),
+        name: collection_name.try_into().unwrap(),
+        collection_uri: new_collection_uri.try_into().unwrap(),
     };
     let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
@@ -152,7 +152,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     // Freeze a non existent collection
     let freeze_collection_message = CallMessage::FreezeCollection {
-        collection_name: ne_collection_name.to_string(),
+        collection_name: ne_collection_name.try_into().unwrap(),
     };
     let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
@@ -190,7 +190,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
 
     // Freeze collection
     let freeze_collection_message = CallMessage::FreezeCollection {
-        collection_name: collection_name.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
     };
     let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
@@ -220,8 +220,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // Update a collection
     let un_updated_collection_uri = "http://new/uri2";
     let create_collection_message = CallMessage::UpdateCollection {
-        name: collection_name.to_string(),
-        collection_uri: un_updated_collection_uri.to_string(),
+        name: collection_name.try_into().unwrap(),
+        collection_uri: un_updated_collection_uri.try_into().unwrap(),
     };
     let sequencer_da = <<TestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
 
@@ -270,8 +270,8 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let owner: OwnerAddress<TestSpec> = OwnerAddress::new(&private_key_1.to_address());
 
     let mint_nft_message = CallMessage::MintNft {
-        collection_name: collection_name.to_string(),
-        token_uri: new_token_uri.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
+        token_uri: new_token_uri.try_into().unwrap(),
         token_id: new_token_id,
         owner: UserAddress::new(owner.get_address()),
         frozen: false,
@@ -398,9 +398,9 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let token_id = 42;
     let new_token_uri = "http://foo.bar/test_collection/new_url/42";
     let update_nft_message = CallMessage::UpdateNft {
-        collection_name: collection_name.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
         token_id,
-        token_uri: Some(new_token_uri.to_string()),
+        token_uri: Some(new_token_uri.try_into().unwrap()),
         frozen: None,
     };
 
@@ -425,7 +425,7 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     // Freeze NFT
     let token_id = 42;
     let update_nft_message = CallMessage::UpdateNft {
-        collection_name: collection_name.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
         token_id,
         token_uri: None,
         frozen: Some(true),
@@ -451,9 +451,9 @@ fn mints_and_transfers() -> Result<(), Infallible> {
     let token_id = 42;
     let new_token_uri_fail = "http://foo.bar/test_collection/new_url_fail/42";
     let update_nft_message = CallMessage::UpdateNft {
-        collection_name: collection_name.to_string(),
+        collection_name: collection_name.try_into().unwrap(),
         token_id,
-        token_uri: Some(new_token_uri_fail.to_string()),
+        token_uri: Some(new_token_uri_fail.try_into().unwrap()),
         frozen: None,
     };
     let mut working_set = state.to_working_set_unmetered::<TestSpec>();

@@ -636,41 +636,45 @@ pub mod macros {
     /// ```rust
     /// use sov_universal_wallet::schema::Schema;
     /// use sov_modules_api::macros::UniversalWallet;
+    /// use sov_modules_api::SafeString;
     ///
     /// #[derive(UniversalWallet, borsh::BorshSerialize)]
     /// pub struct Unreadable {
-    ///    name: String,
+    ///    name: SafeString,
     ///    #[sov_wallet(hidden)]
     ///    opaque_contents: Vec<u8>,
     /// }
-    /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".to_string(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
+    /// let serialized = borsh::to_vec(&Unreadable { name: "foo.txt".try_into().unwrap(), opaque_contents: vec![23, 74, 119, 119, 2, 232, 22]}).unwrap();
     /// assert_eq!(Schema::of_single_type::<Unreadable>().display(0, &serialized).unwrap(), r#"{ name: "foo.txt" }"#);
     /// ```
+    /// Notice also the use of the SafeString type here - this is to ensure the string can be safely
+    /// displayed to the user. By default, unconstrained Strings are forbidden in schemas; for blobs of
+    /// data, use byte arrays/vectors directly. If a String is absolutely required, a newtype wrapper
+    /// can be used.
     ///
     /// ## Attributes: `#[sov_wallet(as_ty = "path::to::Type")]`
     ///
     /// Inserts the schema of the specified type in place of the schema for the annotated field. Note that the subsituted type
     /// must have exactly the same borsh serialization as the original.
     ///
-    /// This is useful when you want to display a foreign type that doesn't implement [`SchemaGenerator`](crate::sov_universal_wallet::schema::SchemaGenerator),
+    /// This is useful when you want to display a foreign type that doesn't implement [`SchemaGenerator`](sov_universal_wallet::schema::SchemaGenerator),
     /// or when you want to override the default schema for a type in a particular context.
     ///
     /// ```rust
-    /// use sov_universal_wallet::schema::Schema;
-    /// use sov_modules_api::macros::UniversalWallet;
+    /// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};
     ///
     /// // A foreign type that doesn't derive UniversalWallet
     /// #[derive(borsh::BorshSerialize)]
-    /// pub struct Foreign(String);
+    /// pub struct Foreign(u64);
     ///
     /// #[derive(UniversalWallet, borsh::BorshSerialize)]
     /// pub struct Tagged {
-    ///    #[sov_wallet(as_ty = "String")]
+    ///    #[sov_wallet(as_ty = "u64")]
     ///    data: Foreign,
-    ///    tag: String,
+    ///    tag: i8,
     /// }
-    /// let serialized = borsh::to_vec(&Tagged { data: Foreign("foo".to_string()), tag: "world".to_string()}).unwrap();
-    /// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: "foo", tag: "world" }"#);
+    /// let serialized = borsh::to_vec(&Tagged { data: Foreign(300_000), tag: -5 }).unwrap();
+    /// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
     /// ```
     ///
     /// ## Attributes: `#[sov_wallet(skip)]`

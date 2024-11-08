@@ -56,7 +56,7 @@ pub(crate) fn build_create_token_tx(
 ) -> Transaction<TestSpec> {
     let user_address: <TestSpec as Spec>::Address = key.to_address();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
-        token_name: TOKEN_NAME.to_string(),
+        token_name: TOKEN_NAME.try_into().unwrap(),
         initial_balance,
         mint_to_address: user_address,
         authorized_minters: vec![],

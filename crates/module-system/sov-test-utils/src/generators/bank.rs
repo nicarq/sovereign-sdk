@@ -212,7 +212,7 @@ impl BankMessageGenerator<TestSpec> {
 
 pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessage<S> {
     CallMessage::CreateToken {
-        token_name: input.token_name.clone(),
+        token_name: input.token_name.clone().try_into().unwrap(),
         initial_balance: input.initial_balance,
         mint_to_address: input.mint_to_address.clone(),
         authorized_minters: input.authorized_minters.clone(),

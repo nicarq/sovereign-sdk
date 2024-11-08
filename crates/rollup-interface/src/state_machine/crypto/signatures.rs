@@ -13,7 +13,8 @@ use sov_universal_wallet::UniversalWallet;
 
 use super::CredentialId;
 #[cfg(feature = "native")]
-use crate as sov_rollup_interface; // Needed for UniversalWallet, as it requires global paths
+use crate as sov_rollup_interface;
+use crate::common::SafeString; // Needed for UniversalWallet, as it requires global paths
 
 /// Representation of a signature verification error.
 #[derive(Debug, Display)]
@@ -85,7 +86,7 @@ pub trait PrivateKey:
 #[serde(try_from = "String", into = "String")]
 pub struct PublicKeyHex {
     /// The public key in hexadecimal format.
-    pub hex: String,
+    pub hex: SafeString,
 }
 
 impl TryFrom<&str> for PublicKeyHex {
@@ -116,13 +117,15 @@ impl TryFrom<String> for PublicKeyHex {
             )
         }
 
-        Ok(Self { hex })
+        Ok(Self {
+            hex: hex.try_into()?,
+        })
     }
 }
 
 impl From<PublicKeyHex> for String {
     fn from(pub_key: PublicKeyHex) -> Self {
-        pub_key.hex
+        pub_key.hex.into()
     }
 }
 
@@ -135,7 +138,7 @@ mod tests {
     #[test]
     fn to_string() {
         let key = PublicKeyHex {
-            hex: "foobar".to_string(),
+            hex: "foobar".try_into().unwrap(),
         };
         assert_eq!(key.to_string(), "foobar");
     }
