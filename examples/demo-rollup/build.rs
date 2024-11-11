@@ -8,6 +8,7 @@ use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
+use sov_modules_api::schemars::schema_for;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_universal_wallet::schema::{Schema, SchemaGenerator};
 
@@ -38,6 +39,15 @@ fn main() -> io::Result<()> {
     store_schema_as_json::<Transaction<S>, UnsignedTransaction<S>, RuntimeCall<S>>(
         "demo-rollup-schema.json",
     )?;
+
+    // usage with quicktype (after removing invalid empty `NotInstantiable` enum)
+    // quicktype -s schema runtime_call.json -o runtime_call.ts
+    // Resulting TypeScript file will contain strong types for the runtimes call messages
+    let mut runtime_call = File::create("runtime_call.json").unwrap();
+    let schema = schema_for!(RuntimeCall<S>);
+    let schema_str = serde_json::to_string_pretty(&schema).unwrap();
+    runtime_call.write_all(schema_str.as_bytes()).unwrap();
+    runtime_call.write_all(b"\n")?;
     Ok(())
 }
 

@@ -30,3 +30,5 @@ examples/demo-rollup/demo_rollup_config_2.toml
 
 riscv32im-succinct-zkvm-elf
 build
+
+runtime_call.json
