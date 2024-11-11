@@ -163,7 +163,8 @@ where
     S: sov_modules_api::Spec,
     Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
 {
-    let tx = Transaction::<S>::new_signed_tx(signing_key, tx.with_nonce(nonce));
+    let tx =
+        Transaction::<S>::new_signed_tx(signing_key, &tx.chain_hash.into(), tx.with_nonce(nonce));
     let tx = borsh::to_vec(&tx)?;
     Ok(tx)
 }

@@ -47,6 +47,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{BlobDataWithId, DispatchCall, Event, Genesis, MessageCodec, Spec};
 
 pub use crate::authentication::EthereumToRollupAddressConverter;
+use crate::chain_hash;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
 
@@ -87,6 +88,8 @@ where
     S: Spec,
     EthereumToRollupAddressConverter: TryInto<S::Address>,
 {
+    const CHAIN_HASH: [u8; 32] = chain_hash::CHAIN_HASH;
+
     type GenesisConfig = GenesisConfig<S>;
 
     #[cfg(feature = "native")]

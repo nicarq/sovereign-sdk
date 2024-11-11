@@ -286,6 +286,7 @@ impl<S: Spec> AccountPool<S> {
     ///     let account_pool = AccountPool::<S>::new_from_config(account_pool_config).await?;
     ///
     ///     let chain_id = config_value!("CHAIN_ID");
+    ///
     ///     let max_priority_fee_bips = sov_modules_api::transaction::PriorityFeeBips::from_percentage(1);
     ///     Ok(call_messages
     ///         .into_iter()
@@ -329,7 +330,8 @@ impl<S: Spec> AccountPool<S> {
             None,
         );
 
-        let signed_tx = Transaction::<S>::new_signed_tx(account.private_key(), unsigned_tx);
+        let signed_tx =
+            Transaction::<S>::new_signed_tx(account.private_key(), &R::CHAIN_HASH, unsigned_tx);
 
         self.inc_nonce(&account_pool_index);
 

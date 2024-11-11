@@ -16,6 +16,8 @@ use sov_modules_macros::config_value;
 use sov_risc0_adapter::Risc0;
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
+use crate::test_helpers::CHAIN_HASH;
+
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();
     let mut result = Vec::new();
@@ -86,6 +88,7 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
         let tx = Transaction::<DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>>::new_signed_tx(
             &token_deployer.private_key,
+            &CHAIN_HASH,
             UnsignedTransaction::new(
                 borsh::to_vec(&message)?,
                 chain_id,

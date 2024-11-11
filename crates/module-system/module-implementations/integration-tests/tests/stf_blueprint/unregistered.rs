@@ -15,7 +15,6 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{EncodeCall, TestUser};
 
 use super::{get_balance, get_seq_bond, setup, TxStatus};
-use crate::stf_blueprint::IntegTestRuntime;
 type S = sov_test_utils::TestSpec;
 
 const BOND_AMOUNT: u64 = 100;
@@ -157,8 +156,12 @@ fn execute_seq_registration_failure_test() {
 }
 
 mod helpers {
+    use sov_modules_stf_blueprint::Runtime;
+
     use super::*;
-    use crate::stf_blueprint::{create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid};
+    use crate::stf_blueprint::{
+        create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid, IntegTestRuntime,
+    };
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
         pub(crate) user: TestUser<S>,
@@ -205,7 +208,11 @@ mod helpers {
         );
 
         let signer = TestUser::<S>::generate(0);
-        Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+        Transaction::<S>::new_signed_tx(
+            signer.private_key(),
+            &IntegTestRuntime::<S>::CHAIN_HASH,
+            utx,
+        )
     }
 
     // Creates a forced-registration blob to be sent to the sequencer, the transaction will be reverted.
@@ -228,7 +235,11 @@ mod helpers {
             None,
         );
 
-        Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+        Transaction::<S>::new_signed_tx(
+            signer.private_key(),
+            &IntegTestRuntime::<S>::CHAIN_HASH,
+            utx,
+        )
     }
 
     pub(crate) fn create_blobs_from_unregistered_seq(

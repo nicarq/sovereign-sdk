@@ -9,6 +9,8 @@ pub mod runtime;
 #[cfg(test)]
 mod tests;
 
+mod chain_hash;
+
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::stf::StateTransitionVerifier;
 

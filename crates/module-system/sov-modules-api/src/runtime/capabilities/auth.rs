@@ -223,6 +223,7 @@ pub struct AuthorizationData<S: Spec> {
 fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
     tx: Transaction<S>,
+    chain_hash: &[u8; 32],
     meter: &mut impl GasMeter<S::Gas>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     if tx.details.chain_id != config_chain_id() {
@@ -235,7 +236,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
         ));
     }
 
-    tx.verify(meter).map_err(|e| match e {
+    tx.verify(chain_hash, meter).map_err(|e| match e {
         TransactionVerificationError::BadSignature(_)
         | TransactionVerificationError::TransactionDeserializationError(_) => {
             AuthenticationError::FatalError(
@@ -283,6 +284,7 @@ pub fn authenticate<
     D: DispatchCall<Spec = S>,
 >(
     mut raw_tx: &[u8],
+    chain_hash: &[u8; 32],
     state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
@@ -296,7 +298,7 @@ pub fn authenticate<
         )
     })?;
 
-    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, state)
+    verify_and_decode_tx::<S, D>(raw_tx_hash, tx, chain_hash, state)
 }
 
 /// Calculates the hash of `data` and charges gas.

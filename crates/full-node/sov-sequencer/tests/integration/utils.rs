@@ -11,7 +11,7 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::sov_paymaster::{
     AuthorizedSequencers, PayeePolicy, PaymasterPolicy, SafeVec,
 };
-use sov_test_utils::runtime::{AuthenticatorInput, Paymaster, TestOptimisticRuntime};
+use sov_test_utils::runtime::{AuthenticatorInput, Paymaster, Runtime, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
     EncodeCall, MessageGenerator, TestPrivateKey, TestSpec, TransactionType,
@@ -43,6 +43,7 @@ pub fn build_tx(
 ) -> RawTx {
     let tx = borsh::to_vec(&Transaction::<TestSpec>::new_signed_tx(
         &setup.admin_private_key,
+        &<RT as Runtime<TestSpec>>::CHAIN_HASH,
         UnsignedTransaction::new(
             call_message,
             config_value!("CHAIN_ID"),
@@ -123,6 +124,7 @@ pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
     TransactionType::<Paymaster<TestSpec>, TestSpec>::sign(
         msg,
         key,
+        &<RT as Runtime<TestSpec>>::CHAIN_HASH,
         details,
         &mut Default::default(),
     )

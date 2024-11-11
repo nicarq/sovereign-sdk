@@ -128,11 +128,13 @@ pub fn default_test_signed_transaction<T: BorshSerialize>(
     key: &TestPrivateKey,
     msg: &T,
     nonce: u64,
+    chain_hash: &[u8; 32],
 ) -> Transaction<TestSpec> {
     let tx_details = default_test_tx_details::<TestSpec>();
 
     Transaction::<TestSpec>::new_signed_tx(
         key,
+        chain_hash,
         UnsignedTransaction::new(
             borsh::to_vec(&msg).unwrap(),
             tx_details.chain_id,

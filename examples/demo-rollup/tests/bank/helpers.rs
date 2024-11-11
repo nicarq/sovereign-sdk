@@ -11,7 +11,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
 use super::TOKEN_NAME;
-use crate::test_helpers::read_private_keys;
+use crate::test_helpers::{read_private_keys, CHAIN_HASH};
 
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
@@ -61,7 +61,7 @@ pub(crate) fn build_create_token_tx(
         mint_to_address: user_address,
         authorized_minters: vec![],
     });
-    default_test_signed_transaction(key, &msg, nonce)
+    default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }
 
 pub(crate) fn build_transfer_token_tx(
@@ -75,7 +75,7 @@ pub(crate) fn build_transfer_token_tx(
         to: recipient,
         coins: Coins { amount, token_id },
     });
-    default_test_signed_transaction(key, &msg, nonce)
+    default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }
 
 pub(crate) fn build_multiple_transfers(

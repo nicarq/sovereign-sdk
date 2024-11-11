@@ -9,7 +9,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
-use sov_modules_api::Spec;
+use sov_modules_api::{HexHash, HexString, Spec};
 
 mod node_client;
 /// Types and functionality storing and loading the persistent state of the wallet
@@ -45,6 +45,8 @@ where
 {
     // The underlying transaction
     tx: Tx,
+    // The chain root hash
+    chain_hash: HexHash,
     // Details related to fees and gas handling.
     details: TxDetails<S>,
 }
@@ -57,12 +59,14 @@ where
     pub const fn new(
         tx: Tx,
         chain_id: u64,
+        chain_hash: [u8; 32],
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             tx,
+            chain_hash: HexString(chain_hash),
             details: TxDetails {
                 max_priority_fee_bips,
                 max_fee,

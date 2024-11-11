@@ -57,6 +57,7 @@ use crate::{
 
 pub(crate) mod macros;
 
+use crate as sov_test_utils;
 generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>, paymaster: Paymaster<S>);
 
 /// Utilities for generating genesis configs.

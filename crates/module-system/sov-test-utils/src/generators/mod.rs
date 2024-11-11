@@ -8,6 +8,7 @@ use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{Batch, CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
+use sov_modules_stf_blueprint::Runtime;
 
 use crate::{TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
@@ -54,10 +55,13 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
     }
 
     /// Converts a [`Message`] into a [`Transaction`] using the [`TxDetails`] provided by the [`Message`].
-    pub fn to_tx<Encoder: EncodeCall<Mod>>(self) -> sov_modules_api::transaction::Transaction<S> {
-        let message = Encoder::encode_call(self.content);
+    pub fn to_tx<RT: EncodeCall<Mod> + Runtime<S>>(
+        self,
+    ) -> sov_modules_api::transaction::Transaction<S> {
+        let message = RT::encode_call(self.content);
         Transaction::<S>::new_signed_tx(
             &self.sender_key,
+            &RT::CHAIN_HASH,
             UnsignedTransaction::new(
                 message,
                 self.details.chain_id,
@@ -115,7 +119,7 @@ pub trait MessageGenerator {
 
     /// Creates a vector of raw transactions from the module.
     fn create_default_encoded_txs<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module>,
+        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
     >(
         &self,
     ) -> Vec<FullyBakedTx> {
@@ -129,7 +133,7 @@ pub trait MessageGenerator {
 
     /// Generates a list of raw transactions originating from the module using default transaction details and no gas usage.
     fn create_default_encoded_txs_without_gas_usage<
-        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module>,
+        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
     >(
         &self,
     ) -> Vec<FullyBakedTx> {
@@ -142,7 +146,9 @@ pub trait MessageGenerator {
     }
 
     /// Creates a vector of raw transactions from the module.
-    fn create_encoded_txs<RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module>>(
+    fn create_encoded_txs<
+        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
+    >(
         &self,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
@@ -169,7 +175,9 @@ pub trait MessageGenerator {
 
     /// Generates a list of blobs originating from the module using default transaction details.
     /// This function calls [`MessageGenerator::create_default_encoded_txs`] and then wraps the resulting vec of [`RawTx`]s into a [`Batch`].
-    fn create_blobs<RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module>>(
+    fn create_blobs<
+        RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
+    >(
         &self,
     ) -> Vec<u8> {
         let txs: Vec<FullyBakedTx> = self

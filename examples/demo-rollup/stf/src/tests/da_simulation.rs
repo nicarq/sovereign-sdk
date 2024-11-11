@@ -9,6 +9,7 @@ use sov_test_utils::generators::sequencer_registry::SequencerRegistryMessageGene
 use sov_test_utils::generators::value_setter::{ValueSetterMessage, ValueSetterMessages};
 use sov_test_utils::{MessageGenerator, TestPrivateKey};
 
+use crate::chain_hash::CHAIN_HASH;
 use crate::runtime::Runtime;
 
 pub(crate) type S = sov_test_utils::TestSpec;
@@ -71,6 +72,7 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBaked
     let create_token_message = bank_generator.create_default_messages().remove(0);
     let tx = Transaction::<S>::new_signed_tx(
         &create_token_message.sender_key,
+        &CHAIN_HASH,
         UnsignedTransaction::<S>::new_with_details(
             b"not a real call message".to_vec(),
             create_token_message.nonce,

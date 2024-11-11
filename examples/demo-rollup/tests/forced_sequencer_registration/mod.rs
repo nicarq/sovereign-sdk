@@ -12,7 +12,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-use crate::test_helpers::{construct_rollup, read_private_keys, test_genesis_paths};
+use crate::test_helpers::{construct_rollup, read_private_keys, test_genesis_paths, CHAIN_HASH};
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
@@ -91,6 +91,7 @@ fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         key,
+        &CHAIN_HASH,
         UnsignedTransaction::new(
             borsh::to_vec(&msg).unwrap(),
             chain_id,

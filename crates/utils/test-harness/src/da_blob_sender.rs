@@ -7,6 +7,7 @@ use sov_celestia_adapter::CelestiaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{Batch, FullyBakedTx, RawTx, Spec};
+use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use tokio::sync::mpsc::Receiver;
 use tokio::time::sleep;
@@ -15,7 +16,7 @@ use crate::args::Args;
 use crate::constants::TIME_OUT_DURATION;
 use crate::{Account, AccountPool, SerializedPreparedCallMessage};
 
-pub(crate) struct DaBlobSender<S: Spec, RT: TransactionAuthenticator<S>> {
+pub(crate) struct DaBlobSender<S: Spec, RT: TransactionAuthenticator<S> + Runtime<S>> {
     config: Args,
     account_pool: AccountPool<S>,
     da_service: DaServiceWithRetries<CelestiaService>,
@@ -24,7 +25,7 @@ pub(crate) struct DaBlobSender<S: Spec, RT: TransactionAuthenticator<S>> {
     _phantom: PhantomData<RT>,
 }
 
-impl<S: Spec, RT: TransactionAuthenticator<S>> DaBlobSender<S, RT> {
+impl<S: Spec, RT: TransactionAuthenticator<S> + Runtime<S>> DaBlobSender<S, RT> {
     pub(crate) fn new(
         config: Args,
         account_pool: AccountPool<S>,
@@ -134,7 +135,10 @@ pub(crate) async fn submit_transactions<Da: DaService>(
     Ok(())
 }
 
-pub(crate) fn authorize_serialized_call_message<S: Spec, RT: TransactionAuthenticator<S>>(
+pub(crate) fn authorize_serialized_call_message<
+    S: Spec,
+    RT: TransactionAuthenticator<S> + Runtime<S>,
+>(
     config: &Args,
     account: &Account<S>,
     serialized_message: SerializedPreparedCallMessage,
@@ -149,7 +153,8 @@ pub(crate) fn authorize_serialized_call_message<S: Spec, RT: TransactionAuthenti
         None,
     );
 
-    let signed_tx = Transaction::<S>::new_signed_tx(account.private_key(), unsigned_tx);
+    let signed_tx =
+        Transaction::<S>::new_signed_tx(account.private_key(), &RT::CHAIN_HASH, unsigned_tx);
     let signed_and_encoded_tx =
         RT::encode_with_standard_auth(RawTx::new(borsh::to_vec(&signed_tx)?));
     Ok(signed_and_encoded_tx)

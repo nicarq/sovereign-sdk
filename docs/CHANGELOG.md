@@ -14,6 +14,9 @@ Users wishing to continue using unconstrained Strings, despite the potential to 
 
 ## 2024-10-31
 - #1795 Adds a new `cors` field to the `runner.[rpc|axum]_config` section of the rollup configuration file, which can be used to disable CORS with `"disabled"`. `fn register_endpoints` now requires the entire `rollup_config` as a parameter.
+- #1785 Changes the transaction signing interface. Now, a `chain_hash` value, derived from the rollup's generated universal schema, must be supplied on both signature and verification. This affects many testing interfaces, including any integration tests involving mock transaction construction; a mock hash value now has to be passed (and must be consistent between the test's transaction generation and subsequent verification).
+A new parameter for this was also added to the transaction authentication capability. Rollups should implement schema generation according to the example in `demo-rollup`, and the schema's generated root hash value must be passed to the rollup runtime's authenticator. This value should then also be used in any full end-to-end test implementations.
+
 ## 2024-10-30
 - #1786 Removes the `BondingService` associated type and `create_bonding_service` method on `FullNodeBlueprint`. These items can now be deleted.
 ## 2024-10-29
