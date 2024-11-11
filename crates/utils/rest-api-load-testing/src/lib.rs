@@ -27,8 +27,17 @@ struct Args {
 }
 
 /// Starts the measurement process.
-pub async fn start(requests: Requests) -> Vec<Report> {
+pub async fn start(requests: Requests) -> Summary {
     let args = Args::parse();
+
+    assert!(
+        args.nb_of_users > 0,
+        "Number of users must be greater than 0"
+    );
+    assert!(
+        args.nb_of_requests_per_user > 0,
+        "Number of requests per user must be greater than 0"
+    );
 
     let config = ConcurrentUsersScenarioConfig {
         nb_of_users: args.nb_of_users,

@@ -2,7 +2,7 @@ use clap::ValueEnum;
 use tokio::task::JoinSet;
 
 use super::{measurement, TestScenario};
-use crate::{Report, RequestSenderFactory, Requests};
+use crate::{Report, RequestSenderFactory, Requests, Summary};
 
 /// Connection configuration for the concurrent users scenario.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -43,12 +43,12 @@ impl ConcurrentUsersSameConnectionPool {
 }
 
 impl TestScenario for ConcurrentUsersSameConnectionPool {
-    async fn start_experiment(&self, requests: Requests) -> Vec<Report> {
+    async fn start_experiment(&self, requests: Requests) -> Summary {
         let nb_of_urls = requests.urls.len();
         let nb_of_users = self.config.nb_of_users;
         let nb_of_requests_per_user = self.config.nb_of_requests_per_user;
 
-        let mut reports = Vec::with_capacity(nb_of_urls);
+        let mut data = Vec::with_capacity(nb_of_urls);
 
         //For each URL, spawn a user concurrently. Each user sends requests in a busy loop and collects measurements.
         for url in requests.urls {
@@ -76,11 +76,9 @@ impl TestScenario for ConcurrentUsersSameConnectionPool {
                 all_measurements.append(&mut measurements_for_user.unwrap());
             }
 
-            reports.push(Report {
-                url,
-                measurements: all_measurements,
-            });
+            data.push(Report::create_report(url.clone(), all_measurements));
         }
-        reports
+
+        Summary { data }
     }
 }
