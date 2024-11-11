@@ -255,6 +255,12 @@ secp256k1 = { version = "0.29.0", default-features = false, features = [
 # tendermint = { path = "../celestia-tendermint-rs/tendermint" }
 # tendermint-proto = { path = "../celestia-tendermint-rs/proto" }
 
+[profile.rust-analyzer-optimized]
+inherits = "dev"
+debug = false
+strip = true
+codegen-units = 256
+
 [profile.dev.package.sov-modules-macros]
 # Set the optimization level to 3 for the sov-modules-macros crate. This
 # should reduce build times for other packages.

@@ -3,6 +3,7 @@
   "rust-analyzer.check.extraEnv": {
     "SKIP_GUEST_BUILD": "1"
   },
+  "rust-analyzer.check.extraArgs": ["--profile", "rust-analyzer-optimized"],
   "rust-analyzer.rustfmt.extraArgs": ["+nightly"],
   "json.schemas": [
     {
