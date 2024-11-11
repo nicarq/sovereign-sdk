@@ -3,13 +3,13 @@ use std::time::Instant;
 
 pub(crate) use concurrent_users::*;
 
-use crate::{Measurement, Report, RequestSender, Requests};
+use crate::{Measurement, RequestSender, Requests, Summary};
 
 /// A test scenario controls the number of concurrent tasks sending messages,
 /// the frequency, and other related parameters.
 pub trait TestScenario {
     /// Sends requests and creates a report.
-    async fn start_experiment(&self, requests: Requests) -> Vec<Report>;
+    async fn start_experiment(&self, requests: Requests) -> Summary;
 }
 
 async fn measurement(request_sender: &RequestSender, url: &str) -> Measurement {

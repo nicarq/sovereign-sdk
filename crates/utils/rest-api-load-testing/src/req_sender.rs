@@ -6,12 +6,10 @@ use reqwest::{Client, ClientBuilder};
 
 const REQUEST_TIMEOUT: Duration = std::time::Duration::from_secs(10);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// The output of a single HTTP request.
 pub struct ResponseOutput {
-    #[allow(dead_code)]
     pub(crate) status: u16,
-    #[allow(dead_code)]
     pub(crate) body_size: usize,
 }
 
