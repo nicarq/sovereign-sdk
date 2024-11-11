@@ -95,11 +95,13 @@ impl<S: Spec> Transaction<S> {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn verify(
         &self,
+        chain_hash: &[u8; 32],
         meter: &mut impl GasMeter<S::Gas>,
     ) -> Result<(), TransactionVerificationError<S::Gas>> {
-        let serialized_tx = borsh::to_vec(&self.to_unsigned_transaction()).map_err(|e| {
+        let mut serialized_tx = borsh::to_vec(&self.to_unsigned_transaction()).map_err(|e| {
             TransactionVerificationError::TransactionDeserializationError(e.to_string())
         })?;
+        serialized_tx.extend_from_slice(chain_hash);
         MeteredSignature::new::<S>(self.signature.clone())
             .verify(&self.pub_key, &serialized_tx, meter)
             .map_err(TransactionVerificationError::from)?;
@@ -138,10 +140,12 @@ impl<S: Spec> Transaction<S> {
     /// New signed transaction.
     pub fn new_signed_tx(
         priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
+        chain_hash: &[u8; 32],
         unsigned_tx: UnsignedTransaction<S>,
     ) -> Self {
         let mut utx_bytes: Vec<u8> = Vec::new();
         BorshSerialize::serialize(&unsigned_tx, &mut utx_bytes).unwrap();
+        utx_bytes.extend_from_slice(chain_hash);
 
         let pub_key = priv_key.pub_key();
         let signature = priv_key.sign(&utx_bytes);

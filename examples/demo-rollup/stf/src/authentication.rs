@@ -10,6 +10,7 @@ use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
 use sov_state::User;
 
+use crate::chain_hash::CHAIN_HASH;
 use crate::runtime::{Runtime, RuntimeCall};
 
 impl<S: Spec> TransactionAuthenticator<S> for Runtime<S>
@@ -31,9 +32,11 @@ where
         AuthenticationError,
     > {
         match input {
-            Auth::Mod(tx) => {
-                sov_modules_api::capabilities::authenticate::<_, S, Self>(tx, pre_exec_ws)
-            }
+            Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<_, S, Self>(
+                tx,
+                &CHAIN_HASH,
+                pre_exec_ws,
+            ),
             Auth::Evm(tx) => {
                 let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
                     _,
@@ -68,15 +71,19 @@ where
         };
 
         let (tx_and_raw_hash, auth_data, runtime_call) =
-            sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(contents, pre_exec_ws)
-                .map_err(|e| match e {
-                    AuthenticationError::FatalError(err, hash) => {
-                        UnregisteredAuthenticationError::FatalError(err, hash)
-                    }
-                    AuthenticationError::OutOfGas(err) => {
-                        UnregisteredAuthenticationError::OutOfGas(err)
-                    }
-                })?;
+            sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(
+                contents,
+                &CHAIN_HASH,
+                pre_exec_ws,
+            )
+            .map_err(|e| match e {
+                AuthenticationError::FatalError(err, hash) => {
+                    UnregisteredAuthenticationError::FatalError(err, hash)
+                }
+                AuthenticationError::OutOfGas(err) => {
+                    UnregisteredAuthenticationError::OutOfGas(err)
+                }
+            })?;
 
         match &runtime_call {
             RuntimeCall::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {

@@ -6,7 +6,7 @@ use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_F
 
 use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
-use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys};
+use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, CHAIN_HASH};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_evm_account_abstraction() {
@@ -59,6 +59,7 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     let gas_limit = None;
     Transaction::<TestSpec>::new_signed_tx(
         &key,
+        &CHAIN_HASH,
         UnsignedTransaction::new(
             borsh::to_vec(&msg).unwrap(),
             chain_id,

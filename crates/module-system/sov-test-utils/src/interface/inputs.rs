@@ -8,6 +8,7 @@ use sov_modules_api::{
 };
 use sov_rollup_interface::da::RelevantBlobs;
 
+use crate::runtime::Runtime;
 use crate::FromState;
 
 /// Defines the type of a message that can be sent to the runtime.
@@ -126,7 +127,9 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
 
     /// Converts a [`TransactionType`] into a serialized authenticated transaction ready to be passed
     /// to the runtime.
-    pub fn to_serialized_authenticated_tx<RT: EncodeCall<M> + TransactionAuthenticator<S>>(
+    pub fn to_serialized_authenticated_tx<
+        RT: EncodeCall<M> + TransactionAuthenticator<S> + Runtime<S>,
+    >(
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
         state: &mut ApiStateAccessor<S>,
@@ -138,14 +141,26 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
                 encoded_message,
                 key,
                 details,
-            } => RT::encode_with_standard_auth(Self::sign(encoded_message, key, details, nonces)),
+            } => RT::encode_with_standard_auth(Self::sign(
+                encoded_message,
+                key,
+                &RT::CHAIN_HASH,
+                details,
+                nonces,
+            )),
             TransactionType::Plain {
                 message,
                 key,
                 details,
             } => {
                 let msg = <RT as EncodeCall<M>>::encode_call(message);
-                RT::encode_with_standard_auth(Self::sign(msg, key, details, nonces))
+                RT::encode_with_standard_auth(Self::sign(
+                    msg,
+                    key,
+                    &RT::CHAIN_HASH,
+                    details,
+                    nonces,
+                ))
             }
             TransactionType::Configuration {
                 message,
@@ -154,7 +169,13 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
             } => {
                 let msg = message.from_state(state);
                 let msg = <RT as EncodeCall<M>>::encode_call(msg);
-                RT::encode_with_standard_auth(Self::sign(msg, key, details, nonces))
+                RT::encode_with_standard_auth(Self::sign(
+                    msg,
+                    key,
+                    &RT::CHAIN_HASH,
+                    details,
+                    nonces,
+                ))
             }
         }
     }
@@ -163,8 +184,9 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
     pub fn pre_signed(
         unsigned_tx: UnsignedTransaction<S>,
         key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
+        chain_hash: &[u8; 32],
     ) -> Self {
-        let tx = borsh::to_vec(&Transaction::new_signed_tx(key, unsigned_tx)).unwrap();
+        let tx = borsh::to_vec(&Transaction::new_signed_tx(key, chain_hash, unsigned_tx)).unwrap();
         Self::PreSigned(RawTx { data: tx })
     }
 
@@ -172,6 +194,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
     pub fn sign(
         msg: Vec<u8>,
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+        chain_hash: &[u8; 32],
         details: TxDetails<S>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     ) -> RawTx {
@@ -180,6 +203,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         nonces.insert(pub_key, nonce + 1);
         let tx = borsh::to_vec(&Transaction::<S>::new_signed_tx(
             &key,
+            chain_hash,
             UnsignedTransaction::new(
                 msg,
                 details.chain_id,

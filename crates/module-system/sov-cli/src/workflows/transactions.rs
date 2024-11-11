@@ -9,6 +9,7 @@ use serde::Serialize;
 use sov_modules_api::clap::{self, Subcommand};
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg};
 use sov_modules_api::{CliWallet, DispatchCall, Spec};
+use sov_modules_stf_blueprint::Runtime;
 use sov_rollup_interface::common::HexString;
 
 use crate::wallet_state::{sign_tx, KeyIdentifier, WalletState};
@@ -53,9 +54,9 @@ where
     Json: Subcommand,
 {
     /// Run the transaction workflow
-    pub fn run<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
+    pub fn run<RT: CliWallet + Runtime<S>, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-        wallet_state: &mut WalletState<RT::Decodable, S>,
+        wallet_state: &mut WalletState<<RT as DispatchCall>::Decodable, S>,
         _app_dir: impl AsRef<Path>,
         mut out: impl std::io::Write,
     ) -> anyhow::Result<()>
@@ -64,8 +65,9 @@ where
         File: CliFrontEnd<RT> + CliTxImportArg,
         Json: TryInto<RT::CliStringRepr<U>, Error = E1>,
         File: TryInto<RT::CliStringRepr<U>, Error = E2>,
-        RT::CliStringRepr<U>: TryInto<RT::Decodable, Error = E3>,
-        RT::Decodable: BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+        RT::CliStringRepr<U>: TryInto<<RT as DispatchCall>::Decodable, Error = E3>,
+        <RT as DispatchCall>::Decodable:
+            BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
         E1: Into<anyhow::Error> + Send + Sync,
         E2: Into<anyhow::Error> + Send + Sync,
         E3: Into<anyhow::Error> + Send + Sync,
@@ -158,16 +160,17 @@ where
     File: Subcommand,
 {
     /// Parse from a file or a json string
-    pub fn load<RT: CliWallet, S: sov_modules_api::Spec, U, E1, E2, E3>(
+    pub fn load<RT: CliWallet + Runtime<S>, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-    ) -> anyhow::Result<UnsignedTransactionWithoutNonce<S, RT::Decodable>>
+    ) -> anyhow::Result<UnsignedTransactionWithoutNonce<S, <RT as DispatchCall>::Decodable>>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,
         File: CliFrontEnd<RT> + CliTxImportArg,
         Json: TryInto<RT::CliStringRepr<U>, Error = E1>,
         File: TryInto<RT::CliStringRepr<U>, Error = E2>,
-        RT::CliStringRepr<U>: TryInto<RT::Decodable, Error = E3>,
-        RT::Decodable: BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
+        RT::CliStringRepr<U>: TryInto<<RT as DispatchCall>::Decodable, Error = E3>,
+        <RT as DispatchCall>::Decodable:
+            BorshSerialize + BorshDeserialize + Serialize + DeserializeOwned,
         E1: Into<anyhow::Error> + Send + Sync,
         E2: Into<anyhow::Error> + Send + Sync,
         E3: Into<anyhow::Error> + Send + Sync,
@@ -194,7 +197,7 @@ where
             }
         };
 
-        let tx: RT::Decodable = intermediate_repr
+        let tx: <RT as DispatchCall>::Decodable = intermediate_repr
             .try_into()
             .map_err(Into::<anyhow::Error>::into)?;
 
@@ -206,6 +209,7 @@ where
         Ok(UnsignedTransactionWithoutNonce::new(
             tx,
             chain_id,
+            RT::CHAIN_HASH,
             max_priority_fee_bips.into(),
             max_fee,
             gas_limit,

@@ -5086,6 +5086,7 @@ dependencies = [
  "sov-api-spec",
  "sov-bank",
  "sov-modules-api",
+ "sov-modules-stf-blueprint",
  "sov-rollup-interface",
 ]
 

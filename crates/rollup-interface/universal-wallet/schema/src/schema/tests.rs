@@ -28,12 +28,15 @@ macro_rules! encode_decode_tests_simple {
 
 macro_rules! encode_decode_tests {
     ($schema_type:ty, $item:ident, $expected_display:literal) => {
-        let schema = Schema::of_single_type::<$schema_type>();
+        let mut schema = Schema::of_single_type::<$schema_type>();
         // println!("{:?}", &schema);
         encode_decode_tests_simple!(schema, $item, $expected_display);
+        let chain_hash = schema.chain_hash().unwrap();
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
-        println!("{schema_json}");
-        let recovered_schema = Schema::<()>::from_json(&schema_json).unwrap();
+        // println!("{schema_json}");
+        let mut recovered_schema = Schema::<()>::from_json(&schema_json).unwrap();
+        let recovered_chain_hash = recovered_schema.chain_hash().unwrap();
+        assert_eq!(chain_hash, recovered_chain_hash);
         encode_decode_tests_simple!(recovered_schema, $item, $expected_display);
     };
 }
@@ -657,7 +660,8 @@ fn test_simple_struct_schema() {
 
 #[test]
 fn test_multiobject_schema() {
-    let schema = Schema::of_rollup_types_with_metadata::<Role, MinimalStruct, Registration>(4321);
+    let mut schema =
+        Schema::of_rollup_types_with_metadata::<Role, MinimalStruct, Registration>(4321u64);
 
     let my_role = Role::Attester;
     let my_minimal_struct = MinimalStruct { tokens: 1000 };
@@ -668,10 +672,11 @@ fn test_multiobject_schema() {
         schemaless: NoSchemaU64Wrapper(123),
     };
 
-    // println!("{:?}", &$schema);
+    let orig_hash = schema.chain_hash().unwrap();
     let schema_json = serde_json::to_string_pretty(&schema).unwrap();
-    // println!("{schema_json}");
-    let schema = Schema::<u64>::from_json(&schema_json).unwrap();
+    let mut schema = Schema::<u64>::from_json(&schema_json).unwrap();
+    let hash = schema.chain_hash().unwrap();
+    assert_eq!(orig_hash, hash);
 
     // TODO: ugly
     let role_borsh_ser = borsh::to_vec(&my_role).unwrap();

@@ -234,6 +234,10 @@ impl<Meta: SchemaMetadata> Schema<Meta> {
             }
         }
     }
+
+    pub fn metadata(&self) -> &Meta {
+        &self.chain_metadata
+    }
 }
 
 #[cfg(feature = "serde")]
@@ -295,6 +299,10 @@ impl<Any> Schema<Any> {
 
     pub fn types(&self) -> &[Ty<IndexLinking>] {
         &self.types
+    }
+
+    pub fn root_types(&self) -> &[usize] {
+        &self.root_type_indices
     }
 
     fn find_item_by_id(&self, item_id: &ItemId) -> Option<usize> {

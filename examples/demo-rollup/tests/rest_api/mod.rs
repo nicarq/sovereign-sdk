@@ -14,7 +14,9 @@ use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
 use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
-use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, TestRollup};
+use crate::test_helpers::{
+    get_appropriate_rollup_prover_config, read_private_keys, TestRollup, CHAIN_HASH,
+};
 
 #[derive(Debug, Deserialize)]
 struct ValueResponse {
@@ -73,7 +75,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
             1, 2, 3, 4, 5, 6, 7, 8,
         ]));
 
-    let tx = default_test_signed_transaction(&key_and_address.private_key, &msg, 0);
+    let tx = default_test_signed_transaction(&key_and_address.private_key, &msg, 0, &CHAIN_HASH);
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
     test_rollup
         .client

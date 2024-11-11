@@ -4,7 +4,7 @@ use sov_modules_api::transaction::UnsignedTransaction;
 use sov_modules_api::{CredentialId, EncodeCall, TxEffect};
 use sov_nonces::Nonces;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{TestRunner, ValueSetter, ValueSetterConfig};
+use sov_test_utils::runtime::{Runtime, TestRunner, ValueSetter, ValueSetterConfig};
 use sov_test_utils::{
     generate_optimistic_runtime, TestUser, TransactionTestCase, TransactionType, TxProcessingError,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -28,7 +28,11 @@ fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<Value
         None,
     );
 
-    TransactionType::pre_signed(transaction, admin.private_key())
+    TransactionType::pre_signed(
+        transaction,
+        admin.private_key(),
+        &<TestNonceRuntime<S> as Runtime<S>>::CHAIN_HASH,
+    )
 }
 
 fn setup() -> (TestUser<S>, TestRunner<TestNonceRuntime<S>, S>) {

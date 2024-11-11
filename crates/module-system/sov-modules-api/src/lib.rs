@@ -87,7 +87,9 @@ pub use reexport_macros::*;
 #[cfg(feature = "native")]
 pub use rpc::*;
 pub use runtime::*;
-pub use sov_rollup_interface::common::{safe_vec, HexHash, SafeString, SafeVec, SizedSafeString};
+pub use sov_rollup_interface::common::{
+    safe_vec, HexHash, HexString, SafeString, SafeVec, SizedSafeString,
+};
 #[cfg(feature = "native")]
 pub use sov_rollup_interface::crypto::PrivateKey;
 pub use sov_rollup_interface::crypto::{CredentialId, PublicKey, Signature};

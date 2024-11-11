@@ -4,6 +4,7 @@ use sov_bank::Bank;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, PrivateKey, Spec};
+use sov_modules_stf_blueprint::Runtime;
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
@@ -118,7 +119,8 @@ fn create_tx_bad_sig(
         None,
     );
 
-    let mut signed_tx = Transaction::new_signed_tx(&signer.private_key, utx);
+    let mut signed_tx =
+        Transaction::new_signed_tx(&signer.private_key, &IntegTestRuntime::<S>::CHAIN_HASH, utx);
 
     // Create a signature for a different message so it won't verify in the stf.
     let bad_signature = signer.private_key.sign(&[1, 2, 3]);
@@ -143,7 +145,11 @@ fn create_tx_bad_sender(
     );
 
     let signer = TestUser::<S>::generate(0);
-    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+    Transaction::<S>::new_signed_tx(
+        signer.private_key(),
+        &IntegTestRuntime::<S>::CHAIN_HASH,
+        utx,
+    )
 }
 
 fn create_tx_valid(
@@ -162,7 +168,11 @@ fn create_tx_valid(
         None,
     );
 
-    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+    Transaction::<S>::new_signed_tx(
+        signer.private_key(),
+        &<IntegTestRuntime<S>>::CHAIN_HASH,
+        utx,
+    )
 }
 
 // Transaction with zero gas limit.
@@ -182,5 +192,9 @@ fn create_tx_out_of_gas(
         Some(<<S as Spec>::Gas as Gas>::zero()),
     );
 
-    Transaction::<S>::new_signed_tx(signer.private_key(), utx)
+    Transaction::<S>::new_signed_tx(
+        signer.private_key(),
+        &IntegTestRuntime::<S>::CHAIN_HASH,
+        utx,
+    )
 }
