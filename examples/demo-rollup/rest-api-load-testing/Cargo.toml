@@ -13,4 +13,5 @@ workspace = true
 
 
 [dependencies]
+tokio = { workspace = true, features = ["full"] }
 rest-api-load-testing = {workspace = true}
