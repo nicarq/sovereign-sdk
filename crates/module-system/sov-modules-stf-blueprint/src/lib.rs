@@ -17,15 +17,13 @@ pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    BlobOrigin, BlobSelector, ChainState, HasCapabilities, HasKernel, Kernel,
-    TransactionAuthenticator,
+    BlobOrigin, BlobSelector, ChainState, HasKernel, Kernel, TransactionAuthenticator,
 };
-use sov_modules_api::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
+use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
-pub use sov_modules_api::{BatchWithId, BlobData};
+pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
-    BlobDataWithId, DaSpec, DispatchCall, Error, ExecutionContext, Gas, GasArray, Genesis,
-    RuntimeEventProcessor, Spec, StateCheckpoint,
+    BlobDataWithId, DaSpec, Error, ExecutionContext, Gas, GasArray, Genesis, Spec, StateCheckpoint,
 };
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -36,47 +34,6 @@ use thiserror::Error;
 use tracing::info;
 
 use crate::unregistered::BatchWithSingleTx;
-/// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
-///
-/// The `TxHooks` implementation sets up a transaction context based on the height at which it is
-/// to be executed.
-pub trait Runtime<S: Spec>:
-    DispatchCall<Spec = S>
-    + HasCapabilities<S>
-    + HasKernel<S>
-    + TransactionAuthenticator<
-        S,
-        Decodable = <Self as DispatchCall>::Decodable,
-        AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
-    > + Genesis<Spec = S, Config = Self::GenesisConfig>
-    + TxHooks<Spec = S>
-    + SlotHooks<Spec = S>
-    + KernelSlotHooks<Spec = S>
-    + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<S>>
-    + Default
-    + RuntimeEventProcessor
-    + 'static
-{
-    /// Chain root hash used for transaction verification. Generated from a
-    /// [schema](sov_rollup_interface::sov_universal_wallet::schema::Schema).
-    const CHAIN_HASH: [u8; 32];
-
-    /// GenesisConfig type.
-    type GenesisConfig: Send + Sync;
-
-    /// GenesisPaths type.
-    #[cfg(feature = "native")]
-    type GenesisPaths: Send + Sync;
-
-    /// Default RPC methods and Axum router.
-    #[cfg(feature = "native")]
-    fn endpoints(storage: sov_modules_api::rest::ApiState<S>) -> RuntimeEndpoints;
-
-    /// Reads genesis configs.
-    #[cfg(feature = "native")]
-    fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
-}
 
 /// The contents of the receipt for a skipped transaction
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -429,25 +386,6 @@ where
             proof_receipts,
             batch_receipts,
             witness,
-        }
-    }
-}
-
-/// The return type of [`Runtime::endpoints`].
-#[cfg(feature = "native")]
-pub struct RuntimeEndpoints {
-    /// The [`axum::Router`] for the runtime's HTTP server.
-    pub axum_router: axum::Router<()>,
-    /// A [`jsonrpsee::RpcModule`] for the runtime's JSON-RPC server.
-    pub jsonrpsee_module: jsonrpsee::RpcModule<()>,
-}
-
-#[cfg(feature = "native")]
-impl Default for RuntimeEndpoints {
-    fn default() -> Self {
-        Self {
-            axum_router: Default::default(),
-            jsonrpsee_module: jsonrpsee::RpcModule::new(()),
         }
     }
 }

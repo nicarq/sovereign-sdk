@@ -98,7 +98,7 @@ where
     #[cfg(feature = "native")]
     fn endpoints(
         api_state: sov_modules_api::rest::ApiState<S>,
-    ) -> sov_modules_stf_blueprint::RuntimeEndpoints {
+    ) -> ::sov_modules_api::RuntimeEndpoints {
         use ::sov_modules_api::rest::HasRestApi;
         use ::sov_rollup_apis::dedup::{DeDupEndpoint, NonceDeDupEndpoint};
 
@@ -108,7 +108,7 @@ where
         let dedup_endpoint = NonceDeDupEndpoint::new(api_state.clone());
         let axum_router = axum_router.merge(dedup_endpoint.axum_router());
 
-        sov_modules_stf_blueprint::RuntimeEndpoints {
+        ::sov_modules_api::RuntimeEndpoints {
             axum_router,
             jsonrpsee_module: get_rpc_methods::<S>(api_state),
         }

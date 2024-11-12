@@ -33,7 +33,7 @@ use sov_modules_api::{
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
 };
-pub use sov_modules_stf_blueprint::{GenesisParams, Runtime, RuntimeEndpoints};
+pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 pub use sov_nonces::Nonces;
 pub use sov_paymaster::{self, Paymaster};
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
@@ -57,7 +57,6 @@ use crate::{
 
 pub(crate) mod macros;
 
-use crate as sov_test_utils;
 generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<S>, paymaster: Paymaster<S>);
 
 /// Utilities for generating genesis configs.

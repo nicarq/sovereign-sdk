@@ -103,7 +103,7 @@ macro_rules! generate_bare_runtime {
 
             type GenesisPaths = ();
 
-            fn endpoints(_api_state: sov_modules_api::rest::ApiState<S>) -> $crate::runtime::RuntimeEndpoints {
+            fn endpoints(_api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
                 unimplemented!()
             }
 
@@ -211,7 +211,7 @@ macro_rules! impl_standard_runtime_authenticator {
             > {
                 ::sov_modules_api::capabilities::authenticate::<_, S, Self>(
                     &tx.0.data,
-                    &<$runtime as sov_test_utils::runtime::Runtime<S>>::CHAIN_HASH,
+                    &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
                     pre_exec_ws,
                 )
             }
@@ -234,7 +234,7 @@ macro_rules! impl_standard_runtime_authenticator {
                     Self
                 >(
                     &tx.0.data,
-                    &<$runtime as sov_test_utils::runtime::Runtime<S>>::CHAIN_HASH,
+                    &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
                     pre_exec_ws
                 ) .map_err(|e| match e {
                     ::sov_modules_api::capabilities::AuthenticationError::FatalError(err, hash) => {

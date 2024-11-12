@@ -1,3 +1,6 @@
+## 2024-11-12
+- #1861 Moves the `Runtime` trait to `sov-modules-api`. It remains re-exported from `sov-modules-stf-blueprint`, so most usages remain unaffected. However, the `RuntimeEndpoints` struct is also moved and is not re-exported, so any code importing `sov-modules-stf-blueprint::RuntimeEndpoints` must be changed to import `sov-modules-api::RuntimeEndpoints`.
+
 ## 2024-11-05
 - #1821 removes the associated type `TxState` from `TxHooks` and adds two new generic parameters to `ApplyBatchHooks::begin_batch_hook` and `ApplyBatchHooks::end_batch_hook`. Please refer to `hooks_impl.rs` for a usage example using the new trait signatures.
 - #1819 Derive `JsonSchema` on runtime calls. All types used in call messages must now also derive the `sov_modules_api::schemars::JsonSchema` trait.
