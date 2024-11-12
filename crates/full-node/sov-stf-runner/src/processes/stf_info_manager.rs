@@ -200,21 +200,25 @@ where
 
         // Prune the oldest entries if needed
         let mut oldest_height = self.get_oldest_rollup_height(ledger_db).await?;
+        let prune_up_to = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db);
 
-        while Some(oldest_height) < write_rollup_height.checked_sub(self.max_nb_of_infos_in_db) {
+        while Some(oldest_height) < prune_up_to {
+            if oldest_height >= read_rollup_height {
+                tracing::warn!(
+                    read_rollup_height,
+                    ?prune_up_to,
+                    "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works."
+                );
+                break;
+            }
             schema.merge(self.remove_oldest_height(oldest_height, ledger_db)?);
             oldest_height += 1;
         }
-
-        assert!(
-            oldest_height <= read_rollup_height,
-            "oldest({}) is bigger than read_rollup_height){})",
-            oldest_height,
-            read_rollup_height
-        );
         assert!(
             read_rollup_height <= write_rollup_height,
-            "write is smaller than read"
+            "write({}) is smaller than read({})",
+            write_rollup_height,
+            read_rollup_height
         );
 
         tracing::debug!(

@@ -88,13 +88,16 @@ where
     pub async fn start_op_workflow_in_background<Bps: BondingProofService>(
         self,
         bonding_proof_service: Bps,
+        max_channel_size: usize,
+        max_nb_of_infos_in_db: u64,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<(
         Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         JoinHandle<()>,
     )> {
         let ledger_db = self.ledger_db.clone();
-        let (st_info_sender, st_info_receiver) = new_stf_info_channel(self.ledger_db, 1, 2).await?;
+        let (st_info_sender, st_info_receiver) =
+            new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
 
         let attestations_manager = AttestationsManager::new(
             st_info_receiver,

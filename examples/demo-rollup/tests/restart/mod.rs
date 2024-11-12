@@ -52,6 +52,8 @@ async fn start_stop_empty(
         shutdown_sender.send(())?;
         tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task).await???;
         rollup_storage_dir = storage_dir;
+        // Sleep some time for stability: Should be fixed later
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
 
     Ok(())
@@ -59,26 +61,41 @@ async fn start_stop_empty(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_start_stop_zk_instant_finality() -> anyhow::Result<()> {
-    start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Skip).await
-    // start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Execute).await
+    start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Skip).await?;
+    // if can_execute_zk_guest() {
+    //     start_stop_empty(OperatingMode::Zk, 0, RollupProverConfig::Execute).await?;
+    // }
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_start_stop_zk_non_instant_finality() -> anyhow::Result<()> {
-    start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Skip).await
-    // start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Execute).await
+    start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Skip).await?;
+    // if can_execute_zk_guest() {
+    //     start_stop_empty(OperatingMode::Zk, 3, RollupProverConfig::Execute).await?;
+    // }
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_start_stop_optimistic_instant_finality() -> anyhow::Result<()> {
-    start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Skip).await
-    // start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Execute).await
+    start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Skip).await?;
+    // if can_execute_zk_guest() {
+    //     start_stop_empty(OperatingMode::Optimistic, 0, RollupProverConfig::Execute).await?;
+    // }
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore]
 async fn test_start_stop_optimistic_non_instant_finality() -> anyhow::Result<()> {
-    start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Skip).await
+    start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Skip).await?;
+    // if can_execute_zk_guest() {
+    //     start_stop_empty(OperatingMode::Optimistic, 3, RollupProverConfig::Execute).await?;
+    // }
+    Ok(())
 }
+
+// fn can_execute_zk_guest() -> bool {
+//     let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_default();
+//     matches!(skip_guest_build.to_lowercase().as_str(), "" | "0" | "false")
+// }
