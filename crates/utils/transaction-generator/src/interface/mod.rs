@@ -1,4 +1,4 @@
-pub mod basic_message_generator;
+//! Defines the traits and types that form the interface for callmessage generation
 mod rng;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -10,24 +10,30 @@ pub use rng::*;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::{CryptoSpec, Spec};
 
-use super::transaction_generator::ApplyTo;
+use super::state::ApplyTo;
 
 /// Whether a generated message should be valid or invalid.
 #[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq)]
 pub enum MessageValidity {
+    #[allow(missing_docs)]
     Valid,
+    #[allow(missing_docs)]
     Invalid,
 }
 
 /// A generated message for a particular module.
 #[derive(Debug)]
 pub struct GeneratedMessage<S: Spec, M, E> {
+    /// The generated call message
     pub message: M,
+    /// The private key that should sign the message
     pub sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    /// A summary of the changes that the transaction will make.
     pub changes: Vec<E>,
 }
 
 impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
+    /// Create a new [`GeneratedMessage`] from its components
     pub fn new(
         message: M,
         sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
@@ -45,8 +51,9 @@ impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
 /// generator will be taken. To decide whether to take a particular branch, use the pattern...
 ///
 /// ```rust
-/// use arbitrary::Arbitrary;
-///# use sov_test_harness::module_message_generators::interface::Percent;
+///# use sov_modules_api::prelude::arbitrary;
+///  use arbitrary::Arbitrary;
+///# use sov_transaction_generator::interface::Percent;
 ///
 ///
 /// fn should_take_branch<'a>(likelihood: Percent, u: &mut arbitrary::Unstructured<'a>) -> bool {
@@ -70,14 +77,17 @@ impl std::ops::Sub for Percent {
 }
 
 impl Percent {
+    /// Returns 100 percent
     pub const fn one_hundred() -> Self {
         Self(100)
     }
 
+    /// Returns fifty percent
     pub const fn fifty() -> Self {
         Self(50)
     }
 
+    /// Returns zero
     pub const fn zero() -> Self {
         Self(0)
     }
@@ -105,14 +115,6 @@ impl PartialEq<u8> for Percent {
     }
 }
 
-#[derive(thiserror::Error, PartialEq, Eq, Clone, Hash, Debug)]
-pub enum InvalidDistribution {
-    #[error("Invalid distribution! Items must sum to 100 but were only: {0}")]
-    TotalTooLow(u8),
-    #[error("Invalid distribution! Total may not exceed 100.")]
-    TotalTooHigh,
-}
-
 /// A distribution of probabilities, expressed as relative weights. Optionally, the
 /// distribution may have associated values. This makes it easier to keep the weights
 /// and values in sync
@@ -120,7 +122,7 @@ pub enum InvalidDistribution {
 /// # Examples
 ///
 /// ```rust
-///# use sov_test_harness::module_message_generators::interface::Distribution;
+///# use sov_transaction_generator::interface::Distribution;
 ///
 /// Distribution::new([1, 1, 1]); // Selects each of the three possibilities one third of the time
 /// Distribution::new([3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
@@ -203,7 +205,7 @@ impl<const N: usize> Distribution<N> {
 /// ```rust
 /// use sov_bank::Coins;
 /// use sov_modules_api::{CryptoSpec, Spec};
-/// # use sov_test_harness::module_message_generators::bank::message_generator::BankAccount;
+/// # use sov_transaction_generator::generators::bank::BankAccount;
 ///
 /// struct AccountState<S: Spec> {
 ///   pub balances: Vec<Coins>,
@@ -225,6 +227,8 @@ pub trait GeneratorState<S: Spec> {
     /// The view of an account for a particular module
     type AccountView;
 
+    /// The `Tag` enum associated with this generator. Tags form a secondary index
+    /// that can be used to quickly recover accounts matching certain criteria.
     type Tag: Hash + Eq;
 
     /// Creates a fresh copy of the appropriate view of the account with the given address.
@@ -271,9 +275,12 @@ pub trait GeneratorState<S: Spec> {
     }
 }
 
+/// Converts a more general `GeneratorState` implementation to a more specific one - for example,
+/// the `GeneratorState` for a whole runtime to the state for a particular module
 pub struct GeneratorStateMapper<'a, Source, Acct, Tag>(&'a mut Source, PhantomData<(Acct, Tag)>);
 
 impl<'a, Source, Acct, Tag> GeneratorStateMapper<'a, Source, Acct, Tag> {
+    /// Create  a new [`GeneratorStateMapper`]
     pub fn new(state: &'a mut Source) -> Self {
         Self(state, PhantomData)
     }
@@ -351,13 +358,17 @@ pub trait Updatewith<T> {
     fn update_with(&mut self, view: T);
 }
 
+/// The action to take on a particular tag
 #[derive(Debug, Clone)]
 pub enum TagAction<T> {
+    /// Add the tag to an account.
     Add(T),
+    /// Remove the tag from an account, if present.
     Remove(T),
 }
 
 impl<T> TagAction<T> {
+    /// Apply some function to the tag contained in some [`TagAction`]
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> TagAction<U> {
         match self {
             TagAction::Add(item) => TagAction::Add(f(item)),
@@ -366,6 +377,8 @@ impl<T> TagAction<T> {
     }
 }
 
+/// A standard interface for generating call messages and checking that they produce
+/// the expected effects.
 pub trait CallMessageGenerator<S: Spec> {
     /// The module callmessage being generated.
     type CallMessage;
@@ -394,7 +407,6 @@ pub trait CallMessageGenerator<S: Spec> {
         u: &mut arbitrary::Unstructured<'_>,
         rollup_state_accessor: &Self::RollupStateReader,
         generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
-
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
 
@@ -415,6 +427,8 @@ pub trait CallMessageGenerator<S: Spec> {
     ) -> Result<(), anyhow::Error>;
 }
 
+/// Try to take an action repeatedly, breaking when the `until` condition is true and executing
+/// the `on_failure` expression if unsuccessful after too many attempts.
 #[macro_export]
 macro_rules! repeatedly {
     (let $assignment:tt = $expression:expr; until: $test:expr, on_failure: $err:expr) => {

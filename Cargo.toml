@@ -13,7 +13,6 @@ members = [
     "examples/const-rollup-config",
     "examples/demo-simple-stf",
     "examples/demo-rollup",
-    "examples/demo-rollup/testing-harness",
     "examples/demo-rollup/rest-api-load-testing",
     "examples/demo-rollup/stf/demo-stf-json-client",
     "examples/simple-nft-module",
@@ -29,7 +28,6 @@ members = [
     "crates/full-node/sov-api-spec",
     # Utils
     "crates/utils/sov-rest-utils",
-    "crates/utils/test-harness",
     "crates/utils/rest-api-load-testing",
     # Module System
     "crates/module-system/sov-cli",
@@ -59,6 +57,7 @@ members = [
     "crates/rollup-interface/universal-wallet/schema",
     "crates/rollup-interface/universal-wallet/macros",
     "crates/rollup-interface/universal-wallet/macro-helpers",
+    "crates/utils/transaction-generator",
 ]
 
 [workspace.package]

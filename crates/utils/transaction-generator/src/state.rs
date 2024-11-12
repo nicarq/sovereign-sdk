@@ -1,32 +1,39 @@
+//! Provides a basic implementation of the [`GeneratorState`] trait.
 use std::collections::HashMap;
 use std::marker::PhantomData;
 
 use arbitrary::Arbitrary;
 use derivative::Derivative;
 use indexmap::{IndexMap, IndexSet};
-use sov_modules_api::prelude::arbitrary;
-
-use super::interface::{CallMessageGenerator, DefaultEmpty, GeneratorState, PickRandom, TagAction};
-pub trait TransactionGenerator {
-    /// Generate a transaction
-    fn generate_transaction(&mut self, u: arbitrary::Unstructured<'_>);
-}
-
 use sov_bank::{Coins, TokenId};
+use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 
-use super::bank::message_generator::BankAccount;
+use super::generators::bank::BankAccount;
+use super::interface::{CallMessageGenerator, DefaultEmpty, GeneratorState, PickRandom, TagAction};
 
+/// The state of an account in the message generator.
+///
+/// AccountState is generic over an `additional_state` field
+/// to allow customization for external modules.
 #[derive(Clone, Debug)]
 pub struct AccountState<S: Spec, T = ()> {
+    /// The token ID and amount of all known tokens for which this account has non-zero balance
+    ///
+    /// Note that tokens may exist which the transaction generator is *not* aware of.
     pub balances: Vec<Coins>,
+    /// The set of known tokens which this account is allowed to mint
     pub can_mint: IndexSet<TokenId>,
+    /// The bond amount that this account has locked in the sequencer registry, if applicable
     pub sequencing_bond: Option<u64>,
+    /// The private key for this account
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    /// Any additional state tracked by external modules
     pub additional_info: T,
 }
 
 impl<S: Spec, T: Default> AccountState<S, T> {
+    /// Create an empty account with the given private key
     pub fn with_private_key(private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey) -> Self {
         Self {
             balances: Vec::new(),
@@ -37,13 +44,21 @@ impl<S: Spec, T: Default> AccountState<S, T> {
         }
     }
 }
+
+/// A view into `AccountState` containing some subset of its data. Identical to `AccountState` except that all fields
+/// are wrapped in an `Option` so that irrelevant fields can be ignored.
 #[derive(Clone, Debug, Derivative)]
 #[derivative(Default(bound = ""))]
 pub struct AccountStateView<S: Spec, T = ()> {
+    /// The account's balances
     pub balances: Option<Vec<Coins>>,
+    /// The set of known tokens which this account is allowed to mint
     pub can_mint: Option<IndexSet<TokenId>>,
+    /// The bond amount that this account has locked in the sequencer registry, if applicable
     pub sequencing_bond: Option<Option<u64>>,
+    /// The private key for this account
     pub private_key: Option<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
+    /// Any additional state tracked by external modules
     pub additional_info: Option<T>,
 }
 
@@ -145,6 +160,8 @@ pub trait ApplyTo<T> {
     fn apply_to(self, account: &mut T);
 }
 
+/// A simple implementation of the [`GeneratorState`] trait. Tracks accounts by address
+/// and maintains a secondary index using the `tags` provided by the module.
 pub struct State<S: Spec, M: CallMessageGenerator<S>, T = ()> {
     accounts: IndexMap<S::Address, AccountState<S, T>>,
     tags: HashMap<M::Tag, IndexSet<S::Address>>,
@@ -162,10 +179,12 @@ impl<S: Spec, M: CallMessageGenerator<S>, T> Default for State<S, M, T> {
 }
 
 impl<S: Spec, M: CallMessageGenerator<S>, T> State<S, M, T> {
+    /// Create an empty [`State`].
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create a new state containing the provided account. Tags the account with the provided tags.
     pub fn with_account_and_tags(account: AccountState<S, T>, tags: Vec<M::Tag>) -> Self {
         let mut output = Self::default();
         let address: <S as Spec>::Address = (&account.private_key.pub_key()).into();
@@ -181,7 +200,6 @@ impl<S: Spec, M: CallMessageGenerator<S>, T> State<S, M, T> {
 impl<S: Spec, M: CallMessageGenerator<S>, T: Default + 'static> GeneratorState<S> for State<S, M, T>
 where
     for<'a> M::AccountView: From<&'a AccountState<S, T>> + ApplyTo<AccountState<S, T>>,
-    // AccountState<S, T>: ApplyTo>,
 {
     type AccountView = M::AccountView;
 

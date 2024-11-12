@@ -1,3 +1,4 @@
+//! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
 
 use indexmap::IndexSet;
@@ -9,11 +10,12 @@ use tracing::warn;
 mod mint;
 mod transfer;
 
-use crate::interface::Distribution;
-use crate::module_message_generators::interface::{
-    CallMessageGenerator, GeneratedMessage, GeneratorState, MessageValidity, Percent, PickRandomMut,
+use crate::interface::{
+    CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, MessageValidity, Percent,
+    PickRandomMut,
 };
 
+/// The call message discriminants used by the `Bank` module
 pub const MESSAGES: &[sov_bank::CallMessageDiscriminants] =
     sov_bank::CallMessageDiscriminants::VARIANTS;
 
@@ -29,11 +31,16 @@ pub struct BankMessageGenerator<S> {
 /// Configuration for the [`BankMessageGenerator`]
 #[derive(Debug, Clone)]
 pub struct BankMessageGeneratorConfig {
+    /// The distribution of messages to generate
     pub message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+    /// The fraction of valid callmessages which should generate new addresses. This parameter
+    /// is used on a best-effort basis; if some kind of call message cannot create a new address,
+    /// the actual percentage will be less than requested.
     pub address_creation_rate: Percent,
 }
 
 impl<S: Spec> BankMessageGenerator<S> {
+    /// Instantiate a new [`BankMessageGenerator`]
     pub fn new(
         message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
         address_creation_rate: Percent,
@@ -45,6 +52,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         }
     }
 
+    /// Instantiate a new [`BankMessageGenerator`] from the provided config
     pub fn from_config(config: BankMessageGeneratorConfig) -> Self {
         Self::new(config.message_distribution, config.address_creation_rate)
     }
@@ -103,11 +111,18 @@ impl<S: Spec> BankMessageGenerator<S> {
 /// A complete description of any possible state change created by the bank message generator.
 #[derive(Debug, Clone)]
 pub enum BankChangeLogEntry<S: Spec> {
-    BalanceChanged { address: S::Address, coins: Coins },
+    /// The balance of an address changed
+    BalanceChanged {
+        #[allow(missing_docs)]
+        address: S::Address,
+        /// The balance after the change
+        coins: Coins,
+    },
     // More variants will be added in coming PRs.
 }
 
 impl<S: Spec> BankChangeLogEntry<S> {
+    /// Creates a `BalanceChanged` [`BankChangeLogEntry`] and returns it
     pub fn balance_changed(address: S::Address, token_id: TokenId, new_balance: u64) -> Self {
         Self::BalanceChanged {
             address,
@@ -176,14 +191,19 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 /// A tag used for indexing by the bank message generator
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Tag {
+    /// Accounts which have a balance of some token. These can be used to generate transfers.
     HasBalance,
+    /// Accounts which are allowed to mint some token.
     CanMint,
 }
 /// The view of an account used by the bank message generator
 #[derive(Clone, Debug)]
 pub struct BankAccount<S: Spec> {
+    /// The account's private key
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+    /// All tokens of which the account has a non-zero balance
     pub balances: Vec<Coins>,
+    /// The set of tokens that the account is allowed to mint
     pub can_mint: IndexSet<TokenId>,
 }
 

@@ -14,7 +14,10 @@ pub trait RandomUniform: arbitrary::unstructured::Int {
     }
 }
 
+/// A helper trait for borrowing an entry at random from a collection
 pub trait PickRandom {
+    /// The type yielded from the collection. Typically an &'a T, where T is the type
+    /// stored in the collection.
     type Item<'a>
     where
         Self: 'a;
@@ -29,7 +32,10 @@ pub trait PickRandom {
     ) -> arbitrary::Result<Self::Item<'_>>;
 }
 
+/// A helper trait for mutably borrowing an entry at random from a collection
 pub trait PickRandomMut {
+    /// The type yielded from the collection. Typically an &'a mut T, where T is the type
+    /// stored in the collection.
     type Item<'a>
     where
         Self: 'a;
