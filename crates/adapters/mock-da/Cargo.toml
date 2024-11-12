@@ -20,6 +20,8 @@ async-trait = { workspace = true }
 borsh = { workspace = true, features = ["bytes"] }
 bytes = { workspace = true, features = ["serde"] }
 derive_more = { workspace = true, features = ["from", "into"] }
+proptest = { workspace = true, optional = true }
+proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -46,7 +48,8 @@ chrono = { workspace = true, optional = true }
 bincode = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
-sov-mock-da = { path = ".", features = ["native"] }
+sov-mock-da = { path = ".", features = ["native", "arbitrary"] }
+sov-test-utils = { workspace = true, features = ["native", "arbitrary"]}
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [
 	"test-util",
@@ -62,8 +65,11 @@ default = []
 arbitrary = [
 	"dep:arbitrary",
 	"chrono?/arbitrary",
+	"dep:proptest",
+	"dep:proptest-derive",
 	"sov-mock-da/arbitrary",
 	"sov-rollup-interface/arbitrary",
+	"sov-test-utils/arbitrary"
 ]
 native = [
 	"dep:chrono",
@@ -72,5 +78,6 @@ native = [
 	"dep:tokio",
 	"sov-mock-da/native",
 	"sov-rollup-interface/native",
+	"sov-test-utils/native"
 ]
 postgres = ["native", "sea-orm/sqlx-postgres"]

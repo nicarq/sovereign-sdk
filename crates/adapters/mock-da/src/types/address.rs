@@ -20,7 +20,10 @@ pub const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [0u8; 32];
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
 )]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(arbitrary::Arbitrary, proptest_derive::Arbitrary)
+)]
 pub struct MockAddress {
     /// Underlying mock address.
     addr: [u8; 32],
@@ -131,7 +134,10 @@ impl RollupAddress for MockAddress {}
 mod tests {
     use std::string::ToString;
 
+    use proptest::prelude::any;
+    use proptest::proptest;
     use sov_rollup_interface::sov_universal_wallet::schema::Schema;
+    use sov_test_utils::validate_schema;
 
     use super::*;
 
@@ -174,5 +180,12 @@ mod tests {
         let s = addr.to_string();
         let recovered_addr = s.parse::<MockAddress>().unwrap();
         assert_eq!(addr, recovered_addr);
+    }
+
+    proptest! {
+        #[test]
+        fn json_schema_is_valid(item in any::<MockAddress>()) {
+            validate_schema(&item).unwrap();
+        }
     }
 }

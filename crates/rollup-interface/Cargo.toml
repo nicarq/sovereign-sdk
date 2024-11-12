@@ -49,6 +49,7 @@ proptest-derive = { workspace = true }
 serde_json = { workspace = true }
 bincode = { workspace = true }
 sov-rollup-interface = { path = ".", features = ["native", "arbitrary"] }
+sov-test-utils = { workspace = true, features = ["native", "arbitrary"] }
 tokio = { workspace = true, features = ["sync", "macros", "rt-multi-thread"] }
 
 [features]
@@ -58,11 +59,13 @@ native = [
     "sov-rollup-interface/native",
     "tracing",
     "tokio",
+    "sov-test-utils/native"
 ]
 arbitrary = [
     "dep:arbitrary",
     "proptest",
     "proptest-derive",
     "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary"
 ]
 vec-compat = []

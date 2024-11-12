@@ -20,6 +20,7 @@ derive_more = { workspace = true }
 anyhow = { workspace = true }
 axum-server = { workspace = true }
 borsh = { workspace = true }
+jsonschema = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 serde = { workspace = true }
 schemars = { workspace = true }

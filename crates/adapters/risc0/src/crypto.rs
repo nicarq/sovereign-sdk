@@ -77,45 +77,88 @@ pub mod private_key {
     }
 
     #[cfg(feature = "arbitrary")]
-    impl<'a> arbitrary::Arbitrary<'a> for Risc0PrivateKey {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            use rand::rngs::StdRng;
-            use rand::SeedableRng;
+    mod arbitrary_impls {
+        use proptest::prelude::{any, BoxedStrategy};
+        use proptest::strategy::Strategy;
+        use rand::rngs::StdRng;
+        use rand::SeedableRng;
 
-            // it is important to generate the secret deterministically from the arbitrary argument
-            // so keys and signatures will be reproducible for a given seed.
-            // this unlocks fuzzy replay
-            let seed = <[u8; 32]>::arbitrary(u)?;
-            let rng = &mut StdRng::from_seed(seed);
-            let key_pair = SigningKey::generate(rng);
+        use super::*;
 
-            Ok(Self { key_pair })
+        impl<'a> arbitrary::Arbitrary<'a> for Risc0PrivateKey {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                // it is important to generate the secret deterministically from the arbitrary argument
+                // so keys and signatures will be reproducible for a given seed.
+                // this unlocks fuzzy replay
+                let seed = <[u8; 32]>::arbitrary(u)?;
+                let rng = &mut StdRng::from_seed(seed);
+                let key_pair = SigningKey::generate(rng);
+
+                Ok(Self { key_pair })
+            }
         }
-    }
 
-    #[cfg(all(feature = "arbitrary", feature = "native"))]
-    impl<'a> arbitrary::Arbitrary<'a> for Risc0PublicKey {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            Risc0PrivateKey::arbitrary(u).map(|p| p.pub_key())
+        impl<'a> arbitrary::Arbitrary<'a> for Risc0PublicKey {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                Risc0PrivateKey::arbitrary(u).map(|p| p.pub_key())
+            }
         }
-    }
 
-    #[cfg(all(feature = "arbitrary", feature = "native"))]
-    impl<'a> arbitrary::Arbitrary<'a> for Risc0Signature {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            // the secret/public pair is lost; it is impossible to verify this signature
-            // to run a verification, generate the keys+payload individually
-            let payload_len = u.arbitrary_len::<u8>()?;
-            let payload = u.bytes(payload_len)?;
-            Risc0PrivateKey::arbitrary(u).map(|s| s.sign(payload))
+        impl<'a> arbitrary::Arbitrary<'a> for Risc0Signature {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                // the secret/public pair is lost; it is impossible to verify this signature
+                // to run a verification, generate the keys+payload individually
+                let payload_len = u.arbitrary_len::<u8>()?;
+                let payload = u.bytes(payload_len)?;
+                Risc0PrivateKey::arbitrary(u).map(|s| s.sign(payload))
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for Risc0PrivateKey {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<[u8; 32]>()
+                    .prop_map(|seed| Self {
+                        key_pair: SigningKey::generate(&mut StdRng::from_seed(seed)),
+                    })
+                    .boxed()
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for Risc0PublicKey {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<Risc0PrivateKey>()
+                    .prop_map(|key| key.pub_key())
+                    .boxed()
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for Risc0Signature {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<(Risc0PrivateKey, Vec<u8>)>()
+                    .prop_map(|(key, bytes)| key.sign(&bytes))
+                    .boxed()
+            }
         }
     }
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema)]
 pub struct Risc0PublicKey {
-    #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))]
+    #[schemars(
+        flatten,
+        with = "String",
+        length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH * 2")
+    )]
     pub(crate) pub_key: DalekPublicKey,
 }
 
@@ -145,12 +188,6 @@ impl sov_rollup_interface::crypto::PublicKey for Risc0PublicKey {
     }
 }
 
-impl Hash for Risc0PublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pub_key.as_bytes().hash(state);
-    }
-}
-
 impl BorshDeserialize for Risc0PublicKey {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buffer = [0; PUBLIC_KEY_LENGTH];
@@ -172,7 +209,11 @@ impl BorshSerialize for Risc0PublicKey {
 #[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct Risc0Signature {
     /// The inner signature.
-    #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::Signature::BYTE_SIZE"))]
+    #[schemars(
+        flatten,
+        with = "String",
+        length(equal = "ed25519_dalek::Signature::BYTE_SIZE * 2")
+    )]
     pub msg_sig: DalekSignature,
 }
 
@@ -281,6 +322,32 @@ mod tests {
             .expect("Keypair is serialized correctly");
 
         assert_eq!(key_pair.as_hex(), output.as_hex());
+    }
+}
+
+#[cfg(test)]
+#[cfg(all(feature = "proptest", feature = "native"))]
+mod proptest_tests {
+    use proptest::prelude::*;
+
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn pub_key_json_schema_is_valid(item in any::<Risc0PublicKey>()) {
+            let serialized = serde_json::to_value(item).unwrap();
+            let schema = serde_json::to_value(&schemars::schema_for!(Risc0PublicKey)).unwrap();
+
+            jsonschema::validate(&schema, &serialized).unwrap();
+        }
+
+        #[test]
+        fn sig_json_schema_is_valid(item in any::<Risc0Signature>()) {
+            let serialized = serde_json::to_value(item).unwrap();
+            let schema = serde_json::to_value(&schemars::schema_for!(Risc0Signature)).unwrap();
+
+            jsonschema::validate(&schema, &serialized).unwrap();
+        }
     }
 }
 

@@ -75,45 +75,85 @@ pub mod private_key {
     }
 
     #[cfg(feature = "arbitrary")]
-    impl<'a> arbitrary::Arbitrary<'a> for SP1PrivateKey {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            use rand::rngs::StdRng;
-            use rand::SeedableRng;
+    mod arbitrary_impls {
+        use proptest::prelude::{any, BoxedStrategy, Strategy};
+        use rand::rngs::StdRng;
+        use rand::SeedableRng;
 
-            // it is important to generate the secret deterministically from the arbitrary argument
-            // so keys and signatures will be reproducible for a given seed.
-            // this unlocks fuzzy replay
-            let seed = <[u8; 32]>::arbitrary(u)?;
-            let rng = &mut StdRng::from_seed(seed);
-            let key_pair = SigningKey::new(rng);
+        use super::*;
 
-            Ok(Self { key_pair })
+        impl<'a> arbitrary::Arbitrary<'a> for SP1PrivateKey {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                // it is important to generate the secret deterministically from the arbitrary argument
+                // so keys and signatures will be reproducible for a given seed.
+                // this unlocks fuzzy replay
+                let seed = <[u8; 32]>::arbitrary(u)?;
+                let rng = &mut StdRng::from_seed(seed);
+                let key_pair = SigningKey::new(rng);
+
+                Ok(Self { key_pair })
+            }
         }
-    }
 
-    #[cfg(all(feature = "arbitrary", feature = "native"))]
-    impl<'a> arbitrary::Arbitrary<'a> for SP1PublicKey {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            SP1PrivateKey::arbitrary(u).map(|p| p.pub_key())
+        impl<'a> arbitrary::Arbitrary<'a> for SP1PublicKey {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                SP1PrivateKey::arbitrary(u).map(|p| p.pub_key())
+            }
         }
-    }
 
-    #[cfg(all(feature = "arbitrary", feature = "native"))]
-    impl<'a> arbitrary::Arbitrary<'a> for SP1Signature {
-        fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
-            // the secret/public pair is lost; it is impossible to verify this signature
-            // to run a verification, generate the keys+payload individually
-            let payload_len = u.arbitrary_len::<u8>()?;
-            let payload = u.bytes(payload_len)?;
-            SP1PrivateKey::arbitrary(u).map(|s| s.sign(payload))
+        impl<'a> arbitrary::Arbitrary<'a> for SP1Signature {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+                // the secret/public pair is lost; it is impossible to verify this signature
+                // to run a verification, generate the keys+payload individually
+                let payload_len = u.arbitrary_len::<u8>()?;
+                let payload = u.bytes(payload_len)?;
+                SP1PrivateKey::arbitrary(u).map(|s| s.sign(payload))
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for SP1PrivateKey {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<[u8; 32]>()
+                    .prop_map(|seed| Self {
+                        key_pair: SigningKey::new(StdRng::from_seed(seed)),
+                    })
+                    .boxed()
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for SP1PublicKey {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<SP1PrivateKey>().prop_map(|key| key.pub_key()).boxed()
+            }
+        }
+
+        impl proptest::arbitrary::Arbitrary for SP1Signature {
+            type Parameters = ();
+            type Strategy = BoxedStrategy<Self>;
+
+            fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+                any::<(SP1PrivateKey, Vec<u8>)>()
+                    .prop_map(|(key, bytes)| key.sign(&bytes))
+                    .boxed()
+            }
         }
     }
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized SP1 fork of the ed25519-consensus crate.
-#[derive(PartialEq, Eq, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema)]
 pub struct SP1PublicKey {
-    #[schemars(with = "&[u8]", length(equal = "32"))]
+    #[schemars(
+        flatten,
+        with = "String",
+        length(equal = "ed25519_consensus::VerificationKey::LENGTH * 2")
+    )]
     pub(crate) pub_key: VerificationKey,
 }
 
@@ -143,12 +183,6 @@ impl sov_rollup_interface::crypto::PublicKey for SP1PublicKey {
     }
 }
 
-impl Hash for SP1PublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pub_key.as_bytes().hash(state);
-    }
-}
-
 impl BorshDeserialize for SP1PublicKey {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut buffer = [0u8; 32];
@@ -170,7 +204,11 @@ impl BorshSerialize for SP1PublicKey {
 #[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
 pub struct SP1Signature {
     /// The inner signature.
-    #[schemars(with = "&[u8]", length(equal = "64"))]
+    #[schemars(
+        flatten,
+        with = "String",
+        length(equal = "ed25519_consensus::Signature::LENGTH * 2")
+    )]
     pub msg_sig: Signature,
 }
 
@@ -364,9 +402,11 @@ mod test {
 }
 
 #[cfg(test)]
-#[cfg(feature = "native")]
 mod hex_tests {
+    use proptest::prelude::any;
+    use proptest::proptest;
     use sov_rollup_interface::crypto::PrivateKey;
+    use sov_test_utils::validate_schema;
 
     use super::*;
     use crate::crypto::private_key::SP1PrivateKey;
@@ -389,5 +429,22 @@ mod hex_tests {
         let pub_key_upper = SP1PublicKey::try_from(&pub_key_hex_upper).unwrap();
 
         assert_eq!(pub_key_lower, pub_key_upper);
+    }
+
+    proptest! {
+        #[test]
+        fn public_key_hash_trait_invariants(keys in any::<[SP1PublicKey; 2]>()) {
+            reltester::hash(&keys[0], &keys[1]).unwrap();
+        }
+
+        #[test]
+        fn public_key_json_schema_is_valid(item in any::<SP1PublicKey>()) {
+            validate_schema(&item).unwrap();
+        }
+
+        #[test]
+        fn sig_json_schema_is_valid(item in any::<SP1Signature>()) {
+            validate_schema(&item).unwrap();
+        }
     }
 }

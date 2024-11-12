@@ -198,3 +198,15 @@ pub fn new_test_gas_meter<GU: Gas>() -> BasicGasMeter<GU> {
 pub fn new_test_gas_meter_with_price<GU: Gas>(gas_price: GU::Price) -> BasicGasMeter<GU> {
     BasicGasMeter::new(u64::MAX, gas_price)
 }
+
+/// Serializes a value to JSON and validates it based on its
+/// [`schemars::JsonSchema`] rules.
+pub fn validate_schema<T>(item: &T) -> Result<(), jsonschema::error::ValidationErrorKind>
+where
+    T: schemars::JsonSchema + serde::Serialize,
+{
+    let schema = serde_json::to_value(&schemars::schema_for!(T)).unwrap();
+    let json = serde_json::to_value(item).unwrap();
+
+    jsonschema::validate(&schema, &json).map_err(|e| e.kind)
+}
