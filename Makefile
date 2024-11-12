@@ -144,3 +144,12 @@ dry-run-publish:
 
 docs:  ## Generates documentation locally
 	cargo doc --open
+
+docs-generate: ## Generate documentation but don't open it, to verify that it would pass CI.
+	cargo doc --no-deps --all-features
+
+doctest:
+	cargo test --workspace --doc --all-features
+
+mini-ci: ## Runs multiple checks that can most often fail CI as a single command: lint, test, and doctest.
+mini-ci: lint test doctest docs-generate
