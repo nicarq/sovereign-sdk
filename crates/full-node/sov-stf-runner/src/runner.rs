@@ -317,7 +317,13 @@ where
                     info!("Shutting down RPC server...");
                     server_handle.stop().map_err(|e | anyhow::anyhow!(e))
                 }
-            }
+            }?;
+
+            // Wait till RPC server actually stopped,
+            // So when this task is completed,
+            // it is safe to assume that the RPC server is running no more.
+            server_handle.stopped().await;
+            Ok(())
         }));
 
         Ok(rpc_address)
@@ -392,9 +398,13 @@ where
         let target_da_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state.update_target(target_da_height);
 
+        let (status_update_shutdown_sender, mut status_update_shutdown_receiver) =
+            tokio::sync::watch::channel(());
+        status_update_shutdown_receiver.mark_unchanged();
+
         let status_updater_handle = self.spawn_sync_status_updater(
             Duration::from_millis(self.da_polling_interval_ms),
-            self.shutdown_receiver.clone(),
+            status_update_shutdown_receiver,
         );
 
         let mut shutdown_receiver = self.shutdown_receiver.clone();
@@ -409,6 +419,7 @@ where
             }
         }
         info!("Shutting down runner...");
+        status_update_shutdown_sender.send(())?;
         status_updater_handle.await?;
         let background_handles = std::mem::take(&mut self.background_handles);
         for handle in background_handles {

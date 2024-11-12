@@ -23,6 +23,12 @@ struct ForkPoint<Da: DaService, StateRoot> {
     pre_state_root: StateRoot,
 }
 
+/// Structure that holds a block header and a pre-state root that was on this block header
+struct StateOnBlock<Da: DaSpec, StateRoot> {
+    block_header: Da::BlockHeader,
+    pre_state_root: StateRoot,
+}
+
 /// StateManager controls storage lifecycle for [`StateTransitionFunction`],
 /// [`LedgerDb`] and API endpoints in case of DA-reorgs.
 /// It needs [`DaService`] so it can backtrack to the last seen transition in new fork.
@@ -37,7 +43,7 @@ where
     // Probably it can be saved in variable before "apply_slot" is called,
     // But then the runner needs to know about it and carry it over.
     state_root: StateRoot,
-    seen_state_transitions: VecDeque<StateTransitionInfo<StateRoot, Witness, Da::Spec>>,
+    seen_state_transitions: VecDeque<StateOnBlock<Da::Spec, StateRoot>>,
     api_storage_sender: watch::Sender<Sm::StfState>,
     st_info_sender: Option<Sender<StateRoot, Witness, Da::Spec>>,
 }
@@ -73,7 +79,7 @@ where
 
     /// Returns an [`HierarchicalStorageManager::StfState`] and a [`DaService::FilteredBlock`] that can be used to continue execution.
     /// If a caller relies on some data from `filtered_block`,
-    /// it should be updated after call of this method.
+    /// it should be updated after the call of this method.
     /// If a given block continues in the current fork, it is simply returned to the caller.
     /// If reorg happened, it will return block following the last seen transition.
     pub(crate) async fn prepare_storage(
@@ -117,7 +123,7 @@ where
     }
 
     /// Performs all necessary operations on data that has been processed by the rollup.
-    /// Returns vector of finalized state transitions, so caller can do anything on top of that.
+    /// Returns vector of finalized state transitions, so the caller can do anything on top of that.
     /// All necessary data for these finalized transitions have been saved on disk.
     pub(crate) async fn process_stf_changes<
         S: SlotData,
@@ -130,7 +136,7 @@ where
         transition_witness: StateTransitionWitness<StateRoot, Witness, Da::Spec>,
         slot_commit: SlotCommit<S, B, T>,
         aggregated_proofs: Vec<AggregatedProof>,
-    ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
+    ) -> anyhow::Result<()> {
         let rollup_height = self.get_rollup_height()?;
         let new_state_root = transition_witness.final_state_root.clone();
         let block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
@@ -144,9 +150,9 @@ where
             "Saving changes after applying slot"
         );
 
-        self.seen_state_transitions.push_back(StateTransitionInfo {
-            data: transition_witness,
-            rollup_height,
+        self.seen_state_transitions.push_back(StateOnBlock {
+            block_header: block_header.clone(),
+            pre_state_root: transition_witness.initial_state_root.clone(),
         });
 
         let finalized_transitions = self
@@ -156,28 +162,28 @@ where
         let mut ledger_change_set = self
             .ledger_db
             .materialize_slot(slot_commit, new_state_root.as_ref())?;
+
+        let last_finalized_slot = self
+            .ledger_db
+            .materialize_latest_finalize_slot(last_finalized_height)?;
+        ledger_change_set.merge(last_finalized_slot);
+
+        if let Some(st_info_sender) = &self.st_info_sender {
+            let stf_info = StateTransitionInfo {
+                data: transition_witness,
+                rollup_height,
+            };
+            let stf_info_schema = st_info_sender
+                .materialize_stf_info(&stf_info, &self.ledger_db)
+                .await?;
+            ledger_change_set.merge(stf_info_schema);
+        }
+
         for aggregated_proof in aggregated_proofs {
             let this_height_data = self
                 .ledger_db
                 .materialize_aggregated_proof(aggregated_proof)?;
             ledger_change_set.merge(this_height_data);
-        }
-
-        // Materialize data for the finalized height
-        for finalized_transition in &finalized_transitions {
-            let last_finalized_slot = self
-                .ledger_db
-                .materialize_latest_finalize_slot(finalized_transition.rollup_height)?;
-
-            ledger_change_set.merge(last_finalized_slot);
-
-            if let Some(st_info_sender) = &self.st_info_sender {
-                // Materialize `StateTransitionInfo`` for the finalized heights,
-                let stf_info_schema = st_info_sender
-                    .materialize_stf_info(finalized_transition, &self.ledger_db)
-                    .await?;
-                ledger_change_set.merge(stf_info_schema);
-            }
         }
 
         self.storage_manager
@@ -187,12 +193,12 @@ where
 
         for finalized_transition in &finalized_transitions {
             self.storage_manager
-                .finalize(finalized_transition.da_block_header())?;
+                .finalize(&finalized_transition.block_header)?;
 
             if let Some(st_info_sender) = &self.st_info_sender {
-                // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
+                // Notify `StateTransitionInfo` consumers that a new finalized height is available.
                 st_info_sender
-                    .notify(finalized_transition.rollup_height)
+                    .notify(finalized_transition.block_header.height())
                     .await?;
             }
         }
@@ -201,41 +207,39 @@ where
         // now it is safe to submit notifications.
         self.ledger_db.send_notifications();
 
-        Ok(finalized_transitions)
+        Ok(())
     }
 
     /// Checks if passed [`DaSpec::BlockHeader`] is a continuation of seen state transition.
-    /// If not, traverses back to the latest seen transition, that belongs to the fork of passed header.
+    /// If not, traverses back to the latest-seen transition, that belongs to the fork of passed header.
     async fn has_reorg_happened(
         &mut self,
         block_header: &<Da::Spec as DaSpec>::BlockHeader,
         da_service: &Da,
     ) -> anyhow::Result<Option<ForkPoint<Da, StateRoot>>> {
         if let Some(state_transition) = self.seen_state_transitions.back() {
-            if state_transition.da_block_header().hash() != block_header.prev_hash() {
+            if state_transition.block_header.hash() != block_header.prev_hash() {
                 tracing::warn!(
                     current_header = %block_header.display(),
-                    prev_seen_header = %state_transition.da_block_header().display(),
+                    prev_seen_header = %state_transition.block_header.display(),
                     "Block does not belong in current chain. Chain has forked. Traversing seen headers backwards"
                 );
                 while let Some(state_transition) = self.seen_state_transitions.pop_back() {
                     let block = da_service
-                        .get_block_at(state_transition.da_block_header().height())
+                        .get_block_at(state_transition.block_header.height())
                         .await?;
                     tracing::debug!(
                         fetched = %block.header().display(),
-                        seen = %state_transition.da_block_header().display(),
+                        seen = %state_transition.block_header.display(),
                         "Checking seen header vs fetched from DA"
                     );
-                    if block.header().prev_hash() == state_transition.da_block_header().prev_hash()
-                    {
+                    if block.header().prev_hash() == state_transition.block_header.prev_hash() {
                         return Ok(Some(ForkPoint {
                             block,
-                            pre_state_root: state_transition.initial_state_root().clone(),
+                            pre_state_root: state_transition.pre_state_root,
                         }));
                     }
                 }
-                //
                 anyhow::bail!("Could not match any seen block with the current chain. Could rollup start from non-finalized block?");
             }
         }
@@ -247,7 +251,7 @@ where
     async fn process_finalized_state_transitions(
         &mut self,
         last_finalized_height: u64,
-    ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, Witness, Da::Spec>>> {
+    ) -> anyhow::Result<Vec<StateOnBlock<Da::Spec, StateRoot>>> {
         tracing::trace!(
             last_finalized_height,
             seen_transitions = self.seen_state_transitions.len(),
@@ -256,8 +260,8 @@ where
 
         let mut finalized_transitions = Vec::new();
         // Checking all seen blocks, in case if there was delay in getting last finalized header.
-        while let Some(earliest_seen_state_transition_info) = self.seen_state_transitions.front() {
-            let earliest_header = earliest_seen_state_transition_info.da_block_header();
+        while let Some(earliest_seen_transition) = self.seen_state_transitions.front() {
+            let earliest_header = &earliest_seen_transition.block_header;
             tracing::trace!(header = %earliest_header.display(), last_finalized_height, "Checking seen header");
             let height = earliest_header.height();
 
@@ -315,6 +319,7 @@ mod tests {
     };
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::node::da::DaServiceWithRetries;
+    use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_state::{
         ArrayWitness, NativeStorage, ProverStorage, SlotKey, SlotValue, StateAccesses, Storage,
@@ -327,6 +332,8 @@ mod tests {
     type Stf = MockStf<MockValidityCond>;
     type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
     type StateRoot = <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::StateRoot;
+    type TestBatchReceiptContents =
+        <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::BatchReceiptContents;
     type TestTxReceiptContents =
         <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::TxReceiptContents;
     type Witness = <Stf as StateTransitionFunction<Vm, Vm, MockDaSpec>>::Witness;
@@ -339,14 +346,28 @@ mod tests {
     async fn setup_state_manager(path: &std::path::Path) -> anyhow::Result<TestStateManager> {
         let mut storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<S>> =
             NativeStorageManager::new(path)?;
-        let genesis_header = MockBlockHeader::from_height(0);
-        let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_header)?;
+        let genesis_block = MockBlock::default_at_height(0);
+        let (genesis_storage, ledger_state) =
+            storage_manager.create_state_for(genesis_block.header())?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
+
         let api_storage_sender = watch::Sender::new(genesis_storage.clone());
 
         let (state_root, change_set) = produce_synthetic_changes(&genesis_storage, 0);
 
-        storage_manager.save_change_set(&genesis_header, change_set, SchemaBatch::new())?;
+        let genesis_header = genesis_block.header().clone();
+        let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
+            SlotCommit::new(genesis_block);
+        let mut ledger_change_set =
+            ledger_db.materialize_slot(data_to_commit, state_root.as_ref())?;
+        let finalized_slot_changes = ledger_db.materialize_latest_finalize_slot(0)?;
+        ledger_change_set.merge(finalized_slot_changes);
+
+        storage_manager.save_change_set(&genesis_header, change_set, ledger_change_set)?;
+        storage_manager.finalize(&genesis_header)?;
+
+        let (_, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
         Ok(StateManager::new(
             storage_manager,
@@ -378,7 +399,7 @@ mod tests {
         filtered_block: MockBlock,
         finalized_height: u64,
         da_service: &Da,
-    ) -> anyhow::Result<Vec<StateTransitionInfo<StateRoot, (), MockDaSpec>>> {
+    ) -> anyhow::Result<()> {
         let (prover_storage, returned_block) = state_manager
             .prepare_storage(filtered_block.clone(), da_service)
             .await?;
@@ -401,7 +422,7 @@ mod tests {
         };
 
         let slot_commit: MockSlotCommit = SlotCommit::new(filtered_block);
-        let finalized = state_manager
+        state_manager
             .process_stf_changes(
                 finalized_height,
                 change_set,
@@ -411,7 +432,7 @@ mod tests {
             )
             .await?;
 
-        Ok(finalized)
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -427,9 +448,16 @@ mod tests {
         let da_service = MockDaService::new(SEQUENCER_ADDRESS);
         let da_service = DaServiceWithRetries::new_fast(da_service);
 
-        let finalized =
-            process_normal_transition(&mut state_manager, filtered_block, 0, &da_service).await?;
-        assert!(finalized.is_empty());
+        process_normal_transition(&mut state_manager, filtered_block, 0, &da_service).await?;
+
+        // LedgerDb storage should be updated by that point, so correct height is returned
+        assert_eq!(
+            0,
+            state_manager
+                .ledger_db
+                .get_latest_finalized_rollup_height()
+                .await?
+        );
 
         Ok(())
     }
@@ -438,6 +466,10 @@ mod tests {
     async fn test_instant_finality() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
+
+        let (sender, mut receiver) =
+            crate::processes::new_stf_info_channel(state_manager.ledger_db.clone(), 10, 10).await?;
+        state_manager.st_info_sender = Some(sender);
         let da_service = DaServiceWithRetries::new_fast(MockDaService::new(SEQUENCER_ADDRESS));
 
         let mut state_root = state_manager.get_state_root().clone();
@@ -446,19 +478,25 @@ mod tests {
                 .send_transaction(&[height as u8; 10], MockFee::zero())
                 .await?;
             let filtered_block = da_service.get_block_at(height).await?;
-            let mut finalized = process_normal_transition(
+            process_normal_transition(
                 &mut state_manager,
                 filtered_block.clone(),
                 height,
                 &da_service,
             )
             .await?;
-            assert_eq!(1, finalized.len());
-            let finalized = finalized.pop().unwrap();
-            assert_eq!(height - 1, finalized.rollup_height);
+            let finalized = receiver.read_next().await?.unwrap();
+            assert_eq!(height, finalized.rollup_height);
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);
             state_root = finalized.data.final_state_root;
+            assert_eq!(
+                height,
+                state_manager
+                    .ledger_db
+                    .get_latest_finalized_rollup_height()
+                    .await?
+            );
         }
 
         Ok(())
@@ -467,12 +505,12 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_reorg_happened_correct_block_returned() -> anyhow::Result<()> {
         // The idea of the test is
-        // to check that state manager returns the correct block and storage after reorg.
+        // to ensure that the state manager returns the correct block and storage after reorg.
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
 
         let fork_point = 3;
-        let last_block = 5;
+        let last_block = 6;
 
         let storage_receiver = state_manager.api_storage_sender.subscribe();
 
@@ -488,7 +526,7 @@ mod tests {
 
         let mut state_roots = Vec::with_capacity(last_block as usize);
 
-        for rollup_height in 0..=last_block {
+        for rollup_height in 1..=last_block {
             // Not used anywhere, `process_normal_transition` relies on da header to produce changes.
             let blob_data = [rollup_height as u8; 10];
             da_service
@@ -515,7 +553,7 @@ mod tests {
                 // Because we get filtered block via submission, first height we get is 1, thus rollup height > da_height by 1.
                 assert_eq!(fork_point + 1, returned_block.header().height());
 
-                let expected_state_root = &state_roots[fork_point as usize];
+                let expected_state_root = &state_roots[fork_point as usize - 1];
                 assert_eq!(expected_state_root, state_manager.get_state_root());
 
                 let returned_storage_root = prover_storage.get_root_hash(fork_point)?;
@@ -529,9 +567,9 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_no_seen_block_has_been_tracked() -> anyhow::Result<()> {
-        // The idea of the test, is that state manager receives a request for storage for a block
+        // The idea of the test is that the state manager receives a request for storage for a block
         // That is not a part of the current chain.
-        // But it cannot back-track to the last known block in the new chain,
+        // But it cannot back-track to the last known block in the new chain
         // because it hasn't seen transition in the new chain.
         // We simulate that by removing seen transitions before actual finalization happens.
 
@@ -550,7 +588,7 @@ mod tests {
                 .await?;
             let filtered_block = da_service.get_block_at(height).await?;
             let finalized_height = height.saturating_sub(finality as u64);
-            let _finalized = process_normal_transition(
+            process_normal_transition(
                 &mut state_manager,
                 filtered_block.clone(),
                 finalized_height,
@@ -593,22 +631,30 @@ mod tests {
                 .await?;
             let filtered_block = da_service.get_block_at(height).await?;
 
-            let finalized =
-                process_normal_transition(&mut state_manager, filtered_block, 0, &da_service)
-                    .await?;
-            assert_eq!(0, finalized.len());
+            process_normal_transition(&mut state_manager, filtered_block, 0, &da_service).await?;
+            assert_eq!(
+                0,
+                state_manager
+                    .ledger_db
+                    .get_latest_finalized_rollup_height()
+                    .await?
+            );
         }
         da_service
             .send_transaction(&[chain_length as u8; 10], MockFee::zero())
             .await?;
         let filtered_block = da_service.get_block_at(chain_length).await?;
 
-        let finalized =
-            process_normal_transition(&mut state_manager, filtered_block, u64::MAX, &da_service)
-                .await?;
-        // When finalized height is larger than seen transition, it simply means that we will finalize all available
-        assert_eq!(chain_length as usize, finalized.len());
-
+        process_normal_transition(&mut state_manager, filtered_block, u64::MAX, &da_service)
+            .await?;
+        // Last finalized height written to LedgerDb as it passed.
+        assert_eq!(
+            u64::MAX,
+            state_manager
+                .ledger_db
+                .get_latest_finalized_rollup_height()
+                .await?
+        );
         Ok(())
     }
 }

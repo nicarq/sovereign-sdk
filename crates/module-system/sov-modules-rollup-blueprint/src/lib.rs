@@ -253,8 +253,12 @@ mod blueprint {
                 Duration::from_secs(rollup_config.sequencer.dropped_tx_ttl_secs),
             )?;
 
-            let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
-            shutdown_receiver.mark_unchanged();
+            let (main_shutdown_sender, mut main_shutdown_receiver) =
+                tokio::sync::watch::channel(());
+            main_shutdown_receiver.mark_unchanged();
+            let (secondary_shutdown_sender, mut secondary_shutdown_receiver) =
+                tokio::sync::watch::channel(());
+            secondary_shutdown_receiver.mark_unchanged();
             let mut background_handles = Vec::new();
 
             let st_info_sender = match prover_config {
@@ -271,6 +275,9 @@ mod blueprint {
                         Box::new(self.create_proof_serializer(&rollup_config, &sequencer_db)?),
                     );
 
+                    let max_channel_size = 10;
+                    let max_infos_in_db = 20;
+
                     let st_info_sender = match operating_mode {
                         OperatingMode::Optimistic => {
                             let prover_address = rollup_config.proof_manager.prover_address.clone();
@@ -286,7 +293,9 @@ mod blueprint {
                             let (st_info_sender, pm_handle) = process_manager
                                 .start_op_workflow_in_background(
                                     bonding_proof_service,
-                                    shutdown_receiver.clone(),
+                                    max_channel_size,
+                                    max_infos_in_db,
+                                    secondary_shutdown_receiver.clone(),
                                 )
                                 .await?;
                             background_handles.push(pm_handle);
@@ -296,9 +305,9 @@ mod blueprint {
                             let (st_info_sender, pm_handle) = process_manager
                                 .start_zk_workflow_in_background(
                                     rollup_config.proof_manager.aggregated_proof_block_jump,
-                                    1,
-                                    1,
-                                    shutdown_receiver.clone(),
+                                    max_channel_size,
+                                    max_infos_in_db,
+                                    secondary_shutdown_receiver.clone(),
                                 )
                                 .await?;
                             background_handles.push(pm_handle);
@@ -327,7 +336,7 @@ mod blueprint {
                 prev_state_root,
                 st_info_sender,
                 sync_status_sender,
-                shutdown_receiver.clone(),
+                main_shutdown_receiver.clone(),
             )
             .await?;
 
@@ -340,16 +349,17 @@ mod blueprint {
                     &da_service,
                     runner.da_sync_state(),
                     &rollup_config,
-                    shutdown_receiver,
+                    main_shutdown_receiver,
                 )
                 .await?;
 
-            spawn_os_signal_handler(shutdown_sender.clone());
+            spawn_os_signal_handler(main_shutdown_sender.clone());
 
             Ok(Rollup {
                 runner,
                 endpoints,
-                shutdown_sender,
+                shutdown_sender: main_shutdown_sender,
+                secondary_shutdown_sender,
                 background_handles,
             })
         }
@@ -372,6 +382,9 @@ mod blueprint {
 
         /// A way to gracefully shut down background tasks.
         pub shutdown_sender: tokio::sync::watch::Sender<()>,
+
+        // Trigger after the runner has finished.
+        secondary_shutdown_sender: tokio::sync::watch::Sender<()>,
 
         background_handles: Vec<tokio::task::JoinHandle<()>>,
     }
@@ -411,10 +424,12 @@ mod blueprint {
             }
 
             runner.run_in_process().await?;
-            tracing::info!("StfRunner has completed execution");
+            tracing::info!("STF Runner has completed execution");
+            self.secondary_shutdown_sender.send(())?;
             for handle in self.background_handles {
                 handle.await?;
             }
+            tracing::debug!("Rollup completed run");
             Ok(())
         }
     }
@@ -442,6 +457,7 @@ mod blueprint {
 
     fn spawn_os_signal_handler(shutdown_sender: tokio::sync::watch::Sender<()>) {
         tokio::spawn(async move {
+            let mut api_shutdown = shutdown_sender.subscribe();
             let mut terminate = tokio::signal::unix::signal(SignalKind::terminate())
                 .expect("Failed to set up SIGTERM handler");
             let mut quit = tokio::signal::unix::signal(SignalKind::quit())
@@ -450,6 +466,10 @@ mod blueprint {
                 _ = tokio::signal::ctrl_c() => tracing::info!("Received Ctrl+C"),
                 _ = terminate.recv() => tracing::info!("Received SIGTERM"),
                 _ = quit .recv() => tracing::info!("Received SIGQUIT"),
+                _ = api_shutdown.changed() => {
+                    tracing::debug!("Stopping OS singla handling task, as rollup has been stopped programmatically");
+                    return;
+                }
             }
             shutdown_sender
                 .send(())

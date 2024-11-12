@@ -94,11 +94,8 @@ async fn execute_evm_tests(client: &TestClient) -> Result<(), Box<dyn std::error
     let latest_block = client.eth_get_block_by_number_with_detail(None).await;
     assert_eq!(latest_block.number.unwrap().as_u64(), 2);
 
-    // This should just pass without error
-    client
-        .set_value_call(contract_address, set_arg)
-        .await
-        .unwrap();
+    // This should just pass without an error
+    client.set_value_call(contract_address, set_arg).await?;
 
     // This call should fail because function does not exist
     let failing_call = client.failing_call(contract_address).await;
