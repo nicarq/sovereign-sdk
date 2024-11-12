@@ -113,7 +113,7 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair.
-#[derive(PartialEq, Eq, Clone, Debug, JsonSchema, UniversalWallet)]
+#[derive(PartialEq, Eq, Clone, Debug, Hash, JsonSchema, UniversalWallet)]
 pub struct Ed25519PublicKey {
     #[schemars(with = "&[u8]", length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH"))]
     #[sov_wallet(as_ty = "[u8; ed25519_dalek::PUBLIC_KEY_LENGTH]")]
@@ -146,12 +146,6 @@ impl sov_rollup_interface::crypto::PublicKey for Ed25519PublicKey {
         };
 
         sov_rollup_interface::crypto::CredentialId(hash)
-    }
-}
-
-impl Hash for Ed25519PublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.pub_key.as_bytes().hash(state);
     }
 }
 

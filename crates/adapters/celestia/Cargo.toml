@@ -29,6 +29,7 @@ nmt-rs = { workspace = true }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
+proptest = { workspace = true, features = ["std"], optional = true }
 derive_more = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -50,8 +51,9 @@ tower = { workspace = true, optional = true }
 
 [dev-dependencies]
 postcard = { version = "1", features = ["use-std"] }
-proptest = { workspace = true, features = ["std"] }
-sov-celestia-adapter = { path = ".", features = ["native"] }
+reltester = { workspace = true }
+sov-celestia-adapter = { path = ".", features = ["native", "arbitrary"] }
+sov-test-utils = { workspace = true, features = ["native", "arbitrary"] }
 wiremock = "0.5"
 tokio = { workspace = true, features = [
     "test-util",
@@ -65,15 +67,16 @@ risc0-zkvm-platform = { workspace = true }
 [features]
 default = []
 native = [
-    "celestia-tendermint/default",
-    "dep:celestia-rpc",
-    "dep:futures",
-    "dep:jsonrpsee",
-    "dep:tokio",
-    "sov-celestia-adapter/native",
-    "sov-rollup-interface/native",
-    "sov-cycle-utils?/native",
-    "dep:tower",
+	"celestia-tendermint/default",
+	"dep:celestia-rpc",
+	"dep:futures",
+	"dep:jsonrpsee",
+	"dep:tokio",
+	"sov-celestia-adapter/native",
+	"sov-rollup-interface/native",
+	"sov-cycle-utils?/native",
+	"dep:tower",
+	"sov-test-utils/native"
 ]
 risc0 = ["sov-celestia-adapter/risc0", "sov-cycle-utils?/risc0"]
 bench = [
@@ -85,6 +88,8 @@ bench = [
 ]
 arbitrary = [
 	"dep:arbitrary",
+	"dep:proptest",
 	"sov-celestia-adapter/arbitrary",
-	"sov-rollup-interface/arbitrary"
+	"sov-rollup-interface/arbitrary",
+	"sov-test-utils/arbitrary"
 ]

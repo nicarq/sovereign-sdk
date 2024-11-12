@@ -56,6 +56,7 @@ mod tests {
     use core::str::FromStr;
 
     use proptest::prelude::*;
+    use sov_test_utils::validate_schema;
 
     use super::*;
 
@@ -87,6 +88,11 @@ mod tests {
         fn test_arbitrary_hash_str_and_back(input in prop::array::uniform32(any::<u8>())) {
             let credential_id = CredentialId(HexHash::new(input));
             check_str_and_back(credential_id);
+        }
+
+        #[test]
+        fn json_schema_is_valid(item in any::<CredentialId>()) {
+            validate_schema(&item).unwrap();
         }
     }
 }

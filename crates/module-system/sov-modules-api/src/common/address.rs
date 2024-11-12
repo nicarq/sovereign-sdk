@@ -481,3 +481,20 @@ mod test {
         assert_eq!(sov_address, expected_addr);
     }
 }
+
+#[cfg(all(test, feature = "arbitrary"))]
+mod arbitrary_tests {
+    use proptest::prelude::any;
+    use proptest::proptest;
+    use sha2::Sha256;
+    use sov_test_utils::validate_schema;
+
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn json_schema_is_valid(item in any::<Address<Sha256>>()) {
+            validate_schema(&item).unwrap();
+        }
+    }
+}

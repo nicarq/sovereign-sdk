@@ -3,8 +3,10 @@ version = 2
 allow = [
     "Apache-2.0",
     "MIT",
+    "MIT-0",
     "Unlicense",
     "Unicode-DFS-2016",
+    "Unicode-3.0",
     "MPL-2.0",
     "ISC",
     "CC0-1.0",
@@ -25,7 +27,7 @@ license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 
 [[licenses.clarify]]
 # Halo 2 is now MIT licensed, but the update hasn't been published on crates.io
-# It's resolved license is BOSL, which is effectively proprietary.
+# Its resolved license is BOSL, which is effectively proprietary.
 name = "halo2"
 expression = "LicenseRef-Proprietary"
 license-files = [{ path = "COPYING", hash = 0x106164e0 }]
@@ -48,7 +50,7 @@ version = "0.1.0-beta.2"
 unknown-git = "allow"
 # If we source crates from Git repositories, we always ought to pin them by
 # commit. If we don't, we effectively allow maintainers to inject arbitrary code
-# into our dependency tree just by e.g. tagging a malicious commit.
+# into our dependency tree just by e.g. overwriting a tag.
 required-git-spec = "rev" 
 
 [bans]

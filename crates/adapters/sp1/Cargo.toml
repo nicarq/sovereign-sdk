@@ -34,6 +34,7 @@ sha2 = { workspace = true }
 ed25519-consensus = { version = "=2.1.0" }
 
 arbitrary = { workspace = true, optional = true }
+proptest = { workspace = true, optional = true }
 cfg-if = "1.0.0"
 
 [target.'cfg(not(target_os = "zkvm"))'.dependencies]
@@ -43,8 +44,10 @@ sp1-sdk = { workspace = true, default-features = false }
 sp1-zkvm = { workspace = true }
 
 [dev-dependencies]
-sov-sp1-adapter = { path = ".", features = ["native"] }
+reltester = { workspace = true }
 serde_json = { workspace = true }
+sov-sp1-adapter = { path = ".", features = ["arbitrary", "native"] }
+sov-test-utils = { workspace = true, features = ["native", "arbitrary"] }
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -55,7 +58,8 @@ native = [
 	"rand",
 	"sov-rollup-interface/native",
 	"sov-cycle-utils?/native",
-	"sov-sp1-adapter/native"
+	"sov-sp1-adapter/native",
+	"sov-test-utils/native"
 ]
 bench = [
 	"sov-cycle-utils/sp1",
@@ -63,7 +67,9 @@ bench = [
 ]
 arbitrary = [
 	"dep:arbitrary",
+	"dep:proptest",
 	"sov-rollup-interface/arbitrary",
-	"sov-sp1-adapter/arbitrary"
+	"sov-sp1-adapter/arbitrary",
+	"sov-test-utils/arbitrary"
 ]
 
