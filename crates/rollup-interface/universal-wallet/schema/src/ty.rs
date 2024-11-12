@@ -10,7 +10,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use crate::display::FormatError;
 use crate::schema::{IndexLinking, Link, OverrideSchema, Primitive};
 
-pub trait LinkingScheme: Clone {
+pub trait LinkingScheme: Clone + Debug {
     /// The type used to link to other types in the schema representation. Usually, this is an enum
     /// which represents primitives with an immediate value and complex types with some kind of pointer.
     #[cfg(not(feature = "serde"))]
@@ -32,6 +32,9 @@ pub enum Ty<L: LinkingScheme> {
     Enum(Enum<L>),
     Struct(Struct<L>),
     Tuple(Tuple<L>),
+    Option {
+        value: L::TypeLink,
+    },
     Integer(IntegerType, IntegerDisplay),
     ByteArray {
         len: usize,
@@ -95,33 +98,32 @@ impl Ty<IndexLinking> {
                     .expect(&err_msg)
                     .value = child;
             }
+            Ty::Option { value } => if *value == Link::Placeholder {
+                *value = child;
+            } else {
+                panic!("{}", err_msg);
+            }
             Ty::Array { value, .. } => {
 				if *value == Link::Placeholder {
 					*value = child;
 				} else {
-					panic!(
-						"{}", err_msg
-					);
+					panic!("{}", err_msg);
 				}
 			}
             Ty::Vec { value } => if *value == Link::Placeholder {
 				*value = child;
 			} else {
-				panic!(
-					"{}", err_msg
-				);
+				panic!("{}", err_msg);
 			}
             Ty::Map { key, value } => if *key == Link::Placeholder {
 				*key = child;
 			} else if *value == Link::Placeholder {
 				*value = child;
 			} else {
-				panic!(
-					"{}", err_msg
-				);
+				panic!("{}", err_msg);
 			}
             _ => panic!(
-                "Tried to fill a placholder on a type with no children. Only Vec, Tuple, Array, Struct and Map types have children. Self: {:?}",
+                "Tried to fill a placholder on a type with no children. Only Vec, Tuple, Option, Array, Struct and Map types have children. Self: {:?}",
                 self
             ),
         }
@@ -135,6 +137,7 @@ impl<L: LinkingScheme> Ty<L> {
             Ty::Enum(_)
             | Ty::Struct(_)
             | Ty::Tuple(_)
+            | Ty::Option { .. }
             | Ty::Array { .. }
             | Ty::Vec { .. }
             | Ty::Map { .. } => false,

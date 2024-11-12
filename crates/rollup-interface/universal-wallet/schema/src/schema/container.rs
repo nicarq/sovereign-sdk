@@ -5,6 +5,9 @@ pub enum Container<L: LinkingScheme> {
     Struct(Struct<L>),
     Enum(Enum<L>),
     Tuple(Tuple<L>),
+    Option {
+        value: L::TypeLink,
+    },
     Array {
         len: usize,
         value: L::TypeLink,
@@ -32,6 +35,7 @@ impl<L: LinkingScheme> Container<L> {
                 })
                 .sum(),
             Container::Tuple(t) => t.fields.len(),
+            Container::Option { .. } => 1,
             Container::Array { .. } => 1,
             Container::Vec { .. } => 1,
             Container::Map { .. } => 2,
@@ -50,6 +54,7 @@ impl<L: LinkingScheme> TryFrom<Ty<L>> for Container<L> {
             Ty::Enum(e) => Ok(Container::Enum(e)),
             Ty::Struct(s) => Ok(Container::Struct(s)),
             Ty::Tuple(t) => Ok(Container::Tuple(t)),
+            Ty::Option { value } => Ok(Container::Option { value }),
             Ty::Array { len, value } => Ok(Container::Array { len, value }),
             Ty::Map { key, value } => Ok(Container::Map { key, value }),
             Ty::Vec { value } => Ok(Container::Vec { value }),
@@ -64,6 +69,7 @@ impl<L: LinkingScheme> From<Container<L>> for Ty<L> {
             Container::Struct(s) => Ty::Struct(s),
             Container::Enum(e) => Ty::Enum(e),
             Container::Tuple(t) => Ty::Tuple(t),
+            Container::Option { value } => Ty::Option { value },
             Container::Array { len, value } => Ty::Array { len, value },
             Container::Vec { value } => Ty::Vec { value },
             Container::Map { key, value } => Ty::Map { key, value },

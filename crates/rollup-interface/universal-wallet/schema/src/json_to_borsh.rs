@@ -1,9 +1,11 @@
-use serde_json::Value;
+use std::str::FromStr;
+
+use serde_json::{Number, Value};
 use thiserror::Error;
 
 use crate::schema::Primitive;
 use crate::ty::visitor::{ResolutionError, TypeResolver, TypeVisitor};
-use crate::ty::{Enum, IntegerType, LinkingScheme, Struct, Tuple};
+use crate::ty::{Enum, IntegerType, LinkingScheme, Struct, Tuple, Ty};
 
 pub type Result<T, E = EncodeError> = core::result::Result<T, E>;
 
@@ -227,6 +229,25 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         }
     }
 
+    fn visit_option(
+        &mut self,
+        value: &L::TypeLink,
+        schema: &impl TypeResolver<LinkingScheme = L>,
+        context: Context,
+    ) -> Self::ReturnType {
+        match context.value {
+            Value::Null => {
+                borsh::to_writer(&mut self.out, &0u8)?;
+            }
+            _ => {
+                borsh::to_writer(&mut self.out, &1u8)?;
+                schema.resolve_or_err(value)?.visit(schema, self, context)?;
+            }
+        }
+
+        Ok(())
+    }
+
     fn visit_primitive(
         &mut self,
         p: crate::schema::Primitive,
@@ -365,16 +386,19 @@ impl<'fmt, W: std::io::Write, L: LinkingScheme> TypeVisitor<L> for EncodeVisitor
         let key_type = schema.resolve_or_err(key)?;
         let value_type = schema.resolve_or_err(value)?;
         for val in map.iter() {
-            key_type.visit(
-                schema,
-                self,
-                Context::from_val(Value::String(val.0.clone())),
-            )?;
-            value_type.visit(
-                schema,
-                self,
-                Context::from_val(Value::String(val.0.clone())),
-            )?;
+            // JSON coerces all map keys to string. This makes some complex Rust types invalid for
+            // JSON serialization as a map key.
+            // But notably, number types are valid but still show up as a JSON string.
+            let key_value = if matches!(key_type, Ty::Integer(_, _) | Ty::Float32 | Ty::Float64) {
+                Value::Number(
+                    Number::from_str(&val.0.clone())
+                        .map_err(|e| EncodeError::Json(e.to_string()))?,
+                )
+            } else {
+                Value::String(val.0.clone())
+            };
+            key_type.visit(schema, self, Context::from_val(key_value))?;
+            value_type.visit(schema, self, Context::from_val(val.1.clone()))?;
         }
         Ok(())
     }

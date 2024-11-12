@@ -10,47 +10,51 @@ pub trait TypeVisitor<L: LinkingScheme> {
         &mut self,
         e: &Enum<L>,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_struct(
         &mut self,
         s: &Struct<L>,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_tuple(
         &mut self,
         t: &Tuple<L>,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
+    ) -> Self::ReturnType;
+    fn visit_option(
+        &mut self,
+        value: &L::TypeLink,
+        schema: &impl TypeResolver<LinkingScheme = L>,
+        context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_primitive(
         &mut self,
         p: Primitive,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
     fn visit_vec(
         &mut self,
         value: &L::TypeLink,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
-
     fn visit_array(
         &mut self,
         len: &usize,
         value: &L::TypeLink,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
-
     fn visit_map(
         &mut self,
         key: &L::TypeLink,
         value: &L::TypeLink,
         schema: &impl TypeResolver<LinkingScheme = L>,
-        depth: Self::Arg,
+        context: Self::Arg,
     ) -> Self::ReturnType;
 }
 
@@ -105,6 +109,7 @@ impl<L: LinkingScheme> Ty<L> {
             Ty::Enum(e) => visitor.visit_enum(e, schema, arg),
             Ty::Struct(s) => visitor.visit_struct(s, schema, arg),
             Ty::Tuple(t) => visitor.visit_tuple(t, schema, arg),
+            Ty::Option { value } => visitor.visit_option(value, schema, arg),
             Ty::Integer(kind, display) => {
                 visitor.visit_primitive(Primitive::Integer(*kind, *display), schema, arg)
             }

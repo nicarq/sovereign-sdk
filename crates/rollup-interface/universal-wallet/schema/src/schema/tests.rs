@@ -1,5 +1,6 @@
-#![allow(unused_imports)]
+use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::ops::Range;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -21,6 +22,7 @@ macro_rules! encode_decode_tests_simple {
     ($schema:ident, $item:ident, $expected_display:literal) => {
         let borsh_ser = borsh::to_vec(&$item).unwrap();
         let json = serde_json::to_string(&$item).unwrap();
+        println!("{}", json);
         assert_eq!($schema.display(0, &borsh_ser).unwrap(), $expected_display);
         assert_eq!($schema.json_to_borsh(0, &json).unwrap(), borsh_ser);
     };
@@ -114,7 +116,7 @@ pub enum TestCall {
     Complex(#[cfg_attr(test, sov_wallet(bound = ""))] Box<Complex>),
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct MinimalStruct {
     tokens: u64,
@@ -261,6 +263,44 @@ pub struct ComplexRec<T> {
     unnested_enum: TestCallRec<T>,
 }
 
+#[derive(Debug, PartialEq, Serialize, Eq, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize))]
+pub struct VariousTypes {
+    option: Option<MinimalStruct>,
+    other_option: Option<u8>,
+    range: Range<u8>,
+    hash_map: HashMap<SafeString, u8>,
+    enum_map: HashMap<Role, u8>,
+    num_map: HashMap<u32, u8>,
+}
+
+#[test]
+fn test_various_types() {
+    let mut hash_map: HashMap<SafeString, u8> = HashMap::new();
+    hash_map.insert("a".try_into().unwrap(), 9);
+    hash_map.insert("b".try_into().unwrap(), 16);
+    let mut num_map: HashMap<u32, u8> = HashMap::new();
+    num_map.insert(10_000, 12);
+    num_map.insert(20_000, 13);
+    let mut enum_map: HashMap<Role, u8> = HashMap::new();
+    enum_map.insert(Role::Attester, 9);
+    enum_map.insert(Role::Challenger, 16);
+    let my_types = VariousTypes {
+        option: Some(MinimalStruct { tokens: 3 }),
+        other_option: None,
+        range: 4..8,
+        hash_map,
+        enum_map,
+        num_map,
+    };
+
+    encode_decode_tests!(
+        VariousTypes,
+        my_types,
+        "{ option: { tokens: 3 }, other_option: None, range: 4..8, hash_map: { \"a\": 9, \"b\": 16 }, enum_map: { .Attester: 9, .Challenger: 16 }, num_map: { 10000: 12, 20000: 13 } }"
+    );
+}
+
 #[test]
 fn test_tuple_schema_recursive_generic() {
     let my_call = TestCallRec::<u64>::Withdraw(Box::new(43));
@@ -366,6 +406,9 @@ pub struct AThirdComplexType {
     Debug,
     PartialEq,
     Eq,
+    PartialOrd,
+    Ord,
+    Hash,
     Clone,
     Serialize,
     Deserialize,

@@ -184,25 +184,10 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 6
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 6
+        }
       }
     },
     {
@@ -1457,47 +1442,17 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "Immediate": "String"
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "Immediate": "String"
+        }
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "Immediate": "Boolean"
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "Immediate": "Boolean"
+        }
       }
     },
     {
@@ -1760,52 +1715,22 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "Immediate": {
-                "Integer": [
-                  "u64",
-                  "Decimal"
-                ]
-              }
-            }
+      "Option": {
+        "value": {
+          "Immediate": {
+            "Integer": [
+              "u64",
+              "Decimal"
+            ]
           }
-        ]
+        }
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 69
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 69
+        }
       }
     },
     {
@@ -2002,25 +1927,10 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 79
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 79
+        }
       }
     },
     {
@@ -2087,91 +1997,31 @@
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 74
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 74
+        }
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 14
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 14
+        }
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 70
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 70
+        }
       }
     },
     {
-      "Enum": {
-        "type_name": "Option",
-        "serde_type_name": "Option",
-        "variants": [
-          {
-            "name": "None",
-            "serde_name": "None",
-            "template": null,
-            "value": null
-          },
-          {
-            "name": "Some",
-            "serde_name": "Some",
-            "template": null,
-            "value": {
-              "ByIndex": 65
-            }
-          }
-        ]
+      "Option": {
+        "value": {
+          "ByIndex": 65
+        }
       }
     },
     {

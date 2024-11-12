@@ -230,6 +230,14 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
         template
     }
 
+    fn option_none_delimiters(&self) -> Delimiters {
+        ("None", "")
+    }
+
+    fn option_some_delimiters(&self) -> Delimiters {
+        ("", "")
+    }
+
     fn map_delimiters(&mut self, context: &Context) -> Delimiters {
         match context.parent_type {
             ParentType::Tuple(IsVirtual::Yes, _) => (" { ", " }"),
@@ -508,6 +516,38 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
             return Err(FormatError::UnusedTemplateSlots);
         }
         self.f.write_str(template)?;
+        Ok(())
+    }
+
+    fn visit_option(
+        &mut self,
+        value: &L::TypeLink,
+        schema: &impl TypeResolver<LinkingScheme = L>,
+        context: Self::Arg,
+    ) -> Self::ReturnType {
+        let discriminant = self.input[0];
+        *self.input = &self.input[1..];
+
+        match discriminant {
+            0 => {
+                let (open, close) = self.option_none_delimiters();
+                self.f.write_str(open)?;
+                self.f.write_str(close)?;
+            }
+            1 => {
+                let (open, close) = self.option_some_delimiters();
+                self.f.write_str(open)?;
+                schema.resolve_or_err(value)?.visit(schema, self, context)?;
+                self.f.write_str(close)?;
+            }
+            _ => {
+                return Err(FormatError::InvalidDiscriminant {
+                    type_name: "Option".to_string(),
+                    discriminant,
+                })
+            }
+        }
+
         Ok(())
     }
 
