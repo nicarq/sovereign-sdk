@@ -57,6 +57,10 @@
 ///   type Decodable = RuntimeCall<S>;
 ///
 /// // -- Method bodies elided for brevity --
+/// # fn encode(decodable: &Self::Decodable) -> Vec<u8> {
+/// #     borsh::to_vec(decodable).unwrap()
+/// # }
+/// #
 /// # /// Decodes serialized call message
 /// # fn decode_call(
 /// #     serialized_message: &[u8],

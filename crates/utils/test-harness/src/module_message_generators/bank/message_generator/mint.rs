@@ -23,7 +23,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         if validity.is_invalid() {
             // Track whether the message is currently valid
             let mut is_valid = false;
-            let (addr, acct, mut token_id) = if bool::arbitrary(u)? {
+            let (_, acct, mut token_id) = if bool::arbitrary(u)? {
                 // Half the time, we try to get an invalid account
                 Self::get_random_non_minting_account(generator_state, u)?
             } else {
@@ -38,6 +38,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                     Self::get_random_non_minting_account(generator_state, u)?
                 }
             };
+            let key = acct.private_key.clone();
 
             // All amounts are valid unless they overflow
             let amount = {
@@ -66,12 +67,13 @@ impl<S: Spec> BankMessageGenerator<S> {
                 coins: Coins { token_id, amount },
                 mint_to_address: S::Address::arbitrary(u)?,
             };
-            return Ok(GeneratedMessage::new(message, addr, Vec::new()));
+            return Ok(GeneratedMessage::new(message, key, Vec::new()));
         }
 
-        let (addr, acct) = generator_state
+        let (_, acct) = generator_state
             .get_random_existing_account_with_tag(Tag::CanMint, u)?
             .ok_or(InternalMessageGenError::NoMintingAccounts)?;
+        let key = acct.private_key.clone();
         let token_id = *acct.can_mint.random_entry(u)?;
 
         for _ in 0..1_000 {
@@ -98,9 +100,9 @@ impl<S: Spec> BankMessageGenerator<S> {
                 balance.amount,
             )];
 
-            generator_state.update_account::<Tag>(recipient_addr, recipient_acct, vec![]);
+            generator_state.update_account(recipient_addr, recipient_acct, vec![]);
 
-            return Ok(GeneratedMessage::new(message, addr, changes));
+            return Ok(GeneratedMessage::new(message, key, changes));
         }
         Err(InternalMessageGenError::NoMintingAccounts)
     }

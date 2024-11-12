@@ -22,6 +22,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let (from_addr, mut from_account) =
             Self::get_random_account_with_balance(generator_state, u)?;
+        let from_key = from_account.private_key.clone();
         if validity.is_invalid() {
             // A transfer can be invalid by...
             // ... transferring a token ID that doesn't exist
@@ -38,17 +39,21 @@ impl<S: Spec> BankMessageGenerator<S> {
                     token_id: TokenId::arbitrary(u)?,
                 },
             };
-            return Ok(GeneratedMessage::new(message, from_addr, Vec::new()));
+            return Ok(GeneratedMessage::new(message, from_key, Vec::new()));
         }
 
         // Pick a random amount of a random token, and a random address to send it to
-        let from_balance = from_account
-            .pick_random_balance(u)?
-            .expect("We picked a non-empty account");
+        let from_balance = from_account.pick_random_balance(u)?.unwrap_or_else(|| {
+            panic!(
+                "We picked a non-empty account but {} had no tokens",
+                from_addr
+            )
+        });
         let token_id = from_balance.token_id;
         // A valid transfer has to come from an existing address
         // but it can go to a new one or an existing one
         let balance_to_send = u.int_in_range(1..=from_balance.amount)?;
+
         // Find a recipient who can receive that much balance
         repeatedly! {
             let (to_addr, to_account) = generator_state.get_or_generate(self.address_creation_rate, u)?;
@@ -73,7 +78,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         // If this is a self-transfer, then it should be a no-op. No balances need to change,
         // and there are no state changes to cache.
         if from_addr == to_addr {
-            return Ok(GeneratedMessage::new(msg, from_addr, vec![]));
+            return Ok(GeneratedMessage::new(msg, from_key, vec![]));
         }
 
         // Otherwise, account for the balance changes
@@ -84,17 +89,17 @@ impl<S: Spec> BankMessageGenerator<S> {
         if remaining_from_balance == 0 {
             from_account.remove_token(token_id);
             if from_account.balances.is_empty() {
-                from_tags.push(TagAction::Remove(Tag::HasBalance));
+                from_tags.push(TagAction::Remove(Tag::HasBalance.into()));
             }
         }
 
         // Save back the modified state and compute the changelog
         generator_state.update_account(
-            from_addr.clone(),
-            from_account,
-            vec![TagAction::Add(Tag::HasBalance)],
+            to_addr.clone(),
+            to_account,
+            vec![TagAction::Add(Tag::HasBalance.into())],
         );
-        generator_state.update_account(to_addr.clone(), to_account, from_tags);
+        generator_state.update_account(from_addr.clone(), from_account, from_tags);
         let changelog_entries = vec![
             BankChangeLogEntry::balance_changed(
                 from_addr.clone(),
@@ -105,7 +110,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         ];
 
         // Finally, return the generated message
-        Ok(GeneratedMessage::new(msg, from_addr, changelog_entries))
+        Ok(GeneratedMessage::new(msg, from_key, changelog_entries))
     }
 
     fn get_random_account_with_balance(

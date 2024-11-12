@@ -55,6 +55,9 @@ pub trait DispatchCall: Send + Sync {
     /// The concrete type that will decode into the call message of the module.
     type Decodable: Send + Sync + NestedEnumUtils;
 
+    /// Encode a [`Self::Decodable`]
+    fn encode(decodable: &Self::Decodable) -> Vec<u8>;
+
     /// Decodes serialized call message
     fn decode_call(
         serialized_message: &[u8],
