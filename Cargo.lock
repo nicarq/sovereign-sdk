@@ -10106,6 +10106,7 @@ name = "sov-demo-rollup-rest-api-load-testing"
 version = "0.3.0"
 dependencies = [
  "rest-api-load-testing",
+ "tokio",
 ]
 
 [[package]]
