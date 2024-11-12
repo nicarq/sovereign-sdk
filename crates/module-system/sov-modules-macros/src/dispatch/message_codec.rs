@@ -17,17 +17,13 @@ impl<'a> StructDef<'a> {
             let variant = pascal_case_ident(&field.ident);
             let ty = &field.ty;
 
-            let call_doc = format!("Encodes {} call message.", field.ident);
+            let decode_doc = format!("Encodes {} call message to {}Call.", field.ident, original_ident);
 
-            // Creates functions like:
-            //  encode_*module_name*_call(data: ..) -> Vec<u8>
-            //  encode_*module_name*_query(data: ..) -> Vec<u8>
             quote::quote! {
             impl #impl_generics sov_modules_api::EncodeCall<#ty> for #original_ident #ty_generics #where_clause {
-                #[doc = #call_doc]
-                fn encode_call(data: <#ty as sov_modules_api::Module>::CallMessage) -> std::vec::Vec<u8> {
-                    let call = #call_enum:: #ty_generics ::#variant(data);
-                    ::borsh::to_vec(&call).unwrap()
+                #[doc = #decode_doc]
+                fn to_decodable(data: <#ty as sov_modules_api::Module>::CallMessage) -> <Self as ::sov_modules_api::DispatchCall>::Decodable {
+                    #call_enum:: #ty_generics ::#variant(data)
                 }
             }
             }

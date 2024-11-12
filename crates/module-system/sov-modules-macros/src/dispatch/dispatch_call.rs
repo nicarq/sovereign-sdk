@@ -73,6 +73,10 @@ impl<'a> StructDef<'a> {
                 type Spec = #generic_param;
                 type Decodable = #call_enum #ty_generics;
 
+                fn encode(msg: &Self::Decodable) -> Vec<u8> {
+                    ::borsh::to_vec(msg).expect("Serialization to vec is infallible")
+                }
+
                 fn decode_call(mut serialized_message: &[u8], meter: &mut impl ::sov_modules_api::GasMeter<<Self::Spec as ::sov_modules_api::Spec>::Gas>)
                     -> ::core::result::Result<Self::Decodable, ::sov_modules_api::MeteredBorshDeserializeError<<Self::Spec as ::sov_modules_api::Spec>::Gas>> {
                     let c = <#call_enum #ty_generics as ::sov_modules_api::MeteredBorshDeserialize<_>>::deserialize::<Self::Spec>(&mut serialized_message, meter)?;

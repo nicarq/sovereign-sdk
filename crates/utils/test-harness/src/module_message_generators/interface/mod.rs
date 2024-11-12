@@ -1,11 +1,16 @@
+pub mod basic_message_generator;
 mod rng;
+use std::fmt::Debug;
 use std::hash::Hash;
+use std::marker::PhantomData;
 
 use derive_more::derive::AsRef;
 use derive_more::{Add, Mul};
 pub use rng::*;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
-use sov_modules_api::Spec;
+use sov_modules_api::{CryptoSpec, Spec};
+
+use super::transaction_generator::ApplyTo;
 
 /// Whether a generated message should be valid or invalid.
 #[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq)]
@@ -18,12 +23,16 @@ pub enum MessageValidity {
 #[derive(Debug)]
 pub struct GeneratedMessage<S: Spec, M, E> {
     pub message: M,
-    pub sender: S::Address,
+    pub sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     pub changes: Vec<E>,
 }
 
 impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
-    pub fn new(message: M, sender: S::Address, changes: Vec<E>) -> Self {
+    pub fn new(
+        message: M,
+        sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+        changes: Vec<E>,
+    ) -> Self {
         Self {
             message,
             sender,
@@ -117,6 +126,7 @@ pub enum InvalidDistribution {
 /// Distribution::new([3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
 /// Distribution::new([3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
 /// ```
+#[derive(Debug, Clone)]
 pub struct Distribution<const N: usize, T = ()> {
     values: [T; N],
     weights: [u64; N],
@@ -212,7 +222,9 @@ impl<const N: usize> Distribution<N> {
 /// }
 /// ```
 pub trait GeneratorState<S: Spec> {
+    /// The view of an account for a particular module
     type AccountView;
+
     type Tag: Hash + Eq;
 
     /// Creates a fresh copy of the appropriate view of the account with the given address.
@@ -232,11 +244,11 @@ pub trait GeneratorState<S: Spec> {
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>>;
 
     /// Updates the given account to match the provided view.
-    fn update_account<T: Into<Self::Tag>>(
+    fn update_account(
         &mut self,
         address: S::Address,
-        account: Self::AccountView,
-        tags: Vec<TagAction<T>>,
+        view: Self::AccountView,
+        tags: Vec<TagAction<Self::Tag>>,
     );
 
     /// Generates an empty account and returns it.
@@ -251,7 +263,7 @@ pub trait GeneratorState<S: Spec> {
         generation_probability: Percent,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
-        if Percent::arbitrary(u)? <= generation_probability {
+        if Percent::arbitrary(u)? < generation_probability {
             self.generate_account(u)
         } else {
             self.get_random_existing_account(u)
@@ -259,9 +271,99 @@ pub trait GeneratorState<S: Spec> {
     }
 }
 
+pub struct GeneratorStateMapper<'a, Source, Acct, Tag>(&'a mut Source, PhantomData<(Acct, Tag)>);
+
+impl<'a, Source, Acct, Tag> GeneratorStateMapper<'a, Source, Acct, Tag> {
+    pub fn new(state: &'a mut Source) -> Self {
+        Self(state, PhantomData)
+    }
+}
+
+/// A marker trait indicating that the `Default` implementation of a trait
+/// corresponds to no change when applied to an Account
+pub trait DefaultEmpty: Default {}
+
+impl<'a, Source: GeneratorState<S, AccountView: DefaultEmpty>, Acct, Tag, S: Spec> GeneratorState<S>
+    for GeneratorStateMapper<'a, Source, Acct, Tag>
+where
+    Acct:
+        for<'acct> From<&'acct Source::AccountView> + ApplyTo<Source::AccountView> + Debug + Clone,
+
+    Tag: Into<Source::Tag> + Eq + Hash + Debug + Clone,
+{
+    type AccountView = Acct;
+
+    type Tag = Tag;
+
+    fn get_account(&self, address: S::Address) -> Option<Self::AccountView> {
+        self.0.get_account(address).map(|acct| (&acct).into())
+    }
+
+    fn get_random_existing_account(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
+        self.0
+            .get_random_existing_account(u)
+            .map(|(addr, acct)| (addr, (&acct).into()))
+    }
+
+    fn get_random_existing_account_with_tag(
+        &mut self,
+        tag: impl Into<Self::Tag>,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>> {
+        Ok(self
+            .0
+            .get_random_existing_account_with_tag(tag.into(), u)?
+            .map(|(addr, acct)| (addr, (&acct).into())))
+    }
+
+    fn update_account(
+        &mut self,
+        address: S::Address,
+        view: Self::AccountView,
+        tags: Vec<TagAction<Self::Tag>>,
+    ) {
+        let mut mapped = Source::AccountView::default();
+        view.apply_to(&mut mapped);
+        self.0.update_account(
+            address,
+            mapped,
+            tags.into_iter().map(|x| x.map(Into::into)).collect(),
+        );
+    }
+
+    fn generate_account(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
+        self.0
+            .generate_account(u)
+            .map(|(addr, acct)| (addr, (&acct).into()))
+    }
+}
+
+/// Converts a type into a partial implementation of another type
+/// without loss.
+pub trait Updatewith<T> {
+    /// Convert the item into a part-empty type.
+    fn update_with(&mut self, view: T);
+}
+
+#[derive(Debug, Clone)]
 pub enum TagAction<T> {
     Add(T),
     Remove(T),
+}
+
+impl<T> TagAction<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> TagAction<U> {
+        match self {
+            TagAction::Add(item) => TagAction::Add(f(item)),
+            TagAction::Remove(item) => TagAction::Remove(f(item)),
+        }
+    }
 }
 
 pub trait CallMessageGenerator<S: Spec> {
@@ -269,27 +371,30 @@ pub trait CallMessageGenerator<S: Spec> {
     type CallMessage;
 
     /// The tag type used by this module, if applicable
-    type Tag: Hash + Eq;
+    type Tag: std::fmt::Debug + Hash + Eq;
 
     /// The view of account state used by the module message generator
-    type AccountView;
+    type AccountView: Clone + std::fmt::Debug;
 
     /// A service which returns the current rollup state.
     type RollupStateReader;
 
     /// The relevant post state from a generatd message.
-    type ChangelogEntry;
+    type ChangelogEntry: Clone + std::fmt::Debug;
+
+    /// The config for this message generator.
+    type Config: Clone + std::fmt::Debug;
+
+    /// Updates the configuration of this generator
+    fn set_config(&mut self, config: Self::Config);
 
     /// Generates a `CallMessage`, potentially valid or invalid, based on the provided parameters.
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         rollup_state_accessor: &Self::RollupStateReader,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = Self::AccountView,
-            Tag: From<Self::Tag>,
-        >,
+        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
 
@@ -297,7 +402,7 @@ pub trait CallMessageGenerator<S: Spec> {
     fn assert_full_state(
         &self,
         rollup_state_accessor: &Self::RollupStateReader,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView>,
+        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
     ) -> Result<(), anyhow::Error>;
 
     /// Assert that the rollup state matches the expected value. This method

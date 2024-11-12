@@ -12,6 +12,7 @@ generate_bare_runtime! {
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     impl_hooks: [ApplyBatchHooks, KernelSlotHooks, TxHooks],
+    gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
     runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }

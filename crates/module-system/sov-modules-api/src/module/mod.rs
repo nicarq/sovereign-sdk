@@ -180,9 +180,14 @@ where
 }
 
 /// A trait that specifies how a runtime should encode the data for each module
-pub trait EncodeCall<M: Module> {
+pub trait EncodeCall<M: Module>: DispatchCall {
     /// The encoding function
-    fn encode_call(data: M::CallMessage) -> Vec<u8>;
+    fn encode_call(data: M::CallMessage) -> Vec<u8> {
+        <Self as DispatchCall>::encode(&Self::to_decodable(data))
+    }
+
+    /// Converts the module call message into the [`DispatchCall::Decodable`] type
+    fn to_decodable(data: M::CallMessage) -> Self::Decodable;
 }
 
 /// Methods from this trait should be called only once during the rollup deployment.

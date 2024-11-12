@@ -26,6 +26,13 @@ pub struct BankMessageGenerator<S> {
     phantom: PhantomData<S>,
 }
 
+/// Configuration for the [`BankMessageGenerator`]
+#[derive(Debug, Clone)]
+pub struct BankMessageGeneratorConfig {
+    pub message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+    pub address_creation_rate: Percent,
+}
+
 impl<S: Spec> BankMessageGenerator<S> {
     pub fn new(
         message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
@@ -36,6 +43,10 @@ impl<S: Spec> BankMessageGenerator<S> {
             address_creation_rate,
             phantom: PhantomData,
         }
+    }
+
+    pub fn from_config(config: BankMessageGeneratorConfig) -> Self {
+        Self::new(config.message_distribution, config.address_creation_rate)
     }
 
     /// Performs callmessage generation, falling back to variants that are more likely to succeed with limited state
@@ -73,7 +84,16 @@ impl<S: Spec> BankMessageGenerator<S> {
             CallMessageDiscriminants::Burn => todo!(),
             CallMessageDiscriminants::Mint => {
                 // TODO: Mint should fall back to create token
-                self.generate_mint(u, rollup_state_accessor, generator_state, validity)
+                match self
+                    .generate_mint(u, rollup_state_accessor, generator_state, validity)
+                    .try_to_arbitrary()
+                {
+                    Ok(transfer_result) => Ok(transfer_result?),
+                    Err(e) => {
+                        warn!("Failed to generate mint: {:?}", e);
+                        todo!("Generate create token");
+                    }
+                }
             }
             CallMessageDiscriminants::Freeze => todo!(),
         }
@@ -81,7 +101,7 @@ impl<S: Spec> BankMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the bank message generator.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BankChangeLogEntry<S: Spec> {
     BalanceChanged { address: S::Address, coins: Coins },
     // More variants will be added in coming PRs.
@@ -110,15 +130,18 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
     type ChangelogEntry = BankChangeLogEntry<S>;
 
+    type Config = BankMessageGeneratorConfig;
+
+    fn set_config(&mut self, config: Self::Config) {
+        self.message_distribution = config.message_distribution;
+        self.address_creation_rate = config.address_creation_rate;
+    }
+
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         rollup_state_accessor: &Self::RollupStateReader,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = Self::AccountView,
-            Tag: From<Self::Tag>,
-        >,
+        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>> {
         let message = *self.message_distribution.select_value(u)?;
@@ -151,13 +174,13 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 }
 
 /// A tag used for indexing by the bank message generator
-#[derive(PartialEq, Eq, Hash)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum Tag {
     HasBalance,
     CanMint,
 }
 /// The view of an account used by the bank message generator
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BankAccount<S: Spec> {
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     pub balances: Vec<Coins>,

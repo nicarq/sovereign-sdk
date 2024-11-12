@@ -25,6 +25,7 @@ borsh = { workspace = true }
 clap = { workspace = true }
 derive-getters = { workspace = true }
 futures = { workspace = true }
+derivative = { workspace = true }
 hex = { workspace = true }
 rand = { workspace = true }
 rand_chacha = { workspace = true }
@@ -56,4 +57,7 @@ indexmap = "2"
 
 [dev-dependencies]
 arbitrary = { workspace = true }
+sov-state = { workspace = true }
+sov-paymaster = { workspace = true }
 sov-test-utils = { workspace = true }
+sov-kernels = { workspace = true }

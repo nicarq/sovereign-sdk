@@ -9,7 +9,7 @@ macro_rules! generate_bare_runtime {
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
         impl_hooks: [$($hook:ident),* $(,)?],
-        $(gas_enforcer_override: $gas_enforcer_override_fn:ident,)?
+        gas_enforcer: $payer_name:ident : $gas_enforcer_ty:ty,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
         kernel_type: $kernel_type:ty
         // optional final comma
@@ -116,7 +116,7 @@ macro_rules! generate_bare_runtime {
         impl<S> ::sov_modules_api::capabilities::HasCapabilities<S> for $id<S> where
             S: ::sov_modules_api::Spec,
         {
-            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S>;
+            type Capabilities<'a> = $crate::runtime::StandardProvenRollupCapabilities<'a, S , $gas_enforcer_ty>;
 
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
 
@@ -124,7 +124,7 @@ macro_rules! generate_bare_runtime {
                 ::sov_modules_api::capabilities::Guard::new(
                     $crate::runtime::StandardProvenRollupCapabilities {
                         bank: &self.bank,
-                        gas_payer: &self.bank,
+                        gas_payer: &self . $payer_name,
                         sequencer_registry: &self.sequencer_registry,
                         accounts: &self.accounts,
                         nonces: &self.nonces,
@@ -134,11 +134,6 @@ macro_rules! generate_bare_runtime {
                 )
             }
 
-            $(
-                fn gas_enforcer(&self) -> impl ::sov_modules_api::capabilities::GasEnforcer<S> {
-                    self. $gas_enforcer_override_fn ()
-                }
-            )?
         }
 
         impl<S> sov_modules_api::capabilities::HasKernel<S> for $id<S> where
@@ -275,6 +270,7 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
             impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
+            gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty,
         }
@@ -304,6 +300,7 @@ macro_rules! generate_zk_runtime_with_kernel {
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
             impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
+            gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty
         }
