@@ -49,11 +49,11 @@ mod blueprint {
     use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::rest::StorageReceiver;
     use sov_modules_api::{
-        OperatingMode, ProofSerializer, RuntimeEventProcessor, RuntimeEventResponse, Spec,
-        SyncStatus, ZkVerifier,
+        OperatingMode, ProofSerializer, RuntimeEndpoints, RuntimeEventProcessor,
+        RuntimeEventResponse, Spec, SyncStatus, ZkVerifier,
     };
     use sov_modules_stf_blueprint::{
-        GenesisParams, Runtime as RuntimeTrait, RuntimeEndpoints, StfBlueprint, TxReceiptContents,
+        GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
     };
     use sov_rollup_interface::node::da::DaService;
     use sov_rollup_interface::node::DaSyncState;
