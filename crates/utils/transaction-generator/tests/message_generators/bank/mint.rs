@@ -1,12 +1,11 @@
-use arbitrary::{Arbitrary, Unstructured};
 use sov_bank::{CallMessageDiscriminants, Coins, TokenId};
-use sov_test_harness::bank::message_generator::{BankMessageGenerator, Tag};
-use sov_test_harness::interface::{
-    CallMessageGenerator, GeneratorState, MessageValidity, TagAction,
-};
-use sov_test_harness::module_message_generators::interface::{Distribution, Percent};
-use sov_test_harness::transaction_generator::State;
+use sov_modules_api::prelude::arbitrary::{Arbitrary, Unstructured};
 use sov_test_utils::TestSpec;
+use sov_transaction_generator::generators::bank::{BankMessageGenerator, Tag};
+use sov_transaction_generator::interface::{
+    CallMessageGenerator, Distribution, GeneratorState, MessageValidity, Percent, TagAction,
+};
+use sov_transaction_generator::state::State;
 
 use crate::get_random_bytes;
 
