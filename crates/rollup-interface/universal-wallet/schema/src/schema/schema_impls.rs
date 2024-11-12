@@ -15,8 +15,7 @@ mod primitive_type_impls {
         IndexLinking, Item, Link, OverrideSchema, Primitive, Schema, SchemaGenerator,
     };
     use crate::ty::{
-        ByteDisplay, EnumVariant, IntegerDisplay, IntegerType, NamedField, Struct, Tuple,
-        UnnamedField,
+        ByteDisplay, IntegerDisplay, IntegerType, NamedField, Struct, Tuple, UnnamedField,
     };
 
     macro_rules! impl_is_primitive_for_int {
@@ -187,24 +186,9 @@ mod primitive_type_impls {
 
     impl<T: SchemaGenerator> SchemaGenerator for Option<T> {
         fn scaffold() -> Item<IndexLinking> {
-            Item::Container(Container::Enum(crate::ty::Enum {
-                type_name: "Option".to_string(),
-                serde_type_name: "Option".to_string(),
-                variants: vec![
-                    EnumVariant {
-                        name: "None".to_string(),
-                        serde_name: "None".to_string(),
-                        template: None,
-                        value: None,
-                    },
-                    EnumVariant {
-                        name: "Some".to_string(),
-                        serde_name: "Some".to_string(),
-                        template: None,
-                        value: Some(Link::Placeholder),
-                    },
-                ],
-            }))
+            Item::Container(Container::Option {
+                value: Link::Placeholder,
+            })
         }
 
         fn get_child_links<M>(schema: &mut Schema<M>) -> Vec<Link> {
@@ -234,7 +218,7 @@ mod primitive_type_impls {
             Item::Container(Container::Struct(Struct {
                 type_name: "Range".to_string(),
                 serde_type_name: "Range".to_string(),
-                template: Some("{start}..{end}".to_string()),
+                template: Some("{}..{}".to_string()),
                 fields: vec![
                     NamedField {
                         value: Link::Placeholder,

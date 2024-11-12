@@ -26,7 +26,7 @@ pub enum SchemaStringError {
 /// If an actual `String` is absolutely necessary, then a newtype wrapper can be used, on which
 /// `SchemaGenerator` is derived manually.
 #[derive(
-    Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord, BorshSerialize, BorshDeserialize,
+    Debug, Default, Hash, Clone, PartialEq, Eq, PartialOrd, Ord, BorshSerialize, BorshDeserialize,
 )]
 #[cfg_attr(
     feature = "serde",

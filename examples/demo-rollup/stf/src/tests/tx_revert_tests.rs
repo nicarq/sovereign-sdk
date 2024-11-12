@@ -387,7 +387,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
         match &tx_receipts[0].receipt {
             sov_modules_api::TxEffect::Skipped(skipped) => assert_eq!(
                 skipped.error,
-                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0xb5673952f72e0b4c1db5b9594c5ad8d0c7eaf50bcdfca9bda0b27fe2212dab60. Error: Transaction decoding error: IO error: Unexpected variant tag: 110".to_string())
+                TxProcessingError::AuthenticationFailed("Authentication failed for tx: 0xd928640fd7ca1f57983598e4000630851513ee55e684d0ac9bc2be7cec97dcd7. Error: Transaction decoding error: IO error: Unexpected variant tag: 110".to_string())
             ),
             unexpected => panic!("Expected TxEffect::Skipped but got {:?}", unexpected),
         }
