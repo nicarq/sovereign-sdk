@@ -9905,6 +9905,7 @@ dependencies = [
  "sov-cycle-utils",
  "sov-rollup-interface",
  "sov-test-utils",
+ "test-strategy",
  "thiserror",
  "tokio",
  "tower",
@@ -10010,6 +10011,7 @@ dependencies = [
  "sov-test-utils",
  "tempfile",
  "test-log",
+ "test-strategy",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -10125,6 +10127,7 @@ dependencies = [
  "sov-evm",
  "sov-modules-api",
  "sov-rollup-interface",
+ "test-strategy",
  "tokio",
  "tracing",
 ]
@@ -10530,6 +10533,7 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "sov-rest-utils",
+ "test-strategy",
  "tokio",
  "tower",
  "tower-http",
@@ -10617,6 +10621,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-test-utils",
  "sov-universal-wallet",
+ "test-strategy",
  "thiserror",
  "tokio",
  "tracing",
@@ -10664,6 +10669,7 @@ dependencies = [
  "sov-value-setter",
  "strum 0.26.3",
  "tempfile",
+ "test-strategy",
  "thiserror",
  "tokio",
  "tokio-stream",
@@ -10752,6 +10758,7 @@ dependencies = [
  "sov-db",
  "sov-rollup-interface",
  "tempfile",
+ "test-strategy",
  "thiserror",
 ]
 
@@ -11899,6 +11906,18 @@ checksum = "5999e24eaa32083191ba4e425deb75cdf25efefabe5aaccb7446dd0d4122a3f5"
 dependencies = [
  "proc-macro2",
  "quote",
+ "syn 2.0.77",
+]
+
+[[package]]
+name = "test-strategy"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2bf41af45e3f54cc184831d629d41d5b2bda8297e29c81add7ae4f362ed5e01b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "structmeta",
  "syn 2.0.77",
 ]
 

@@ -110,20 +110,17 @@ pub enum PageSelection<T> {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use proptest::proptest;
 
     use super::*;
     use crate::axum_extractors::Query;
     use crate::test_utils::uri_with_query_params;
 
-    proptest! {
-        #[test]
-        fn serialization_roundtrip_equality(sorting: Pagination<String>) {
-            if (1..=PAGE_SIZE_MAX).contains(&sorting.size) {
-                let serialized = serde_urlencoded::to_string(&sorting)?;
-                let deserialized: Pagination<String> = serde_urlencoded::from_str(&serialized)?;
-                assert_eq!(sorting, deserialized);
-            }
+    #[test_strategy::proptest]
+    fn serialization_roundtrip_equality(sorting: Pagination<String>) {
+        if (1..=PAGE_SIZE_MAX).contains(&sorting.size) {
+            let serialized = serde_urlencoded::to_string(&sorting)?;
+            let deserialized: Pagination<String> = serde_urlencoded::from_str(&serialized)?;
+            assert_eq!(sorting, deserialized);
         }
     }
 

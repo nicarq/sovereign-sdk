@@ -144,13 +144,10 @@ impl sov_rollup_interface::BasicAddress for CelestiaAddress {}
 
 #[cfg(test)]
 mod tests {
-    use std::hint::black_box;
-
     use bech32::{Bech32, Hrp};
 
     const CELESTIA_HRP: Hrp = Hrp::parse_unchecked("celestia");
 
-    use proptest::prelude::*;
     use sov_rollup_interface::sov_universal_wallet::schema::Schema;
     use sov_test_utils::validate_schema;
 
@@ -234,50 +231,52 @@ mod tests {
         assert_eq!(encoded, output);
     }
 
-    proptest! {
-        #[test]
-        fn validate_json_schema(input in any::<CelestiaAddress>()) {
-            validate_schema(&input).unwrap();
-        }
+    #[test_strategy::proptest]
+    fn validate_json_schema(input: CelestiaAddress) {
+        validate_schema(&input).unwrap();
+    }
 
-        #[test]
-        fn ord_invariants(values in any::<[CelestiaAddress; 3]>()) {
-            reltester::ord(&values[0], &values[1], &values[2]).unwrap();
-        }
+    #[test_strategy::proptest]
+    fn ord_invariants(values: [CelestiaAddress; 3]) {
+        reltester::ord(&values[0], &values[1], &values[2]).unwrap();
+    }
 
-        #[test]
-        fn hash_invariants(values in any::<[CelestiaAddress; 2]>()) {
-            reltester::hash(&values[0], &values[1]).unwrap();
-        }
+    #[test_strategy::proptest]
+    fn hash_invariants(values: [CelestiaAddress; 2]) {
+        reltester::hash(&values[0], &values[1]).unwrap();
+    }
 
-        #[test]
-        fn test_try_from_any_slice(input in prop::collection::vec(any::<u8>(), 0..100)) {
-            let _ = black_box(CelestiaAddress::try_from(&input[..]));
-        }
+    use proptest::sample::size_range;
 
-        #[test]
-        fn test_from_str_anything(input in "\\PC*") {
-            let _ = black_box(CelestiaAddress::from_str(&input));
-        }
+    #[test_strategy::proptest]
+    fn test_try_from_any_slice(#[any(size_range(0..100).lift())] input: Vec<u8>) {
+        let _ = CelestiaAddress::try_from(&input[..]);
+    }
 
-        #[test]
+    #[test_strategy::proptest]
+    fn test_from_str_anything(#[strategy("\\PC*")] input: String) {
+        let _ = CelestiaAddress::from_str(&input);
+    }
+
+    #[test_strategy::proptest]
+    fn test_from_str_lowercase_ascii(
         // According to spec, alphanumeric characters excluding "1" "b" "i" and "o"
-        fn test_from_str_lowercase_ascii(input in "celestia1[023456789ac-hj-np-z]{38}") {
-            let result = CelestiaAddress::from_str(&input);
-            if let Ok(address) = result {
-                let output = format!("{}", address);
-                assert_eq!(input, output);
-            }
+        #[strategy("celestia1[023456789ac-hj-np-z]{38}")] input: String,
+    ) {
+        let result = CelestiaAddress::from_str(&input);
+        if let Ok(address) = result {
+            let output = format!("{}", address);
+            assert_eq!(input, output);
         }
+    }
 
-        #[test]
-        fn test_try_from_ascii_slice(input in proptest::array::uniform20(0u8..=255)) {
-            check_from_bytes_as_ascii(input);
-        }
+    #[test_strategy::proptest]
+    fn test_try_from_ascii_slice(input: [u8; 20]) {
+        check_from_bytes_as_ascii(input);
+    }
 
-        #[test]
-        fn test_try_as_ref_from(input in proptest::array::uniform20(0u8..=255)) {
-            check_from_as_ref(input);
-        }
+    #[test_strategy::proptest]
+    fn test_try_as_ref_from(input: [u8; 20]) {
+        check_from_as_ref(input);
     }
 }

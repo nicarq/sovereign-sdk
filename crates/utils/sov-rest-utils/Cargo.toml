@@ -27,6 +27,7 @@ tracing = { workspace = true }
 [dev-dependencies]
 sov-rest-utils = { path = ".", features = ["arbitrary"] }
 serde_urlencoded = "0.7"
+test-strategy = { workspace = true }
 
 [features]
 arbitrary = ["proptest", "proptest-derive", "sov-rest-utils/arbitrary"]

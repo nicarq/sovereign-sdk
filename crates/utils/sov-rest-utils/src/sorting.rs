@@ -92,7 +92,6 @@ pub enum SortingOrder {
 #[cfg(test)]
 mod tests {
     use axum::extract::Query;
-    use proptest::proptest;
     use proptest_derive::Arbitrary;
 
     use super::*;
@@ -107,11 +106,9 @@ mod tests {
         sort: Sorting<i32>,
     }
 
-    proptest! {
-        #[test]
-        fn serialization_roundtrip(sorting: SortingQuery) {
-            test_serialization_roundtrip_equality_urlencoded(sorting);
-        }
+    #[test_strategy::proptest]
+    fn serialization_roundtrip(sorting: SortingQuery) {
+        test_serialization_roundtrip_equality_urlencoded(sorting);
     }
 
     fn try_deserialize(query_params: &[(&str, &str)]) -> anyhow::Result<SortingQuery> {

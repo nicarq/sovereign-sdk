@@ -1061,16 +1061,9 @@ mod tests {
         assert!(gas_limit <= gas_used_upper_bound);
     }
 
-    use proptest::prelude::*;
-
-    proptest! {
-        #![proptest_config(ProptestConfig::with_cases(10000))]
-        #[test]
-        fn get_gas_limit_for_bytes_does_not_panic_test(
-            blob_size in any::<usize>(),
-        ) {
-            let _ = get_gas_limit_for_bytes_as_in_golang(blob_size);
-        }
+    #[test_strategy::proptest(cases = 10_000)]
+    fn get_gas_limit_for_bytes_does_not_panic_test(blob_size: usize) {
+        get_gas_limit_for_bytes_as_in_golang(blob_size);
     }
 
     #[test]
