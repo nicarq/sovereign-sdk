@@ -1,6 +1,5 @@
 //! Defines useful cryptographic primitives that are needed by all sovereign-sdk rollups.
 mod simple_hasher;
-
 pub use simple_hasher::NoOpHasher;
 mod signatures;
 pub use signatures::*;
@@ -55,7 +54,6 @@ impl From<[u8; 32]> for CredentialId {
 mod tests {
     use core::str::FromStr;
 
-    use proptest::prelude::*;
     use sov_test_utils::validate_schema;
 
     use super::*;
@@ -83,16 +81,13 @@ mod tests {
         assert_eq!("Missing 0x prefix", result.unwrap_err().to_string());
     }
 
-    proptest! {
-        #[test]
-        fn test_arbitrary_hash_str_and_back(input in prop::array::uniform32(any::<u8>())) {
-            let credential_id = CredentialId(HexHash::new(input));
-            check_str_and_back(credential_id);
-        }
+    #[test_strategy::proptest]
+    fn test_arbitrary_hash_str_and_back(credential_id: CredentialId) {
+        check_str_and_back(credential_id);
+    }
 
-        #[test]
-        fn json_schema_is_valid(item in any::<CredentialId>()) {
-            validate_schema(&item).unwrap();
-        }
+    #[test_strategy::proptest]
+    fn json_schema_is_valid(item: CredentialId) {
+        validate_schema(&item).unwrap();
     }
 }

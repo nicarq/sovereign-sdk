@@ -457,8 +457,6 @@ impl CelestiaVerifier {
 mod tests {
     use std::str::FromStr;
 
-    use proptest::prelude::*;
-
     use super::*;
 
     fn test_serialize_roundtrip(raw: [u8; 32]) {
@@ -482,15 +480,13 @@ mod tests {
         assert_eq!(tm_hash, restored);
     }
 
-    proptest! {
-        #[test]
-        fn proptest_str_roundtrip(raw: [u8; 32]) {
-            test_str_roundtrip(raw);
-        }
+    #[test_strategy::proptest]
+    fn proptest_str_roundtrip(raw: [u8; 32]) {
+        test_str_roundtrip(raw);
+    }
 
-        #[test]
-        fn proptest_serde_roundtrip(raw: [u8; 32]) {
-            test_serialize_roundtrip(raw);
-        }
+    #[test_strategy::proptest]
+    fn proptest_serde_roundtrip(raw: [u8; 32]) {
+        test_serialize_roundtrip(raw);
     }
 }

@@ -212,6 +212,7 @@ toml = { version = "0.8.19", features = ["parse"] }
 jsonrpsee = { version = "0.24" }
 schemars = { version = "0.8.21", features = ["derive"] }
 tempfile = "3.12"
+test-strategy = "0.4.0"
 tokio = { version = "1.40", default-features = false }
 tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1.10", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.

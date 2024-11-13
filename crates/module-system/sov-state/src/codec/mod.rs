@@ -108,14 +108,12 @@ mod tests {
         vec(any::<i32>(), 0..2048)
     }
 
-    proptest::proptest! {
-        #[test]
-        fn test_borsh_slice_encode_alike(vec in arb_vec_i32()) {
-            let codec = BorshCodec;
-            assert_eq!(
-                <BorshCodec as EncodeLike<[i32], Vec<i32>>>::encode_like(&codec, &vec[..]),
-                codec.encode(&vec)
-            );
-        }
+    #[test_strategy::proptest]
+    fn test_borsh_slice_encode_alike(#[strategy(arb_vec_i32())] vec: Vec<i32>) {
+        let codec = BorshCodec;
+        assert_eq!(
+            <BorshCodec as EncodeLike<[i32], Vec<i32>>>::encode_like(&codec, &vec[..]),
+            codec.encode(&vec)
+        );
     }
 }

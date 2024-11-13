@@ -5,7 +5,6 @@ use std::collections::VecDeque;
 use std::sync::{Arc, Barrier};
 use std::time::Duration;
 
-use proptest::prelude::*;
 use rockbound::cache::delta_reader::DeltaReader;
 use rockbound::SchemaBatch;
 use sov_mock_da::{MockBlockHeader, MockHash};
@@ -233,12 +232,10 @@ fn linear_progression_non_instant_finality() {
     linear_progression(5, 10);
 }
 
-proptest! {
-    #[test]
-    fn proptest_iteration(fork in any::<ForkDescription>()) {
-        test_exploration(fork.clone(), ExplorationMode::Bfs);
-        test_exploration(fork, ExplorationMode::Dfs);
-    }
+#[test_strategy::proptest]
+fn proptest_iteration(fork: ForkDescription) {
+    test_exploration(fork.clone(), ExplorationMode::Bfs);
+    test_exploration(fork, ExplorationMode::Dfs);
 }
 
 #[test]

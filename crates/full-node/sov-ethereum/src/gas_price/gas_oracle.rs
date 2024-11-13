@@ -224,9 +224,6 @@ fn effective_gas_tip(
 
 #[cfg(test)]
 mod tests {
-    use proptest::arbitrary::any;
-    use proptest::proptest;
-
     use super::*;
 
     /// Takes only 8 least significant bytes
@@ -234,26 +231,23 @@ mod tests {
         u256.wrapping_to()
     }
 
-    proptest! {
-        #[test]
-        fn converts_back_and_forth(input in any::<u64>()) {
-            let mut bytes: [u8; 32] = [0; 32];
-            for (i, b) in input.to_be_bytes().into_iter().enumerate() {
-                let idx = 24 + i;
-                bytes[idx] = b;
-            }
-
-
-            let u256 = U256::from_be_slice(&bytes);
-            let output = convert_u256_to_u64(u256);
-
-            assert_eq!(input, output);
+    #[test_strategy::proptest]
+    fn converts_back_and_forth(input: u64) {
+        let mut bytes: [u8; 32] = [0; 32];
+        for (i, b) in input.to_be_bytes().into_iter().enumerate() {
+            let idx = 24 + i;
+            bytes[idx] = b;
         }
 
-        #[test]
-        fn convert_u256_to_u64_doesnt_panic(input in any::<[u8; 32]>()) {
-            let u256 = U256::from_be_slice(&input);
-            let _output = convert_u256_to_u64(u256);
-        }
+        let u256 = U256::from_be_slice(&bytes);
+        let output = convert_u256_to_u64(u256);
+
+        assert_eq!(input, output);
+    }
+
+    #[test_strategy::proptest]
+    fn convert_u256_to_u64_doesnt_panic(input: [u8; 32]) {
+        let u256 = U256::from_be_slice(&input);
+        let _output = convert_u256_to_u64(u256);
     }
 }

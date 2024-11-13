@@ -183,14 +183,14 @@ impl Ord for MempoolCursor {
 
 #[cfg(test)]
 mod tests {
-    use proptest::proptest;
-
     use super::*;
 
-    proptest! {
-        #[test]
-        fn mempool_cursor_ordering_is_correct(mc1: MempoolCursor, mc2: MempoolCursor, mc3: MempoolCursor) {
-            reltester::ord(&mc1, &mc2, &mc3).unwrap();
-        }
+    #[test_strategy::proptest]
+    fn mempool_cursor_ordering_is_correct(
+        mc1: MempoolCursor,
+        mc2: MempoolCursor,
+        mc3: MempoolCursor,
+    ) {
+        reltester::ord(&mc1, &mc2, &mc3).unwrap();
     }
 }

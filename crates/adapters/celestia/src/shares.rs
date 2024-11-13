@@ -606,14 +606,14 @@ mod tests {
         }
     }
 
-    proptest! {
-        #[test]
-        fn proptest_share_serialization_deserialization(data in share_bytes_strategy()) {
-            let bytes = Bytes::from(data);
-            let share = Share::new(bytes);
-            let serialized = borsh::to_vec(&share).unwrap();
-            let deserialized: Share = Share::try_from_slice(&serialized).unwrap();
-            prop_assert_eq!(share, deserialized);
-        }
+    #[test_strategy::proptest]
+    fn proptest_share_serialization_deserialization(
+        #[strategy(share_bytes_strategy())] data: Vec<u8>,
+    ) {
+        let bytes = Bytes::from(data);
+        let share = Share::new(bytes);
+        let serialized = borsh::to_vec(&share).unwrap();
+        let deserialized: Share = Share::try_from_slice(&serialized).unwrap();
+        prop_assert_eq!(share, deserialized);
     }
 }

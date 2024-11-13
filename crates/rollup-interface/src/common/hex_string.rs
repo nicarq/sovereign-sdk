@@ -201,8 +201,6 @@ mod tests {
     use std::fmt::Debug;
     use std::str::FromStr;
 
-    use proptest::proptest;
-
     use super::*;
 
     /// Serializes, then deserializes a value with [`serde_json`], then asserts
@@ -222,15 +220,13 @@ mod tests {
         assert_eq!(item, restored);
     }
 
-    proptest! {
-        #[test]
-        fn hex_string_serialization_roundtrip(item: HexString) {
-            test_serialization_roundtrip_equality_json(item);
-        }
+    #[test_strategy::proptest]
+    fn hex_string_serialization_roundtrip(item: HexString) {
+        test_serialization_roundtrip_equality_json(item);
+    }
 
-        #[test]
-        fn hex_string_str_roundtrip(item: HexString) {
-            test_str_roundtrip(item);
-        }
+    #[test_strategy::proptest]
+    fn hex_string_str_roundtrip(item: HexString) {
+        test_str_roundtrip(item);
     }
 }

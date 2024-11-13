@@ -401,8 +401,6 @@ impl<N> From<ProvableStorageCache<N>> for OrderedReadsAndWrites {
 
 #[cfg(test)]
 mod tests {
-    use proptest::prelude::*;
-
     use super::*;
 
     impl Access {
@@ -608,49 +606,47 @@ mod tests {
         assert!(result.is_err());
     }
 
-    proptest! {
-        #[test]
-        fn test_merge_fuzz(s: u8) {
-            let num_cases = 15;
-            let mut testvec = Vec::with_capacity(num_cases);
+    #[test_strategy::proptest]
+    fn test_merge_fuzz(s: u8) {
+        let num_cases = 15;
+        let mut testvec = Vec::with_capacity(num_cases);
 
-            for i in 0..num_cases {
-                testvec.push( s.wrapping_add(i as u8));
-            }
-
-            let test_cases = vec![
-                TestCase {
-                    left: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),
-                    right: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),
-                },
-                TestCase {
-                    left: Some(ReadWrite::Read(new_cache_entry(testvec[2], testvec[3]))),
-                    right: Some(ReadWrite::Write(new_cache_entry(testvec[2], testvec[4]))),
-                },
-                TestCase {
-                    left: Some(ReadWrite::Write(new_cache_entry(testvec[5], testvec[6]))),
-                    right: Some(ReadWrite::Write(new_cache_entry(testvec[5], testvec[7]))),
-                },
-                TestCase {
-                    left: Some(ReadWrite::Write(new_cache_entry(testvec[8], testvec[9]))),
-                    right: None,
-                },
-                TestCase {
-                    left: None,
-                    right: Some(ReadWrite::Read(new_cache_entry(testvec[10], testvec[11]))),
-                },
-                TestCase {
-                    left: None,
-                    right: Some(ReadWrite::Write(new_cache_entry(testvec[12], testvec[11]))),
-                },
-                TestCase {
-                    left: Some(ReadWrite::Write(new_cache_entry(testvec[13], testvec[14]))),
-                    right: Some(ReadWrite::Read(new_cache_entry(testvec[13], testvec[14]))),
-                },
-            ];
-
-            test_merge_ok_helper(test_cases);
+        for i in 0..num_cases {
+            testvec.push(s.wrapping_add(i as u8));
         }
+
+        let test_cases = vec![
+            TestCase {
+                left: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),
+                right: Some(ReadWrite::Read(new_cache_entry(testvec[0], testvec[1]))),
+            },
+            TestCase {
+                left: Some(ReadWrite::Read(new_cache_entry(testvec[2], testvec[3]))),
+                right: Some(ReadWrite::Write(new_cache_entry(testvec[2], testvec[4]))),
+            },
+            TestCase {
+                left: Some(ReadWrite::Write(new_cache_entry(testvec[5], testvec[6]))),
+                right: Some(ReadWrite::Write(new_cache_entry(testvec[5], testvec[7]))),
+            },
+            TestCase {
+                left: Some(ReadWrite::Write(new_cache_entry(testvec[8], testvec[9]))),
+                right: None,
+            },
+            TestCase {
+                left: None,
+                right: Some(ReadWrite::Read(new_cache_entry(testvec[10], testvec[11]))),
+            },
+            TestCase {
+                left: None,
+                right: Some(ReadWrite::Write(new_cache_entry(testvec[12], testvec[11]))),
+            },
+            TestCase {
+                left: Some(ReadWrite::Write(new_cache_entry(testvec[13], testvec[14]))),
+                right: Some(ReadWrite::Read(new_cache_entry(testvec[13], testvec[14]))),
+            },
+        ];
+
+        test_merge_ok_helper(test_cases);
     }
 
     fn test_merge_ok_helper(test_cases: Vec<TestCase>) {

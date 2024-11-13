@@ -40,6 +40,7 @@ rand = { workspace = true, optional = true }
 uuid = { workspace = true, features = ["std", "v7"] }
 
 [dev-dependencies]
+test-strategy = { workspace = true }
 sov-db = { path = ".", features = ["test-utils"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true }

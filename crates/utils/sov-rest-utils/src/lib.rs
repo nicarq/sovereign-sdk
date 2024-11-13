@@ -279,16 +279,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use proptest::proptest;
-
     use crate::test_utils::uri_with_query_params;
 
-    proptest! {
-        // Ideally we'd also test with types other than strings. E.g. integers?
-        #[test]
-        fn any_query_param_can_be_serialized(key: String, value: String) {
-            // As long as it doesn't crash, we're good and the test succeeds.
-            uri_with_query_params([(key, value)]);
-        }
+    // Ideally we'd also test with types other than strings. E.g. integers?
+    #[test_strategy::proptest]
+    fn any_query_param_can_be_serialized(key: String, value: String) {
+        // As long as it doesn't crash, we're good and the test succeeds.
+        uri_with_query_params([(key, value)]);
     }
 }
