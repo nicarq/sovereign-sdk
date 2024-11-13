@@ -1,3 +1,4 @@
+#![allow(dead_code, non_upper_case_globals)]
 use std::env;
 
 use sov_modules_api::impl_hash32_type;
@@ -8,7 +9,6 @@ impl_hash32_type!(MyTokenId, MyTokenBech, "token_");
 // Make sure that non-overridable constants compile. If compilation pass,
 // there's not much need to do anything else.
 // -----------------------------------------------------------------------------
-
 const CONST_TOKEN_ID: MyTokenId = config_value!("CONST_TOKEN_ID");
 const CONST_I64_MAX: i64 = config_value!("CONST_I64_MAX");
 const CONST_BOOL: bool = config_value!("CONST_BOOL");
