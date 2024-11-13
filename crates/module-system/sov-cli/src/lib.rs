@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
 use sov_modules_api::{HexHash, HexString, Spec};
+use sov_node_client as node_client;
 
-mod node_client;
 /// Types and functionality storing and loading the persistent state of the wallet
 pub mod wallet_state;
 pub mod workflows;

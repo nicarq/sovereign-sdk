@@ -58,6 +58,7 @@ members = [
     "crates/rollup-interface/universal-wallet/macros",
     "crates/rollup-interface/universal-wallet/macro-helpers",
     "crates/utils/transaction-generator",
+    "crates/utils/sov-node-client",
 ]
 
 [workspace.package]
@@ -100,6 +101,7 @@ sov-mock-da = { path = "crates/adapters/mock-da", default-features = false, vers
 sov-mock-zkvm = { path = "crates/adapters/mock-zkvm", default-features = false, version = "0.3" }
 sov-bank = { path = "crates/module-system/module-implementations/sov-bank", default-features = false, version = "0.3" }
 sov-sequencer-registry = { path = "crates/module-system/module-implementations/sov-sequencer-registry", default-features = false, version = "0.3" }
+sov-node-client = { path = "crates/utils/sov-node-client", default-features = false, version = "0.3" }
 sov-prover-incentives = { path = "crates/module-system/module-implementations/sov-prover-incentives", default-features = false, version = "0.3" }
 sov-value-setter = { path = "crates/module-system/module-implementations/sov-value-setter", default-features = false, version = "0.3" }
 sov-chain-state = { path = "crates/module-system/module-implementations/sov-chain-state", default-features = false, version = "0.3" }

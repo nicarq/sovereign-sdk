@@ -18,13 +18,11 @@ path = "src/lib.rs"
 workspace = true
 
 [dependencies]
-base64 = { workspace = true }
 derive_more = { workspace = true, features = ["display"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true }
 sov-bank = { workspace = true }
 sov-rollup-interface = { workspace = true }
-sov-api-spec = { workspace = true }
 directories = "5.0.1"
 anyhow = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
@@ -33,7 +31,7 @@ semver = "1.0"
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
-futures = { workspace = true }
+sov-node-client = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

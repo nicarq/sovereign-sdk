@@ -1,6 +1,6 @@
 use sov_bank::Coins;
 use sov_modules_api::capabilities::config_chain_id;
-use sov_modules_api::prelude::{arbitrary, schemars};
+use sov_modules_api::prelude::{arbitrary, schemars, tokio};
 use sov_modules_api::transaction::TxDetails;
 use sov_modules_api::DispatchCall;
 use sov_paymaster::{
@@ -19,6 +19,7 @@ use sov_transaction_generator::generators::bank::{
 };
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageGenerator, BasicCallMessageGeneratorConfig, BasicChangelogEntry,
+    BasicClientConfig,
 };
 use sov_transaction_generator::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent,
@@ -35,7 +36,7 @@ generate_runtime! {
     impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
     gas_enforcer: paymaster: sov_paymaster::Paymaster<S>,
     runtime_trait_impl_bounds: [],
-    kernel_type: sov_kernels::basic::BasicKernel<'a, S>,
+    kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }
 
 type RT = TestRuntime<TestSpec>;
@@ -64,7 +65,7 @@ impl TestGenerator {
                     &mut arbitrary::Unstructured::new(&self.randomness[self.randomness_offset()..]);
                 if let Ok(output) =
                     self.generator
-                        .generate_call_message(u, &(), &mut self.state, validity)
+                        .generate_call_message(u, &mut self.state, validity)
                 {
                     self.remaining_randomness = u.len();
                     return output;
@@ -175,8 +176,8 @@ fn setup(user_balance: u64) -> Setup {
     }
 }
 
-#[test]
-fn test_successful_transaction_generation() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_successful_transaction_generation() {
     let setup = setup(1_000_000_000);
     let mut generator = do_test(Percent::one_hundred(), &setup.user);
 
@@ -185,6 +186,11 @@ fn test_successful_transaction_generation() {
         Default::default(),
     );
 
+    let _ = runner.setup_rest_api_server().await;
+    let config = BasicClientConfig {
+        url: runner.base_path(),
+        rollup_height: None,
+    };
     // Generate and execute 100 txs
     for _ in 0..100 {
         let output = generator.generate(MessageValidity::Valid);
@@ -205,5 +211,10 @@ fn test_successful_transaction_generation() {
                 assert!(result.tx_receipt.is_successful());
             }),
         });
+        generator
+            .generator
+            .assert_incremental_state(config.clone(), output.changes)
+            .await
+            .expect("State must be correct");
     }
 }

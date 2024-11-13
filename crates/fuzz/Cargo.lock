@@ -5385,20 +5385,18 @@ name = "sov-cli"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "borsh",
  "derive_more 1.0.0",
  "directories",
- "futures",
  "hex",
  "reqwest",
  "semver 1.0.23",
  "serde",
  "serde_json",
- "sov-api-spec",
  "sov-bank",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-node-client",
  "sov-rollup-interface",
 ]
 
@@ -5641,6 +5639,21 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "sov-node-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "futures",
+ "reqwest",
+ "serde",
+ "sov-api-spec",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-rollup-interface",
 ]
 
 [[package]]

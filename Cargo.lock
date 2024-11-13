@@ -9941,21 +9941,19 @@ name = "sov-cli"
 version = "0.3.0"
 dependencies = [
  "anyhow",
- "base64 0.22.1",
  "borsh",
  "derive_more 1.0.0",
  "directories",
- "futures",
  "hex",
  "reqwest 0.12.5",
  "semver 1.0.23",
  "serde",
  "serde_json",
- "sov-api-spec",
  "sov-bank",
  "sov-mock-da",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-node-client",
  "sov-rollup-interface",
  "sov-test-utils",
  "tempfile",
@@ -10452,6 +10450,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-node-client"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "futures",
+ "reqwest 0.12.5",
+ "serde",
+ "sov-api-spec",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-rollup-interface",
+]
+
+[[package]]
 name = "sov-nonces"
 version = "0.3.0"
 dependencies = [
@@ -10882,9 +10895,11 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-node-client",
  "sov-paymaster",
  "sov-state",
  "sov-test-utils",
+ "sov-transaction-generator",
  "strum 0.26.3",
  "thiserror",
  "tracing",

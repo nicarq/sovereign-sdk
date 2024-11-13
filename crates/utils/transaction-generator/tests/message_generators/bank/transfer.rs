@@ -21,7 +21,7 @@ fn test_transfer_generation_without_account() {
     let mut u = Unstructured::new(random_bytes.as_ref());
 
     generator
-        .generate_call_message(&mut u, &(), &mut state, MessageValidity::Valid)
+        .generate_call_message(&mut u, &mut state, MessageValidity::Valid)
         .unwrap();
 }
 
@@ -47,7 +47,7 @@ fn do_test(
     state.update_account(address, account, vec![TagAction::Add(Tag::HasBalance)]);
 
     generator
-        .generate_call_message(&mut u, &(), &mut state, message_validity)
+        .generate_call_message(&mut u, &mut state, message_validity)
         .expect("Transfer generation must succeed")
 }
 
