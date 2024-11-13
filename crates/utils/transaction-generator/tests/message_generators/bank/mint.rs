@@ -40,7 +40,7 @@ fn do_test(
     state.generate_account(&mut u).unwrap();
 
     generator
-        .generate_call_message(&mut u, &(), &mut state, message_validity)
+        .generate_call_message(&mut u, &mut state, message_validity)
         .expect("Transfer generation must succeed")
 }
 
@@ -56,7 +56,7 @@ fn test_mint_generation_without_account() {
     let mut u = Unstructured::new(random_bytes.as_ref());
 
     generator
-        .generate_call_message(&mut u, &(), &mut state, MessageValidity::Valid)
+        .generate_call_message(&mut u, &mut state, MessageValidity::Valid)
         .unwrap();
 }
 

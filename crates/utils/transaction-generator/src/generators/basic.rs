@@ -6,6 +6,7 @@ use std::marker::PhantomData;
 
 use derivative::Derivative;
 use sov_modules_api::prelude::arbitrary;
+use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{DispatchCall, EncodeCall, Spec};
 use sov_modules_stf_blueprint::Runtime;
 
@@ -65,7 +66,7 @@ impl<S: Spec> From<BankTag> for Tag<S> {
 #[derive(Clone, Debug, strum::EnumDiscriminants)]
 #[strum_discriminants(name(SupportedModules))]
 pub enum BasicChangelogEntry<S: Spec> {
-    /// Changes from the bakn module
+    /// Changes from the bank module
     Bank(<BankMessageGenerator<S> as CallMessageGenerator<S>>::ChangelogEntry),
 }
 
@@ -90,15 +91,25 @@ where
     pub bank: <BankMessageGenerator<S> as CallMessageGenerator<S>>::Config,
 }
 
+/// The basic configuration for any rollup http client.
+#[derive(Debug, Clone)]
+pub struct BasicClientConfig {
+    /// The url to query.
+    pub url: String,
+    /// The rollup height to query, if necessary.
+    pub rollup_height: Option<u64>,
+}
+
+#[async_trait]
 impl<RT: Runtime<S>, S: Spec, BonusAcctData: Debug + Clone> CallMessageGenerator<S>
     for BasicCallMessageGenerator<RT, S, BonusAcctData>
 where
+    Self: Send + Sync + 'static,
     AccountState<S, BonusAcctData>: Clone + std::fmt::Debug,
     RT: EncodeCall<sov_bank::Bank<S>>,
-    // TODO: Remove this bound on RollupStateReader = ()
     BankMessageGenerator<S>: CallMessageGenerator<
         S,
-        RollupStateReader = (),
+        RollupStateReader: From<BasicClientConfig>,
         CallMessage = sov_bank::CallMessage<S>,
         AccountView = BankAccount<S>,
         Tag = BankTag,
@@ -111,7 +122,7 @@ where
 
     type AccountView = AccountStateView<S, BonusAcctData>;
 
-    type RollupStateReader = ();
+    type RollupStateReader = BasicClientConfig;
 
     type ChangelogEntry = BasicChangelogEntry<S>;
 
@@ -125,7 +136,6 @@ where
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        rollup_state_accessor: &Self::RollupStateReader,
         generator_state: &mut impl GeneratorState<
             S,
             AccountView = AccountStateView<S, BonusAcctData>,
@@ -144,7 +154,6 @@ where
         } = match module {
             SupportedModules::Bank => self.bank.generate_call_message(
                 u,
-                rollup_state_accessor,
                 &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
                 validity,
             )?,
@@ -165,11 +174,24 @@ where
         todo!()
     }
 
-    fn assert_incremental_state(
+    async fn assert_incremental_state(
         &self,
-        _rollup_state_accessor: &Self::RollupStateReader,
-        _changes: Vec<Self::ChangelogEntry>,
+        rollup_state_accessor: Self::RollupStateReader,
+        changes: Vec<Self::ChangelogEntry>,
     ) -> Result<(), anyhow::Error> {
-        todo!()
+        // TODO: Add other module changes here
+        let mut bank_changes = vec![];
+        for change in changes {
+            match change {
+                BasicChangelogEntry::Bank(change) => bank_changes.push(change),
+            }
+        }
+        // TODO: join instead of `await`ing here to allow internal parallelism once there
+        // are other modules
+        self.bank
+            .assert_incremental_state(rollup_state_accessor.into(), bank_changes)
+            .await?;
+
+        Ok(())
     }
 }

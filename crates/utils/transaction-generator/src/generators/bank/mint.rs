@@ -12,7 +12,6 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(super) fn generate_mint(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        _rollup_state_accessor: &(),
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
         validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {

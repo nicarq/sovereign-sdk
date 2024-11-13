@@ -7,7 +7,7 @@ use anyhow::Context;
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use futures::StreamExt;
-use reqwest::{ClientBuilder, StatusCode};
+use reqwest::StatusCode;
 use sov_api_spec::types;
 use sov_bank::utils::TokenHolder;
 use sov_bank::{Amount, Coins, TokenId};
@@ -60,22 +60,28 @@ pub struct NodeClient {
 }
 
 impl NodeClient {
-    /// Constructor. Implies base url for rollup node.
-    pub async fn new(api_url: &str) -> anyhow::Result<Self> {
+    /// Construct a new NodeClient without verifying that the target url is available and supports
+    /// the required functionality.
+    pub fn new_unchecked(api_url: &str) -> Self {
         let base_url = api_url.to_string();
-        let http_client = ClientBuilder::default()
-            .build()
-            .map_err(|e| anyhow::anyhow!(e))?;
-        if !check_if_rollup_has_standard_modules(&http_client, &base_url).await? {
-            anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
-        }
+        let http_client = reqwest::Client::new();
         let client = sov_api_spec::Client::new(api_url);
 
-        Ok(NodeClient {
+        NodeClient {
             base_url,
             http_client,
             client,
-        })
+        }
+    }
+
+    /// Constructor. Implies base url for rollup node.
+    pub async fn new(api_url: &str) -> anyhow::Result<Self> {
+        let client = NodeClient::new_unchecked(api_url);
+        if !check_if_rollup_has_standard_modules(&client.http_client, &client.base_url).await? {
+            anyhow::bail!("Rollup does not have standard modules with standard names. Not all functions of sov-cli are available");
+        }
+
+        Ok(client)
     }
 
     /// Simplified constructor for testing.

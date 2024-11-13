@@ -1,13 +1,19 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
+use std::collections::HashSet;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use indexmap::IndexSet;
 use sov_bank::{CallMessage, CallMessageDiscriminants, Coins, TokenId};
-use sov_modules_api::prelude::arbitrary;
+use sov_modules_api::prelude::axum::async_trait;
+use sov_modules_api::prelude::{arbitrary, tokio};
 use sov_modules_api::{CryptoSpec, Spec};
 use strum::VariantArray;
 use tracing::warn;
 mod mint;
+mod query;
+pub use query::http::HttpBankClient;
+pub use query::BankClient;
 mod transfer;
 
 use crate::interface::{
@@ -61,7 +67,6 @@ impl<S: Spec> BankMessageGenerator<S> {
     fn do_generation_with_fallback(
         &self,
         message_type: CallMessageDiscriminants,
-        rollup_state_accessor: &(),
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
         validity: MessageValidity,
@@ -69,7 +74,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         match message_type {
             CallMessageDiscriminants::Transfer => {
                 match self
-                    .generate_transfer(u, rollup_state_accessor, generator_state, validity)
+                    .generate_transfer(u, generator_state, validity)
                     .try_to_arbitrary()
                 {
                     Ok(transfer_result) => Ok(transfer_result?),
@@ -80,7 +85,6 @@ impl<S: Spec> BankMessageGenerator<S> {
                         );
                         self.do_generation_with_fallback(
                             CallMessageDiscriminants::Mint,
-                            rollup_state_accessor,
                             u,
                             generator_state,
                             validity,
@@ -93,7 +97,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             CallMessageDiscriminants::Mint => {
                 // TODO: Mint should fall back to create token
                 match self
-                    .generate_mint(u, rollup_state_accessor, generator_state, validity)
+                    .generate_mint(u, generator_state, validity)
                     .try_to_arbitrary()
                 {
                     Ok(transfer_result) => Ok(transfer_result?),
@@ -134,6 +138,7 @@ impl<S: Spec> BankChangeLogEntry<S> {
     }
 }
 
+#[async_trait]
 impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     type CallMessage = sov_bank::CallMessage<S>;
 
@@ -141,7 +146,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
     type Tag = Tag;
 
-    type RollupStateReader = ();
+    type RollupStateReader = HttpBankClient<S>;
 
     type ChangelogEntry = BankChangeLogEntry<S>;
 
@@ -155,20 +160,13 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        rollup_state_accessor: &Self::RollupStateReader,
         generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>> {
         let message = *self.message_distribution.select_value(u)?;
-        self.do_generation_with_fallback(
-            message,
-            rollup_state_accessor,
-            u,
-            generator_state,
-            validity,
-        )
-        .try_to_arbitrary()
-        .expect("Could not generate bank callmessage")
+        self.do_generation_with_fallback(message, u, generator_state, validity)
+            .try_to_arbitrary()
+            .expect("Could not generate bank callmessage")
     }
 
     fn assert_full_state(
@@ -179,12 +177,43 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         todo!()
     }
 
-    fn assert_incremental_state(
+    async fn assert_incremental_state(
         &self,
-        _rollup_state_accessor: &Self::RollupStateReader,
-        _changes: Vec<Self::ChangelogEntry>,
+        rollup_state_accessor: Self::RollupStateReader,
+        changes: Vec<Self::ChangelogEntry>,
     ) -> Result<(), anyhow::Error> {
-        todo!()
+        // Since newer changes will stomp older ones, we need to remember
+        // which keys we've already checked.
+        let mut checked_balances = HashSet::new();
+        let mut joinset = tokio::task::JoinSet::new();
+        let accessor = Arc::new(rollup_state_accessor);
+        for change in changes.into_iter().rev() {
+            match change {
+                BankChangeLogEntry::BalanceChanged { address, coins } => {
+                    let Coins { token_id, amount } = coins;
+                    let key = (address.clone(), token_id);
+                    if checked_balances.contains(&key) {
+                        continue;
+                    } else {
+                        checked_balances.insert(key);
+                        let accessor = accessor.clone();
+                        joinset.spawn(async move {
+                            let found_balance = accessor.get_balance(&address, token_id).await;
+                            assert_eq!(
+                                found_balance, amount,
+                                "Unexpected balance of {} at address {}",
+                                token_id, &address
+                            );
+                        });
+                    }
+                }
+            }
+        }
+        while let Some(result) = joinset.join_next().await {
+            result?; // First ? for JoinError, second for the inner Result
+        }
+
+        Ok(())
     }
 }
 

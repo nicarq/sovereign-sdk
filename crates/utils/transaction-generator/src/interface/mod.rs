@@ -8,6 +8,7 @@ use derive_more::derive::AsRef;
 use derive_more::{Add, Mul};
 pub use rng::*;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
+use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, Spec};
 
 use super::state::ApplyTo;
@@ -379,6 +380,7 @@ impl<T> TagAction<T> {
 
 /// A standard interface for generating call messages and checking that they produce
 /// the expected effects.
+#[async_trait]
 pub trait CallMessageGenerator<S: Spec> {
     /// The module callmessage being generated.
     type CallMessage;
@@ -390,10 +392,10 @@ pub trait CallMessageGenerator<S: Spec> {
     type AccountView: Clone + std::fmt::Debug;
 
     /// A service which returns the current rollup state.
-    type RollupStateReader;
+    type RollupStateReader: 'static;
 
     /// The relevant post state from a generatd message.
-    type ChangelogEntry: Clone + std::fmt::Debug;
+    type ChangelogEntry: Clone + std::fmt::Debug + Send + Sync + 'static;
 
     /// The config for this message generator.
     type Config: Clone + std::fmt::Debug;
@@ -405,7 +407,6 @@ pub trait CallMessageGenerator<S: Spec> {
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        rollup_state_accessor: &Self::RollupStateReader,
         generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
@@ -420,9 +421,9 @@ pub trait CallMessageGenerator<S: Spec> {
     /// Assert that the rollup state matches the expected value. This method
     /// *must* detect when two changes conflict (if applicable) and assert only
     /// the most recent change.
-    fn assert_incremental_state(
+    async fn assert_incremental_state(
         &self,
-        rollup_state_accessor: &Self::RollupStateReader,
+        rollup_state_accessor: Self::RollupStateReader,
         changes: Vec<Self::ChangelogEntry>,
     ) -> Result<(), anyhow::Error>;
 }
