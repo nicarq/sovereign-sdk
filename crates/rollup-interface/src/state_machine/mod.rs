@@ -104,8 +104,9 @@ pub trait BasicAddress:
     + core::hash::Hash
     + AsRef<[u8]>
     + for<'a> TryFrom<&'a [u8], Error = anyhow::Error>
-    + core::str::FromStr<Err: Into<Box<dyn std::error::Error + Send + Sync + 'static>>>
-    + Serialize
+    + core::str::FromStr<
+        Err: core::fmt::Debug + Into<Box<dyn std::error::Error + Send + Sync + 'static>>,
+    > + Serialize
     + DeserializeOwned
     + BorshDeserialize
     + BorshSerialize

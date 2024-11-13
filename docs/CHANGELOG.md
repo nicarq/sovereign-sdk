@@ -1,3 +1,7 @@
+## 2024-11-13
+
+- #1870 removes many of the testing utilities inside `demo-rollup/tests/test_helpers.rs`, and replaces them with a new utility `sov_test_utils::test_rollup::RollupBuilder`. You can take a look at `demo-rollup/tests/bank` for some usage examples.
+
 ## 2024-11-12
 - #1861 Moves the `Runtime` trait to `sov-modules-api`. It remains re-exported from `sov-modules-stf-blueprint`, so most usages remain unaffected. However, the `RuntimeEndpoints` struct is also moved and is not re-exported, so any code importing `sov-modules-stf-blueprint::RuntimeEndpoints` must be changed to import `sov-modules-api::RuntimeEndpoints`.
 

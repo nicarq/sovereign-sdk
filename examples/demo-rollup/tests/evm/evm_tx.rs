@@ -1,9 +1,9 @@
 use sov_modules_macros::config_value;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::test_rollup::get_appropriate_rollup_prover_config;
 
 use super::evm_test_helper;
 use super::test_client::TestClient;
-use crate::test_helpers::get_appropriate_rollup_prover_config;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {

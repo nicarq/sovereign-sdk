@@ -6,13 +6,16 @@ use ethers_signers::{LocalWallet, Signer};
 use futures::future::join_all;
 use futures::stream::BoxStream;
 use futures::StreamExt;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
+use sov_modules_api::execution_mode::Native;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::SimpleStorageContract;
 use tokio::task::JoinHandle;
 
 use super::test_client::TestClient;
-use crate::test_helpers::{start_rollup_in_background, test_genesis_paths};
+use crate::test_helpers::test_genesis_paths;
 
 /// Starts test rollup node.  
 pub(crate) async fn start_node(
@@ -31,11 +34,11 @@ pub(crate) async fn start_node(
 
     let (rollup_task, _da_service, _shutdown_sender) =
         // Don't provide a prover since the EVM is not currently provable
-        start_rollup_in_background(
+        RollupBuilder::<MockDemoRollup<Native>>::start_rollup_in_background(
             storage_dir.path(),
             rpc_port_tx,
             rest_port_tx,
-            test_genesis_paths(sov_modules_api::OperatingMode::Zk),
+            &test_genesis_paths(sov_modules_api::OperatingMode::Zk),
             rollup_prover_config,
             MockDaConfig {
                 connection_string: "sqlite::memory:".to_string(),

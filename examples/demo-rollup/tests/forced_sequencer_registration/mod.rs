@@ -4,15 +4,18 @@ use anyhow::Context;
 use demo_stf::runtime::RuntimeCall;
 use futures::StreamExt;
 use sov_cli::NodeClient;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{OperatingMode, RawTx};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-use crate::test_helpers::{construct_rollup, read_private_keys, test_genesis_paths, CHAIN_HASH};
+use crate::test_helpers::{test_genesis_paths, CHAIN_HASH};
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
@@ -23,9 +26,9 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-    let rollup = construct_rollup(
+    let rollup = RollupBuilder::<MockDemoRollup<Native>>::construct_rollup(
         temp_dir,
-        test_genesis_paths(OperatingMode::Zk),
+        &test_genesis_paths(OperatingMode::Zk),
         RollupProverConfig::Skip,
         MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),
     )
@@ -53,7 +56,7 @@ async fn forced_sequencer_registration_test_case(
     da_service: Arc<impl DaService>,
     client: &NodeClient,
 ) -> anyhow::Result<()> {
-    let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
+    let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
 
     let tx = build_register_sequencer_tx(&key, 0);

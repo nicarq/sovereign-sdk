@@ -26,6 +26,9 @@ pub use sov_state::ProverStorage;
 
 mod evm;
 
+/// End-to-end rollup node testing utilities.
+pub mod test_rollup;
+
 /// Utilities for generating test data.
 pub mod generators;
 

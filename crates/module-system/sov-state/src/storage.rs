@@ -248,7 +248,7 @@ pub trait Storage: Clone {
     type StateUpdate: StateUpdate;
 
     /// Collections of all the writes that have been made on top of this instance of the storage;
-    type ChangeSet;
+    type ChangeSet: Send + Sync;
 
     /// Returns the value corresponding to the key or None if key is absent.
     fn get<N: ProvableCompileTimeNamespace>(

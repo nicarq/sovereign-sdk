@@ -8,10 +8,11 @@ use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{PrivateKey, Spec};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
+use sov_test_utils::test_rollup::read_private_key;
 use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
 use super::TOKEN_NAME;
-use crate::test_helpers::{read_private_keys, CHAIN_HASH};
+use crate::test_helpers::CHAIN_HASH;
 
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
@@ -37,7 +38,7 @@ pub(crate) fn create_keys_and_addresses() -> (
     TokenId,
     <TestSpec as Spec>::Address,
 ) {
-    let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
+    let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
     let user_address: <TestSpec as Spec>::Address = key_and_address.address;
 
