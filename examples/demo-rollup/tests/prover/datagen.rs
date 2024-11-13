@@ -6,9 +6,9 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::generators::bank::BankMessageGenerator;
+use sov_test_utils::test_rollup::read_private_key;
 use sov_test_utils::MessageGenerator;
 
-use crate::test_helpers::read_private_keys;
 type S = sov_modules_api::default_spec::DefaultSpec<
     sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0,
@@ -40,7 +40,7 @@ pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
     let mut blocks = vec![];
 
     let private_key_and_address: PrivateKeyAndAddress<S> =
-        read_private_keys::<S>("minter_private_key.json");
+        read_private_key::<S>("minter_private_key.json");
 
     let (create_token_message_gen, transfer_message_gen) =
         BankMessageGenerator::generate_token_and_random_transfers(

@@ -1,14 +1,17 @@
 use anyhow::Context;
 use futures::StreamExt;
 use sov_cli::NodeClient;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
-use crate::test_helpers::*;
+use crate::test_helpers::test_genesis_paths;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
@@ -17,13 +20,14 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         finalization_blocks: 0,
     };
 
-    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
-        RollupProverConfig::Skip,
-        BlockProducingConfig::Periodic,
-        test_case.finalization_blocks,
-        OperatingMode::Zk,
-    )
-    .await?;
+    let test_rollup =
+        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
+            RollupProverConfig::Skip,
+            BlockProducingConfig::Periodic,
+            test_case.finalization_blocks,
+            &test_genesis_paths(OperatingMode::Zk),
+        )
+        .await?;
 
     let sender = SequencerTxSender {};
 

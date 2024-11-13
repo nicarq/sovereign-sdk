@@ -1,11 +1,14 @@
 //! Tests for shutdown/restart cases.
 
 use rand::Rng;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_stf_runner::processes::RollupProverConfig;
+use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 
-use crate::test_helpers::TestRollup;
+use crate::test_helpers::test_genesis_paths;
 
 /// Starts a TestNode, lets it run for some time and then shuts it down.
 /// Repeats that several times.
@@ -27,9 +30,9 @@ async fn start_stop_empty(
     for sleep_duration in sleep_durations {
         let test_rollup = tokio::time::timeout(
             std::time::Duration::from_secs(30),
-            TestRollup::create_test_rollup(
+            RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
                 rollup_prover_config,
-                operation_mode,
+                &test_genesis_paths(operation_mode),
                 rollup_storage_dir,
                 BlockProducingConfig::Periodic,
                 finalization_blocks,

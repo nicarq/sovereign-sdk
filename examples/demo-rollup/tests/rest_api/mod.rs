@@ -8,15 +8,18 @@ use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
+use sov_test_utils::test_rollup::{
+    get_appropriate_rollup_prover_config, read_private_key, RollupBuilder,
+};
 use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
-use crate::test_helpers::{
-    get_appropriate_rollup_prover_config, read_private_keys, TestRollup, CHAIN_HASH,
-};
+use crate::test_helpers::{test_genesis_paths, CHAIN_HASH};
 
 #[derive(Debug, Deserialize)]
 struct ValueResponse {
@@ -25,13 +28,14 @@ struct ValueResponse {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn trailing_slashes_handled() -> anyhow::Result<()> {
-    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
-        get_appropriate_rollup_prover_config(),
-        BlockProducingConfig::OnSubmit,
-        0,
-        OperatingMode::Zk,
-    )
-    .await?;
+    let test_rollup =
+        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
+            get_appropriate_rollup_prover_config(),
+            BlockProducingConfig::OnSubmit,
+            0,
+            &test_genesis_paths(OperatingMode::Zk),
+        )
+        .await?;
 
     let response = test_rollup
         .client
@@ -60,16 +64,17 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 }
 
 async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
-    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
-        get_appropriate_rollup_prover_config(),
-        BlockProducingConfig::OnSubmit,
-        0,
-        OperatingMode::Zk,
-    )
-    .await?;
+    let test_rollup =
+        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
+            get_appropriate_rollup_prover_config(),
+            BlockProducingConfig::OnSubmit,
+            0,
+            &test_genesis_paths(OperatingMode::Zk),
+        )
+        .await?;
 
     // Based on an assumption that this key is admin in sov-value-setter
-    let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
+    let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
     let msg =
         RuntimeCall::<TestSpec>::ValueSetter(sov_value_setter::CallMessage::SetManyValues(vec![
             1, 2, 3, 4, 5, 6, 7, 8,
@@ -214,7 +219,7 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
     );
 
     // Get the state map: known value.
-    let token_deployer = read_private_keys::<TestSpec>("token_deployer_private_key.json");
+    let token_deployer = read_private_key::<TestSpec>("token_deployer_private_key.json");
     let credential_id_response = client
         .accounts_credential_ids_get_state_map_element(&token_deployer.address.to_string(), None)
         .await?;

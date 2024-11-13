@@ -5902,6 +5902,7 @@ dependencies = [
  "sov-blob-storage",
  "sov-capabilities",
  "sov-chain-state",
+ "sov-cli",
  "sov-db",
  "sov-kernels",
  "sov-ledger-apis",
@@ -5922,6 +5923,7 @@ dependencies = [
  "strum 0.26.3",
  "tempfile",
  "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 

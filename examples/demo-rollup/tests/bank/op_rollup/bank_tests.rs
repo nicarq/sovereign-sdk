@@ -1,8 +1,11 @@
 use serde::Deserialize;
 use sov_cli::NodeClient;
+use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
+use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -18,13 +21,14 @@ async fn bank_tx_tests() -> anyhow::Result<()> {
         finalization_blocks: 0,
     };
 
-    let test_rollup = TestRollup::create_test_rollup_in_memory_da(
-        get_appropriate_rollup_prover_config(),
-        BLOCK_PRODUCING_CONFIG,
-        test_case.finalization_blocks,
-        OperatingMode::Optimistic,
-    )
-    .await?;
+    let test_rollup =
+        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
+            get_appropriate_rollup_prover_config(),
+            BLOCK_PRODUCING_CONFIG,
+            test_case.finalization_blocks,
+            &test_genesis_paths(OperatingMode::Optimistic),
+        )
+        .await?;
 
     let sender = SequencerTxSender {};
 

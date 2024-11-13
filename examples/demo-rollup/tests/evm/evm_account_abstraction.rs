@@ -2,11 +2,12 @@ use demo_stf::runtime::RuntimeCall;
 use ethers_core::abi::Address;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
+use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, read_private_key};
 use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
-use crate::test_helpers::{get_appropriate_rollup_prover_config, read_private_keys, CHAIN_HASH};
+use crate::test_helpers::CHAIN_HASH;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_evm_account_abstraction() {
@@ -44,7 +45,7 @@ async fn send_insert_credentials(test_client: &TestClient, from_addr: Address, c
 
 fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<TestSpec> {
     let nonce = 0;
-    let key_and_address = read_private_keys::<TestSpec>("tx_signer_private_key.json");
+    let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
 
     let mut credentials = [0; 32];
