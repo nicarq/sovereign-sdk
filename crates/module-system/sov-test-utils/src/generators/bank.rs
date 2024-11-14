@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use sha2::Digest;
-use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId};
+use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId, MAX_AUTHORIZED_MINTERS};
 use sov_modules_api::transaction::PriorityFeeBips;
-use sov_modules_api::{CryptoSpec, PrivateKey as _, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey as _, SafeVec, Spec};
 
 use crate::generators::{Message, MessageGenerator};
 use crate::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
@@ -32,7 +32,7 @@ pub struct TokenCreateData<S: Spec> {
     /// The private key of the minter.
     pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     /// The authorized minters.
-    pub authorized_minters: Vec<S::Address>,
+    pub authorized_minters: SafeVec<S::Address, MAX_AUTHORIZED_MINTERS>,
 }
 
 impl<S: Spec> TokenCreateData<S> {
@@ -78,7 +78,9 @@ where
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             private_key.into(),
-            vec![minter],
+            vec![minter]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
             DEFAULT_INIT_BALANCE,
         )
     }
@@ -102,7 +104,7 @@ where
     pub fn generate_create_token(
         token_name: String,
         minter_pkey: Rc<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>,
-        authorized_minters: Vec<<S as Spec>::Address>,
+        authorized_minters: SafeVec<<S as Spec>::Address, MAX_AUTHORIZED_MINTERS>,
         initial_balance: u64,
     ) -> Self {
         Self {
@@ -150,7 +152,9 @@ where
             initial_balance: 1000,
             mint_to_address: minter.clone(),
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter.clone()]),
+            authorized_minters: Vec::from([minter.clone()])
+                .try_into()
+                .expect("Tokens can have at least one minter"),
         };
         Self {
             token_create_txs: Vec::from([create_data]),
@@ -169,7 +173,9 @@ where
         Self::generate_create_token(
             DEFAULT_TOKEN_NAME.to_owned(),
             Rc::new(minter_key),
-            vec![minter],
+            vec![minter]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
             DEFAULT_INIT_BALANCE,
         )
     }
@@ -187,7 +193,9 @@ impl BankMessageGenerator<TestSpec> {
             initial_balance: 1000,
             mint_to_address: minter,
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter]),
+            authorized_minters: Vec::from([minter])
+                .try_into()
+                .expect("Tokens can have at least one minter"),
         };
         Self {
             token_create_txs: Vec::from([token_create_data]),

@@ -245,7 +245,9 @@ fn setup(
         // Mint for everyone, including themselves.
         initial_balance: 0,
         mint_to_address: *token_deployer_address,
-        authorized_minters: vec![*token_deployer_address],
+        authorized_minters: vec![*token_deployer_address]
+            .try_into()
+            .expect("Tokens can have at least one minter"),
     };
     let mut deployer_nonce = 0;
     setup_txs.push(signed_bank_tx(msg, token_deployer_key, deployer_nonce));

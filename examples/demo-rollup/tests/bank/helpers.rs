@@ -5,7 +5,7 @@ use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_api::{PrivateKey, SafeVec, Spec};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_test_utils::test_rollup::read_private_key;
@@ -60,7 +60,7 @@ pub(crate) fn build_create_token_tx(
         token_name: TOKEN_NAME.try_into().unwrap(),
         initial_balance,
         mint_to_address: user_address,
-        authorized_minters: vec![],
+        authorized_minters: SafeVec::new(),
     });
     default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }
