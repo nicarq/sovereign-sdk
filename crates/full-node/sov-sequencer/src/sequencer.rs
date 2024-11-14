@@ -118,7 +118,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         ledger_db: LedgerDb,
         automatic_batch_production: bool,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    ) -> Self {
+    ) -> (Self, tokio::task::JoinHandle<anyhow::Result<()>>) {
         let (events_sender, _) = broadcast::channel(100);
 
         let api_state = batch_builder.api_state();
@@ -133,17 +133,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             automatic_batch_production,
         });
 
-        // TODO: Join this handle to proper stop.
-        tokio::spawn({
+        let background_handle = tokio::spawn({
             let inner = inner.clone();
-            async move {
-                sequencer_background_task::<Ss>(inner, ledger_db, shutdown_receiver)
-                    .await
-                    .ok();
-            }
+            async move { sequencer_background_task::<Ss>(inner, ledger_db, shutdown_receiver).await }
         });
 
-        Self { inner }
+        (Self { inner }, background_handle)
     }
 
     /// Returns a reference to the underlying [`SequencerDb`].

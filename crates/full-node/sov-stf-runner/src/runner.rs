@@ -59,6 +59,7 @@ where
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
     shutdown_receiver: watch::Receiver<()>,
+    secondary_shutdown_sender: watch::Sender<()>,
     background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
 }
 
@@ -266,12 +267,16 @@ where
             st_info_sender,
         );
 
-        let sync_fetcher = FinalizedBlocksBulkFetcher::new(
+        let (sync_fetcher, fetcher_background_handle) = FinalizedBlocksBulkFetcher::new(
             da_service.clone(),
             first_unprocessed_height_at_startup,
             runner_config.get_concurrent_sync_tasks(),
+            shutdown_receiver.clone(),
         )
         .await?;
+
+        let (secondary_shutdown_sender, mut secondary_shutdown_receiver) = watch::channel(());
+        secondary_shutdown_receiver.mark_unchanged();
 
         Ok(Self {
             first_unprocessed_height_at_startup,
@@ -288,7 +293,8 @@ where
             }),
             sync_fetcher,
             shutdown_receiver,
-            background_handles: Vec::new(),
+            secondary_shutdown_sender,
+            background_handles: vec![fetcher_background_handle],
         })
     }
 
@@ -306,7 +312,7 @@ where
             .await?;
         let rpc_address = server.local_addr()?;
 
-        let mut shutdown_receiver = self.shutdown_receiver.clone();
+        let mut shutdown_receiver = self.secondary_shutdown_sender.subscribe();
 
         self.background_handles.push(tokio::spawn(async move {
             info!(%rpc_address, "Starting RPC server");
@@ -336,7 +342,8 @@ where
     ) -> anyhow::Result<SocketAddr> {
         let listener = tokio::net::TcpListener::bind(self.listen_address_axum).await?;
         let rest_address = listener.local_addr()?;
-        let mut shutdown_receiver = self.shutdown_receiver.clone();
+
+        let mut shutdown_receiver = self.secondary_shutdown_sender.subscribe();
 
         self.background_handles.push(tokio::spawn(async move {
             info!(%rest_address, "Starting REST API server");
@@ -398,13 +405,9 @@ where
         let target_da_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state.update_target(target_da_height);
 
-        let (status_update_shutdown_sender, mut status_update_shutdown_receiver) =
-            tokio::sync::watch::channel(());
-        status_update_shutdown_receiver.mark_unchanged();
-
         let status_updater_handle = self.spawn_sync_status_updater(
             Duration::from_millis(self.da_polling_interval_ms),
-            status_update_shutdown_receiver,
+            self.shutdown_receiver.clone(),
         );
 
         let mut shutdown_receiver = self.shutdown_receiver.clone();
@@ -419,8 +422,8 @@ where
             }
         }
         info!("Shutting down runner...");
-        status_update_shutdown_sender.send(())?;
         status_updater_handle.await?;
+        self.secondary_shutdown_sender.send(())?;
         let background_handles = std::mem::take(&mut self.background_handles);
         for handle in background_handles {
             let _ = handle.await?;

@@ -142,7 +142,8 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         };
 
         let (_, storage_receiver) = watch::channel(stf_state);
-        let (shutdown_sender, shutdown_receiver) = watch::channel(());
+        let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
+        shutdown_receiver.mark_unchanged();
         let batch_builder = B::create(
             storage_receiver,
             da_sync_state,
@@ -154,7 +155,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         )
         .await?;
         let status_manager = batch_builder.tx_status_manager();
-        let sequencer = Sequencer::new(
+        let (sequencer, _) = Sequencer::new(
             batch_builder,
             da_service.clone(),
             status_manager,
