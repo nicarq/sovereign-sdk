@@ -1,5 +1,3 @@
-mod bank;
-
 mod basic;
 
 use rand::{RngCore, SeedableRng};

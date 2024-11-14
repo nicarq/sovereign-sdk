@@ -1,4 +1,3 @@
-use sov_bank::Coins;
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::{arbitrary, schemars, tokio};
 use sov_modules_api::transaction::TxDetails;
@@ -15,7 +14,7 @@ use sov_test_utils::{
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 use sov_transaction_generator::generators::bank::{
-    BankMessageGenerator, BankMessageGeneratorConfig, Tag,
+    BankMessageGenerator, BankMessageGeneratorConfig,
 };
 use sov_transaction_generator::generators::basic::{
     BasicCallMessageGenerator, BasicCallMessageGeneratorConfig, BasicChangelogEntry,
@@ -24,7 +23,7 @@ use sov_transaction_generator::generators::basic::{
 use sov_transaction_generator::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent,
 };
-use sov_transaction_generator::state::{AccountState, State};
+use sov_transaction_generator::state::State;
 
 use crate::{get_random_bytes, randomize_buffer};
 
@@ -55,10 +54,14 @@ pub struct TestGenerator {
     remaining_randomness: usize,
     target_buffer_size: usize,
     salt: u128,
+    initial_transaction: Option<GeneratorOutput>,
 }
 
 impl TestGenerator {
     pub fn generate(&mut self, validity: MessageValidity) -> GeneratorOutput {
+        if let Some(tx) = self.initial_transaction.take() {
+            return tx;
+        }
         for _ in 0..20 {
             if self.has_enough_randomness() {
                 let u =
@@ -96,11 +99,16 @@ impl TestGenerator {
 }
 
 // Run generation with the given params
-fn do_test(address_creation_rate: Percent, user: &TestUser<TestSpec>) -> TestGenerator {
+fn do_test(address_creation_rate: Percent) -> TestGenerator {
+    use sov_bank::CallMessageDiscriminants::*;
     let bank_config = BankMessageGeneratorConfig {
-        message_distribution: Distribution::with_equiprobable_values(
-            [sov_bank::CallMessageDiscriminants::Transfer; 5],
-        ), // Hack: Always generate a transfer!,
+        message_distribution: Distribution::with_equiprobable_values([
+            Transfer,
+            Transfer,
+            Transfer,
+            Mint,
+            CreateToken,
+        ]),
         address_creation_rate,
     };
     let bank_generator = BankMessageGenerator::<TestSpec>::from_config(bank_config.clone());
@@ -108,23 +116,21 @@ fn do_test(address_creation_rate: Percent, user: &TestUser<TestSpec>) -> TestGen
         module_distribution: Distribution::equiprobable(),
         bank: bank_config,
     };
-    let generator = Generator::new(config, bank_generator);
-    let mut account = AccountState::with_private_key(user.private_key().clone());
-    account.balances.push(Coins {
-        token_id: sov_bank::config_gas_token_id(),
-        amount: user.available_gas_balance,
-    });
+    let mut generator = Generator::new(config, bank_generator);
 
-    let state: State<TestSpec, Generator> =
-        State::with_account_and_tags(account, vec![Tag::HasBalance.into()]);
-    let random_bytes = get_random_bytes(100_000, 0);
+    let mut state: State<TestSpec, Generator> = State::new();
+    let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
+    let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
+    let initial_tx = generator.generate_initial_token(u, &mut state);
+    let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,
-        remaining_randomness: BUFFER_SIZE,
+        remaining_randomness,
         generator,
         state,
         target_buffer_size: BUFFER_SIZE,
         salt: 1,
+        initial_transaction: Some(initial_tx),
     }
 }
 
@@ -179,7 +185,7 @@ fn setup(user_balance: u64) -> Setup {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_successful_transaction_generation() {
     let setup = setup(1_000_000_000);
-    let mut generator = do_test(Percent::one_hundred(), &setup.user);
+    let mut generator = do_test(Percent::one_hundred());
 
     let mut runner = TestRunner::<RT, TestSpec>::new_with_genesis(
         setup.genesis_config.into_genesis_params(),
@@ -204,11 +210,10 @@ async fn test_successful_transaction_generation() {
                 chain_id: config_chain_id(),
             },
         };
-
         runner.execute_transaction::<sov_bank::Bank<TestSpec>>(TransactionTestCase {
             input: tx,
             assert: Box::new(move |result, _state| {
-                assert!(result.tx_receipt.is_successful());
+                assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);
             }),
         });
         generator

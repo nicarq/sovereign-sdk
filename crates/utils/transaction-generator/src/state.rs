@@ -5,12 +5,12 @@ use std::marker::PhantomData;
 use arbitrary::Arbitrary;
 use derivative::Derivative;
 use indexmap::{IndexMap, IndexSet};
-use sov_bank::{Coins, TokenId};
+use sov_bank::{config_gas_token_id, Amount, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 
-use super::generators::bank::BankAccount;
 use super::interface::{CallMessageGenerator, DefaultEmpty, GeneratorState, PickRandom, TagAction};
+use crate::interface::Taggable;
 
 /// The state of an account in the message generator.
 ///
@@ -49,7 +49,7 @@ impl<S: Spec, T: Default> AccountState<S, T> {
 /// are wrapped in an `Option` so that irrelevant fields can be ignored.
 #[derive(Clone, Debug, Derivative)]
 #[derivative(Default(bound = ""))]
-pub struct AccountStateView<S: Spec, T = ()> {
+pub struct AccountStateView<S: Spec, Tag, Data = ()> {
     /// The account's balances
     pub balances: Option<Vec<Coins>>,
     /// The set of known tokens which this account is allowed to mint
@@ -59,7 +59,24 @@ pub struct AccountStateView<S: Spec, T = ()> {
     /// The private key for this account
     pub private_key: Option<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
     /// Any additional state tracked by external modules
-    pub additional_info: Option<T>,
+    pub additional_info: Option<Data>,
+    /// The tag changes for this account.
+    pub tag_changes: Vec<TagAction<Tag>>,
+}
+
+impl<'a, S: Spec, Tag, Data: Clone> From<&'a AccountState<S, Data>>
+    for AccountStateView<S, Tag, Data>
+{
+    fn from(value: &'a AccountState<S, Data>) -> Self {
+        Self {
+            balances: Some(value.balances.clone()),
+            can_mint: Some(value.can_mint.clone()),
+            sequencing_bond: Some(value.sequencing_bond),
+            private_key: Some(value.private_key.clone()),
+            additional_info: Some(value.additional_info.clone()),
+            tag_changes: Vec::new(),
+        }
+    }
 }
 
 macro_rules! apply {
@@ -70,29 +87,19 @@ macro_rules! apply {
     };
 }
 
-impl<'a, S: Spec, T: Clone> From<&'a AccountState<S, T>> for AccountStateView<S, T> {
-    fn from(value: &'a AccountState<S, T>) -> Self {
-        Self {
-            balances: Some(value.balances.clone()),
-            can_mint: Some(value.can_mint.clone()),
-            sequencing_bond: Some(value.sequencing_bond),
-            private_key: Some(value.private_key.clone()),
-            additional_info: Some(value.additional_info.clone()),
-        }
-    }
-}
-
 // TODO: Handle the generic of AccountStateView being a type that implements
 // DefaultEmpty + ApplyTo<T> instead of literal T.
-impl<S: Spec, T> ApplyTo<AccountState<S, T>> for AccountStateView<S, T> {
-    fn apply_to(self, account: &mut AccountState<S, T>) {
+impl<S: Spec, Tag, Data> ApplyTo<AccountState<S, Data>> for AccountStateView<S, Tag, Data> {
+    fn apply_to(self, account: &mut AccountState<S, Data>) {
         let AccountStateView {
             balances,
             can_mint,
             sequencing_bond,
             private_key,
             additional_info,
+            tag_changes,
         } = self;
+        assert!(tag_changes.is_empty(), "When applying a view to global account state, tags must be handled separately to prevent data loss");
         apply!(balances  =>  account.balances);
         apply!(can_mint  =>  account.can_mint);
         apply!(sequencing_bond  =>  account.sequencing_bond);
@@ -101,56 +108,20 @@ impl<S: Spec, T> ApplyTo<AccountState<S, T>> for AccountStateView<S, T> {
     }
 }
 
-impl<S: Spec, T> DefaultEmpty for AccountStateView<S, T> {}
+impl<S: Spec, Tag, Data> DefaultEmpty for AccountStateView<S, Tag, Data> {}
 
-impl<S: Spec, T> From<&AccountState<S, T>> for BankAccount<S> {
-    fn from(value: &AccountState<S, T>) -> BankAccount<S> {
-        BankAccount {
-            private_key: value.private_key.clone(),
-            balances: value.balances.clone(),
-            can_mint: value.can_mint.clone(),
-        }
+impl<S: Spec, Tag, Data> Taggable for AccountStateView<S, Tag, Data> {
+    type Tag = Tag;
+    fn take_tags(&mut self) -> impl IntoIterator<Item = TagAction<Self::Tag>> {
+        std::mem::take(&mut self.tag_changes)
     }
-}
 
-impl<S: Spec, T> From<&AccountStateView<S, T>> for BankAccount<S> {
-    fn from(value: &AccountStateView<S, T>) -> BankAccount<S> {
-        BankAccount {
-            private_key: value
-                .private_key
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-            balances: value
-                .balances
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-            can_mint: value
-                .can_mint
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-        }
+    fn add_tag(&mut self, tag: Self::Tag) {
+        self.tag_changes.push(TagAction::Add(tag));
     }
-}
 
-impl<S: Spec, T> ApplyTo<AccountStateView<S, T>> for BankAccount<S> {
-    fn apply_to(self, account: &mut AccountStateView<S, T>) {
-        account.balances = Some(self.balances);
-        account.can_mint = Some(self.can_mint);
-    }
-}
-
-impl<S: Spec, T> ApplyTo<AccountState<S, T>> for BankAccount<S> {
-    fn apply_to(self, account: &mut AccountState<S, T>) {
-        assert_eq!(
-            account.private_key.pub_key(),
-            self.private_key.pub_key(),
-            "Applied to wrong account!"
-        );
-        account.balances = self.balances;
-        account.can_mint = self.can_mint;
+    fn remove_tag(&mut self, tag: Self::Tag) {
+        self.tag_changes.push(TagAction::Remove(tag));
     }
 }
 
@@ -160,11 +131,19 @@ pub trait ApplyTo<T> {
     fn apply_to(self, account: &mut T);
 }
 
+/// The token info needed for message generation
+#[derive(Debug, Clone)]
+pub struct TokenInfo {
+    /// The current supply of the token
+    pub total_supply: Amount,
+}
+
 /// A simple implementation of the [`GeneratorState`] trait. Tracks accounts by address
 /// and maintains a secondary index using the `tags` provided by the module.
 pub struct State<S: Spec, M: CallMessageGenerator<S>, T = ()> {
     accounts: IndexMap<S::Address, AccountState<S, T>>,
     tags: HashMap<M::Tag, IndexSet<S::Address>>,
+    tokens: IndexMap<TokenId, TokenInfo>,
     phantom_module: PhantomData<M>,
 }
 
@@ -173,6 +152,7 @@ impl<S: Spec, M: CallMessageGenerator<S>, T> Default for State<S, M, T> {
         Self {
             accounts: Default::default(),
             phantom_module: Default::default(),
+            tokens: Default::default(),
             tags: Default::default(),
         }
     }
@@ -184,12 +164,30 @@ impl<S: Spec, M: CallMessageGenerator<S>, T> State<S, M, T> {
         Self::default()
     }
 
-    /// Create a new state containing the provided account. Tags the account with the provided tags.
+    /// Create a new state containing the provided account. Tags the account with the provided tags
+    /// and intitializes the token_supply tracker for any relevant tokens. This method assumes that
+    /// the account holder is the *only* holder of any tokens. If that assumption is violated, message
+    /// generation may fail.
     pub fn with_account_and_tags(account: AccountState<S, T>, tags: Vec<M::Tag>) -> Self {
         let mut output = Self::default();
         let address: <S as Spec>::Address = (&account.private_key.pub_key()).into();
         for tag in tags {
             output.tags.entry(tag).or_default().insert(address.clone());
+        }
+        for balance in account.balances.iter() {
+            let duplicate = output.tokens.insert(
+                balance.token_id,
+                TokenInfo {
+                    total_supply: balance.amount,
+                },
+            );
+            if balance.token_id == config_gas_token_id() {
+                tracing::warn!("Using gas token for bank messsage generation. This can cause unexpected behavior because of gas payments!");
+            }
+            assert!(
+                duplicate.is_none(),
+                "Duplicate balances in initial account state"
+            );
         }
         output.accounts.insert(address, account);
 
@@ -199,7 +197,9 @@ impl<S: Spec, M: CallMessageGenerator<S>, T> State<S, M, T> {
 
 impl<S: Spec, M: CallMessageGenerator<S>, T: Default + 'static> GeneratorState<S> for State<S, M, T>
 where
-    for<'a> M::AccountView: From<&'a AccountState<S, T>> + ApplyTo<AccountState<S, T>>,
+    for<'a> M::AccountView: From<&'a AccountState<S, T>>
+        + ApplyTo<AccountState<S, T>>
+        + Taggable<Tag = <M as CallMessageGenerator<S>>::Tag>,
 {
     type AccountView = M::AccountView;
 
@@ -241,21 +241,8 @@ where
         }
     }
 
-    fn update_account(
-        &mut self,
-        address: S::Address,
-        view: Self::AccountView,
-        tags: Vec<TagAction<Self::Tag>>,
-    ) {
-        assert!(
-            self.accounts
-                .get_mut(&address)
-                .map(|account| view.apply_to(account))
-                .is_some(),
-            "Tried to update account that doesn't exist"
-        );
-
-        for action in tags {
+    fn update_account(&mut self, address: S::Address, mut view: Self::AccountView) {
+        for action in view.take_tags().into_iter() {
             match action {
                 TagAction::Add(tag) => {
                     self.tags.entry(tag).or_default().insert(address.clone());
@@ -265,6 +252,20 @@ where
                 }
             }
         }
+        assert!(
+            self.accounts
+                .get_mut(&address)
+                .map(|account| view.apply_to(account))
+                .is_some(),
+            "Tried to update account that doesn't exist"
+        );
+    }
+
+    fn has_tag(&mut self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool {
+        self.tags
+            .get(&tag.into())
+            .map(|tag_holders| tag_holders.contains(addr))
+            .unwrap_or(false)
     }
 
     fn generate_account(
@@ -278,5 +279,20 @@ where
         let view = (&account).into();
         self.accounts.insert(address.clone(), account);
         Ok((address, view))
+    }
+
+    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo> {
+        self.tokens.get(id).cloned()
+    }
+
+    fn update_token(&mut self, id: TokenId, info: TokenInfo) {
+        self.tokens.insert(id, info);
+    }
+
+    fn get_random_token(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<(TokenId, TokenInfo)> {
+        self.tokens.random_entry(u).map(|(k, v)| (*k, v.clone()))
     }
 }

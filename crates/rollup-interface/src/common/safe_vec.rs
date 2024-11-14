@@ -42,6 +42,21 @@ pub struct SafeVec<T, const MAX_SIZE: usize> {
     phantom: PhantomData<[(); MAX_SIZE]>,
 }
 
+#[cfg(feature = "arbitrary")]
+impl<'a, T: arbitrary::Arbitrary<'a>, const MAX_SIZE: usize> arbitrary::Arbitrary<'a>
+    for SafeVec<T, MAX_SIZE>
+{
+    fn arbitrary(u: &mut arbitrary::Unstructured<'a>) -> arbitrary::Result<Self> {
+        let len = std::cmp::min(u.arbitrary_len::<T>()?, MAX_SIZE);
+        let mut out =
+            SafeVec::try_with_capacity(len).expect("Length has been checked to be <= max size");
+        for _ in 0..len {
+            let _ = out.try_push(T::arbitrary(u)?);
+        }
+        Ok(out)
+    }
+}
+
 impl<T: SovSchemaGenerator, const MAX_SIZE: usize> OverrideSchema for SafeVec<T, MAX_SIZE> {
     type Output = Vec<T>;
 }
@@ -494,6 +509,11 @@ impl<T, const MAX_SIZE: usize> SafeVec<T, MAX_SIZE> {
             contents: Vec::new(),
             phantom: PhantomData,
         }
+    }
+
+    /// A convenince function to return the max size of a `SafeVec`
+    pub const fn max_size(&self) -> usize {
+        MAX_SIZE
     }
 
     /// Retains only the elements specified by the predicate.

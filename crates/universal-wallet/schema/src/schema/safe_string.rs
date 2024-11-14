@@ -42,6 +42,47 @@ impl<const MAX_LEN: usize> SizedSafeString<MAX_LEN> {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// A convenience method to get the maximum length of SafeString instance
+    pub const fn max_len(&self) -> usize {
+        MAX_LEN
+    }
+
+    /// Return an empty SafeString. This method does not allocate
+    pub const fn new() -> Self {
+        Self(String::new())
+    }
+
+    /// Returns the length (*not* capacity or max_length) of the string in bytes
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Returns true if the string is empty
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Appends the given `char`` to the end of this `SizedSafeString` if possible.
+    pub fn try_push(&mut self, c: char) -> Result<(), SchemaStringError> {
+        if self.len() >= MAX_LEN {
+            return Err(SchemaStringError::StringTooLong {
+                length: self.len() + 1,
+                max: MAX_LEN,
+            });
+        }
+
+        if !Self::is_valid_char(c) {
+            return Err(SchemaStringError::InvalidCharacter { character: c });
+        }
+        self.0.push(c);
+        Ok(())
+    }
+
+    /// Returns true if the character is a valid member of `SizedSafeString`
+    pub const fn is_valid_char(c: char) -> bool {
+        c.is_ascii() && !c.is_ascii_control()
+    }
 }
 
 impl<const MAX_LEN: usize> TryFrom<String> for SizedSafeString<MAX_LEN> {
@@ -54,10 +95,7 @@ impl<const MAX_LEN: usize> TryFrom<String> for SizedSafeString<MAX_LEN> {
                 max: MAX_LEN,
             });
         }
-        if let Some(invalid_c) = value
-            .chars()
-            .find(|c| !c.is_ascii() || c.is_ascii_control())
-        {
+        if let Some(invalid_c) = value.chars().find(|c| !Self::is_valid_char(*c)) {
             return Err(SchemaStringError::InvalidCharacter {
                 character: invalid_c,
             });

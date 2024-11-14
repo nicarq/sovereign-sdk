@@ -6,7 +6,7 @@ use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, InternalMessageGenError,
     InternalMessageGenResult, Tag,
 };
-use crate::interface::{GeneratedMessage, GeneratorState, MessageValidity, TagAction};
+use crate::interface::{GeneratedMessage, GeneratorState, MessageValidity};
 use crate::repeatedly;
 
 impl<S: Spec> BankMessageGenerator<S> {
@@ -82,23 +82,10 @@ impl<S: Spec> BankMessageGenerator<S> {
 
         // Otherwise, account for the balance changes
         let receiver_balance = to_account.increment_balance(coins_to_send.clone());
-        from_balance.amount -= balance_to_send;
-        let remaining_from_balance = from_balance.amount;
-        let mut from_tags = vec![];
-        if remaining_from_balance == 0 {
-            from_account.remove_token(token_id);
-            if from_account.balances.is_empty() {
-                from_tags.push(TagAction::Remove(Tag::HasBalance.into()));
-            }
-        }
-
+        let remaining_from_balance = from_account.decrement_balance(coins_to_send.clone());
         // Save back the modified state and compute the changelog
-        generator_state.update_account(
-            to_addr.clone(),
-            to_account,
-            vec![TagAction::Add(Tag::HasBalance.into())],
-        );
-        generator_state.update_account(from_addr.clone(), from_account, from_tags);
+        generator_state.update_account(to_addr.clone(), to_account);
+        generator_state.update_account(from_addr.clone(), from_account);
         let changelog_entries = vec![
             BankChangeLogEntry::balance_changed(
                 from_addr.clone(),

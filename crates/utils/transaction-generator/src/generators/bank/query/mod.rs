@@ -8,4 +8,6 @@ use sov_modules_api::Spec;
 pub trait BankClient<S: Spec> {
     /// Gets the user's balance of the given TokenId
     async fn get_balance(&self, user: &S::Address, token: TokenId) -> sov_bank::Amount;
+    /// Gets the total supply of the given TokenId
+    async fn get_total_supply(&self, token: &TokenId) -> sov_bank::Amount;
 }

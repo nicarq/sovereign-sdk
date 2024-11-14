@@ -3,22 +3,23 @@ use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use indexmap::IndexSet;
-use sov_bank::{CallMessage, CallMessageDiscriminants, Coins, TokenId};
+use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::prelude::{arbitrary, tokio};
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::Spec;
 use strum::VariantArray;
 use tracing::warn;
 mod mint;
 mod query;
 pub use query::http::HttpBankClient;
 pub use query::BankClient;
+mod account;
+mod create_token;
 mod transfer;
+pub use account::BankAccount;
 
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, MessageValidity, Percent,
-    PickRandomMut,
 };
 
 /// The call message discriminants used by the `Bank` module
@@ -30,7 +31,7 @@ pub struct BankMessageGenerator<S> {
     message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
     // The fraction of valid messages that should create a new address. This may be
     // any valid percent from 0 to 100 (inclusive).
-    address_creation_rate: Percent,
+    pub(crate) address_creation_rate: Percent,
     phantom: PhantomData<S>,
 }
 
@@ -68,7 +69,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         &self,
         message_type: CallMessageDiscriminants,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
         validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         match message_type {
@@ -83,6 +84,10 @@ impl<S: Spec> BankMessageGenerator<S> {
                             "Failed to generate transfer: {:?}. Generating mint instead",
                             e
                         );
+                        assert!(
+                            validity.is_valid(),
+                            "Failed to generate an invalid transfer message. This should be unreachable, since generating *invalid* transfers is possible regardless of the rollup state."
+                        );
                         self.do_generation_with_fallback(
                             CallMessageDiscriminants::Mint,
                             u,
@@ -92,10 +97,30 @@ impl<S: Spec> BankMessageGenerator<S> {
                     }
                 }
             }
-            CallMessageDiscriminants::CreateToken => todo!(),
+            CallMessageDiscriminants::CreateToken => {
+                match self
+                    .generate_create_token(u, generator_state, validity)
+                    .try_to_arbitrary()
+                {
+                    Ok(create_result) => Ok(create_result?),
+                    Err(e) => {
+                        warn!("Failed to generate create token: {:?}", e);
+                        assert!(
+                            validity.is_invalid(),
+                            "Valid token creation message gen is infallible"
+                        );
+                        // Fall back to generating an *invalid* transfer, which is always possible
+                        self.do_generation_with_fallback(
+                            CallMessageDiscriminants::Transfer,
+                            u,
+                            generator_state,
+                            validity,
+                        )
+                    }
+                }
+            }
             CallMessageDiscriminants::Burn => todo!(),
             CallMessageDiscriminants::Mint => {
-                // TODO: Mint should fall back to create token
                 match self
                     .generate_mint(u, generator_state, validity)
                     .try_to_arbitrary()
@@ -103,7 +128,12 @@ impl<S: Spec> BankMessageGenerator<S> {
                     Ok(transfer_result) => Ok(transfer_result?),
                     Err(e) => {
                         warn!("Failed to generate mint: {:?}", e);
-                        todo!("Generate create token");
+                        self.do_generation_with_fallback(
+                            CallMessageDiscriminants::CreateToken,
+                            u,
+                            generator_state,
+                            validity,
+                        )
                     }
                 }
             }
@@ -122,7 +152,14 @@ pub enum BankChangeLogEntry<S: Spec> {
         /// The balance after the change
         coins: Coins,
     },
-    // More variants will be added in coming PRs.
+
+    /// The supply of a token changed
+    SupplyChanged {
+        #[allow(missing_docs)]
+        token_id: TokenId,
+        /// The total supply after the change
+        total_supply: Amount,
+    },
 }
 
 impl<S: Spec> BankChangeLogEntry<S> {
@@ -134,6 +171,14 @@ impl<S: Spec> BankChangeLogEntry<S> {
                 amount: new_balance,
                 token_id,
             },
+        }
+    }
+
+    /// Creates a [`BankChangeLogEntry::SupplyChanged`] and returns it
+    pub fn supply_changed(token_id: TokenId, total_supply: Amount) -> Self {
+        Self::SupplyChanged {
+            token_id,
+            total_supply,
         }
     }
 }
@@ -185,6 +230,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         // Since newer changes will stomp older ones, we need to remember
         // which keys we've already checked.
         let mut checked_balances = HashSet::new();
+        let mut checked_supplies = HashSet::new();
         let mut joinset = tokio::task::JoinSet::new();
         let accessor = Arc::new(rollup_state_accessor);
         for change in changes.into_iter().rev() {
@@ -207,10 +253,28 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
                         });
                     }
                 }
+                BankChangeLogEntry::SupplyChanged {
+                    token_id,
+                    total_supply,
+                } => {
+                    // HashSet::insert returns whether the value was newly inserted
+                    if !checked_supplies.insert(token_id) {
+                        continue;
+                    }
+                    let accessor = accessor.clone();
+                    joinset.spawn(async move {
+                        let found_supply = accessor.get_total_supply(&token_id).await;
+                        assert_eq!(
+                            found_supply, total_supply,
+                            "Unexpected total supply of {}",
+                            token_id,
+                        );
+                    });
+                }
             }
         }
         while let Some(result) = joinset.join_next().await {
-            result?; // First ? for JoinError, second for the inner Result
+            result?;
         }
 
         Ok(())
@@ -224,116 +288,15 @@ pub enum Tag {
     HasBalance,
     /// Accounts which are allowed to mint some token.
     CanMint,
-}
-/// The view of an account used by the bank message generator
-#[derive(Clone, Debug)]
-pub struct BankAccount<S: Spec> {
-    /// The account's private key
-    pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-    /// All tokens of which the account has a non-zero balance
-    pub balances: Vec<Coins>,
-    /// The set of tokens that the account is allowed to mint
-    pub can_mint: IndexSet<TokenId>,
-}
-
-impl<S: Spec> BankAccount<S> {
-    /// Increments the balance in place. Returns a copy of the new balance.
-    pub fn increment_balance(&mut self, coins: Coins) -> u64 {
-        let Coins { amount, token_id } = coins;
-        let balance = self.find_or_insert(token_id);
-        balance.amount += amount;
-        balance.amount
-    }
-
-    /// Find the balance of the given token
-    pub fn balance_of(&self, token_id: TokenId) -> u64 {
-        self.balances
-            .iter()
-            .find(|balance| balance.token_id == token_id)
-            .map(|coins| coins.amount)
-            .unwrap_or(0)
-    }
-
-    /// The maximum amount of the given token that can be received without overflowing
-    pub fn receivable_balance(&self, token_id: TokenId) -> u64 {
-        self.balances
-            .iter()
-            .find(|balance| balance.token_id == token_id)
-            .map(|coins| u64::MAX - coins.amount)
-            .unwrap_or(u64::MAX)
-    }
-
-    /// Decrements the old balance in place, removing the entry if the balance is drained. Returns a copy of the new balance
-    pub fn decrement_balance(&mut self, coins: Coins) -> u64 {
-        let Coins { amount, token_id } = coins;
-        let existing = self.find_or_insert(token_id);
-        assert!(
-            existing.amount >= amount,
-            "Tried to subtract more than the existing balance. This is a bug in the generator."
-        );
-        existing.amount -= amount;
-        let remaining = existing.amount;
-        // If there's no more balance of this coin, remove it from the balances list
-        if remaining == 0 {
-            self.remove_token(coins.token_id);
-        }
-
-        remaining
-    }
-
-    /// Removes a token from the balances list by ID
-    pub fn remove_token(&mut self, token_id: TokenId) {
-        let index = self
-            .balances
-            .iter()
-            .position(|balance| balance.token_id == token_id)
-            .unwrap();
-        self.balances.remove(index);
-    }
-
-    /// Picks a balance at random from the balances list, if possible.
-    pub fn pick_random_balance(
-        &mut self,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<Option<&mut Coins>> {
-        if self.balances.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(self.balances.random_entry_mut(u)?))
-    }
-
-    /// Return a reference to the balances entry for the given token, creating one
-    /// with zero balance if necessary. Callers should be careful to delete the entry
-    /// if they don't update the balance.
-    fn find_or_insert(&mut self, token_id: TokenId) -> &mut Coins {
-        // We use a somewhat convoluted method to get the correct balance by index here because the borrow checker
-        // couldn't infer the correct lifetimes if we used iter_mut.
-        let Some((idx, _)) = self
-            .balances
-            .iter()
-            .enumerate()
-            .find(|balance| balance.1.token_id == token_id)
-        else {
-            self.balances.push(Coins {
-                amount: 0,
-                token_id,
-            });
-            return self
-                .balances
-                .last_mut()
-                .expect("Balances cannot be empty because we just appended an entry.");
-        };
-
-        return self
-            .balances
-            .get_mut(idx)
-            .expect("We just checked that the entry was present.");
-    }
+    /// Accounts which are allowed to mint some particular token.
+    CanMintById(TokenId),
+    /// Accounts which have created a token.
+    HasCreatedToken,
 }
 
 /// An error generated during message generation
 #[derive(thiserror::Error, Debug)]
-enum InternalMessageGenError {
+pub(crate) enum InternalMessageGenError {
     #[error(transparent)]
     Arbitrary(#[from] arbitrary::Error),
     /// A transfer could not be generated because no account with sufficient balance was found.
@@ -343,13 +306,17 @@ enum InternalMessageGenError {
     NoAccountWithBalance,
     /// An invalid mint could not be generated because no account without appropriate permissions could be found
     #[error("Could not find an account that is *not* authorized to mint")]
-    NoNonMintingAccounts,
+    NonMintingAccountNotFound,
     /// A mint could not be generated because no account without appropriate permissions could be found
     #[error("Could not find an account that is authorized to mint")]
     NoMintingAccounts,
     /// A mint could not be generated because no account could receive the token
     #[error("Could not find an account can receive {0}")]
     NoAccountsCanReceive(Coins),
+    /// A create token can only fail if the account has already created a token with the same name,
+    /// so generating an invalid `create_token` can fail in this case
+    #[error("Could not find an account that has created a token")]
+    NoAccountsHaveCreatedTokensYet,
 }
 
 type InternalMessageGenResult<T, E = InternalMessageGenError> = Result<T, E>;
