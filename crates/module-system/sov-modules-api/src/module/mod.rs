@@ -21,10 +21,6 @@ pub use gas_spec::*;
 pub use prefix::*;
 pub use spec::*;
 
-/// Response type for the `Module::call` method.
-#[derive(Default, Debug)]
-pub struct CallResponse {}
-
 /// The core trait implemented by all modules. This trait defines how a module is initialized at genesis,
 /// and how it handles user transactions (if applicable).
 pub trait Module {
@@ -58,7 +54,7 @@ pub trait Module {
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<Self::Spec>,
-    ) -> Result<CallResponse, ModuleError>;
+    ) -> Result<(), ModuleError>;
 
     /// Attempts to charge the provided amount of gas from the working set.
     ///

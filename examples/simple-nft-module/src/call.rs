@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use schemars::JsonSchema;
-use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, StateAccessor, TxState};
+use sov_modules_api::{Context, EventEmitter, Spec, StateAccessor, TxState};
 
 use crate::{Event, NonFungibleToken};
 
@@ -42,7 +42,7 @@ impl<S: Spec> NonFungibleToken<S> {
         id: u64,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         if self.owners.get(&id, state)?.is_some() {
             bail!("Token with id {} already exists", id);
         }
@@ -50,7 +50,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.give_nft(context.sender(), id, state)?;
         self.emit_event(state, Event::Mint { id });
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn transfer(
@@ -59,7 +59,7 @@ impl<S: Spec> NonFungibleToken<S> {
         to: S::Address,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let Some(token_owner) = self.owners.get(&id, state)? else {
             bail!("Token with id {} does not exist", id);
         };
@@ -71,7 +71,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.give_nft(&to, id, state)?;
         self.emit_event(state, Event::Transfer { id });
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn burn(
@@ -79,7 +79,7 @@ impl<S: Spec> NonFungibleToken<S> {
         id: u64,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let Some(token_owner) = self.owners.get(&id, state)? else {
             bail!("Token with id {} does not exist", id);
         };
@@ -90,7 +90,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.remove_nft(id, state)?;
         self.emit_event(state, Event::Burn { id });
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn give_nft(

@@ -13,8 +13,8 @@ use sov_bank::ReserveGasError;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor,
-    InnerEnumVariant, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
+    Context, DaSpec, Error, Gas, GenesisState, InfallibleStateAccessor, InnerEnumVariant, Module,
+    ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap, TxState,
 };
 use sov_state::BcsCodec;
 
@@ -93,7 +93,7 @@ impl<S: Spec> Module for Paymaster<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         match msg {
             CallMessage::RegisterPaymaster { policy } => {
                 self.register_paymaster(policy, context, state)?;
@@ -105,7 +105,7 @@ impl<S: Spec> Module for Paymaster<S> {
                 self.update_policy_if_authorized(update, context, &payer, state)?;
             }
         }
-        Ok(CallResponse::default())
+        Ok(())
     }
 }
 

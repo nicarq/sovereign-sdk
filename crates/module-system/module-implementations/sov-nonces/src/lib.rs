@@ -2,7 +2,7 @@
 #![doc = include_str!("../README.md")]
 mod capabilities;
 use sov_modules_api::{
-    CallResponse, Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, NotInstantiable, Spec, StateMap, StateReader, TxState,
 };
 use sov_state::User;
@@ -57,7 +57,7 @@ impl<S: Spec> Module for Nonces<S> {
         _msg: Self::CallMessage,
         _context: &Context<S>,
         _state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         unreachable!()
     }
 }

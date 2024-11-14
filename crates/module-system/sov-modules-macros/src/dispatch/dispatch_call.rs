@@ -97,7 +97,7 @@ impl<'a> StructDef<'a> {
                     decodable: Self::Decodable,
                     state: &mut ::sov_modules_api::WorkingSet<Self::Spec, I>,
                     context: &::sov_modules_api::Context<Self::Spec>,
-                ) -> ::core::result::Result<::sov_modules_api::CallResponse, ::sov_modules_api::Error> {
+                ) -> ::core::result::Result<(), ::sov_modules_api::Error> {
                     ::sov_modules_api::prelude::tracing::debug!("Dispatching call: {:?}", decodable);
 
                     match decodable {

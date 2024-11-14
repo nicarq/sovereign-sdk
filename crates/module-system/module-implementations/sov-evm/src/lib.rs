@@ -31,9 +31,9 @@ pub use reth_primitives::Address as EvmAddress;
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
-    AccessoryStateVec, CallResponse, Context, DaSpec, Error, GenesisState,
-    InfallibleStateReaderAndWriter, Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap,
-    StateReader, StateValue, StateVec, TxState, UnmeteredStateWrapper,
+    AccessoryStateVec, Context, DaSpec, Error, GenesisState, InfallibleStateReaderAndWriter,
+    Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, StateVec,
+    TxState, UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -146,7 +146,7 @@ impl<S: Spec> Module for Evm<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         Ok(self.execute_call(msg, context, state)?)
     }
 }

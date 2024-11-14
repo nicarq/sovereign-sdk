@@ -11,8 +11,8 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, TxState,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    TxState,
 };
 mod event;
 pub use crate::event::Event;
@@ -58,7 +58,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         let call_result = match msg {
             CallMessage::Mint { id } => self.mint(id, context, state),
             CallMessage::Transfer { to, id } => self.transfer(id, to, context, state),

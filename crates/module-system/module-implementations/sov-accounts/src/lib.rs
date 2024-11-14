@@ -15,7 +15,7 @@ mod event;
 mod tests;
 pub use call::CallMessage;
 use sov_modules_api::{
-    CallResponse, Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
+    Context, CredentialId, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateMap, TxState,
 };
 
@@ -78,7 +78,7 @@ impl<S: Spec> Module for Accounts<S> {
         msg: Self::CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         match msg {
             call::CallMessage::InsertCredentialId(new_credential_id) => {
                 Ok(self.insert_credential_id(new_credential_id, context, state)?)

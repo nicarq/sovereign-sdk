@@ -3,9 +3,9 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, ApiStateAccessor, CallResponse, Context, DaSpec, DispatchCall, EncodeCall, Error,
-    ExecutionContext, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
-    StateValue, TxState,
+    Address, ApiStateAccessor, Context, DaSpec, DispatchCall, EncodeCall, Error, ExecutionContext,
+    Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue,
+    TxState,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -73,11 +73,11 @@ pub mod my_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<(), Error> {
             self.data
                 .set(&msg, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;
-            Ok(CallResponse::default())
+            Ok(())
         }
     }
 
@@ -155,7 +155,7 @@ fn associated_types() {
         ExecutionContext::Node,
     );
 
-    let _ = runtime
+    runtime
         .dispatch_call(module, &mut working_set, &context)
         .unwrap();
 }

@@ -2,8 +2,8 @@ use sov_chain_state::ChainState;
 use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, CallResponse, Context,
-    DaSpec, GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
+    AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, Context, DaSpec,
+    GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
     StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
@@ -57,8 +57,8 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, ModuleError> {
-        Ok(Default::default())
+    ) -> Result<(), ModuleError> {
+        Ok(())
     }
 }
 

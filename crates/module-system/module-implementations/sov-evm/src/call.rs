@@ -4,7 +4,7 @@ use reth_primitives::revm_primitives::{
 use reth_primitives::{Log as RethLog, TransactionSigned};
 #[cfg(feature = "native")]
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, Spec, TxState};
+use sov_modules_api::{Context, Spec, TxState};
 
 use crate::conversions::convert_to_transaction_signed;
 use crate::evm::db::EvmDb;
@@ -36,7 +36,7 @@ impl<S: Spec> Evm<S> {
         message: CallMessage,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse> {
+    ) -> anyhow::Result<()> {
         // Check if the tx went through the EVM authenticator.
         let signer = *context
             .get_sender_credential::<Address>()
@@ -100,7 +100,7 @@ impl<S: Spec> Evm<S> {
                 return match err {
                     EVMError::Transaction(_) => {
                         // This is a transactional error, so we can skip it without doing anything.
-                        Ok(CallResponse::default())
+                        Ok(())
                     }
                     err => {
                         // This is a fatal error, so we need to return it.
@@ -122,7 +122,7 @@ impl<S: Spec> Evm<S> {
         self.pending_transactions
             .push(&pending_transaction, state)?;
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 }
 

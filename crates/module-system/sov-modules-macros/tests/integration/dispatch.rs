@@ -2,9 +2,8 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
-    Address, CallResponse, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
-    ExecutionContext, Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState,
-    WorkingSet,
+    Address, Context, DaSpec, DispatchCall, EncodeCall, Error, Event, ExecutionContext, Genesis,
+    MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
@@ -76,11 +75,11 @@ pub mod first_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<(), Error> {
             self.state_in_first_struct
                 .set(&msg, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;
-            Ok(CallResponse::default())
+            Ok(())
         }
     }
 }
@@ -149,11 +148,11 @@ pub mod second_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<(), Error> {
             self.state_in_second_struct
                 .set(&msg, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;
-            Ok(CallResponse::default())
+            Ok(())
         }
     }
 }
@@ -236,11 +235,11 @@ pub mod third_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<CallResponse, Error> {
+        ) -> Result<(), Error> {
             self.state_in_third_struct
                 .set(&msg, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;
-            Ok(CallResponse::default())
+            Ok(())
         }
     }
 }
@@ -409,7 +408,7 @@ mod derive_dispatch {
             let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
 
             assert_eq!(runtime.module_id(&module), runtime.first.id());
-            let _ = runtime
+            runtime
                 .dispatch_call(module, &mut working_set, &context)
                 .unwrap();
         }
@@ -432,7 +431,7 @@ mod derive_dispatch {
 
             assert_eq!(runtime.module_id(&module), runtime.second.id());
 
-            let _ = runtime
+            runtime
                 .dispatch_call(module, &mut working_set, &context)
                 .unwrap();
         }

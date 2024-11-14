@@ -89,7 +89,7 @@ mod helpers {
     use demo_stf::runtime::{Runtime, RuntimeCall};
     use sov_cli::wallet_state::PrivateKeyAndAddress;
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::Runtime as RuntimeTrait;
+    use sov_modules_api::{Runtime as RuntimeTrait, SafeVec};
     use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
     const TOKEN_NAME: &str = "TestToken";
@@ -122,7 +122,7 @@ mod helpers {
             token_name: TOKEN_NAME.try_into().unwrap(),
             initial_balance,
             mint_to_address: user_address,
-            authorized_minters: vec![],
+            authorized_minters: SafeVec::new(),
         });
 
         default_test_signed_transaction(key, &msg, nonce, &Runtime::<TestSpec>::CHAIN_HASH)

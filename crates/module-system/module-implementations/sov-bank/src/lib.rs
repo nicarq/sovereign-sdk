@@ -19,8 +19,8 @@ pub use call::*;
 pub use genesis::*;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, TxState,
+    Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, TxState,
 };
 use token::Token;
 /// Specifies an interface to interact with tokens.
@@ -101,7 +101,7 @@ impl<S: Spec> Module for Bank<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         match msg {
             call::CallMessage::CreateToken {
                 token_name,
@@ -124,7 +124,7 @@ impl<S: Spec> Module for Bank<S> {
                     context.sender(),
                     state,
                 )?;
-                Ok(CallResponse::default())
+                Ok(())
             }
 
             call::CallMessage::Transfer { to, coins } => {
@@ -143,7 +143,7 @@ impl<S: Spec> Module for Bank<S> {
             } => {
                 self.charge_gas(state, &self.gas.mint)?;
                 self.mint_from_eoa(&coins, &mint_to_address, context, state)?;
-                Ok(CallResponse::default())
+                Ok(())
             }
 
             call::CallMessage::Freeze { token_id } => {

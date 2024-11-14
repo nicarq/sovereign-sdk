@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, EventEmitter, Spec, TxState};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -50,7 +50,7 @@ impl<S: Spec> ValueSetter<S> {
         new_value: u32,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         // If admin is not then early return:
         let admin = self.admin.get_or_err(state)??;
 
@@ -64,7 +64,7 @@ impl<S: Spec> ValueSetter<S> {
 
         self.emit_event(state, Event::NewValue(new_value));
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn set_values(
@@ -72,7 +72,7 @@ impl<S: Spec> ValueSetter<S> {
         new_value: Vec<u8>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let admin = self.admin.get_or_err(state)??;
 
         if &admin != context.sender() {
@@ -82,6 +82,6 @@ impl<S: Spec> ValueSetter<S> {
 
         // This is how we set a new value:
         self.many_values.set_all(new_value, state)?;
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

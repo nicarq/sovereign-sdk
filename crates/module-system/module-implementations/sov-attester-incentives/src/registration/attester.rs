@@ -1,7 +1,7 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, EventEmitter, Spec, TxState};
 
 use super::{AttesterRegistryError, CustomError, Staker};
 use crate::{AttesterIncentives, Event, UnbondingInfo};
@@ -15,7 +15,7 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
+    ) -> Result<(), AttesterRegistryError<S, ST>> {
         if self.unbonding_attesters.get(user_address, state)?.is_some() {
             return Err(RegistrationError::Custom(CustomError::AttesterIsUnbonding(
                 user_address.clone(),
@@ -29,7 +29,7 @@ where
         };
 
         self.emit_event(state, event);
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn deposit_attester<ST: TxState<S>>(
@@ -37,7 +37,7 @@ where
         amount: u64,
         attester_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
+    ) -> Result<(), AttesterRegistryError<S, ST>> {
         if self
             .unbonding_attesters
             .get(attester_address, state)?
@@ -51,7 +51,7 @@ where
         let attester = Staker::new_attester(self);
         attester.deposit_funds(attester_address, amount, state)?;
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// The attester starts the first phase of the two-phase unbonding.
@@ -62,7 +62,7 @@ where
         &self,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
+    ) -> Result<(), AttesterRegistryError<S, ST>> {
         // First get the bonded attester
         if let Some(bond) = self.bonded_attesters.get(context.sender(), state)? {
             let finalized_height = self
@@ -84,14 +84,14 @@ where
             )?;
         }
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn exit_attester<ST: TxState<S>>(
         &self,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
+    ) -> Result<(), AttesterRegistryError<S, ST>> {
         // We have to ensure that the attester is unbonding, and that the unbonding transaction
         // occurred at least `finality_period` blocks ago to let the attester unbond
         if let Some(unbonding_info) = self.unbonding_attesters.get(context.sender(), state)? {
@@ -142,6 +142,6 @@ where
                 CustomError::AttesterIsNotUnbonding(context.sender().clone()),
             ));
         }
-        Ok(CallResponse::default())
+        Ok(())
     }
 }
