@@ -16,8 +16,8 @@ mod query;
 #[cfg(feature = "native")]
 pub use query::*;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, TxState,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, TxState,
 };
 mod event;
 mod offchain;
@@ -68,7 +68,7 @@ impl<S: Spec> Module for NonFungibleToken<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         let call_result = match msg {
             CallMessage::CreateCollection {
                 name,

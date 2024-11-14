@@ -21,9 +21,8 @@ use sov_modules_api::capabilities::AllowedSequencer;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
 use sov_modules_api::{
-    BasicAddress, CallResponse, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor,
-    Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader,
-    StateValue, TxState,
+    BasicAddress, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -135,8 +134,8 @@ impl<S: Spec> Module for SequencerRegistry<S> {
         message: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
-        Ok(match message {
+    ) -> Result<(), Error> {
+        match message {
             CallMessage::Register { da_address, amount } => self
                 .register(&da_address, amount, context, state)
                 .map_err(|e| Error::ModuleError(e.into()))?,
@@ -146,7 +145,8 @@ impl<S: Spec> Module for SequencerRegistry<S> {
             CallMessage::Exit { da_address } => self
                 .exit(&da_address, context, state)
                 .map_err(|e| Error::ModuleError(e.into()))?,
-        })
+        }
+        Ok(())
     }
 }
 

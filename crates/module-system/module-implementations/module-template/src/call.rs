@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, EventEmitter, Spec, TxState};
 
 use crate::event::Event;
 use crate::ExampleModule;
@@ -39,10 +39,10 @@ impl<S: Spec> ExampleModule<S> {
         new_value: u32,
         _context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         self.value.set(&new_value, state)?;
         self.emit_event(state, Event::Set { value: new_value });
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use sov_bank::BurnRate;
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, EventEmitter, Spec, StateAccessor, StateReader, TxState};
+use sov_modules_api::{EventEmitter, Spec, StateAccessor, StateReader, TxState};
 use sov_state::User;
 use thiserror::Error;
 
@@ -59,7 +59,7 @@ impl<S: Spec> ProverIncentives<S> {
         bond_amount: u64,
         prover_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
+    ) -> Result<(), ProverRegistryError<S, ST>> {
         self.register_staker(prover_address, prover_address, bond_amount, state)?;
         self.emit_event(
             state,
@@ -69,7 +69,7 @@ impl<S: Spec> ProverIncentives<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Increases the balance of the provided sender, updating the state of the bonded provers.
@@ -78,7 +78,7 @@ impl<S: Spec> ProverIncentives<S> {
         amount: u64,
         prover_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
+    ) -> Result<(), ProverRegistryError<S, ST>> {
         self.deposit_funds(prover_address, amount, state)?;
         self.emit_event(
             state,
@@ -88,7 +88,7 @@ impl<S: Spec> ProverIncentives<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
@@ -96,7 +96,7 @@ impl<S: Spec> ProverIncentives<S> {
         &self,
         prover_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, ProverRegistryError<S, ST>> {
+    ) -> Result<(), ProverRegistryError<S, ST>> {
         let amount_withdrawn = self.exit_staker(prover_address, state)?;
 
         self.emit_event(
@@ -107,6 +107,6 @@ impl<S: Spec> ProverIncentives<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

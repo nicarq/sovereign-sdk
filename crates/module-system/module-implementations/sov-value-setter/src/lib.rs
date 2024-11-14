@@ -8,8 +8,8 @@ pub use call::*;
 pub use event::Event;
 pub use genesis::*;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateValue, StateVec, TxState,
+    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateValue, StateVec, TxState,
 };
 
 /// A new module:
@@ -61,7 +61,7 @@ impl<S: Spec> Module for ValueSetter<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         match msg {
             call::CallMessage::SetValue(new_value) => {
                 Ok(self.set_value(new_value, context, state)?)

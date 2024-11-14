@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, CredentialId, Spec, StateReader, TxState};
+use sov_modules_api::{Context, CredentialId, Spec, StateReader, TxState};
 use sov_state::namespaces::User;
 
 use crate::{Account, Accounts};
@@ -33,7 +33,7 @@ impl<S: Spec> Accounts<S> {
         new_credential_id: CredentialId,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         self.exit_if_account_exists(&new_credential_id, state)?;
 
         // Insert the new credential id.
@@ -52,7 +52,7 @@ impl<S: Spec> Accounts<S> {
         self.credential_ids
             .set(context.sender(), &credential_ids, state)?;
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     fn exit_if_account_exists(

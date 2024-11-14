@@ -12,8 +12,8 @@ use sov_bank::Amount;
 use sov_modules_api::hooks::TransitionHeight;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    CallResponse, Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, StateReader, StateValue, TxState,
+    Context, DaSpec, Error, Gas, GenesisState, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    StateReader, StateValue, TxState,
 };
 use sov_state::User;
 
@@ -86,7 +86,7 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, Error> {
+    ) -> Result<(), Error> {
         if !self.should_reward_fees(state) {
             return Err(anyhow::anyhow!(
                 "Prover incentives call message received when operating in optimistic mode"

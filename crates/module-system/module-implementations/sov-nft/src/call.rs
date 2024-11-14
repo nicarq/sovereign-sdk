@@ -1,7 +1,7 @@
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{CallResponse, Context, SafeString, SizedSafeString, Spec, TxState};
+use sov_modules_api::{Context, SafeString, SizedSafeString, Spec, TxState};
 
 use crate::address::UserAddress;
 use crate::offchain::{update_collection, update_nft};
@@ -89,7 +89,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_uri: &str,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let (collection_id, collection) = Collection::new(
             collection_name,
             collection_uri,
@@ -99,7 +99,7 @@ impl<S: Spec> NonFungibleToken<S> {
         )?;
         self.collections.set(&collection_id, &collection, state)?;
         update_collection(&collection);
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn update_collection(
@@ -108,7 +108,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_uri: &str,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let (collection_id, collection_state) =
             Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
@@ -116,7 +116,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.collections
             .set(&collection_id, collection.inner(), state)?;
         update_collection(collection.inner());
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn freeze_collection(
@@ -124,7 +124,7 @@ impl<S: Spec> NonFungibleToken<S> {
         collection_name: &str,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let (collection_id, collection_state) =
             Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
@@ -132,7 +132,7 @@ impl<S: Spec> NonFungibleToken<S> {
         self.collections
             .set(&collection_id, collection.inner(), state)?;
         update_collection(collection.inner());
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -145,7 +145,7 @@ impl<S: Spec> NonFungibleToken<S> {
         frozen: bool,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let (collection_id, collection_state) =
             Collection::get_owned_collection(collection_name, &self.collections, context, state)?;
         let mut collection = collection_state.get_mutable_or_bail()?;
@@ -167,7 +167,7 @@ impl<S: Spec> NonFungibleToken<S> {
         update_collection(collection.inner());
         update_nft(&new_nft, None);
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn transfer_nft(
@@ -177,7 +177,7 @@ impl<S: Spec> NonFungibleToken<S> {
         to: &UserAddress<S>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let mut owned_nft = Nft::get_owned_nft(nft_id, collection_id, &self.nfts, context, state)?;
         let original_owner = owned_nft.inner().get_owner().clone();
         owned_nft.set_owner(to);
@@ -187,7 +187,7 @@ impl<S: Spec> NonFungibleToken<S> {
             state,
         )?;
         update_nft(owned_nft.inner(), Some(original_owner.clone()));
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn update_nft(
@@ -198,7 +198,7 @@ impl<S: Spec> NonFungibleToken<S> {
         frozen: Option<bool>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let (collection_id, mut mutable_nft) = Nft::get_mutable_nft(
             token_id,
             collection_name,
@@ -219,6 +219,6 @@ impl<S: Spec> NonFungibleToken<S> {
             state,
         )?;
         update_nft(mutable_nft.inner(), None);
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

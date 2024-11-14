@@ -80,7 +80,7 @@
 /// #     message: Self::Decodable,
 /// #     state: &mut sov_modules_api::WorkingSet<Self::Spec, I>,
 /// #     context: &sov_modules_api::Context<Self::Spec>,
-/// # ) -> Result<sov_modules_api::CallResponse, sov_modules_api::ModuleError> {
+/// # ) -> Result<(), sov_modules_api::ModuleError> {
 /// #   Ok(Default::default())
 /// # }
 /// //Returns the ID of the dispatched module.
@@ -270,7 +270,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #    ) -> Result<(), sov_modules_api::Error> {
 /// #        unimplemented!()
 /// #    }
 /// # }
@@ -309,7 +309,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #    ) -> Result<(), sov_modules_api::Error> {
 /// #        unimplemented!()
 /// #    }
 /// # }
@@ -352,7 +352,7 @@ pub use sov_modules_macros::ModuleInfo;
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-/// #    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+/// #    ) -> Result<(), sov_modules_api::Error> {
 /// #        unimplemented!()
 /// #    }
 /// # }

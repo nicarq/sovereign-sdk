@@ -1,7 +1,7 @@
 use core::result::Result::Ok;
 
 use sov_modules_api::registration_lib::StakeRegistration;
-use sov_modules_api::{CallResponse, Context, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, EventEmitter, Spec, TxState};
 
 use super::{AttesterRegistryError, Staker};
 use crate::{AttesterIncentives, Event};
@@ -15,7 +15,7 @@ where
         bond_amount: u64,
         user_address: &S::Address,
         state: &mut ST,
-    ) -> Result<CallResponse, AttesterRegistryError<S, ST>> {
+    ) -> Result<(), AttesterRegistryError<S, ST>> {
         let challenger = Staker::new_challenger(self);
         challenger.register_staker(user_address, user_address, bond_amount, state)?;
 
@@ -26,7 +26,7 @@ where
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Try to unbond the requested amount of coins with context.sender() as the beneficiary.
@@ -34,12 +34,12 @@ where
         &self,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<CallResponse> {
+    ) -> anyhow::Result<()> {
         let challenger = Staker::new_challenger(self);
         let amount_withdrawn = challenger.exit_staker(context.sender(), state)?;
 
         self.emit_event(state, Event::<S>::ExitedChallenger { amount_withdrawn });
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 }

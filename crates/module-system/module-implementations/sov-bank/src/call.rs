@@ -2,8 +2,7 @@ use anyhow::{bail, Context as _, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    CallResponse, Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader,
-    TxState,
+    Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader, TxState,
 };
 use sov_state::User;
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
@@ -136,23 +135,19 @@ impl<S: Spec> Bank<S> {
         coins: Coins,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let to = to.as_token_holder();
         let sender = context.sender();
-        self.transfer_from(sender, to, coins.clone(), state)
-            .map(|response| {
-                // TODO: move this back into the body of transfer_from once we create a trait for StateAccessor + EventEmitter
-                // https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/168
-                self.emit_event(
-                    state,
-                    Event::TokenTransferred {
-                        from: sender.as_token_holder().into(),
-                        to: to.into(),
-                        coins,
-                    },
-                );
-                response
-            })
+        self.transfer_from(sender, to, coins.clone(), state)?;
+        self.emit_event(
+            state,
+            Event::TokenTransferred {
+                from: sender.as_token_holder().into(),
+                to: to.into(),
+                coins,
+            },
+        );
+        Ok(())
     }
 
     /// Burns the set of `coins`.
@@ -203,9 +198,9 @@ impl<S: Spec> Bank<S> {
         coins: Coins,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         self.burn(coins, context.sender(), state)?;
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Mints the `coins`to the address `mint_to_identity` using the externally owned account ("EOA") supplied by
@@ -275,7 +270,7 @@ impl<S: Spec> Bank<S> {
         token_id: TokenId,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let context_logger = || {
             format!(
                 "Failed freeze token_id={} by sender {}",
@@ -302,7 +297,7 @@ impl<S: Spec> Bank<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 }
 
@@ -316,7 +311,7 @@ impl<S: Spec> Bank<S> {
         to: impl Payable<S>,
         coins: Coins,
         state: &mut impl StateAccessor,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let from = from.as_token_holder();
         let to = to.as_token_holder();
         let context_logger = || {
@@ -334,7 +329,7 @@ impl<S: Spec> Bank<S> {
             .transfer(from, to, coins.amount, state)
             .with_context(context_logger)?;
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Helper function to return the balance of the token stored at `token_id`

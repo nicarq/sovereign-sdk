@@ -62,7 +62,7 @@ where
         _msg: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, sov_modules_api::Error> {
+    ) -> Result<(), sov_modules_api::Error> {
         unimplemented!()
     }
 }

@@ -1,7 +1,7 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateValue, CallResponse, Context, DaSpec, GenesisState, Module, ModuleError,
-    ModuleId, ModuleInfo, Spec, StateAccessor, TxState,
+    AccessoryStateValue, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo,
+    Spec, StateAccessor, TxState,
 };
 use sov_state::{ProvableNamespace, StateRoot};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -60,7 +60,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse, ModuleError> {
+    ) -> Result<(), ModuleError> {
         match msg {
             CallMessage::SetAccessoryValue(value) => {
                 let unmetered_state = &mut state.to_unmetered();
@@ -69,9 +69,9 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
                     .set(&value, unmetered_state)
                     .unwrap_infallible();
 
-                Ok(CallResponse::default())
+                Ok(())
             }
-            CallMessage::Nop(_) => Ok(CallResponse::default()),
+            CallMessage::Nop(_) => Ok(()),
         }
     }
 }

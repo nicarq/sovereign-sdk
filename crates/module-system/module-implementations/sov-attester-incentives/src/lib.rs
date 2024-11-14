@@ -146,7 +146,7 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<sov_modules_api::CallResponse, Error> {
+    ) -> Result<(), Error> {
         if !self.should_reward_fees(state) {
             return Err(anyhow::anyhow!(
                 "Attester incentives call message received when operating in zk mode"

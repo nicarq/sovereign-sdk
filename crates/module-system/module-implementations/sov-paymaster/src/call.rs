@@ -4,7 +4,7 @@ use anyhow::{bail, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::safe_vec::CapacityError;
-use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
+use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
 
 use crate::{
     prefix_from_address_with_parent, AuthorizedSequencers, Event, PayeePolicy, PayeePolicyMap,
@@ -308,7 +308,7 @@ impl<S: Spec> Paymaster<S> {
         policy: PaymasterPolicy<S, PayeePolicyList<S>>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         self.do_registration(
             context.sender(),
             std::iter::once(context.sequencer_da_address()),
@@ -325,7 +325,7 @@ impl<S: Spec> Paymaster<S> {
         sequencer_addresses_to_register: impl Iterator<Item = &'a <S::Da as DaSpec>::Address>,
         policy: PaymasterPolicy<S, PayeePolicyList<S, N>>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         if self.payers.get(new_payer, state)?.is_some() {
             tracing::debug!(payer = %new_payer, "Payer already exists. Reverting registration tx.");
             bail!("{} is already registered as a payer. Use `UpdatePolicy` if you wish to change its configuration.", new_payer);
@@ -377,7 +377,7 @@ impl<S: Spec> Paymaster<S> {
             }
         }
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Sets the payer address for the sequencer who sends sequences this call message to the given address
@@ -387,7 +387,7 @@ impl<S: Spec> Paymaster<S> {
         payer: S::Address,
         context: &Context<S>,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let policy = self
             .payers
             .get(&payer, state)?
@@ -414,7 +414,7 @@ impl<S: Spec> Paymaster<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Update the policy of the payer
@@ -424,7 +424,7 @@ impl<S: Spec> Paymaster<S> {
         context: &Context<S>,
         payer: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<CallResponse> {
+    ) -> Result<()> {
         let Some(mut policy) = self.payers.get(payer, state)? else {
             bail!("{} is not a registered payer", payer);
         };
@@ -464,7 +464,7 @@ impl<S: Spec> Paymaster<S> {
         }
 
         self.payers.set(payer, &policy, state)?;
-        Ok(Default::default())
+        Ok(())
     }
 
     fn add_payee_policies<const N: usize>(

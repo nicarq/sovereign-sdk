@@ -2,7 +2,7 @@ use schemars::JsonSchema;
 use sov_bank::Amount;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::registration_lib::{RegistrationError, StakeRegistration};
-use sov_modules_api::{CallResponse, Context, DaSpec, EventEmitter, Spec, TxState};
+use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, TxState};
 
 use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 
@@ -65,7 +65,7 @@ impl<S: Spec> SequencerRegistry<S> {
         amount: Amount,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
+    ) -> Result<(), SequencerRegistryError<S, ST>> {
         let sequencer = context.sender();
         self.register_staker(da_address, sequencer, amount, state)?;
 
@@ -77,7 +77,7 @@ impl<S: Spec> SequencerRegistry<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     pub(crate) fn deposit<ST: TxState<S>>(
@@ -86,7 +86,7 @@ impl<S: Spec> SequencerRegistry<S> {
         amount: u64,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
+    ) -> Result<(), SequencerRegistryError<S, ST>> {
         let sender = context.sender();
         self.validate_sender(da_address, sender, state)?;
 
@@ -100,7 +100,7 @@ impl<S: Spec> SequencerRegistry<S> {
             },
         );
 
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     /// Tries to remove a sequencer by unstaking the provided amount of gas tokens.
@@ -118,7 +118,7 @@ impl<S: Spec> SequencerRegistry<S> {
         da_address: &<S::Da as DaSpec>::Address,
         context: &Context<S>,
         state: &mut ST,
-    ) -> Result<CallResponse, SequencerRegistryError<S, ST>> {
+    ) -> Result<(), SequencerRegistryError<S, ST>> {
         let sender = context.sender();
         self.validate_sender(da_address, sender, state)?;
 
@@ -137,7 +137,7 @@ impl<S: Spec> SequencerRegistry<S> {
                 amount_withdrawn,
             },
         );
-        Ok(CallResponse::default())
+        Ok(())
     }
 
     fn validate_sender<ST: TxState<S>>(
