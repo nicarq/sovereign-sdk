@@ -1,6 +1,6 @@
 //! Data Availability service is a controller of [`StorableMockDaLayer`].
 use core::time::Duration;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use async_trait::async_trait;
@@ -92,15 +92,16 @@ pub struct StorableMockDaService {
     block_producing: BlockProducing,
     aggregated_proof_sender: broadcast::Sender<()>,
     _drop_notifier: Arc<DropNotifier>,
+    block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
 impl StorableMockDaService {
-    /// Create new [`StorableMockDaService`] with given address.
-    pub fn new(
+    fn construct(
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducing,
         drop_notifier: Arc<DropNotifier>,
+        block_producer_handle: Option<JoinHandle<()>>,
     ) -> Self {
         let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
         tokio::spawn(async move { while rec.recv().await.is_ok() {} });
@@ -110,7 +111,24 @@ impl StorableMockDaService {
             block_producing,
             aggregated_proof_sender: aggregated_proof_subscription,
             _drop_notifier: drop_notifier,
+            block_producer_handle: Arc::new(Mutex::new(block_producer_handle)),
         }
+    }
+
+    /// Create a new [` StorableMockDaService `] with the given address.
+    pub fn new(
+        sequencer_da_address: MockAddress,
+        da_layer: Arc<RwLock<StorableMockDaLayer>>,
+        block_producing: BlockProducing,
+        drop_notifier: Arc<DropNotifier>,
+    ) -> Self {
+        Self::construct(
+            sequencer_da_address,
+            da_layer,
+            block_producing,
+            drop_notifier,
+            None,
+        )
     }
 
     /// Will receive notification one block before the proof is included on the DA.
@@ -147,13 +165,19 @@ impl StorableMockDaService {
         let block_producing = config.block_producing();
         let da_layer = Arc::new(RwLock::new(da_layer));
         let (drop_notifier, dropped) = DropNotifier::build();
-        block_producing.spawn_block_producing_if_needed(da_layer.clone(), dropped);
-        Self::new(
+        let handle = block_producing.spawn_block_producing_if_needed(da_layer.clone(), dropped);
+        Self::construct(
             config.sender_address,
             da_layer,
             block_producing,
             Arc::new(drop_notifier),
+            handle,
         )
+    }
+
+    /// Joins a background task for blocks producing if it was started and not joined before.
+    pub fn take_block_producing_handle(&self) -> Option<JoinHandle<()>> {
+        self.block_producer_handle.lock().unwrap().take()
     }
 
     async fn wait_for_height(&self, height: u32) -> anyhow::Result<()> {

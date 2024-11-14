@@ -44,11 +44,15 @@ where
     let da_address = config.sequencer.da_address.clone();
     let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
 
-    let (api_state, sequencer_router) = match &config.sequencer.batch_builder.mode {
+    let (api_state, sequencer_router, sequencer_background_handle) = match &config
+        .sequencer
+        .batch_builder
+        .mode
+    {
         BatchBuilderMode::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
                 storage.clone(),
-                da_sync_state.clone(),
+                da_sync_state,
                 da_address,
                 sequencer_db.read_all()?,
                 config.sequencer.batch_builder.admin_addresses.clone(),
@@ -57,7 +61,7 @@ where
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
-            let sequencer = SequencerBlueprint::<B, M, _>::new(
+            let (sequencer, background_handle) = SequencerBlueprint::<B, M, _>::new(
                 batch_builder,
                 da_service.clone(),
                 tx_status_manager,
@@ -67,14 +71,18 @@ where
                 shutdown_receiver,
             );
 
-            (sequencer.api_state(), sequencer.rest_api_server())
+            (
+                sequencer.api_state(),
+                sequencer.rest_api_server(),
+                background_handle,
+            )
         }
         BatchBuilderMode::Preferred => {
             warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
 
             let batch_builder = PreferredBatchBuilder::<(B::Spec, B::Runtime)>::create(
                 storage.clone(),
-                da_sync_state.clone(),
+                da_sync_state,
                 da_address,
                 sequencer_db.read_all()?,
                 config.sequencer.batch_builder.admin_addresses.clone(),
@@ -83,7 +91,7 @@ where
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
-            let sequencer = SequencerBlueprint::<B, M, _>::new(
+            let (sequencer, background_handle) = SequencerBlueprint::<B, M, _>::new(
                 batch_builder,
                 da_service.clone(),
                 tx_status_manager,
@@ -93,11 +101,18 @@ where
                 shutdown_receiver,
             );
 
-            (sequencer.api_state(), sequencer.rest_api_server())
+            (
+                sequencer.api_state(),
+                sequencer.rest_api_server(),
+                background_handle,
+            )
         }
     };
 
     let mut endpoints = B::Runtime::endpoints(api_state);
+    endpoints
+        .background_handles
+        .push(sequencer_background_handle);
 
     // Sequencer endpoints.
     endpoints.axum_router = endpoints.axum_router.merge(sequencer_router);

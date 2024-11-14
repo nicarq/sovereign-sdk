@@ -111,6 +111,7 @@ where
         ::sov_modules_api::RuntimeEndpoints {
             axum_router,
             jsonrpsee_module: get_rpc_methods::<S>(api_state),
+            background_handles: Vec::new(),
         }
     }
 

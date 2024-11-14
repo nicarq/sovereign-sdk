@@ -349,7 +349,7 @@ mod blueprint {
                     &da_service,
                     runner.da_sync_state(),
                     &rollup_config,
-                    main_shutdown_receiver,
+                    secondary_shutdown_receiver.clone(),
                 )
                 .await?;
 
@@ -428,6 +428,9 @@ mod blueprint {
             self.secondary_shutdown_sender.send(())?;
             for handle in self.background_handles {
                 handle.await?;
+            }
+            for handle in self.endpoints.background_handles {
+                handle.await??;
             }
             tracing::debug!("Rollup completed run");
             Ok(())
