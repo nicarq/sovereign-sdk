@@ -10094,7 +10094,17 @@ dependencies = [
 name = "sov-demo-rollup-rest-api-load-testing"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
+ "borsh",
+ "demo-stf",
  "rest-api-load-testing",
+ "sov-api-spec",
+ "sov-bank",
+ "sov-cli",
+ "sov-mock-da",
+ "sov-mock-zkvm",
+ "sov-modules-api",
+ "sov-test-utils",
  "tokio",
 ]
 
