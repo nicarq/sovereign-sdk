@@ -2,7 +2,8 @@ use anyhow::{bail, Context as _, Result};
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    CallResponse, Context, EventEmitter, SafeString, Spec, StateAccessor, StateReader, TxState,
+    CallResponse, Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader,
+    TxState,
 };
 use sov_state::User;
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
@@ -10,6 +11,10 @@ use strum::{EnumDiscriminants, EnumIs, VariantArray};
 use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
 use crate::{Amount, Bank, Coins, Token, TokenId};
+
+/// The maximum number of addresses that can be authorized to mint a token.
+pub const MAX_AUTHORIZED_MINTERS: usize = 20;
+
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
 #[derive(
     borsh::BorshDeserialize,
@@ -37,7 +42,7 @@ pub enum CallMessage<S: Spec> {
         /// The address of the account that the new tokens are minted to.
         mint_to_address: S::Address,
         /// Authorized minter list.
-        authorized_minters: Vec<S::Address>,
+        authorized_minters: SafeVec<S::Address, MAX_AUTHORIZED_MINTERS>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.

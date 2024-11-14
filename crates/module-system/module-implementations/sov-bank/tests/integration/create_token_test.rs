@@ -34,7 +34,9 @@ fn create_token() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
-            authorized_minters: vec![minter_address],
+            authorized_minters: vec![minter_address]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
         }),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
@@ -116,7 +118,9 @@ fn create_token_and_mint() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
-            authorized_minters: vec![minter_address],
+            authorized_minters: vec![minter_address]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
         }),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());

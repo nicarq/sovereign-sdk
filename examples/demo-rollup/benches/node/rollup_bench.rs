@@ -176,7 +176,9 @@ fn prefill_state(
             token_name: token_name.try_into().unwrap(),
             initial_balance: 0,
             mint_to_address: rollup_mega_admin.address(),
-            authorized_minters: vec![rollup_mega_admin.address()],
+            authorized_minters: vec![rollup_mega_admin.address()]
+                .try_into()
+                .expect("Tokens can have at least one minter"),
         },
         &rollup_mega_admin.private_key,
         0,

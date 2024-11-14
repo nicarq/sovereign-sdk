@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_modules_api::sov_universal_wallet::schema::Schema;
-use sov_modules_api::Spec;
+use sov_modules_api::{SafeVec, Spec};
 use sov_test_utils::TestSpec;
 
 type S = TestSpec;
@@ -17,7 +17,7 @@ fn test_create_token() {
             "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr",
         )
         .unwrap(),
-        authorized_minters: vec![],
+        authorized_minters: SafeVec::new(),
     };
 
     assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "CreateToken { token_name: \"my-token\", initial_balance: 100000000, mint_to_address: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr, authorized_minters: [] }");

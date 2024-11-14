@@ -1,6 +1,6 @@
 use sov_bank::{config_gas_token_id, Bank, BankGasConfig, CallMessage};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, Gas, GasSpec, Spec, TxEffect};
+use sov_modules_api::{Error, Gas, GasSpec, SafeVec, Spec, TxEffect};
 use sov_test_utils::{
     AsUser, AtomicNumber, TransactionTestAssert, TransactionTestCase, TEST_DEFAULT_USER_BALANCE,
 };
@@ -48,7 +48,7 @@ fn gas_test_setup(
             token_name: "sov-test-token".try_into().unwrap(),
             initial_balance: 1000,
             mint_to_address: user.address(),
-            authorized_minters: vec![],
+            authorized_minters: SafeVec::new(),
         }),
         assert: Box::new(move |result, state| {
             create_token_assert(PostCreateTokenContext {

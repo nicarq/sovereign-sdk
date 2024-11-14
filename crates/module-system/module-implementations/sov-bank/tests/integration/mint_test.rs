@@ -1,6 +1,6 @@
 use sov_bank::{Bank, CallMessage, Coins};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Error, TxEffect};
+use sov_modules_api::{Error, SafeVec, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestBankRuntimeEvent, TestData};
@@ -128,7 +128,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
             token_name: token_name.to_string().try_into().unwrap(),
             initial_balance: 100,
             mint_to_address: user.address(),
-            authorized_minters: vec![],
+            authorized_minters: SafeVec::new(),
         }),
     );
 
