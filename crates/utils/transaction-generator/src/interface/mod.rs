@@ -7,11 +7,13 @@ use std::marker::PhantomData;
 use derive_more::derive::AsRef;
 use derive_more::{Add, Mul};
 pub use rng::*;
+use sov_bank::TokenId;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, Spec};
 
 use super::state::ApplyTo;
+use crate::state::TokenInfo;
 
 /// Whether a generated message should be valid or invalid.
 #[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq)]
@@ -206,7 +208,6 @@ impl<const N: usize> Distribution<N> {
 /// ```rust
 /// use sov_bank::Coins;
 /// use sov_modules_api::{CryptoSpec, Spec};
-/// # use sov_transaction_generator::generators::bank::BankAccount;
 ///
 /// struct AccountState<S: Spec> {
 ///   pub balances: Vec<Coins>,
@@ -214,19 +215,17 @@ impl<const N: usize> Distribution<N> {
 ///   pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
 /// }
 ///
-/// impl<S: Spec> Into<BankAccount<S>> for &AccountState<S> {
-///    fn into(self) -> BankAccount<S> {
-///       BankAccount {
-///          private_key: self.private_key.clone(),
-///          balances: self.balances.clone(),
-///          can_mint: Default::default(),
-///       }
-///    }
-/// }
 /// ```
+///
+/// In this example, the `Bank` account view would be constructed from the global
+/// state by cloning the `balances` array, and the sequencer registry would
+/// be constructed by cloning the `sequencing_bond`.
+///
+/// Splitting the GeneratorState for each module into its own view this way makes
+/// it easy to reuse code.
 pub trait GeneratorState<S: Spec> {
     /// The view of an account for a particular module
-    type AccountView;
+    type AccountView: Taggable<Tag = Self::Tag>;
 
     /// The `Tag` enum associated with this generator. Tags form a secondary index
     /// that can be used to quickly recover accounts matching certain criteria.
@@ -248,13 +247,23 @@ pub trait GeneratorState<S: Spec> {
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>>;
 
-    /// Updates the given account to match the provided view.
-    fn update_account(
+    /// Returns true if the account has the given tag
+    fn has_tag(&mut self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool;
+
+    /// Gets the token with the given ID
+    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo>;
+
+    /// Gets the token with the given ID
+    fn update_token(&mut self, id: TokenId, info: TokenInfo);
+
+    /// Gets a random token
+    fn get_random_token(
         &mut self,
-        address: S::Address,
-        view: Self::AccountView,
-        tags: Vec<TagAction<Self::Tag>>,
-    );
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<(TokenId, TokenInfo)>;
+
+    /// Updates the given account to match the provided view.
+    fn update_account(&mut self, address: S::Address, view: Self::AccountView);
 
     /// Generates an empty account and returns it.
     fn generate_account(
@@ -276,6 +285,20 @@ pub trait GeneratorState<S: Spec> {
     }
 }
 
+/// Allows items to be tagged
+pub trait Taggable {
+    /// The tag type
+    type Tag;
+    /// Takes the list of tags
+    fn take_tags(&mut self) -> impl IntoIterator<Item = TagAction<Self::Tag>>;
+
+    /// Adds the tag
+    fn add_tag(&mut self, tag: Self::Tag);
+
+    /// Removes the tag, if present
+    fn remove_tag(&mut self, tag: Self::Tag);
+}
+
 /// Converts a more general `GeneratorState` implementation to a more specific one - for example,
 /// the `GeneratorState` for a whole runtime to the state for a particular module
 pub struct GeneratorStateMapper<'a, Source, Acct, Tag>(&'a mut Source, PhantomData<(Acct, Tag)>);
@@ -294,8 +317,11 @@ pub trait DefaultEmpty: Default {}
 impl<'a, Source: GeneratorState<S, AccountView: DefaultEmpty>, Acct, Tag, S: Spec> GeneratorState<S>
     for GeneratorStateMapper<'a, Source, Acct, Tag>
 where
-    Acct:
-        for<'acct> From<&'acct Source::AccountView> + ApplyTo<Source::AccountView> + Debug + Clone,
+    Acct: for<'acct> From<&'acct Source::AccountView>
+        + ApplyTo<Source::AccountView>
+        + Taggable<Tag = Tag>
+        + Debug
+        + Clone,
 
     Tag: Into<Source::Tag> + Eq + Hash + Debug + Clone,
 {
@@ -327,19 +353,15 @@ where
             .map(|(addr, acct)| (addr, (&acct).into())))
     }
 
-    fn update_account(
-        &mut self,
-        address: S::Address,
-        view: Self::AccountView,
-        tags: Vec<TagAction<Self::Tag>>,
-    ) {
+    fn update_account(&mut self, address: S::Address, view: Self::AccountView) {
         let mut mapped = Source::AccountView::default();
         view.apply_to(&mut mapped);
-        self.0.update_account(
-            address,
-            mapped,
-            tags.into_iter().map(|x| x.map(Into::into)).collect(),
-        );
+
+        self.0.update_account(address, mapped);
+    }
+
+    fn has_tag(&mut self, addr: &<S as Spec>::Address, tag: impl Into<Self::Tag>) -> bool {
+        self.0.has_tag(addr, tag.into())
     }
 
     fn generate_account(
@@ -349,6 +371,21 @@ where
         self.0
             .generate_account(u)
             .map(|(addr, acct)| (addr, (&acct).into()))
+    }
+
+    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo> {
+        self.0.get_token(id)
+    }
+
+    fn update_token(&mut self, id: TokenId, info: TokenInfo) {
+        self.0.update_token(id, info);
+    }
+
+    fn get_random_token(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> arbitrary::Result<(TokenId, TokenInfo)> {
+        self.0.get_random_token(u)
     }
 }
 

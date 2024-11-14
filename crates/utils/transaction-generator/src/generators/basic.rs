@@ -13,7 +13,7 @@ use sov_modules_stf_blueprint::Runtime;
 use super::bank::{BankAccount, BankChangeLogEntry, BankMessageGenerator, Tag as BankTag};
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, GeneratorStateMapper,
-    MessageValidity,
+    MessageValidity, Percent,
 };
 use crate::state::{AccountState, AccountStateView};
 
@@ -29,7 +29,7 @@ pub struct BasicCallMessageGenerator<RT, S: Spec, Acct = ()> {
     phantom: PhantomData<(RT, Acct)>,
 }
 
-impl<RT, S: Spec, Acct> BasicCallMessageGenerator<RT, S, Acct> {
+impl<RT: EncodeCall<sov_bank::Bank<S>>, S: Spec, Acct> BasicCallMessageGenerator<RT, S, Acct> {
     /// Instantiate a new [`BasicCallMessageGenerator`] with the given
     /// subset of state.
     pub fn new(
@@ -40,6 +40,37 @@ impl<RT, S: Spec, Acct> BasicCallMessageGenerator<RT, S, Acct> {
             config,
             bank: bank_generator,
             phantom: PhantomData,
+        }
+    }
+
+    /// Generate an initial `CreateToken` message to get the generator into a usable state.
+    pub fn generate_initial_token(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = AccountStateView<S, Tag<S>, Acct>,
+            Tag = Tag<S>,
+        >,
+    ) -> GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>> {
+        self.bank.address_creation_rate = Percent::one_hundred();
+        let GeneratedMessage {
+            message,
+            sender,
+            changes,
+        } = self
+            .bank
+            .generate_create_token(
+                u,
+                &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
+                MessageValidity::Valid,
+            )
+            .expect("Valid token creation can't fail");
+        self.bank.address_creation_rate = self.config.bank.address_creation_rate;
+        GeneratedMessage {
+            message: <RT as EncodeCall<sov_bank::Bank<S>>>::to_decodable(message),
+            sender,
+            changes: changes.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -120,7 +151,7 @@ where
 
     type Tag = Tag<S>;
 
-    type AccountView = AccountStateView<S, BonusAcctData>;
+    type AccountView = AccountStateView<S, Tag<S>, BonusAcctData>;
 
     type RollupStateReader = BasicClientConfig;
 
@@ -138,7 +169,7 @@ where
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<
             S,
-            AccountView = AccountStateView<S, BonusAcctData>,
+            AccountView = AccountStateView<S, Tag<S>, BonusAcctData>,
             Tag = Self::Tag,
         >,
         validity: MessageValidity,

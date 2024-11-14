@@ -1,0 +1,135 @@
+use sov_bank::{CallMessage, Coins};
+use sov_modules_api::prelude::arbitrary::{self, Arbitrary, Unstructured};
+use sov_modules_api::{SafeString, SafeVec, SizedSafeString, Spec};
+
+use super::{BankAccount, BankChangeLogEntry, BankMessageGenerator, InternalMessageGenResult, Tag};
+use crate::generators::bank::InternalMessageGenError;
+use crate::interface::{GeneratedMessage, GeneratorState, MessageValidity, Taggable};
+use crate::state::TokenInfo;
+
+const TOKEN_NAME: &str = "TEST_TOKEN_NAME";
+/// To avoid collisions, we make sure token names have at least 15 characters.
+/// Since there are at least 62 valid ascii characters for safe string, this gives a collision probability
+/// of less than sqrt(62 ** 15), (i.e. 1 per few trillion txs) which is unlikely to ever cause problems
+const MIN_TOKEN_NAME_LEN: usize = 15;
+
+impl<S: Spec> BankMessageGenerator<S> {
+    /// Generate a create_token message
+    #[allow(private_interfaces)]
+    pub(crate) fn generate_create_token(
+        &self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        validity: MessageValidity,
+    ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
+        // A create token is only invalid if the same account tries to reuse the same token name
+        if validity.is_invalid() {
+            let Some((_addr, acct)) =
+                generator_state.get_random_existing_account_with_tag(Tag::HasCreatedToken, u)?
+            else {
+                return Err(InternalMessageGenError::NoAccountsHaveCreatedTokensYet);
+            };
+
+            return Ok(GeneratedMessage::new(
+                CallMessage::CreateToken {
+                    token_name: TOKEN_NAME.try_into().unwrap(),
+                    initial_balance: Arbitrary::arbitrary(u)?,
+                    mint_to_address: Arbitrary::arbitrary(u)?,
+                    authorized_minters: Arbitrary::arbitrary(u)?,
+                },
+                acct.private_key.clone(),
+                Vec::new(),
+            ));
+        }
+
+        // The message is valid.
+        // Pick a creator address, and a token name. Compute the token ID
+        let (creator_key, token_name, token_id) = {
+            let (creator_address, mut creator_acct) =
+                generator_state.get_or_generate(self.address_creation_rate, u)?;
+            let creator_key = creator_acct.private_key.clone();
+            creator_acct.add_tag(Tag::HasCreatedToken);
+            // Use the standard name for the first token of each account, then pick at random
+            // This makes it easy to generate *invalid* messages, since we can just pick any account
+            // that has already created a token and output another create_token from that account using the standard token name,
+            // (recall that creating two tokens with the same name from the same account is not allowed)
+            let token_name = if !generator_state.has_tag(&creator_address, Tag::HasCreatedToken) {
+                TOKEN_NAME.to_string().try_into().unwrap()
+            } else {
+                arbitrary_safe_string(u, MIN_TOKEN_NAME_LEN)?
+            };
+            let new_token_id = sov_bank::get_token_id::<S>(token_name.as_str(), &creator_address);
+            generator_state.update_account(creator_address, creator_acct);
+            (creator_key, token_name, new_token_id)
+        };
+
+        // Generate a list of minters, updating the state as necessary
+        let minters = {
+            let mut minters = SafeVec::new();
+            for _ in 0..minters.max_size() {
+                if u.ratio(1, 2)? {
+                    break;
+                }
+                let (addr, mut acct) = generator_state.get_random_existing_account(u)?;
+                acct.add_can_mint(token_id);
+                generator_state.update_account(addr.clone(), acct);
+                minters
+                    .try_push(addr)
+                    .expect("Push must succed at least max_size times");
+            }
+            minters
+        };
+
+        // Generate a receiver and amount, updating the state as necessary
+        let (recipient_address, amount) = {
+            let (recipient_address, mut recipient_acct) =
+                generator_state.get_random_existing_account(u)?;
+            let amount = Arbitrary::arbitrary(u)?;
+            recipient_acct.increment_balance(Coins { token_id, amount });
+            generator_state.update_account(recipient_address.clone(), recipient_acct);
+            (recipient_address, amount)
+        };
+        let mint_event = Self::update_state_with_mint(
+            generator_state,
+            token_id,
+            TokenInfo { total_supply: 0 },
+            amount,
+            u,
+        )?;
+
+        Ok(GeneratedMessage::new(
+            CallMessage::CreateToken {
+                token_name,
+                initial_balance: amount,
+                mint_to_address: recipient_address.clone(),
+                authorized_minters: minters,
+            },
+            creator_key,
+            vec![
+                BankChangeLogEntry::balance_changed(recipient_address, token_id, amount),
+                mint_event,
+            ],
+        ))
+    }
+}
+
+fn arbitrary_safe_string(
+    u: &mut Unstructured<'_>,
+    min_len: usize,
+) -> arbitrary::Result<SafeString> {
+    let mut out = SizedSafeString::new();
+    let target_len = u.int_in_range(min_len..=out.max_len() - 1)?;
+    let mut i = 0;
+    while out.len() < target_len && i < 10_000 {
+        let next_char = u8::arbitrary(u)?;
+        let _ = out.try_push(char::from(next_char));
+        i += 1;
+    }
+
+    assert!(
+        out.len() >= min_len,
+        "Could not generate a valid safe string in 10_000 iters"
+    );
+
+    Ok(out)
+}

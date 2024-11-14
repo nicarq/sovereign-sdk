@@ -37,4 +37,8 @@ impl<S: Spec> BankClient<S> for HttpBankClient<S> {
             .await
             .unwrap()
     }
+
+    async fn get_total_supply(&self, token_id: &TokenId) -> sov_bank::Amount {
+        self.client.get_total_supply(token_id).await.unwrap()
+    }
 }
