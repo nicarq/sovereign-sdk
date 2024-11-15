@@ -103,12 +103,33 @@ macro_rules! generate_bare_runtime {
 
             type GenesisPaths = ();
 
-            fn endpoints(_api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
-                unimplemented!()
+            fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
+                use ::sov_modules_api::prelude::jsonrpsee;
+
+                #[cfg(feature = "native")]
+                let axum_router = {
+                    use ::sov_modules_api::rest::HasRestApi;
+                    Self::default().rest_api(api_state)
+                };
+                #[cfg(not(feature = "native"))]
+                let axum_router = {
+                    drop(api_state); // Gets rid of unused warning
+                    ::sov_modules_api::prelude::axum::Router::<()>::default()
+                };
+
+                ::sov_modules_api::RuntimeEndpoints {
+                    axum_router,
+                    jsonrpsee_module: jsonrpsee::RpcModule::new(()), // TODO
+                    background_handles: vec![]
+                }
             }
 
             fn genesis_config(_genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
                 unimplemented!()
+            }
+
+            fn operating_mode(genesis: &Self::GenesisConfig) -> ::sov_modules_api::runtime::OperatingMode {
+                genesis.chain_state.operating_mode
             }
 
         }

@@ -15,7 +15,7 @@ use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{TestPrivateKey, TestSpec};
 
-use crate::test_helpers::{test_genesis_paths, CHAIN_HASH};
+use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
@@ -28,7 +28,7 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
     let rollup = RollupBuilder::<MockDemoRollup<Native>>::construct_rollup(
         temp_dir,
-        &test_genesis_paths(OperatingMode::Zk),
+        test_genesis_source(OperatingMode::Zk),
         RollupProverConfig::Skip,
         MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),
     )

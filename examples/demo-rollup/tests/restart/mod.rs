@@ -15,7 +15,7 @@ use tracing_subscriber::layer::Context;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, Layer};
 
-use crate::test_helpers::test_genesis_paths;
+use crate::test_helpers::test_genesis_source;
 
 struct LogCollector {
     records: Arc<Mutex<Vec<(Level, String)>>>,
@@ -63,7 +63,7 @@ async fn start_stop_empty(
     let subscriber = registry().with(collector);
     subscriber.init();
 
-    let mut rollup_storage_dir = tempfile::tempdir()?;
+    let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let mock_da_dir = tempfile::tempdir()?;
     let restarts = 30;
     let mut rng = rand::thread_rng();
@@ -77,8 +77,8 @@ async fn start_stop_empty(
             std::time::Duration::from_secs(30),
             RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
                 rollup_prover_config,
-                &test_genesis_paths(operation_mode),
-                rollup_storage_dir,
+                test_genesis_source(operation_mode),
+                rollup_storage_dir.clone(),
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 Some(mock_da_dir.path()),
@@ -90,7 +90,6 @@ async fn start_stop_empty(
         tokio::time::sleep(sleep_duration).await;
 
         let TestRollup {
-            storage_dir,
             shutdown_sender,
             rollup_task,
             da_service,
@@ -103,7 +102,6 @@ async fn start_stop_empty(
         tracing::info!("Triggering shutdown....");
         shutdown_sender.send(())?;
         tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task).await???;
-        rollup_storage_dir = storage_dir;
         block_producing_handle.await?;
     }
 

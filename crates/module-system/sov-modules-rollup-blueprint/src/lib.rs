@@ -97,11 +97,6 @@ mod blueprint {
         /// Serialize proof blob and adds metadata needed for verification.
         type ProofSerializer: ProofSerializer + 'static;
 
-        /// Gets the operating mode of the rollup (Zk or Optimistic).
-        fn get_operating_mode(
-            genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
-        ) -> OperatingMode;
-
         /// Creates code commitments for the outer zkVM program.
         fn create_outer_code_commitment(
             &self,
@@ -186,7 +181,27 @@ mod blueprint {
         {
             let genesis_params =
                 self.create_genesis_config(runtime_genesis_paths, &rollup_config)?;
-            let operating_mode = Self::get_operating_mode(&genesis_params.runtime);
+
+            self.create_new_rollup_with_genesis_params(genesis_params, rollup_config, prover_config)
+                .await
+        }
+
+        /// Identical to [`FullNodeBlueprint::create_new_rollup`], but with
+        /// a custom [`GenesisParams`].
+        async fn create_new_rollup_with_genesis_params(
+            &self,
+            genesis_params: GenesisParams<
+                <Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
+            >,
+            rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+            prover_config: Option<RollupProverConfig>,
+        ) -> anyhow::Result<Rollup<Self, M>>
+        where
+            <Self::Spec as Spec>::Storage: NativeStorage,
+        {
+            let operating_mode = <Self::Runtime as RuntimeTrait<Self::Spec>>::operating_mode(
+                &genesis_params.runtime,
+            );
             tracing::debug!(?operating_mode, "Creating new rollup");
 
             let da_service = Arc::new(self.create_da_service(&rollup_config).await);

@@ -26,7 +26,7 @@ async fn bank_tx_tests() -> anyhow::Result<()> {
             get_appropriate_rollup_prover_config(),
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Optimistic),
+            test_genesis_source(OperatingMode::Optimistic),
         )
         .await?;
 

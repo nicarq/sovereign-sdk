@@ -11,7 +11,7 @@ use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
-use crate::test_helpers::test_genesis_paths;
+use crate::test_helpers::test_genesis_source;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
@@ -25,7 +25,7 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
             RollupProverConfig::Skip,
             BlockProducingConfig::Periodic,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 
