@@ -15,7 +15,7 @@ use sov_test_utils::SimpleStorageContract;
 use tokio::task::JoinHandle;
 
 use super::test_client::TestClient;
-use crate::test_helpers::test_genesis_paths;
+use crate::test_helpers::test_genesis_source;
 
 /// Starts test rollup node.  
 pub(crate) async fn start_node(
@@ -32,13 +32,13 @@ pub(crate) async fn start_node(
 
     let storage_dir = tempfile::tempdir().unwrap();
 
-    let (rollup_task, _da_service, _shutdown_sender) =
+    let (_config, rollup_task, _da_service, _shutdown_sender) =
         // Don't provide a prover since the EVM is not currently provable
         RollupBuilder::<MockDemoRollup<Native>>::start_rollup_in_background(
             storage_dir.path(),
             rpc_port_tx,
             rest_port_tx,
-            &test_genesis_paths(sov_modules_api::OperatingMode::Zk),
+            test_genesis_source(sov_modules_api::OperatingMode::Zk),
             rollup_prover_config,
             MockDaConfig {
                 connection_string: "sqlite::memory:".to_string(),

@@ -1,5 +1,9 @@
 # 2024-11-13
 - #1873 changes the type of `Bank::CreateToken.authorized_minters` from `Vec` to `SafeVec`. This type can be easily  constructed by calling `try_into()` on an existing `Vec` as long as that `Vec` is not larger than the new size bound (20 items).
+## 2024-11-14
+
+- #1880 removes `FullNodeBlueprint::get_operating_mode` and replaces it with a new method `Runtime::operating_mode`. `Runtime::GenesisConfig` types now need to implement `Clone`. Minor API changes to testing utilities used inside `demo-rollup/tests/`.
+
 ## 2024-11-13
 
 - #1870 removes many of the testing utilities inside `demo-rollup/tests/test_helpers.rs`, and replaces them with a new utility `sov_test_utils::test_rollup::RollupBuilder`. You can take a look at `demo-rollup/tests/bank` for some usage examples.

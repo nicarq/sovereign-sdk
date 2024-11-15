@@ -12,7 +12,7 @@ use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
-use crate::test_helpers::test_genesis_paths;
+use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 
@@ -28,7 +28,7 @@ async fn bank_tx_periodic_da_tests() -> anyhow::Result<()> {
             get_appropriate_rollup_prover_config(),
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Optimistic),
+            test_genesis_source(OperatingMode::Optimistic),
         )
         .await?;
 

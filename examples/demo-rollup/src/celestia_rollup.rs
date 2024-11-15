@@ -10,11 +10,10 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native};
-use sov_modules_api::{CryptoSpec, OperatingMode, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
+use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, WalletBlueprint};
-use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
@@ -63,12 +62,6 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     >;
 
     type ProofSerializer = SovApiProofSerializer<Self::Spec>;
-
-    fn get_operating_mode(
-        genesis: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig,
-    ) -> OperatingMode {
-        genesis.chain_state.operating_mode
-    }
 
     fn create_outer_code_commitment(
         &self,

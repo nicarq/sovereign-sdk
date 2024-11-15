@@ -119,6 +119,10 @@ where
     fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
         crate::genesis_config::create_genesis_config(genesis_paths)
     }
+
+    fn operating_mode(genesis: &Self::GenesisConfig) -> sov_modules_api::OperatingMode {
+        genesis.chain_state.operating_mode
+    }
 }
 
 impl<S: Spec> HasCapabilities<S> for Runtime<S> {

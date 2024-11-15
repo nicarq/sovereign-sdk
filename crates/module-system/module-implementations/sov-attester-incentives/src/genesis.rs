@@ -8,7 +8,7 @@ use sov_modules_api::{GenesisState, Module, Spec};
 use crate::AttesterIncentives;
 
 /// Configuration of the attester incentives module
-#[derive(Debug, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
+#[derive(Debug, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 pub struct AttesterIncentivesConfig<S: Spec> {
     /// The minimum bond for an attester.
     pub minimum_attester_bond: S::Gas,

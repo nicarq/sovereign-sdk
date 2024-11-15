@@ -1,20 +1,19 @@
+use std::marker::PhantomData;
 use std::sync::Arc;
 
-use async_trait::async_trait;
-use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
-use sov_modules_api::default_spec::DefaultSpec;
-use sov_modules_api::execution_mode::{ExecutionMode, Native};
-use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
-use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
+use sov_mock_zkvm::{MockCodeCommitment, MockZkvmHost};
+use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, HasKernel};
+use sov_modules_api::execution_mode::Native;
+use sov_modules_api::prelude::axum::async_trait;
+use sov_modules_api::rest::HasRestApi;
+use sov_modules_api::{BlobDataWithId, CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
-use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0;
+use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
@@ -24,24 +23,31 @@ use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProv
 use sov_stf_runner::RollupConfig;
 use tokio::sync::watch;
 
-/// Rollup with MockDa
+type S = crate::TestSpec;
+
+/// A basic, "vanilla" [`FullNodeBlueprint`] to be used for testing.
 #[derive(Default)]
-pub struct MockDemoRollup<M> {
-    phantom: std::marker::PhantomData<M>,
+pub struct RtAgnosticBlueprint<R> {
+    phantom: PhantomData<R>,
 }
 
-impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
+impl<R> RollupBlueprint<Native> for RtAgnosticBlueprint<R>
 where
-    DefaultSpec<MockDaSpec, Risc0, MockZkvm, M>: PluggableSpec,
-    EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<MockDaSpec, Risc0, MockZkvm, M> as Spec>::Address>,
+    R: RuntimeTrait<S> + HasKernel<S, BlobType = BlobDataWithId>,
 {
-    type Spec = DefaultSpec<MockDaSpec, Risc0, MockZkvm, M>;
-    type Runtime = Runtime<Self::Spec>;
+    type Spec = S;
+    type Runtime = R;
 }
 
 #[async_trait]
-impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
+impl<R> FullNodeBlueprint<Native> for RtAgnosticBlueprint<R>
+where
+    R: RuntimeTrait<S>
+        + HasRestApi<S>
+        + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
+        + HasKernel<S, BlobType = BlobDataWithId>
+        + 'static,
+{
     type DaService = DaServiceWithRetries<StorableMockDaService>;
 
     type StorageManager = NativeStorageManager<
@@ -77,27 +83,19 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<RuntimeEndpoints> {
-        let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
-            storage.clone(),
-            sync_status_receiver,
-            ledger_db,
-            sequencer_db,
-            da_service,
-            da_sync_state,
-            rollup_config,
-            shutdown_receiver,
+        Ok(
+            sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
+                storage.clone(),
+                sync_status_receiver,
+                ledger_db,
+                sequencer_db,
+                da_service,
+                da_sync_state,
+                rollup_config,
+                shutdown_receiver,
+            )
+            .await?,
         )
-        .await?;
-
-        // TODO: Add issue for Sequencer level RPC injection:
-        //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
-        crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
-            da_service.clone(),
-            storage,
-            &mut endpoints.jsonrpsee_module,
-        )?;
-
-        Ok(endpoints)
     }
 
     async fn create_da_service(
@@ -115,22 +113,9 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let inner_vm = if let RollupProverConfig::Skip = prover_config {
-            Risc0Host::new(b"")
-        } else {
-            let elf = std::fs::read(risc0::MOCK_DA_PATH)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Could not read guest elf file from `{}`. {}",
-                        risc0::MOCK_DA_PATH,
-                        e
-                    )
-                })
-                .leak();
-            Risc0Host::new(elf)
-        };
-
+        let inner_vm = MockZkvmHost::new_non_blocking();
         let outer_vm = MockZkvmHost::new_non_blocking();
+
         let da_verifier = Default::default();
 
         ParallelProverService::new_with_default_workers(

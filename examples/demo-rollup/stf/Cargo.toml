@@ -75,5 +75,6 @@ native = [
 	"sov-blob-storage/native",
 	"sov-rollup-apis",
 	"sov-paymaster/native",
-	"sov-test-utils/native"
+	"sov-test-utils/native",
+	"sov-rollup-apis?/native"
 ]

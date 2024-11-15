@@ -11,6 +11,7 @@ use borsh::BorshSerialize;
 pub use evm::simple_smart_contract::SimpleStorageContract;
 pub use generators::MessageGenerator;
 pub use interface::*;
+pub use rt_agnostic_blueprint::RtAgnosticBlueprint;
 use serde::{Deserialize, Serialize};
 pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
@@ -25,6 +26,7 @@ use sov_rollup_interface::execution_mode::{Native, Zk};
 pub use sov_state::ProverStorage;
 
 mod evm;
+mod rt_agnostic_blueprint;
 
 /// End-to-end rollup node testing utilities.
 pub mod test_rollup;

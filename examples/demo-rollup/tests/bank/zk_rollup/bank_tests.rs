@@ -16,7 +16,7 @@ use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::{DaLayerTxSender, SequencerTxSender, TxSender, TOKEN_NAME};
-use crate::test_helpers::test_genesis_paths;
+use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
 
@@ -32,7 +32,7 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
             get_appropriate_rollup_prover_config(),
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 
@@ -58,7 +58,7 @@ async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> a
             get_appropriate_rollup_prover_config(),
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 
@@ -85,7 +85,7 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow
             get_appropriate_rollup_prover_config(),
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 

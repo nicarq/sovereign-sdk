@@ -19,7 +19,7 @@ use sov_test_utils::test_rollup::{
 };
 use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
-use crate::test_helpers::{test_genesis_paths, CHAIN_HASH};
+use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
 
 #[derive(Debug, Deserialize)]
 struct ValueResponse {
@@ -33,7 +33,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
             get_appropriate_rollup_prover_config(),
             BlockProducingConfig::OnSubmit,
             0,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 
@@ -69,7 +69,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
             get_appropriate_rollup_prover_config(),
             BlockProducingConfig::OnSubmit,
             0,
-            &test_genesis_paths(OperatingMode::Zk),
+            test_genesis_source(OperatingMode::Zk),
         )
         .await?;
 

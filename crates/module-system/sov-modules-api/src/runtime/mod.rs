@@ -47,7 +47,7 @@ pub trait Runtime<S: Spec>:
     const CHAIN_HASH: [u8; 32];
 
     /// GenesisConfig type.
-    type GenesisConfig: Send + Sync;
+    type GenesisConfig: Clone + Send + Sync;
 
     /// GenesisPaths type.
     #[cfg(feature = "native")]
@@ -60,6 +60,9 @@ pub trait Runtime<S: Spec>:
     /// Reads genesis configs.
     #[cfg(feature = "native")]
     fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
+
+    /// Gets the operating mode of the runtime (Zk or Optimistic).
+    fn operating_mode(genesis: &Self::GenesisConfig) -> OperatingMode;
 }
 
 /// The return type of [`Runtime::endpoints`].
