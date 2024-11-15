@@ -31,10 +31,10 @@ darling = { workspace = true }
 derive_more = { workspace = true, features = ["deref"] }
 hex = { workspace = true }
 prettier-please = { version = "0.3", default-features = false }
-proc-macro2 = "1.0"
-quote = "1.0"
+proc-macro2 = { workspace = true }
+quote = { workspace = true }
 serde = { workspace = true }
-syn = { version = "2.0", features = ["full"] }
+syn = { workspace = true, features = ["full"] }
 toml = { workspace = true }
 sov-universal-wallet-macro-helpers = { workspace = true }
 

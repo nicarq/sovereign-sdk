@@ -171,8 +171,10 @@ insta = { version = "1.39", features = ["json"] }
 jsonschema = "0.26.1"
 openapiv3 = "2.0.0"
 prometheus = { version = "0.13.4", default-features = false }
+proc-macro2 = { version = "1.0" }
 proptest = { version = "1.5", default-features = false, features = ["alloc"] }
 proptest-derive = "0.5.0"
+quote = "1.0"
 rand = "0.8"
 rand_chacha = "0.3.1"
 rayon = "1.10.0"
@@ -192,6 +194,7 @@ strum = { version = "0.26.3", features = ["derive"] }
 sp1-lib = { version = "3.0.0" }
 sp1-sdk = { version = "3.0.0", default-features = false }
 sp1-zkvm = { version = "3.0.0" }
+syn = { version = "2.0" }
 thiserror = "1.0.64"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
