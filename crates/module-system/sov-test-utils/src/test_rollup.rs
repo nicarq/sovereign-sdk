@@ -64,18 +64,32 @@ where
         genesis: GenesisSource<R::Spec, R::Runtime>,
         rollup_prover_config: RollupProverConfig,
         da_config: MockDaConfig,
+        aggregated_proof_block_jump: usize,
+        max_number_of_transitions_in_db: u64,
+        max_number_of_transitions_in_memory: u64,
     ) -> Rollup<R, Native> {
-        Self::construct_rollup_and_config(storage_path, genesis, rollup_prover_config, da_config)
-            .await
-            .rollup
+        Self::construct_rollup_and_config(
+            storage_path,
+            genesis,
+            rollup_prover_config,
+            da_config,
+            aggregated_proof_block_jump,
+            max_number_of_transitions_in_db,
+            max_number_of_transitions_in_memory,
+        )
+        .await
+        .rollup
     }
 
-    // Internal API, returns a rollup but also its config.
+    // Internal API. Returns a rollup but also its config.
     async fn construct_rollup_and_config(
         storage_path: impl AsRef<Path>,
         genesis: GenesisSource<R::Spec, R::Runtime>,
         rollup_prover_config: RollupProverConfig,
         da_config: MockDaConfig,
+        aggregated_proof_block_jump: usize,
+        max_number_of_transitions_in_db: u64,
+        max_number_of_transitions_in_memory: u64,
     ) -> RollupWithConfig<R> {
         let sequencer_address = da_config.sender_address;
 
@@ -92,9 +106,11 @@ where
             },
             da: da_config,
             proof_manager: ProofManagerConfig {
-                aggregated_proof_block_jump: 1,
+                aggregated_proof_block_jump,
                 prover_address: FromStr::from_str(Self::PROVER_ADDRESS)
                     .expect("Prover address is not valid"),
+                max_number_of_transitions_in_db,
+                max_number_of_transitions_in_memory,
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,
@@ -138,6 +154,7 @@ where
     /// Creates a new [`Rollup`] like [`RollupBuilder::construct_rollup`], but
     /// also starts running it in a background Tokio task. Node APIs are
     /// available.
+    #[allow(clippy::too_many_arguments)]
     pub async fn start_rollup_in_background(
         data_path: impl AsRef<Path>,
         rpc_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
@@ -145,6 +162,9 @@ where
         genesis: GenesisSource<R::Spec, R::Runtime>,
         rollup_prover_config: RollupProverConfig,
         da_config: MockDaConfig,
+        aggregated_proof_block_jump: usize,
+        max_number_of_transitions_in_db: u64,
+        max_number_of_transitions_in_memory: u64,
     ) -> (
         RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
         JoinHandle<anyhow::Result<()>>,
@@ -154,8 +174,16 @@ where
         let RollupWithConfig {
             rollup_config,
             rollup,
-        } = Self::construct_rollup_and_config(data_path, genesis, rollup_prover_config, da_config)
-            .await;
+        } = Self::construct_rollup_and_config(
+            data_path,
+            genesis,
+            rollup_prover_config,
+            da_config,
+            aggregated_proof_block_jump,
+            max_number_of_transitions_in_db,
+            max_number_of_transitions_in_memory,
+        )
+        .await;
 
         let shutdown_sender = rollup.shutdown_sender.clone();
 
@@ -193,6 +221,7 @@ where
             block_producing,
             finalization_blocks,
             None,
+            1,
         )
         .await
     }
@@ -208,6 +237,7 @@ where
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
         mock_da_path: Option<&Path>,
+        aggregated_proof_block_jump: usize,
     ) -> anyhow::Result<TestRollup<R>> {
         let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
@@ -229,6 +259,9 @@ where
             block_time_ms,
         };
 
+        let max_channel_size = 10;
+        let max_infos_in_db = 20 + finalization_blocks as u64;
+
         let (rollup_config, rollup_task, da_service, shutdown_sender) =
             Self::start_rollup_in_background(
                 storage_dir.path(),
@@ -237,6 +270,9 @@ where
                 genesis,
                 rollup_prover_config,
                 mock_da_config,
+                aggregated_proof_block_jump,
+                max_infos_in_db,
+                max_channel_size,
             )
             .await;
 

@@ -46,9 +46,12 @@ pub(crate) async fn start_node(
                 // Otherwise batches are going to be rejected
                 sender_address: MockAddress::new([0; 32]),
                 finalization_blocks,
-                block_producing: BlockProducingConfig::OnSubmit,
+                block_producing: BlockProducingConfig::OnBatchSubmit,
                 block_time_ms: 1_000,
             },
+            1,
+            2,
+            1,
         )
         .await;
 

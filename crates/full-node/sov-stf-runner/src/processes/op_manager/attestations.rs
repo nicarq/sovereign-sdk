@@ -102,6 +102,8 @@ where
         let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
 
         let receipt = self.da_service.send_proof(&serialized_blob, fee).await?;
+        // Confirm that submitted height is increased.
+        self.st_info_receiver.increase_submitted_height();
         tracing::debug!(?receipt, "Attestation has been posted to DA");
         Ok(())
     }

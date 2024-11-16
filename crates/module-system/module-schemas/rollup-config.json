@@ -69,10 +69,17 @@
           ]
         },
         {
-          "description": "New blocks are produced only when blob is submitted. This also means that block has only one blob.",
+          "description": "New blocks are produced only when a batch blob is submitted, not proof. This also means that the block has only one blob.",
           "type": "string",
           "enum": [
-            "onsubmit"
+            "onbatchsubmit"
+          ]
+        },
+        {
+          "description": "New blocks are produced only when batch or proof blobs are submitted. This also means that the block has only one blob.",
+          "type": "string",
+          "enum": [
+            "onanysubmit"
           ]
         }
       ]
@@ -146,7 +153,7 @@
       "properties": {
         "block_producing": {
           "description": "How MockDaService should produce blocks.",
-          "default": "onsubmit",
+          "default": "onbatchsubmit",
           "allOf": [
             {
               "$ref": "#/definitions/BlockProducingConfig"
@@ -154,7 +161,7 @@
           ]
         },
         "block_time_ms": {
-          "description": "Block time depends on `block_producing`: - For [`BlockProducingConfig::Periodic`] it defines how often new blocks will be produced, approximately. - For [`BlockProducingConfig::OnSubmit`] it defines max time service will wait for a new block to be submitted.",
+          "description": "Block time depends on `block_producing`: - For [`BlockProducingConfig::Periodic`] it defines how often new blocks will be produced, approximately. - For [`BlockProducingConfig::OnBatchSubmit`] or [`BlockProducingConfig::OnAnySubmit`] it defines max time service will wait for a new block to be submitted.",
           "default": 120000,
           "type": "integer",
           "format": "uint64",
@@ -186,13 +193,27 @@
       "type": "object",
       "required": [
         "aggregated_proof_block_jump",
+        "max_number_of_transitions_in_db",
+        "max_number_of_transitions_in_memory",
         "prover_address"
       ],
       "properties": {
         "aggregated_proof_block_jump": {
-          "description": "The \"distance\"  measured in the number of blocks between two consecutive aggregated proofs.",
+          "description": "The \"distance\" measured in the number of blocks between two consecutive aggregated proofs.",
           "type": "integer",
           "format": "uint",
+          "minimum": 0.0
+        },
+        "max_number_of_transitions_in_db": {
+          "description": "A number of state transition info entries are allowed to be stored in the database. When the number is exceeded, older entries are removed.",
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "max_number_of_transitions_in_memory": {
+          "description": "A number of state transition info entries are allowed to be kept in memory. If the number is exceeded, rollup execution will be blocked until provers cathes up.",
+          "type": "integer",
+          "format": "uint64",
           "minimum": 0.0
         },
         "prover_address": {

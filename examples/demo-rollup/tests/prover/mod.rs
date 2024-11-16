@@ -45,7 +45,7 @@ async fn test_proof_generation() {
 
     let mut storage_manager =
         NativeStorageManager::<MockDaSpec, ProverStorage<TestStorageSpec>>::new(temp_dir.path())
-            .expect("ProverStorageManager initialization has failed");
+            .expect("NativeStorageManager initialization has failed");
     let stf = TestSTF::new();
 
     let genesis_config = {

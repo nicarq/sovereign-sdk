@@ -1,5 +1,6 @@
-# 2024-11-13
-- #1873 changes the type of `Bank::CreateToken.authorized_minters` from `Vec` to `SafeVec`. This type can be easily  constructed by calling `try_into()` on an existing `Vec` as long as that `Vec` is not larger than the new size bound (20 items).
+## 2024-11-13
+- #1873 changes the type of `Bank::CreateToken.authorized_minters` from `Vec` to `SafeVec`. This type can be easily constructed by calling `try_into()` on an existing `Vec` as long as that `Vec` is not larger than the new size bound (20 items).
+- #1882 adds `max_number_of_transitions_in_db` and `max_number_of_transitions_in_memory` to proof_manager config.
 ## 2024-11-14
 
 - #1880 removes `FullNodeBlueprint::get_operating_mode` and replaces it with a new method `Runtime::operating_mode`. `Runtime::GenesisConfig` types now need to implement `Clone`. Minor API changes to testing utilities used inside `demo-rollup/tests/`.

@@ -31,7 +31,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
     let test_rollup =
         RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
             get_appropriate_rollup_prover_config(),
-            BlockProducingConfig::OnSubmit,
+            BlockProducingConfig::OnBatchSubmit,
             0,
             test_genesis_source(OperatingMode::Zk),
         )
@@ -67,7 +67,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     let test_rollup =
         RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
             get_appropriate_rollup_prover_config(),
-            BlockProducingConfig::OnSubmit,
+            BlockProducingConfig::OnBatchSubmit,
             0,
             test_genesis_source(OperatingMode::Zk),
         )

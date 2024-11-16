@@ -31,6 +31,9 @@ async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         RollupProverConfig::Skip,
         MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),
+        1,
+        1,
+        1,
     )
     .await;
     let da_service = rollup.runner.da_service();

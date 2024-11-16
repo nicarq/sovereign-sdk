@@ -172,9 +172,12 @@ pub enum BlockProducingConfig {
     /// New blocks are produced periodically.
     /// This means that empty blocks can be produced.
     Periodic,
-    /// New blocks are produced only when blob is submitted.
-    /// This also means that block has only one blob.
-    OnSubmit,
+    /// New blocks are produced only when a batch blob is submitted, not proof.
+    /// This also means that the block has only one blob.
+    OnBatchSubmit,
+    /// New blocks are produced only when batch or proof blobs are submitted.
+    /// This also means that the block has only one blob.
+    OnAnySubmit,
 }
 
 /// The configuration for Mock Da.
@@ -195,13 +198,13 @@ pub struct MockDaConfig {
     pub block_producing: BlockProducingConfig,
     /// Block time depends on `block_producing`:
     ///  - For [`BlockProducingConfig::Periodic`] it defines how often new blocks will be produced, approximately.
-    ///  - For [`BlockProducingConfig::OnSubmit`] it defines max time service will wait for a new block to be submitted.
+    ///  - For [`BlockProducingConfig::OnBatchSubmit`] or [`BlockProducingConfig::OnAnySubmit`] it defines max time service will wait for a new block to be submitted.
     #[serde(default = "default_block_time_ms")]
     pub block_time_ms: u64,
 }
 
 pub(crate) fn default_block_producing() -> BlockProducingConfig {
-    BlockProducingConfig::OnSubmit
+    BlockProducingConfig::OnBatchSubmit
 }
 
 pub(crate) fn default_block_time_ms() -> u64 {
@@ -226,8 +229,11 @@ impl MockDaConfig {
             BlockProducingConfig::Periodic => {
                 BlockProducing::Periodic(Duration::from_millis(self.block_time_ms))
             }
-            BlockProducingConfig::OnSubmit => {
-                BlockProducing::OnSubmit(Duration::from_millis(self.block_time_ms))
+            BlockProducingConfig::OnBatchSubmit => {
+                BlockProducing::OnBatchSubmit(Duration::from_millis(self.block_time_ms))
+            }
+            BlockProducingConfig::OnAnySubmit => {
+                BlockProducing::OnAnySubmit(Duration::from_millis(self.block_time_ms))
             }
         }
     }

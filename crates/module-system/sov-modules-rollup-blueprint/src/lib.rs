@@ -290,8 +290,12 @@ mod blueprint {
                         Box::new(self.create_proof_serializer(&rollup_config, &sequencer_db)?),
                     );
 
-                    let max_channel_size = 10;
-                    let max_infos_in_db = 20;
+                    let max_channel_size = rollup_config
+                        .proof_manager
+                        .max_number_of_transitions_in_memory
+                        as usize;
+                    let max_infos_in_db =
+                        rollup_config.proof_manager.max_number_of_transitions_in_db;
 
                     let st_info_sender = match operating_mode {
                         OperatingMode::Optimistic => {
@@ -485,7 +489,7 @@ mod blueprint {
                 _ = terminate.recv() => tracing::info!("Received SIGTERM"),
                 _ = quit .recv() => tracing::info!("Received SIGQUIT"),
                 _ = api_shutdown.changed() => {
-                    tracing::debug!("Stopping OS singla handling task, as rollup has been stopped programmatically");
+                    tracing::debug!("Stopping OS signal handling task, as rollup has been stopped programmatically");
                     return;
                 }
             }
