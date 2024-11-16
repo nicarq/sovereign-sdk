@@ -89,10 +89,16 @@ pub struct StorageConfig {
 /// Prover service configuration.
 #[derive(Debug, Clone, PartialEq, Deserialize, Copy, JsonSchema)]
 pub struct ProofManagerConfig<Address> {
-    /// The "distance"  measured in the number of blocks between two consecutive aggregated proofs.
+    /// The "distance" measured in the number of blocks between two consecutive aggregated proofs.
     pub aggregated_proof_block_jump: usize,
     /// The prover receives rewards to this address.
     pub prover_address: Address,
+    /// A number of state transition info entries are allowed to be stored in the database.
+    /// When the number is exceeded, older entries are removed.
+    pub max_number_of_transitions_in_db: u64,
+    /// A number of state transition info entries are allowed to be kept in memory.
+    /// If the number is exceeded, rollup execution will be blocked until provers cathes up.
+    pub max_number_of_transitions_in_memory: u64,
 }
 
 /// Rollup Configuration
@@ -173,6 +179,8 @@ mod tests {
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+            max_number_of_transitions_in_db = 1025
+            max_number_of_transitions_in_memory = 768
             [sequencer]
             max_allowed_blocks_behind = 5
             da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
@@ -219,6 +227,8 @@ mod tests {
                     "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
                 )
                 .unwrap(),
+                max_number_of_transitions_in_db: 1025,
+                max_number_of_transitions_in_memory: 768,
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,

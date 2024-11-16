@@ -18,7 +18,7 @@ use crate::bank::helpers::*;
 use crate::bank::{DaLayerTxSender, SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::test_genesis_source;
 
-const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
+const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyhow::Result<()> {

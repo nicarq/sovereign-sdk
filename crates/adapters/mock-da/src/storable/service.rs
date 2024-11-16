@@ -29,12 +29,14 @@ const EXTRA_TIME_FOR_MAX_BLOCK: Duration = Duration::from_secs(10);
 /// Defines how StorableMockService should produce new blocks.
 #[derive(Debug, Clone)]
 pub enum BlockProducing {
-    /// Produced new block at every time. Not guaranteed to be precise.
+    /// Produced a new block at every time. Not guaranteed to have precise block time.
     Periodic(Duration),
-    /// Produces new block at every submission of a batch/proof.
-    /// Means single blob per block.
-    /// Inner duration is a timeout for new block to be submitted.
-    OnSubmit(Duration),
+    /// Produces a new block at every submission of a batch only, not proof.
+    /// Means single batch blob per block, but can be batch and proof blobs.
+    /// Inner duration is a timeout for a new block to be submitted.
+    OnBatchSubmit(Duration),
+    /// Produces a new block at every submission of a batch or proof.
+    OnAnySubmit(Duration),
     /// Block producing is controlled externally.
     Manual,
 }
@@ -42,9 +44,9 @@ pub enum BlockProducing {
 impl BlockProducing {
     fn get_max_waiting_time_for_block(&self) -> Duration {
         match self {
-            BlockProducing::OnSubmit(duration) | BlockProducing::Periodic(duration) => {
-                *duration + EXTRA_TIME_FOR_MAX_BLOCK
-            }
+            BlockProducing::OnBatchSubmit(duration)
+            | BlockProducing::Periodic(duration)
+            | BlockProducing::OnAnySubmit(duration) => *duration + EXTRA_TIME_FOR_MAX_BLOCK,
             // Use a large number to prevent infinite blocking.
             BlockProducing::Manual => DEFAULT_BLOCK_WAITING_TIME * 1000,
         }
@@ -144,7 +146,7 @@ impl StorableMockDaService {
         let da_layer = StorableMockDaLayer::new_in_memory(blocks_to_finality)
             .await
             .expect("Failed to initialize StorableMockDaLayer");
-        let producing = BlockProducing::OnSubmit(DEFAULT_BLOCK_WAITING_TIME);
+        let producing = BlockProducing::OnBatchSubmit(DEFAULT_BLOCK_WAITING_TIME);
         let (drop_notifier, _) = DropNotifier::build();
         Self::new(
             sequencer_da_address,
@@ -305,9 +307,12 @@ impl DaService for StorableMockDaService {
                 .submit_batch(blob, &self.sequencer_da_address)
                 .await?
         };
-        if let BlockProducing::OnSubmit(_) = &self.block_producing {
-            let mut da_layer = self.da_layer.write().await;
-            da_layer.produce_block().await?;
+        match &self.block_producing {
+            BlockProducing::OnBatchSubmit(_) | BlockProducing::OnAnySubmit(_) => {
+                let mut da_layer = self.da_layer.write().await;
+                da_layer.produce_block().await?;
+            }
+            BlockProducing::Periodic(_) | BlockProducing::Manual => (),
         }
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
@@ -322,7 +327,7 @@ impl DaService for StorableMockDaService {
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
         tracing::debug!(
             blob = hex::encode(aggregated_proof_data),
-            "Submitting an aggregated proof"
+            "Sending an aggregated proof"
         );
         let blob_hash = {
             let da_layer = self.da_layer.read().await;
@@ -334,6 +339,17 @@ impl DaService for StorableMockDaService {
         self.aggregated_proof_sender
             .send(())
             .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+
+        match &self.block_producing {
+            BlockProducing::OnBatchSubmit(_) => {
+                tracing::debug!("Proof submission won't produce new DA block");
+            }
+            BlockProducing::OnAnySubmit(_) => {
+                let mut da_layer = self.da_layer.write().await;
+                da_layer.produce_block().await?;
+            }
+            BlockProducing::Periodic(_) | BlockProducing::Manual => (),
+        }
 
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
@@ -461,7 +477,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn querying_height_above_u32_max() -> anyhow::Result<()> {
-        let producing = BlockProducing::OnSubmit(Duration::from_millis(10));
+        let producing = BlockProducing::OnBatchSubmit(Duration::from_millis(10));
         let mut service = StorableMockDaService::new_in_memory(MockAddress::new([0; 32]), 0).await;
         service.block_producing = producing;
 

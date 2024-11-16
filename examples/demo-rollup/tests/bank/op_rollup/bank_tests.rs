@@ -12,7 +12,7 @@ use crate::bank::helpers::*;
 use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::*;
 
-const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnSubmit;
+const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn bank_tx_tests() -> anyhow::Result<()> {

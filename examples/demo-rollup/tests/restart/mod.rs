@@ -3,11 +3,15 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
+use ethers_providers::StreamExt;
 use rand::Rng;
 use sov_demo_rollup::MockDemoRollup;
+use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
+use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use tracing::{Event, Level, Subscriber};
@@ -82,6 +86,7 @@ async fn start_stop_empty(
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 Some(mock_da_dir.path()),
+                1
             ),
         )
         .await??;
@@ -161,3 +166,145 @@ async fn test_start_stop_optimistic_non_instant_finality() -> anyhow::Result<()>
 //     let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_default();
 //     matches!(skip_guest_build.to_lowercase().as_str(), "" | "0" | "false")
 // }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_start_prover_manual() -> anyhow::Result<()> {
+    let records = Arc::new(Mutex::new(Vec::new()));
+    let collector = LogCollector {
+        records: records.clone(),
+    };
+    let subscriber = registry().with(collector);
+    subscriber.init();
+
+    let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
+    let mock_da_dir = tempfile::tempdir()?;
+    let finalization_blocks = 0;
+
+    let first_chunk = 6;
+    let second_chunk = 4;
+    let jump_size = first_chunk + second_chunk;
+
+    {
+        let mut storable_mock_da_layer =
+            StorableMockDaLayer::new_in_path(mock_da_dir.path(), 0).await?;
+        for _ in 0..first_chunk {
+            storable_mock_da_layer.produce_block().await?;
+        }
+    }
+
+    {
+        let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
+            RollupProverConfig::Skip,
+            test_genesis_source(OperatingMode::Zk),
+            rollup_storage_dir.clone(),
+            BlockProducingConfig::OnAnySubmit,
+            finalization_blocks,
+            Some(mock_da_dir.path()),
+            jump_size,
+        )
+            .await?;
+        let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
+
+        let TestRollup {
+            shutdown_sender,
+            rollup_task,
+            ..
+        } = test_rollup;
+
+        let rollup_height = slot_subscription
+            .next()
+            .await
+            .transpose()?
+            .map(|slot| slot.number)
+            .unwrap_or_default();
+        if rollup_height < first_chunk as u64 {
+            let till = first_chunk - rollup_height as usize;
+            for _ in 0..till {
+                let _ = slot_subscription.next().await.unwrap();
+            }
+        }
+        drop(slot_subscription);
+
+        shutdown_sender.send(())?;
+        let _ = rollup_task.await?;
+    }
+
+    let head_before_restart = {
+        let mut storable_mock_da_layer =
+            StorableMockDaLayer::new_in_path(mock_da_dir.path(), 0).await?;
+        for _ in 0..second_chunk {
+            storable_mock_da_layer.produce_block().await?;
+        }
+        storable_mock_da_layer
+            .get_head_block_header()
+            .await?
+            .height()
+    };
+
+    {
+        let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
+            RollupProverConfig::Skip,
+            test_genesis_source(OperatingMode::Zk),
+            rollup_storage_dir.clone(),
+            BlockProducingConfig::OnAnySubmit,
+            finalization_blocks,
+            Some(mock_da_dir.path()),
+            jump_size,
+        )
+            .await?;
+
+        let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
+
+        let TestRollup {
+            shutdown_sender,
+            rollup_task,
+            da_service,
+            ..
+        } = test_rollup;
+
+        let rollup_height = slot_subscription
+            .next()
+            .await
+            .transpose()?
+            .map(|slot| slot.number)
+            .unwrap_or_default();
+        if rollup_height < second_chunk as u64 {
+            let till = second_chunk - rollup_height as usize;
+            for _ in 0..till {
+                let _ = slot_subscription.next().await.unwrap();
+            }
+        }
+        drop(slot_subscription);
+
+        // We give rollup 1 second to produce mock proof.
+        for _ in 0..10 {
+            let head_after_restart = da_service.get_head_block_header().await?;
+            if head_after_restart.height() > head_before_restart {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        }
+
+        let head_after_restart = da_service.get_head_block_header().await?;
+        assert_eq!(
+            head_after_restart.height(),
+            head_before_restart + 1,
+            "Prover hasn't posted proof"
+        );
+
+        shutdown_sender.send(())?;
+        let _ = rollup_task.await?;
+    }
+
+    let mut recorded_errors_warnings =
+        HashSet::<(Level, String)>::from_iter(records.lock().unwrap().clone().iter().cloned());
+    let known = [
+        // Error because of ledger subscription
+        (Level::WARN, "WebSocket error".to_string()),
+    ];
+    recorded_errors_warnings.retain(|e| !known.contains(e));
+    // We could've checked `.is_empty`, but in case of failure, we will see errors immediately.
+    assert_eq!(HashSet::<(Level, String)>::new(), recorded_errors_warnings);
+
+    Ok(())
+}

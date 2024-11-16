@@ -73,7 +73,7 @@ impl StorableMockDaLayer {
     }
 
     /// Saves new block header into a database.
-    pub(crate) async fn produce_block(&mut self) -> anyhow::Result<()> {
+    pub async fn produce_block(&mut self) -> anyhow::Result<()> {
         tracing::trace!(
             next_height = self.next_height,
             "Start producing a new block at"
@@ -196,7 +196,8 @@ impl StorableMockDaLayer {
         Ok(hash)
     }
 
-    pub(crate) async fn get_head_block_header(&self) -> anyhow::Result<MockBlockHeader> {
+    /// Get head block header saved in the database.
+    pub async fn get_head_block_header(&self) -> anyhow::Result<MockBlockHeader> {
         self.get_header_at(self.next_height.saturating_sub(1)).await
     }
 

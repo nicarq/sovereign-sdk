@@ -120,7 +120,7 @@ where
     }
 
     /// Attempts to generate an `AggregatedProof` and then posts it to DA.
-    /// The proof is created only when there are enough of inner proofs in the `ProverService`` queue.
+    /// The proof is created only when there are enough of inner proofs in the `ProverService` queue.
     async fn post_aggregated_proof_to_da_when_ready(mut self) -> anyhow::Result<()> {
         loop {
             tokio::select! {
@@ -199,6 +199,8 @@ where
 
             let receipt = self.da_service.send_proof(&serialized_proof, fee).await?;
             tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
+            // Confirm that submitted height is increased.
+            self.st_info_receiver.increase_submitted_height();
         }
         Ok(())
     }

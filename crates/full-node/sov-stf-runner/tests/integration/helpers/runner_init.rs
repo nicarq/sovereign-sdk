@@ -173,6 +173,8 @@ pub async fn initialize_runner(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
             )
             .expect("Prover address is not valid"),
+            max_number_of_transitions_in_db: 2,
+            max_number_of_transitions_in_memory: 1,
         },
         sequencer: SequencerConfig {
             automatic_batch_production: false,
