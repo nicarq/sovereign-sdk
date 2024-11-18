@@ -203,7 +203,7 @@ where
                         .await
                         .is_none()
                         {
-                            break;
+                            return Ok(());
                         }
                     }
                     Some(None) => {
@@ -212,7 +212,7 @@ where
                     }
                     None => {
                         // Shutdown signal received
-                        break;
+                        return Ok(());
                     }
                 }
             }
