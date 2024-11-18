@@ -4,6 +4,8 @@ use std::ops::Range;
 use celestia_types::nmt::{Namespace, NamespaceProof, NS_SIZE};
 use celestia_types::row_namespace_data::{NamespacedShares, RowNamespaceData};
 use serde::{Deserialize, Serialize};
+use sov_rollup_interface::da::BlockHeaderTrait;
+use tracing::warn;
 
 use super::CelestiaSpec;
 use crate::types::NamespaceData;
@@ -41,7 +43,12 @@ pub fn new_inclusion_proof(
         needed_tx_shares.push(position.clone());
     }
 
-    subnamespace_inclusion_proofs(header.square_size(), etx_rows, &mut needed_tx_shares)
+    subnamespace_inclusion_proofs(
+        header.square_size(),
+        etx_rows,
+        &mut needed_tx_shares,
+        header.height(),
+    )
 }
 
 /// The namespace is a contiguous set of shares from the EDS.
@@ -82,7 +89,8 @@ fn subnamespace_inclusion_proofs(
     row_length: usize,
     namespace_with_proof: &NamespacedShares,
     ranges_to_prove: &mut [TxPosition], // When proving blobs, start_offset will always be 0, so these
-                                        // can become just ranges instead of `TxPosition`s
+    // can become just ranges instead of `TxPosition`s
+    height: u64,
 ) -> Vec<EtxProof> {
     let mut proofs: Vec<EtxProof> = Vec::with_capacity(ranges_to_prove.len());
     let mut ranges_to_prove = ranges_to_prove.iter_mut().peekable();
@@ -92,10 +100,11 @@ fn subnamespace_inclusion_proofs(
         // If the namespace is empty (no rows), there's nothing to prove
         return vec![];
     };
-    let first_share = first_row
-        .shares
-        .first()
-        .expect("Row must contain at least one share. This is a bug in either Lumina or the connected Celestia Node.");
+    let Some(first_share) = first_row.shares.first() else {
+        warn!("Row must contain at least one share. This is a bug in either Lumina or the connected Celestia Node. This is a known bug in the Celestia adapter that will be fixed in a future release. Height: {}", height);
+        return vec![];
+    };
+    // .expect("Row must contain at least one share. This is a bug in either Lumina or the connected Celestia Node.");
 
     let namespace_id = Namespace::from_raw(&first_share[..NS_SIZE]).expect(
         "Invalid namespace id. This is a bug in either Lumina or the connected Celestia Node.",
