@@ -325,10 +325,12 @@ where
                 }
             }?;
 
-            // Wait till RPC server actually stopped,
+            // Wait till the RPC server actually stopped,
             // So when this task is completed,
             // it is safe to assume that the RPC server is running no more.
             server_handle.stopped().await;
+            debug!("RPC server stopped");
+
             Ok(())
         }));
 
@@ -392,7 +394,12 @@ where
                         } = sync_state.status() {
                             info!(synced_da_height, target_da_height, "Sync in progress");
                         }
-                        interval.tick().await;
+                        tokio::select! {
+                            _ = shutdown_receiver.changed() => {
+                            break;
+                            },
+                            _ = interval.tick() => ()
+                        };
                     }
                 }
             }
@@ -421,8 +428,9 @@ where
                 }
             }
         }
-        info!("Shutting down runner...");
+        info!("Runner main loop is completed, keep shutting down...");
         status_updater_handle.await?;
+        debug!("Status updater stopped, sending secondary shutdown for runner");
         self.secondary_shutdown_sender.send(())?;
         let background_handles = std::mem::take(&mut self.background_handles);
         for handle in background_handles {
