@@ -19,6 +19,7 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
+use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
@@ -235,7 +236,7 @@ where
         ledger_db: LedgerDb,
         stf: Stf,
         storage_manager: Sm,
-        api_storage_sender: watch::Sender<Sm::StfState>,
+        state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
         prev_state_root: Stf::StateRoot,
         st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
         sync_status_sender: watch::Sender<SyncStatus>,
@@ -265,7 +266,7 @@ where
             storage_manager,
             ledger_db,
             prev_state_root,
-            api_storage_sender,
+            state_update_channel,
             st_info_sender,
         );
 

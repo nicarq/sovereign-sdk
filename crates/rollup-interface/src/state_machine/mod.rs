@@ -131,3 +131,19 @@ impl<T: for<'a> arbitrary::Arbitrary<'a>> MaybeArbitrary for T {}
 pub trait MaybeArbitrary {}
 #[cfg(not(feature = "arbitrary"))]
 impl<T> MaybeArbitrary for T {}
+
+/// Structure that holds information about the state update that happened in the block.
+#[cfg(feature = "native")]
+#[derive(Clone, Debug)]
+pub struct StateUpdateInfo<StfState> {
+    /// The storage following the state update.
+    pub storage: StfState,
+    /// The latest event number following the state update.
+    ///
+    /// ## FIXME(@theochap)
+    /// This field should be an option because events are 0-indexed. So if there are no events emitted
+    /// yet we should have [`None`] instead of `0`.
+    pub latest_event_number: u64,
+    /// The height of the rollup following the state update.
+    pub rollup_height: u64,
+}

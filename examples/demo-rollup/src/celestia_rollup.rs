@@ -10,6 +10,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native};
+use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
@@ -23,7 +24,6 @@ use sov_sequencer::SequencerDb;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
-use tokio::sync::watch;
 
 use crate::{ROLLUP_BATCH_NAMESPACE, ROLLUP_PROOF_NAMESPACE};
 
@@ -71,7 +71,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
 
     async fn create_endpoints(
         &self,
-        storage: watch::Receiver<<Self::Spec as Spec>::Storage>,
+        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
@@ -81,7 +81,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, _>(
-            storage.clone(),
+            state_update_receiver.clone(),
             sync_status_receiver,
             ledger_db,
             sequencer_db,
@@ -96,7 +96,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         //   https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/366
         crate::eth::register_ethereum::<Self::Spec, Self::DaService, Self::Runtime>(
             da_service.clone(),
-            storage.clone(),
+            state_update_receiver.clone(),
             &mut endpoints.jsonrpsee_module,
         )?;
 

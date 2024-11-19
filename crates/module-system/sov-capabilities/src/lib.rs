@@ -16,6 +16,8 @@ use sov_modules_api::{
     InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxState,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
+#[cfg(feature = "native")]
+use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer_registry::SequencerRegistry;
 
 /// Implements the basic capabilities required for a zk-rollup runtime.
@@ -271,7 +273,9 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
     fn create_bonding_proof_service<K: HasKernel<S>>(
         &self,
         attester_address: <S as Spec>::Address,
-        storage: sov_modules_api::prelude::tokio::sync::watch::Receiver<<S as Spec>::Storage>,
+        state_update_info: sov_modules_api::prelude::tokio::sync::watch::Receiver<
+            StateUpdateInfo<<S as Spec>::Storage>,
+        >,
         kernel: K,
     ) -> Self::BondingProofService<K> {
         use sov_attester_incentives::BondingProofServiceImpl;
@@ -279,7 +283,7 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
         BondingProofServiceImpl::new(
             attester_address,
             self.attester_incentives.clone(),
-            storage,
+            state_update_info,
             kernel,
         )
     }

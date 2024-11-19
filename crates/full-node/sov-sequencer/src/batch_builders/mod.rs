@@ -13,10 +13,11 @@ use sov_modules_api::capabilities::{
     AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
     SequencerAuthorization, TransactionAuthenticator,
 };
-use sov_modules_api::rest::{ApiState, StorageReceiver};
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
-    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, TxScratchpad,
+    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, StateUpdateInfo,
+    TxScratchpad,
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
@@ -75,10 +76,10 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     // transactions differently to support multiple transaction types.
     fn encode_tx(raw: RawTx) -> Self::TxInput;
 
-    /// A [`StorageReceiver`] which is notified each time the rollup's head storage changes.
+    /// A [`StateUpdateReceiver`] which is notified each time the rollup's head storage changes.
     /// This happens when DA layer reorgs or a new block is successfully processed on top of
     /// the previous head.
-    fn storage_receiver(&self) -> StorageReceiver<Self::Spec>;
+    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage>;
 
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
@@ -88,7 +89,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
 
     /// Creates a new [`BatchBuilder`].
     async fn create(
-        storage: StorageReceiver<Self::Spec>,
+        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
@@ -101,14 +102,8 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// to notify about dropped transactions.
     fn tx_status_manager(&self) -> TxStatusManager<<Self::Spec as Spec>::Da>;
 
-    /// Informs the [`BatchBuilder`] that the DA layer has progressed to a new
-    /// slot.
-    async fn set_state(
-        &mut self,
-        da_height: u64,
-        stf_state: <Self::Spec as Spec>::Storage,
-        last_event_number: u64,
-    );
+    /// Updates the sequencer's view of the state of the rollup.
+    async fn update_state(&mut self, update_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>);
 
     /// Adds a **not-encoded** transaction to the mempool. The [`BatchBuilder`]
     /// implementation itself is responsible for "encoding" the transaction.

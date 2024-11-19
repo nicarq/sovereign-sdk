@@ -47,7 +47,7 @@ mod blueprint {
     use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
-    use sov_modules_api::rest::StorageReceiver;
+    use sov_modules_api::rest::StateUpdateReceiver;
     use sov_modules_api::{
         OperatingMode, ProofSerializer, RuntimeEndpoints, RuntimeEventProcessor,
         RuntimeEventResponse, Spec, SyncStatus, ZkVerifier,
@@ -56,8 +56,10 @@ mod blueprint {
         GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
     };
     use sov_rollup_interface::node::da::DaService;
+    use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
     use sov_rollup_interface::node::DaSyncState;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
+    use sov_rollup_interface::StateUpdateInfo;
     use sov_sequencer::batch_builders::BatchBuilder;
     use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
@@ -105,7 +107,7 @@ mod blueprint {
         /// Creates RPC methods for the rollup.
         async fn create_endpoints(
             &self,
-            storage: StorageReceiver<Self::Spec>,
+            storage: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
             sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
             ledger_db: &LedgerDb,
             sequencer_db: &SequencerDb,
@@ -254,8 +256,24 @@ mod blueprint {
                 // Just using previously created bootstrap storage, because it is initialized
                 prover_storage
             };
-            let (api_storage_sender, api_storage_receiver) =
-                tokio::sync::watch::channel(prover_storage);
+
+            let rollup_height = ledger_db
+                .get_head_rollup_height()
+                .await?
+                .expect("The rollup height should always be available");
+            let latest_event_number = ledger_db
+                .get_latest_event_number()
+                .await?
+                .unwrap_or_default();
+
+            let state_update_info = StateUpdateInfo {
+                storage: prover_storage,
+                latest_event_number,
+                rollup_height,
+            };
+
+            let (state_update_sender, state_update_receiver) =
+                tokio::sync::watch::channel(state_update_info);
 
             tracing::debug!(
                 prev_root_hash = hex::encode(prev_state_root.as_ref()),
@@ -300,7 +318,7 @@ mod blueprint {
                     let st_info_sender = match operating_mode {
                         OperatingMode::Optimistic => {
                             let prover_address = rollup_config.proof_manager.prover_address.clone();
-                            let receiver = api_storage_sender.subscribe();
+                            let receiver = state_update_sender.subscribe();
                             let bonding_proof_service = Self::Runtime::default()
                                 .proof_processor()
                                 .create_bonding_proof_service(
@@ -351,7 +369,7 @@ mod blueprint {
                 ledger_db.clone(),
                 native_stf,
                 storage_manager,
-                api_storage_sender,
+                state_update_sender,
                 prev_state_root,
                 st_info_sender,
                 sync_status_sender,
@@ -361,7 +379,7 @@ mod blueprint {
 
             let endpoints = self
                 .create_endpoints(
-                    api_storage_receiver,
+                    state_update_receiver,
                     sync_status_receiver,
                     &ledger_db,
                     &sequencer_db,

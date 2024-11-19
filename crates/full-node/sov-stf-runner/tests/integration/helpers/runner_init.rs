@@ -19,6 +19,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
+use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -196,7 +197,23 @@ pub async fn initialize_runner(
     let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_block).unwrap();
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
-    let api_storage_sender = watch::Sender::new(genesis_storage.clone());
+
+    let rollup_height = ledger_db
+        .get_head_rollup_height()
+        .await
+        .unwrap()
+        .unwrap_or_default();
+    let latest_event_number = ledger_db
+        .get_latest_event_number()
+        .await
+        .unwrap()
+        .unwrap_or_default();
+
+    let (state_update_sender, _state_update_recv) = watch::channel(StateUpdateInfo {
+        storage: genesis_storage,
+        latest_event_number,
+        rollup_height,
+    });
 
     let (sync_sender, _sync_status_receiver) = watch::channel(SyncStatus::Syncing {
         synced_da_height: 0,
@@ -263,7 +280,7 @@ pub async fn initialize_runner(
             ledger_db.clone(),
             stf,
             storage_manager,
-            api_storage_sender,
+            state_update_sender,
             prev_state_root,
             st_info_sender,
             sync_sender,

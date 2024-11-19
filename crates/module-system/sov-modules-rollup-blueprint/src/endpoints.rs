@@ -7,7 +7,7 @@ use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
-use sov_modules_api::rest::{HasRestApi, StorageReceiver};
+use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
@@ -25,7 +25,7 @@ use crate::{FullNodeBlueprint, SequencerBlueprint};
 #[allow(clippy::too_many_arguments)]
 /// Register rollup's default RPC methods and Axum router.
 pub async fn register_endpoints<B, M>(
-    storage: StorageReceiver<B::Spec>,
+    state_update_receiver: StateUpdateReceiver<<B::Spec as Spec>::Storage>,
     sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
     ledger_db: &LedgerDb,
     sequencer_db: &SequencerDb,
@@ -51,7 +51,7 @@ where
     {
         BatchBuilderMode::Standard(bb_config) => {
             let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
-                storage.clone(),
+                state_update_receiver.clone(),
                 da_sync_state,
                 da_address,
                 sequencer_db.read_all()?,
@@ -61,15 +61,16 @@ where
             )
             .await?;
             let tx_status_manager = batch_builder.tx_status_manager();
-            let (sequencer, background_handle) = SequencerBlueprint::<B, M, _>::new(
-                batch_builder,
-                da_service.clone(),
-                tx_status_manager,
-                sequencer_db.clone(),
-                ledger_db.clone(),
-                config.sequencer.automatic_batch_production,
-                shutdown_receiver,
-            );
+            let (sequencer, background_handle) =
+                SequencerBlueprint::<B, M, StdBatchBuilder<(B::Spec, B::Runtime)>>::new(
+                    batch_builder,
+                    da_service.clone(),
+                    tx_status_manager,
+                    sequencer_db.clone(),
+                    ledger_db.clone(),
+                    config.sequencer.automatic_batch_production,
+                    shutdown_receiver,
+                );
 
             (
                 sequencer.api_state(),
@@ -77,16 +78,16 @@ where
                 background_handle,
             )
         }
-        BatchBuilderMode::Preferred => {
+        BatchBuilderMode::Preferred(bb_config) => {
             warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
 
             let batch_builder = PreferredBatchBuilder::<(B::Spec, B::Runtime)>::create(
-                storage.clone(),
+                state_update_receiver.clone(),
                 da_sync_state,
                 da_address,
                 sequencer_db.read_all()?,
                 config.sequencer.batch_builder.admin_addresses.clone(),
-                &(),
+                bb_config,
                 last_event_number,
             )
             .await?;
@@ -139,7 +140,7 @@ where
         let rollup_router = RollupTxRouter::<
             std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Runtime>>,
         >::axum_router(
-            storage,
+            state_update_receiver,
             config.sequencer.da_address.clone(),
             sync_status_receiver,
         );

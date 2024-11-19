@@ -13,7 +13,7 @@ use serde::Deserialize;
 use sov_modules_api::capabilities::{
     AuthenticationError, ChainState, HasKernel, TransactionAuthenticator,
 };
-use sov_modules_api::rest::{ApiState, StorageReceiver};
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, RawTx, Spec,
@@ -33,7 +33,7 @@ use self::mempool::{Mempool, MempoolCursor};
 use super::{sender_is_allowed, EmptyConfirmation, RtAwareBatchBuilderSpec};
 use crate::batch_builders::{
     pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
-    FreshlyBuiltBatch, TxWithHash,
+    FreshlyBuiltBatch, StateUpdateInfo, TxWithHash,
 };
 use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SeqDbTx, SeqDbTxExtend, TxHash, TxStatus, TxStatusManager};
@@ -62,7 +62,7 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
-    storage_recv: StorageReceiver<Z::Spec>,
+    state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
     tx_hashes_of_last_batch: Vec<TxHash>,
     sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
     admin_addresses: Vec<<Z::Spec as Spec>::Address>,
@@ -214,7 +214,7 @@ where
     type Spec = Z::Spec;
 
     async fn create(
-        storage_recv: StorageReceiver<Z::Spec>,
+        state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
@@ -226,9 +226,9 @@ where
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
         let kernel = runtime.kernel();
 
-        let storage = storage_recv.borrow();
+        let state_update_ref = state_update_recv.borrow();
 
-        let checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+        let checkpoint = StateCheckpoint::new(state_update_ref.storage.clone(), &kernel);
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
 
         let api_state = ApiState::build(
@@ -238,11 +238,11 @@ where
             None,
         );
 
-        let checkpoint = StateCheckpoint::new(storage.clone(), &kernel);
+        let checkpoint = StateCheckpoint::new(state_update_ref.storage.clone(), &kernel);
         let txsm = TxStatusManager::default();
 
         // We must drop it to retake ownership over `storage_recv`.
-        drop(storage);
+        drop(state_update_ref);
 
         Ok(Self {
             mempool: Mempool::new(
@@ -255,7 +255,7 @@ where
             txsm,
             api_state,
             runtime: Z::Rt::default(),
-            storage_recv,
+            state_update_recv,
             admin_addresses,
             checkpoint_sender,
             checkpoint: Some(checkpoint),
@@ -273,8 +273,8 @@ where
         Ok(())
     }
 
-    fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
-        self.storage_recv.clone()
+    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage> {
+        self.state_update_recv.clone()
     }
 
     fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {
@@ -285,13 +285,21 @@ where
         self.api_state.clone()
     }
 
-    async fn set_state(
+    async fn update_state(
         &mut self,
-        _da_height: u64,
-        stf_state: <Z::Spec as Spec>::Storage,
-        _last_event_number: u64,
+        StateUpdateInfo {
+            storage,
+            rollup_height,
+            ..
+        }: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
     ) {
-        let checkpoint = StateCheckpoint::new(stf_state, &Z::Rt::default().kernel());
+        let checkpoint = StateCheckpoint::new(storage, &Z::Rt::default().kernel());
+
+        tracing::debug!(
+            da_height = rollup_height,
+            "The sequencer received a new state. Notifying the subscribers."
+        );
+
         self.checkpoint_sender
             .send(checkpoint.clone_with_empty_witness())
             .ok();

@@ -8,7 +8,7 @@ use axum::Json;
 use sov_api_spec::types::{self, SimulateExecutionResponse};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::prelude::tokio::sync::watch;
-use sov_modules_api::rest::StorageReceiver;
+use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::{Credentials, TxDetails};
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
@@ -27,7 +27,7 @@ pub use default_provider::DefaultRollupStateProvider;
 /// a specific [`RollupStateProvider`].
 #[derive(Clone)]
 pub struct RollupTxRouter<T: RollupStateProvider> {
-    storage: StorageReceiver<T::Spec>,
+    state_update_recv: StateUpdateReceiver<<T::Spec as Spec>::Storage>,
     default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
     sync_status_receiver: watch::Receiver<SyncStatus>,
 }
@@ -97,12 +97,12 @@ pub trait RollupStateProvider: Clone + Send + Sync {
 
     /// Get the latest base fee per gas in the storage.
     fn get_latest_base_fee_per_gas(
-        storage: &StorageReceiver<Self::Spec>,
+        storage: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
     ) -> Result<<<Self::Spec as Spec>::Gas as Gas>::Price, Self::Error>;
 
     /// Simulates the execution of a transaction.
     fn simulate_execution(
-        storage: &StorageReceiver<Self::Spec>,
+        storage: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<Self::Spec>, Self::Error>;
@@ -115,7 +115,7 @@ where
 {
     /// Returns an [`axum::Router`] that exposes gas information, simulation data and sync status.
     pub fn axum_router(
-        storage: StorageReceiver<T::Spec>,
+        state_update_recv: StateUpdateReceiver<<T::Spec as Spec>::Storage>,
         default_sequencer: <<T::Spec as Spec>::Da as DaSpec>::Address,
         sync_status_receiver: watch::Receiver<SyncStatus>,
     ) -> axum::Router<()> {
@@ -128,7 +128,7 @@ where
                 .route("/rollup/simulate", post(Self::simulate))
                 .route("/rollup/sync-status", get(Self::get_sync_status))
                 .with_state(RollupTxRouter {
-                    storage,
+                    state_update_recv,
                     default_sequencer,
                     sync_status_receiver,
                 }),
@@ -148,9 +148,11 @@ where
 
     /// Get the latest base fee per gas in the storage.
     async fn get_latest_base_fee_per_gas(
-        State(RollupTxRouter { storage, .. }): State<Self>,
+        State(RollupTxRouter {
+            state_update_recv, ..
+        }): State<Self>,
     ) -> ApiResult<GasPriceContainer<T::Spec>> {
-        match T::get_latest_base_fee_per_gas(&storage) {
+        match T::get_latest_base_fee_per_gas(&state_update_recv) {
             Ok(base_fee_per_gas) => {
                 Ok(ResponseObject::from(GasPriceContainer { base_fee_per_gas }))
             }
@@ -161,7 +163,7 @@ where
     /// Simulates the execution of a transaction
     async fn simulate(
         State(RollupTxRouter {
-            storage,
+            state_update_recv,
             default_sequencer,
             ..
         }): State<Self>,
@@ -172,7 +174,7 @@ where
             .try_into()
             .map_err(|err| errors::bad_request_400("Malformatted partial transaction", err))?;
 
-        match T::simulate_execution(&storage, default_sequencer, transaction) {
+        match T::simulate_execution(&state_update_recv, default_sequencer, transaction) {
             Ok(apply_tx_result) =>
             {
                 let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()

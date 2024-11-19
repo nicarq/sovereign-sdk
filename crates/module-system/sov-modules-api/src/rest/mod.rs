@@ -32,6 +32,7 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use serde::{Deserialize, Serialize};
 use sov_rest_utils::{json_obj, ErrorObject, Query};
+use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
 use utoipa::openapi::OpenApi;
 
@@ -46,7 +47,7 @@ use crate::{ApiStateAccessor, Module, ModuleId, ModuleInfo, Spec, StateCheckpoin
 pub mod __private;
 
 /// A [`tokio::sync::watch::Receiver`] for a [`Spec`]'s storage.
-pub type StorageReceiver<S> = tokio::sync::watch::Receiver<<S as Spec>::Storage>;
+pub type StateUpdateReceiver<S> = tokio::sync::watch::Receiver<StateUpdateInfo<S>>;
 
 pub use sov_modules_macros::{ModuleRestApi, RuntimeRestApi};
 
@@ -65,7 +66,7 @@ pub extern crate sov_rest_utils as utils;
 ///   pagination for structured state items like
 ///   [`StateVec`](crate::containers::StateVec).
 pub trait HasRestApi<S: Spec> {
-    /// Returns an [`axum::Router`] on the provided [`StorageReceiver`] instance for the REST API.
+    /// Returns an [`axum::Router`] on the provided [`StateUpdateReceiver`] instance for the REST API.
     fn rest_api(&self, _state: ApiState<S>) -> axum::Router<()>;
 
     /// Returns the OpenAPI specification for [`HasRestApi::rest_api`].
