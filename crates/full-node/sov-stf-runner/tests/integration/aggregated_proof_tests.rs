@@ -9,7 +9,7 @@ use tokio::task::JoinHandle;
 use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
-async fn fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
+async fn flaky_fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
     let test_case = TestCase::new(1);
     run_make_proof_sync(test_case, 1).await?;
 
@@ -17,7 +17,7 @@ async fn fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn fetch_aggregated_proof_test_async() -> anyhow::Result<()> {
+async fn flaky_fetch_aggregated_proof_test_async() -> anyhow::Result<()> {
     let test_case = TestCase::new(1);
     tokio::time::timeout(
         std::time::Duration::from_secs(60),

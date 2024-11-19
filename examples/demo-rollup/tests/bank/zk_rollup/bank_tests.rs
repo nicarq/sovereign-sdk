@@ -48,7 +48,8 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_non_instant_finality_using_sequencer_tx_submission() -> anyhow::Result<()> {
+async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
+) -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: false,
         finalization_blocks: 2,
