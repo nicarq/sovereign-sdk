@@ -2,6 +2,7 @@ use serde::Deserialize;
 use sov_modules_api::schemars::JsonSchema;
 use sov_modules_api::DaSpec;
 
+use crate::batch_builders::preferred::PreferredBatchBuilderConfig;
 use crate::batch_builders::standard::StdBatchBuilderConfig;
 
 /// See [`SequencerConfig::batch_builder`].
@@ -26,10 +27,10 @@ impl<S> BatchBuilderConfig<S> {
     }
 
     /// Build a config for the preferred sequencing mode with no admin addresses
-    pub fn preferred() -> Self {
+    pub fn preferred(config: PreferredBatchBuilderConfig) -> Self {
         Self {
             admin_addresses: Vec::new(),
-            mode: BatchBuilderMode::Preferred,
+            mode: BatchBuilderMode::Preferred(config),
         }
     }
 }
@@ -41,7 +42,7 @@ pub enum BatchBuilderMode {
     /// A standard batch builder, which can post transactions to the rollup but not give soft confirmations.
     Standard(StdBatchBuilderConfig),
     /// A "Preferred" batch builder which is allowed to give soft confirmations.
-    Preferred,
+    Preferred(PreferredBatchBuilderConfig),
 }
 
 impl<Addr> Default for BatchBuilderConfig<Addr> {
@@ -85,7 +86,7 @@ pub struct SequencerConfig<Da: DaSpec, BbConfig> {
 impl<Da: DaSpec, Addr> SequencerConfig<Da, BatchBuilderConfig<Addr>> {
     /// Returns true if the batch builder uses [`BatchBuilderMode::Preferred`].
     pub fn is_preferred_sequencer(&self) -> bool {
-        self.batch_builder.mode == BatchBuilderMode::Preferred
+        matches!(self.batch_builder.mode, BatchBuilderMode::Preferred(_))
     }
 }
 

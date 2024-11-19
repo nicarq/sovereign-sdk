@@ -4,7 +4,7 @@ use anyhow::Context as _;
 use demo_stf::runtime::EthereumToRollupAddressConverter;
 use sov_ethereum::{EthRpcConfig, EthereumAuthenticator, GasPriceOracleConfig};
 use sov_modules_api::capabilities::HasKernel;
-use sov_modules_api::rest::StorageReceiver;
+use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::Spec;
 use sov_rollup_interface::node::da::DaService;
 
@@ -15,7 +15,7 @@ pub(crate) fn register_ethereum<
     RT: EthereumAuthenticator<S> + HasKernel<S> + Default + Send + Sync + 'static,
 >(
     da_service: Da,
-    storage: StorageReceiver<S>,
+    state_update_receiver: StateUpdateReceiver<S::Storage>,
     methods: &mut jsonrpsee::RpcModule<()>,
 ) -> anyhow::Result<()>
 where
@@ -30,8 +30,11 @@ where
         }
     };
 
-    let ethereum_rpc =
-        sov_ethereum::get_ethereum_rpc::<S, Da, RT>(da_service, eth_rpc_config, storage);
+    let ethereum_rpc = sov_ethereum::get_ethereum_rpc::<S, Da, RT>(
+        da_service,
+        eth_rpc_config,
+        state_update_receiver,
+    );
     methods
         .merge(ethereum_rpc)
         .context("Failed to merge Ethereum RPC modules")

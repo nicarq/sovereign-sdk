@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use futures::StreamExt;
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{RawTx, RuntimeEventResponse};
@@ -113,6 +112,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
 
 impl<Ss: SequencerSpec> Sequencer<Ss> {
     /// Creates a new [`Sequencer`] from a [`BatchBuilder`] and a [`DaService`].
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         batch_builder: Ss::BatchBuilder,
         da_service: Ss::Da,
@@ -312,14 +312,7 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
     ledger_db: LedgerDb,
     mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
 ) -> anyhow::Result<()> {
-    let mut sub = ledger_db.subscribe_slots();
-
-    // FIXME(neysofu): we're assuming that the last received storage always
-    // refers to the latest known rollup height. This is not necessarily true, and
-    // simply assumes that both pieces of information arrive at the exact same
-    // time. A single channel would be more appropriate.
-    let mut storage_receiver = inner.batch_builder.lock().await.storage_receiver();
-    let mut latest_rollup_height = ledger_db.get_head_slot()?.map(|s| s.0 .0).unwrap_or(0);
+    let mut state_update_receiver = inner.batch_builder.lock().await.state_update_receiver();
 
     loop {
         tokio::select! {
@@ -327,30 +320,24 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
                 info!("Shutting down sequencer background task...");
                 break;
             },
-            changed = storage_receiver.changed() => {
+            changed = state_update_receiver.changed() => {
                 if changed.is_err() {
                     continue;
                 }
 
                 // Update storage.
-                let storage = storage_receiver.borrow().clone();
+                let state_update_info = state_update_receiver.borrow().clone();
+
+                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, state_update_info.rollup_height).await?;
 
                 let mut bb = inner.batch_builder.lock().await;
-                let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
-                bb.set_state(latest_rollup_height, storage, last_event_number).await;
+                bb.update_state(state_update_info).await;
 
+                // Now that we retrieved the latest state, we can produce and send a new batch.
                 if inner.automatic_batch_production {
                     inner.produce_batch().await?;
                 }
             },
-            rollup_height_opt = sub.next() => {
-                if let Some(rollup_height) = rollup_height_opt {
-                    latest_rollup_height = rollup_height;
-                    notify_processed_slot::<Ss>(inner.clone(), &ledger_db,  rollup_height).await?;
-                } else {
-                    break;
-                }
-            }
         }
     }
 

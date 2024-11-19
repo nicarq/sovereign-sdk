@@ -14,8 +14,10 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_paymaster::{PaymasterConfig, SafeVec};
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::StateTransitionFunction;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
+use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{GenericSequencerSpec, SeqDbTx, Sequencer, SequencerDb};
@@ -115,15 +117,16 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         let stf = TestStfBlueprint::with_runtime(runtime.clone());
 
         let genesis_block = MockBlock::default();
-        let (stf_state, ledger_state) = storage_manager.create_state_for(genesis_block.header())?;
-        let ledger_db = LedgerDb::with_reader(ledger_state)?;
+        let (stf_state, _ledger_state) =
+            storage_manager.create_state_for(genesis_block.header())?;
         let sequencer_db = SequencerDb::new(dir.path(), Duration::ZERO)?;
 
         let (_genesis_root, stf_state) =
             stf.init_chain(&Default::default(), &Default::default(), stf_state, params);
         storage_manager.save_change_set(genesis_block.header(), stf_state, SchemaBatch::new())?;
         storage_manager.finalize(&genesis_block.header)?;
-        let stf_state = storage_manager.create_bootstrap_state()?.0;
+        let (stf_state, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
         let (sync_status_sender, _) = watch::channel(SyncStatus::Syncing {
             synced_da_height: 0,
@@ -141,11 +144,26 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             vec![]
         };
 
-        let (_, storage_receiver) = watch::channel(stf_state);
+        let rollup_height = ledger_db
+            .get_head_rollup_height()
+            .await?
+            .unwrap_or_default();
+        let latest_event_number = ledger_db
+            .get_latest_event_number()
+            .await?
+            .unwrap_or_default();
+
+        let state_update_info = StateUpdateInfo {
+            storage: stf_state,
+            latest_event_number,
+            rollup_height,
+        };
+
+        let (_, state_update_receiver) = watch::channel(state_update_info);
         let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
         shutdown_receiver.mark_unchanged();
         let batch_builder = B::create(
-            storage_receiver,
+            state_update_receiver,
             da_sync_state,
             da_service.sequencer_address(),
             seq_db_txs,

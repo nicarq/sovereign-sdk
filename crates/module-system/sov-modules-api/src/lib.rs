@@ -110,6 +110,8 @@ pub use sov_rollup_interface::zk::{
     CodeCommitmentFor, CryptoSpec, StateTransitionPublicData, ValidityCondition,
     ValidityConditionChecker, ZkVerifier, Zkvm,
 };
+#[cfg(feature = "native")]
+pub use sov_rollup_interface::StateUpdateInfo;
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::{CompileTimeNamespace, Storage};
 pub use state::*;

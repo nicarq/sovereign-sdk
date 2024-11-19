@@ -4,6 +4,7 @@ use std::sync::Arc;
 use sov_api_spec::Client;
 use sov_modules_api::prelude::tokio::sync::watch;
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
+use sov_rollup_interface::StateUpdateInfo;
 use sov_test_utils::{generate_optimistic_runtime, TestUser};
 mod rest_api;
 use sov_modules_api::prelude::*;
@@ -21,7 +22,7 @@ struct TestData {
     runner: TestRunner<RT, S>,
 
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::rollup_tx_router`].
-    storage_sender: watch::Sender<<S as Spec>::Storage>,
+    storage_sender: watch::Sender<StateUpdateInfo<<S as Spec>::Storage>>,
 
     user: TestUser<S>,
 
@@ -57,7 +58,13 @@ impl TestData {
 
         let storage = runner.storage_manager().create_storage();
 
-        let (storage_sender, storage_receiver) = watch::channel(storage);
+        let state_update_info = StateUpdateInfo {
+            storage,
+            latest_event_number: 0,
+            rollup_height: 0,
+        };
+
+        let (state_update_sender, state_update_receiver) = watch::channel(state_update_info);
         let (sync_sender, sync_receiver) = watch::channel(SyncStatus::Syncing {
             synced_da_height: 0,
             target_da_height: 0,
@@ -65,7 +72,7 @@ impl TestData {
 
         let axum_router: axum::Router<()> =
             RollupTxRouter::<Arc<DefaultRollupStateProvider<S, RT>>>::axum_router(
-                storage_receiver,
+                state_update_receiver,
                 sequencer_da_address,
                 sync_receiver,
             );
@@ -87,7 +94,7 @@ impl TestData {
 
         TestData {
             runner,
-            storage_sender,
+            storage_sender: state_update_sender,
             user,
             axum_addr,
             axum_server,
@@ -105,7 +112,12 @@ impl TestData {
         );
 
         let storage = self.runner.storage_manager().create_storage();
-        self.storage_sender.send_replace(storage);
+        let state_update_info = StateUpdateInfo {
+            storage,
+            latest_event_number: 0,
+            rollup_height: 0,
+        };
+        self.storage_sender.send_replace(state_update_info);
     }
 
     pub fn send_sync_status(&self, status: SyncStatus) {

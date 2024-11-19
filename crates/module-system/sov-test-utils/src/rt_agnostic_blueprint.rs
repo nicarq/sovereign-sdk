@@ -9,7 +9,7 @@ use sov_mock_zkvm::{MockCodeCommitment, MockZkvmHost};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, HasKernel};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::rest::HasRestApi;
+use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{BlobDataWithId, CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
@@ -74,7 +74,7 @@ where
 
     async fn create_endpoints(
         &self,
-        storage: watch::Receiver<<Self::Spec as Spec>::Storage>,
+        storage: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: watch::Receiver<SyncStatus>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,

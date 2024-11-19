@@ -5,15 +5,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::http::StatusCode;
+use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthenticator};
-use sov_modules_api::rest::{ApiState, StorageReceiver};
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, NestedEnumUtils,
     RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateProvider,
-    SyncStatus,
+    StateUpdateInfo, SyncStatus,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, TransactionReceipt, TxEffect, ValidatedAuthOutput,
@@ -21,7 +22,7 @@ use sov_modules_stf_blueprint::{
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use tokio::sync::watch;
-use tracing::warn;
+use tracing::{debug, trace, warn};
 
 use super::{
     generic_accept_tx_error, pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth,
@@ -77,7 +78,7 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
 
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
-    storage: StorageReceiver<Z::Spec>,
+    state_update_receiver: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
@@ -86,6 +87,18 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     txs_in_next_batch: Vec<TxWithHash>,
     next_event_number: u64,
     acceptor: TxAcceptor<Z>,
+    config: PreferredBatchBuilderConfig,
+}
+
+/// Configuration for [`PreferredBatchBuilder`].
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema)]
+pub struct PreferredBatchBuilderConfig {
+    /// Whether the sequencer should update its state to track the received state of the full-node before submitting a batch.
+    /// ## TODO(@theochap)
+    /// This is a temporary solution to prevent breakage of the sequencer. It should be removed once we have fully integrated
+    /// the sequencer and fixed update race conditions.
+    #[serde(default)]
+    pub should_update_state: bool,
 }
 
 #[async_trait]
@@ -93,21 +106,21 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
     type Confirmation = Confirmation<Z>;
     type Batch = PreferredBatchData;
-    type Config = ();
+    type Config = PreferredBatchBuilderConfig;
     type Spec = Z::Spec;
 
     async fn create(
-        storage: StorageReceiver<Z::Spec>,
+        state_update_receiver: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
         da_sync_state: Arc<DaSyncState>,
         sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
         admin_addresses: Vec<<Self::Spec as Spec>::Address>,
-        _config: &Self::Config,
+        config: &Self::Config,
         last_event_number: u64,
     ) -> anyhow::Result<Self> {
         let runtime: Z::Rt = Default::default();
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
-            storage.borrow().clone(),
+            state_update_receiver.borrow().storage.clone(),
             &runtime.kernel(),
         ));
         let api_state = ApiState::build(
@@ -117,7 +130,10 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             None,
         );
 
-        let initial_checkpoint = StateCheckpoint::new(storage.borrow().clone(), &runtime.kernel());
+        let initial_checkpoint = StateCheckpoint::new(
+            state_update_receiver.borrow().storage.clone(),
+            &runtime.kernel(),
+        );
 
         let mut bb = Self {
             acceptor: TxAcceptor {
@@ -125,7 +141,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                 sequencer_address,
                 admin_addresses,
             },
-            storage,
+            state_update_receiver,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
@@ -133,6 +149,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             da_sync_state,
             txs_in_next_batch: vec![],
             next_event_number: last_event_number + 1,
+            config: config.clone(),
         };
 
         // Restore persisted transactions.
@@ -173,8 +190,8 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         }
     }
 
-    fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
-        self.storage.clone()
+    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage> {
+        self.state_update_receiver.clone()
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {
@@ -185,45 +202,51 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         TxStatusManager::default()
     }
 
-    async fn set_state(
+    async fn update_state(
         &mut self,
-        _da_height: u64,
-        _stf_state: <Z::Spec as Spec>::Storage,
-        _last_event_number: u64,
+        StateUpdateInfo {
+            storage,
+            latest_event_number,
+            rollup_height,
+        }: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
     ) {
-        // FIXME: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1834
+        // TODO(@theochap): remove this once we have fully integrated the sequencer and fixed update race conditions.
+        // If [`Inner::should_update_state`] is set, we update the state of the batch builder to the
+        // one received from the full-node before submitting a batch.
+        if self.config.should_update_state {
+            let txs_to_process = self.txs_in_next_batch.clone();
+            let checkpoint = StateCheckpoint::new(storage, &Z::Rt::default().kernel());
 
-        //let txs_to_process = self.txs_in_next_batch.clone();
+            self.checkpoint = Some(checkpoint);
 
-        //info!(
-        //    da_height,
-        //    num_txs_to_process = txs_to_process.len(),
-        //    "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
-        //);
+            debug!(
+           da_height = rollup_height,
+           num_txs_to_process = txs_to_process.len(),
+           "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
+        );
 
-        //self.checkpoint = Some(StateCheckpoint::new(stf_state, &Z::Rt::default().kernel()));
+            for (idx, tx) in txs_to_process.iter().enumerate() {
+                trace!(
+                    idx,
+                    tx_hash = %tx.hash,
+                    "Re-applying state changes for the soft-confirmed transaction"
+                );
 
-        //for (idx, tx) in txs_to_process.iter().enumerate() {
-        //    trace!(
-        //        idx,
-        //        tx_hash = %tx.hash,
-        //        "Re-applying state changes for the soft-confirmed transaction"
-        //    );
+                let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
+                    .expect("Failed to deserialize transaction");
+                if let Err(error) = self.accept_tx(tx_input).await {
+                    warn!(
+                        ?error,
+                        "Transaction was soft-confirmed but failed to be re-applied"
+                    );
+                }
+            }
 
-        //    let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
-        //        .expect("Failed to deserialize transaction");
-        //    if let Err(error) = self.accept_tx(tx_input).await {
-        //        warn!(
-        //            ?error,
-        //            "Transaction was soft-confirmed but failed to be re-applied"
-        //        );
-        //    }
-        //}
-
-        //self.next_event_number = last_event_number + 1;
-        //self.checkpoint_sender
-        //    .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
-        //    .ok();
+            self.next_event_number = latest_event_number + 1;
+            self.checkpoint_sender
+                .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
+                .ok();
+        }
     }
 
     fn encode_tx(raw: RawTx) -> Self::TxInput {

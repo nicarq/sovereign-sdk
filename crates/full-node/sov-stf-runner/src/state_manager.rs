@@ -7,13 +7,15 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::StateTransitionWitness;
+use sov_rollup_interface::StateUpdateInfo;
 use tokio::sync::watch;
 
-use crate::processes::{Sender, StateTransitionInfo};
+use crate::processes::{Sender as StfInfoSender, StateTransitionInfo};
 
 /// Point where rollup execution can be resumed after DA fork happened.
 struct ForkPoint<Da: DaService, StateRoot> {
@@ -44,8 +46,8 @@ where
     // But then the runner needs to know about it and carry it over.
     state_root: StateRoot,
     seen_state_transitions: VecDeque<StateOnBlock<Da::Spec, StateRoot>>,
-    api_storage_sender: watch::Sender<Sm::StfState>,
-    st_info_sender: Option<Sender<StateRoot, Witness, Da::Spec>>,
+    state_update_sender: watch::Sender<StateUpdateInfo<Sm::StfState>>,
+    st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
@@ -64,17 +66,65 @@ where
         storage_manager: Sm,
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
-        api_storage_sender: watch::Sender<Sm::StfState>,
-        st_info_sender: Option<Sender<StateRoot, Witness, Da::Spec>>,
+        state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
+        st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
     ) -> Self {
         Self {
             storage_manager,
             ledger_db,
             state_root: initial_state_root,
             seen_state_transitions: Default::default(),
-            api_storage_sender,
+            state_update_sender: state_update_channel,
             st_info_sender,
         }
+    }
+
+    /// Creates a new [`StateUpdateInfo`] from a [`HierarchicalStorageManager::StfState`] and a [`LedgerDb`].
+    pub async fn new_state_info(
+        stf_state: Sm::StfState,
+        ledger_state: &LedgerDb,
+    ) -> Result<StateUpdateInfo<Sm::StfState>, anyhow::Error> {
+        let rollup_height = ledger_state
+            .get_head_rollup_height()
+            .await?
+            .expect("The rollup height should always be available");
+        let latest_event_number = ledger_state
+            .get_latest_event_number()
+            .await?
+            .unwrap_or_default();
+
+        Ok(StateUpdateInfo {
+            storage: stf_state,
+            latest_event_number,
+            rollup_height,
+        })
+    }
+
+    /// Updates both the [`LedgerDb`] and the [`StateUpdateInfo`]
+    /// states.
+    ///
+    /// ## Potential synchronization issues
+    /// Note that we are not using strong synchronization primitives here.
+    /// However, we always have the guarantee that the [`LedgerDb`] is
+    /// updated before the [`StateUpdateInfo`]. This means that, given the rollup height
+    /// accessible from the [`StateUpdateInfo`] channel, we can safely query data from the [`LedgerDb`] at this height.
+    async fn update_channels(
+        &mut self,
+        stf_state: Sm::StfState,
+        ledger_state: DeltaReader,
+    ) -> anyhow::Result<()> {
+        self.ledger_db.replace_reader(ledger_state);
+
+        let state_update_info = Self::new_state_info(stf_state, &self.ledger_db).await?;
+
+        // `send_replace` is superior to `send` for our use case. It never fails
+        // because it doesn't need to notify all receivers, unlike `send`, which
+        // we don't need. It will also keep working even if there are no
+        // receivers currently alive, which makes it easier to reason about the
+        // code.
+        self.state_update_sender.send_replace(state_update_info);
+
+        Ok(())
     }
 
     /// Returns an [`HierarchicalStorageManager::StfState`] and a [`DaService::FilteredBlock`] that can be used to continue execution.
@@ -114,8 +164,8 @@ where
             );
             // In case if reorg happened, we want to keep ledger and API storages in sync.
             // Otherwise, the API storage and LedgerDb have been updated in [`Self::update_api_and_ledger_storage`]
-            self.api_storage_sender.send_replace(stf_pre_state.clone());
-            self.ledger_db.replace_reader(ledger_state);
+            self.update_channels(stf_pre_state.clone(), ledger_state)
+                .await?;
         }
 
         tracing::trace!(block_header = %filtered_block.header().display(), "Returning STF state for block");
@@ -189,7 +239,7 @@ where
         self.storage_manager
             .save_change_set(&block_header, stf_changes, ledger_change_set)?;
 
-        self.update_api_and_ledger_storage(&block_header)?;
+        self.update_api_and_ledger_storage(&block_header).await?;
 
         for finalized_transition in &finalized_transitions {
             self.storage_manager
@@ -283,20 +333,14 @@ where
         Ok(finalized_transitions)
     }
 
-    fn update_api_and_ledger_storage(
+    async fn update_api_and_ledger_storage(
         &mut self,
         block_header: &<<Da as DaService>::Spec as DaSpec>::BlockHeader,
     ) -> anyhow::Result<()> {
         tracing::trace!(after_block = %block_header.display(), "Updating Ledger and API storage");
         let (api_storage, ledger_state) = self.storage_manager.create_state_after(block_header)?;
 
-        // `send_replace` is superior to `send` for our use case. It never fails
-        // because it doesn't need to notify all receivers, unlike `send`, which
-        // we don't need. It will also keep working even if there are no
-        // receivers currently alive, which makes it easier to reason about the
-        // code.
-        self.api_storage_sender.send_replace(api_storage);
-        self.ledger_db.replace_reader(ledger_state);
+        self.update_channels(api_storage, ledger_state).await?;
         Ok(())
     }
 
@@ -347,15 +391,12 @@ mod tests {
         let mut storage_manager: NativeStorageManager<MockDaSpec, ProverStorage<S>> =
             NativeStorageManager::new(path)?;
         let genesis_block = MockBlock::default_at_height(0);
-        let (genesis_storage, ledger_state) =
-            storage_manager.create_state_for(genesis_block.header())?;
+        let genesis_header = genesis_block.header().clone();
+        let (genesis_storage, ledger_state) = storage_manager.create_state_for(&genesis_header)?;
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
-
-        let api_storage_sender = watch::Sender::new(genesis_storage.clone());
 
         let (state_root, change_set) = produce_synthetic_changes(&genesis_storage, 0);
 
-        let genesis_header = genesis_block.header().clone();
         let data_to_commit: SlotCommit<_, TestBatchReceiptContents, TestTxReceiptContents> =
             SlotCommit::new(genesis_block);
         let mut ledger_change_set =
@@ -366,14 +407,19 @@ mod tests {
         storage_manager.save_change_set(&genesis_header, change_set, ledger_change_set)?;
         storage_manager.finalize(&genesis_header)?;
 
-        let (_, ledger_state) = storage_manager.create_bootstrap_state()?;
+        let (stf_state, ledger_state) = storage_manager.create_bootstrap_state().unwrap();
+
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
+
+        let update_info = TestStateManager::new_state_info(stf_state, &ledger_db).await?;
+
+        let (state_update_sender, _state_update_recv) = watch::channel(update_info);
 
         Ok(StateManager::new(
             storage_manager,
             ledger_db,
             state_root,
-            api_storage_sender,
+            state_update_sender,
             None,
         ))
     }
@@ -512,7 +558,7 @@ mod tests {
         let fork_point = 3;
         let last_block = 6;
 
-        let storage_receiver = state_manager.api_storage_sender.subscribe();
+        let state_update_receiver = state_manager.state_update_sender.subscribe();
 
         let mut da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(5);
         da_service
@@ -537,7 +583,7 @@ mod tests {
                 process_normal_transition(&mut state_manager, filtered_block, 0, &da_service)
                     .await?;
                 let current_state_root = state_manager.get_state_root().clone();
-                let received_storage = storage_receiver.borrow().clone();
+                let received_storage = state_update_receiver.borrow().storage.clone();
                 let received_storage_root = received_storage.get_root_hash(rollup_height)?;
                 assert_eq!(
                     current_state_root,
@@ -557,8 +603,9 @@ mod tests {
                 assert_eq!(expected_state_root, state_manager.get_state_root());
 
                 let returned_storage_root = prover_storage.get_root_hash(fork_point)?;
-                let received_storage = storage_receiver.borrow().clone();
-                let received_storage_root = received_storage.get_root_hash(fork_point)?;
+                let received_update_info = state_update_receiver.borrow().clone();
+                let received_storage_root =
+                    received_update_info.storage.get_root_hash(fork_point)?;
                 assert_eq!(returned_storage_root, received_storage_root);
             }
         }

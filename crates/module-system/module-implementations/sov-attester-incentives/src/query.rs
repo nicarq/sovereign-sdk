@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::optimistic::{BondingProofService, ProofOfBond};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{ApiStateAccessor, Gas, GasMeter, Spec, StateCheckpoint, StateReader};
 use sov_state::storage::{SlotKey, Storage, StorageProof};
 use sov_state::User;
@@ -107,7 +108,7 @@ where
 {
     attester_address: S::Address,
     attester_incentives: AttesterIncentives<S>,
-    storage: tokio::sync::watch::Receiver<S::Storage>,
+    state_update_info: StateUpdateReceiver<<S as Spec>::Storage>,
     has_kernel: K,
 }
 
@@ -120,13 +121,13 @@ where
     pub fn new(
         attester_address: S::Address,
         attester_incentives: AttesterIncentives<S>,
-        storage: tokio::sync::watch::Receiver<S::Storage>,
+        storage: StateUpdateReceiver<<S as Spec>::Storage>,
         has_kernel: K,
     ) -> Self {
         Self {
             attester_address,
             attester_incentives,
-            storage,
+            state_update_info: storage,
             has_kernel,
         }
     }
@@ -143,7 +144,7 @@ where
         &self,
         height: u64,
     ) -> Option<ProofOfBond<<Self as BondingProofService>::StateProof>> {
-        let storage = self.storage.borrow().clone();
+        let storage = self.state_update_info.borrow().storage.clone();
         let checkpoint = StateCheckpoint::new(storage, &self.has_kernel.kernel());
         let state = ApiStateAccessor::<S>::new_with_height(
             &checkpoint,

@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::{
     AuthorizationData, ChainState, HasCapabilities, TransactionAuthorizer,
 };
 use sov_modules_api::prelude::*;
-use sov_modules_api::rest::StorageReceiver;
+use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, ExecutionContext, Gas, Spec, StateCheckpoint, VersionReader, WorkingSet,
@@ -31,9 +31,9 @@ where
     type Error = anyhow::Error;
 
     fn get_latest_base_fee_per_gas(
-        storage: &StorageReceiver<Self::Spec>,
+        state_update_receiver: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
     ) -> Result<<<Self::Spec as Spec>::Gas as Gas>::Price, Self::Error> {
-        let storage = storage.borrow().clone();
+        let storage = state_update_receiver.borrow().clone().storage;
 
         let mut state = StateCheckpoint::new(storage, &RT::default().kernel());
 
@@ -41,7 +41,7 @@ where
     }
 
     fn simulate_execution(
-        storage: &StorageReceiver<Self::Spec>,
+        state_update_receiver: &StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         default_sequencer: <<Self::Spec as Spec>::Da as DaSpec>::Address,
         transaction: PartialTransaction<Self::Spec>,
     ) -> Result<ApplyTxResult<S>, Self::Error> {
@@ -50,7 +50,10 @@ where
                 <PartialTransaction<S> as Into<AuthorizationData<S>>>::into(transaction.clone()),
             );
 
-        let mut state = StateCheckpoint::new(storage.borrow().clone(), &RT::default().kernel());
+        let mut state = StateCheckpoint::new(
+            state_update_receiver.borrow().storage.clone(),
+            &RT::default().kernel(),
+        );
 
         let height = state.rollup_height_to_access();
 

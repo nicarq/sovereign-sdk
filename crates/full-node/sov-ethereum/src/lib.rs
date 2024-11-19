@@ -1,8 +1,8 @@
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
 use sov_modules_api::capabilities::HasKernel;
-use sov_modules_api::rest::StorageReceiver;
-use tokio::sync::watch;
+use sov_modules_api::rest::StateUpdateReceiver;
+use sov_modules_api::Spec;
 mod batch_builder;
 mod gas_price;
 #[cfg(feature = "local")]
@@ -41,7 +41,7 @@ pub fn get_ethereum_rpc<
 >(
     da_service: Da,
     eth_rpc_config: EthRpcConfig,
-    storage: watch::Receiver<S::Storage>,
+    state_update: StateUpdateReceiver<S::Storage>,
 ) -> RpcModule<Ethereum<S, Da, RT>> {
     // Unpack config
     let EthRpcConfig {
@@ -58,7 +58,7 @@ pub fn get_ethereum_rpc<
         gas_price_oracle_config,
         #[cfg(feature = "local")]
         eth_signer,
-        storage,
+        state_update,
     ));
 
     register_rpc_methods::<S, Da, RT>(&mut rpc).expect("Failed to register sequencer RPC methods");
@@ -75,7 +75,7 @@ pub struct Ethereum<
     gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
-    storage: StorageReceiver<S>,
+    state_update: StateUpdateReceiver<<S as Spec>::Storage>,
     _phantom: PhantomData<RT>,
 }
 
@@ -90,7 +90,7 @@ impl<
         batch_builder: Arc<Mutex<EthBatchBuilder>>,
         gas_price_oracle_config: GasPriceOracleConfig,
         #[cfg(feature = "local")] eth_signer: DevSigner,
-        storage: StorageReceiver<S>,
+        state_update: StateUpdateReceiver<S::Storage>,
     ) -> Self {
         let evm = Evm::<S>::default();
         let gas_price_oracle = GasPriceOracle::new(evm, gas_price_oracle_config);
@@ -100,7 +100,7 @@ impl<
             gas_price_oracle,
             #[cfg(feature = "local")]
             eth_signer,
-            storage,
+            state_update,
             _phantom: PhantomData,
         }
     }
@@ -108,8 +108,10 @@ impl<
     #[cfg(feature = "local")]
     fn api_state_accessor(&self) -> ApiStateAccessor<S> {
         let runtime = RT::default();
-        let empty_checkpoint =
-            StateCheckpoint::new::<S, _>(self.storage.borrow().clone(), &runtime.kernel());
+        let empty_checkpoint = StateCheckpoint::new::<S, _>(
+            self.state_update.borrow().storage.clone(),
+            &runtime.kernel(),
+        );
         ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping())
     }
 }
@@ -209,8 +211,10 @@ fn register_rpc_methods<
     rpc.register_async_method("eth_gasPrice", |_, ethereum, _| async move {
         let price = {
             let runtime = RT::default();
-            let empty_checkpoint =
-                StateCheckpoint::new::<S, _>(ethereum.storage.borrow().clone(), &runtime.kernel());
+            let empty_checkpoint = StateCheckpoint::new::<S, _>(
+                ethereum.state_update.borrow().storage.clone(),
+                &runtime.kernel(),
+            );
             let mut state =
                 ApiStateAccessor::new(&empty_checkpoint, runtime.kernel_with_slot_mapping());
 

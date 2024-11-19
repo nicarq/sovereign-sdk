@@ -188,6 +188,17 @@
         }
       }
     },
+    "PreferredBatchBuilderConfig": {
+      "description": "Configuration for [`PreferredBatchBuilder`].",
+      "type": "object",
+      "properties": {
+        "should_update_state": {
+          "description": "Whether the sequencer should update its state to track the received state of the full-node before submitting a batch. ## TODO(@theochap) This is a temporary solution to prevent breakage of the sequencer. It should be removed once we have fully integrated the sequencer and fixed update race conditions.",
+          "default": false,
+          "type": "boolean"
+        }
+      }
+    },
     "ProofManagerConfig_for_Address": {
       "description": "Prover service configuration.",
       "type": "object",
@@ -294,10 +305,16 @@
         },
         {
           "description": "A \"Preferred\" batch builder which is allowed to give soft confirmations.",
-          "type": "string",
-          "enum": [
+          "type": "object",
+          "required": [
             "preferred"
-          ]
+          ],
+          "properties": {
+            "preferred": {
+              "$ref": "#/definitions/PreferredBatchBuilderConfig"
+            }
+          },
+          "additionalProperties": false
         }
       ],
       "required": [

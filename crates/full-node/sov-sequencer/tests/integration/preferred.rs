@@ -5,7 +5,9 @@ use base64::prelude::*;
 use sov_api_spec::types;
 use sov_mock_da::MockDaService;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
+use sov_sequencer::batch_builders::preferred::{
+    PreferredBatchBuilder, PreferredBatchBuilderConfig,
+};
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::SeqDbTxExtend;
@@ -67,12 +69,18 @@ async fn restore_txs_from_seq_db() {
         TestSpec,
         TestOptimisticRuntime<TestSpec>,
     )> = PreferredBatchBuilder::create(
-        sequencer.sequencer.batch_builder().await.storage_receiver(),
+        sequencer
+            .sequencer
+            .batch_builder()
+            .await
+            .state_update_receiver(),
         da_sync_state,
         sequencer_addr,
         db_txs,
         Vec::new(),
-        &(),
+        &PreferredBatchBuilderConfig {
+            should_update_state: true,
+        },
         0,
     )
     .await
@@ -93,7 +101,15 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
     let sequencer = TestSequencerSetup::<
         PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, (), vec![], false)
+    >::new(
+        dir,
+        da_service,
+        PreferredBatchBuilderConfig {
+            should_update_state: true,
+        },
+        vec![],
+        false,
+    )
     .await
     .unwrap();
 
@@ -128,7 +144,15 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
 
     let sequencer = TestSequencerSetup::<
         PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, (), vec![], true)
+    >::new(
+        dir,
+        da_service,
+        PreferredBatchBuilderConfig {
+            should_update_state: true,
+        },
+        vec![],
+        true,
+    )
     .await
     .unwrap();
 

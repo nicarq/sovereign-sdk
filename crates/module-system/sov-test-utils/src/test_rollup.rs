@@ -126,7 +126,7 @@ where
                 da_address: sequencer_address,
                 batch_builder: match batch_builder_mode {
                     BatchBuilderMode::Standard(config) => BatchBuilderConfig::standard(config),
-                    BatchBuilderMode::Preferred => BatchBuilderConfig::preferred(),
+                    BatchBuilderMode::Preferred(config) => BatchBuilderConfig::preferred(config),
                 },
             },
         };
