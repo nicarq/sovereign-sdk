@@ -12,6 +12,19 @@ type MockInitVariant =
 
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
+    init_and_restart_inner().await;
+}
+
+#[should_panic]
+#[tokio::test]
+async fn runner_initialization_fails_if_tokio_runtime_is_not_multi_threaded() {
+    // It doesn't really matter what we do here as long as it involves
+    // initializing a runner. So we might as well reuse the logic of another
+    // test.
+    init_and_restart_inner().await;
+}
+
+async fn init_and_restart_inner() {
     let genesis_block = MockBlock {
         header: Default::default(),
         validity_cond: Default::default(),
