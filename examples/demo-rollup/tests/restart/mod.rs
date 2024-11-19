@@ -12,6 +12,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
+use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use tracing::{Event, Level, Subscriber};
@@ -86,7 +87,8 @@ async fn start_stop_empty(
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 Some(mock_da_dir.path()),
-                1
+                1,
+                BatchBuilderMode::Standard(Default::default()),
             ),
         )
         .await??;
@@ -201,6 +203,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
             finalization_blocks,
             Some(mock_da_dir.path()),
             jump_size,
+            BatchBuilderMode::Standard(Default::default()),
         )
             .await?;
         let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
@@ -250,6 +253,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
             finalization_blocks,
             Some(mock_da_dir.path()),
             jump_size,
+            BatchBuilderMode::Standard(Default::default()),
         )
             .await?;
 

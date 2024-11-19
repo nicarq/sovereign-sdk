@@ -11,6 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
+use sov_sequencer::BatchBuilderMode;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
 use sov_test_utils::TestSpec;
 
@@ -21,7 +22,8 @@ use crate::test_helpers::test_genesis_source;
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyhow::Result<()> {
+async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyhow::Result<()>
+{
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
@@ -33,6 +35,7 @@ async fn bank_tx_tests_instant_finality_using_sequencer_tx_submission() -> anyho
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 
@@ -60,6 +63,7 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 
@@ -87,6 +91,7 @@ async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 

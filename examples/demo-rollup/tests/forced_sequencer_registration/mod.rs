@@ -11,6 +11,7 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransac
 use sov_modules_api::{OperatingMode, RawTx};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
+use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -34,6 +35,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
         1,
         1,
         1,
+        BatchBuilderMode::Standard(Default::default()),
     )
     .await;
     let da_service = rollup.runner.da_service();

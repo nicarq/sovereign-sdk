@@ -7,6 +7,7 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
+use sov_sequencer::BatchBuilderMode;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
 use sov_test_utils::TestSpec;
 
@@ -29,6 +30,7 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Optimistic),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 

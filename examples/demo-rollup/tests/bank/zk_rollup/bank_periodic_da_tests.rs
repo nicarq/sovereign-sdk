@@ -5,6 +5,7 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
+use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::TestSpec;
@@ -26,6 +27,7 @@ async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
             BlockProducingConfig::Periodic,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 

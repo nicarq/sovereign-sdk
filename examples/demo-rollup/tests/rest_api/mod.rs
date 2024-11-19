@@ -14,6 +14,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
+use sov_sequencer::BatchBuilderMode;
 use sov_test_utils::test_rollup::{
     get_appropriate_rollup_prover_config, read_private_key, RollupBuilder,
 };
@@ -34,6 +35,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
             BlockProducingConfig::OnBatchSubmit,
             0,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 
@@ -70,6 +72,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
             BlockProducingConfig::OnBatchSubmit,
             0,
             test_genesis_source(OperatingMode::Zk),
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await?;
 
