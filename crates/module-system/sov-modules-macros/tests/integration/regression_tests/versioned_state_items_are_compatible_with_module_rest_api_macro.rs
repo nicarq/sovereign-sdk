@@ -1,0 +1,39 @@
+//! Regression for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1727>.
+//!
+//! See also <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/1824>.
+
+use sov_modules_api::{
+    Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, VersionedStateValue, VersionedStateVec,
+};
+
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+struct TestModule<S: Spec> {
+    #[id]
+    id: ModuleId,
+
+    #[allow(unused)]
+    #[rest_api(include)]
+    #[state]
+    state_value: VersionedStateValue<u64>,
+
+    #[allow(unused)]
+    #[rest_api(include)]
+    #[state]
+    state_vec: VersionedStateVec<S::Address>,
+}
+
+impl<S: Spec> Module for TestModule<S> {
+    type Spec = S;
+    type Config = ();
+    type CallMessage = ();
+    type Event = ();
+
+    fn call(
+        &self,
+        _message: Self::CallMessage,
+        _context: &sov_modules_api::Context<Self::Spec>,
+        _state: &mut impl sov_modules_api::TxState<Self::Spec>,
+    ) -> Result<(), sov_modules_api::Error> {
+        Ok(())
+    }
+}
