@@ -157,7 +157,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 
     /// Checks whether the sequencer is ready to accept transactions.
-    pub async fn is_ready(&self) -> bool {
+    pub async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         self.batch_builder.lock().await.is_ready()
     }
 
@@ -287,6 +287,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         }
         Ok(None)
     }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SequencerNotReadyDetails {
+    pub da_height: u64,
+    pub synced_da_height: u64,
 }
 
 #[derive(derivative::Derivative, serde::Serialize, serde::Deserialize)]

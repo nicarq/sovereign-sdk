@@ -42,6 +42,7 @@ use axum::{Json, Router};
 pub use axum_extractors::{Path, Query};
 use futures::StreamExt;
 pub use pagination::{PageSelection, Pagination};
+use serde::Serialize;
 pub use sorting::{Sorting, SortingOrder};
 use tower_http::cors::CorsLayer;
 use tower_http::propagate_header::PropagateHeaderLayer;
@@ -156,11 +157,21 @@ mod serde_status_code {
 #[macro_export]
 macro_rules! json_obj {
     ($($json:tt)+) => {
-        match ::serde_json::json!($($json)+) {
-            ::serde_json::Value::Object(obj) => obj,
-            _ => panic!("json_obj! macro returned non-object value"),
-        }
+        $crate::to_json_object(::serde_json::json!($($json)+))
     };
+}
+
+/// Calls [`serde_json::to_value`] on the given value but panics if the
+/// resulting value is not a JSON object.
+pub fn to_json_object<T: Serialize>(value: T) -> JsonObject {
+    let value = serde_json::to_value(value).unwrap();
+    match value {
+        serde_json::Value::Object(obj) => obj,
+        _ => panic!(
+            "Expected serialization to produce a JSON object; got {:?}",
+            value
+        ),
+    }
 }
 
 /// Customizes the given [`Router`] with a set of preconfigured "layers" that

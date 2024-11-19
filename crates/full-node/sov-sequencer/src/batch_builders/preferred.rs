@@ -13,6 +13,7 @@ use sov_modules_api::rest::{ApiState, StorageReceiver};
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, NestedEnumUtils,
     RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateProvider,
+    SyncStatus,
 };
 use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, TransactionReceipt, TxEffect, ValidatedAuthOutput,
@@ -29,6 +30,7 @@ use super::{
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
+use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SeqDbTxExtend, TxStatusManager};
 
 #[serde_with::serde_as]
@@ -149,9 +151,26 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         Ok(bb)
     }
 
-    fn is_ready(&self) -> bool {
-        let distance = self.da_sync_state.status().distance();
-        distance <= sov_blob_storage::config_deferred_slots_count()
+    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+        let status = self.da_sync_state.status();
+
+        match status {
+            SyncStatus::Synced { .. } => Ok(()),
+            SyncStatus::Syncing {
+                synced_da_height,
+                target_da_height,
+            } => {
+                let distance = status.distance();
+                if distance <= sov_blob_storage::config_deferred_slots_count() {
+                    Ok(())
+                } else {
+                    Err(SequencerNotReadyDetails {
+                        da_height: target_da_height,
+                        synced_da_height,
+                    })
+                }
+            }
+        }
     }
 
     fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {

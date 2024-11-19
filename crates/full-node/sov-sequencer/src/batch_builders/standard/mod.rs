@@ -35,6 +35,7 @@ use crate::batch_builders::{
     pre_exec_err_to_accept_tx_err, tx_auth, AcceptTxError, AcceptedTx, BatchBuilder,
     FreshlyBuiltBatch, TxWithHash,
 };
+use crate::sequencer::SequencerNotReadyDetails;
 use crate::{SeqDbTx, SeqDbTxExtend, TxHash, TxStatus, TxStatusManager};
 
 /// Configuration for [`StdBatchBuilder`].
@@ -268,8 +269,8 @@ where
         Z::Rt::add_standard_auth(raw)
     }
 
-    fn is_ready(&self) -> bool {
-        true
+    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
+        Ok(())
     }
 
     fn storage_receiver(&self) -> StorageReceiver<Self::Spec> {
