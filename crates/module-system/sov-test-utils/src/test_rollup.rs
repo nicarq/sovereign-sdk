@@ -13,8 +13,7 @@ use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
-use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
+use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
@@ -43,6 +42,8 @@ pub struct RollupBuilder<R> {
     phantom: PhantomData<R>,
 }
 
+// TODO: some [`RollupBuilder`] methods have way too many parameters; a
+// builder-like pattern would be nicer to use.
 impl<R> RollupBuilder<R>
 where
     R: FullNodeBlueprint<Native, DaService = DaServiceWithRetries<StorableMockDaService>>
@@ -59,6 +60,7 @@ where
     ///
     /// Genesis initialization is automatically performed, and the prover
     /// service is started.
+    #[allow(clippy::too_many_arguments)]
     pub async fn construct_rollup(
         storage_path: impl AsRef<Path>,
         genesis: GenesisSource<R::Spec, R::Runtime>,
@@ -67,6 +69,7 @@ where
         aggregated_proof_block_jump: usize,
         max_number_of_transitions_in_db: u64,
         max_number_of_transitions_in_memory: u64,
+        batch_builder_mode: BatchBuilderMode,
     ) -> Rollup<R, Native> {
         Self::construct_rollup_and_config(
             storage_path,
@@ -76,12 +79,14 @@ where
             aggregated_proof_block_jump,
             max_number_of_transitions_in_db,
             max_number_of_transitions_in_memory,
+            batch_builder_mode,
         )
         .await
         .rollup
     }
 
     // Internal API. Returns a rollup but also its config.
+    #[allow(clippy::too_many_arguments)]
     async fn construct_rollup_and_config(
         storage_path: impl AsRef<Path>,
         genesis: GenesisSource<R::Spec, R::Runtime>,
@@ -90,6 +95,7 @@ where
         aggregated_proof_block_jump: usize,
         max_number_of_transitions_in_db: u64,
         max_number_of_transitions_in_memory: u64,
+        batch_builder_mode: BatchBuilderMode,
     ) -> RollupWithConfig<R> {
         let sequencer_address = da_config.sender_address;
 
@@ -118,10 +124,10 @@ where
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
                 da_address: sequencer_address,
-                batch_builder: BatchBuilderConfig::standard(StdBatchBuilderConfig {
-                    mempool_max_txs_count: None,
-                    max_batch_size_bytes: None,
-                }),
+                batch_builder: match batch_builder_mode {
+                    BatchBuilderMode::Standard(config) => BatchBuilderConfig::standard(config),
+                    BatchBuilderMode::Preferred => BatchBuilderConfig::preferred(),
+                },
             },
         };
 
@@ -165,6 +171,7 @@ where
         aggregated_proof_block_jump: usize,
         max_number_of_transitions_in_db: u64,
         max_number_of_transitions_in_memory: u64,
+        batch_builder_mode: BatchBuilderMode,
     ) -> (
         RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
         JoinHandle<anyhow::Result<()>>,
@@ -182,6 +189,7 @@ where
             aggregated_proof_block_jump,
             max_number_of_transitions_in_db,
             max_number_of_transitions_in_memory,
+            batch_builder_mode,
         )
         .await;
 
@@ -211,6 +219,7 @@ where
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
         genesis: GenesisSource<R::Spec, R::Runtime>,
+        batch_builder_mode: BatchBuilderMode,
     ) -> anyhow::Result<TestRollup<R>> {
         let storage_dir = Arc::new(tempfile::tempdir()?);
 
@@ -222,6 +231,7 @@ where
             finalization_blocks,
             None,
             1,
+            batch_builder_mode,
         )
         .await
     }
@@ -230,6 +240,7 @@ where
     /// with a custom storage directory.
     ///
     /// Useful for testing node restarts.
+    #[allow(clippy::too_many_arguments)]
     pub async fn start_memory_da_rollup_in_the_background_with_storage_dir(
         rollup_prover_config: RollupProverConfig,
         genesis: GenesisSource<R::Spec, R::Runtime>,
@@ -238,6 +249,7 @@ where
         finalization_blocks: u32,
         mock_da_path: Option<&Path>,
         aggregated_proof_block_jump: usize,
+        batch_builder_mode: BatchBuilderMode,
     ) -> anyhow::Result<TestRollup<R>> {
         let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
         let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
@@ -273,6 +285,7 @@ where
                 aggregated_proof_block_jump,
                 max_infos_in_db,
                 max_channel_size,
+                batch_builder_mode,
             )
             .await;
 

@@ -9,6 +9,7 @@ use futures::StreamExt;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
 use sov_modules_api::execution_mode::Native;
+use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::SimpleStorageContract;
@@ -52,6 +53,7 @@ pub(crate) async fn start_node(
             1,
             2,
             1,
+            BatchBuilderMode::Standard(Default::default()),
         )
         .await;
 

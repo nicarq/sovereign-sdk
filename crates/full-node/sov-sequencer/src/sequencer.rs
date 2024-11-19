@@ -9,7 +9,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
 use sov_rollup_interface::TxHash;
 use tokio::sync::{broadcast, Mutex, MutexGuard};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use super::tx_status::{TxStatus, TxStatusManager};
 use super::SubmittedBatchInfo;
@@ -31,7 +31,7 @@ pub struct Inner<Ss: SequencerSpec> {
     // automatically updated by the batch-builder with the latest state.
     // We simply cache a copy so that we don't need to lock the builder to retrieve it.
     api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
-    pub(crate) sequencer_db: SequencerDb,
+    sequencer_db: SequencerDb,
     events_sender: broadcast::Sender<SequencerEvent<Ss::BatchBuilder>>,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
@@ -48,6 +48,9 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             .sequencer_db
             .get_and_increase_next_sequence_number()
             .await?;
+
+        // FIXME: if the node crashes here, the sequence number is lost forever
+        // and the node can't recover.
 
         let FreshlyBuiltBatch {
             inner: next_batch,
@@ -351,6 +354,7 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
         }
     }
 
+    debug!("The background loop of the sequencer is shutting down");
     Ok(())
 }
 
