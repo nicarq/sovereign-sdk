@@ -263,7 +263,7 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn check_that_all_blocks_are_collected_instant_finality() {
+    async fn flaky_check_that_all_blocks_are_collected_instant_finality() {
         let da_service = StorableMockDaService::new_in_memory(Default::default(), 0).await;
         let blocks_number = 200;
         for i in 1..=blocks_number {

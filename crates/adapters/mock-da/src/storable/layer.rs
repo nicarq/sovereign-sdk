@@ -490,7 +490,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn submit_batches_and_proofs_and_restart_regular() -> anyhow::Result<()> {
+    async fn flaky_submit_batches_and_proofs_and_restart_regular() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let db_path = tempdir.path().join("mock_da.sqlite");
         let connection_string = format!("sqlite://{}?mode=rwc", db_path.to_string_lossy());

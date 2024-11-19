@@ -17,7 +17,7 @@ use crate::test_helpers::test_genesis_source;
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_periodic_da_tests() -> anyhow::Result<()> {
+async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,

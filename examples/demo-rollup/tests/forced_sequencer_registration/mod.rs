@@ -22,7 +22,7 @@ const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
 const MINIMUM_BOND: u64 = 100_000_000;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_forced_sequencer_registration() -> anyhow::Result<()> {
+async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
