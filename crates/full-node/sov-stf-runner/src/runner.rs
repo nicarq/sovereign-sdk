@@ -241,6 +241,8 @@ where
         sync_status_sender: watch::Sender<SyncStatus>,
         shutdown_receiver: watch::Receiver<()>,
     ) -> anyhow::Result<Self> {
+        error_if_tokio_runtime_is_not_multi_threaded()?;
+
         let rpc_config = &runner_config.rpc_config;
         let axum_config = &runner_config.axum_config;
 
@@ -670,5 +672,14 @@ where
         }
 
         aggregated_proofs
+    }
+}
+
+fn error_if_tokio_runtime_is_not_multi_threaded() -> anyhow::Result<()> {
+    use tokio::runtime::{Handle, RuntimeFlavor};
+
+    match Handle::current().runtime_flavor() {
+        RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
+        _ => Ok(())
     }
 }
