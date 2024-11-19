@@ -22,6 +22,7 @@ use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
 use tracing::error;
 
+use crate::sequencer::SequencerNotReadyDetails;
 use crate::{TxHash, TxStatusManager};
 
 pub mod preferred;
@@ -82,8 +83,8 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
 
-    /// Returns true if and only if the sequencer is ready to accept transactions.
-    fn is_ready(&self) -> bool;
+    /// Checks whether the batch builder is ready to accept transactions.
+    fn is_ready(&self) -> Result<(), SequencerNotReadyDetails>;
 
     /// Creates a new [`BatchBuilder`].
     async fn create(

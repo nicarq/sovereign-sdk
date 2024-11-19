@@ -10,8 +10,8 @@ use serde_with::base64::Base64;
 use serde_with::serde_as;
 use sov_modules_api::RawTx;
 use sov_rest_utils::{
-    errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, ApiResult,
-    ErrorObject, Path,
+    errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object,
+    ApiResult, ErrorObject, Path,
 };
 use sov_rollup_interface::da::{DaBlobHash, DaSpec};
 use sov_rollup_interface::node::da::DaService;
@@ -43,14 +43,13 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         request: Request,
         next: Next,
     ) -> Result<Response, Response> {
-        if sequencer.is_ready().await {
-            Ok(next.run(request).await)
-        } else {
-            Err(ErrorObject {
+        match sequencer.is_ready().await {
+            Ok(()) => Ok(next.run(request).await),
+            Err(details) => Err(ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
                 title: "The node is not fully synced with the DA head and can't accept transactions at this time; try again later"
                     .to_string(),
-                details: Default::default(),
+                details: to_json_object(details)
             }
             .into_response())
         }
