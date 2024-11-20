@@ -85,8 +85,8 @@ pub const ACCESSORY_TABLES: &[ColumnFamilyName] = &[ModuleAccessoryState::table_
 /// ```
 #[macro_export]
 macro_rules! define_table_without_codec {
-    ($(#[$docs:meta])+ ( $table_name:ident ) $key:ty => $value:ty) => {
-        $(#[$docs])+
+    ($(#[$docs:meta])* ( $table_name:ident ) $key:ty => $value:ty) => {
+        $(#[$docs])*
         ///
         #[doc = concat!("Takes [`", stringify!($key), "`] as a key and returns [`", stringify!($value), "`]")]
         #[derive(Clone, Copy, Debug, Default)]
@@ -143,8 +143,8 @@ macro_rules! impl_borsh_value_codec {
 /// ```
 #[macro_export]
 macro_rules! define_table_with_default_codec {
-    ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
-        define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
+    ($(#[$docs:meta])* ($table_name:ident) $key:ty => $value:ty) => {
+        define_table_without_codec!($(#[$docs])* ( $table_name ) $key => $value);
 
         impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
             fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
@@ -169,8 +169,8 @@ macro_rules! define_table_with_default_codec {
 /// here.
 #[macro_export]
 macro_rules! define_table_with_seek_key_codec {
-    ($(#[$docs:meta])+ ($table_name:ident) $key:ty => $value:ty) => {
-        define_table_without_codec!($(#[$docs])+ ( $table_name ) $key => $value);
+    ($(#[$docs:meta])* ($table_name:ident) $key:ty => $value:ty) => {
+        define_table_without_codec!($(#[$docs])* ( $table_name ) $key => $value);
 
         impl ::rockbound::schema::KeyEncoder<$table_name> for $key {
             fn encode_key(&self) -> ::std::result::Result<::std::vec::Vec<u8>, ::rockbound::CodecError> {
