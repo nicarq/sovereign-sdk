@@ -15,7 +15,7 @@ use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::test_genesis_source;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_periodic_da() -> anyhow::Result<()> {
+async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
     let test_case = TestCase {
         wait_for_aggregated_proof: true,
         finalization_blocks: 0,
