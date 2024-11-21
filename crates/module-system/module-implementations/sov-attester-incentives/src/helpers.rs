@@ -55,37 +55,15 @@ where
         let previous_height = claimed_rollup_height
             .checked_sub(1)
             .expect("Claimed transition height must be > 0");
+
         // Normal state
-        if let Some(transition) = self
-            .chain_state
-            .get_historical_transitions(previous_height, state)?
-        {
-            if transition.post_state_root() != &attestation.initial_state_root {
-                // The initial root hashes don't match, just slash the attester
-                return Ok(CheckInitialHashStatus::Slash);
-            }
-        } else {
-            // Genesis state
-            // We can assume that the genesis hash is always set, otherwise we need to panic.
-            // We don't need to prove that the attester was bonded, simply need to check that the current bond is higher than the
-            // minimal bond and that the attester is not unbonding
+        let Some(claimed_root) = self.chain_state.root_at_height(previous_height, state)? else {
+            return Ok(CheckInitialHashStatus::Slash);
+        };
 
-            // We add a check here that the claimed transition height is the same as the genesis height.
-            let genesis_height = 0;
-            if genesis_height != previous_height {
-                return Ok(CheckInitialHashStatus::Slash);
-            }
-
-            if self
-                .chain_state
-                .get_genesis_hash(state)?
-                .expect("The initial hash should be set")
-                != attestation.initial_state_root
-            {
-                // Slash the attester
-                return Ok(CheckInitialHashStatus::Slash);
-            }
-            // Normal state
+        if claimed_root != attestation.initial_state_root {
+            // The initial root hashes don't match, just slash the attester
+            return Ok(CheckInitialHashStatus::Slash);
         }
 
         Ok(CheckInitialHashStatus::Valid)
@@ -166,22 +144,15 @@ where
             debug!("Cannot claim attestation for genesis");
             return Err(ProcessAttestationErrors::InvalidTransitionInvariant);
         }
-        let bonding_root = {
-            // If we cannot get the transition before the current one, it means that we are trying
-            // to get the genesis state root
-            let rollup_height = attestation.proof_of_bond.claimed_rollup_height;
-            if let Some(transition) = self
-                .chain_state
-                .get_historical_transitions(rollup_height, state)
-                .map_err(Into::<anyhow::Error>::into)?
-            {
-                transition.post_state_root().clone()
-            } else {
-                self.chain_state
-                    .get_genesis_hash(state)
-                    .map_err(Into::<anyhow::Error>::into)?
-                    .expect("The genesis hash should be set at genesis")
-            }
+
+        // If we cannot get the transition before the current one, it means that we are trying
+        // to get the genesis state root
+        let Some(bonding_root) = self
+            .chain_state
+            .root_at_height(attestation.proof_of_bond.claimed_rollup_height, state)
+            .map_err(Into::<anyhow::Error>::into)?
+        else {
+            return Err(ProcessAttestationErrors::InvalidBondingProof);
         };
 
         // This proof checks that the attester was bonded at the given transition num
@@ -266,17 +237,11 @@ where
             None => return Ok(Some(SlashingReason::TransitionInvalid)),
         };
 
-        let initial_hash = {
-            if let Some(prev_transition) = self
-                .chain_state
-                .get_historical_transitions(height.saturating_sub(1), state)?
-            {
-                prev_transition.post_state_root().clone()
-            } else {
-                self.chain_state
-                    .get_genesis_hash(state)?
-                    .expect("The genesis hash should be set")
-            }
+        let Some(initial_hash) = self
+            .chain_state
+            .root_at_height(height.saturating_sub(1), state)?
+        else {
+            return Ok(Some(SlashingReason::TransitionInvalid));
         };
 
         if public_outputs.initial_state_root != initial_hash {
