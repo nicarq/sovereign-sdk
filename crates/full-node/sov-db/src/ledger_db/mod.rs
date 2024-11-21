@@ -190,7 +190,7 @@ pub struct LedgerDb {
 // Db key for the latest height of the written STF info.
 const WRITE_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(0);
 // DB key for the latest height of the retrieved STF info.
-const LAST_SUBMITTED_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(1);
+const NEXT_ROLLUP_HEIGHT_TO_RECEIVE_ID: StfInfoUniqueId = StfInfoUniqueId(1);
 // Db key for the oldest saved STF info.
 const LAST_ROLLUP_HEIGHT_ID: StfInfoUniqueId = StfInfoUniqueId(2);
 
@@ -462,23 +462,23 @@ impl LedgerDb {
     }
 
     /// Materializes the latest height of the retrieved STF info.
-    pub fn materialize_stf_info_last_submitted_rollup_height(
+    pub fn materialize_stf_info_next_rollup_height_to_receive(
         &self,
         read_rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         schema_batch.put::<StfInfoMetadata>(
-            &LAST_SUBMITTED_ROLLUP_HEIGHT_ID,
+            &NEXT_ROLLUP_HEIGHT_TO_RECEIVE_ID,
             &RollupHeight(read_rollup_height),
         )?;
         Ok(schema_batch)
     }
 
     /// Gets the latest height of the submitted STF info.
-    pub async fn get_stf_info_last_submitted_rollup_height(&self) -> anyhow::Result<Option<u64>> {
+    pub async fn get_stf_info_next_rollup_height_to_receive(&self) -> anyhow::Result<Option<u64>> {
         let db = self.db.read().expect(DB_LOCK_POISONED).clone();
         Ok(db
-            .get_async::<StfInfoMetadata>(&LAST_SUBMITTED_ROLLUP_HEIGHT_ID)
+            .get_async::<StfInfoMetadata>(&NEXT_ROLLUP_HEIGHT_TO_RECEIVE_ID)
             .await?
             .map(|rollup_height| rollup_height.0))
     }

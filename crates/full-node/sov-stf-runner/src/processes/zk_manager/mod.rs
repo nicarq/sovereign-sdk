@@ -200,7 +200,7 @@ where
             let receipt = self.da_service.send_proof(&serialized_proof, fee).await?;
             tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
             // Confirm that submitted height is increased.
-            self.st_info_receiver.increase_submitted_height();
+            self.st_info_receiver.increase_next_height_to_receive();
         }
         Ok(())
     }
