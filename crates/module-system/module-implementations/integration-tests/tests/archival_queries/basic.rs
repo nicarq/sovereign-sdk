@@ -4,7 +4,7 @@ use sov_modules_api::da::Time;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::generate_optimistic_runtime_with_kernel;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::ApiGetStateData;
+use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
 
 use crate::archival_queries::{TestRunner, S};
 
@@ -47,7 +47,7 @@ async fn query_time_basic_kernel() {
 
         let api_time = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                "/modules/chain-state/state/time",
+                &ApiPath::query_module("chain-state").with_default_state_path("time"),
                 &client,
             )
             .await
@@ -56,7 +56,9 @@ async fn query_time_basic_kernel() {
 
         let api_time_at_height = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                &format!("/modules/chain-state/state/time?rollup_height={}", i),
+                &ApiPath::query_module("chain-state")
+                    .with_default_state_path("time")
+                    .with_rollup_height(i),
                 &client,
             )
             .await
@@ -86,7 +88,9 @@ async fn query_invalid_rollup_height_returns_error() {
     // It should be possible to retrieve the time at the height 10.
     runner
         .query_api_unwrap_data::<ApiGetStateData<Time>>(
-            &format!("/modules/chain-state/state/time?rollup_height={SLOTS_TO_ADVANCE}"),
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("time")
+                .with_rollup_height(SLOTS_TO_ADVANCE),
             &client,
         )
         .await
@@ -95,10 +99,9 @@ async fn query_invalid_rollup_height_returns_error() {
 
     let api_response = runner
         .query_api_response::<ApiGetStateData<Time>>(
-            &format!(
-                "/modules/chain-state/state/time?rollup_height={}",
-                SLOTS_TO_ADVANCE + 1
-            ),
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("time")
+                .with_rollup_height(SLOTS_TO_ADVANCE + 1),
             &client,
         )
         .await;
