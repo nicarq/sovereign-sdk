@@ -140,6 +140,7 @@ where
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn materialize_slot(
         &self,
+        should_execute_slot_hooks: bool,
         storage: S::Storage,
         checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
@@ -153,8 +154,10 @@ where
             .compute_state_update(cache_log, &witness)
             .expect("jellyfish merkle tree update must succeed");
 
-        self.runtime
-            .finalize_hook(&next_root_hash, &mut accessory_delta);
+        if should_execute_slot_hooks {
+            self.runtime
+                .finalize_hook(&next_root_hash, &mut accessory_delta);
+        }
 
         state_update.add_accessory_items(accessory_delta.freeze());
         let change_set = storage.materialize_changes(&state_update);
@@ -378,7 +381,11 @@ where
 
         KernelSlotHooks::end_slot_hook(&self.runtime, &total_gas, &mut kernel_state_accessor);
 
-        let (state_root, witness, change_set) = self.materialize_slot(pre_state, state);
+        let (state_root, witness, change_set) = self.materialize_slot(
+            blob_selector_output.should_execute_slot_hooks,
+            pre_state,
+            state,
+        );
 
         ApplySlotOutput {
             state_root,

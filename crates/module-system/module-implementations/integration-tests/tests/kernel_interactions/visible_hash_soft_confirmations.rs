@@ -74,13 +74,12 @@ fn visible_hash_soft_confirmations_kernel() {
 
     let num_slots: u64 = config_value!("DEFERRED_SLOTS_COUNT") - 1;
 
-    // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The user hash should not update
+    // We run `DEFERRED_SLOTS_COUNT` - 1 slots. The user and the finalize hash should not update
     last_state_root_closure(
         &mut |TestClosureArgs {
                   finalize_hook_hash,
                   current_slot_hash,
                   prev_slot_hash,
-                  prev_finalize_hook_hash,
                   ..
               }| {
             assert_eq!(
@@ -102,13 +101,8 @@ fn visible_hash_soft_confirmations_kernel() {
             );
 
             assert_eq!(
-                finalize_hook_hash, current_slot_hash,
-                "The finalize hash and the current hash should always be the same"
-            );
-
-            assert_eq!(
-                prev_finalize_hook_hash, prev_slot_hash,
-                "The previous finalize hash should match the previous slot hash"
+                finalize_hook_hash, genesis_hash,
+                "The finalize hash and the genesis hash should always be the same"
             );
         },
         &mut runner,
