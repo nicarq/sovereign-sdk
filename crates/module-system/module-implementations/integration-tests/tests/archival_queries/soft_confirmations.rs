@@ -9,7 +9,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::ApiGetStateData;
+use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
 use sov_test_utils::{
     generate_optimistic_runtime_with_kernel, BatchType, SequencerInfo, SoftConfirmationBlobInfo,
     TestSequencer,
@@ -71,7 +71,10 @@ async fn archival_queries_soft_confirmations() {
     let deferred_slots_count: u64 = config_value!("DEFERRED_SLOTS_COUNT");
 
     let init_time = runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>("/modules/chain-state/state/time", &client)
+        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            &ApiPath::query_module("chain-state").with_default_state_path("time"),
+            &client,
+        )
         .await
         .value
         .unwrap();
@@ -103,7 +106,7 @@ async fn archival_queries_soft_confirmations() {
         // Using the API without the rollup height parameter should return the value at the current visible height
         let time = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                "/modules/chain-state/state/time",
+                &ApiPath::query_module("chain-state").with_default_state_path("time"),
                 &client,
             )
             .await
@@ -116,7 +119,8 @@ async fn archival_queries_soft_confirmations() {
         // see if we get the same time as without the visible height parameter
         let visible_height = runner
             .query_api_unwrap_data::<ApiGetStateData<u64>>(
-                "/modules/chain-state/state/next-visible-rollup-height",
+                &ApiPath::query_module("chain-state")
+                    .with_default_state_path("next-visible-rollup-height"),
                 &client,
             )
             .await
@@ -127,7 +131,9 @@ async fn archival_queries_soft_confirmations() {
 
         let time_visible_height = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                &format!("/modules/chain-state/state/time?rollup_height={visible_height}"),
+                &ApiPath::query_module("chain-state")
+                    .with_default_state_path("time")
+                    .with_rollup_height(visible_height),
                 &client,
             )
             .await
@@ -139,7 +145,9 @@ async fn archival_queries_soft_confirmations() {
         // We can query any height using the API with the rollup height parameter
         let current_time = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                &format!("/modules/chain-state/state/time?rollup_height={i}"),
+                &ApiPath::query_module("chain-state")
+                    .with_default_state_path("time")
+                    .with_rollup_height(i),
                 &client,
             )
             .await
@@ -163,14 +171,19 @@ async fn archival_queries_soft_confirmations() {
         .unwrap();
 
     let current_time_api = runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>("/modules/chain-state/state/time", &client)
+        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            &ApiPath::query_module("chain-state").with_default_state_path("time"),
+            &client,
+        )
         .await
         .value
         .unwrap();
 
     let time_height_0 = runner
         .query_api_unwrap_data::<ApiGetStateData<Time>>(
-            "/modules/chain-state/state/time?rollup_height=0",
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("time")
+                .with_rollup_height(0),
             &client,
         )
         .await
@@ -233,7 +246,9 @@ async fn intermediary_state_queries_soft_confirmations() {
         // Using the API without the rollup height parameter should return the value at the current visible height
         let time = runner
             .query_api_unwrap_data::<ApiGetStateData<Time>>(
-                &format!("/modules/chain-state/state/time?rollup_height={i}"),
+                &ApiPath::query_module("chain-state")
+                    .with_default_state_path("time")
+                    .with_rollup_height(i),
                 &client,
             )
             .await
@@ -273,7 +288,9 @@ async fn query_versioned_vector() {
     // We can query the slot number 1 because the visible height is 1.
     let api_slot_height_1 = runner
         .query_api_unwrap_data::<ApiGetStateData<SlotInformation<S>>>(
-            "/modules/chain-state/state/slots/items/1",
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("slots")
+                .get_item_number(1),
             &client,
         )
         .await
@@ -285,7 +302,9 @@ async fn query_versioned_vector() {
     // We cannot query the slot number 2 because the visible height is 1.
     let api_slot_height_2_err = runner
         .query_api_response::<ApiGetStateData<SlotInformation<S>>>(
-            "/modules/chain-state/state/slots/items/2",
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("slots")
+                .get_item_number(2),
             &client,
         )
         .await;
@@ -306,10 +325,10 @@ async fn query_versioned_vector() {
     // But we can query the slot number 2 at height `deferred_slots_count`.
     let api_slot_height_2 = runner
         .query_api_unwrap_data::<ApiGetStateData<SlotInformation<S>>>(
-            &format!(
-                "/modules/chain-state/state/slots/items/2?rollup_height={}",
-                deferred_slots_count
-            ),
+            &ApiPath::query_module("chain-state")
+                .with_default_state_path("slots")
+                .get_item_number(2)
+                .with_rollup_height(deferred_slots_count),
             &client,
         )
         .await

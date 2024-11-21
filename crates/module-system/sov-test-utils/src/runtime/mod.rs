@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 
+use derive_more::derive::Display;
 use reqwest::Client;
 pub use sov_accounts::Accounts;
 pub use sov_attester_incentives;
@@ -155,9 +156,53 @@ pub struct ApiGetStateData<T> {
     pub value: Option<T>,
 }
 
-/// Returns the default path for the API of the given module and state key.
-pub fn default_api_state_path(module_name: &str, state_key: &str) -> String {
-    format!("/modules/{}/state/{}", module_name, state_key)
+/// A wrapper type to specify the path of an API endpoint.
+#[derive(Debug, Clone, PartialEq, Display)]
+pub struct ApiPath(pub String);
+
+impl ApiPath {
+    /// Returns the default path for API queries to the given module.
+    pub fn query_module(module_name: &str) -> Self {
+        let module_name = if !module_name.starts_with('/') {
+            format!("/{}", module_name)
+        } else {
+            module_name.to_string()
+        };
+
+        ApiPath(format!("/modules{}", module_name))
+    }
+
+    /// Adds a custom path to the API endpoint.
+    pub fn with_custom_api_path(self, path: &str) -> Self {
+        let path = if !path.starts_with('/') {
+            format!("/{}", path)
+        } else {
+            path.to_string()
+        };
+
+        ApiPath(format!("{}{}", self, path))
+    }
+
+    /// Returns the default path for the API of the given module and state key.
+    pub fn with_default_state_path(self, state_key: &str) -> Self {
+        let state_key = if !state_key.starts_with('/') {
+            format!("/{}", state_key)
+        } else {
+            state_key.to_string()
+        };
+
+        ApiPath(format!("{}/state{}", self, state_key))
+    }
+
+    /// Adds an item number to the path.
+    pub fn get_item_number(self, item: u64) -> Self {
+        ApiPath(format!("{}/items/{}", self, item))
+    }
+
+    /// Adds a rollup height to the path.
+    pub fn with_rollup_height(self, height: u64) -> Self {
+        ApiPath(format!("{}?rollup_height={}", self, height))
+    }
 }
 
 impl<RT, S> TestRunner<RT, S>
@@ -795,13 +840,14 @@ where
     }
 
     /// Returns a vector of all available paths in the OpenAPI spec associated with the runtime.
-    pub fn available_paths(&self) -> Vec<String> {
+    pub fn available_paths(&self) -> Vec<ApiPath> {
         self.open_api_spec()
             .unwrap()
             .paths
             .paths
             .keys()
             .cloned()
+            .map(ApiPath)
             .collect()
     }
 
@@ -826,7 +872,7 @@ where
     ///
     /// ## Note
     /// Paths can be obtained from the openAPI spec (returned by the method [`Self::open_api_spec`]).
-    pub async fn query_api(&self, path: &str, client: &Client) -> reqwest::Response {
+    pub async fn query_api(&self, path: &ApiPath, client: &Client) -> reqwest::Response {
         let base_path = self.base_path();
 
         let url = format!("{}{}", base_path, path);
@@ -841,7 +887,7 @@ where
     /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
     pub async fn query_api_response<T: serde::de::DeserializeOwned>(
         &self,
-        path: &str,
+        path: &ApiPath,
         client: &Client,
     ) -> ResponseObject<T> {
         self.query_api(path, client)
@@ -854,7 +900,7 @@ where
     /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
     pub async fn query_api_unwrap_data<T: serde::de::DeserializeOwned>(
         &self,
-        path: &str,
+        path: &ApiPath,
         client: &Client,
     ) -> T {
         self.query_api_response(path, client).await.data.unwrap()

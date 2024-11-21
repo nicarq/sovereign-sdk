@@ -2,7 +2,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use sov_bank::{config_gas_token_id, Coins};
-use sov_test_utils::runtime::{default_api_state_path, ApiGetStateData};
+use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
 use sov_test_utils::{AsUser, TransactionTestCase};
 use sov_value_setter::ValueSetter;
 
@@ -19,7 +19,7 @@ async fn test_rest_api_routes_default_state() {
 
     let admin_addr_api = runner
         .query_api_unwrap_data::<ApiGetStateData<String>>(
-            &default_api_state_path("value-setter", "admin"),
+            &ApiPath::query_module("value-setter").with_default_state_path("admin"),
             &client,
         )
         .await
@@ -33,7 +33,7 @@ async fn test_rest_api_routes_default_state() {
 
     let value_api = runner
         .query_api_unwrap_data::<ApiGetStateData<u64>>(
-            &default_api_state_path("value-setter", "value"),
+            &ApiPath::query_module("value-setter").with_default_state_path("value"),
             &client,
         )
         .await
@@ -54,7 +54,7 @@ async fn test_rest_api_routes_default_state() {
 
     let value_api = runner
         .query_api_unwrap_data::<ApiGetStateData<u64>>(
-            &default_api_state_path("value-setter", "value"),
+            &ApiPath::query_module("value-setter").with_default_state_path("value"),
             &client,
         )
         .await
@@ -76,15 +76,16 @@ async fn test_rest_api_routes_custom_api() {
 
     let client = runner.setup_rest_api_server().await;
 
-    let path = format!(
+    let path = ApiPath::query_module("bank").with_custom_api_path(
+        format!("tokens/{}/balances/{}", config_gas_token_id(), user_addr).as_str(),
+    );
+    format!(
         "/modules/bank/tokens/{}/balances/{}",
         config_gas_token_id(),
         user_addr
     );
 
-    let api_user_balance = runner
-        .query_api_unwrap_data::<Coins>(path.as_str(), &client)
-        .await;
+    let api_user_balance = runner.query_api_unwrap_data::<Coins>(&path, &client).await;
 
     assert_eq!(
         api_user_balance.amount, initial_user_balance,
@@ -103,7 +104,7 @@ async fn test_rest_api_routes_custom_api() {
         }),
     });
 
-    let api_user_balance: Coins = runner.query_api_unwrap_data(path.as_str(), &client).await;
+    let api_user_balance: Coins = runner.query_api_unwrap_data(&path, &client).await;
 
     let expected_balance =
         initial_user_balance - gas_used_clone.load(std::sync::atomic::Ordering::SeqCst);
