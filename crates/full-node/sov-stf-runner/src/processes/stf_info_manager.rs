@@ -48,7 +48,7 @@ impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da>
 /// Materializes STF infos and sends notifications to the associated `Receiver`.
 pub struct Sender<StateRoot, Witness, Da: DaSpec> {
     // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
-    last_submitted_height: Arc<AtomicU64>,
+    next_height_to_receive: Arc<AtomicU64>,
     // Max number of entries we will keep in the Db, older data will be pruned.
     max_nb_of_infos_in_db: u64,
 
@@ -66,26 +66,26 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
         let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height().await?;
         match maybe_write_rollup_height {
             Some(write_rollup_height) => {
-                let last_submitted_rollup_height = ledger_db
-                    .get_stf_info_last_submitted_rollup_height()
+                let next_rollup_height_to_receive = ledger_db
+                    .get_stf_info_next_rollup_height_to_receive()
                     .await?
                     .unwrap_or(1);
-                // Sanity check for `write_rollup_height & last_submitted_rollup_height`
+                // Sanity check for `write_rollup_height & next_rollup_height_to_receive`
                 assert!(
-                    write_rollup_height >= last_submitted_rollup_height,
-                    "The `write_rollup_height` should always be greater than the `last_submitted_rollup_height`"
+                    write_rollup_height >= next_rollup_height_to_receive,
+                    "The `write_rollup_height` should always be greater than the `next_rollup_height_to_receive`"
                 );
 
                 assert!(
-                    (write_rollup_height - last_submitted_rollup_height) <= self.max_nb_of_infos_in_db,
+                    (write_rollup_height - next_rollup_height_to_receive) <= self.max_nb_of_infos_in_db,
                     "Too many STF infos in the db: {}, vs max allowed {} last_submitted={} write={}",
-                    write_rollup_height - last_submitted_rollup_height,
+                    write_rollup_height - next_rollup_height_to_receive,
                     self.max_nb_of_infos_in_db,
-                    last_submitted_rollup_height,
+                    next_rollup_height_to_receive,
                     write_rollup_height,
                 );
 
-                for height in last_submitted_rollup_height..=write_rollup_height {
+                for height in next_rollup_height_to_receive..=write_rollup_height {
                     // It is ok to unwrap here, as we are sure that the sender is alive.
                     self.notifier
                         .send(height)
@@ -96,7 +96,7 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
             // Db is empty
             None => {
                 assert!(ledger_db
-                    .get_stf_info_last_submitted_rollup_height()
+                    .get_stf_info_next_rollup_height_to_receive()
                     .await?
                     .is_none());
                 assert!(ledger_db
@@ -113,7 +113,7 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
 
 pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
     // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
-    last_submitted_height: Arc<AtomicU64>,
+    next_height_to_receive: Arc<AtomicU64>,
     ledger_db: LedgerDb,
     receiver: mpsc::Receiver<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
@@ -141,28 +141,28 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     // Internally, the Db keeps the following entries:
     // 1. The STF info data.
     // 2. The latest height of the written STF info (increased on every `materialize_stf_info`` operation)
-    // 3. The latest height of the retrieved STF info (increased on every `read_next`` operation).
+    // 3. The next height of the retrieved STF info (increased on every `read_next`` operation).
 
     // On startup, we need to fill the notification channel with the pending STF info from the db.
     let (notifier, receiver) = tokio::sync::mpsc::channel::<u64>(max_channel_size);
 
-    let last_submitted_height = Arc::new(AtomicU64::new(
+    let next_height_to_receive = Arc::new(AtomicU64::new(
         ledger_db
-            .get_stf_info_last_submitted_rollup_height()
+            .get_stf_info_next_rollup_height_to_receive()
             .await?
             .unwrap_or(1),
     ));
 
     let sender = Sender {
         max_nb_of_infos_in_db,
-        last_submitted_height: last_submitted_height.clone(),
+        next_height_to_receive: next_height_to_receive.clone(),
         notifier,
 
         _phantom: PhantomData,
     };
 
     let receiver = Receiver {
-        last_submitted_height,
+        next_height_to_receive,
         ledger_db,
         receiver,
         _phantom: PhantomData,
@@ -198,10 +198,11 @@ where
         schema.merge(ledger_db.materialize_stf_info_write_rollup_height(write_rollup_height)?);
 
         // Update the last submitted rollup height.
-        let last_submitted_rollup_height = self.last_submitted_height.load(Ordering::SeqCst);
+        let next_rollup_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
         schema.merge(
-            ledger_db
-                .materialize_stf_info_last_submitted_rollup_height(last_submitted_rollup_height)?,
+            ledger_db.materialize_stf_info_next_rollup_height_to_receive(
+                next_rollup_height_to_receive,
+            )?,
         );
 
         // Prune the oldest entries if needed
@@ -209,9 +210,9 @@ where
         let prune_up_to = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db);
 
         while Some(oldest_height) < prune_up_to {
-            if oldest_height >= last_submitted_rollup_height {
+            if oldest_height >= next_rollup_height_to_receive {
                 tracing::warn!(
-                    last_submitted_rollup_height,
+                    next_rollup_height_to_receive,
                     ?prune_up_to,
                     "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works."
                 );
@@ -221,15 +222,15 @@ where
             oldest_height += 1;
         }
         assert!(
-            last_submitted_rollup_height <= write_rollup_height,
-            "write({}) is smaller than last submitted({})",
+            next_rollup_height_to_receive <= write_rollup_height,
+            "write({}) is smaller than next height to receive({})",
             write_rollup_height,
-            last_submitted_rollup_height
+            next_rollup_height_to_receive
         );
 
         tracing::debug!(
             oldest_height,
-            last_submitted_rollup_height,
+            next_rollup_height_to_receive,
             write_rollup_height,
             "Done materializing stf_info"
         );
@@ -284,9 +285,9 @@ where
         }
     }
 
-    /// Increases last submitted height. Means that height has been successfully submitted.
-    pub fn increase_submitted_height(&self) {
-        self.last_submitted_height.fetch_add(1, Ordering::SeqCst);
+    /// Increases next height to receive. Means that height has been successfully received by the [`Receiver`].
+    pub fn increase_next_height_to_receive(&self) {
+        self.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
     }
 
     /// Gets [`StateTransitionInfo`] for the corresponding rollup height.
@@ -371,12 +372,12 @@ mod tests {
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_submitted_height();
+            receiver.increase_next_height_to_receive();
             assert_eq!(stf_info.rollup_height, 1);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_submitted_height();
+            receiver.increase_next_height_to_receive();
             assert_eq!(stf_info.rollup_height, 2);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
         }
@@ -387,12 +388,12 @@ mod tests {
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_submitted_height();
+            receiver.increase_next_height_to_receive();
             assert_eq!(stf_info.rollup_height, 1);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_submitted_height();
+            receiver.increase_next_height_to_receive();
             assert_eq!(stf_info.rollup_height, 2);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
@@ -416,7 +417,7 @@ mod tests {
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_submitted_height();
+            receiver.increase_next_height_to_receive();
             assert_eq!(stf_info.rollup_height, 3);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
@@ -585,7 +586,7 @@ mod tests {
                 storage_manager.commit(schema_batch);
                 sender.notify(stf_info.rollup_height).await?;
                 receiver.read_next().await?.unwrap();
-                receiver.increase_submitted_height();
+                receiver.increase_next_height_to_receive();
             }
 
             let oldest_height = sender.get_oldest_rollup_height(&ledger_db).await?;
