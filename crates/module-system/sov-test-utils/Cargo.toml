@@ -112,5 +112,6 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-state/native",
 	"sov-test-utils/native",
-	"sov-value-setter/native"
+	"sov-value-setter/native",
+	"sov-sequencer/native"
 ]

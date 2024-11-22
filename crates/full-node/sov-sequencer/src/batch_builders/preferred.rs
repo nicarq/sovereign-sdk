@@ -91,7 +91,9 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
 }
 
 /// Configuration for [`PreferredBatchBuilder`].
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema)]
+#[derive(
+    Debug, Default, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema,
+)]
 pub struct PreferredBatchBuilderConfig {
     /// Whether the sequencer should update its state to track the received state of the full-node before submitting a batch.
     /// ## TODO(@theochap)

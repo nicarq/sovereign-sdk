@@ -2,8 +2,8 @@ use sov_mock_da::MockDaService;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::prelude::*;
-use sov_modules_api::transaction::{Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, FullyBakedTx, RawTx};
+use sov_modules_api::transaction::{Transaction, TxDetails};
+use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, RawTx};
 use sov_rollup_interface::TxHash;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_test_utils::generators::bank::BankMessageGenerator;
@@ -14,10 +14,9 @@ use sov_test_utils::runtime::sov_paymaster::{
 use sov_test_utils::runtime::{AuthenticatorInput, Paymaster, Runtime, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
-    EncodeCall, MessageGenerator, TestPrivateKey, TestSpec, TransactionType,
-    TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+    default_test_signed_transaction, EncodeCall, MessageGenerator, TestPrivateKey, TestSpec,
+    TransactionType, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
-use sov_value_setter::ValueSetter;
 
 pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
 pub type RT = TestOptimisticRuntime<TestSpec>;
@@ -39,23 +38,16 @@ pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
 pub fn build_tx(
     setup: &TestSequencerSetup<MyBatchBuilder>,
     nonce: u64,
-    call_message: Vec<u8>,
+    call_message: &<RT as DispatchCall>::Decodable,
 ) -> RawTx {
-    let tx = borsh::to_vec(&Transaction::<TestSpec>::new_signed_tx(
+    let tx = default_test_signed_transaction(
         &setup.admin_private_key,
-        &<RT as Runtime<TestSpec>>::CHAIN_HASH,
-        UnsignedTransaction::new(
-            call_message,
-            config_value!("CHAIN_ID"),
-            TEST_DEFAULT_MAX_PRIORITY_FEE,
-            TEST_DEFAULT_MAX_FEE,
-            nonce,
-            None,
-        ),
-    ))
-    .unwrap();
+        &call_message,
+        nonce,
+        &RT::CHAIN_HASH,
+    );
 
-    RawTx::new(tx)
+    RawTx::new(borsh::to_vec(&tx).unwrap())
 }
 
 pub fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
@@ -135,9 +127,9 @@ pub fn valid_tx_bytes(
     nonce: u64,
     value_to_set: u32,
 ) -> RawTx {
-    let msg = <TestOptimisticRuntime<TestSpec> as EncodeCall<ValueSetter<TestSpec>>>::encode_call(
+    let msg = <TestOptimisticRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetValue(value_to_set),
     );
 
-    build_tx(setup, nonce, msg)
+    build_tx(setup, nonce, &msg)
 }
