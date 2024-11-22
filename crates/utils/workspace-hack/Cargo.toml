@@ -1,0 +1,18 @@
+[package]
+name = "workspace-hack"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+sov-mock-da = { workspace = true, features = ["arbitrary"] }
+sov-celestia-adapter = { workspace = true, features = ["arbitrary"] }
+sov-risc0-adapter = { workspace = true, features = ["arbitrary"] }
+sov-mock-zkvm = { workspace = true, features = ["arbitrary"] }
+
+[lints]
+workspace = true

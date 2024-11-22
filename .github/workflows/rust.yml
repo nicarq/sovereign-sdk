@@ -75,6 +75,7 @@ jobs:
       # which should be required to pass before merging a PR, don't forget to
       # update this list!
       - check
+      - check-workspace
       - prover_bench_check
       - bench_check
       - rollup_bench_check
@@ -130,6 +131,25 @@ jobs:
         if: ${{ failure() }}
         run: |
           echo "Dirty working tree means that some of the Cargo.lock haven't been update. Run `make extra-check` to update that"
+
+  check-workspace:
+    name: check-workspace
+    runs-on:
+      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
+      - nscloud-cache-tag-cache-dev
+      - nscloud-cache-size-100gb
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: namespacelabs/nscloud-cache-action@v1
+        with:
+          cache: rust
+          path: ./crates/fuzz/target
+      - uses: ./.github/actions/setup
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run cargo check
+        run: cargo check
 
   prover_bench_check:
     name: prover_bench_check
