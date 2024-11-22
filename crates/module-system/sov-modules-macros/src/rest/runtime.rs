@@ -99,8 +99,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
         }
     });
     Ok(quote! {
-        #[cfg(feature = "native")]
-        #code
+        ::sov_modules_api::native_only!(#code);
     })
 }
 

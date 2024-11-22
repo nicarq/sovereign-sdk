@@ -128,7 +128,6 @@ native = [
 	"sov-sequencer-registry/native",
 	"sov-risc0-adapter/native",
 	"sov-cycle-utils?/native",
-	"sov-test-utils/native"
 ]
 test-utils = ["dep:tracing-test"]
 evm = []

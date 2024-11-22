@@ -46,6 +46,5 @@ native = [
 	"sov-accounts/native",
 	"sov-modules-api/native",
 	"sov-state/native",
-	"sov-test-utils/native"
 ]
 test-utils = []

@@ -50,7 +50,6 @@ native = [
 	"sov-state/native",
 	"sov-chain-state/native",
 	"sov-modules-stf-blueprint/native",
-	"sov-test-utils/native"
 ]
 cli = ["native"]
 test-utils = []

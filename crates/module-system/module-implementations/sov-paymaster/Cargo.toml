@@ -46,7 +46,6 @@ native = [
 	"sov-modules-api/native",
 	"sov-state/native",
 	"sov-kernels/native",
-	"sov-test-utils/native"
 ]
 default = []
 arbitrary = [

@@ -38,5 +38,4 @@ native = [
 	"sov-modules-api/native",
 	"sov-nft/native",
 	"sov-state/native",
-	"sov-test-utils/native"
 ]

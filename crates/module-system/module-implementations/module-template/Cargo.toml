@@ -50,5 +50,4 @@ native = [
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-state/native",
-	"sov-test-utils/native"
 ]

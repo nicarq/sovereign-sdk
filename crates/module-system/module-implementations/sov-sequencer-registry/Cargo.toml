@@ -74,5 +74,4 @@ native = [
 	"sov-state/native",
 	"sov-value-setter/native",
 	"sov-chain-state/native",
-	"sov-test-utils/native"
 ]

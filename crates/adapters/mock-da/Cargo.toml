@@ -49,7 +49,7 @@ bincode = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native", "arbitrary"] }
-sov-test-utils = { workspace = true, features = ["native", "arbitrary"]}
+sov-test-utils = { workspace = true, features = ["arbitrary"]}
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [
 	"test-util",
@@ -78,6 +78,5 @@ native = [
 	"dep:tokio",
 	"sov-mock-da/native",
 	"sov-rollup-interface/native",
-	"sov-test-utils/native"
 ]
 postgres = ["native", "sea-orm/sqlx-postgres"]

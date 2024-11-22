@@ -32,7 +32,7 @@ sov-modules-api = { workspace = true, features = ["native", "test-utils"] }
 sov-state = { workspace = true }
 
 sov-mock-zkvm = { workspace = true, features = ["native"] }
-sov-test-utils = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
 sov-rollup-interface = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = [
@@ -49,21 +49,3 @@ sov-bank = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
 serial_test = "3.1"
 
-[features]
-default = ["native"]
-native = [
-	"sov-accounts/native",
-	"sov-attester-incentives/native",
-	"sov-bank/native",
-	"sov-chain-state/native",
-	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer-registry/native",
-	"sov-state/native",
-	"sov-test-utils/native",
-	"sov-value-setter/native"
-]

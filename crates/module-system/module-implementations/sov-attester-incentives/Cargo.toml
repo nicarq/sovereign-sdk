@@ -55,5 +55,4 @@ native = [
 	"sov-state/native",
 	"tokio",
 	"sov-modules-rollup-blueprint/native",
-	"sov-test-utils/native"
 ]
