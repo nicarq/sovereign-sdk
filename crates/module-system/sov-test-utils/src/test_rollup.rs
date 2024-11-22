@@ -379,6 +379,18 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub rollup_task: JoinHandle<anyhow::Result<()>>,
 }
 
+impl<R: FullNodeBlueprint<Native>> TestRollup<R> {
+    /// Shuts down the rollup and waits for all background tasks to finish.
+    pub async fn shutdown(self) -> anyhow::Result<()> {
+        self.shutdown_sender
+            .send(())
+            .expect("Shutdown sender already closed");
+        self.rollup_task.await.expect("Can't join rollup task")?;
+
+        Ok(())
+    }
+}
+
 struct RollupWithConfig<R: FullNodeBlueprint<Native>> {
     rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
     rollup: Rollup<R, Native>,

@@ -58,5 +58,6 @@ native = [
     "tokio",
     "tracing",
     "hex",
-    "sov-rollup-apis?/native"
+    "sov-rollup-apis?/native",
+    "sov-sequencer?/native"
 ]

@@ -6,13 +6,13 @@ use borsh::BorshDeserialize;
 use sov_api_spec::types;
 use sov_mock_da::MockDaService;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Batch, BlobReaderTrait};
+use sov_modules_api::{Address, Batch, BlobReaderTrait, DispatchCall};
 use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::{config_gas_token_id, Bank, Coins, TestOptimisticRuntime};
+use sov_test_utils::runtime::{config_gas_token_id, Coins, TestOptimisticRuntime};
 use sov_test_utils::sequencer::TestSequencerSetup;
-use sov_test_utils::{EncodeCall, TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
+use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_USER_BALANCE};
 
 use crate::utils::{
     build_tx, generate_paymaster_tx, new_sequencer, valid_tx_bytes, wrap_with_auth,
@@ -118,12 +118,11 @@ async fn test_batch_building_with_out_of_gas_error() {
             token_id: config_gas_token_id(),
         },
     };
-    let drain_wallet_msg: Vec<u8> = <TestOptimisticRuntime<TestSpec> as EncodeCall<
-        Bank<TestSpec>,
-    >>::encode_call(drain_wallet_msg);
+    let drain_wallet_msg =
+        <TestOptimisticRuntime<TestSpec> as DispatchCall>::Decodable::Bank(drain_wallet_msg);
     // --  END tx construction --
 
-    let drainer = build_tx(&sequencer, 0, drain_wallet_msg);
+    let drainer = build_tx(&sequencer, 0, &drain_wallet_msg);
     let tx_with_insufficient_gas = valid_tx_bytes(&sequencer, 1, 1);
 
     // Send the two transactions, drainer first. Since the default builder

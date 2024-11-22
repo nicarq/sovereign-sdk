@@ -1,3 +1,7 @@
+//! Integration tests for the standard sequencer that use [`TestSequencerSetup`].
+//!
+//! DEPRECATED. See <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1881>.
+
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
