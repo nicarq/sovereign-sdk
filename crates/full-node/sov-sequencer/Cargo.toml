@@ -62,28 +62,10 @@ sov-kernels = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-rollup-interface = { workspace = true }
 sov-api-spec = { workspace = true }
-sov-test-utils = { workspace = true, features = ["native"]}
+sov-test-utils = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-db = { workspace = true }
-sov-sequencer = { workspace = true, features = ["native"] }
 tempfile = { workspace = true }
 test-strategy = { workspace = true }
 tokio = { workspace = true, features = ["test-util", "macros", "rt-multi-thread"] }
-
-[features]
-default = []
-native = [
-	"sov-api-spec/native",
-	"sov-blob-storage/native",
-	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
-	"sov-test-utils/native",
-	"sov-value-setter/native",
-	"sov-sequencer/native"
-]

@@ -29,13 +29,12 @@ tracing = { workspace = true }
 indexmap = "2"
 
 [dev-dependencies]
-sov-transaction-generator = { path = ".", features = ["native"] }
 sov-kernels = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native", "arbitrary"] }
 sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-paymaster = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
-sov-test-utils = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
 
 borsh = { workspace = true }
 rand = { workspace = true }
@@ -45,18 +44,3 @@ serde = { workspace = true }
 [lints]
 workspace = true
 
-[features]
-# We need a native feature because macros in sov-test-utils rely on it. This 
-# crate is native only even without the native feature enabled.
-default = ["native"]
-native = [
-	"sov-bank/native",
-	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-paymaster/native",
-	"sov-state/native",
-	"sov-test-utils/native",
-]

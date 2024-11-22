@@ -48,9 +48,10 @@ native = [
     "sov-db",
     "sov-ledger-apis",
     "sov-rollup-apis",
-    "sov-api-spec/native",
+    "sov-api-spec",
     "sov-modules-api/native",
     "sov-modules-stf-blueprint/native",
+    "sov-rollup-apis",
     "sov-rollup-interface/native",
     "sov-sequencer",
     "sov-state/native",
@@ -58,6 +59,4 @@ native = [
     "tokio",
     "tracing",
     "hex",
-    "sov-rollup-apis?/native",
-    "sov-sequencer?/native"
 ]

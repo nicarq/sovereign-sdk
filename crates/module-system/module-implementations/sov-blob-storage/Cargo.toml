@@ -54,5 +54,4 @@ native = [
 	"sov-modules-stf-blueprint/native",
 	"sov-rollup-interface/native",
 	"sov-value-setter/native",
-	"sov-test-utils/native"
 ]

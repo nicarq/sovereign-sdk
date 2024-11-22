@@ -47,7 +47,7 @@ sp1-zkvm = { workspace = true }
 reltester = { workspace = true }
 serde_json = { workspace = true }
 sov-sp1-adapter = { path = ".", features = ["arbitrary", "native"] }
-sov-test-utils = { workspace = true, features = ["native", "arbitrary"] }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 
 [build-dependencies]
 anyhow = { workspace = true }
@@ -59,7 +59,6 @@ native = [
 	"sov-rollup-interface/native",
 	"sov-cycle-utils?/native",
 	"sov-sp1-adapter/native",
-	"sov-test-utils/native"
 ]
 bench = [
 	"sov-cycle-utils/sp1",

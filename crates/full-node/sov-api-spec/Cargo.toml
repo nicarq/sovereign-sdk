@@ -39,9 +39,3 @@ tokio = { workspace = true, features = ["full"] }
 [lints]
 workspace = true
 
-[features]
-default = ["native"]
-native = [
-	"sov-modules-api/native",
-	"sov-rollup-interface/native"
-]

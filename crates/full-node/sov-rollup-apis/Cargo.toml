@@ -43,20 +43,7 @@ strum = { workspace = true }
 
 # Sovereign dependencies
 sov-bank = { workspace = true, features = ["native"] }
-sov-test-utils = { workspace = true, features = ["native"] }
+sov-test-utils = { workspace = true }
 sov-kernels = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
 
-[features]
-default = ["native"]
-native = [
-	"sov-api-spec/native",
-	"sov-bank/native",
-	"sov-kernels/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-nonces/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
-	"sov-test-utils/native"
-]

@@ -105,20 +105,10 @@ macro_rules! generate_bare_runtime {
 
             fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
                 use ::sov_modules_api::prelude::jsonrpsee;
-
-                #[cfg(feature = "native")]
-                let axum_router = {
-                    use ::sov_modules_api::rest::HasRestApi;
-                    Self::default().rest_api(api_state)
-                };
-                #[cfg(not(feature = "native"))]
-                let axum_router = {
-                    drop(api_state); // Gets rid of unused warning
-                    ::sov_modules_api::prelude::axum::Router::<()>::default()
-                };
+                use ::sov_modules_api::rest::HasRestApi;
 
                 ::sov_modules_api::RuntimeEndpoints {
-                    axum_router,
+                    axum_router: Self::default().rest_api(api_state),
                     jsonrpsee_module: jsonrpsee::RpcModule::new(()), // TODO
                     background_handles: vec![]
                 }

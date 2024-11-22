@@ -53,7 +53,7 @@ tower = { workspace = true, optional = true }
 postcard = { version = "1", features = ["use-std"] }
 reltester = { workspace = true }
 sov-celestia-adapter = { path = ".", features = ["native", "arbitrary"] }
-sov-test-utils = { workspace = true, features = ["native", "arbitrary"] }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 wiremock = "0.5"
 test-strategy = { workspace = true }
 tokio = { workspace = true, features = [
@@ -77,7 +77,6 @@ native = [
 	"sov-rollup-interface/native",
 	"sov-cycle-utils?/native",
 	"dep:tower",
-	"sov-test-utils/native"
 ]
 risc0 = ["sov-celestia-adapter/risc0", "sov-cycle-utils?/risc0"]
 bench = [

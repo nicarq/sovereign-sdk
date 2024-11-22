@@ -66,5 +66,4 @@ native = [
 	"sov-modules-macros/native",
 	"sov-rollup-interface/native",
 	"sov-state/native",
-	"sov-test-utils/native"
 ]

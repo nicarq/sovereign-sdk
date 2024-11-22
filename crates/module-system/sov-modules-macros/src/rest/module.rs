@@ -169,8 +169,7 @@ pub fn derive(tokens: DeriveInput) -> syn::Result<TokenStream> {
     Ok(quote! {
         // The following code is related to REST APIs, `axum` and other things
         // that MUST NOT be compiled into zkVM code.
-        #[cfg(feature = "native")]
-        #code
+        ::sov_modules_api::native_only!(#code);
     })
 }
 

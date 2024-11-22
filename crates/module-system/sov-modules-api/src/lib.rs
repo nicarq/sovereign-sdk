@@ -361,3 +361,21 @@ pub mod __rpc_macros_private {
         }
     }
 }
+
+/// Expands the given code block only when the `sov-modules-api/native` feature
+/// is enabled.
+#[cfg(feature = "native")]
+#[macro_export]
+macro_rules! native_only {
+    ($($code:tt)*) => {
+        $($code)*
+    };
+}
+
+/// Expands the given code block only when the `sov-modules-api/native` feature
+/// is enabled.
+#[cfg(not(feature = "native"))]
+#[macro_export]
+macro_rules! native_only {
+    ($($code:tt)*) => {};
+}

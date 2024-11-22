@@ -88,5 +88,4 @@ native = [
 	"sov-state/native",
 	"sov-rollup-interface/native",
 	"sov-kernels/native",
-	"sov-test-utils/native"
 ]
