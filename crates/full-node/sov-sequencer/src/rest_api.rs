@@ -26,15 +26,24 @@ use crate::{Sequencer, SequencerSpec, SubmittedBatchInfo, TxStatus};
 impl<Ss: SequencerSpec> Sequencer<Ss> {
     /// Creates a new Axum router for this sequencer.
     pub fn rest_api_server(&self) -> axum::Router<()> {
-        let routes = axum::Router::new()
-            .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
-            .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
+        let routes_that_require_synced_node = axum::Router::new()
             .route("/txs", axum::routing::post(Self::axum_accept_tx))
             .route("/batches", axum::routing::post(Self::axum_submit_batch))
+            .with_state(self.clone())
+            .layer(middleware::from_fn_with_state(
+                self.clone(),
+                Sequencer::<Ss>::ready_middleware,
+            ));
+        let routes_always_available = axum::Router::new()
+            .route("/txs/:tx_hash", axum::routing::get(Self::axum_get_tx))
+            .route("/txs/:tx_hash/ws", axum::routing::get(Self::axum_get_tx_ws))
             .route("/events/ws", axum::routing::get(Self::subscribe_to_events))
             .with_state(self.clone());
-        preconfigured_router_layers(axum::Router::new().nest("/sequencer", routes)).layer(
-            middleware::from_fn_with_state(self.clone(), Sequencer::<Ss>::ready_middleware),
+
+        preconfigured_router_layers(
+            axum::Router::new()
+                .nest("/sequencer", routes_that_require_synced_node)
+                .nest("/sequencer", routes_always_available),
         )
     }
 
