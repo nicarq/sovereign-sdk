@@ -3,7 +3,7 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, CodeCommitmentFor, DaSpec, Gas, GasArray, GasSpec, PrivateKey, Spec,
+    Address, CodeCommitmentFor, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey, Spec,
 };
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
@@ -30,7 +30,7 @@ const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
 // Tests the test setup by running the value setter module and checking if the value was set correctly
 fn test_value_setter_tx_success() {
     let value_to_set = 18;
-    let assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>> =
+    let assertion: TransactionTestAssert<TestOptimisticRuntime<TestSpec>, TestSpec> =
         Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
@@ -51,7 +51,7 @@ fn test_value_setter_tx_success() {
 // failed to handle panics.
 fn test_value_setter_tx_bad_assertion() {
     let value_to_set = 18;
-    let bad_assertion: TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>> =
+    let bad_assertion: TransactionTestAssert<TestOptimisticRuntime<TestSpec>, TestSpec> =
         Box::new(move |_result, state| {
             let value_setter = ValueSetter::<TestSpec>::default();
             let value = value_setter
@@ -72,7 +72,7 @@ fn test_value_setter_tx_bad_assertion() {
 fn run_value_setter_txs_with_assertions(
     values_and_assertions: Vec<(
         u32,
-        TransactionTestAssert<TestSpec, TestOptimisticRuntime<TestSpec>>,
+        TransactionTestAssert<TestOptimisticRuntime<TestSpec>, TestSpec>,
     )>,
 ) {
     let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
@@ -98,11 +98,14 @@ fn run_value_setter_txs_with_assertions(
 
     for (value, assert) in values_and_assertions {
         let input = TransactionType::Plain {
-            message: sov_value_setter::CallMessage::SetValue(value),
+            message:
+                <TestOptimisticRuntime<TestSpec> as EncodeCall<ValueSetter<TestSpec>>>::to_decodable(
+                    sov_value_setter::CallMessage::SetValue(value),
+                ),
             key: admin_pkey.clone(),
             details: default_test_tx_details(),
         };
-        runner.execute_transaction::<ValueSetter<TestSpec>>(TransactionTestCase { input, assert });
+        runner.execute_transaction(TransactionTestCase { input, assert });
     }
 }
 
@@ -404,15 +407,16 @@ fn test_define_token_with_mint() {
     );
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<sov_bank::Bank<TestSpec>>(
-            sov_bank::CallMessage::Mint {
-                coins: Coins {
-                    amount: 100,
-                    token_id: token_0_name.id(),
+        input: minter
+            .create_plain_message::<TestOptimisticRuntime<TestSpec>, sov_bank::Bank<TestSpec>>(
+                sov_bank::CallMessage::Mint {
+                    coins: Coins {
+                        amount: 100,
+                        token_id: token_0_name.id(),
+                    },
+                    mint_to_address: minter_address,
                 },
-                mint_to_address: minter_address,
-            },
-        ),
+            ),
         assert: Box::new(move |receipt, state| {
             assert!(receipt.tx_receipt.is_successful());
 

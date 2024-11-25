@@ -14,6 +14,7 @@ use crate::{Account, Accounts};
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     JsonSchema,
     UniversalWallet,

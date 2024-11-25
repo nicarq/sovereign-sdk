@@ -15,6 +15,7 @@ use crate::{CustomError, Event, SequencerRegistry, SequencerRegistryError};
 #[derive(
     Debug,
     PartialEq,
+    Eq,
     Clone,
     borsh::BorshSerialize,
     borsh::BorshDeserialize,

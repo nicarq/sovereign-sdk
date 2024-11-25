@@ -12,6 +12,7 @@ use crate::{StateReader, StateReaderAndWriter, StateWriter};
     Debug,
     Clone,
     PartialEq,
+    Eq,
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
     serde::Serialize,

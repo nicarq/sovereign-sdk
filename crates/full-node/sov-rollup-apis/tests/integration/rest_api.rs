@@ -44,7 +44,7 @@ async fn test_get_base_fee_per_gas_latest_with_updates() {
 
     for _ in 0..5 {
         runner.execute_transaction(TransactionTestCase {
-            input: user.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
+            input: user.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: sov_bank::Coins {
                     amount: 1000,
                     token_id: config_gas_token_id(),
@@ -151,7 +151,7 @@ async fn test_simulation() {
         .runner
         .execute(
             data.user
-                .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
+                .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
                     coins: sov_bank::Coins {
                         amount: 1000,
                         token_id: config_gas_token_id(),

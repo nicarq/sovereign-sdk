@@ -31,7 +31,7 @@ fn transfer_token_happy_path() {
     let user_no_token_balance_address = user_no_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: user_no_token_balance_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
@@ -93,7 +93,7 @@ fn transfer_balance_too_low() {
     let transfer_amount = user_high_token_initial_balance + 1;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: user_no_token_balance_address,
             coins: Coins {
                 amount: transfer_amount,
@@ -163,7 +163,7 @@ fn transfer_non_existent_token() {
     let user_address = user.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: user_address,
             coins: Coins {
                 amount: 0,
@@ -215,7 +215,7 @@ fn transfer_sender_does_not_have_balance() {
     const TRANSFER_AMOUNT: u64 = 10;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
@@ -272,7 +272,7 @@ fn transfer_receiver_does_not_have_balance() {
     const TRANSFER_AMOUNT: u64 = 10;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_high_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
@@ -327,7 +327,7 @@ fn transfer_sender_equals_receiver() {
     const TRANSFER_AMOUNT: u64 = 10;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: sender_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,
@@ -370,7 +370,7 @@ fn transfer_send_zero_amount() {
     const TRANSFER_AMOUNT: u64 = 0;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_token_balance.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: user_no_token_balance.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
                 amount: 0,
@@ -415,7 +415,7 @@ fn test_transfer_gas_token() {
     let receiver_initial_balance = receiver.available_gas_balance;
 
     runner.execute_transaction(TransactionTestCase {
-        input: sender.create_plain_message::<Bank<S>>(CallMessage::Transfer {
+        input: sender.create_plain_message::<RT, Bank<S>>(CallMessage::Transfer {
             to: receiver_address,
             coins: Coins {
                 amount: TRANSFER_AMOUNT,

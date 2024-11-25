@@ -2,13 +2,12 @@
 use std::path::Path;
 
 use anyhow::Context;
-use borsh::{BorshDeserialize, BorshSerialize};
 use reqwest::Url;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_bank::TokenId;
-use sov_modules_api::clap;
 use sov_modules_api::digest::Digest;
+use sov_modules_api::{clap, DispatchCall};
 use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
 
@@ -70,7 +69,8 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
         _app_dir: impl AsRef<Path>,
     ) -> anyhow::Result<()>
     where
-        Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+        Tx: DispatchCall,
+        Tx::Decodable: Serialize + DeserializeOwned,
     {
         if let Self::SetUrl { url } = self {
             Url::parse(url).map_err(|e| anyhow::anyhow!("Failed to parse API URL: {:?}", e))?;

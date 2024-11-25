@@ -42,7 +42,7 @@ fn setup_with_wrong_attestation() -> (
     let expected_challenger_balance_3 = expected_challenger_balance.clone();
 
     let bond_challenger = TransactionTestCase {
-        input: genesis_challenger.create_plain_message::<TestAttesterIncentives>(
+        input: genesis_challenger.create_plain_message::<RT, TestAttesterIncentives>(
             CallMessage::RegisterChallenger(genesis_challenger_bond),
         ),
         assert: Box::new(move |result, state| {

@@ -9,7 +9,7 @@
     universal_wallet(sov_modules_api_path = crate),
 )]
 #[derive(
-    serde::Serialize, serde::Deserialize, Debug, PartialEq, Clone, crate::schemars::JsonSchema,
+    serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq, Clone, crate::schemars::JsonSchema,
 )]
 pub enum NotInstantiable {}
 

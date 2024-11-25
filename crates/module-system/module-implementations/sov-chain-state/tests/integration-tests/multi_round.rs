@@ -6,7 +6,7 @@ use sov_test_utils::runtime::TestApplySlotOutput;
 use sov_test_utils::{get_gas_used, AsUser, BatchType, TestUser};
 use sov_value_setter::ValueSetter;
 
-use crate::{setup, TestChainStateRuntime, S};
+use crate::{setup, TestChainStateRuntime, RT, S};
 
 const NUM_ROUNDS: u64 = 4;
 const NUM_TXS_PER_ROUND: usize = 10;
@@ -15,11 +15,11 @@ fn generate_admin_messages(
     admin: &TestUser<S>,
     round_num: usize,
     num_messages: usize,
-) -> BatchType<ValueSetter<S>, S> {
+) -> BatchType<RT, S> {
     let mut messages = Vec::with_capacity(num_messages);
 
     for i in 0..num_messages {
-        messages.push(admin.create_plain_message::<ValueSetter<S>>(
+        messages.push(admin.create_plain_message::<RT, ValueSetter<S>>(
             sov_value_setter::CallMessage::SetValue((round_num + i) as u32),
         ));
     }

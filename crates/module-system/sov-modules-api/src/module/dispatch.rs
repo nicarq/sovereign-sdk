@@ -1,5 +1,8 @@
 //! Runtime call message definitions.
 
+use std::fmt::Debug;
+
+use borsh::{BorshDeserialize, BorshSerialize};
 use strum::{VariantArray, VariantNames};
 
 use super::ModuleInfo;
@@ -53,7 +56,15 @@ pub trait DispatchCall: Send + Sync {
     type Spec: Spec;
 
     /// The concrete type that will decode into the call message of the module.
-    type Decodable: Send + Sync + NestedEnumUtils;
+    type Decodable: Send
+        + Sync
+        + NestedEnumUtils
+        + BorshSerialize
+        + BorshDeserialize
+        + Debug
+        + PartialEq
+        + Eq
+        + Clone;
 
     /// Encode a [`Self::Decodable`]
     fn encode(decodable: &Self::Decodable) -> Vec<u8>;

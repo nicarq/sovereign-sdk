@@ -1,4 +1,4 @@
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use ethers_core::abi::Address;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
@@ -43,7 +43,10 @@ async fn send_insert_credentials(test_client: &TestClient, from_addr: Address, c
         .unwrap();
 }
 
-fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<TestSpec> {
+fn create_insert_credentials(
+    from_addr: Address,
+    chain_id: u64,
+) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let nonce = 0;
     let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");
     let key = key_and_address.private_key;
@@ -58,11 +61,11 @@ fn create_insert_credentials(from_addr: Address, chain_id: u64) -> Transaction<T
     let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
     let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
-    Transaction::<TestSpec>::new_signed_tx(
+    Transaction::<Runtime<TestSpec>, TestSpec>::new_signed_tx(
         &key,
         &CHAIN_HASH,
         UnsignedTransaction::new(
-            borsh::to_vec(&msg).unwrap(),
+            msg,
             chain_id,
             max_priority_fee_bips,
             max_fee,

@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context;
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
 use demo_stf_json_client::Error;
 use futures::StreamExt;
@@ -83,7 +83,12 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
             1, 2, 3, 4, 5, 6, 7, 8,
         ]));
 
-    let tx = default_test_signed_transaction(&key_and_address.private_key, &msg, 0, &CHAIN_HASH);
+    let tx = default_test_signed_transaction::<Runtime<TestSpec>>(
+        &key_and_address.private_key,
+        &msg,
+        0,
+        &CHAIN_HASH,
+    );
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
     test_rollup
         .client

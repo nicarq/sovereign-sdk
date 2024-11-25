@@ -13,7 +13,6 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::TxEffect;
 use sov_rollup_interface::da::RelevantBlobs;
-use sov_value_setter::ValueSetter;
 
 use super::{get_balance, get_seq_bond, TxStatus};
 use crate::stf_blueprint::setup;
@@ -50,7 +49,7 @@ fn check_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBips) {
     let nb_of_skipped_txs = TxStatus::nb_of_skipped_txs(&tx_statuses);
 
     {
-        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
         let batch_receipt = result.batch_receipts[0].clone();
 
         let gas_price = &batch_receipt.inner.gas_price;
@@ -238,7 +237,7 @@ fn not_enough_stake_to_execute_batch_hook_test() {
     let start = runner.query_visible_state(|state| actors.balances(state));
 
     {
-        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
         let batch_receipt = result.batch_receipts[0].clone();
 
         assert!(batch_receipt.tx_receipts.is_empty());
@@ -301,7 +300,7 @@ fn not_enough_stake_auth_batch_test() {
     let start = runner.query_visible_state(|state| actors.balances(state));
 
     {
-        let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
         let batch_receipt = result.batch_receipts[0].clone();
 
         //let batch_receipt = result.batch_receipt.as_ref().unwrap();
@@ -370,7 +369,7 @@ fn non_existing_seq_da_tests() {
         batch_blobs: vec![mock_blob],
     };
 
-    let result = runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(blobs);
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(blobs);
     assert!(result.batch_receipts.is_empty());
 }
 
@@ -385,6 +384,7 @@ mod helpers {
     use super::*;
     use crate::stf_blueprint::{
         create_tx_bad_sender, create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid,
+        IntegTestRuntimeCall,
     };
 
     pub(crate) struct Actors {
@@ -519,11 +519,11 @@ mod helpers {
         MockBlob::new_with_hash(blob, seq_da_address)
     }
 
-    fn encode_message() -> Vec<u8> {
-        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(CallMessage::SetValue(8))
+    fn encode_message() -> IntegTestRuntimeCall<S> {
+        <IntegTestRuntime<S> as EncodeCall<ValueSetter<S>>>::to_decodable(CallMessage::SetValue(8))
     }
 
-    fn encode(tx: Transaction<S>) -> FullyBakedTx {
+    fn encode(tx: Transaction<IntegTestRuntime<S>, S>) -> FullyBakedTx {
         <IntegTestRuntime<S> as TransactionAuthenticator<S>>::encode_with_standard_auth(RawTx::new(
             borsh::to_vec(&tx).unwrap(),
         ))

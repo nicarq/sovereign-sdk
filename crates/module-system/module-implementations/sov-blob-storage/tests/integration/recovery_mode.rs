@@ -5,7 +5,7 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
     setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel, SoftConfRT,
 };
-use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestRunner, S};
+use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestRunner};
 
 /// Test that when the preferred sequencer is slashed, the virtual rollup height increases by two until
 /// it catches up. For this test to work [`DEFERRED_SLOTS_COUNT`] must be greater than 2.
@@ -21,7 +21,7 @@ fn test_recovery_mode() {
     // First let's slash the preferred sequencer by sending a malformed blob.
     // In soft-confirmation mode, sending basic blobs is not allowed and will cause
     // the sequencer to be slashed.
-    runner.execute::<_, sov_bank::Bank<S>>(BatchType(vec![]));
+    runner.execute(BatchType(vec![]));
 
     // Until it catches up, the virtual rollup height should increase by two
     let mut expected_virtual_slot_increases = vec![2; (config_deferred_slots_count() - 1) as usize];
@@ -72,18 +72,13 @@ fn test_recovery_mode_with_deferred_blobs() {
 
     let mut slots_to_send = deferred_slots
         .iter()
-        .map(|blobs_slot_info| {
-            build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, &mut runner)
-        })
+        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces))
         .collect::<Vec<_>>();
 
-    let slashing_slot = runner.query_visible_state(|state| {
-        TestRunner::<SoftConfRT>::batches_to_blobs::<sov_bank::Bank<S>>(
-            vec![(BatchType(vec![]), preferred_sequencer.da_address)],
-            &mut nonces,
-            state,
-        )
-    });
+    let slashing_slot = TestRunner::<SoftConfRT>::batches_to_blobs(
+        vec![(BatchType(vec![]), preferred_sequencer.da_address)],
+        &mut nonces,
+    );
 
     slots_to_send.push(slashing_slot);
 

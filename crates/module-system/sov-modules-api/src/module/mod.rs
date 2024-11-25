@@ -31,7 +31,7 @@ pub trait Module {
     type Config;
 
     /// Module defined argument to the call method.
-    type CallMessage: Debug + BorshSerialize + BorshDeserialize;
+    type CallMessage: Debug + BorshSerialize + BorshDeserialize + Clone;
 
     /// Module defined event resulting from a call method.
     type Event: Debug + BorshSerialize + BorshDeserialize + 'static + core::marker::Send;

@@ -3,7 +3,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, SafeVec, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::helpers::{setup, TestBankRuntimeEvent, TestData};
+use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT};
 
 type S = sov_test_utils::TestSpec;
 
@@ -23,7 +23,7 @@ fn mint_token_success() {
     const MINT_AMOUNT: u64 = 100;
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(CallMessage::Mint {
+        input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: MINT_AMOUNT,
                 token_id,
@@ -69,7 +69,7 @@ fn mint_token_fails_if_user_unauthorized() {
     ) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: unauthorized_minter.create_plain_message::<Bank<S>>(CallMessage::Mint {
+        input: unauthorized_minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: 0,
                 token_id,
@@ -124,7 +124,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
     const INITIAL_BALANCE: u64 = 100;
 
     runner.execute(
-        user.create_plain_message::<Bank<S>>(CallMessage::CreateToken {
+        user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: token_name.to_string().try_into().unwrap(),
             initial_balance: 100,
             mint_to_address: user.address(),
@@ -133,7 +133,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
     );
 
     runner.execute_transaction(TransactionTestCase {
-        input: user.create_plain_message::<Bank<S>>(CallMessage::Mint {
+        input: user.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: INITIAL_BALANCE,
                 token_id,
@@ -182,7 +182,7 @@ fn mint_token_account_balance_overflow() {
     ) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(CallMessage::Mint {
+        input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: u64::MAX,
                 token_id,
@@ -232,7 +232,7 @@ fn mint_token_total_supply_overflow() {
     let minter_balance = minter.token_balance(&token_name).unwrap();
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(CallMessage::Mint {
+        input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
             coins: Coins {
                 amount: u64::MAX - minter_balance - 1,
                 token_id,

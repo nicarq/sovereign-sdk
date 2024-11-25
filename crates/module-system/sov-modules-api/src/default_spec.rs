@@ -58,6 +58,11 @@ mod default_impls {
         }
     }
 
+    impl<Da, InnerZkvm, OuterZkvm, Mode: ExecutionMode> Eq
+        for DefaultSpec<Da, InnerZkvm, OuterZkvm, Mode>
+    {
+    }
+
     impl<Da, InnerZkvm, OuterZkvm, Mode: ExecutionMode> core::fmt::Debug
         for DefaultSpec<Da, InnerZkvm, OuterZkvm, Mode>
     {

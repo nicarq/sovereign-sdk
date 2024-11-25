@@ -21,6 +21,7 @@ use crate::ExampleModule;
     borsh::BorshSerialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     serde::Serialize,
     serde::Deserialize,

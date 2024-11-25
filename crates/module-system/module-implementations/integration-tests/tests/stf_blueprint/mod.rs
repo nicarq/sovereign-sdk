@@ -14,6 +14,8 @@ use sov_test_utils::{
 use sov_value_setter::ValueSetter;
 
 type S = sov_test_utils::TestSpec;
+type RT = IntegTestRuntime<S>;
+type Call = IntegTestRuntimeCall<S>;
 
 generate_optimistic_runtime!(IntegTestRuntime <= value_setter: ValueSetter<S>);
 
@@ -108,10 +110,10 @@ fn create_tx_bad_sig(
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
-    encoded_message: Vec<u8>,
-) -> Transaction<S> {
-    let utx = UnsignedTransaction::<S>::new(
-        encoded_message.clone(),
+    message: Call,
+) -> Transaction<RT, S> {
+    let utx = UnsignedTransaction::<RT, S>::new(
+        message,
         chain_id,
         max_priority_fee_bips,
         200_000,
@@ -133,10 +135,10 @@ fn create_tx_bad_sender(
     nonce: u64,
     max_priority_fee_bips: PriorityFeeBips,
     chain_id: u64,
-    encoded_message: Vec<u8>,
-) -> Transaction<S> {
+    message: Call,
+) -> Transaction<RT, S> {
     let utx = UnsignedTransaction::new(
-        encoded_message.clone(),
+        message,
         chain_id,
         max_priority_fee_bips,
         200_000,
@@ -145,7 +147,7 @@ fn create_tx_bad_sender(
     );
 
     let signer = TestUser::<S>::generate(0);
-    Transaction::<S>::new_signed_tx(
+    Transaction::<RT, S>::new_signed_tx(
         signer.private_key(),
         &IntegTestRuntime::<S>::CHAIN_HASH,
         utx,
@@ -157,10 +159,10 @@ fn create_tx_valid(
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
-    encoded_message: Vec<u8>,
-) -> Transaction<S> {
+    message: Call,
+) -> Transaction<RT, S> {
     let utx = UnsignedTransaction::new(
-        encoded_message.clone(),
+        message,
         chain_id,
         max_priority_fee_bips,
         200_000,
@@ -168,7 +170,7 @@ fn create_tx_valid(
         None,
     );
 
-    Transaction::<S>::new_signed_tx(
+    Transaction::<RT, S>::new_signed_tx(
         signer.private_key(),
         &<IntegTestRuntime<S>>::CHAIN_HASH,
         utx,
@@ -181,10 +183,10 @@ fn create_tx_out_of_gas(
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
-    encoded_message: Vec<u8>,
-) -> Transaction<S> {
+    message: Call,
+) -> Transaction<RT, S> {
     let utx = UnsignedTransaction::new(
-        encoded_message.clone(),
+        message,
         chain_id,
         max_priority_fee_bips,
         200_000,
@@ -192,7 +194,7 @@ fn create_tx_out_of_gas(
         Some(<<S as Spec>::Gas as Gas>::zero()),
     );
 
-    Transaction::<S>::new_signed_tx(
+    Transaction::<RT, S>::new_signed_tx(
         signer.private_key(),
         &IntegTestRuntime::<S>::CHAIN_HASH,
         utx,

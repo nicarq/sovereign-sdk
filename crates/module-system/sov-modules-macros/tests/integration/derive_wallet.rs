@@ -12,6 +12,7 @@ pub mod first_test_module {
     #[derive(
         Debug,
         PartialEq,
+        Eq,
         Clone,
         borsh::BorshDeserialize,
         borsh::BorshSerialize,
@@ -24,7 +25,7 @@ pub mod first_test_module {
         pub str_field: String,
     }
 
-    #[derive(ModuleInfo)]
+    #[derive(ModuleInfo, PartialEq, Eq)]
     pub struct FirstTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -66,7 +67,7 @@ pub mod first_test_module {
 pub mod second_test_module {
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(ModuleInfo, PartialEq, Eq)]
     pub struct SecondTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -81,6 +82,7 @@ pub mod second_test_module {
     #[derive(
         Debug,
         PartialEq,
+        Eq,
         Clone,
         borsh::BorshDeserialize,
         borsh::BorshSerialize,
@@ -120,7 +122,7 @@ pub mod second_test_module {
     }
 }
 
-#[derive(Default, Genesis, DispatchCall, MessageCodec, CliWallet)]
+#[derive(Default, Genesis, PartialEq, Eq, DispatchCall, MessageCodec, CliWallet)]
 pub struct Runtime<S: Spec> {
     pub first: first_test_module::FirstTestStruct<S>,
     pub second: second_test_module::SecondTestStruct<S>,

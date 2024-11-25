@@ -73,10 +73,8 @@ where
         std::fs::create_dir_all(app_dir.as_ref())?;
         let wallet_state_path = app_dir.as_ref().join("wallet_state.json");
 
-        let mut wallet_state: WalletState<
-            <<Self as RollupBlueprint<M>>::Runtime as DispatchCall>::Decodable,
-            Self::Spec,
-        > = WalletState::load(&wallet_state_path)?;
+        let mut wallet_state: WalletState<<Self as RollupBlueprint<M>>::Runtime, Self::Spec> =
+            WalletState::load(&wallet_state_path)?;
 
         let invocation = CliApp::<File, Json, Self::Spec>::parse();
 

@@ -1,4 +1,6 @@
-use sov_modules_api::{CredentialId, CryptoSpec, Module, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{
+    CredentialId, CryptoSpec, EncodeCall, Module, PrivateKey, PublicKey, Runtime, Spec,
+};
 
 mod attester_incentives;
 mod prover;
@@ -139,12 +141,12 @@ pub trait AsUser<S: Spec> {
     fn as_user_mut(&mut self) -> &mut TestUser<S>;
 
     /// Creates a plain message from the user.
-    fn create_plain_message<M: Module<Spec = S>>(
+    fn create_plain_message<R: Runtime<S> + EncodeCall<M>, M: Module>(
         &self,
         message: M::CallMessage,
-    ) -> TransactionType<M, S> {
+    ) -> TransactionType<R, S> {
         TransactionType::Plain {
-            message,
+            message: <R as EncodeCall<M>>::to_decodable(message),
             key: self.as_user().private_key().clone(),
             details: default_test_tx_details::<S>(),
         }

@@ -2,7 +2,7 @@ use sov_chain_state::ChainState;
 use sov_test_utils::AsUser;
 use sov_value_setter::ValueSetter;
 
-use crate::{setup, S};
+use crate::{setup, RT, S};
 
 #[test]
 fn chain_state_kernel_genesis() {
@@ -32,7 +32,9 @@ fn test_chain_state_genesis_root() {
     let genesis_state_root = *runner.state_root();
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     runner.query_state(|kernel| {

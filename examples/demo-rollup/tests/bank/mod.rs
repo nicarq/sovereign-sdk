@@ -23,7 +23,7 @@ trait TxSender {
     async fn send_txs(
         &self,
         client: &NodeClient,
-        transactions: &[Transaction<TestSpec>],
+        transactions: &[Transaction<Runtime<TestSpec>, TestSpec>],
     ) -> anyhow::Result<u64>;
 }
 
@@ -41,7 +41,7 @@ impl TxSender for DaLayerTxSender {
     async fn send_txs(
         &self,
         client: &NodeClient,
-        transactions: &[Transaction<TestSpec>],
+        transactions: &[Transaction<Runtime<TestSpec>, TestSpec>],
     ) -> anyhow::Result<u64> {
         let authenticated_txs = transactions
             .iter()
@@ -74,7 +74,7 @@ impl TxSender for SequencerTxSender {
     async fn send_txs(
         &self,
         client: &NodeClient,
-        transactions: &[Transaction<TestSpec>],
+        transactions: &[Transaction<Runtime<TestSpec>, TestSpec>],
     ) -> anyhow::Result<u64> {
         let slot_subscription = client
             .client

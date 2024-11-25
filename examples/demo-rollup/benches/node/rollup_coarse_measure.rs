@@ -144,8 +144,8 @@ fn signed_bank_tx(
     private_key: &TestPrivateKey,
     nonce: u64,
 ) -> FullyBakedTx {
-    let enc_msg = <Runtime<TestSpec> as EncodeCall<Bank<TestSpec>>>::encode_call(msg);
-    let tx = Transaction::<TestSpec>::new_signed_tx(
+    let enc_msg = <Runtime<TestSpec> as EncodeCall<Bank<TestSpec>>>::to_decodable(msg);
+    let tx = Transaction::<Runtime<TestSpec>, TestSpec>::new_signed_tx(
         private_key,
         &CHAIN_HASH,
         UnsignedTransaction::new(

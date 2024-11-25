@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::os::unix::process::ExitStatusExt;
 use std::process::{Command, ExitStatus};
 
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
@@ -38,8 +38,8 @@ fn main() -> io::Result<()> {
 
     let mut schema = Schema::of_rollup_types_with_metadata::<
         u64,
-        Transaction<S>,
-        UnsignedTransaction<S>,
+        Transaction<Runtime<S>, S>,
+        UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
     >(&config_value!("CHAIN_ID"))
     .unwrap();

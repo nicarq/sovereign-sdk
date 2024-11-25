@@ -2,7 +2,7 @@ use sov_bank::{config_gas_token_id, Bank};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::helpers::{setup, TestAttesterIncentives, S};
+use crate::helpers::{setup, TestAttesterIncentives, RT, S};
 
 #[test]
 fn test_deposit_successful() {
@@ -14,7 +14,7 @@ fn test_deposit_successful() {
     let extra_bond = 0;
 
     runner.execute_transaction(TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::DepositAttester(extra_bond),
         ),
         assert: Box::new(move |result, state| {

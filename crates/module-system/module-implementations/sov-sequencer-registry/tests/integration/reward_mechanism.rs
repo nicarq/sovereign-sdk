@@ -30,7 +30,7 @@ fn reward_mechanism_test_setup() -> (TestRoles, u64, TestRunner<RT, S>) {
     // This way we can know how much gas was consumed. Check that the sequencer balance was not updated
     let (output, _) = runner.simulate(
         admin
-            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+            .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(VALUE_SETTER_NEW_CONST),
             )
             .with_max_priority_fee_bips(PriorityFeeBips::ZERO),
@@ -72,7 +72,7 @@ fn reward_mechanism_test(
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+            .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(OTHER_VALUE_SETTER_CONST),
             )
             .with_max_fee(max_fee)
@@ -174,7 +174,7 @@ fn test_penalize_sequencer() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+            .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(OTHER_VALUE_SETTER_CONST),
             )
             .with_max_fee(0),
@@ -206,19 +206,17 @@ fn test_penalize_sequencer() {
 fn produce_malformed_tx(
     runner: &mut TestRunner<RT, S>,
     admin: &TestUser<S>,
-) -> TransactionType<sov_value_setter::ValueSetter<S>, S> {
+) -> TransactionType<RT, S> {
     let mut nonces = runner.nonces().clone();
 
-    runner.query_visible_state(|state| {
-        let mut tx = admin
-            .create_plain_message::<sov_value_setter::ValueSetter<S>>(
-                sov_value_setter::CallMessage::SetValue(10),
-            )
-            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+    let mut tx = admin
+        .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        )
+        .to_serialized_authenticated_tx(&mut nonces);
 
-        tx.data.pop();
-        TransactionType::PreAuthenticated(tx)
-    })
+    tx.data.pop();
+    TransactionType::PreAuthenticated(tx)
 }
 
 #[test]
@@ -241,7 +239,7 @@ fn test_authentication_out_of_gas_error() {
     runner.execute_batch(BatchTestCase {
         input: vec![
             admin
-                .create_plain_message::<sov_value_setter::ValueSetter<S>>(
+                .create_plain_message::<RT, sov_value_setter::ValueSetter<S>>(
                     sov_value_setter::CallMessage::SetValue(10),
                 )
                 .with_max_fee(0),

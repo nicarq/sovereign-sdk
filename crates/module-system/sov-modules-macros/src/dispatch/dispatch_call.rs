@@ -152,6 +152,7 @@ impl DispatchCallMacro {
                         Clone,
                         Debug,
                         PartialEq,
+                        Eq,
                         sov_modules_api::prelude::strum::EnumDiscriminants,
                         sov_modules_api::prelude::strum::VariantNames,
                         sov_modules_api::prelude::strum::EnumTryAs,

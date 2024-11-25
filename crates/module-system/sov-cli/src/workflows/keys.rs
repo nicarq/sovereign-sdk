@@ -1,10 +1,7 @@
 //! Key management workflows for the sov CLI wallet
 use std::path::{Path, PathBuf};
 
-use borsh::{BorshDeserialize, BorshSerialize};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use sov_modules_api::{clap, CryptoSpec, PrivateKey};
+use sov_modules_api::{clap, CryptoSpec, DispatchCall, PrivateKey};
 
 use crate::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 
@@ -69,7 +66,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
         app_dir: impl AsRef<Path>,
     ) -> anyhow::Result<()>
     where
-        Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+        Tx: DispatchCall,
     {
         match self {
             KeyWorkflow::Generate { nickname } => {
@@ -158,7 +155,7 @@ pub fn generate_and_save_key<Tx, S: sov_modules_api::Spec>(
     wallet_state: &mut WalletState<Tx, S>,
 ) -> anyhow::Result<()>
 where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
 {
     let keys = <S::CryptoSpec as CryptoSpec>::PrivateKey::generate();
     let key_and_address = PrivateKeyAndAddress::<S>::from_key(keys);

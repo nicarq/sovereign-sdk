@@ -7,6 +7,7 @@ use sov_modules_api::RawTx;
 use sov_test_utils::{BatchTestCase, SimpleStorageContract, TransactionTestCase, TransactionType};
 
 use crate::helpers::{setup, S};
+use crate::runtime::RT;
 
 #[test]
 fn test_block_updates() {
@@ -31,7 +32,7 @@ fn test_block_updates() {
     };
 
     runner.execute_transaction(TransactionTestCase {
-        input: TransactionType::<Evm<S>, S>::PreSigned(create_contract_tx),
+        input: TransactionType::<RT, S>::PreSigned(create_contract_tx),
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             assert!(evm.pending_head(state).is_none());
@@ -95,8 +96,8 @@ fn test_transactions_receipts() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![
-            TransactionType::<Evm<S>, S>::PreSigned(tx_1),
-            TransactionType::<Evm<S>, S>::PreSigned(tx_2),
+            TransactionType::<RT, S>::PreSigned(tx_1),
+            TransactionType::<RT, S>::PreSigned(tx_2),
         ]
         .into(),
         assert: Box::new(move |_result, state| {

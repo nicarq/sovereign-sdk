@@ -23,7 +23,7 @@ fn transfer_token_and_query_old_balances() {
     const AMOUNT_PER_TRANSFER: u64 = 10;
 
     for height in 1..10 {
-        runner.execute(sender.create_plain_message::<sov_bank::Bank<TestSpec>>(
+        runner.execute(sender.create_plain_message::<RT, sov_bank::Bank<TestSpec>>(
             sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {

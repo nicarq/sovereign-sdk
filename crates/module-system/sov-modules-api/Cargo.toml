@@ -25,6 +25,7 @@ axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true, features = [
   "deref",
+  "debug",
   "display",
   "into",
 ] }

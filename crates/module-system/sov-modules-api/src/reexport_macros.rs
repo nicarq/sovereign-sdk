@@ -13,7 +13,7 @@
 ///
 /// // Applying #[derive(DispatchCall)] to MyRuntime generates the following code:
 /// #[allow(non_camel_case_types)]
-/// #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
+/// #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize, borsh::BorshSerialize, borsh::BorshDeserialize)]
 /// #[derive(
 ///    sov_modules_api::prelude::strum::EnumDiscriminants,
 ///    sov_modules_api::prelude::strum::VariantNames,

@@ -5,6 +5,7 @@ use sov_test_utils::{TestSpec, TestUser};
 use sov_value_setter::ValueSetterConfig;
 
 pub type S = TestSpec;
+pub type RT = TestOptimisticRuntime<S>;
 
 /// Sets up a test runner with the [`ValueSetter`] with a single additional admin account.
 pub fn setup() -> (TestUser<S>, TestRunner<TestOptimisticRuntime<S>, S>) {

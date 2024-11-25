@@ -51,9 +51,9 @@ fn bake_bank_tx(
     pk: &Ed25519PrivateKey,
     nonce: u64,
 ) -> FullyBakedTx {
-    let enc_msg = <Runtime<BenchSpec> as EncodeCall<Bank<BenchSpec>>>::encode_call(msg);
+    let enc_msg = <Runtime<BenchSpec> as EncodeCall<Bank<BenchSpec>>>::to_decodable(msg);
 
-    let tx = Transaction::<BenchSpec>::new_signed_tx(
+    let tx = Transaction::<Runtime<BenchSpec>, BenchSpec>::new_signed_tx(
         pk,
         &CHAIN_HASH,
         UnsignedTransaction::new(

@@ -103,9 +103,9 @@ pub(crate) fn setup() -> SetupParams {
     setup_with_custom_runtime(RT::default())
 }
 
-pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<Bank<S>, S> {
+pub(crate) fn consume_gas_tx_for_signer(signer: &TestUser<S>) -> TransactionType<RT, S> {
     let recipient = TestUser::<S>::generate(0);
-    signer.create_plain_message(sov_bank::CallMessage::Transfer {
+    signer.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: recipient.address(),
         coins: sov_bank::Coins {
             amount: 1000,

@@ -6,7 +6,7 @@ use sov_modules_api::{Error, TxEffect};
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::helpers::{setup, TestBankRuntimeEvent, TestData};
+use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT};
 
 type S = sov_test_utils::TestSpec;
 
@@ -28,7 +28,7 @@ fn burn_deployed_tokens_happy_path() {
     let user_address = user_high_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: user_token_balance,
@@ -84,7 +84,7 @@ fn burn_deployed_tokens_no_balance_fails() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_no_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: BURN_AMOUNT,
@@ -162,7 +162,7 @@ fn burn_more_than_deployed_tokens_fails() {
     let user_token_balance = user_high_token_balance.token_balance(&token_name).unwrap();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: to_burn,
@@ -237,7 +237,7 @@ fn burn_more_than_available_balance_fails() {
     let to_burn = user_token_balance + 1;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: to_burn,
@@ -305,7 +305,7 @@ fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
     let user_address = user_high_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: 0,
@@ -353,7 +353,7 @@ fn burn_deployed_tokens_zero_amount_doesnt_work_if_user_has_no_tokens() {
     let user_address = user_no_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_no_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: 0,
@@ -407,7 +407,7 @@ fn burn_unknown_token_fails() {
     let user_address = user_high_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: AMOUNT_TO_BURN,
@@ -468,7 +468,7 @@ fn burn_gas_token_also_works() {
     let user_address = user_high_token_balance.address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_high_token_balance.create_plain_message::<sov_bank::Bank<S>>(
+        input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
                 coins: Coins {
                     // Note: we are only burning half of the gas balance because some of it is

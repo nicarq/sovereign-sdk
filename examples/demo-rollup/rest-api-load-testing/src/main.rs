@@ -103,7 +103,10 @@ mod helpers {
             Self(client)
         }
 
-        pub async fn send_transactions(&self, transactions: &[Transaction<TestSpec>]) {
+        pub async fn send_transactions(
+            &self,
+            transactions: &[Transaction<Runtime<TestSpec>, TestSpec>],
+        ) {
             let _submitted_batch_info = self
                 .0
                 .publish_batch_with_serialized_txs(transactions)
@@ -116,7 +119,7 @@ mod helpers {
         key: &TestPrivateKey,
         nonce: u64,
         initial_balance: u64,
-    ) -> Transaction<TestSpec> {
+    ) -> Transaction<Runtime<TestSpec>, TestSpec> {
         let user_address = key.to_address();
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),

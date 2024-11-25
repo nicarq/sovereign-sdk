@@ -4,7 +4,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_test_utils::{AsUser, TransactionTestCase};
 use sov_value_setter::ValueSetter;
 
-use crate::helpers::{setup, S};
+use crate::helpers::{setup, RT, S};
 
 /// Ensures that [`TestRunner::query_visible_state`] returns an [`sov_modules_api::ApiStateAccessor`] on the latest (most recent) state.
 #[test]
@@ -36,7 +36,7 @@ fn test_query_runtime() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
         assert: Box::new(move |_result, state| {
             let value = ValueSetter::<S>::default()
                 .value
@@ -65,7 +65,7 @@ fn test_query_archival_state() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1)),
         assert: Box::new(move |_result, state| {
             let value = ValueSetter::<S>::default()
                 .value

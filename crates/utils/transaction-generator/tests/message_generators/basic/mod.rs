@@ -1,7 +1,6 @@
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::{arbitrary, schemars, tokio};
 use sov_modules_api::transaction::TxDetails;
-use sov_modules_api::DispatchCall;
 use sov_paymaster::{
     PayeePolicy, PayerGenesisConfig, Paymaster, PaymasterConfig, PaymasterPolicy, SafeVec,
 };
@@ -200,8 +199,8 @@ async fn test_successful_transaction_generation() {
     // Generate and execute 100 txs
     for _ in 0..100 {
         let output = generator.generate(MessageValidity::Valid);
-        let tx = TransactionType::PreEncoded {
-            encoded_message: RT::encode(&output.message),
+        let tx = TransactionType::Plain {
+            message: output.message,
             key: output.sender,
             details: TxDetails {
                 max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -210,7 +209,8 @@ async fn test_successful_transaction_generation() {
                 chain_id: config_chain_id(),
             },
         };
-        runner.execute_transaction::<sov_bank::Bank<TestSpec>>(TransactionTestCase {
+
+        runner.execute_transaction(TransactionTestCase {
             input: tx,
             assert: Box::new(move |result, _state| {
                 assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);

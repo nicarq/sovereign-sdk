@@ -77,6 +77,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
 }
 
 generate_optimistic_runtime!(TestAccessoryRuntime <= accessory_module: TestAccessoryModule<S>);
+type RT = TestAccessoryRuntime<S>;
 
 /// Check that:
 /// 1. Accessory state does not change normal state root hash.
@@ -100,7 +101,7 @@ fn test_accessory_value_setter() {
     );
 
     let (result_with_update, _) = runner.simulate(
-        user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
+        user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::SetAccessoryValue(42)),
     );
 
     let root_hash_with_update = result_with_update
@@ -109,8 +110,8 @@ fn test_accessory_value_setter() {
     let gas_consumed_with_update =
         get_gas_used(&result_with_update.batch_receipts[0].tx_receipts[0]);
 
-    let (result_without_update, _) =
-        runner.simulate(user.create_plain_message::<TestAccessoryModule<S>>(CallMessage::Nop(42)));
+    let (result_without_update, _) = runner
+        .simulate(user.create_plain_message::<RT, TestAccessoryModule<S>>(CallMessage::Nop(42)));
 
     let root_hash_without_update = result_without_update
         .state_root

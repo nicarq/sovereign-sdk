@@ -76,31 +76,27 @@ fn test_cannot_prove_when_gas_price_is_too_high(role: TestRole) {
 
     let initial_gas_price = runner.query_visible_state(|state| state.gas_info().gas_price);
 
-    let (bank_signed, register_signed) = runner.query_visible_state(|state| {
-        let bank_signed = user
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
-                coins: sov_bank::Coins {
-                    amount: 1,
-                    token_id: config_gas_token_id(),
-                },
-            })
-            .with_max_fee(user.available_gas_balance / 2)
-            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+    let bank_signed = user
+        .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
+            coins: sov_bank::Coins {
+                amount: 1,
+                token_id: config_gas_token_id(),
+            },
+        })
+        .with_max_fee(user.available_gas_balance / 2)
+        .to_serialized_authenticated_tx(&mut nonces);
 
-        let register_signed = user
-            .create_plain_message::<AttesterIncentives<S>>({
-                role.create_call_message(additional_user_bond)
-            })
-            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
-
-        (bank_signed, register_signed)
-    });
+    let register_signed = user
+        .create_plain_message::<RT, AttesterIncentives<S>>({
+            role.create_call_message(additional_user_bond)
+        })
+        .to_serialized_authenticated_tx(&mut nonces);
 
     // We execute a batch of two transactions, check that the total gas used is higher than the target.
     runner.execute_batch(BatchTestCase {
         input: BatchType(vec![
-            TransactionType::<AttesterIncentives<S>, S>::PreAuthenticated(bank_signed),
-            TransactionType::<AttesterIncentives<S>, S>::PreAuthenticated(register_signed),
+            TransactionType::<RT, S>::PreAuthenticated(bank_signed),
+            TransactionType::<RT, S>::PreAuthenticated(register_signed),
         ]),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);

@@ -54,7 +54,7 @@ error[E0277]: `ActualSpec` doesn't implement `std::fmt::Debug`
 note: required by a bound in `TestSpec`
    --> tests/integration/trybuild/rpc/expose_rpc_first_generic_not_spec.rs:13:45
     |
-13  | pub trait TestSpec: Default + Send + Sync + std::fmt::Debug + 'static {
+13  | pub trait TestSpec: Default + Send + Sync + std::fmt::Debug + Clone + PartialEq + Eq + 'static {
     |                                             ^^^^^^^^^^^^^^^ required by this bound in `TestSpec`
 help: consider annotating `ActualSpec` with `#[derive(Debug)]`
     |

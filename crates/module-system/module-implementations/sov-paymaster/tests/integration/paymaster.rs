@@ -7,12 +7,12 @@ use sov_paymaster::{
 };
 use sov_test_utils::runtime::{TestRunner, TokenId, ValueSetter, ValueSetterCallMessage};
 use sov_test_utils::{
-    AsUser, TransactionTestCase, TransactionType, TEST_DEFAULT_MAX_FEE,
+    AsUser, EncodeCall, TransactionTestCase, TransactionType, TEST_DEFAULT_MAX_FEE,
     TEST_DEFAULT_MAX_PRIORITY_FEE, TEST_DEFAULT_USER_BALANCE,
 };
 
 use crate::runtime::{PaymasterRuntime, PaymasterRuntimeEvent};
-use crate::utils::{setup, DoValueSetterTx, TxOutcome, S};
+use crate::utils::{setup, DoValueSetterTx, TxOutcome, RT, S};
 
 // This module implements the following tests for the paymaster
 // -[x] Register paymaster using callmessage
@@ -65,7 +65,7 @@ fn test_basic_policy_update() {
 
     // Now change the policy of the payer to deny the user
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: setup.payer.address(),
                 update: PolicyUpdate::default().set_default_policy(PayeePolicy::Deny),
@@ -98,7 +98,7 @@ fn test_registering_new_payer() {
     // Register a payer and assert success
     let payer_address = setup.payer.address();
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
                 policy: PaymasterPolicy {
                     default_payee_policy: PayeePolicy::Allow {
@@ -141,7 +141,7 @@ fn test_setting_payer_for_sequencer() {
     let user_address = setup.user.address();
     let payer_address = setup.payer.address();
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
                 policy: PaymasterPolicy {
                     default_payee_policy: PayeePolicy::Allow {
@@ -170,7 +170,7 @@ fn test_setting_payer_for_sequencer() {
     // Use a callmessage to set the paymaster for our sequencer back to the original value and check that
     // the payer address is as expected.
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::SetPayerForSequencer {
                 payer: payer_address,
             },
@@ -214,7 +214,7 @@ fn test_registering_payee() {
             },
         );
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: payer_address,
                     update,
@@ -262,7 +262,7 @@ fn test_blocking_and_unblocking_payee() {
     let user_address = setup.user.address();
     let update = PolicyUpdate::default().add_payee_policy(setup.user.address(), PayeePolicy::Deny);
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: payer_address,
                 update,
@@ -290,7 +290,7 @@ fn test_blocking_and_unblocking_payee() {
     // Remove the special user policy
     let update = PolicyUpdate::default().remove_payee_policy(setup.user.address());
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: payer_address,
                 update,
@@ -329,7 +329,7 @@ fn test_unregistering_sequencer() {
     let update = PolicyUpdate::default()
         .update_allowed_sequencers(AllowedSequencerUpdate::remove(setup.sequencer.da_address));
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: payer_address,
                 update,
@@ -352,7 +352,7 @@ fn test_unregistering_sequencer() {
 
     // Try to reregister the sequencer again. It should fail, since the sequencer isn't allowed
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::SetPayerForSequencer {
                 payer: payer_address,
             },
@@ -373,7 +373,7 @@ fn test_unregistering_sequencer() {
     let update = PolicyUpdate::default()
         .update_allowed_sequencers(AllowedSequencerUpdate::add(setup.sequencer.da_address));
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: payer_address,
                 update,
@@ -412,7 +412,7 @@ fn test_updates_using_alternate_address() {
 
     // Update the sequencer policy to remove our user from the updaters list.
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: setup.payer.address(),
                 update: PolicyUpdate::default().remove_updater(setup.user.address()),
@@ -423,7 +423,7 @@ fn test_updates_using_alternate_address() {
 
     // Have the user try to update the policy. It should fail because the user isn't authorized to update policies
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: setup.payer.address(),
                 update: PolicyUpdate::default().remove_updater(setup.user.address()),
@@ -441,7 +441,7 @@ fn test_updates_using_alternate_address() {
 
     // Update the sequencer policy to remove our user from the updaters list.
     runner.execute_transaction(TransactionTestCase {
-        input: setup.payer.create_plain_message::<Paymaster<S>>(
+        input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: setup.payer.address(),
                 update: PolicyUpdate::default().add_updater(setup.user.address()),
@@ -452,7 +452,7 @@ fn test_updates_using_alternate_address() {
 
     // Have the user try to update the policy. It should succeed.
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::UpdatePolicy {
                 payer: setup.payer.address(),
                 update: PolicyUpdate::default().set_default_policy(PayeePolicy::Deny),
@@ -476,7 +476,7 @@ fn test_setting_payer_with_insufficient_balance() {
     // Register the user (with ~0 balance) as a new payer. This sets the user as payer for the active sequencer.
     let user_address = setup.user.address();
     runner.execute_transaction(TransactionTestCase {
-        input: setup.user.create_plain_message::<Paymaster<S>>(
+        input: setup.user.create_plain_message::<RT, Paymaster<S>>(
             PaymasterCallMessage::RegisterPaymaster {
                 policy: PaymasterPolicy {
                     default_payee_policy: PayeePolicy::Allow {
@@ -509,7 +509,7 @@ fn test_setting_payer_with_insufficient_balance() {
     runner.execute_transaction(TransactionTestCase {
         input: setup
             .payer
-            .create_plain_message::<ValueSetter<S>>(ValueSetterCallMessage::SetValue(99)),
+            .create_plain_message::<RT, ValueSetter<S>>(ValueSetterCallMessage::SetValue(99)),
         assert: Box::new(move |result, state| {
             assert!(!result.tx_receipt.is_skipped());
             // Check that the payer's balance didn't change
@@ -541,7 +541,7 @@ fn test_granular_policies() {
     {
         // Update the policy
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
@@ -563,7 +563,7 @@ fn test_granular_policies() {
     {
         // Update the policy
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
@@ -580,9 +580,11 @@ fn test_granular_policies() {
 
         // Assert that the user transaction fails if it doesn't specify a gas limit, since the policy now
         // requires one.
-        runner.execute_skipped_transaction::<ValueSetter<S>>(TransactionTestCase {
+        runner.execute_skipped_transaction(TransactionTestCase {
             input: TransactionType::Plain {
-                message: ValueSetterCallMessage::SetValue(99),
+                message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
+                    ValueSetterCallMessage::SetValue(99),
+                ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {
                     max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -595,9 +597,11 @@ fn test_granular_policies() {
         });
 
         // Assert that the user transaction succeeds if its gas limit is valid.
-        runner.execute_transaction::<ValueSetter<S>>(TransactionTestCase {
+        runner.execute_transaction(TransactionTestCase {
             input: TransactionType::Plain {
-                message: ValueSetterCallMessage::SetValue(99),
+                message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
+                    ValueSetterCallMessage::SetValue(99),
+                ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {
                     max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -618,7 +622,7 @@ fn test_granular_policies() {
     {
         // Update the policy
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
@@ -633,9 +637,11 @@ fn test_granular_policies() {
             }),
         });
         // Assert that the user transaction is skipped if its gas limit is too high
-        runner.execute_skipped_transaction::<ValueSetter<S>>(TransactionTestCase {
+        runner.execute_skipped_transaction(TransactionTestCase {
             input: TransactionType::Plain {
-                message: ValueSetterCallMessage::SetValue(99),
+                message: <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
+                    ValueSetterCallMessage::SetValue(99),
+                ),
                 key: setup.user.as_user().private_key().clone(),
                 details: TxDetails {
                     max_priority_fee_bips: TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -651,7 +657,7 @@ fn test_granular_policies() {
     // Next, set the max_gas_price to a high value and ensure txs run as expected
     {
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {
@@ -671,7 +677,7 @@ fn test_granular_policies() {
     // Next, set the max gas price too low and ensure txs are skipped
     {
         runner.execute_transaction(TransactionTestCase {
-            input: setup.payer.create_plain_message::<Paymaster<S>>(
+            input: setup.payer.create_plain_message::<RT, Paymaster<S>>(
                 PaymasterCallMessage::UpdatePolicy {
                     payer: setup.payer.address(),
                     update: PolicyUpdate::default().set_default_policy(PayeePolicy::Allow {

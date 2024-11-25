@@ -5,7 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 
 use crate::transaction::Transaction;
-use crate::{BasicGasMeter, Gas, Spec};
+use crate::{BasicGasMeter, DispatchCall, Gas, Spec};
 
 /// A type wrapper around a u64 which represents the priority fee.
 /// Since the priority fee is expressed as a basis point, we should use this wrapper for
@@ -118,8 +118,8 @@ impl<S: Spec> From<TxDetails<S>> for AuthenticatedTransactionData<S> {
     }
 }
 
-impl<S: Spec> From<Transaction<S>> for AuthenticatedTransactionData<S> {
-    fn from(tx: Transaction<S>) -> Self {
+impl<T: DispatchCall, S: Spec> From<Transaction<T, S>> for AuthenticatedTransactionData<S> {
+    fn from(tx: Transaction<T, S>) -> Self {
         tx.details.into()
     }
 }

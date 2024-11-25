@@ -1,3 +1,4 @@
+use demo_stf::runtime::Runtime;
 use ethereum_types::H160;
 use ethers_core::abi::Address;
 use ethers_core::k256::ecdsa::SigningKey;
@@ -397,7 +398,7 @@ impl TestClient {
 
     pub(crate) async fn send_transactions_and_wait_slot(
         &self,
-        transactions: &[sov_modules_api::transaction::Transaction<TestSpec>],
+        transactions: &[sov_modules_api::transaction::Transaction<Runtime<TestSpec>, TestSpec>],
     ) -> anyhow::Result<()> {
         let mut slot_subscription = self.node_client.client.subscribe_slots().await?;
 

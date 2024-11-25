@@ -11,6 +11,7 @@ use sov_modules_api::macros::UniversalWallet;
     borsh::BorshSerialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     serde::Serialize,
     serde::Deserialize,

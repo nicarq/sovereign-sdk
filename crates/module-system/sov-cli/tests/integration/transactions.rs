@@ -1,13 +1,13 @@
 use std::path::{Path, PathBuf};
 
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, DispatchCall, PrivateKey, Spec};
 use sov_test_utils::runtime::{
     Runtime as RuntimeTrait, RuntimeSubcommand as TestRuntimeSubcommand, TestOptimisticRuntime,
     TestOptimisticRuntimeCall,
@@ -23,7 +23,7 @@ type RuntimeSubcommand<A> = TestRuntimeSubcommand<A, TestSpec>;
 #[test]
 fn test_import_transaction_from_string() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let subcommand = RuntimeSubcommand::<JsonStringArg>::Bank {
         contents: default_json_string_arg_for_test("requests/create_token.json"),
@@ -43,7 +43,7 @@ fn test_import_transaction_from_string() {
 #[test]
 fn test_import_transaction_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
@@ -63,10 +63,9 @@ fn test_import_transaction_from_file() {
 
 #[test]
 fn transaction_is_serialized_correctly() {
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let runtime_call = RuntimeCall::Bank(call_message_from_file("requests/create_token.json"));
-    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let chain_id = 0;
     let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
@@ -74,7 +73,7 @@ fn transaction_is_serialized_correctly() {
     let gas_limit = None;
 
     let unsigned_tx = UnsignedTransactionWithoutNonce::new(
-        runtime_call,
+        runtime_call.clone(),
         chain_id,
         <Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
         max_priority_fee_bips,
@@ -91,12 +90,12 @@ fn transaction_is_serialized_correctly() {
     let chain_hash = <Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH;
 
     for (i, tx) in txs.into_iter().enumerate() {
-        let tx = Transaction::<TestSpec>::try_from_slice(&tx).unwrap();
-        let tx_p = Transaction::<TestSpec>::new_signed_tx(
+        let tx = Transaction::<Runtime, TestSpec>::try_from_slice(&tx).unwrap();
+        let tx_p = Transaction::<Runtime, TestSpec>::new_signed_tx(
             &key,
             &chain_hash,
             UnsignedTransaction::new(
-                runtime_call_bytes.clone(),
+                runtime_call.clone(),
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,
@@ -118,7 +117,7 @@ fn transaction_is_serialized_correctly() {
 #[test]
 fn transaction_not_signed_without_accounts() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
         contents: default_file_name_arg_for_test("requests/create_token.json"),
@@ -147,7 +146,7 @@ fn transaction_not_signed_without_accounts() {
 #[test]
 fn transaction_signed_properly_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
     let bank_create_token_path = "requests/create_token.json";
@@ -155,7 +154,6 @@ fn transaction_signed_properly_from_file() {
         contents: default_file_name_arg_for_test(bank_create_token_path),
     };
     let runtime_call = RuntimeCall::Bank(call_message_from_file(bank_create_token_path));
-    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let nonce = 11;
     let workflow = TransactionWorkflow::Sign {
@@ -190,7 +188,8 @@ fn transaction_signed_properly_from_file() {
     assert!(last_line.starts_with("0x"));
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
 
-    let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
+    let signed_tx: Transaction<Runtime, TestSpec> =
+        Transaction::try_from_slice(&raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -203,13 +202,13 @@ fn transaction_signed_properly_from_file() {
     assert_eq!(default_pubkey, &signed_tx.pub_key);
     assert_eq!(nonce, signed_tx.nonce);
 
-    assert_eq!(&runtime_call_bytes, &signed_tx.runtime_msg);
+    assert_eq!(&runtime_call, &signed_tx.runtime_call);
 }
 
 #[test]
 fn transaction_signed_properly_from_json_string() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
     let create_token_path = "requests/create_token.json";
@@ -217,7 +216,6 @@ fn transaction_signed_properly_from_json_string() {
         contents: default_json_string_arg_for_test(create_token_path),
     };
     let runtime_call = RuntimeCall::Bank(call_message_from_file(create_token_path));
-    let runtime_call_bytes = borsh::to_vec(&runtime_call).unwrap();
 
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
@@ -238,20 +236,21 @@ fn transaction_signed_properly_from_json_string() {
     let last_line: &str = output.lines().last().unwrap();
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
-    let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
+    let signed_tx: Transaction<Runtime, TestSpec> =
+        Transaction::try_from_slice(&raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
             &mut new_test_gas_meter(),
         )
         .unwrap();
-    assert_eq!(&runtime_call_bytes, &signed_tx.runtime_msg);
+    assert_eq!(&runtime_call, &signed_tx.runtime_call);
 }
 
 #[test]
 fn transaction_signed_by_account_nickname() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let key1 = "key1";
     let key2 = "key2";
@@ -298,7 +297,8 @@ fn transaction_signed_by_account_nickname() {
     let last_line: &str = output.lines().last().unwrap();
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
-    let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
+    let signed_tx: Transaction<Runtime, TestSpec> =
+        Transaction::try_from_slice(&raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -320,7 +320,7 @@ fn transaction_signed_by_account_nickname() {
 #[test]
 fn transaction_outputs_json() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     import_key(&mut wallet_state, &app_dir);
 
     let subcommand = RuntimeSubcommand::<FileNameArg>::Bank {
@@ -349,7 +349,8 @@ fn transaction_outputs_json() {
         _ => panic!("Should be string at signed_tx"),
     };
     let raw_signed_tx = hex::decode(&hex_tx[2..]).unwrap();
-    let signed_tx: Transaction<TestSpec> = Transaction::try_from_slice(&raw_signed_tx).unwrap();
+    let signed_tx: Transaction<Runtime, TestSpec> =
+        Transaction::try_from_slice(&raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -391,7 +392,7 @@ fn default_json_string_arg_for_test(path: impl AsRef<Path>) -> JsonStringArg {
 
 fn import_key<Tx, S>(wallet_state: &mut WalletState<Tx, S>, app_dir: impl AsRef<Path>)
 where
-    Tx: BorshSerialize + BorshDeserialize + serde::Serialize + serde::de::DeserializeOwned,
+    Tx: DispatchCall,
     S: Spec,
 {
     let workflow = KeyWorkflow::Generate {

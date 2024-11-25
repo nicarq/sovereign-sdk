@@ -30,7 +30,7 @@ fn create_token() {
     let token_id = get_token_id::<S>(token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
@@ -114,7 +114,7 @@ fn create_token_and_mint() {
     let token_id = get_token_id::<S>(token_name, &minter_address);
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::CreateToken {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
@@ -149,7 +149,7 @@ fn create_token_and_mint() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Mint {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
             coins: sov_bank::Coins {
                 amount: INITIAL_TOKEN_BALANCE,
                 token_id,

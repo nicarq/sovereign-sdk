@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use futures::StreamExt;
 use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
@@ -87,7 +87,10 @@ async fn forced_sequencer_registration_test_case(
     Ok(())
 }
 
-fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<TestSpec> {
+fn build_register_sequencer_tx(
+    key: &TestPrivateKey,
+    nonce: u64,
+) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let msg =
         RuntimeCall::<TestSpec>::SequencerRegistry(sov_sequencer_registry::CallMessage::Register {
             da_address: UNREGISTERED_SENDER,
@@ -97,11 +100,11 @@ fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<
     let max_priority_fee_bips = PriorityFeeBips::ZERO;
     let max_fee = MAX_TX_FEE;
     let gas_limit = None;
-    Transaction::<TestSpec>::new_signed_tx(
+    Transaction::<Runtime<TestSpec>, TestSpec>::new_signed_tx(
         key,
         &CHAIN_HASH,
         UnsignedTransaction::new(
-            borsh::to_vec(&msg).unwrap(),
+            msg,
             chain_id,
             max_priority_fee_bips,
             max_fee,
@@ -111,7 +114,7 @@ fn build_register_sequencer_tx(key: &TestPrivateKey, nonce: u64) -> Transaction<
     )
 }
 
-fn transaction_into_blob(transaction: Transaction<TestSpec>) -> Vec<u8> {
+fn transaction_into_blob(transaction: Transaction<Runtime<TestSpec>, TestSpec>) -> Vec<u8> {
     let tx_data = borsh::to_vec(&transaction).unwrap();
     let blob_data = RawTx { data: tx_data };
     borsh::to_vec(&blob_data).unwrap()

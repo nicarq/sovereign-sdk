@@ -9,6 +9,7 @@ use crate::{Event, NonFungibleToken};
     borsh::BorshSerialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     serde::Deserialize,
     serde::Serialize,
