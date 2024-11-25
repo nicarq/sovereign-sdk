@@ -10228,7 +10228,13 @@ dependencies = [
 name = "sov-metrics"
 version = "0.3.0"
 dependencies = [
+ "anyhow",
+ "derivative",
  "prometheus",
+ "schemars",
+ "serde",
+ "sov-metrics",
+ "tokio",
  "tracing",
 ]
 

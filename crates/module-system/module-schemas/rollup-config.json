@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "da",
+    "monitoring",
     "proof_manager",
     "runner",
     "sequencer",
@@ -16,6 +17,14 @@
       "allOf": [
         {
           "$ref": "#/definitions/MockDaConfig"
+        }
+      ]
+    },
+    "monitoring": {
+      "description": "Monitoring configuration.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/MonitoringConfig"
         }
       ]
     },
@@ -185,6 +194,37 @@
               "$ref": "#/definitions/MockAddress"
             }
           ]
+        }
+      }
+    },
+    "MonitoringConfig": {
+      "description": "Configuration of Sovereign monitoring",
+      "type": "object",
+      "required": [
+        "telegraf_address"
+      ],
+      "properties": {
+        "max_datagram_size": {
+          "description": "Defines how many measurements a rollup node will accumulate before sending it to the Telegraf. It is expected from the rollup node to produce metrics all the time, so measurements are buffered by size and not sent by time. and below 67 KB, which is the maximal UDP packet size. It also means that if a single serialized metric is larger than this value, a UDP packet will be larger.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "max_pending_metrics": {
+          "description": "How many metrics are allowed to be in pending state, before new metrics will be dropped. This is a number of metrics, not serialized bytes. The total number of bytes to be held in memory might vary per metric + `max_datagram_size`",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "telegraf_address": {
+          "description": "UDP socket where Telegraf service is active, something like 127.0.0.1:8094. Localhost is preferred for latency and reliability reasons.",
+          "type": "string"
         }
       }
     },

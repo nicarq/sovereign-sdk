@@ -7,6 +7,7 @@ use futures::{Stream, StreamExt};
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
+use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
     MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
     MockValidityCond,
@@ -188,6 +189,7 @@ pub async fn initialize_runner(
                 max_batch_size_bytes: None,
             }),
         },
+        monitoring: MonitoringConfig::standard(),
     };
 
     let stf = HashStf::<MockValidityCond>::new();
@@ -275,7 +277,7 @@ pub async fn initialize_runner(
 
     (
         StateTransitionRunner::new(
-            rollup_config.runner,
+            rollup_config.runner.clone(),
             da_service.clone(),
             ledger_db.clone(),
             stf,
@@ -285,6 +287,7 @@ pub async fn initialize_runner(
             st_info_sender,
             sync_sender,
             shutdown_receiver,
+            rollup_config.monitoring.clone(),
         )
         .await
         .unwrap(),

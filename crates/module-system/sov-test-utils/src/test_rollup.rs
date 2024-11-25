@@ -16,7 +16,8 @@ use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
-    HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig, StorageConfig,
+    HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
+    StorageConfig,
 };
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -128,6 +129,11 @@ where
                     BatchBuilderMode::Standard(config) => BatchBuilderConfig::standard(config),
                     BatchBuilderMode::Preferred(config) => BatchBuilderConfig::preferred(config),
                 },
+            },
+            monitoring: MonitoringConfig {
+                telegraf_address: SocketAddr::from_str("127.0.0.1:8094").unwrap(),
+                max_datagram_size: None,
+                max_pending_metrics: None,
             },
         };
 
@@ -356,7 +362,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     /// We just hold this together with [`TestRollup`] instance, so the directory
     /// is not deleted before we're done.
     ///
-    /// This is wrapped in an [`Arc`] to renable re-use of the same directory
+    /// This is wrapped in an [`Arc`] to enable re-use of the same directory
     /// when dropping a [`TestRollup`] and creating a new one. The pattern
     /// looks something like this:
     ///

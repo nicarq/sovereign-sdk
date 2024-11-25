@@ -374,6 +374,7 @@ mod blueprint {
                 st_info_sender,
                 sync_status_sender,
                 main_shutdown_receiver.clone(),
+                rollup_config.monitoring.clone(),
             )
             .await?;
 
