@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
@@ -10,18 +11,18 @@ use crate::helpers::runner_init::{initialize_runner, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {
-    let test_case = TestCase::new(1);
-    run_make_proof_sync(test_case, 1).await?;
+    let test_case = TestCase::new(5);
+    run_make_proof_sync(test_case, 3).await?;
 
     Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_fetch_aggregated_proof_test_async() -> anyhow::Result<()> {
-    let test_case = TestCase::new(1);
+    let test_case = TestCase::new(5);
     tokio::time::timeout(
         std::time::Duration::from_secs(60),
-        run_make_proof_async(test_case, 1),
+        run_make_proof_async(test_case, 3),
     )
     .await??;
 
@@ -38,6 +39,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 
     for batch_number in 0..nb_of_batches {
         test_node.send_transaction().await?;
+        // Update the visible rollup height
         test_node.make_block_proof();
 
         if (batch_number + 1) % jump == 0 {
@@ -73,11 +75,14 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyhow::Result<()> {
     let tmpdir = tempfile::tempdir()?;
     let jump = test_case.jump();
-    let nb_of_batches = test_case.input.nb_of_batches;
+    let nb_of_batches: u64 = test_case.input.nb_of_batches as u64;
+    let provable_height_ref = Arc::new(AtomicU64::new(0));
     let (mut test_node, runner_task) = spawn(test_case.jump(), nb_of_threads, tmpdir.path()).await;
 
     for _ in 0..nb_of_batches {
+        // Update the provable height
         test_node.send_transaction().await?;
+        provable_height_ref.fetch_add(1, Ordering::SeqCst);
     }
 
     for _ in 0..nb_of_batches {

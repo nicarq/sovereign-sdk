@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
+use anyhow::bail;
 use borsh::BorshSerialize;
 use rockbound::SchemaBatch;
 use serde::de::DeserializeOwned;
@@ -11,6 +12,7 @@ use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::types::{RollupHeight, StoredStfInfo};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::zk::StateTransitionWitness;
+use sov_rollup_interface::ProvableHeightTracker;
 use tokio::sync::mpsc;
 
 /// Holds all the necessary data for the creation of a block zk-proof.
@@ -45,10 +47,12 @@ impl<StateRoot, Witness, Da: DaSpec> StateTransitionInfo<StateRoot, Witness, Da>
     }
 }
 
-/// Materializes STF infos and sends notifications to the associated `Receiver`.
+/// Materializes STF infos and sends notifications to the associated [`Receiver`].
 pub struct Sender<StateRoot, Witness, Da: DaSpec> {
-    // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
-    next_height_to_receive: Arc<AtomicU64>,
+    /// Height of the next `StateTransitionInfo` that should be received by the [`Receiver`].
+    /// This value is synchronized with the receiver end of the channel. On the sender end
+    /// it is only persisted in the database after a slot completion.
+    pub next_height_to_receive: Arc<AtomicU64>,
     // Max number of entries we will keep in the Db, older data will be pruned.
     max_nb_of_infos_in_db: u64,
 
@@ -58,18 +62,35 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
 }
 
-impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
-    pub(crate) async fn notify_about_infos_from_db(
-        &self,
+impl<
+        StateRoot: DeserializeOwned + Serialize,
+        Witness: DeserializeOwned + Serialize,
+        Da: DaSpec,
+    > Sender<StateRoot, Witness, Da>
+{
+    /// This method is only called when starting up the stf info manager. It ensures that the state is correctly set and synchronized
+    pub(crate) async fn startup_notify_about_infos_from_db(
+        &mut self,
         ledger_db: &LedgerDb,
+        maximum_provable_height: &dyn ProvableHeightTracker,
     ) -> anyhow::Result<()> {
         let maybe_write_rollup_height = ledger_db.get_stf_info_write_rollup_height().await?;
+        let next_rollup_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
+
+        let maximum_provable_height = maximum_provable_height.maximum_provable_height();
+
         match maybe_write_rollup_height {
             Some(write_rollup_height) => {
-                let next_rollup_height_to_receive = ledger_db
+                let ledger_next_height_to_receive = ledger_db
                     .get_stf_info_next_rollup_height_to_receive()
                     .await?
                     .unwrap_or(1);
+
+                assert_eq!(
+                    ledger_next_height_to_receive, next_rollup_height_to_receive,
+                    "The next height to receive should be the same as the one stored in the db"
+                );
+
                 // Sanity check for `write_rollup_height & next_rollup_height_to_receive`
                 assert!(
                     write_rollup_height >= next_rollup_height_to_receive,
@@ -84,14 +105,6 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
                     next_rollup_height_to_receive,
                     write_rollup_height,
                 );
-
-                for height in next_rollup_height_to_receive..=write_rollup_height {
-                    // It is ok to unwrap here, as we are sure that the sender is alive.
-                    self.notifier
-                        .send(height)
-                        .await
-                        .expect("The stf info receiver was dropped");
-                }
             }
             // Db is empty
             None => {
@@ -105,6 +118,12 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
                     .is_none());
             }
         }
+
+        // We notify the receiver about the STF infos available between the last submitted height and the next height to receive.
+        // We are only notifying the maximum height that is available in the DB - the `Receiver` will ensure to read every transition
+        // between `Receiver::next_height_to_receive` and `maximum_provable_height`.
+        self.notify(maximum_provable_height, ledger_db).await?;
+
         Ok(())
     }
 }
@@ -112,8 +131,8 @@ impl<StateRoot, Witness, Da: DaSpec> Sender<StateRoot, Witness, Da> {
 /// Receives notifications from the associated [`Sender`] and reads STF info data from the db.
 
 pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
-    // Height of the latest `StateTransitionInfo` that was read by the `Receiver`
-    next_height_to_receive: Arc<AtomicU64>,
+    /// Height of the next `StateTransitionInfo` that is expected to be processed by the `Receiver`
+    pub next_height_to_receive: Arc<AtomicU64>,
     ledger_db: LedgerDb,
     receiver: mpsc::Receiver<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
@@ -176,6 +195,65 @@ where
     StateRoot: Serialize + DeserializeOwned,
     Witness: Serialize + DeserializeOwned,
 {
+    /// Sends the stf update notifications and updates the last submitted height.
+    pub async fn notify(
+        &mut self,
+        maximum_provable_height: u64,
+        ledger_db: &LedgerDb,
+    ) -> anyhow::Result<()> {
+        // The `write_rollup_height` is the maximum stf height that is available in the DB.
+        let Some(write_rollup_height) = ledger_db.get_stf_info_write_rollup_height().await? else {
+            // DB is empty, so we don't have to notify anything.
+            return Ok(());
+        };
+
+        // The `next_height_to_receive` is the minimum height that should be notified next to the receiver.
+        let next_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
+
+        // We always have to ensure we don't notify for a height that is not already written to the DB.
+        // So we always notify up to the `write_rollup_height`, even if the `maximum_provable_height` is higher.
+        let height_to_notify = std::cmp::min(maximum_provable_height, write_rollup_height);
+
+        if height_to_notify >= next_height_to_receive {
+            self.notifier.send(height_to_notify).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn prune_entries(
+        &self,
+        ledger_db: &LedgerDb,
+        next_height_to_receive: u64,
+        write_rollup_height: u64,
+    ) -> anyhow::Result<SchemaBatch> {
+        let Some(prune_up_to) = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db) else {
+            // If we have not reached [`Self::max_nb_of_infos_in_db`] we don't need to prune the data
+            return Ok(Default::default());
+        };
+
+        let oldest_height = self.get_oldest_rollup_height(ledger_db).await?;
+
+        let mut out_schema = SchemaBatch::new();
+        for i in oldest_height..prune_up_to {
+            if i >= next_height_to_receive {
+                tracing::warn!(
+                    next_height_to_receive,
+                    ?prune_up_to,
+                    "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works."
+                );
+                break;
+            }
+            out_schema.merge(ledger_db.delete_stf_info(i)?);
+        }
+
+        if prune_up_to > oldest_height {
+            out_schema.merge(ledger_db.materialize_stf_info_oldest_rollup_height(prune_up_to)?);
+        }
+
+        Ok(out_schema)
+    }
+
     /// Materialized [`StateTransitionInfo`] and sends a notification to the [`Receiver`] that a new entry was added in the Db.
     /// This method will block if the channel is full. This can happen if the consumer of the STF info is slower than the producer.
     pub async fn materialize_stf_info(
@@ -188,6 +266,7 @@ where
             data: encoded_stf_info,
         };
 
+        // Materialize the changes to the database
         let write_rollup_height = stf_info.rollup_height;
 
         // Save the stf info in the db.
@@ -197,8 +276,8 @@ where
         // Update the write rollup height.
         schema.merge(ledger_db.materialize_stf_info_write_rollup_height(write_rollup_height)?);
 
-        // Update the last submitted rollup height.
-        let next_rollup_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
+        // Send the new changes to the subscribers
+        let next_rollup_height_to_receive: u64 = self.next_height_to_receive.load(Ordering::SeqCst);
         schema.merge(
             ledger_db.materialize_stf_info_next_rollup_height_to_receive(
                 next_rollup_height_to_receive,
@@ -206,21 +285,15 @@ where
         );
 
         // Prune the oldest entries if needed
-        let mut oldest_height = self.get_oldest_rollup_height(ledger_db).await?;
-        let prune_up_to = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db);
+        schema.merge(
+            self.prune_entries(
+                ledger_db,
+                next_rollup_height_to_receive,
+                write_rollup_height,
+            )
+            .await?,
+        );
 
-        while Some(oldest_height) < prune_up_to {
-            if oldest_height >= next_rollup_height_to_receive {
-                tracing::warn!(
-                    next_rollup_height_to_receive,
-                    ?prune_up_to,
-                    "State Transition Info is not consumed fast enough, cannot prune older entries. Please check that consumer works."
-                );
-                break;
-            }
-            schema.merge(self.remove_oldest_height(oldest_height, ledger_db)?);
-            oldest_height += 1;
-        }
         assert!(
             next_rollup_height_to_receive <= write_rollup_height,
             "write({}) is smaller than next height to receive({})",
@@ -229,7 +302,6 @@ where
         );
 
         tracing::debug!(
-            oldest_height,
             next_rollup_height_to_receive,
             write_rollup_height,
             "Done materializing stf_info"
@@ -237,30 +309,9 @@ where
         Ok(schema)
     }
 
-    /// Notify the [`Receiver`] that the data for `rollup_height` is saved in the Db.
-    pub async fn notify(&self, rollup_height: u64) -> anyhow::Result<()> {
-        self.notifier.send(rollup_height).await?;
-        Ok(())
-    }
-
     async fn get_oldest_rollup_height(&self, ledger_db: &LedgerDb) -> anyhow::Result<u64> {
         let oldest_height = ledger_db.get_stf_info_oldest_rollup_height().await?;
         Ok(oldest_height.unwrap_or(1))
-    }
-
-    fn remove_oldest_height(
-        &self,
-        oldest_height: u64,
-        ledger_db: &LedgerDb,
-    ) -> anyhow::Result<SchemaBatch> {
-        let mut schema_batch = ledger_db.delete_stf_info(oldest_height)?;
-
-        let inc_oldest_height_schema_batch =
-            ledger_db.materialize_stf_info_oldest_rollup_height(oldest_height + 1)?;
-
-        schema_batch.merge(inc_oldest_height_schema_batch);
-
-        Ok(schema_batch)
     }
 }
 
@@ -271,23 +322,35 @@ where
 {
     /// Reads the next [`StateTransitionInfo`] from the Db.
     /// This method will block if the channel is empty. This can happen if the producer of the STF info is slower than the consumer.
-    /// Returns `Ok(None)` if the producer of the STF info was dropped.
+    /// Returns `Ok(None)` if the stf info for the given height has already been read and processed.
+    /// Returns `anyhow::Error` if the channel is closed.
     pub async fn read_next(
         &mut self,
-    ) -> anyhow::Result<Option<StateTransitionInfo<StateRoot, Witness, Da>>> {
+    ) -> anyhow::Result<Option<Vec<StateTransitionInfo<StateRoot, Witness, Da>>>> {
         if let Some(rollup_height) = self.receiver.recv().await {
-            let stf_info: StateTransitionInfo<StateRoot, Witness, Da> = self
-                .get(rollup_height)?
-                .unwrap_or_else(|| panic!("The STF for the {} height is missing", rollup_height));
-            Ok(Some(stf_info))
-        } else {
-            Ok(None)
-        }
-    }
+            let next_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
 
-    /// Increases next height to receive. Means that height has been successfully received by the [`Receiver`].
-    pub fn increase_next_height_to_receive(&self) {
-        self.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
+            // We need to ensure that the rollup height received is greater than the next expected height to
+            // ensure we don't see the same height multiple times.
+            if rollup_height >= next_height_to_receive {
+                let mut stf_infos: Vec<StateTransitionInfo<StateRoot, Witness, Da>> = Vec::new();
+
+                for height in next_height_to_receive..=rollup_height {
+                    stf_infos.push(
+                        self.get(height)?.unwrap_or_else(|| {
+                            panic!("The `stf-info-manager` sender notified that the stf height {} is available but the transition is missing from ledger DB.
+                            Please ensure that the `stf-info-manager` only notifies for heights up to `write_rollup_height`. This is a bug. Please report it", height)
+                        }),
+                    );
+                }
+
+                return Ok(Some(stf_infos));
+            }
+
+            return Ok(None);
+        }
+
+        bail!("Channel closed. Impossible to read next stf info")
     }
 
     /// Gets [`StateTransitionInfo`] for the corresponding rollup height.
@@ -311,6 +374,7 @@ mod tests {
 
     use sov_mock_da::{MockBlockHeader, MockDaSpec, MockHash};
     use sov_modules_api::da::Time;
+    use sov_modules_api::provable_height_tracker::InfiniteHeight;
     use sov_rollup_interface::da::{DaProof, RelevantBlobs, RelevantProofs};
     use sov_rollup_interface::zk::StateTransitionWitness;
     use sov_test_utils::storage::SimpleLedgerStorageManager;
@@ -334,14 +398,16 @@ mod tests {
         let mut storage_manager = SimpleLedgerStorageManager::new(path);
         let ledger_db = LedgerDb::with_reader(storage_manager.create_ledger_storage())?;
 
-        let (sender, receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
+        let (mut sender, receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
             ledger_db.clone(),
             max_channel_size,
             max_nb_of_infos_in_db,
         )
         .await?;
 
-        sender.notify_about_infos_from_db(&ledger_db).await?;
+        sender
+            .startup_notify_about_infos_from_db(&ledger_db, &InfiniteHeight)
+            .await?;
 
         Ok((ledger_db, storage_manager, sender, receiver))
     }
@@ -355,13 +421,13 @@ mod tests {
 
         // Write some data to the Db.
         {
-            let (ledger_db, mut storage_manager, sender, _receiver) =
+            let (ledger_db, mut storage_manager, mut sender, _receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            for height in 1..channel_size + 1 {
+            for height in 1..=channel_size {
                 let stf_info = make_stf_info(height as u64);
                 let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
-                sender.notify(stf_info.rollup_height).await?;
+                sender.notify(stf_info.rollup_height, &ledger_db).await?;
                 storage_manager.commit(schema_batch);
             }
         }
@@ -371,42 +437,44 @@ mod tests {
             let (ledger_db, _, sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_next_height_to_receive();
-            assert_eq!(stf_info.rollup_height, 1);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
+            let stf_infos = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_infos.len(), channel_size);
 
-            let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_next_height_to_receive();
-            assert_eq!(stf_info.rollup_height, 2);
+            for (i, stf_info) in stf_infos.iter().enumerate() {
+                assert_eq!(stf_info.rollup_height, (i + 1) as u64);
+            }
+
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
         }
 
         // We haven't committed the reads above so after restart we will read the same data.
         {
-            let (ledger_db, mut storage_manager, sender, mut receiver) =
+            let (ledger_db, mut storage_manager, mut sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_next_height_to_receive();
-            assert_eq!(stf_info.rollup_height, 1);
-            assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
+            let stf_infos = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_infos.len(), channel_size);
 
-            let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_next_height_to_receive();
-            assert_eq!(stf_info.rollup_height, 2);
+            for (i, stf_info) in stf_infos.iter().enumerate() {
+                assert_eq!(stf_info.rollup_height, (i + 1) as u64);
+            }
+
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
 
             // Commit new data.
+            receiver
+                .next_height_to_receive
+                .fetch_add(2, Ordering::SeqCst);
+
             let stf_info = make_stf_info((channel_size + 1) as u64);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height).await?;
+            sender.notify(stf_info.rollup_height, &ledger_db).await?;
 
             let stf_info = make_stf_info((channel_size + 2) as u64);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height).await?;
+            sender.notify(stf_info.rollup_height, &ledger_db).await?;
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
@@ -416,8 +484,10 @@ mod tests {
             let (ledger_db, _, sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_info = receiver.read_next().await?.unwrap();
-            receiver.increase_next_height_to_receive();
+            let stf_infos = receiver.read_next().await?.unwrap();
+            assert_eq!(stf_infos.len(), channel_size);
+
+            let stf_info = stf_infos.first().unwrap();
             assert_eq!(stf_info.rollup_height, 3);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
@@ -431,7 +501,7 @@ mod tests {
         let channel_size = 10;
         let max_nb_of_infos_in_db = 100;
 
-        let (ledger_db, mut storage_manager, sender, mut receiver) =
+        let (ledger_db, mut storage_manager, mut sender, mut receiver) =
             setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         // Fill the db.
@@ -439,12 +509,18 @@ mod tests {
             let stf_info = make_stf_info(height as u64);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height).await?;
+            sender.notify(stf_info.rollup_height, &ledger_db).await?;
         }
 
         // Read the data from the db.
         for height in 1..channel_size {
             let stf_info = receiver.read_next().await?.unwrap();
+            receiver
+                .next_height_to_receive
+                .fetch_add(1, Ordering::SeqCst);
+            assert_eq!(stf_info.len(), 1);
+            let stf_info = stf_info.first().unwrap();
+
             assert_eq!(stf_info.rollup_height, height as u64);
         }
 
@@ -457,25 +533,34 @@ mod tests {
         let channel_size = 10;
         let max_nb_of_infos_in_db = 100;
 
-        let (ledger_db, mut storage_manager, sender, mut receiver) =
+        let (ledger_db, mut storage_manager, mut sender, mut receiver) =
             setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         for height in 1..3 {
             let stf_info = make_stf_info(height as u64);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
-            sender.notify(stf_info.rollup_height).await?;
+            sender.notify(stf_info.rollup_height, &ledger_db).await?;
         }
 
         drop(sender);
 
         for height in 1..3 {
             let stf_info = receiver.read_next().await?.unwrap();
+            receiver
+                .next_height_to_receive
+                .fetch_add(1, Ordering::SeqCst);
+            assert_eq!(stf_info.len(), 1);
+            let stf_info = stf_info.first().unwrap();
+
             assert_eq!(stf_info.rollup_height, height as u64);
         }
 
-        let stf_info = receiver.read_next().await?;
-        assert!(stf_info.is_none());
+        let stf_info = receiver.read_next().await;
+        receiver
+            .next_height_to_receive
+            .fetch_add(1, Ordering::SeqCst);
+        assert!(stf_info.is_err());
 
         Ok(())
     }
@@ -487,25 +572,34 @@ mod tests {
         let channel_size = 10;
         let max_nb_of_infos_in_db = 100;
 
-        let (ledger_db, mut storage_manager, sender, mut receiver) =
+        let (ledger_db, mut storage_manager, mut sender, mut receiver) =
             setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         tokio::spawn(async move {
             // Fill the db.
-            for height in 1..channel_size {
+            for height in 1..=channel_size {
                 let stf_info = make_stf_info(height as u64);
                 let schema_batch = sender
                     .materialize_stf_info(&stf_info, &ledger_db)
                     .await
                     .unwrap();
                 storage_manager.commit(schema_batch);
-                sender.notify(stf_info.rollup_height).await.unwrap();
+                sender
+                    .notify(stf_info.rollup_height, &ledger_db)
+                    .await
+                    .unwrap();
             }
         });
 
         // Read the data from the db.
-        for height in 1..channel_size {
+        for height in 1..=channel_size {
             let stf_info = receiver.read_next().await?.unwrap();
+            receiver
+                .next_height_to_receive
+                .fetch_add(1, Ordering::SeqCst);
+            assert_eq!(stf_info.len(), 1);
+            let stf_info = stf_info.first().unwrap();
+
             assert_eq!(stf_info.rollup_height, height as u64);
         }
 
@@ -519,7 +613,7 @@ mod tests {
         let channel_size = 10;
         let max_nb_of_infos_in_db = 100;
 
-        let (ledger_db, mut storage_manager, sender, mut receiver) =
+        let (ledger_db, mut storage_manager, mut sender, mut receiver) =
             setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         // At the begining the db should be empty.
@@ -527,9 +621,23 @@ mod tests {
         assert!(fetched_stf_info.is_none());
 
         // Insert astf info two times.
-        assert_stf_in_db(1, &sender, &mut receiver, &mut storage_manager, &ledger_db).await;
+        assert_stf_in_db(
+            1,
+            &mut sender,
+            &mut receiver,
+            &mut storage_manager,
+            &ledger_db,
+        )
+        .await;
 
-        assert_stf_in_db(2, &sender, &mut receiver, &mut storage_manager, &ledger_db).await;
+        assert_stf_in_db(
+            2,
+            &mut sender,
+            &mut receiver,
+            &mut storage_manager,
+            &ledger_db,
+        )
+        .await;
 
         // Check if the first stf is still in the db.
         let fetched_stf_info = receiver.get(1)?;
@@ -572,7 +680,7 @@ mod tests {
                 1,
             );
 
-            let (ledger_db, mut storage_manager, sender, mut receiver) = setup(
+            let (ledger_db, mut storage_manager, mut sender, mut receiver) = setup(
                 temp_dir.path(),
                 test_case.channel_size,
                 test_case.max_nb_of_infos_in_db,
@@ -584,9 +692,11 @@ mod tests {
                 let stf_info = make_stf_info(height);
                 let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
                 storage_manager.commit(schema_batch);
-                sender.notify(stf_info.rollup_height).await?;
+                sender.notify(stf_info.rollup_height, &ledger_db).await?;
                 receiver.read_next().await?.unwrap();
-                receiver.increase_next_height_to_receive();
+                receiver
+                    .next_height_to_receive
+                    .fetch_add(1, Ordering::SeqCst);
             }
 
             let oldest_height = sender.get_oldest_rollup_height(&ledger_db).await?;
@@ -610,7 +720,7 @@ mod tests {
 
     async fn assert_stf_in_db(
         rollup_height: u64,
-        sender: &Sender<StateRoot, Witness, MockDaSpec>,
+        sender: &mut Sender<StateRoot, Witness, MockDaSpec>,
         receiver: &mut Receiver<StateRoot, Witness, MockDaSpec>,
         storage_manager: &mut SimpleLedgerStorageManager,
         ledger_db: &LedgerDb,
@@ -622,7 +732,7 @@ mod tests {
             .await
             .unwrap();
         storage_manager.commit(schema_batch);
-        sender.notify(rollup_height).await.unwrap();
+        sender.notify(rollup_height, ledger_db).await.unwrap();
 
         let fetched_stf_info = receiver.get(rollup_height).unwrap().unwrap();
 

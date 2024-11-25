@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use backon::{BackoffBuilder, ExponentialBuilder};
@@ -129,14 +130,16 @@ where
                     break;
                 }
                 stf_info_result = self.st_info_receiver.read_next() => {
-                    let stf_info = match stf_info_result? {
+                    let stf_infos = match stf_info_result? {
                         None => {
-                            tracing::debug!("Received None instead of StateTransitionInfo, shutting down aggregated proof posting task");
-                            break;
+                            tracing::debug!("Received None instead of StateTransitionInfo. This can happen if the transition has already been processed by the `Receiver`. In that case, it is fine to ignore the notification.");
+                            continue;
                         },
-                        Some(stf_info) => stf_info,
+                        Some(stf_infos) => stf_infos,
                     };
-                    self.proccess_stf_info(stf_info).await?;
+                    for stf_info in stf_infos {
+                        self.proccess_stf_info(stf_info).await?;
+                    }
                 }
             }
         }
@@ -153,18 +156,30 @@ where
             <Ps::DaService as DaService>::Spec,
         >,
     ) -> anyhow::Result<()> {
+        let first_height_unproven = self
+            .st_info_receiver
+            .next_height_to_receive
+            .load(Ordering::SeqCst);
+
         let prover_service = &self.prover_service;
-        let block_hash = stf_info.da_block_header().hash();
-        // Save the transition for later proving. This is temporarily redundant
-        // since we always just try to prove blocks right away (because we don't have fee
-        // estimates for proving built out yet).
-        self.proofs_to_create.append(BlockProofInfo {
-            status: BlockProofStatus::Waiting(stf_info),
-            hash: block_hash,
-            // TODO(@preston-evans98): estimate public data size. This requires a new API on the `prover_service`.
-            // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/440>
-            public_data_size: 0,
-        });
+
+        // We ensure that we're not trying to prove blocks that are being proven.
+        // If that is not the case, we add the block to the queue.
+        if first_height_unproven.saturating_add(self.proofs_to_create.current_proof_jump() as u64)
+            <= stf_info.rollup_height
+        {
+            let block_hash = stf_info.da_block_header().hash();
+            // Save the transition for later proving. This is temporarily redundant
+            // since we always just try to prove blocks right away (because we don't have fee
+            // estimates for proving built out yet).
+            self.proofs_to_create.append(BlockProofInfo {
+                status: BlockProofStatus::Waiting(stf_info),
+                hash: block_hash,
+                // TODO(@preston-evans98): estimate public data size. This requires a new API on the `prover_service`.
+                // <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/440>
+                public_data_size: 0,
+            });
+        }
 
         // Start proving the next block right away... for now.
         self.proofs_to_create
@@ -172,8 +187,10 @@ where
             .prove_any_unproven_blocks(prover_service)
             .await;
 
+        let num_proofs_to_create = self.proofs_to_create.current_proof_jump();
+
         // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
-        if self.proofs_to_create.current_proof_jump() >= self.aggregated_proof_block_jump {
+        if num_proofs_to_create >= self.aggregated_proof_block_jump {
             self.proofs_to_create.close_newest_proof();
             let metadata = self.proofs_to_create.take_oldest();
 
@@ -198,9 +215,13 @@ where
             let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 
             let receipt = self.da_service.send_proof(&serialized_proof, fee).await?;
+
             tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
-            // Confirm that submitted height is increased.
-            self.st_info_receiver.increase_next_height_to_receive();
+
+            // Update the next height to receive
+            self.st_info_receiver
+                .next_height_to_receive
+                .fetch_add(num_proofs_to_create as u64, Ordering::SeqCst);
         }
         Ok(())
     }

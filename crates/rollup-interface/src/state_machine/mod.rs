@@ -132,6 +132,12 @@ pub trait MaybeArbitrary {}
 #[cfg(not(feature = "arbitrary"))]
 impl<T> MaybeArbitrary for T {}
 
+/// A tracker that returns the maximum provable height of the rollup.
+pub trait ProvableHeightTracker: Send + Sync + 'static {
+    /// Returns the maximum provable height of the rollup.
+    fn maximum_provable_height(&self) -> u64;
+}
+
 /// Structure that holds information about the state update that happened in the block.
 #[cfg(feature = "native")]
 #[derive(Clone, Debug)]

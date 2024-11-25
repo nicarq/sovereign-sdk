@@ -10,6 +10,7 @@ use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::optimistic::BondingProofService;
 use sov_rollup_interface::stf::ProofSerializer;
+use sov_rollup_interface::ProvableHeightTracker;
 use tokio::task::JoinHandle;
 pub use zk_manager::*;
 mod stf_info_manager;
@@ -55,12 +56,13 @@ where
         max_channel_size: usize,
         max_nb_of_infos_in_db: u64,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
+        maximum_provable_height_tracker: &dyn ProvableHeightTracker,
     ) -> anyhow::Result<(
         Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         JoinHandle<()>,
     )> {
         let ledger_db = self.ledger_db.clone();
-        let (st_info_sender, st_info_receiver) =
+        let (mut st_info_sender, st_info_receiver) =
             new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
 
         let proof_manager = ZkProofManager::new(
@@ -78,7 +80,7 @@ where
             .await;
 
         st_info_sender
-            .notify_about_infos_from_db(&ledger_db)
+            .startup_notify_about_infos_from_db(&ledger_db, maximum_provable_height_tracker)
             .await?;
 
         Ok((st_info_sender, handle))
@@ -91,12 +93,13 @@ where
         max_channel_size: usize,
         max_nb_of_infos_in_db: u64,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
+        maximum_provable_height_tracker: &dyn ProvableHeightTracker,
     ) -> anyhow::Result<(
         Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         JoinHandle<()>,
     )> {
         let ledger_db = self.ledger_db.clone();
-        let (st_info_sender, st_info_receiver) =
+        let (mut st_info_sender, st_info_receiver) =
             new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
 
         let attestations_manager = AttestationsManager::new(
@@ -111,7 +114,7 @@ where
             .await;
 
         st_info_sender
-            .notify_about_infos_from_db(&ledger_db)
+            .startup_notify_about_infos_from_db(&ledger_db, maximum_provable_height_tracker)
             .await?;
 
         Ok((st_info_sender, handle))

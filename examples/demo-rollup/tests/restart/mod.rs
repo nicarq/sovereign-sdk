@@ -87,7 +87,7 @@ async fn start_stop_empty(
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 Some(mock_da_dir.path()),
-                1,
+                5,
                 BatchBuilderMode::Standard(Default::default()),
             ),
         )
@@ -235,7 +235,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     let head_before_restart = {
         let mut storable_mock_da_layer =
             StorableMockDaLayer::new_in_path(mock_da_dir.path(), 0).await?;
-        for _ in 0..second_chunk {
+        for _ in 0..=second_chunk {
             storable_mock_da_layer.produce_block().await?;
         }
         storable_mock_da_layer

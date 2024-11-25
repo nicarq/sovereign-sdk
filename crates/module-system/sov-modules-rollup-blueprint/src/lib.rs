@@ -47,6 +47,7 @@ mod blueprint {
     use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
     use sov_modules_api::execution_mode::ExecutionMode;
     use sov_modules_api::hooks::ApplyBatchHooks;
+    use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
     use sov_modules_api::rest::StateUpdateReceiver;
     use sov_modules_api::{
         OperatingMode, ProofSerializer, RuntimeEndpoints, RuntimeEventProcessor,
@@ -59,7 +60,7 @@ mod blueprint {
     use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
     use sov_rollup_interface::node::DaSyncState;
     use sov_rollup_interface::storage::HierarchicalStorageManager;
-    use sov_rollup_interface::StateUpdateInfo;
+    use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
     use sov_sequencer::batch_builders::BatchBuilder;
     use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
     use sov_state::storage::NativeStorage;
@@ -294,6 +295,12 @@ mod blueprint {
             secondary_shutdown_receiver.mark_unchanged();
             let mut background_handles = Vec::new();
 
+            let visible_state_height_tracker: Box<dyn ProvableHeightTracker> =
+                Box::new(MaximumProvableHeight::new(
+                    state_update_sender.subscribe(),
+                    Self::Runtime::default(),
+                ));
+
             let st_info_sender = match prover_config {
                 Some(config) => {
                     let prover_service = self
@@ -333,6 +340,7 @@ mod blueprint {
                                     max_channel_size,
                                     max_infos_in_db,
                                     secondary_shutdown_receiver.clone(),
+                                    &*visible_state_height_tracker,
                                 )
                                 .await?;
                             background_handles.push(pm_handle);
@@ -345,6 +353,7 @@ mod blueprint {
                                     max_channel_size,
                                     max_infos_in_db,
                                     secondary_shutdown_receiver.clone(),
+                                    &*visible_state_height_tracker,
                                 )
                                 .await?;
                             background_handles.push(pm_handle);
@@ -373,6 +382,7 @@ mod blueprint {
                 prev_state_root,
                 st_info_sender,
                 sync_status_sender,
+                visible_state_height_tracker,
                 main_shutdown_receiver.clone(),
                 rollup_config.monitoring.clone(),
             )
