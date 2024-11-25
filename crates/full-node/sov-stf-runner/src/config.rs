@@ -7,6 +7,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 
 pub const DEFAULT_CONCURRENT_SYNC_TASKS: u8 = 5;
+pub use sov_metrics::MonitoringConfig;
 
 /// Configuration for StateTransitionRunner.
 #[derive(Debug, Clone, PartialEq, Deserialize, JsonSchema)]
@@ -116,6 +117,8 @@ pub struct RollupConfig<Address, Da: DaService> {
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
     pub sequencer: SequencerConfig<Da::Spec, BatchBuilderConfig<Address>>,
+    /// Monitoring configuration.
+    pub monitoring: MonitoringConfig,
 }
 
 /// Reads toml file as a specific type.
@@ -176,6 +179,10 @@ mod tests {
             bind_port = 12346
             public_address = "https://rollup.sovereign.xyz"
             cors = "disabled"
+            [monitoring]
+            telegraf_address = "192.168.4.5:8543"
+            max_datagram_size = 1024
+            max_pending_metrics = 2560
             [proof_manager]
             aggregated_proof_block_jump = 22
             prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
@@ -242,6 +249,11 @@ mod tests {
                     mempool_max_txs_count: None,
                     max_batch_size_bytes: None,
                 }),
+            },
+            monitoring: MonitoringConfig {
+                telegraf_address: std::net::SocketAddr::from_str("192.168.4.5:8543").unwrap(),
+                max_datagram_size: Some(1024),
+                max_pending_metrics: Some(2560),
             },
         };
         assert_eq!(config, expected);

@@ -8,6 +8,7 @@ use axum::ServiceExt;
 use jsonrpsee::RpcModule;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
+use sov_metrics::RunnerMetrics;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
@@ -28,7 +29,7 @@ use tracing::{debug, info};
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{RawGenesisStateRoot, Sender};
 use crate::state_manager::StateManager;
-use crate::RunnerConfig;
+use crate::{MonitoringConfig, RunnerConfig};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -241,6 +242,7 @@ where
         st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
         sync_status_sender: watch::Sender<SyncStatus>,
         shutdown_receiver: watch::Receiver<()>,
+        monitoring_config: MonitoringConfig,
     ) -> anyhow::Result<Self> {
         error_if_tokio_runtime_is_not_multi_threaded()?;
 
@@ -281,6 +283,16 @@ where
         let (secondary_shutdown_sender, mut secondary_shutdown_receiver) = watch::channel(());
         secondary_shutdown_receiver.mark_unchanged();
 
+        let monitoring_handle: tokio::task::JoinHandle<anyhow::Result<()>> =
+            tokio::spawn(async move {
+                sov_metrics::init_metrics_tracker(
+                    secondary_shutdown_receiver.clone(),
+                    &monitoring_config,
+                )
+                .await?;
+                Ok(())
+            });
+
         Ok(Self {
             first_unprocessed_height_at_startup,
             da_polling_interval_ms: runner_config.da_polling_interval_ms,
@@ -297,7 +309,7 @@ where
             sync_fetcher,
             shutdown_receiver,
             secondary_shutdown_sender,
-            background_handles: vec![fetcher_background_handle],
+            background_handles: vec![fetcher_background_handle, monitoring_handle],
         })
     }
 
@@ -587,6 +599,7 @@ where
             time = ?loop_start.elapsed(),
             "Execution of block is completed"
         );
+        // Legacy Prometheus metrics
         sov_metrics::update_metrics(|metrics| {
             metrics.da_blocks_processed.inc();
             metrics.rollup_batches_processed.inc_by(batch_count);
@@ -634,6 +647,33 @@ where
             metrics
                 .get_block_ms_by_slot
                 .set(get_block_time.as_millis() as i64);
+        });
+        // New influxdb metrics
+        sov_metrics::track_metrics(|metrics| {
+            let synced_da_height = self
+                .sync_state
+                .synced_da_height
+                .load(std::sync::atomic::Ordering::Acquire);
+            let target_da_height = self
+                .sync_state
+                .target_da_height
+                .load(std::sync::atomic::Ordering::Acquire);
+            let point = RunnerMetrics {
+                sync_distance: target_da_height as i64 - synced_da_height as i64,
+                da_height_processed: next_da_height,
+                get_block_time,
+                batches_processed: batch_count,
+                batch_bytes_processed,
+                proofs_processed: proof_blobs_processed as u64,
+                proof_bytes_processed,
+                transactions_processed: transaction_count as u64,
+                process_slot_time: loop_start.elapsed(),
+                apply_slot_time,
+                stf_transition_time: stf_execution_start.elapsed(),
+                extract_blobs_time: da_extraction_time,
+                extraction_proof_time: get_relevant_proofs_time,
+            };
+            metrics.track_runner_metrics(point);
         });
 
         Ok(next_da_height + 1)

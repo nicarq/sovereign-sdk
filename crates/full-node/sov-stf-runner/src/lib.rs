@@ -11,7 +11,7 @@ mod runner;
 mod state_manager;
 
 pub use crate::config::{
-    from_toml_path, CorsConfiguration, HttpServerConfig, ProofManagerConfig, RollupConfig,
-    RunnerConfig, StorageConfig,
+    from_toml_path, CorsConfiguration, HttpServerConfig, MonitoringConfig, ProofManagerConfig,
+    RollupConfig, RunnerConfig, StorageConfig,
 };
 pub use crate::runner::*;

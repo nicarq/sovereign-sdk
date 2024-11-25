@@ -1,3 +1,7 @@
+## 2024--11-21
+- #1899 Adds `monitoring` section to rollup configuration. 
+  Mandatory field is `telegraf_address` which is most likely to be "127.0.0.1:8094".
+  Other fields are described in demo-rollup configuration files.
 ## 2024-11-22
 - #1920 Remove metadata generic from universal schema, moving it to the schema constructor. Metadata is now pre-hashed when stored. Wallets and other schema users no longer need to provide the correct generic type when deserializing a schema. However, constructing the schema requires passing the metadata type.
 
