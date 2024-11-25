@@ -108,7 +108,7 @@ impl<const MAX_LEN: usize> SchemaGenerator for SizedSafeString<MAX_LEN> {
     fn scaffold() -> Item<IndexLinking> {
         Item::Atom(Primitive::String)
     }
-    fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
+    fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
         Vec::new()
     }
 }

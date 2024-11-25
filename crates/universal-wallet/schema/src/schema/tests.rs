@@ -36,7 +36,7 @@ macro_rules! encode_decode_tests {
         let chain_hash = schema.chain_hash().unwrap();
         let schema_json = serde_json::to_string_pretty(&schema).unwrap();
         // println!("{schema_json}");
-        let mut recovered_schema = Schema::<()>::from_json(&schema_json).unwrap();
+        let mut recovered_schema = Schema::from_json(&schema_json).unwrap();
         let recovered_chain_hash = recovered_schema.chain_hash().unwrap();
         assert_eq!(chain_hash, recovered_chain_hash);
         encode_decode_tests_simple!(recovered_schema, $item, $expected_display);
@@ -204,7 +204,7 @@ impl SchemaGenerator for SchemalessStringWrapper {
     fn scaffold() -> Item<IndexLinking> {
         Item::Atom(Primitive::String)
     }
-    fn get_child_links<M>(_schema: &mut Schema<M>) -> Vec<Link> {
+    fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
         Vec::new()
     }
 }
@@ -704,7 +704,8 @@ fn test_simple_struct_schema() {
 #[test]
 fn test_multiobject_schema() {
     let mut schema =
-        Schema::of_rollup_types_with_metadata::<Role, MinimalStruct, Registration>(4321u64);
+        Schema::of_rollup_types_with_metadata::<u64, Role, MinimalStruct, Registration>(&4321u64)
+            .unwrap();
 
     let my_role = Role::Attester;
     let my_minimal_struct = MinimalStruct { tokens: 1000 };
@@ -717,7 +718,7 @@ fn test_multiobject_schema() {
 
     let orig_hash = schema.chain_hash().unwrap();
     let schema_json = serde_json::to_string_pretty(&schema).unwrap();
-    let mut schema = Schema::<u64>::from_json(&schema_json).unwrap();
+    let mut schema = Schema::from_json(&schema_json).unwrap();
     let hash = schema.chain_hash().unwrap();
     assert_eq!(orig_hash, hash);
 

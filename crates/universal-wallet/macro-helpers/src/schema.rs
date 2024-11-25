@@ -265,7 +265,7 @@ fn derive_wallet_field(
                 #container
             }
 
-            fn get_child_links<M>(schema: &mut #prefix::sov_universal_wallet::schema::Schema<M>) -> Vec<#prefix::sov_universal_wallet::schema::Link> {
+            fn get_child_links(schema: &mut #prefix::sov_universal_wallet::schema::Schema) -> Vec<#prefix::sov_universal_wallet::schema::Link> {
                 #child_links
             }
         }

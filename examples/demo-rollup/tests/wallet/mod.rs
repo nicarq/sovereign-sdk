@@ -29,10 +29,12 @@ fn test_display_tx() {
     });
     let data = borsh::to_vec(&msg).unwrap();
     let schema = Schema::of_rollup_types_with_metadata::<
+        u64,
         Transaction<S>,
         UnsignedTransaction<S>,
         RuntimeCall<S>,
-    >(4321);
+    >(&4321)
+    .unwrap();
     assert_eq!(
         schema
             .display(

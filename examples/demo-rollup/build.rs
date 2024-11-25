@@ -36,11 +36,13 @@ fn main() -> io::Result<()> {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
 
-    let mut schema = Schema::<u64>::of_rollup_types_with_metadata::<
+    let mut schema = Schema::of_rollup_types_with_metadata::<
+        u64,
         Transaction<S>,
         UnsignedTransaction<S>,
         RuntimeCall<S>,
-    >(config_value!("CHAIN_ID"));
+    >(&config_value!("CHAIN_ID"))
+    .unwrap();
 
     let schema_string = serde_json::to_string_pretty(&schema)?;
     let mut file = File::create("demo-rollup-schema.json")?;
