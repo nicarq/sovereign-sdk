@@ -1,3 +1,6 @@
+## 2024-11-22
+- #1920 Remove metadata generic from universal schema, moving it to the schema constructor. Metadata is now pre-hashed when stored. Wallets and other schema users no longer need to provide the correct generic type when deserializing a schema. However, constructing the schema requires passing the metadata type.
+
 ## 2024-11-13
 - #1873 changes the type of `Bank::CreateToken.authorized_minters` from `Vec` to `SafeVec`. This type can be easily constructed by calling `try_into()` on an existing `Vec` as long as that `Vec` is not larger than the new size bound (20 items).
 - #1882 adds `max_number_of_transitions_in_db` and `max_number_of_transitions_in_memory` to proof_manager config.
