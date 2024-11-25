@@ -20,7 +20,7 @@ use sov_rollup_interface::stf::{
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
-use sov_rollup_interface::StateUpdateInfo;
+use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
@@ -241,6 +241,7 @@ where
         prev_state_root: Stf::StateRoot,
         st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
         sync_status_sender: watch::Sender<SyncStatus>,
+        state_height_tracker: Box<dyn ProvableHeightTracker>,
         shutdown_receiver: watch::Receiver<()>,
         monitoring_config: MonitoringConfig,
     ) -> anyhow::Result<Self> {
@@ -270,6 +271,7 @@ where
             prev_state_root,
             state_update_channel,
             st_info_sender,
+            state_height_tracker,
         );
 
         let (sync_fetcher, fetcher_background_handle) = FinalizedBlocksBulkFetcher::new(

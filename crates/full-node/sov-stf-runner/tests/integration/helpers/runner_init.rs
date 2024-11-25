@@ -13,6 +13,7 @@ use sov_mock_da::{
     MockValidityCond,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
+use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer, SyncStatus};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
@@ -20,7 +21,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregatedProofPublicData, SerializedAggregatedProof,
 };
-use sov_rollup_interface::StateUpdateInfo;
+use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -175,8 +176,8 @@ pub async fn initialize_runner(
                 "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
             )
             .expect("Prover address is not valid"),
-            max_number_of_transitions_in_db: 2,
-            max_number_of_transitions_in_memory: 1,
+            max_number_of_transitions_in_db: 30,
+            max_number_of_transitions_in_memory: 20,
         },
         sequencer: SequencerConfig {
             automatic_batch_production: false,
@@ -255,12 +256,15 @@ pub async fn initialize_runner(
                 Box::new(DummyProofSerializer {}),
             );
 
+            let rollup_height_tracker: Box<dyn ProvableHeightTracker> = Box::new(InfiniteHeight);
+
             let (st_info_sender, handle) = process_manager
                 .start_zk_workflow_in_background(
                     rollup_config.proof_manager.aggregated_proof_block_jump,
-                    1,
-                    1,
+                    10,
+                    10,
                     shutdown_receiver.clone(),
+                    &*rollup_height_tracker,
                 )
                 .await
                 .unwrap();
@@ -286,6 +290,7 @@ pub async fn initialize_runner(
             prev_state_root,
             st_info_sender,
             sync_sender,
+            Box::new(InfiniteHeight),
             shutdown_receiver,
             rollup_config.monitoring.clone(),
         )

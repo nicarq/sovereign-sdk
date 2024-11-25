@@ -12,7 +12,7 @@ use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
 use sov_rollup_interface::zk::StateTransitionWitness;
-use sov_rollup_interface::StateUpdateInfo;
+use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
 
 use crate::processes::{Sender as StfInfoSender, StateTransitionInfo};
@@ -48,6 +48,7 @@ where
     seen_state_transitions: VecDeque<StateOnBlock<Da::Spec, StateRoot>>,
     state_update_sender: watch::Sender<StateUpdateInfo<Sm::StfState>>,
     st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+    maximum_provable_height_tracker: Box<dyn ProvableHeightTracker>,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
@@ -68,6 +69,7 @@ where
         initial_state_root: StateRoot,
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
         st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+        state_height_tracker: Box<dyn ProvableHeightTracker>,
     ) -> Self {
         Self {
             storage_manager,
@@ -76,6 +78,7 @@ where
             seen_state_transitions: Default::default(),
             state_update_sender: state_update_channel,
             st_info_sender,
+            maximum_provable_height_tracker: state_height_tracker,
         }
     }
 
@@ -244,14 +247,18 @@ where
         for finalized_transition in &finalized_transitions {
             self.storage_manager
                 .finalize(&finalized_transition.block_header)?;
-
-            if let Some(st_info_sender) = &self.st_info_sender {
-                // Notify `StateTransitionInfo` consumers that a new finalized height is available.
-                st_info_sender
-                    .notify(finalized_transition.block_header.height())
-                    .await?;
-            }
         }
+
+        if let Some(st_info_sender) = &mut self.st_info_sender {
+            // Notify `StateTransitionInfo` consumers that the data is saved in the Db.
+            let maximum_provable_height = self
+                .maximum_provable_height_tracker
+                .maximum_provable_height();
+            st_info_sender
+                .notify(maximum_provable_height, &self.ledger_db)
+                .await?;
+        }
+
         self.state_root = new_state_root;
         // API storage and Ledger have all data from this iteration,
         // now it is safe to submit notifications.
@@ -356,6 +363,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use core::sync::atomic::Ordering;
+
     use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
     use sov_mock_da::{
         MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec, MockFee,
@@ -384,6 +393,7 @@ mod tests {
     type MockSlotCommit = SlotCommit<MockBlock, Witness, TestTxReceiptContents>;
     type TestStateManager =
         StateManager<StateRoot, Witness, NativeStorageManager<MockDaSpec, ProverStorage<S>>, Da>;
+    use sov_modules_api::provable_height_tracker::InfiniteHeight;
 
     const SEQUENCER_ADDRESS: MockAddress = MockAddress::new([0; 32]);
 
@@ -421,6 +431,7 @@ mod tests {
             state_root,
             state_update_sender,
             None,
+            Box::new(InfiniteHeight),
         ))
     }
 
@@ -514,7 +525,7 @@ mod tests {
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
 
         let (sender, mut receiver) =
-            crate::processes::new_stf_info_channel(state_manager.ledger_db.clone(), 10, 10).await?;
+            crate::processes::new_stf_info_channel(state_manager.ledger_db.clone(), 40, 40).await?;
         state_manager.st_info_sender = Some(sender);
         let da_service = DaServiceWithRetries::new_fast(MockDaService::new(SEQUENCER_ADDRESS));
 
@@ -532,10 +543,18 @@ mod tests {
             )
             .await?;
             let finalized = receiver.read_next().await?.unwrap();
+
+            if let Some(sender) = state_manager.st_info_sender.as_ref() {
+                sender.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
+            };
+
+            assert_eq!(finalized.len(), 1);
+            let finalized = finalized.first().unwrap();
+
             assert_eq!(height, finalized.rollup_height);
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);
-            state_root = finalized.data.final_state_root;
+            state_root.clone_from(&finalized.data.final_state_root);
             assert_eq!(
                 height,
                 state_manager

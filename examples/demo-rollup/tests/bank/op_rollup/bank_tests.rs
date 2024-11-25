@@ -53,6 +53,8 @@ async fn send_test_bank_txs(
         .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
 
+    const NUM_TRANSFERS: u64 = 10;
+
     assert_eq!(token_id, token_id_response);
 
     // create token. height 2
@@ -65,7 +67,7 @@ async fn send_test_bank_txs(
     assert_balance(client, initial_balance, token_id, user_address, None).await?;
 
     // Make 10 transfers
-    for i in 1..11 {
+    for i in 1..=NUM_TRANSFERS {
         let tx = build_transfer_token_tx(&key, token_id, recipient_address, 10, i);
         let rollup_height = tx_sender.send_txs(client, &[tx]).await?;
         assert_eq!(i + 1, rollup_height);
@@ -81,8 +83,9 @@ async fn send_test_bank_txs(
 
         // Check max_attested_height from the previous slot.
         let max_attested_height = get_max_attested_height(client).await?;
-        assert_eq!(i, max_attested_height);
+        assert_eq!(i - 1, max_attested_height);
     }
+
     Ok(())
 }
 

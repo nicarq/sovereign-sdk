@@ -1,3 +1,4 @@
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use borsh::BorshSerialize;
@@ -61,14 +62,17 @@ where
                     break;
                 }
                 stf_info_result = self.st_info_receiver.read_next() => {
-                    let stf_info = match stf_info_result? {
+                    let stf_infos = match stf_info_result? {
                         None => {
-                            tracing::debug!("Received None instead of StateTransitionInfo, shutting down attestations posting task");
-                            break;
+                            tracing::debug!("Received None instead of StateTransitionInfo. This can happen if the transition has already been processed by the `Receiver`. In that case, it is fine to ignore the notification.");
+                            continue;
                         },
-                        Some(stf_info) => stf_info,
+                        Some(stf_infos) => stf_infos,
                     };
-                    self.process_stf_info(stf_info).await?;
+
+                    for stf_info in stf_infos {
+                        self.process_stf_info(stf_info).await?;
+                    }
                 }
             }
         }
@@ -102,9 +106,11 @@ where
         let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
 
         let receipt = self.da_service.send_proof(&serialized_blob, fee).await?;
-        // Confirm that submitted height is increased.
-        self.st_info_receiver.increase_next_height_to_receive();
-        tracing::debug!(?receipt, "Attestation has been posted to DA");
+        tracing::debug!(?receipt, height, "Attestation has been posted to DA");
+
+        self.st_info_receiver
+            .next_height_to_receive
+            .fetch_add(1, Ordering::SeqCst);
         Ok(())
     }
 }
