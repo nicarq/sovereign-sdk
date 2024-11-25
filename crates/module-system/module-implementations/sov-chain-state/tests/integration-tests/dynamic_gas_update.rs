@@ -10,7 +10,7 @@ use sov_test_utils::runtime::{Bank, TestRunner};
 use sov_test_utils::{AsUser, TransactionTestCase, UserTokenInfo};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
-use crate::{GenesisConfig, TestChainStateRuntime, TestUser, S};
+use crate::{GenesisConfig, TestChainStateRuntime, TestUser, RT, S};
 
 struct TestData<S: Spec> {
     pub gas_target: S::Gas,
@@ -88,7 +88,7 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
 
     runner.execute_transaction(TransactionTestCase {
         input: user
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Mint {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
                 coins: Coins {
                     amount: 1,
                     token_id: token_name.id(),
@@ -106,9 +106,10 @@ fn test_gas_price_increases_if_gas_used_exceeds_gas_target() {
         }),
     });
 
-    let result = runner.execute(
-        user.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-    );
+    let result =
+        runner.execute(user.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        ));
 
     assert_eq!(result.batch_receipts.len(), 1);
     let gas_price = result.batch_receipts[0].inner.gas_price.clone();
@@ -136,7 +137,7 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
 
     runner.execute_transaction(TransactionTestCase {
         input: user
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
                 coins: Coins {
                     amount: 0,
                     token_id: token_name.id(),
@@ -153,9 +154,10 @@ fn test_gas_price_decreases_if_gas_used_is_below_gas_target() {
         }),
     });
 
-    let result = runner.execute(
-        user.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-    );
+    let result =
+        runner.execute(user.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        ));
 
     assert_eq!(result.batch_receipts.len(), 1);
     let gas_price = result.batch_receipts[0].inner.gas_price.clone();

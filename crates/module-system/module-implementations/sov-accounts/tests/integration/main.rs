@@ -80,8 +80,9 @@ fn test_update_account() {
         .credential_id::<TestHasher>();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user
-            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
+        input: user.create_plain_message::<RT, Accounts<S>>(CallMessage::InsertCredentialId(
+            new_credential,
+        )),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
 
@@ -119,7 +120,7 @@ fn test_update_account_fails() {
     ) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: account_1.create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(
+        input: account_1.create_plain_message::<RT, Accounts<S>>(CallMessage::InsertCredentialId(
             account_2.credential_id(),
         )),
         assert: Box::new(move |result, _state| {
@@ -155,8 +156,9 @@ fn test_register_new_account() {
         .credential_id::<TestHasher>();
 
     runner.execute_transaction(TransactionTestCase {
-        input: non_registered_account
-            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(new_credential)),
+        input: non_registered_account.create_plain_message::<RT, Accounts<S>>(
+            CallMessage::InsertCredentialId(new_credential),
+        ),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
 
@@ -268,12 +270,12 @@ fn test_resolve_address_if_more_than_one_credential() {
 
     runner.execute(
         non_registered_account
-            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_1)),
+            .create_plain_message::<RT, Accounts<S>>(CallMessage::InsertCredentialId(credential_1)),
     );
 
     runner.execute(
         non_registered_account
-            .create_plain_message::<Accounts<S>>(CallMessage::InsertCredentialId(credential_2)),
+            .create_plain_message::<RT, Accounts<S>>(CallMessage::InsertCredentialId(credential_2)),
     );
 
     runner.query_visible_state(|state| {

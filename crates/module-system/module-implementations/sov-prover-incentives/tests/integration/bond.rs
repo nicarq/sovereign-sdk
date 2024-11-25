@@ -50,9 +50,10 @@ fn test_topup_existing_bond() {
     let extra_bond_amount = 50;
     let prover_address = genesis_prover.user_info.address();
 
-    let test = TransactionTestCase::<S, RT, TestProverIncentives> {
-        input: genesis_prover
-            .create_plain_message::<TestProverIncentives>(CallMessage::Deposit(extra_bond_amount)),
+    let test = TransactionTestCase::<RT, S> {
+        input: genesis_prover.create_plain_message::<RT, TestProverIncentives>(
+            CallMessage::Deposit(extra_bond_amount),
+        ),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
@@ -93,7 +94,7 @@ fn test_bonding_new_prover() {
 
     runner.execute_transaction(TransactionTestCase {
         input: unbonded_user
-            .create_plain_message::<TestProverIncentives>(CallMessage::Register(bond_amount)),
+            .create_plain_message::<RT, TestProverIncentives>(CallMessage::Register(bond_amount)),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
@@ -124,7 +125,7 @@ fn test_unbonding() {
     let (mut runner, genesis_prover, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: genesis_prover.create_plain_message::<TestProverIncentives>(CallMessage::Exit),
+        input: genesis_prover.create_plain_message::<RT, TestProverIncentives>(CallMessage::Exit),
         assert: Box::new(move |result, state| {
             assert!(result.events.iter().any(|event| matches!(
                 event,
@@ -177,31 +178,27 @@ fn test_cannot_prove_when_gas_price_is_too_high() {
 
     let initial_gas_price = runner.query_visible_state(|state| state.gas_info().gas_price);
 
-    let (bank_signed, register_signed) = runner.query_visible_state(|state| {
-        let bank_signed = prover
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Burn {
-                coins: sov_bank::Coins {
-                    amount: 1,
-                    token_id: config_gas_token_id(),
-                },
-            })
-            .with_max_fee(prover.user_info.available_gas_balance / 2)
-            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
+    let bank_signed = prover
+        .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Burn {
+            coins: sov_bank::Coins {
+                amount: 1,
+                token_id: config_gas_token_id(),
+            },
+        })
+        .with_max_fee(prover.user_info.available_gas_balance / 2)
+        .to_serialized_authenticated_tx(&mut nonces);
 
-        let register_signed = unbonded_user
-            .create_plain_message::<ProverIncentives<S>>(CallMessage::Register(
-                additional_prover_bond,
-            ))
-            .to_serialized_authenticated_tx::<RT>(&mut nonces, state);
-
-        (bank_signed, register_signed)
-    });
+    let register_signed = unbonded_user
+        .create_plain_message::<RT, ProverIncentives<S>>(CallMessage::Register(
+            additional_prover_bond,
+        ))
+        .to_serialized_authenticated_tx(&mut nonces);
 
     // We execute a batch of two transactions, check that the total gas used is higher than the target.
     runner.execute_batch(BatchTestCase {
         input: BatchType(vec![
-            TransactionType::<ProverIncentives<S>, S>::PreAuthenticated(bank_signed),
-            TransactionType::<ProverIncentives<S>, S>::PreAuthenticated(register_signed),
+            TransactionType::<RT, S>::PreAuthenticated(bank_signed),
+            TransactionType::<RT, S>::PreAuthenticated(register_signed),
         ]),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.batch_receipt.clone().unwrap().tx_receipts.len(), 2);

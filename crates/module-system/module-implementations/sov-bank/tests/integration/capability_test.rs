@@ -5,7 +5,7 @@ use sov_modules_api::{Gas, GasUnit, Spec, TxEffect};
 use sov_modules_stf_blueprint::SkippedTxContents;
 use sov_test_utils::{get_gas_used, AsUser, TestUser, TransactionTestCase, TxProcessingError};
 
-use crate::helpers::{setup, TestData};
+use crate::helpers::{setup, TestData, RT};
 
 type S = sov_test_utils::TestSpec;
 
@@ -32,7 +32,7 @@ fn test_honest_reserve_gas_capability_without_priority_fee() {
 
     runner.execute_transaction(TransactionTestCase {
         input: sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver_address,
                 coins: Coins {
                     token_id,
@@ -81,7 +81,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
     // We simulate the transaction execution to get the amount of gas that should be consumed by the transaction.
     let (simulation_result, _) = runner.simulate(
         sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver_address,
                 coins: Coins {
                     token_id,
@@ -119,7 +119,7 @@ fn test_honest_reserve_gas_capability_does_not_charge_priority_fee() {
     // Since the max fee is exactly the gas used by the transaction following the simulation, we expect the priority fee *not* to be charged.
     runner.execute_transaction(TransactionTestCase {
         input: sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
@@ -168,7 +168,7 @@ fn test_honest_reserve_gas_capability_with_priority_fee() {
     // We use a higher max fee to ensure that the priority fee is charged.
     runner.execute_transaction(TransactionTestCase {
         input: sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
@@ -219,7 +219,7 @@ fn test_reserve_gas_no_account() {
     const TRANSFER_AMOUNT: u64 = 10;
 
     // We transfer to the user without an account.
-    runner.execute(user_high_token_balance.create_plain_message::<Bank<S>>(
+    runner.execute(user_high_token_balance.create_plain_message::<RT, Bank<S>>(
         sov_bank::CallMessage::Transfer {
             to: user_no_account.address(),
             coins: Coins {
@@ -230,13 +230,15 @@ fn test_reserve_gas_no_account() {
     ));
 
     runner.execute_transaction(TransactionTestCase {
-        input: user_no_account.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
-            to: user_high_token_balance.address(),
-            coins: Coins {
-                token_id,
-                amount: TRANSFER_AMOUNT,
+        input: user_no_account.create_plain_message::<RT, Bank<S>>(
+            sov_bank::CallMessage::Transfer {
+                to: user_high_token_balance.address(),
+                coins: Coins {
+                    token_id,
+                    amount: TRANSFER_AMOUNT,
+                },
             },
-        }),
+        ),
         assert: Box::new(move |result, state| {
             if let TxEffect::Skipped(SkippedTxContents {
                 gas_used: _,
@@ -298,7 +300,7 @@ fn test_reserve_gas_not_enough_balance() {
 
     runner.execute_transaction(TransactionTestCase {
         input: sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,
@@ -345,7 +347,7 @@ fn test_reserve_gas_price_too_high() {
     // We set the gas limit to the sender balance to ensure that the initial gas price is too high.
     runner.execute_transaction(TransactionTestCase {
         input: sender
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
                 to: receiver.address(),
                 coins: Coins {
                     token_id,

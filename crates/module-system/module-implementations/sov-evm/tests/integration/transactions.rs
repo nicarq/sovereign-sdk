@@ -7,6 +7,7 @@ use sov_modules_api::RawTx;
 use sov_test_utils::{BatchTestCase, SimpleStorageContract, TransactionType};
 
 use crate::helpers::{setup, S};
+use crate::runtime::RT;
 
 #[test]
 fn test_executing_eth_transaction() {
@@ -49,8 +50,8 @@ fn test_executing_eth_transaction() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![
-            TransactionType::<Evm<S>, S>::PreSigned(create_contract_tx),
-            TransactionType::<Evm<S>, S>::PreSigned(set_value_tx),
+            TransactionType::<RT, S>::PreSigned(create_contract_tx),
+            TransactionType::<RT, S>::PreSigned(set_value_tx),
         ]
         .into(),
         assert: Box::new(move |_result, state| {
@@ -89,7 +90,7 @@ fn test_executing_eth_transaction() {
     };
 
     runner.execute_batch(BatchTestCase {
-        input: vec![TransactionType::<Evm<S>, S>::PreSigned(set_value_tx)].into(),
+        input: vec![TransactionType::<RT, S>::PreSigned(set_value_tx)].into(),
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let db_account = evm.get_account(&contract_addr, state).unwrap().unwrap();
@@ -119,7 +120,7 @@ fn test_failed_tx_doesnt_update_evm_module_state() {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
     runner.execute_batch(BatchTestCase {
-        input: vec![TransactionType::<Evm<S>, S>::PreSigned(create_contract_tx)].into(),
+        input: vec![TransactionType::<RT, S>::PreSigned(create_contract_tx)].into(),
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             // no pending block added if eth tx execution fails.

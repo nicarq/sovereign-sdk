@@ -4,6 +4,11 @@
   Other fields are described in demo-rollup configuration files.
 ## 2024-11-22
 - #1920 Remove metadata generic from universal schema, moving it to the schema constructor. Metadata is now pre-hashed when stored. Wallets and other schema users no longer need to provide the correct generic type when deserializing a schema. However, constructing the schema requires passing the metadata type.
+## 2024-11-19
+- #1797 changes the `Transaction` and `UnsignedTransaction` types to make them generic on their call message type. This has cascading effects on many internal structures.
+  - Module developers will need minimal changes, except if construction `Transaction`s in integration tests. If your tests follow the same template as Sovereign's tests and use the same testing framework, refer to the new structure of our existing modules; for example, `create_plain_message<M: Module>(M::CallMessage)` now requires an additional Runtime generic, with its new signature being `create_plain_message<R: Runtime, M: Module>(M::CallMessage)`.
+  - Any other code using `Transaction`/`UnsignedTransaction` types will need to specify the call type. In contexts where a runtime is available, the corresponding `Runtime` will be the correct type; in generic code, the `DispatchCall` trait is the correct bound in most cases.
+  - Conversely, call messages never need to be serialized before inclusion in a transaction. A `M::CallMessage where M: Module` can be converted to a runtime's `RuntimeCall` type using `<R as EncodeCall<M>>::to_decodable(your_call_message)`.
 
 ## 2024-11-13
 - #1873 changes the type of `Bank::CreateToken.authorized_minters` from `Vec` to `SafeVec`. This type can be easily constructed by calling `try_into()` on an existing `Vec` as long as that `Vec` is not larger than the new size bound (20 items).

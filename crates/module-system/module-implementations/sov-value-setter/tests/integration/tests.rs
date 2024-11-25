@@ -9,6 +9,7 @@ use sov_value_setter::{CallMessage, Event, SetValueError};
 generate_zk_runtime!(TestRuntime <= value_setter: ValueSetter<S>);
 
 type S = TestSpec;
+type RT = TestRuntime<S>;
 
 #[allow(clippy::type_complexity)]
 fn setup() -> (TestRunner<TestRuntime<S>, S>, TestUser<S>, TestUser<S>) {
@@ -36,7 +37,7 @@ fn test_setting_value() {
     let (mut runner, admin, _) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<ValueSetter<S>>(CallMessage::SetValue(5)),
+        input: admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue(5)),
         assert: Box::new(|result, state| {
             assert_eq!(
                 ValueSetter::<S>::default().value.get(state).unwrap(),
@@ -57,7 +58,7 @@ fn test_setting_value_not_admin() {
     let (mut runner, _, non_admin) = setup();
 
     runner.execute_transaction(TransactionTestCase {
-        input: non_admin.create_plain_message::<ValueSetter<S>>(CallMessage::SetValue(5)),
+        input: non_admin.create_plain_message::<RT, ValueSetter<S>>(CallMessage::SetValue(5)),
         assert: Box::new(|result, _state| {
             match &result.tx_receipt {
                 sov_modules_api::TxEffect::Reverted(reason) => {

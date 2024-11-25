@@ -160,7 +160,7 @@ fn test_burn_on_invalid_attestation() {
     {
         let rebond_attester = {
             TransactionTestCase {
-                input: genesis_attester.create_plain_message::<AttesterIncentives<S>>(
+                input: genesis_attester.create_plain_message::<RT, AttesterIncentives<S>>(
                     CallMessage::RegisterAttester(attester_bond),
                 ),
                 assert: Box::new(move |result, state| {
@@ -179,7 +179,7 @@ fn test_burn_on_invalid_attestation() {
             }
         };
 
-        runner.execute_transaction::<TestAttesterIncentives>(rebond_attester);
+        runner.execute_transaction(rebond_attester);
     }
 
     // Test that the attester is slashed when the post state is invalid.

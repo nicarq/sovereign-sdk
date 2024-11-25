@@ -10,9 +10,10 @@ use sov_test_utils::{
     AsUser, EncodeCall, MockDaSpec, TestSequencer, TestUser, TransactionTestCase,
 };
 
-use crate::runtime::GenesisConfig;
+use crate::runtime::{GenesisConfig, PaymasterRuntime};
 
 pub type S = sov_test_utils::TestSpec;
+pub type RT = PaymasterRuntime<S>;
 
 pub struct Setup {
     pub user: TestUser<S>,
@@ -56,13 +57,15 @@ where
     fn do_value_setter_tx(&mut self, user: &TestUser<S>, expected_outcome: TxOutcome) {
         match expected_outcome {
             TxOutcome::Skipped => self.execute_skipped_transaction(TransactionTestCase {
-                input: user
-                    .create_plain_message::<ValueSetter<S>>(ValueSetterCallMessage::SetValue(99)),
+                input: user.create_plain_message::<RT, ValueSetter<S>>(
+                    ValueSetterCallMessage::SetValue(99),
+                ),
                 assert: Box::new(|_, _| {}),
             }),
             TxOutcome::Executed => self.execute_transaction(TransactionTestCase {
-                input: user
-                    .create_plain_message::<ValueSetter<S>>(ValueSetterCallMessage::SetValue(99)),
+                input: user.create_plain_message::<RT, ValueSetter<S>>(
+                    ValueSetterCallMessage::SetValue(99),
+                ),
                 assert: Box::new(|result, _state| {
                     assert!(!result.tx_receipt.is_skipped());
                 }),

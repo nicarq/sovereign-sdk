@@ -95,7 +95,7 @@ fn assert_blobs_are_correctly_received_helper<
     let mut current_virtual_slot_height = virtual_slot(runner);
 
     for (slot_num, slot) in slots_to_send.clone().into_iter().enumerate() {
-        runner.execute::<RelevantBlobs<MockBlob>, ValueSetter<S>>(slot);
+        runner.execute::<RelevantBlobs<MockBlob>>(slot);
 
         let new_virtual_slot_height = virtual_slot(runner);
         check_virtual_slot_height(

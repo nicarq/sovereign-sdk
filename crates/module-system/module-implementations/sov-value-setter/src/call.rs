@@ -17,6 +17,7 @@ use crate::event::Event;
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     JsonSchema,
     UniversalWallet,

@@ -2,7 +2,7 @@ use sov_bank::Bank;
 use sov_modules_api::{Error, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
 
-use crate::helpers::{setup, TestBankRuntimeEvent, TestData, S};
+use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT, S};
 
 /// Check that the authorized minter can freeze a token
 #[test]
@@ -20,7 +20,8 @@ fn freeze_token_happy_path() {
     let minter_address = minter.as_user().address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
+        input: minter
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
             assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
@@ -37,7 +38,7 @@ fn freeze_token_happy_path() {
 
     // We can check that the token is frozen by trying to mint
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Mint {
+        input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Mint {
             coins: sov_bank::Coins {
                 amount: 0,
                 token_id,
@@ -84,7 +85,8 @@ fn freeze_another_time_fails() {
     let minter_address = minter.as_user().address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
+        input: minter
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
             assert!(result.tx_receipt.is_successful());
         }),
@@ -92,7 +94,8 @@ fn freeze_another_time_fails() {
 
     // We cannot freeze the token again
     runner.execute_transaction(TransactionTestCase {
-        input: minter.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
+        input: minter
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
             if let TxEffect::Reverted(contents) = result.tx_receipt {
                 let Error::ModuleError(err) = contents.reason;
@@ -133,7 +136,7 @@ fn unauthorized_minter_cannot_freeze_token() {
 
     runner.execute_transaction(TransactionTestCase {
         input: unauthorized_user
-            .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
+            .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Freeze { token_id }),
         assert: Box::new(move |result, _| {
             if let TxEffect::Reverted(contents) = result.tx_receipt {
                 let Error::ModuleError(err) = contents.reason;

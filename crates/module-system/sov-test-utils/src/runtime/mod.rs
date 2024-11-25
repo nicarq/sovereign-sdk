@@ -28,8 +28,8 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, RuntimeEventProcessor, Spec,
-    StateCheckpoint, TxEffect, VersionReader,
+    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, Spec, StateCheckpoint,
+    TxEffect, VersionReader,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -476,36 +476,28 @@ where
         }
     }
 
-    fn txs_to_blobs<M: Module>(
-        txs: Vec<TransactionType<M, S>>,
+    fn txs_to_blobs(
+        txs: Vec<TransactionType<RT, S>>,
         sequencer: <MockDaSpec as DaSpec>::Address,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-        state: &mut ApiStateAccessor<S>,
-    ) -> RelevantBlobs<MockBlob>
-    where
-        RT: EncodeCall<M>,
-    {
-        Self::batches_to_blobs(vec![(BatchType(txs), sequencer)], nonces, state)
+    ) -> RelevantBlobs<MockBlob> {
+        Self::batches_to_blobs(vec![(BatchType(txs), sequencer)], nonces)
     }
 
     /// Builds [`RelevantBlobs`] from a list of [`BatchType`]s.
     ///
     /// Note: This should be used with a [`BasicKernel`] implementation.
-    pub fn batches_to_blobs<M: Module>(
-        batches: Vec<(BatchType<M, S>, MockAddress)>,
+    pub fn batches_to_blobs(
+        batches: Vec<(BatchType<RT, S>, MockAddress)>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-        state: &mut ApiStateAccessor<S>,
-    ) -> RelevantBlobs<MockBlob>
-    where
-        RT: EncodeCall<M>,
-    {
+    ) -> RelevantBlobs<MockBlob> {
         let blobs = batches
             .into_iter()
             .map(|(batch, sequencer)| {
                 let txns = batch
                     .0
                     .into_iter()
-                    .map(|tx| tx.to_serialized_authenticated_tx::<RT>(nonces, state))
+                    .map(|tx| tx.to_serialized_authenticated_tx(nonces))
                     .collect::<Vec<_>>();
                 let batch = Batch::new(txns);
                 MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer)
@@ -521,14 +513,10 @@ where
     /// Builds [`RelevantBlobs`] from a list of [`SoftConfirmationBlobInfo`]s.
     ///
     /// To be used in soft-confirmation mode, ie with a [`sov_kernels::soft_confirmations::SoftConfirmationsKernel`] implementation.
-    pub fn soft_confirmation_batches_to_blobs<M: Module>(
-        batches: Vec<SoftConfirmationBlobInfo<S, M>>,
+    pub fn soft_confirmation_batches_to_blobs(
+        batches: Vec<SoftConfirmationBlobInfo<RT, S>>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-        state: &mut ApiStateAccessor<S>,
-    ) -> RelevantBlobs<MockBlob>
-    where
-        RT: EncodeCall<M>,
-    {
+    ) -> RelevantBlobs<MockBlob> {
         let blobs = batches
             .into_iter()
             .map(
@@ -540,7 +528,7 @@ where
                     let raw_txns = batch
                         .0
                         .into_iter()
-                        .map(|tx| tx.to_serialized_authenticated_tx::<RT>(nonces, state))
+                        .map(|tx| tx.to_serialized_authenticated_tx(nonces))
                         .collect::<Vec<_>>();
 
                     let serialized_batch = match sequencer_info {
@@ -570,28 +558,19 @@ where
     /// Simulates execution of the provided input without committing to the updated state.
     /// This is useful to retreive non-deterministic outcomes associated with execution such as
     /// dynamic gas prices.
-    pub fn simulate<T: Into<SlotInput<S, M>>, M>(
+    pub fn simulate<T: Into<SlotInput<RT, S>>>(
         &mut self,
         input: T,
-    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>)
-    where
-        M: Module,
-        RT: EncodeCall<M>,
-    {
+    ) -> (TestApplySlotOutput<RT, S>, NoncesMap<S>) {
         let block_header = self.next_header();
         let stf_state = self.storage_manager.create_storage();
-        let slot_input: SlotInput<S, M> = input.into();
+        let slot_input: SlotInput<RT, S> = input.into();
         let sequencer = self.config.sequencer_da_address;
-        let mut state = self.visible_state();
         let mut nonces = self.nonces.clone();
 
         let mut blobs = match slot_input {
-            SlotInput::Transaction(tx) => {
-                Self::txs_to_blobs(vec![tx], sequencer, &mut nonces, &mut state)
-            }
-            SlotInput::Batch(batch) => {
-                Self::txs_to_blobs(batch.0, sequencer, &mut nonces, &mut state)
-            }
+            SlotInput::Transaction(tx) => Self::txs_to_blobs(vec![tx], sequencer, &mut nonces),
+            SlotInput::Batch(batch) => Self::txs_to_blobs(batch.0, sequencer, &mut nonces),
             SlotInput::Proof(proof) => {
                 let blob = MockBlob::new_with_hash(proof.0, sequencer);
 
@@ -618,12 +597,8 @@ where
 
     /// Executes the provided input and commits the state updates.
     /// This is useful for executing setup transactions that aren't test cases.
-    pub fn execute<T: Into<SlotInput<S, M>>, M>(&mut self, input: T) -> TestApplySlotOutput<RT, S>
-    where
-        M: Module,
-        RT: EncodeCall<M>,
-    {
-        let (result, nonces) = self.simulate(input);
+    pub fn execute<T: Into<SlotInput<RT, S>>>(&mut self, input: T) -> TestApplySlotOutput<RT, S> {
+        let (result, nonces) = self.simulate::<T>(input);
         self.commit_apply_slot_output(&result, nonces);
 
         result
@@ -671,13 +646,10 @@ where
     ///
     /// Under the hood this will execute a slot with a single batch containing a single
     /// transaction.
-    pub fn execute_transaction<M: Module>(
+    pub fn execute_transaction(
         &mut self,
-        transaction_test: TransactionTestCase<S, RT, M>,
-    ) -> &mut Self
-    where
-        RT: EncodeCall<M> + RuntimeEventProcessor,
-    {
+        transaction_test: TransactionTestCase<RT, S>,
+    ) -> &mut Self {
         let result = self.execute(transaction_test.input);
         let batch_receipt = result.batch_receipts[0].clone();
         let tx_receipt = batch_receipt.tx_receipts[0].clone();
@@ -694,13 +666,10 @@ where
 
     /// Send a transaction which should be skipped. Asserts that the tx is indeed skipped.
     /// Does not increment the sender nonce.
-    pub fn execute_skipped_transaction<M: Module>(
+    pub fn execute_skipped_transaction(
         &mut self,
-        mut transaction_test: TransactionTestCase<S, RT, M>,
-    ) -> &mut Self
-    where
-        RT: EncodeCall<M> + RuntimeEventProcessor + 'static,
-    {
+        mut transaction_test: TransactionTestCase<RT, S>,
+    ) -> &mut Self {
         // Wrap the test assertion in an assertion that the tx was skipped
         transaction_test.assert = Box::new(|ctx, state| {
             assert!(
@@ -712,9 +681,7 @@ where
 
         // If we're incrementing a nonce, check which one.
         let pubkey_for_nonce_to_decrement = match &transaction_test.input {
-            TransactionType::PreEncoded { key, .. }
-            | TransactionType::Plain { key, .. }
-            | TransactionType::Configuration { key, .. } => Some(key.pub_key()),
+            TransactionType::Plain { key, .. } => Some(key.pub_key()),
             _ => None,
         };
         // Execute the tx and reset the nonce if necessary
@@ -731,10 +698,7 @@ where
     /// Execute a BatchTestCase against the current state of the runtime.
     ///
     /// Under the hood this will execute a slot with the provided batch.
-    pub fn execute_batch<M: Module>(&mut self, batch_test: BatchTestCase<S, M>) -> &mut Self
-    where
-        RT: EncodeCall<M>,
-    {
+    pub fn execute_batch(&mut self, batch_test: BatchTestCase<RT, S>) -> &mut Self {
         let result = self.execute(batch_test.input);
         let ctx = BatchAssertContext {
             sender_da_address: self.config.sequencer_da_address,

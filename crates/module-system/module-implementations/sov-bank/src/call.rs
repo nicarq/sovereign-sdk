@@ -22,6 +22,7 @@ pub const MAX_AUTHORIZED_MINTERS: usize = 20;
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     JsonSchema,
     EnumDiscriminants,

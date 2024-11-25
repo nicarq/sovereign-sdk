@@ -11,7 +11,9 @@ use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConf
 use sov_test_utils::runtime::sov_paymaster::{
     AuthorizedSequencers, PayeePolicy, PaymasterPolicy, SafeVec,
 };
-use sov_test_utils::runtime::{AuthenticatorInput, Paymaster, Runtime, TestOptimisticRuntime};
+use sov_test_utils::runtime::{
+    AuthenticatorInput, Paymaster, Runtime, TestOptimisticRuntime, TestOptimisticRuntimeCall,
+};
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
     default_test_signed_transaction, EncodeCall, MessageGenerator, TestPrivateKey, TestSpec,
@@ -20,6 +22,7 @@ use sov_test_utils::{
 
 pub type MyBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>;
 pub type RT = TestOptimisticRuntime<TestSpec>;
+pub type RTCall = TestOptimisticRuntimeCall<TestSpec>;
 
 pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();
@@ -40,9 +43,9 @@ pub fn build_tx(
     nonce: u64,
     call_message: &<RT as DispatchCall>::Decodable,
 ) -> RawTx {
-    let tx = default_test_signed_transaction(
+    let tx = default_test_signed_transaction::<RT>(
         &setup.admin_private_key,
-        &call_message,
+        call_message,
         nonce,
         &RT::CHAIN_HASH,
     );
@@ -59,7 +62,7 @@ pub fn wrap_with_auth(raw_tx: RawTx) -> FullyBakedTx {
 #[derive(Debug, Clone)]
 pub struct GeneratedTx {
     pub tx_hash: TxHash,
-    pub tx_object: Transaction<TestSpec>,
+    pub tx_object: Transaction<RT, TestSpec>,
     pub raw_tx: RawTx,
     pub tx_input: AuthenticatorInput,
     pub fully_baked_tx: FullyBakedTx,
@@ -112,9 +115,8 @@ pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
         gas_limit: Some(TEST_DEFAULT_GAS_LIMIT.into()),
         chain_id: config_value!("CHAIN_ID"),
     };
-    let msg = <RT as EncodeCall<Paymaster<TestSpec>>>::encode_call(message);
-    TransactionType::<Paymaster<TestSpec>, TestSpec>::sign(
-        msg,
+    TransactionType::<RT, TestSpec>::sign(
+        <RT as EncodeCall<Paymaster<TestSpec>>>::to_decodable(message),
         key,
         &<RT as Runtime<TestSpec>>::CHAIN_HASH,
         details,

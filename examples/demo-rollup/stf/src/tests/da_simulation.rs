@@ -13,6 +13,7 @@ use crate::chain_hash::CHAIN_HASH;
 use crate::runtime::Runtime;
 
 pub(crate) type S = sov_test_utils::TestSpec;
+pub(crate) type T = Runtime<S>;
 
 pub fn simulate_da(admin: TestPrivateKey) -> Vec<FullyBakedTx> {
     let mut messages = Vec::default();
@@ -45,9 +46,9 @@ pub fn simulate_da_with_revert_msg(admin: TestPrivateKey) -> Vec<FullyBakedTx> {
 pub fn simulate_da_with_bad_sig(key: TestPrivateKey) -> Vec<FullyBakedTx> {
     let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key.clone());
     let create_token_message = bank_generator.create_default_messages().remove(0);
-    let tx = Transaction::<S>::new_with_details(
+    let tx = Transaction::<T, S>::new_with_details(
         create_token_message.sender_key.pub_key(),
-        <Runtime<S> as EncodeCall<Bank<S>>>::encode_call(create_token_message.content.clone()),
+        <Runtime<S> as EncodeCall<Bank<S>>>::to_decodable(create_token_message.content),
         // Use the signature of an empty message
         key.sign(&[]),
         create_token_message.nonce,
@@ -70,20 +71,22 @@ pub fn simulate_da_with_bad_nonce(key: TestPrivateKey) -> Vec<FullyBakedTx> {
 pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBakedTx> {
     let bank_generator: BankMessageGenerator<S> = BankMessageGenerator::with_minter(key);
     let create_token_message = bank_generator.create_default_messages().remove(0);
-    let tx = Transaction::<S>::new_signed_tx(
+    let tx = Transaction::<T, S>::new_signed_tx(
         &create_token_message.sender_key,
         &CHAIN_HASH,
-        UnsignedTransaction::<S>::new_with_details(
-            b"not a real call message".to_vec(),
+        UnsignedTransaction::<Runtime<S>, S>::new_with_details(
+            <Runtime<S> as EncodeCall<Bank<S>>>::to_decodable(create_token_message.content),
             create_token_message.nonce,
             create_token_message.details.clone(),
         ),
     );
 
-    vec![encode_with_auth(tx)]
+    let mut serialized = encode_with_auth(tx);
+    serialized.data[0] = serialized.data[0].wrapping_add(20);
+    vec![serialized]
 }
 
-fn encode_with_auth(tx: Transaction<S>) -> FullyBakedTx {
+fn encode_with_auth(tx: Transaction<T, S>) -> FullyBakedTx {
     let tx_bytes = RawTx::new(borsh::to_vec(&tx).unwrap());
     Runtime::<S>::encode_with_standard_auth(tx_bytes)
 }

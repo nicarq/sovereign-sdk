@@ -19,6 +19,7 @@ pub type UriString = SizedSafeString<256>;
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     JsonSchema,
     UniversalWallet,

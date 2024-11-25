@@ -3,12 +3,13 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{GasMeter, VersionReader};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser, TestUser};
+use sov_test_utils::{generate_optimistic_runtime, get_gas_used, AsUser, TestSpec, TestUser};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 type S = sov_test_utils::TestSpec;
 
 generate_optimistic_runtime!(TestKernelUpdatesRuntime <= value_setter: ValueSetter<S>);
+type RT = TestKernelUpdatesRuntime<TestSpec>;
 
 fn setup() -> (TestUser<S>, TestRunner<TestKernelUpdatesRuntime<S>, S>) {
     let genesis_config =
@@ -52,7 +53,9 @@ fn chain_state_kernel_updates_basic_kernel() {
     });
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     runner.query_state(|state| {
@@ -78,9 +81,10 @@ fn test_chain_state_gas_updates() {
 
     let genesis_state_root = *runner.state_root();
 
-    let output = runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
-    );
+    let output =
+        runner.execute(admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        ));
 
     runner.query_state(|kernel| {
         assert_eq!(
@@ -111,7 +115,9 @@ fn test_chain_state_root_updates() {
     let genesis_state_root = *runner.state_root();
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     let post_state_root = *runner.state_root();
@@ -125,7 +131,9 @@ fn test_chain_state_root_updates() {
     });
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     runner.query_state(|kernel| {
@@ -147,7 +155,9 @@ fn test_chain_state_historical_transition_update() {
     let (admin, mut runner) = setup();
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     let in_progress_transition = runner.query_state(|kernel| {
@@ -158,7 +168,9 @@ fn test_chain_state_historical_transition_update() {
     });
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     runner.query_state(|kernel| {
@@ -196,7 +208,9 @@ fn test_archival_state_updates_gas_price() {
         .unwrap();
 
     runner.execute(
-        admin.create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        admin.create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(
+            10,
+        )),
     );
 
     runner.advance_slots(1);

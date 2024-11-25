@@ -56,7 +56,7 @@ where
     /// Run the transaction workflow
     pub fn run<RT: CliWallet + Runtime<S>, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-        wallet_state: &mut WalletState<<RT as DispatchCall>::Decodable, S>,
+        wallet_state: &mut WalletState<RT, S>,
         _app_dir: impl AsRef<Path>,
         mut out: impl std::io::Write,
     ) -> anyhow::Result<()>
@@ -103,8 +103,7 @@ where
                 nonce,
                 json_output,
             } => {
-                let tx: UnsignedTransactionWithoutNonce<S, <RT as DispatchCall>::Decodable> =
-                    transaction.load()?;
+                let tx: UnsignedTransactionWithoutNonce<S, RT> = transaction.load()?;
                 let id = key_nickname.map(|nickname| KeyIdentifier::<S>::ByNickname { nickname });
                 let account = wallet_state.resolve_account(id.as_ref())?;
 
@@ -162,7 +161,7 @@ where
     /// Parse from a file or a json string
     pub fn load<RT: CliWallet + Runtime<S>, S: sov_modules_api::Spec, U, E1, E2, E3>(
         self,
-    ) -> anyhow::Result<UnsignedTransactionWithoutNonce<S, <RT as DispatchCall>::Decodable>>
+    ) -> anyhow::Result<UnsignedTransactionWithoutNonce<S, RT>>
     where
         Json: CliFrontEnd<RT> + CliTxImportArg,
         File: CliFrontEnd<RT> + CliTxImportArg,
@@ -218,8 +217,8 @@ where
 }
 
 #[derive(serde::Serialize)]
-#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
-struct SignTransactionOutput<S: Spec, Tx: BorshSerialize + BorshDeserialize> {
+#[serde(bound = "Tx::Decodable: serde::Serialize + serde::de::DeserializeOwned")]
+struct SignTransactionOutput<S: Spec, Tx: DispatchCall> {
     nonce: u64,
     input_tx: UnsignedTransactionWithoutNonce<S, Tx>,
     signed_tx: HexString,

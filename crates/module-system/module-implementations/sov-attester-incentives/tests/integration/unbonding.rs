@@ -46,7 +46,7 @@ fn check_attester_bonded_and_start_unbond(
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::BeginExitAttester,
         ),
         assert: Box::new(move |result, state| {
@@ -88,7 +88,7 @@ fn try_unbond_successful() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::ExitAttester,
         ),
         assert: Box::new(move |result, state| {
@@ -141,7 +141,7 @@ fn try_unbond_too_early() {
 
     // Finalize unbonding, this should fail because the unbonding period has not passed yet
     runner.execute_transaction(TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::ExitAttester,
         ),
         assert: Box::new(move |result, _state| {
@@ -190,7 +190,7 @@ fn try_unbond_without_bonding() {
     });
 
     runner.execute_transaction(TransactionTestCase {
-        input: additional_account.create_plain_message::<TestAttesterIncentives>(
+        input: additional_account.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::BeginExitAttester,
         ),
         assert: Box::new(move |_result, state| {
@@ -213,7 +213,7 @@ fn try_skip_two_phase_unbonding() {
     let addr = attester.as_user().address();
 
     runner.execute_transaction(TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::ExitAttester,
         ),
         assert: Box::new(move |result, _state| {
@@ -249,7 +249,7 @@ fn try_bond_while_unbonding() {
     let attester_bond = attester.bond;
 
     let start_unbonding = TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::BeginExitAttester,
         ),
         assert: Box::new(move |_result, state| {
@@ -277,7 +277,7 @@ fn try_bond_while_unbonding() {
         }),
     };
     let try_bond = TransactionTestCase {
-        input: attester.create_plain_message::<TestAttesterIncentives>(
+        input: attester.create_plain_message::<RT, TestAttesterIncentives>(
             sov_attester_incentives::CallMessage::RegisterAttester(100),
         ),
         assert: Box::new(move |result, _state| {

@@ -1,6 +1,6 @@
 use std::str::FromStr;
 
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
@@ -8,14 +8,19 @@ use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::Spec;
+use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_macros::config_value;
+use sov_test_utils::{
+    TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
+
+use crate::test_helpers::CHAIN_HASH;
 
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
-#[test]
-fn test_display_tx() {
-    let msg: RuntimeCall<S> = RuntimeCall::Bank(CallMessage::Transfer {
-        to: <S as Spec>::Address::from_str(
+fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
+    let msg: RuntimeCall<S> = RuntimeCall::Bank(CallMessage::Mint {
+        mint_to_address: <S as Spec>::Address::from_str(
             "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
         )
         .unwrap(),
@@ -27,11 +32,24 @@ fn test_display_tx() {
             .unwrap(),
         },
     });
-    let data = borsh::to_vec(&msg).unwrap();
+    UnsignedTransaction::<_, S>::new(
+        msg,
+        config_value!("CHAIN_ID"),
+        TEST_DEFAULT_MAX_PRIORITY_FEE,
+        TEST_DEFAULT_MAX_FEE,
+        0,
+        Some(TEST_DEFAULT_GAS_LIMIT.into()),
+    )
+}
+
+#[test]
+fn test_display_unsigned_tx() {
+    let unsigned_tx = make_unsigned_tx();
+    let unsigned_data = borsh::to_vec(&unsigned_tx).unwrap();
     let schema = Schema::of_rollup_types_with_metadata::<
         u64,
-        Transaction<S>,
-        UnsignedTransaction<S>,
+        Transaction<Runtime<S>, S>,
+        UnsignedTransaction<Runtime<S>, S>,
         RuntimeCall<S>,
     >(&4321)
     .unwrap();
@@ -39,11 +57,41 @@ fn test_display_tx() {
         schema
             .display(
                 schema
-                    .rollup_expected_index(RollupRoots::RuntimeCall)
+                    .rollup_expected_index(RollupRoots::UnsignedTransaction)
                     .unwrap(),
-                &data
+                &unsigned_data
             )
             .unwrap(),
-        r#"Bank.Transfer to address sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks."#
+        r#"{ runtime_call: Bank.Mint { coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx }, nonce: 0, details: { max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 } }"#
+    );
+}
+
+#[test]
+fn test_display_signed_tx() {
+    let unsigned_tx = make_unsigned_tx();
+    let signer = TestUser::<S>::generate(0);
+    let signed_tx = Transaction::new_signed_tx(signer.private_key(), &CHAIN_HASH, unsigned_tx);
+    let signed_data = borsh::to_vec(&signed_tx).unwrap();
+    let schema = Schema::of_rollup_types_with_metadata::<
+        u64,
+        Transaction<Runtime<S>, S>,
+        UnsignedTransaction<Runtime<S>, S>,
+        RuntimeCall<S>,
+    >(&4321)
+    .unwrap();
+
+    let signature_display = hex::encode(borsh::to_vec(&signed_tx.signature()).unwrap());
+    let pubkey_display = hex::encode(borsh::to_vec(&signer.private_key.pub_key()).unwrap());
+
+    assert_eq!(
+        schema
+            .display(
+                schema
+                    .rollup_expected_index(RollupRoots::Transaction)
+                    .unwrap(),
+                &signed_data
+            )
+            .unwrap(),
+        format!("{{ signature: {{ msg_sig: 0x{} }}, pub_key: {{ pub_key: 0x{} }}, runtime_call: Bank.Mint {{ coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx }}, nonce: 0, details: {{ max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 }} }}", signature_display, pubkey_display)
     );
 }

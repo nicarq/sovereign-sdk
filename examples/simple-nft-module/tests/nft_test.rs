@@ -15,6 +15,8 @@ pub type Storage = ProverStorage<TestStorageSpec>;
 
 generate_optimistic_runtime!(TestNftModuleRuntime <= nft: NonFungibleToken<S>);
 
+pub type RT = TestNftModuleRuntime<S>;
+
 /// Holds the role for the nft tests:
 /// - admin: the module admin
 /// - owner_0: owns the nft 0
@@ -70,7 +72,7 @@ fn mint_succeeds() {
 
     runner.execute_transaction(TransactionTestCase {
         input: external_user
-            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
@@ -100,12 +102,13 @@ fn cannot_mint_twice() {
     const NFT_ID: u64 = 2;
 
     runner.execute(
-        external_user.create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+        external_user
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
     );
 
     runner.execute_transaction(TransactionTestCase {
         input: external_user
-            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Mint { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
             assert_tx_reverted_with_reason(
                 result.tx_receipt,
@@ -130,7 +133,7 @@ fn transfer_succeeds() {
     const NFT_ID: u64 = 0;
 
     runner.execute_transaction(TransactionTestCase {
-        input: owner_0.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+        input: owner_0.create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Transfer {
             id: NFT_ID,
             to: external_user.address(),
         }),
@@ -161,7 +164,7 @@ fn admin_cannot_transfer_token() {
     const NFT_ID: u64 = 0;
 
     runner.execute_transaction(TransactionTestCase {
-        input: admin.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+        input: admin.create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Transfer {
             id: NFT_ID,
             to: admin.address(),
         }),
@@ -189,7 +192,7 @@ fn other_token_user_cannot_transfer_token() {
     const NFT_ID: u64 = 0;
 
     runner.execute_transaction(TransactionTestCase {
-        input: owner_1.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+        input: owner_1.create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Transfer {
             id: NFT_ID,
             to: owner_1.address(),
         }),
@@ -209,7 +212,7 @@ fn cannot_transfer_non_existent_token() {
     const NFT_ID: u64 = 42;
 
     runner.execute_transaction(TransactionTestCase {
-        input: owner_0.create_plain_message::<NonFungibleToken<S>>(CallMessage::Transfer {
+        input: owner_0.create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Transfer {
             id: NFT_ID,
             to: owner_0.address(),
         }),
@@ -230,7 +233,7 @@ fn burn_succeeds() {
 
     runner.execute_transaction(TransactionTestCase {
         input: owner_0
-            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
             assert_eq!(result.events.len(), 1);
@@ -256,7 +259,7 @@ fn only_owner_can_burn() {
 
     runner.execute_transaction(TransactionTestCase {
         input: owner_1
-            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
             assert_tx_reverted_with_reason(
                 result.tx_receipt,
@@ -273,7 +276,7 @@ fn cannot_burn_non_existent_token() {
 
     runner.execute_transaction(TransactionTestCase {
         input: owner_0
-            .create_plain_message::<NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
+            .create_plain_message::<RT, NonFungibleToken<S>>(CallMessage::Burn { id: NFT_ID }),
         assert: Box::new(move |result, _state| {
             assert_tx_reverted_with_reason(
                 result.tx_receipt,

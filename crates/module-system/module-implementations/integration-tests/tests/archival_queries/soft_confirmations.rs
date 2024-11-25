@@ -54,11 +54,7 @@ pub fn build_soft_confirmation_blobs(
         });
     }
 
-    runner.query_visible_state(|state| {
-        TestRunner::<RT>::soft_confirmation_batches_to_blobs::<ChainState<S>>(
-            batches, nonces, state,
-        )
-    })
+    TestRunner::<RT>::soft_confirmation_batches_to_blobs(batches, nonces)
 }
 
 /// Check that we can query the kernel state of versioned accessors at any height.
@@ -222,7 +218,7 @@ async fn intermediary_state_queries_soft_confirmations() {
         &mut runner,
     );
 
-    runner.execute::<_, ChainState<S>>(blobs);
+    runner.execute::<_>(blobs);
 
     assert_eq!(runner.visible_rollup_height(), deferred_slots_count - 1);
 

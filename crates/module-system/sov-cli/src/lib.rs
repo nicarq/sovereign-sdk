@@ -5,11 +5,10 @@ use std::path::Path;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use directories::BaseDirs;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use sov_modules_api::clap;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails, UnsignedTransaction};
-use sov_modules_api::{HexHash, HexString, Spec};
+use sov_modules_api::{DispatchCall, HexHash, HexString, Spec};
 use sov_node_client as node_client;
 
 /// Types and functionality storing and loading the persistent state of the wallet
@@ -37,14 +36,14 @@ pub fn wallet_dir() -> anyhow::Result<impl AsRef<Path>> {
 }
 
 /// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
-#[serde(bound = "Tx: serde::Serialize + serde::de::DeserializeOwned")]
+#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, Clone)]
+#[serde(bound = "Tx::Decodable: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct UnsignedTransactionWithoutNonce<S: Spec, Tx>
 where
-    Tx: BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
 {
     // The underlying transaction
-    tx: Tx,
+    tx: Tx::Decodable,
     // The chain root hash
     chain_hash: HexHash,
     // Details related to fees and gas handling.
@@ -53,11 +52,11 @@ where
 
 impl<S: Spec, Tx> UnsignedTransactionWithoutNonce<S, Tx>
 where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
 {
     /// Creates a new [`UnsignedTransactionWithoutNonce`] with the given arguments.
     pub const fn new(
-        tx: Tx,
+        tx: Tx::Decodable,
         chain_id: u64,
         chain_hash: [u8; 32],
         max_priority_fee_bips: PriorityFeeBips,
@@ -78,9 +77,9 @@ where
 
     /// Creates a new [`UnsignedTransaction`] from this [`UnsignedTransactionWithoutNonce`] when
     /// given a nonce.
-    pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<S> {
+    pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<Tx, S> {
         UnsignedTransaction::new(
-            borsh::to_vec(&self.tx).unwrap(),
+            self.tx.clone(),
             self.details.chain_id,
             self.details.max_priority_fee_bips,
             self.details.max_fee,

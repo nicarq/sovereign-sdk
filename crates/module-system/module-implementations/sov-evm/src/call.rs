@@ -21,6 +21,7 @@ use crate::{Evm, PendingTransaction, SpecId};
     serde::Deserialize,
     Debug,
     PartialEq,
+    Eq,
     Clone,
     schemars::JsonSchema,
 )]

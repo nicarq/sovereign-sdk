@@ -22,6 +22,7 @@ use crate::{Event, ProverIncentives};
     BorshSerialize,
     Debug,
     PartialEq,
+    Eq,
     UniversalWallet,
     JsonSchema,
 )]

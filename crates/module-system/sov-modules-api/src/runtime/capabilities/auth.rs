@@ -222,7 +222,7 @@ pub struct AuthorizationData<S: Spec> {
 
 fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
-    tx: Transaction<S>,
+    tx: Transaction<D, S>,
     chain_hash: &[u8; 32],
     meter: &mut impl GasMeter<S::Gas>,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
@@ -247,13 +247,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
         TransactionVerificationError::GasError(_) => AuthenticationError::OutOfGas(e.to_string()),
     })?;
 
-    let runtime_call = D::decode_call(tx.runtime_msg(), meter).map_err(|e| {
-        AuthenticationError::FatalError(
-            FatalError::MessageDecodingFailed(e.to_string()),
-            raw_tx_hash,
-        )
-    })?;
-
+    let runtime_call = tx.runtime_call().clone();
     let pub_key = tx.pub_key().clone();
     let default_address = (&pub_key).into();
     let credential_id = pub_key.credential_id::<<S::CryptoSpec as CryptoSpec>::Hasher>();
@@ -290,13 +284,14 @@ pub fn authenticate<
     let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
-    let tx = <Transaction<S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
-        .map_err(|e| {
-        AuthenticationError::FatalError(
-            FatalError::DeserializationFailed(e.to_string()),
-            raw_tx_hash,
-        )
-    })?;
+    let tx =
+        <Transaction<D, S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
+            .map_err(|e| {
+                AuthenticationError::FatalError(
+                    FatalError::DeserializationFailed(e.to_string()),
+                    raw_tx_hash,
+                )
+            })?;
 
     verify_and_decode_tx::<S, D>(raw_tx_hash, tx, chain_hash, state)
 }

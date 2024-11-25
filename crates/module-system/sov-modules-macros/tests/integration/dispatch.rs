@@ -167,6 +167,9 @@ pub mod third_test_module {
         + borsh::BorshDeserialize
         + core::fmt::Debug
         + Default
+        + PartialEq
+        + Eq
+        + Clone
         + Send
         + Sync
         + 'static

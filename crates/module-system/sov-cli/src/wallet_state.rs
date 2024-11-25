@@ -2,13 +2,12 @@ use std::path::{Path, PathBuf};
 use std::{fs, mem};
 
 use anyhow::Context;
-use borsh::{BorshDeserialize, BorshSerialize};
 use semver::Version;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{clap, CryptoSpec, PrivateKey};
+use sov_modules_api::{clap, CryptoSpec, DispatchCall, PrivateKey};
 
 use crate::UnsignedTransactionWithoutNonce;
 
@@ -17,10 +16,12 @@ const NO_ACCOUNTS_FOUND: &str =
 
 /// A struct representing the current state of the CLI wallet
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(bound = "S::Address: Serialize + DeserializeOwned, Tx: Serialize + DeserializeOwned")]
+#[serde(
+    bound = "S::Address: Serialize + DeserializeOwned, Tx::Decodable: Serialize + DeserializeOwned"
+)]
 pub struct WalletState<Tx, S: sov_modules_api::Spec>
 where
-    Tx: BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
 {
     /// The accumulated transactions to be submitted to the DA layer.
     pub unsent_transactions: Vec<UnsignedTransactionWithoutNonce<S, Tx>>,
@@ -34,7 +35,7 @@ where
 
 impl<Tx, S> Default for WalletState<Tx, S>
 where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
     S: sov_modules_api::Spec,
 {
     fn default() -> Self {
@@ -51,7 +52,8 @@ where
 
 impl<Tx, S> WalletState<Tx, S>
 where
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
+    Tx::Decodable: Serialize + DeserializeOwned,
     S: sov_modules_api::Spec,
 {
     /// Load the wallet state from the given path on disk
@@ -161,10 +163,13 @@ pub(crate) fn sign_tx<S, Tx>(
 ) -> anyhow::Result<Vec<u8>>
 where
     S: sov_modules_api::Spec,
-    Tx: Serialize + DeserializeOwned + BorshSerialize + BorshDeserialize,
+    Tx: DispatchCall,
 {
-    let tx =
-        Transaction::<S>::new_signed_tx(signing_key, &tx.chain_hash.into(), tx.with_nonce(nonce));
+    let tx = Transaction::<Tx, S>::new_signed_tx(
+        signing_key,
+        &tx.chain_hash.into(),
+        tx.with_nonce(nonce),
+    );
     let tx = borsh::to_vec(&tx)?;
     Ok(tx)
 }

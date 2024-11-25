@@ -3,6 +3,7 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::GasUnit;
+use sov_test_utils::runtime::TestOptimisticRuntimeCall;
 use sov_test_utils::{
     assert_matches, AsUser, BatchTestCase, TestUser, TransactionTestCase, TransactionType,
     TxProcessingError, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -10,7 +11,7 @@ use sov_test_utils::{
 };
 use sov_value_setter::ValueSetter;
 
-use crate::helpers::{setup, S};
+use crate::helpers::{setup, RT, S};
 
 /// Checks that the chain id of a transaction can be overridden.
 #[test]
@@ -22,7 +23,7 @@ fn test_custom_transaction_details_chain_id() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))
             .with_chain_id(fake_chain_id)]
         .into(),
         assert: Box::new(move |result, _state| {
@@ -56,7 +57,7 @@ fn test_custom_transaction_details_max_fee() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
             .with_max_fee(0),
         assert: Box::new(move |result, _state| {
            match &result.tx_receipt {
@@ -87,7 +88,7 @@ fn test_custom_transaction_details_priority_fee_bips() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
             .with_max_fee(max_fee)
             .with_max_priority_fee_bips(priority_fee_bips),
         assert: Box::new(move |result, state| {
@@ -112,7 +113,7 @@ fn test_custom_transaction_details_gas_limit() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))
             .with_max_fee(admin.available_gas_balance)
             .with_gas_limit(Some(GasUnit::from([admin.available_gas_balance; 2]))),
         assert: Box::new(move |result, _state| {
@@ -141,7 +142,7 @@ fn test_default_transaction_details_works() {
 
     runner.execute_transaction(TransactionTestCase {
         input: admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+            .create_plain_message::<RT, ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
         assert: Box::new(move |result, state| {
             assert!(result.tx_receipt.is_successful());
 
@@ -160,7 +161,7 @@ fn test_default_transaction_details_works() {
 #[test]
 fn test_default_transaction_details() {
     let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
-    let message = user.create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+    let message = user.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
         to: user.address(),
         coins: Coins {
             amount: 1000,
@@ -176,13 +177,13 @@ fn test_default_transaction_details() {
         } => {
             assert_eq!(
                 message,
-                sov_bank::CallMessage::Transfer {
+                TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
                         token_id: config_gas_token_id(),
                     },
-                }
+                })
             );
 
             assert_eq!(key.as_hex(), user.private_key().as_hex());
@@ -202,7 +203,7 @@ fn test_default_transaction_details() {
 fn test_custom_transaction_format() {
     let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     let message = user
-        .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+        .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
             to: user.address(),
             coins: Coins {
                 amount: 1000,
@@ -222,13 +223,13 @@ fn test_custom_transaction_format() {
         } => {
             assert_eq!(
                 message,
-                sov_bank::CallMessage::Transfer {
+                TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
                         token_id: config_gas_token_id(),
                     },
-                }
+                })
             );
 
             assert_eq!(key.as_hex(), user.private_key().as_hex());
@@ -250,7 +251,7 @@ fn test_custom_transaction_format() {
 fn test_custom_transaction_format_2() {
     let user = TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE);
     let message = user
-        .create_plain_message::<Bank<S>>(sov_bank::CallMessage::Transfer {
+        .create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::Transfer {
             to: user.address(),
             coins: Coins {
                 amount: 1000,
@@ -272,13 +273,13 @@ fn test_custom_transaction_format_2() {
         } => {
             assert_eq!(
                 message,
-                sov_bank::CallMessage::Transfer {
+                TestOptimisticRuntimeCall::Bank(sov_bank::CallMessage::Transfer {
                     to: user.address(),
                     coins: Coins {
                         amount: 1000,
                         token_id: config_gas_token_id(),
                     },
-                }
+                })
             );
 
             assert_eq!(key.as_hex(), user.private_key().as_hex());

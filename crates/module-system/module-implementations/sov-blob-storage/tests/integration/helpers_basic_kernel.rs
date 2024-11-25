@@ -62,16 +62,13 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicRT>) {
 pub fn build_basic_blobs(
     slots_info: &SlotConfigInfo<TestSequencer<S>>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<BasicRT>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
     for sequencer in slots_info {
         batches.push((BatchType(vec![]), sequencer.da_address));
     }
 
-    runner.query_visible_state(|state| {
-        TestRunner::<BasicRT>::batches_to_blobs::<ValueSetter<S>>(batches, nonces, state)
-    })
+    TestRunner::<BasicRT>::batches_to_blobs(batches, nonces)
 }
 
 /// This helper method asserts that given slots to send and an expected order of receipts, the
@@ -99,7 +96,7 @@ pub fn assert_blobs_are_correctly_received_basic_kernel(
 
     let slots_to_send = sending_order
         .iter()
-        .map(|blobs_slot_info| build_basic_blobs(blobs_slot_info, &mut nonces, runner))
+        .map(|blobs_slot_info| build_basic_blobs(blobs_slot_info, &mut nonces))
         .collect::<Vec<_>>();
 
     assert_blobs_are_correctly_received_helper(

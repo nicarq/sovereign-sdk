@@ -33,6 +33,7 @@ pub trait Spec:
     + Send
     + Sync
     + PartialEq
+    + Eq
     + Generic
     + 'static
 {

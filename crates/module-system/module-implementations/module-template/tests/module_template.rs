@@ -8,6 +8,7 @@ use sov_test_utils::{generate_optimistic_runtime, AsUser, TransactionTestCase};
 generate_optimistic_runtime!(ExampleModuleRuntime <= example_module: ExampleModule<S>);
 
 type S = sov_test_utils::TestSpec;
+type RT = ExampleModuleRuntime<S>;
 
 #[test]
 fn test_example_module() {
@@ -27,7 +28,7 @@ fn test_example_module() {
     );
 
     runner.execute_transaction(TransactionTestCase {
-        input: user.create_plain_message::<ExampleModule<S>>(CallMessage::SetValue(99)),
+        input: user.create_plain_message::<RT, ExampleModule<S>>(CallMessage::SetValue(99)),
         assert: Box::new(|result, _state| {
             assert!(result.tx_receipt.is_successful());
 

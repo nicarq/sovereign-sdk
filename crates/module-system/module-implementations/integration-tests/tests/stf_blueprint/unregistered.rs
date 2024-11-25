@@ -51,8 +51,7 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             batch_blobs: vec![blob],
         };
 
-        let result =
-            runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S>>(unregistered_blobs);
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
 
         let batch_receipt = &result.batch_receipts[0];
         let gas_price = &batch_receipt.inner.gas_price;
@@ -161,6 +160,7 @@ mod helpers {
     use super::*;
     use crate::stf_blueprint::{
         create_tx_bad_sig, create_tx_out_of_gas, create_tx_valid, IntegTestRuntime,
+        IntegTestRuntimeCall,
     };
     // A user that is not a registered sequencer and attempts to register itself as one.
     pub(crate) struct PotentialSequencer {
@@ -196,10 +196,10 @@ mod helpers {
         nonce: u64,
         max_priority_fee_bips: PriorityFeeBips,
         chain_id: u64,
-        encoded_message: Vec<u8>,
-    ) -> Transaction<S> {
+        message: IntegTestRuntimeCall<S>,
+    ) -> Transaction<IntegTestRuntime<S>, S> {
         let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
+            message,
             chain_id,
             max_priority_fee_bips,
             200_000,
@@ -208,7 +208,7 @@ mod helpers {
         );
 
         let signer = TestUser::<S>::generate(0);
-        Transaction::<S>::new_signed_tx(
+        Transaction::<IntegTestRuntime<S>, S>::new_signed_tx(
             signer.private_key(),
             &IntegTestRuntime::<S>::CHAIN_HASH,
             utx,
@@ -222,12 +222,12 @@ mod helpers {
         signer: &TestUser<S>,
         da_address: <<S as Spec>::Da as DaSpec>::Address,
         chain_id: u64,
-    ) -> Transaction<S> {
+    ) -> Transaction<IntegTestRuntime<S>, S> {
         // Here, we attempt to bond more funds than are available for a given user, causing the transaction to be reverted.
         let encoded_message = encode_message(da_address, signer.available_gas_balance + 1);
 
         let utx = UnsignedTransaction::new(
-            encoded_message.clone(),
+            encoded_message,
             chain_id,
             max_priority_fee_bips,
             200_000,
@@ -235,7 +235,7 @@ mod helpers {
             None,
         );
 
-        Transaction::<S>::new_signed_tx(
+        Transaction::<IntegTestRuntime<S>, S>::new_signed_tx(
             signer.private_key(),
             &IntegTestRuntime::<S>::CHAIN_HASH,
             utx,
@@ -319,8 +319,8 @@ mod helpers {
     fn encode_message(
         da_address: <<S as Spec>::Da as DaSpec>::Address,
         bond_amount: u64,
-    ) -> Vec<u8> {
-        <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::encode_call(
+    ) -> IntegTestRuntimeCall<S> {
+        <IntegTestRuntime<S> as EncodeCall<SequencerRegistry<S>>>::to_decodable(
             sov_sequencer_registry::CallMessage::Register {
                 da_address,
                 amount: bond_amount,
@@ -328,7 +328,7 @@ mod helpers {
         )
     }
 
-    fn encode_tx(tx: Transaction<S>) -> RawTx {
+    fn encode_tx(tx: Transaction<IntegTestRuntime<S>, S>) -> RawTx {
         let tx_data = borsh::to_vec(&tx).unwrap();
         RawTx { data: tx_data }
     }

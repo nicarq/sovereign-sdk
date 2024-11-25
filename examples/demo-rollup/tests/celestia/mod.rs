@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::ops::Range;
 use std::time::Duration;
 
-use demo_stf::runtime;
+use demo_stf::runtime::{self, Runtime};
 use futures::StreamExt;
 use rand::Rng;
 use sov_celestia_adapter::verifier::CelestiaSpec;
@@ -17,6 +17,8 @@ use sov_risc0_adapter::Risc0;
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use crate::test_helpers::CHAIN_HASH;
+
+type S = DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>;
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();
@@ -62,8 +64,8 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
         std::fs::read_to_string("../test-data/keys/token_deployer_private_key.json")
             .expect("Unable to read file to string");
 
-    let token_deployer: PrivateKeyAndAddress<DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>> =
-        serde_json::from_str(&token_deployer_data).unwrap_or_else(|_| {
+    let token_deployer: PrivateKeyAndAddress<S> = serde_json::from_str(&token_deployer_data)
+        .unwrap_or_else(|_| {
             panic!(
                 "Unable to convert data {} to PrivateKeyAndAddress",
                 &token_deployer_data
@@ -74,9 +76,7 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
     let max_priority_fee_bips = TEST_DEFAULT_MAX_PRIORITY_FEE;
     let max_fee = TEST_DEFAULT_MAX_FEE;
 
-    let messages = generate_call_message::<DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>>(
-        blobs_payload_bytes_range,
-    );
+    let messages = generate_call_message::<S>(blobs_payload_bytes_range);
     println!("Generate {} messages", messages.len());
 
     let rest_port = 12346;
@@ -86,11 +86,11 @@ async fn submit_blobs_increasing_size() -> anyhow::Result<()> {
 
     for (idx, message) in messages.into_iter().enumerate() {
         println!("Nonce {} . Going to submit message: {:?}", idx, message);
-        let tx = Transaction::<DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>>::new_signed_tx(
+        let tx = Transaction::<Runtime<S>, S>::new_signed_tx(
             &token_deployer.private_key,
             &CHAIN_HASH,
             UnsignedTransaction::new(
-                borsh::to_vec(&message)?,
+                message,
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,

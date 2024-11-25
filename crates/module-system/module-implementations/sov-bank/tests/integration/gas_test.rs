@@ -19,7 +19,7 @@ struct PostCreateTokenContext {
 /// The gas config can be set to `None` to use the default gas config.
 fn gas_test_setup(
     gas_to_charge_for_create_token: Option<<S as Spec>::Gas>,
-    create_token_assert: impl FnOnce(PostCreateTokenContext) -> TransactionTestAssert<S, RT> + 'static,
+    create_token_assert: impl FnOnce(PostCreateTokenContext) -> TransactionTestAssert<RT, S> + 'static,
 ) {
     let (
         TestData {
@@ -44,7 +44,7 @@ fn gas_test_setup(
     let user_balance = user.available_gas_balance;
 
     runner.execute_transaction(TransactionTestCase {
-        input: user.create_plain_message::<Bank<S>>(CallMessage::CreateToken {
+        input: user.create_plain_message::<RT, Bank<S>>(CallMessage::CreateToken {
             token_name: "sov-test-token".try_into().unwrap(),
             initial_balance: 1000,
             mint_to_address: user.address(),

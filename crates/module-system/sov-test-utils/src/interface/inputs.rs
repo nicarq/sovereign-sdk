@@ -1,44 +1,22 @@
 use std::collections::HashMap;
 
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{
-    ApiStateAccessor, CryptoSpec, EncodeCall, FullyBakedTx, Module, PrivateKey, RawTx, Spec,
-};
+use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::runtime::Runtime;
-use crate::FromState;
 
 /// Defines the type of a message that can be sent to the runtime.
-pub enum TransactionType<M: Module, S: Spec> {
+pub enum TransactionType<RT: Runtime<S>, S: Spec> {
     /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as TransactionAuthenticator>::Input` type.
     PreAuthenticated(FullyBakedTx),
     /// A pre-signed transaction. Ie, a transaction that has already been signed and formatted by the sender
     PreSigned(RawTx),
-    /// A pre-encoded transaction. That is a transaction that has not been signed yet, but has been encoded for the module system
-    PreEncoded {
-        /// A pre-encoded message to be sent. This has been signed by a given runtime configuration.
-        encoded_message: Vec<u8>,
-        /// The private key of the sender.
-        key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-        /// The details of the transaction.
-        details: TxDetails<S>,
-    },
     /// A plain transaction. That is a transaction that has not been signed or encoded yet
     Plain {
         /// A plain call message to be sent.
-        message: M::CallMessage,
-        /// The private key of the sender.
-        key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-        /// The details of the transaction.
-        details: TxDetails<S>,
-    },
-    /// A message type that needs to be configured before it can be sent
-    Configuration {
-        /// A plain message to be sent to the state.
-        message: Box<dyn FromState<S, Output = M::CallMessage>>,
+        message: <RT as DispatchCall>::Decodable,
         /// The private key of the sender.
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         /// The details of the transaction.
@@ -46,15 +24,13 @@ pub enum TransactionType<M: Module, S: Spec> {
     },
 }
 
-impl<M: Module, S: Spec> TransactionType<M, S> {
+impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
     fn details_mut(&mut self) -> Option<&mut TxDetails<S>> {
         Some(match self {
             TransactionType::PreAuthenticated(_) | TransactionType::PreSigned { .. } => {
                 return None
             }
-            TransactionType::Plain { details, .. }
-            | TransactionType::PreEncoded { details, .. }
-            | TransactionType::Configuration { details, .. } => details,
+            TransactionType::Plain { details, .. } => details,
         })
     }
 
@@ -62,20 +38,6 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
     pub fn with_details(self, details: TxDetails<S>) -> Self {
         match self {
             TransactionType::Plain { message, key, .. } => TransactionType::Plain {
-                message,
-                key,
-                details,
-            },
-            TransactionType::PreEncoded {
-                encoded_message,
-                key,
-                ..
-            } => TransactionType::PreEncoded {
-                encoded_message,
-                key,
-                details,
-            },
-            TransactionType::Configuration { message, key, .. } => TransactionType::Configuration {
                 message,
                 key,
                 details,
@@ -127,62 +89,30 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
 
     /// Converts a [`TransactionType`] into a serialized authenticated transaction ready to be passed
     /// to the runtime.
-    pub fn to_serialized_authenticated_tx<
-        RT: EncodeCall<M> + TransactionAuthenticator<S> + Runtime<S>,
-    >(
+    pub fn to_serialized_authenticated_tx(
         self,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-        state: &mut ApiStateAccessor<S>,
     ) -> FullyBakedTx {
         match self {
             TransactionType::PreAuthenticated(data) => data,
             TransactionType::PreSigned(raw_tx) => RT::encode_with_standard_auth(raw_tx),
-            TransactionType::PreEncoded {
-                encoded_message,
+            TransactionType::Plain {
+                message,
                 key,
                 details,
             } => RT::encode_with_standard_auth(Self::sign(
-                encoded_message,
+                message,
                 key,
                 &RT::CHAIN_HASH,
                 details,
                 nonces,
             )),
-            TransactionType::Plain {
-                message,
-                key,
-                details,
-            } => {
-                let msg = <RT as EncodeCall<M>>::encode_call(message);
-                RT::encode_with_standard_auth(Self::sign(
-                    msg,
-                    key,
-                    &RT::CHAIN_HASH,
-                    details,
-                    nonces,
-                ))
-            }
-            TransactionType::Configuration {
-                message,
-                key,
-                details,
-            } => {
-                let msg = message.from_state(state);
-                let msg = <RT as EncodeCall<M>>::encode_call(msg);
-                RT::encode_with_standard_auth(Self::sign(
-                    msg,
-                    key,
-                    &RT::CHAIN_HASH,
-                    details,
-                    nonces,
-                ))
-            }
         }
     }
 
     /// Creates a [`TransactionType`] from a [`UnsignedTransaction`].
     pub fn pre_signed(
-        unsigned_tx: UnsignedTransaction<S>,
+        unsigned_tx: UnsignedTransaction<RT, S>,
         key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         chain_hash: &[u8; 32],
     ) -> Self {
@@ -192,7 +122,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
 
     /// Sign a message with the given key, generating a `RawTx`
     pub fn sign(
-        msg: Vec<u8>,
+        msg: <RT as DispatchCall>::Decodable,
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         chain_hash: &[u8; 32],
         details: TxDetails<S>,
@@ -201,7 +131,7 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
         let pub_key = key.pub_key();
         let nonce = *nonces.get(&pub_key).unwrap_or(&0);
         nonces.insert(pub_key, nonce + 1);
-        let tx = borsh::to_vec(&Transaction::<S>::new_signed_tx(
+        let tx = borsh::to_vec(&Transaction::<RT, S>::new_signed_tx(
             &key,
             chain_hash,
             UnsignedTransaction::new(
@@ -220,10 +150,10 @@ impl<M: Module, S: Spec> TransactionType<M, S> {
 }
 
 /// Defines the type of batch that can be sent to the runtime.
-pub struct BatchType<M: Module, S: Spec>(pub Vec<TransactionType<M, S>>);
+pub struct BatchType<RT: Runtime<S>, S: Spec>(pub Vec<TransactionType<RT, S>>);
 
-impl<S: Spec, M: Module> From<Vec<TransactionType<M, S>>> for BatchType<M, S> {
-    fn from(value: Vec<TransactionType<M, S>>) -> Self {
+impl<RT: Runtime<S>, S: Spec> From<Vec<TransactionType<RT, S>>> for BatchType<RT, S> {
+    fn from(value: Vec<TransactionType<RT, S>>) -> Self {
         Self(value)
     }
 }
@@ -233,11 +163,11 @@ pub struct ProofInput(pub Vec<u8>);
 
 /// Input that can be executed in a slot ran by the test runtime.
 #[derive(derive_more::From)]
-pub enum SlotInput<S: Spec, M: Module> {
+pub enum SlotInput<RT: Runtime<S>, S: Spec> {
     /// Execute a transaction as input to a slot.
-    Transaction(TransactionType<M, S>),
+    Transaction(TransactionType<RT, S>),
     /// Execute a batch as input to a slot.
-    Batch(BatchType<M, S>),
+    Batch(BatchType<RT, S>),
     /// Execute a proof as input to a slot.
     Proof(ProofInput),
     /// Execute pre-encoded blobs as input to a slot.
@@ -259,9 +189,9 @@ pub enum SequencerInfo {
 }
 
 /// Information to build blobs in soft-confirmation mode
-pub struct SoftConfirmationBlobInfo<S: Spec, M: Module> {
+pub struct SoftConfirmationBlobInfo<RT: Runtime<S>, S: Spec> {
     /// The batch to be included in the blob
-    pub batch_type: BatchType<M, S>,
+    pub batch_type: BatchType<RT, S>,
     /// The address of the sequencer
     pub sequencer_address: MockAddress,
     /// Additional information about the sequencer

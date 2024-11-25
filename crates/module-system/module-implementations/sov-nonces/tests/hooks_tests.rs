@@ -14,8 +14,10 @@ type S = sov_test_utils::TestSpec;
 
 generate_optimistic_runtime!(TestNonceRuntime <= value_setter: ValueSetter<S>);
 
-fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<ValueSetter<S>, S> {
-    let runtime_msg = <TestNonceRuntime<S> as EncodeCall<ValueSetter<S>>>::encode_call(
+type RT = TestNonceRuntime<S>;
+
+fn generate_default_tx(nonce: u64, admin: &TestUser<S>) -> TransactionType<RT, S> {
+    let runtime_msg = <RT as EncodeCall<ValueSetter<S>>>::to_decodable(
         sov_value_setter::CallMessage::SetValue(10),
     );
 

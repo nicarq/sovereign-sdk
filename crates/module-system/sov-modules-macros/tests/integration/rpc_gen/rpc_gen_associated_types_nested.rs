@@ -15,7 +15,14 @@ pub trait Message: 'static {
     type Data: Data;
 }
 pub trait TestSpec:
-    Default + std::fmt::Debug + 'static + borsh::BorshSerialize + borsh::BorshDeserialize
+    Default
+    + std::fmt::Debug
+    + 'static
+    + borsh::BorshSerialize
+    + borsh::BorshDeserialize
+    + Clone
+    + PartialEq
+    + Eq
 {
     type Message: Message;
 }
@@ -126,7 +133,7 @@ impl Message for ActualMessage {
     type Data = u32;
 }
 
-#[derive(Default, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
+#[derive(Default, PartialEq, Eq, Clone, Debug, borsh::BorshSerialize, borsh::BorshDeserialize)]
 struct ActualSpec;
 
 impl TestSpec for ActualSpec {

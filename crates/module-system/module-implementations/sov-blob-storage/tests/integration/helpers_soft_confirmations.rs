@@ -76,28 +76,25 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
     // We currently have to manually build the soft-confirmation blob
     // There is an issue to fix that: `https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1330`
     let mut nonces = runner.nonces().clone();
-    let blob = runner.query_visible_state(|state| {
-        TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<SequencerRegistry<S>>(
-            vec![SoftConfirmationBlobInfo {
-                batch_type: BatchType(vec![regular_sequencer
-                    .create_plain_message::<SequencerRegistry<S>>(
-                        sov_sequencer_registry::CallMessage::Register {
-                            da_address: regular_sequencer_da_address,
-                            amount: user_stake_value,
-                        },
-                    )]),
-                sequencer_address: test_data.preferred_sequencer.da_address,
-                sequencer_info: SequencerInfo::Preferred {
-                    slots_to_advance: 1,
-                    sequence_number: 0,
-                },
-            }],
-            &mut nonces,
-            state,
-        )
-    });
+    let blob = TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs(
+        vec![SoftConfirmationBlobInfo {
+            batch_type: BatchType(vec![regular_sequencer
+                .create_plain_message::<SoftConfRT, SequencerRegistry<S>>(
+                    sov_sequencer_registry::CallMessage::Register {
+                        da_address: regular_sequencer_da_address,
+                        amount: user_stake_value,
+                    },
+                )]),
+            sequencer_address: test_data.preferred_sequencer.da_address,
+            sequencer_info: SequencerInfo::Preferred {
+                slots_to_advance: 1,
+                sequence_number: 0,
+            },
+        }],
+        &mut nonces,
+    );
 
-    runner.execute::<RelevantBlobs<MockBlob>, SequencerRegistry<S>>(blob);
+    runner.execute::<RelevantBlobs<MockBlob>>(blob);
 
     (test_data, runner)
 }
@@ -108,7 +105,6 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
 pub fn build_soft_confirmation_blobs(
     slot_info: &SlotConfigInfo<(TestSequencer<S>, SequencerInfo)>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    runner: &mut TestRunner<SoftConfRT>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
 
@@ -120,11 +116,7 @@ pub fn build_soft_confirmation_blobs(
         });
     }
 
-    runner.query_visible_state(|state| {
-        TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs::<ValueSetter<S>>(
-            batches, nonces, state,
-        )
-    })
+    TestRunner::<SoftConfRT>::soft_confirmation_batches_to_blobs(batches, nonces)
 }
 
 /// This helper method asserts that given slots to send and an expected order of receipts, the
@@ -152,7 +144,7 @@ pub fn assert_blobs_are_correctly_received_soft_confirmation(
 
     let slots_to_send = sending_order
         .iter()
-        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, runner))
+        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces))
         .collect::<Vec<_>>();
 
     assert_blobs_are_correctly_received_helper(

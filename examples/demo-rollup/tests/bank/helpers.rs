@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context};
-use demo_stf::runtime::RuntimeCall;
+use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::event::Event as BankEvent;
 use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
@@ -54,7 +54,7 @@ pub(crate) fn build_create_token_tx(
     key: &TestPrivateKey,
     nonce: u64,
     initial_balance: u64,
-) -> Transaction<TestSpec> {
+) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let user_address: <TestSpec as Spec>::Address = key.to_address();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
@@ -71,7 +71,7 @@ pub(crate) fn build_transfer_token_tx(
     recipient: <TestSpec as Spec>::Address,
     amount: u64,
     nonce: u64,
-) -> Transaction<TestSpec> {
+) -> Transaction<Runtime<TestSpec>, TestSpec> {
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::Transfer {
         to: recipient,
         coins: Coins { amount, token_id },
@@ -85,7 +85,7 @@ pub(crate) fn build_multiple_transfers(
     token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
     start_nonce: u64,
-) -> Vec<Transaction<TestSpec>> {
+) -> Vec<Transaction<Runtime<TestSpec>, TestSpec>> {
     let mut txs = vec![];
     let mut nonce = start_nonce;
     for amt in amounts {

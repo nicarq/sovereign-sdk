@@ -57,13 +57,12 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
     /// Converts a [`Message`] into a [`Transaction`] using the [`TxDetails`] provided by the [`Message`].
     pub fn to_tx<RT: EncodeCall<Mod> + Runtime<S>>(
         self,
-    ) -> sov_modules_api::transaction::Transaction<S> {
-        let message = RT::encode_call(self.content);
-        Transaction::<S>::new_signed_tx(
+    ) -> sov_modules_api::transaction::Transaction<RT, S> {
+        Transaction::<RT, S>::new_signed_tx(
             &self.sender_key,
             &RT::CHAIN_HASH,
             UnsignedTransaction::new(
-                message,
+                <RT as EncodeCall<Mod>>::to_decodable(self.content),
                 self.details.chain_id,
                 self.details.max_priority_fee_bips,
                 self.details.max_fee,

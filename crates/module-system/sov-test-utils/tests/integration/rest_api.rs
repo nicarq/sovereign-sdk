@@ -6,7 +6,7 @@ use sov_test_utils::runtime::{ApiGetStateData, ApiPath};
 use sov_test_utils::{AsUser, TransactionTestCase};
 use sov_value_setter::ValueSetter;
 
-use crate::helpers::{setup, S};
+use crate::helpers::{setup, RT, S};
 
 /// Tests that api routes that are automatically generated work and update as expected.
 #[tokio::test(flavor = "multi_thread")]
@@ -45,8 +45,9 @@ async fn test_rest_api_routes_default_state() {
     );
 
     runner.execute_transaction(TransactionTestCase {
-        input: user
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        input: user.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        ),
         assert: Box::new(move |result, _state| {
             assert!(result.tx_receipt.is_successful());
         }),
@@ -96,8 +97,9 @@ async fn test_rest_api_routes_custom_api() {
     let gas_used_clone = gas_used.clone();
 
     runner.execute_transaction(TransactionTestCase {
-        input: user
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10)),
+        input: user.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        ),
         assert: Box::new(move |result, _state| {
             assert!(result.tx_receipt.is_successful());
             gas_used.fetch_add(result.gas_value_used, std::sync::atomic::Ordering::SeqCst);

@@ -6,7 +6,7 @@ use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::{AsUser, BatchTestCase, TestSequencer};
 use sov_value_setter::ValueSetter;
 
-use crate::helpers::{setup, S};
+use crate::helpers::{setup, RT, S};
 
 /// Tests that the batch is rewarded if the default sequencer is used
 #[test]
@@ -14,8 +14,9 @@ fn test_default_sequencer() {
     let (admin, mut runner) = setup();
 
     runner.execute_batch(BatchTestCase {
-        input: vec![admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(1))]
+        input: vec![admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(1),
+        )]
         .into(),
         assert: Box::new(move |result, _state| {
             assert_eq!(result.sender_da_address, runner.config.sequencer_da_address);
@@ -31,8 +32,9 @@ fn test_specify_non_default_sequencer_errors_if_not_registered() {
     runner.config.sequencer_da_address = <MockDaSpec as DaSpec>::Address::from([42; 32]);
 
     runner.execute_batch(BatchTestCase {
-        input: vec![admin
-            .create_plain_message::<ValueSetter<S>>(sov_value_setter::CallMessage::SetValue(10))]
+        input: vec![admin.create_plain_message::<RT, ValueSetter<S>>(
+            sov_value_setter::CallMessage::SetValue(10),
+        )]
         .into(),
         assert: Box::new(move |result, _state| {
             assert!(
@@ -62,19 +64,21 @@ fn test_register_sequencer() {
     };
 
     // We first bond the sequencer
-    runner.execute(new_sequencer.create_plain_message::<SequencerRegistry<S>>(
-        sov_sequencer_registry::CallMessage::Register {
-            da_address: new_sequencer.da_address,
-            amount: new_sequencer.bond,
-        },
-    ));
+    runner.execute(
+        new_sequencer.create_plain_message::<RT, SequencerRegistry<S>>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: new_sequencer.da_address,
+                amount: new_sequencer.bond,
+            },
+        ),
+    );
 
     runner.config.sequencer_da_address = new_sequencer.da_address;
 
     runner
         // Then we use the non-default sequencer to set a value
         .execute_batch(BatchTestCase {
-            input: vec![new_sequencer.create_plain_message::<ValueSetter<S>>(
+            input: vec![new_sequencer.create_plain_message::<RT, ValueSetter<S>>(
                 sov_value_setter::CallMessage::SetValue(10),
             )]
             .into(),

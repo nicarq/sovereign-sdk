@@ -1,6 +1,8 @@
 mod data;
 mod rewards;
 
+use std::fmt::Debug;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
 pub(crate) use rewards::transaction_consumption_helper;
@@ -15,38 +17,69 @@ use sov_rollup_interface::zk::CryptoSpec;
 use sov_rollup_interface::TxHash;
 use thiserror::Error;
 
-use crate::{Gas, GasMeter, GasMeteringError, MeteredSigVerificationError, MeteredSignature, Spec};
+use crate::{
+    DispatchCall, Gas, GasMeter, GasMeteringError, MeteredSigVerificationError, MeteredSignature,
+    Spec,
+};
 
 #[cfg(test)]
 mod tests;
 
+/// Structures that implement this trait represent a call message that can be included in a
+/// transaction.
+/// By default, this is blanket-derived on anything implementing the `Runtime` trait, implementing
+/// the trait using the runtime's typed `RuntimeCall` messages.
+pub trait TransactionCallable {
+    /// The type of the call of the transaction.
+    type Call: BorshSerialize + BorshDeserialize + Debug + Clone + PartialEq + Eq;
+}
+
+impl<D: DispatchCall> TransactionCallable for D {
+    type Call = D::Decodable;
+}
+
 /// A Transaction object that is compatible with the module-system/sov-default-stf.
 #[derive(
-    Debug,
-    PartialEq,
-    Eq,
+    derive_more::Debug, // derive_more uses the correct bound of TransactionCallable::RuntimeCall
     Clone,
     borsh::BorshDeserialize,
     borsh::BorshSerialize,
     serde::Serialize,
     serde::Deserialize,
 )]
+#[serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")]
 #[cfg_attr(
     feature = "native",
     derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
 )]
-pub struct Transaction<S: Spec> {
+pub struct Transaction<R: TransactionCallable, S: Spec> {
     /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
     /// The public key of the sender of the transaction.
     pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-    /// The runtime message of the transaction. The message should have been encoded using the [`crate::EncodeCall`] trait.
-    pub runtime_msg: Vec<u8>,
+    /// The runtime call of the transaction.     
+    pub runtime_call: R::Call,
     /// The nonce of the transaction.
     pub nonce: u64,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
+
+// Unfortunately built-in Rust derives for Eq and PartialEq use a bound of `TransactionCallable:
+// Eq, PartialEq` which is incorrect (TransactionCallable will be the Runtime in most cases).
+// Thus we have to manually derive them, because the real bound is
+// `TransactionCallable::RuntimeCall` (aka `<Runtime as DispatchCall>::Decodable`) which is already
+// enforced in the trait definition.
+impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.signature == other.signature
+            && self.pub_key == other.pub_key
+            && self.runtime_call == other.runtime_call
+            && self.nonce == other.nonce
+            && self.details == other.details
+    }
+}
+impl<R: TransactionCallable, S: Spec> Eq for Transaction<R, S> {}
 
 /// Errors that can be raised by the [`Transaction::verify`] method.
 #[derive(Error, Debug)]
@@ -75,7 +108,7 @@ impl<GU: Gas> From<MeteredSigVerificationError<GU>> for TransactionVerificationE
     }
 }
 
-impl<S: Spec> Transaction<S> {
+impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     /// Returns a reference to the signature of the transaction.
     pub fn signature(&self) -> &<S::CryptoSpec as CryptoSpec>::Signature {
         &self.signature
@@ -86,9 +119,9 @@ impl<S: Spec> Transaction<S> {
         &self.pub_key
     }
 
-    /// Returns a reference to the runtime message of the transaction.
-    pub fn runtime_msg(&self) -> &[u8] {
-        &self.runtime_msg
+    /// Returns a reference to the runtime call of the transaction.
+    pub fn runtime_call(&self) -> &R::Call {
+        &self.runtime_call
     }
 
     /// Check whether the transaction has been signed correctly.
@@ -112,23 +145,23 @@ impl<S: Spec> Transaction<S> {
     /// Creates a new transaction with the provided metadata.
     pub fn new_with_details(
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
-        message: Vec<u8>,
+        runtime_call: R::Call,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
         nonce: u64,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             signature,
-            runtime_msg: message,
+            runtime_call,
             pub_key,
             nonce,
             details,
         }
     }
 
-    fn to_unsigned_transaction(&self) -> UnsignedTransaction<S> {
+    fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {
         UnsignedTransaction::new_with_details(
-            self.runtime_msg.clone(),
+            self.runtime_call.clone(),
             self.nonce,
             self.details.clone(),
         )
@@ -136,12 +169,12 @@ impl<S: Spec> Transaction<S> {
 }
 
 #[cfg(feature = "native")]
-impl<S: Spec> Transaction<S> {
+impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     /// New signed transaction.
     pub fn new_signed_tx(
         priv_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
         chain_hash: &[u8; 32],
-        unsigned_tx: UnsignedTransaction<S>,
+        unsigned_tx: UnsignedTransaction<R, S>,
     ) -> Self {
         let mut utx_bytes: Vec<u8> = Vec::new();
         BorshSerialize::serialize(&unsigned_tx, &mut utx_bytes).unwrap();
@@ -155,24 +188,34 @@ impl<S: Spec> Transaction<S> {
 }
 
 /// An unsent transaction with the required data to be submitted to the DA layer
-#[derive(Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
+#[derive(derive_more::Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize)]
 #[cfg_attr(
     feature = "native",
     derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
 )]
-pub struct UnsignedTransaction<S: Spec> {
-    // The runtime message
-    runtime_msg: Vec<u8>,
+pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
+    // The runtime call
+    runtime_call: R::Call,
     // The nonce
     nonce: u64,
     // Data related to fees and gas handling.
     details: TxDetails<S>,
 }
+// Manually implemented to ensure correct trait bounds for the same reason as for `Transaction`
+// above
+impl<R: TransactionCallable, S: Spec> PartialEq for UnsignedTransaction<R, S> {
+    fn eq(&self, other: &Self) -> bool {
+        self.runtime_call == other.runtime_call
+            && self.nonce == other.nonce
+            && self.details == other.details
+    }
+}
+impl<R: TransactionCallable, S: Spec> Eq for UnsignedTransaction<R, S> {}
 
-impl<S: Spec> UnsignedTransaction<S> {
+impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
     /// Creates a new [`UnsignedTransaction`] with the given arguments.
     pub const fn new(
-        runtime_msg: Vec<u8>,
+        runtime_call: R::Call,
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: u64,
@@ -180,7 +223,7 @@ impl<S: Spec> UnsignedTransaction<S> {
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
-            runtime_msg,
+            runtime_call,
             nonce,
             details: TxDetails {
                 max_priority_fee_bips,
@@ -192,9 +235,13 @@ impl<S: Spec> UnsignedTransaction<S> {
     }
 
     /// Creates a new unsigned transaction with the provided metadata.
-    pub const fn new_with_details(runtime_msg: Vec<u8>, nonce: u64, details: TxDetails<S>) -> Self {
+    pub const fn new_with_details(
+        runtime_call: R::Call,
+        nonce: u64,
+        details: TxDetails<S>,
+    ) -> Self {
         Self {
-            runtime_msg,
+            runtime_call,
             nonce,
             details,
         }
@@ -206,10 +253,10 @@ impl<S: Spec> UnsignedTransaction<S> {
         self,
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
-    ) -> Transaction<S> {
+    ) -> Transaction<R, S> {
         Transaction::new_with_details(
             pub_key,
-            self.runtime_msg,
+            self.runtime_call,
             signature,
             self.nonce,
             self.details,

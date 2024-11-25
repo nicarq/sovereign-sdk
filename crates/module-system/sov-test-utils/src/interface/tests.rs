@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use sov_modules_api::{
-    ApiStateAccessor, BatchSequencerReceipt, DaSpec, Module, ProofReceipt, RuntimeEventProcessor,
+    ApiStateAccessor, BatchSequencerReceipt, DaSpec, ProofReceipt, Runtime, RuntimeEventProcessor,
     Spec, TransactionReceipt, TxEffect,
 };
 pub use sov_modules_stf_blueprint::TxReceiptContents;
@@ -63,15 +63,15 @@ impl<S: Spec, RT: RuntimeEventProcessor> TransactionAssertContext<S, RT> {
 }
 
 /// A closure used to assert the outcome of a [`TransactionTestCase`].
-pub type TransactionTestAssert<S, RT> = TestAssertion<TransactionAssertContext<S, RT>, S>;
+pub type TransactionTestAssert<RT, S> = TestAssertion<TransactionAssertContext<S, RT>, S>;
 
 /// A test case that applies the provided input and asserts the result.
-pub struct TransactionTestCase<S: Spec, RT: RuntimeEventProcessor, M: Module> {
+pub struct TransactionTestCase<RT: Runtime<S>, S: Spec> {
     /// Input transaction to execute.
-    pub input: TransactionType<M, S>,
+    pub input: TransactionType<RT, S>,
     /// Closure used to assert the outcome of the input application
     /// to the rollup state.
-    pub assert: TransactionTestAssert<S, RT>,
+    pub assert: TransactionTestAssert<RT, S>,
 }
 
 /// Context that is passed to [`BatchTestCase::assert`] to check the outcome of a test.
@@ -89,9 +89,9 @@ pub struct BatchAssertContext<S: Spec> {
 pub type BatchTestAssert<S> = TestAssertion<BatchAssertContext<S>, S>;
 
 /// A test case that applies the provided batch input and asserts the result.
-pub struct BatchTestCase<S: Spec, M: Module> {
+pub struct BatchTestCase<RT: Runtime<S>, S: Spec> {
     /// Input to execute as part of the batch.
-    pub input: BatchType<M, S>,
+    pub input: BatchType<RT, S>,
     /// Closure used to assert the outcome of applying the batch to the rollup.
     pub assert: BatchTestAssert<S>,
 }

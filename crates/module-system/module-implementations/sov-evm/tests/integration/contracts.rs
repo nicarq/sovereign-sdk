@@ -8,6 +8,7 @@ use sov_modules_api::RawTx;
 use sov_test_utils::{SimpleStorageContract, TransactionType};
 
 use crate::helpers::{setup, S};
+use crate::runtime::RT;
 
 #[test]
 fn test_invalid_contract_execution() {
@@ -31,7 +32,7 @@ fn test_invalid_contract_execution() {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
 
-    runner.execute(TransactionType::<Evm<S>, S>::PreSigned(raw_tx));
+    runner.execute(TransactionType::<RT, S>::PreSigned(raw_tx));
 
     runner.query_visible_state(|state| {
         let evm = Evm::<S>::default();

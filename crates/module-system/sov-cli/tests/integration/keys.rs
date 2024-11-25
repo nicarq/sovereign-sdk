@@ -1,18 +1,17 @@
 use std::path::Path;
 
-use borsh::{BorshDeserialize, BorshSerialize};
 use sov_cli::wallet_state::{KeyIdentifier, PrivateKeyAndAddress, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
-use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
-use sov_test_utils::runtime::TestOptimisticRuntimeCall;
+use sov_modules_api::{CryptoSpec, DispatchCall, PrivateKey, Spec};
+use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::TestSpec;
 
-type RuntimeCall = TestOptimisticRuntimeCall<TestSpec>;
+type Runtime = TestOptimisticRuntime<TestSpec>;
 
 #[test]
 fn test_key_gen() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     assert!(wallet_state.addresses.is_empty());
 
     generate_key_in_state(None, &mut wallet_state, app_dir.path()).unwrap();
@@ -36,7 +35,7 @@ fn test_key_gen() {
 #[test]
 fn test_keys_restored_from_file() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     assert!(wallet_state.addresses.is_empty());
 
     generate_key_in_state(None, &mut wallet_state, app_dir.path()).unwrap();
@@ -58,7 +57,7 @@ fn test_keys_restored_from_file() {
         .expect("saving to file should succeed");
     drop(wallet_state);
 
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::load(&wallet_file).unwrap();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::load(&wallet_file).unwrap();
     assert_eq!(2, wallet_state.addresses.len());
     let address_1_after = wallet_state.addresses.default_address().unwrap().clone();
     let address_2_after = wallet_state
@@ -81,7 +80,7 @@ fn test_keys_restored_from_file() {
 #[test]
 fn test_key_import() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     assert_eq!(0, wallet_state.addresses.len());
 
     let key_name = "my-test-key";
@@ -114,7 +113,7 @@ fn test_key_import() {
 #[test]
 fn test_key_import_duplicate() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     assert_eq!(0, wallet_state.addresses.len());
 
     let key_name = "my-test-key";
@@ -150,7 +149,7 @@ fn test_key_import_duplicate() {
 #[test]
 fn test_duplicate_nickname_generate() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     let key_name = "key1";
     generate_key_in_state(Some(key_name), &mut wallet_state, app_dir.path()).unwrap();
@@ -184,7 +183,7 @@ fn test_duplicate_nickname_generate() {
 fn test_activate() {
     // Setup a wallet with two keys
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     generate_key_in_state(Some("key1"), &mut wallet_state, app_dir.path()).unwrap();
     generate_key_in_state(Some("key2"), &mut wallet_state, app_dir.path()).unwrap();
 
@@ -220,7 +219,7 @@ fn test_activate() {
 fn test_show() {
     // Set up a wallet with mock key
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
     generate_key_in_state(Some("mock-key"), &mut wallet_state, app_dir.path()).unwrap();
 
     // Show mock-key by nickname
@@ -251,7 +250,7 @@ fn test_show() {
 #[test]
 fn test_list() {
     let app_dir = tempfile::tempdir().unwrap();
-    let mut wallet_state = WalletState::<RuntimeCall, TestSpec>::default();
+    let mut wallet_state = WalletState::<Runtime, TestSpec>::default();
 
     // Generate couple keys and see that they are listed
     generate_key_in_state(Some("key1"), &mut wallet_state, app_dir.path()).unwrap();
@@ -269,7 +268,7 @@ fn generate_key_in_state<Tx, S>(
     app_dir: impl AsRef<Path>,
 ) -> anyhow::Result<()>
 where
-    Tx: BorshSerialize + BorshDeserialize + serde::Serialize + serde::de::DeserializeOwned,
+    Tx: DispatchCall,
     S: Spec,
 {
     let workflow = KeyWorkflow::Generate {
@@ -286,7 +285,7 @@ fn import_key_file<Tx, S>(
     skip_if_present: bool,
 ) -> anyhow::Result<PrivateKeyAndAddress<S>>
 where
-    Tx: BorshSerialize + BorshDeserialize + serde::Serialize + serde::de::DeserializeOwned,
+    Tx: DispatchCall,
     S: Spec,
 {
     let generated_key = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();

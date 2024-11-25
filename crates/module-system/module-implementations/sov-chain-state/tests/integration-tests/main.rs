@@ -11,6 +11,7 @@ mod dynamic_gas_update;
 generate_optimistic_runtime!(TestChainStateRuntime <= value_setter: ValueSetter<S>);
 
 type S = sov_test_utils::TestSpec;
+type RT = TestChainStateRuntime<S>;
 
 fn setup() -> (TestUser<S>, TestRunner<TestChainStateRuntime<S>, S>) {
     let genesis_config =
