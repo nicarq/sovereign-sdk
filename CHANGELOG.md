@@ -1,5 +1,7 @@
 ## 2024-11-25
 - #1925 makes several improvements to sequencer stability after restarts.
+## 2024-11-26
+- #1921 adds new `tracing` utilities in `sov_modules_rollup_blueprint::logging`. Most rollups will be able to seamlessly switch from their own custom implementation of `fn initialize_logging` to `sov_modules_rollup_blueprint::logging::initialize_logging`, which can be used to setup logging inside the rollup node's `main` function.
 ## 2024--11-21
 - #1899 Adds `monitoring` section to rollup configuration. 
   Mandatory field is `telegraf_address` which is most likely to be "127.0.0.1:8094".

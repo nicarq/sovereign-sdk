@@ -6,10 +6,11 @@ use clap::Parser;
 use demo_stf::genesis_config::GenesisPaths;
 use sha2::Sha256;
 use sov_celestia_adapter::CelestiaService;
-use sov_demo_rollup::{initialize_logging, CelestiaDemoRollup, MockDemoRollup};
+use sov_demo_rollup::{CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Address;
+use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_stf_runner::processes::RollupProverConfig;
@@ -51,7 +52,7 @@ async fn main() {
 
     match run().await {
         Ok(_) => {
-            debug!("Rollup execution complete. Shutting down.");
+            tracing::debug!("Rollup execution complete. Shutting down.");
         }
         Err(e) => {
             tracing::error!(error = ?e, backtrace= e.backtrace().to_string(), "Rollup execution failed");
