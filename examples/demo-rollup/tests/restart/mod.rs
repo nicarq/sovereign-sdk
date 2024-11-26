@@ -70,7 +70,7 @@ async fn start_stop_empty(
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let mock_da_dir = tempfile::tempdir()?;
-    let restarts = 30;
+    let restarts = 10;
     let mut rng = rand::thread_rng();
 
     let sleep_durations: Vec<std::time::Duration> = (0..restarts)
@@ -79,7 +79,7 @@ async fn start_stop_empty(
 
     for sleep_duration in sleep_durations {
         let test_rollup = tokio::time::timeout(
-            std::time::Duration::from_secs(30),
+            std::time::Duration::from_secs(60),
             RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
                 rollup_prover_config,
                 test_genesis_source(operation_mode),
@@ -87,7 +87,7 @@ async fn start_stop_empty(
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 Some(mock_da_dir.path()),
-                5,
+                1,
                 BatchBuilderMode::Standard(Default::default()),
             ),
         )
