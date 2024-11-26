@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
+pub mod logging;
+#[cfg(feature = "native")]
 pub mod proof_serializer;
 #[cfg(feature = "native")]
 mod wallet;
@@ -17,9 +19,6 @@ pub mod pluggable_traits;
 use sov_modules_stf_blueprint::Runtime;
 #[cfg(feature = "native")]
 pub use wallet::*;
-
-/// Recommended default log level;
-pub const DEFAULT_SOV_ROLLUP_LOGGING: &str = "debug,hyper=info,risc0_zkvm=warn,jmt=info,jsonrpsee-server=info,jsonrpsee-client=info,reqwest=info,sqlx=warn,tiny_http=warn,tower_http=info,tungstenite=info,risc0_circuit_rv32im=info,risc0_zkp::verify=info";
 
 /// A trait defining the logical STF of the rollup.
 pub trait RollupBlueprint<M: ExecutionMode>: Sized + Send + Sync {

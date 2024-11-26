@@ -38,9 +38,6 @@ pub mod generators;
 /// Utilities for writing integration tests against ledger APIs (both Rust API and REST APIs).
 pub mod ledger_db;
 
-/// Utilities for logging tests.
-pub mod logging;
-
 /// Utilities for testing the runtime.
 pub mod runtime;
 

@@ -147,7 +147,7 @@ nmt-rs = { version = "0.2.3", features = ["serde", "borsh"] }
 # External dependencies
 async-trait = "0.1.81"
 anyhow = { version = "1.0.86" }
-axum = { version = "0.7", default-features = false }
+axum = { version = "0.7.9", default-features = false }
 axum-server = { version = "0.6", features = ["tls-rustls"] }
 arbitrary = { version = "1.3.2", features = ["derive"] }
 backon = "0.4.4"
@@ -200,6 +200,7 @@ thiserror = "1.0.64"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
+tracing-subscriber = { version = "0.3.18" } # There's hardly any reason to disable its default features.
 tracing-test = { version = "0.2.5", features = [
     "no-env-filter",
 ] } # https://docs.rs/tracing-test/latest/tracing_test/#per-crate-filtering
