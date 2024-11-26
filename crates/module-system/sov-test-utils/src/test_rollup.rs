@@ -277,8 +277,8 @@ where
             block_time_ms,
         };
 
-        let max_channel_size = 30;
-        let max_infos_in_db = 50 + finalization_blocks as u64;
+        let max_channel_size = 60;
+        let max_infos_in_db = 80 + finalization_blocks as u64;
 
         let (rollup_config, rollup_task, da_service, shutdown_sender) =
             Self::start_rollup_in_background(
