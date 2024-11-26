@@ -28,7 +28,9 @@ path = "demo_data"
 # any blocks before this height, and any blobs at this height will not be processed
 [runner]
 genesis_height = 0
-da_polling_interval_ms = 1000
+
+# da.block_time is 1s, so status updater will try to poll it 3 times during it.
+da_polling_interval_ms = 300
 
 [runner.rpc_config]
 # the host and port to bind the rpc server for
