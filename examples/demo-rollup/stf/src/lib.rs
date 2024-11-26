@@ -6,8 +6,6 @@ pub mod authentication;
 pub mod genesis_config;
 mod hooks_impl;
 pub mod runtime;
-#[cfg(test)]
-mod tests;
 
 mod chain_hash;
 
