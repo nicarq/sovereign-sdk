@@ -1,3 +1,5 @@
+## 2024-11-26
+-  #1931 Remove the `salt` query parameter from /modules/bank/tokens
 ## 2024-11-25
 - #1925 makes several improvements to sequencer stability after restarts.
 ## 2024-11-26
