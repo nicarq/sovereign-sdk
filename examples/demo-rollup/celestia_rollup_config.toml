@@ -16,7 +16,9 @@ path = "demo_data"
 # any blocks before this height, and any blobs at this height will not be processed
 [runner]
 genesis_height = 3
-da_polling_interval_ms = 10000
+# Block time for celestia is configured in `docker/run-validator.sh` and we try to set this one to be lower,
+# So status is updated more frequently.
+da_polling_interval_ms = 200
 
 [runner.rpc_config]
 # the host and port to bind the rpc server for
