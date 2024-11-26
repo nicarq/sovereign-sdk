@@ -6,9 +6,9 @@ const URL: &str = "http://localhost:12346";
 
 #[tokio::main]
 async fn main() {
-    // TODO #1867
-    create_batch(PRIVATE_KEYS_FILE, URL.to_string()).await;
     // To check available endpoints: http://localhost:12346/swagger-ui/
+    // TODO #1867
+    let _token_id = create_batch(PRIVATE_KEYS_FILE, URL.to_string()).await;
 
     let mut all_endpoints = Vec::new();
     all_endpoints.append(&mut ledger_endpoints());
@@ -45,7 +45,6 @@ fn module_endpoints() -> Vec<&'static str> {
         "modules/accounts/state/credential-ids",
         // "modules/accounts/state/credential-ids/items/{key}",
         // Bank
-        "modules/bank/tokens",
         // "modules/bank/tokens/{token_id}/balances/{address}",
         // "modules/bank/tokens/{token_id}/total-supply",
         // Nonces
@@ -89,7 +88,7 @@ mod helpers {
     use demo_stf::runtime::{Runtime, RuntimeCall};
     use sov_cli::wallet_state::PrivateKeyAndAddress;
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{Runtime as RuntimeTrait, SafeVec};
+    use sov_modules_api::{Runtime as RuntimeTrait, SafeVec, Spec};
     use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
     const TOKEN_NAME: &str = "TestToken";
@@ -97,8 +96,8 @@ mod helpers {
     struct Client(sov_api_spec::Client);
 
     impl Client {
-        fn new(api_url: String) -> Self {
-            let client = sov_api_spec::Client::new(&api_url);
+        fn new(api_url: &str) -> Self {
+            let client = sov_api_spec::Client::new(api_url);
 
             Self(client)
         }
@@ -113,6 +112,18 @@ mod helpers {
                 .await
                 .unwrap();
         }
+
+        async fn get(&self, url: String) -> String {
+            self.0
+                .client()
+                .get(url)
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap()
+        }
     }
 
     fn build_create_token_tx(
@@ -121,6 +132,7 @@ mod helpers {
         initial_balance: u64,
     ) -> Transaction<Runtime<TestSpec>, TestSpec> {
         let user_address = key.to_address();
+
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),
             initial_balance,
@@ -131,13 +143,22 @@ mod helpers {
         default_test_signed_transaction(key, &msg, nonce, &Runtime::<TestSpec>::CHAIN_HASH)
     }
 
-    pub(crate) async fn create_batch(private_key_file: &str, url: String) {
-        let client = Client::new(url);
+    pub(crate) async fn create_batch(private_key_file: &str, url: String) -> String {
+        let client = Client::new(&url);
         let keys = PrivateKeyAndAddress::<TestSpec>::from_json_file(Path::new(private_key_file))
             .context(format!("File does not exist: {:?}", private_key_file))
             .unwrap();
         let priv_key = keys.private_key;
+        let sender = keys.address;
         let tx = build_create_token_tx(&priv_key, 0, 100);
         client.send_transactions(&[tx]).await;
+        client.get(query_token_id(url, sender)).await
+    }
+
+    fn query_token_id(url: String, sender: <TestSpec as Spec>::Address) -> String {
+        format!(
+            "{}/modules/bank/tokens?token_name={}&sender={}",
+            url, TOKEN_NAME, sender
+        )
     }
 }
