@@ -90,6 +90,52 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     config: PreferredBatchBuilderConfig,
 }
 
+impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
+    async fn reapply_txs(&mut self, txs: &[SeqDbTx]) {
+        let mut checkpoint = self
+            .checkpoint
+            .take()
+            .expect("Absent checkpoint; this is a bug, please report it");
+
+        for seqdb_tx in txs {
+            let tx_input = seqdb_tx.tx_input::<Self>();
+
+            let (new_checkpoint, response) = self
+                .acceptor
+                .tx_confirmation(tx_input, checkpoint, self.next_event_number)
+                .await;
+
+            checkpoint = new_checkpoint;
+
+            match response {
+                Ok(ref ok) => {
+                    self.txs_in_next_batch.push(TxWithHash {
+                        fully_baked_tx: seqdb_tx.fully_baked_tx(),
+                        hash: seqdb_tx.hash,
+                    });
+                    self.next_event_number += ok.confirmation.events.len() as u64;
+                }
+                Err(err) => {
+                    warn!(
+                        ?err,
+                        "Failed to restore transaction; this is likely indicative of an abrupt sequencer shutdown. Please monitor logs and report any potential issues.",
+                    );
+                }
+            }
+        }
+
+        self.checkpoint = Some(checkpoint);
+        self.checkpoint_sender
+            .send(
+                self.checkpoint
+                    .as_ref()
+                    .expect("Missing internal checkpoint; this is a bug, please report it")
+                    .clone_with_empty_witness(),
+            )
+            .ok();
+    }
+}
+
 /// Configuration for [`PreferredBatchBuilder`].
 #[derive(
     Debug, Default, Clone, serde::Serialize, serde::Deserialize, Eq, PartialEq, JsonSchema,
@@ -155,17 +201,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         };
 
         // Restore persisted transactions.
-        for seq_db_tx in seq_db_txs {
-            let res = bb.accept_tx(seq_db_tx.tx_input::<Self>()).await;
-
-            if let Err(err) = res {
-                warn!(
-                    ?err,
-                    "Failed to restore transaction; this is likely indicative of an abrupt sequencer shutdown. Please monitor logs and report any potential issues.",
-                );
-                break;
-            }
-        }
+        bb.reapply_txs(&seq_db_txs).await;
 
         Ok(bb)
     }

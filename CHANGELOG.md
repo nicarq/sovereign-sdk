@@ -1,3 +1,5 @@
+## 2024-11-25
+- #1925 makes several improvements to sequencer stability after restarts.
 ## 2024--11-21
 - #1899 Adds `monitoring` section to rollup configuration. 
   Mandatory field is `telegraf_address` which is most likely to be "127.0.0.1:8094".
