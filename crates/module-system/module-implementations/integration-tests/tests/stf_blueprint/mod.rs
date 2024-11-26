@@ -1,10 +1,15 @@
+mod da_simulation;
 mod registered;
+mod stf_tests;
+mod tx_revert_tests;
 mod unregistered;
+
 use sov_bank::Bank;
+use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{ApiStateAccessor, DaSpec, Gas, PrivateKey, Spec};
-use sov_modules_stf_blueprint::Runtime;
+use sov_modules_api::{ApiStateAccessor, Batch, DaSpec, Gas, PrivateKey, RawTx, Rewards, Spec};
+use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{config_gas_token_id, Payable, TestRunner};
@@ -199,4 +204,44 @@ fn create_tx_out_of_gas(
         &IntegTestRuntime::<S>::CHAIN_HASH,
         utx,
     )
+}
+
+/// Builds a [`MockBlob`] from a [`Batch`] and a given address.
+pub fn new_test_blob_from_batch(
+    batch: Batch,
+    address: &[u8],
+) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let address = MockAddress::try_from(address).unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
+    MockBlob::new_with_hash(data, address)
+}
+
+/// Builds a new test blob for direct sequencer registration.
+pub fn new_test_blob_for_direct_registration(
+    tx: RawTx,
+    address: &[u8],
+    hash: [u8; 32],
+) -> <MockDaSpec as DaSpec>::BlobTransaction {
+    let batch = tx;
+    let address = MockAddress::try_from(address).unwrap();
+    let data = borsh::to_vec(&batch).unwrap();
+    MockBlob::new(data, address, hash)
+}
+
+/// Checks if the given [`BatchReceipt`] contains any events.
+pub fn has_tx_events<S: Spec>(apply_blob_outcome: &BatchReceipt<S>) -> bool {
+    let events = apply_blob_outcome
+        .tx_receipts
+        .iter()
+        .flat_map(|receipts| receipts.events.iter());
+
+    events.peekable().peek().is_some()
+}
+
+fn default_rewards() -> Rewards {
+    Rewards {
+        accumulated_reward: 0,
+        accumulated_penalty: 0,
+        hooks_cost: 0,
+    }
 }
