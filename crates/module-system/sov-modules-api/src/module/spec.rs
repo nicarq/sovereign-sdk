@@ -162,7 +162,6 @@ pub struct Context<S: Spec> {
     visible_height: u64,
     /// Describes the context in which the transaction is being executed.
     execution_context: ExecutionContext,
-    phantom: core::marker::PhantomData<S>,
 }
 
 impl<S: Spec> Context<S> {
@@ -234,7 +233,6 @@ impl<S: Spec> Context<S> {
             gas_refund_recipient: payer,
             visible_height: height,
             execution_context,
-            phantom: core::marker::PhantomData,
         }
     }
 

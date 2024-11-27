@@ -325,13 +325,16 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
                     continue;
                 }
 
-                // Update storage.
-                let state_update_info = state_update_receiver.borrow().clone();
+                // Update storage. It is scoped, so batch builder lock is released early.
+                let storage_rollup_height = {
+                    let state_update_info = state_update_receiver.borrow().clone();
+                    let rollup_height = state_update_info.rollup_height;
+                    let mut bb = inner.batch_builder.lock().await;
+                    bb.update_state(state_update_info).await;
+                    rollup_height
+                };
 
-                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, state_update_info.rollup_height).await?;
-
-                let mut bb = inner.batch_builder.lock().await;
-                bb.update_state(state_update_info).await;
+                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, storage_rollup_height).await?;
 
                 // Now that we retrieved the latest state, we can produce and send a new batch.
                 if inner.automatic_batch_production {
