@@ -16,10 +16,11 @@ workspace = true
 [dependencies]
 prometheus = { workspace = true }
 tracing = { workspace = true }
-tokio = { workspace = true, features = ["net", "sync", "rt", "macros"], optional = true }
+tokio = { workspace = true, features = ["sync"], default-features = false }
 serde = { workspace = true, optional = true }
 schemars = { workspace = true, optional = true }
 derivative = { workspace = true, optional = true }
+sov-rollup-interface = { workspace = true }
 
 [dev-dependencies]
 anyhow = { workspace = true }
@@ -28,9 +29,12 @@ tokio = { workspace = true, features = ["full"] }
 
 [features]
 native = [
-	"dep:tokio",
-	"dep:serde",
-	"dep:schemars",
-	"dep:derivative",
-	"sov-metrics/native"
+    "dep:serde",
+    "dep:schemars",
+    "dep:derivative",
+    "sov-metrics/native",
+    "sov-rollup-interface/native",
+    "tokio/net",
+    "tokio/macros",
+    "tokio/rt",
 ]

@@ -5,9 +5,8 @@ mod influxdb;
 mod prometheus;
 
 #[cfg(feature = "native")]
+pub use influxdb::{init_metrics_tracker, MonitoringConfig};
 pub use influxdb::{
-    init_metrics_tracker, track_metrics, MetricsTracker, MonitoringConfig, RunnerMetrics,
+    track_metrics, MetricsTracker, RunnerMetrics, TransactionEffect, TransactionProcessingMetrics,
 };
-#[cfg(not(feature = "native"))]
-pub use influxdb::{track_metrics, MetricsTracker};
 pub use prometheus::{update_metrics, Metrics};

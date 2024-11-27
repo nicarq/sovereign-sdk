@@ -6,7 +6,7 @@ use mini_moka::sync::Cache as MokaCache;
 use sov_modules_api::DaSpec;
 use sov_rollup_interface::TxHash;
 use tokio::sync::broadcast;
-use tracing::{debug, error, trace};
+use tracing::{error, trace};
 
 /// A rollup transaction status.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -97,7 +97,7 @@ impl<Da: DaSpec> TxStatusManager<Da> {
     pub fn notify(&self, tx_hash: TxHash, status: TxStatus<Da::TransactionId>) {
         let mut senders = self.senders.write().expect(Self::LOCK_ERR);
 
-        debug!(%tx_hash, ?status, senders_count = senders.len(), "Notifying subscribers about tx status update");
+        trace!(%tx_hash, ?status, senders_count = senders.len(), "Notifying subscribers about tx status update");
 
         // Updating the cache is done very intentionally *after* acquiring a
         // lock, otherwise race conditions may result in a stale cache entry

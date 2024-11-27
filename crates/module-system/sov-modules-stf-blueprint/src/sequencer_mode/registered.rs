@@ -4,6 +4,8 @@ use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationError, AuthorizeSequencerError, GasEnforcer,
     SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
+#[cfg(feature = "native")]
+use sov_modules_api::NestedEnumUtils;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, BatchWithId, DaSpec,
     ExecutionContext, FullyBakedTx, Gas, GasArray, GasMeter, PreExecWorkingSet, Rewards, Spec,
@@ -19,9 +21,88 @@ use crate::sequencer_mode::common::{
 use crate::{ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, TxProcessingError};
 
 /// Executes the entire transaction lifecycle.
-
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
 pub fn process_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
+    runtime: &R,
+    validated_output: ValidatedAuthOutput<S, R>,
+    gas_price: &<S::Gas as Gas>::Price,
+    gas_used_for_authentication: &S::Gas,
+    sequencer_da_address: &<S::Da as DaSpec>::Address,
+    height: u64,
+    scratchpad: TxScratchpad<S, I>,
+    execution_context: ExecutionContext,
+) -> (
+    Result<ApplyTxResult<S>, TxProcessingError>,
+    TxScratchpad<S, I>,
+) {
+    #[cfg(feature = "native")]
+    let (start, discriminant) = {
+        let start = std::time::Instant::now();
+        let discriminant = match &validated_output {
+            ValidatedAuthOutput::Valid((_, _, message)) => format!("{:?}", message.discriminant()),
+            ValidatedAuthOutput::Invalid { .. } => "Unknown".to_string(),
+        };
+        (start, discriminant)
+    };
+
+    let result = process_tx_inner(
+        runtime,
+        validated_output,
+        gas_price,
+        gas_used_for_authentication,
+        sequencer_da_address,
+        height,
+        scratchpad,
+        execution_context,
+    );
+
+    #[cfg(feature = "native")]
+    track_transaction_metrics(
+        &result,
+        start.elapsed(),
+        execution_context,
+        height,
+        sequencer_da_address,
+        discriminant,
+    );
+
+    result
+}
+
+#[cfg(feature = "native")]
+fn track_transaction_metrics<S: Spec>(
+    result: &(
+        Result<ApplyTxResult<S>, TxProcessingError>,
+        TxScratchpad<S, impl StateProvider<S>>,
+    ),
+    execution_time: std::time::Duration,
+    execution_context: ExecutionContext,
+    height: u64,
+    sequencer_address: &<S::Da as DaSpec>::Address,
+    message_discriminant: String,
+) {
+    sov_metrics::track_metrics(|metrics_tracker| {
+        let tx_effect = match &result.0 {
+            Ok(tx_result) => sov_metrics::TransactionEffect::from(&tx_result.receipt.receipt),
+            Err(_) => sov_metrics::TransactionEffect::Skipped,
+        };
+
+        let transaction_metrics = sov_metrics::TransactionProcessingMetrics {
+            execution_time,
+            tx_effect,
+            execution_context,
+            rollup_height: height,
+            sequencer_address: sequencer_address.to_string(),
+            call_message: message_discriminant,
+        };
+
+        metrics_tracker.track_transaction_processing(transaction_metrics);
+    });
+}
+
+/// Actual processing of transaction.
+#[allow(clippy::result_large_err, clippy::too_many_arguments)]
+fn process_tx_inner<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     validated_output: ValidatedAuthOutput<S, R>,
     gas_price: &<S::Gas as Gas>::Price,
@@ -396,7 +477,7 @@ where
         let (tx_result, next_scratchpad) = process_tx_result;
         batch_scratchpad = next_scratchpad;
 
-        match tx_result {
+        let receipt = match tx_result {
             Err(error) => {
                 tracing::info!(
                     sequencer = %sequencer_da_address,
@@ -412,20 +493,20 @@ where
                     gas_used: gas_used_for_authentication,
                 };
 
-                let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, idx);
-                tx_receipts.push(tx_receipt);
+                create_tx_receipt(skipped, raw_tx_hash, idx)
             }
             Ok(ApplyTxResult {
                 transaction_consumption,
                 receipt,
             }) => {
                 gas_used.combine(&get_gas_used(&receipt));
-                tx_receipts.push(receipt);
 
                 let sequencer_reward = transaction_consumption.priority_fee();
                 accumulated_reward += sequencer_reward.0;
+                receipt
             }
-        }
+        };
+        tx_receipts.push(receipt);
     }
     // End of the transaction processing phase.
 

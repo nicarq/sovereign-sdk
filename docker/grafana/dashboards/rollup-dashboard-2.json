@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 2,
   "links": [],
   "panels": [
     {
@@ -684,6 +684,99 @@
         }
       ],
       "title": "Fetch block time",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "${DS}"
+      },
+      "description": "Time it takes to process single transaction.\nDoes not include signature check",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "µs"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "id": 24,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS}"
+          },
+          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    r._field == \"value\"\n  )",
+          "refId": "A"
+        }
+      ],
+      "title": "Transaction Processing Time",
       "type": "timeseries"
     },
     {
@@ -1462,7 +1555,7 @@
         "type": "influxdb",
         "uid": "${DS}"
       },
-      "description": "How many batches processed at given time",
+      "description": "How many bytes processed for batch",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1516,7 +1609,8 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "decbytes"
         },
         "overrides": []
       },
@@ -1545,11 +1639,11 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_batches_processed\" and\n    r._field == \"value\"\n  )",
+          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_batch_bytes_processed\" and\n    r._field == \"value\"\n  )",
           "refId": "A"
         }
       ],
-      "title": "Batches Processed",
+      "title": "Batches Bytes Processed",
       "type": "timeseries"
     },
     {

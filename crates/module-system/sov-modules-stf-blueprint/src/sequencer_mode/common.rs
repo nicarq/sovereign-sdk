@@ -15,7 +15,7 @@ use crate::{
     TransactionAuthenticator, TxEffect, TxReceiptContents,
 };
 
-/// The receipt type for a transacition using the STF blueprint.
+/// The receipt type for a transaction using the STF blueprint.
 pub type TransactionReceipt<S> =
     sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
 
