@@ -35,6 +35,7 @@ risc0-zkvm = { workspace = true, default-features = false, features = [
 ], optional = true }
 risc0-zkvm-platform = { workspace = true, optional = true }
 jsonrpsee = { workspace = true, features = ["server"], optional = true }
+sov-metrics = { workspace = true, optional = true }
 
 [features]
 bench = [
@@ -52,6 +53,7 @@ native = [
 	"sov-rollup-interface/native",
 	"sov-state/native",
 	"tokio",
-	"sov-cycle-utils?/native"
+	"sov-cycle-utils?/native",
+	"sov-metrics/native",
 ]
 test-utils = []

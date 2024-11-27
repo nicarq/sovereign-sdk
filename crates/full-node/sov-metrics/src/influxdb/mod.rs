@@ -4,27 +4,21 @@
 mod config;
 #[cfg(feature = "native")]
 mod publisher;
-#[cfg(feature = "native")]
 mod tracker;
 
 #[cfg(feature = "native")]
 pub use config::MonitoringConfig;
 #[cfg(feature = "native")]
-pub use tracker::{init_metrics_tracker, RunnerMetrics};
+pub use tracker::init_metrics_tracker;
+pub use tracker::{RunnerMetrics, TransactionEffect, TransactionProcessingMetrics};
 
 /// Struct for tracking Sovereign metrics.
 ///
 /// Hides underlying monitoring system implementation.
-#[cfg(feature = "native")]
 #[derive(Clone)]
 pub struct MetricsTracker {
     sender: tokio::sync::mpsc::Sender<Vec<u8>>,
 }
-
-/// Stub struct for non-native code
-#[cfg(not(feature = "native"))]
-#[derive(Clone)]
-pub struct MetricsTracker {}
 
 /// Stub function for non-native code
 #[cfg(not(feature = "native"))]

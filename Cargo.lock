@@ -10232,6 +10232,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-metrics",
+ "sov-rollup-interface",
  "tokio",
  "tracing",
 ]
@@ -10439,6 +10440,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-cycle-utils",
+ "sov-metrics",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",

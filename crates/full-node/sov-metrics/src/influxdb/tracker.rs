@@ -1,14 +1,20 @@
 //! Implementation for the [`MetricsTracker`] for Influxdb.
 
 use std::io::Write;
+#[cfg(feature = "native")]
 use std::sync::OnceLock;
 
+#[cfg(feature = "native")]
 use crate::influxdb::publisher;
-use crate::{MetricsTracker, MonitoringConfig};
+use crate::MetricsTracker;
+#[cfg(feature = "native")]
+use crate::MonitoringConfig;
 
+#[cfg(feature = "native")]
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
 
 /// Spawns task that published metrics in the background.
+#[cfg(feature = "native")]
 pub fn init_metrics_tracker(
     shutdown_receiver: tokio::sync::watch::Receiver<()>,
     config: &MonitoringConfig,
@@ -52,6 +58,7 @@ impl MetricsTracker {
     const PROOFS_PROCESSED: [u8; 27] = *b"sov_rollup_proofs_processed";
     const PROOF_BYTES_PROCESSED: [u8; 32] = *b"sov_rollup_proof_bytes_processed";
     const TRANSACTIONS_PROCESSED: [u8; 33] = *b"sov_rollup_transactions_processed";
+    const TRANSACTION_EXECUTION_TIME: [u8; 35] = *b"sov_rollup_transaction_execution_us";
     const PROCESS_SLOT_TIME: [u8; 26] = *b"sov_rollup_process_slot_ms";
     const APPLY_SLOT_TIME: [u8; 24] = *b"sov_rollup_apply_slot_ms";
     const STF_TRANSITION_TIME: [u8; 28] = *b"sov_rollup_stf_transition_ms";
@@ -74,7 +81,7 @@ impl MetricsTracker {
         self.submit(measurement);
     }
 
-    /// Tracks all runner related metrics
+    /// Tracks all runner-related metrics
     pub fn track_runner_metrics(&self, point: RunnerMetrics) {
         let timestamp = timestamp();
         self.submit_with_value_only_with_timestamp(
@@ -143,6 +150,25 @@ impl MetricsTracker {
             timestamp,
         );
     }
+
+    /// Tracks processing of transaction.
+    pub fn track_transaction_processing(&self, point: TransactionProcessingMetrics) {
+        let timestamp = timestamp();
+        let mut measurement = Self::TRANSACTION_EXECUTION_TIME.to_vec();
+        write!(
+            measurement,
+            ",status={:?},context={:?},call_message={},sequencer={} value={},rollup_height={} {}",
+            point.tx_effect,
+            point.execution_context,
+            point.call_message,
+            point.sequencer_address,
+            point.execution_time.as_micros(),
+            point.rollup_height,
+            timestamp
+        )
+        .unwrap();
+        self.submit(measurement);
+    }
 }
 
 pub(crate) fn timestamp() -> u128 {
@@ -152,7 +178,7 @@ pub(crate) fn timestamp() -> u128 {
         .as_nanos()
 }
 
-/// Metrics related to main loop of STF runner.
+/// Metrics related to the main loop of STF runner.
 pub struct RunnerMetrics {
     /// DA height processed in this iteration.
     pub da_height_processed: u64,
@@ -171,7 +197,7 @@ pub struct RunnerMetrics {
     /// Total size of proofs.
     pub proof_bytes_processed: u64,
     /// Full time it took to process slot.
-    /// Includes all operations required together with pre/post processing.
+    /// Includes all operations required together with pre/post-processing.
     /// process_slot_time == (get_block_time + extract_blobs_time + extraction_proof_time + stf_transition_time)
     pub process_slot_time: std::time::Duration,
     /// Time it took to execute only STF transition without post-processing or committing to the DB.
@@ -179,8 +205,48 @@ pub struct RunnerMetrics {
     /// Time it took to execute the STF transition, post-process, and commit all results to the DB,
     /// but without fetching data from DA and extracting it.
     pub stf_transition_time: std::time::Duration,
-    /// Time it took to extract relevant blobs from whole DA block.
+    /// Time it took to extract relevant blobs from the whole DA block.
     pub extract_blobs_time: std::time::Duration,
     /// Time it took to build proof that the relevant blobs were extracted correctly.
     pub extraction_proof_time: std::time::Duration,
+}
+
+/// Simplified version of [`sov_rollup_interface::stf::TxEffect`]
+#[derive(Debug)]
+pub enum TransactionEffect {
+    /// The transaction was skipped.
+    Skipped,
+    /// The transaction was reverted during execution.
+    Reverted,
+    /// The transaction was processed successfully.
+    Successful,
+}
+
+impl<T: sov_rollup_interface::stf::TxReceiptContents> From<&sov_rollup_interface::stf::TxEffect<T>>
+    for TransactionEffect
+{
+    fn from(value: &sov_rollup_interface::stf::TxEffect<T>) -> Self {
+        match value {
+            sov_rollup_interface::stf::TxEffect::Skipped(_) => TransactionEffect::Skipped,
+            sov_rollup_interface::stf::TxEffect::Reverted(_) => TransactionEffect::Reverted,
+            sov_rollup_interface::stf::TxEffect::Successful(_) => TransactionEffect::Successful,
+        }
+    }
+}
+
+/// Collection of metrics related to transaction processing.
+pub struct TransactionProcessingMetrics {
+    /// Time it took a transaction to be executed
+    pub execution_time: std::time::Duration,
+    /// The effect of the transaction,
+    /// simplified version of [`sov_rollup_interface::stf::TxEffect`]
+    pub tx_effect: TransactionEffect,
+    /// [`sov_rollup_interface::stf::ExecutionContext`]
+    pub execution_context: sov_rollup_interface::stf::ExecutionContext,
+    /// Height at which transaction is being executed
+    pub rollup_height: u64,
+    /// Human-readable address of sequencer.
+    pub sequencer_address: String,
+    /// Call message
+    pub call_message: String,
 }

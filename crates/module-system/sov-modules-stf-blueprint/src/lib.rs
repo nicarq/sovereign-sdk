@@ -109,8 +109,8 @@ pub type TxEffect<S> = sov_rollup_interface::stf::TxEffect<TxReceiptContents<S>>
 pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
 
 impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents<S> {
-    type Reverted = RevertedTxContents<S>;
     type Skipped = SkippedTxContents<S>;
+    type Reverted = RevertedTxContents<S>;
     type Successful = SuccessfulTxContents<S>;
 }
 
