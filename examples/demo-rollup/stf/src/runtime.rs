@@ -36,7 +36,7 @@ use std::sync::Arc;
 #[cfg(feature = "native")]
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
-use sov_kernels::basic::BasicKernel;
+use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities, HasKernel};
@@ -143,10 +143,10 @@ impl<S: Spec> HasCapabilities<S> for Runtime<S> {
 
 impl<S: Spec> HasKernel<S> for Runtime<S> {
     type BlobType = BlobDataWithId;
-    type Kernel<'a> = BasicKernel<'a, S>;
+    type Kernel<'a> = SoftConfirmationsKernel<'a, S>;
 
     fn inner(&self) -> Guard<Self::Kernel<'_>> {
-        Guard::new(BasicKernel {
+        Guard::new(SoftConfirmationsKernel {
             chain_state: &self.chain_state,
             blob_storage: &self.blob_storage,
         })

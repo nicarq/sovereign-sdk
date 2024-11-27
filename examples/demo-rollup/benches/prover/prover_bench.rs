@@ -4,8 +4,10 @@ mod datagen;
 #[macro_use]
 extern crate prettytable;
 
+use core::sync::atomic::AtomicU64;
 use std::collections::HashMap;
 use std::env;
+use std::sync::Arc;
 
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::{GenesisConfig, Runtime};
@@ -25,6 +27,7 @@ use sov_rollup_interface::zk::{
 };
 use sov_sp1_adapter::SP1;
 use sov_state::Storage;
+use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
@@ -186,6 +189,9 @@ where
     let mut num_blobs = 0;
     let mut num_blocks_with_txns = 0;
     let mut num_total_transactions = 0;
+    let sequencer_mode = BlobBuildingCtx::Preferred {
+        curr_sequence_number: Arc::new(AtomicU64::new(0)),
+    };
 
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     let da_service = MockDaService::new(MockAddress::default());
@@ -213,7 +219,7 @@ where
     storage_manager.commit(stf_changes);
 
     // TODO: Fix this with genesis logic.
-    let blocks = get_bench_blocks().await?;
+    let blocks = get_bench_blocks(&sequencer_mode).await?;
 
     for filtered_block in blocks {
         num_blocks += 1;

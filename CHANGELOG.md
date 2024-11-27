@@ -1,3 +1,5 @@
+## 2024-11-20
+- #1889 makes `demo-rollup` use the `SoftConfirmationsKernel` by default. This may be a breaking change for the consumers of the SDK that rely on the default behavior of the `demo-rollup`. Please make sure to update the `blob` format to `PreferredBlobData` if sending batches using the preferred sequencer in the `demo-rollup`.
 ## 2024-11-26
 -  #1931 Remove the `salt` query parameter from /modules/bank/tokens
 ## 2024-11-25
