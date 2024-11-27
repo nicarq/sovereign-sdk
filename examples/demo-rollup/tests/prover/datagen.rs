@@ -6,6 +6,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockDaService};
 use sov_modules_api::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::generators::bank::BankMessageGenerator;
+use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::test_rollup::read_private_key;
 use sov_test_utils::MessageGenerator;
 
@@ -19,7 +20,7 @@ type S = sov_modules_api::default_spec::DefaultSpec<
 const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;
 
-pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
+pub async fn get_blocks_from_da(mode: BlobBuildingCtx) -> anyhow::Result<Vec<MockBlock>> {
     let txns_per_block = match env::var("TXNS_PER_BLOCK") {
         Ok(txns_per_block) => txns_per_block.parse::<u64>()?,
         Err(_) => {
@@ -47,14 +48,14 @@ pub async fn get_blocks_from_da() -> anyhow::Result<Vec<MockBlock>> {
             txns_per_block,
             private_key_and_address.private_key,
         );
-    let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
+    let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(&mode);
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
     let block1 = da_service.get_block_at(1).await.unwrap();
     blocks.push(block1);
 
     for i in 0..block_cnt {
-        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
+        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(&mode);
         let fee = da_service.estimate_fee(blob.len()).await.unwrap();
         da_service.send_transaction(&blob, fee).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();

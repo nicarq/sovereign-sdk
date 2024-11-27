@@ -65,4 +65,4 @@ max_number_of_transitions_in_memory = 20
 [sequencer]
 max_allowed_blocks_behind = 5
 da_address = "0000000000000000000000000000000000000000000000000000000000000000"
-[sequencer.standard]
+[sequencer.preferred]

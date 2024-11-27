@@ -3,7 +3,10 @@
 //! TODO: Add a doctest to describe how to generate messages in tests.
 
 use std::rc::Rc;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
 
+use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
@@ -71,6 +74,20 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
             ),
         )
     }
+}
+
+/// The execution mode of the blob sender. This is used to specify how to appropriately serialize blobs (
+/// using the [`PreferredBatchData`] struct or the standard [`Batch`] struct).
+pub enum BlobBuildingCtx {
+    /// Standard execution mode
+    Standard,
+    /// Preferred execution mode (when the preferred sequencer is used)
+    Preferred {
+        /// The current sequence number to build the batch with
+        /// We are using an atomic because we need to be able to increment the sequence number
+        /// in a thread-safe way (a lot of integration tests are multi-threaded by default).
+        curr_sequence_number: Arc<AtomicU64>,
+    },
 }
 
 /// Trait used to generate messages from the DA layer to automate module testing
@@ -178,6 +195,7 @@ pub trait MessageGenerator {
         RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
     >(
         &self,
+        mode: &BlobBuildingCtx,
     ) -> Vec<u8> {
         let txs: Vec<FullyBakedTx> = self
             .create_default_encoded_txs::<RT>()
@@ -186,6 +204,20 @@ pub trait MessageGenerator {
 
         let batch = Batch::new(txs);
 
-        borsh::to_vec(&batch).unwrap()
+        match mode {
+            BlobBuildingCtx::Standard => borsh::to_vec(&batch).unwrap(),
+            BlobBuildingCtx::Preferred {
+                curr_sequence_number,
+            } => {
+                let batch = PreferredBatchData {
+                    data: batch,
+                    sequence_number: curr_sequence_number
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+                    virtual_slots_to_advance: 1,
+                };
+
+                borsh::to_vec(&batch).unwrap()
+            }
+        }
     }
 }

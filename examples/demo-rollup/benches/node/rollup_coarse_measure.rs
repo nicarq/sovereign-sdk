@@ -13,6 +13,7 @@ use demo_stf::runtime::Runtime;
 use humantime::format_duration;
 use prettytable::Table;
 use sov_bank::{Bank, Coins};
+use sov_blob_storage::PreferredBatchData;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
@@ -237,6 +238,7 @@ fn setup(
         .expect("Saving genesis storage failed");
 
     let mut setup_txs: Vec<FullyBakedTx> = Vec::new();
+    let mut curr_seq_num = 0;
 
     let token_name = "sov-bench-token";
     let token_id = sov_bank::get_token_id::<TestSpec>(token_name, token_deployer_address);
@@ -250,6 +252,7 @@ fn setup(
             .expect("Tokens can have at least one minter"),
     };
     let mut deployer_nonce = 0;
+
     setup_txs.push(signed_bank_tx(msg, token_deployer_key, deployer_nonce));
     deployer_nonce += 1;
     // Mint for everyone
@@ -267,7 +270,18 @@ fn setup(
     }
 
     let batch = Batch::new(setup_txs);
-    let setup_blob = MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), SEQUENCER_ADDRESS);
+    let setup_blob = MockBlob::new_with_hash(
+        borsh::to_vec(&PreferredBatchData {
+            data: batch,
+            sequence_number: curr_seq_num,
+            virtual_slots_to_advance: 1,
+        })
+        .unwrap(),
+        SEQUENCER_ADDRESS,
+    );
+
+    curr_seq_num += 1;
+
     let mut setup_blobs = RelevantBlobs::<MockBlob> {
         proof_blobs: Vec::new(),
         batch_blobs: vec![setup_blob.clone()],
@@ -338,8 +352,17 @@ fn setup(
         }
 
         let batch = Batch::new(txs);
-        let blob =
-            MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), MockAddress::new([0; 32]));
+        let blob = MockBlob::new_with_hash(
+            borsh::to_vec(&PreferredBatchData {
+                data: batch,
+                sequence_number: curr_seq_num,
+                virtual_slots_to_advance: 1,
+            })
+            .unwrap(),
+            MockAddress::new([0; 32]),
+        );
+
+        curr_seq_num += 1;
 
         blocks.push(MockBlock {
             header: MockBlockHeader::from_height(idx as u64 + 2),

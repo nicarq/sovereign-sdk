@@ -1,3 +1,6 @@
+use core::time::Duration;
+use std::thread::sleep;
+
 use anyhow::Context;
 use futures::StreamExt;
 use serde::Deserialize;
@@ -5,8 +8,10 @@ use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
+use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
+use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderMode;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
 use sov_test_utils::TestSpec;
@@ -16,6 +21,7 @@ use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
+const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(100);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
@@ -30,7 +36,9 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Optimistic),
-            BatchBuilderMode::Standard(Default::default()),
+            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+                should_update_state: true,
+            }),
         )
         .await?;
 
@@ -64,6 +72,13 @@ async fn send_test_bank_txs(
     let batch_1_rollup_height = tx_sender.send_txs(client, &[tx]).await?;
 
     assert!(batch_1_rollup_height >= 1);
+
+    // FIXME(@theochap): Remove that once we are confident that we don't have a race condition in the sequencer.
+    sleep(Duration::from_millis(
+        (ESTIMATED_BLOCK_PROCESSING_TIME.as_millis() * config_value!("DEFERRED_SLOTS_COUNT") * 2)
+            .try_into()
+            .unwrap(),
+    ));
 
     assert_slot_finality(
         client,

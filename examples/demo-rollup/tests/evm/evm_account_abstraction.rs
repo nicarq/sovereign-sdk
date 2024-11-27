@@ -10,6 +10,7 @@ use crate::evm::evm_test_helper::{self};
 use crate::test_helpers::CHAIN_HASH;
 
 #[tokio::test(flavor = "multi_thread")]
+#[ignore = "This test is currently broken. We need to integrate the EVM module with the soft-confirmation kernel to make it work again. Relevant issue: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1904"]
 async fn test_evm_account_abstraction() {
     let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;

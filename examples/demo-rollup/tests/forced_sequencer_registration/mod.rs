@@ -1,11 +1,10 @@
+use core::time::Duration;
 use std::sync::Arc;
 
-use anyhow::Context;
 use demo_stf::runtime::{Runtime, RuntimeCall};
-use futures::StreamExt;
 use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
-use sov_mock_da::{MockAddress, MockDaConfig, MockDaSpec};
+use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
 use sov_modules_api::{OperatingMode, RawTx};
@@ -15,23 +14,35 @@ use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{TestPrivateKey, TestSpec};
+use tokio::time::sleep;
 
 use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);
 const MINIMUM_BOND: u64 = 100_000_000;
+const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(100);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
     let temp_dir = tempfile::tempdir()?;
     let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
     let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
+
+    // We need to set the block producing mode to periodic to ensure that the forced registration
+    // eventually succeed because the registration batch is deferred.
+    let mut da_config = MockDaConfig::instant_with_sender(UNREGISTERED_SENDER);
+    da_config.block_producing = BlockProducingConfig::Periodic;
+    da_config.block_time_ms = ESTIMATED_BLOCK_PROCESSING_TIME
+        .as_millis()
+        .try_into()
+        .unwrap();
+
     let rollup = RollupBuilder::<MockDemoRollup<Native>>::construct_rollup(
         temp_dir,
         test_genesis_source(OperatingMode::Zk),
         RollupProverConfig::Skip,
-        MockDaConfig::instant_with_sender(UNREGISTERED_SENDER),
+        da_config,
         1,
         1,
         1,
@@ -68,15 +79,16 @@ async fn forced_sequencer_registration_test_case(
     let blob = transaction_into_blob(tx);
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
-    let mut slot_subscription = client
-        .client
-        .subscribe_slots()
-        .await
-        .context("Failed to subscribe to slots!")?;
 
-    let _ = da_service.send_transaction(&blob, fee).await.unwrap();
+    da_service.send_transaction(&blob, fee).await.unwrap();
 
-    slot_subscription.next().await.unwrap()?;
+    // We are waiting until enough time has passed to ensure that the registration batch is executed.
+    sleep(Duration::from_millis(
+        (ESTIMATED_BLOCK_PROCESSING_TIME.as_millis() * config_value!("DEFERRED_SLOTS_COUNT") * 2)
+            .try_into()
+            .unwrap(),
+    ))
+    .await;
 
     let allowed_sequencer_response = client
         .sequencer_rollup_address::<TestSpec, MockDaSpec>(&UNREGISTERED_SENDER)

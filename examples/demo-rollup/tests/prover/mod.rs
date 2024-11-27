@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+
 use demo_stf::genesis_config::create_genesis_config;
 use demo_stf::runtime::Runtime;
 use risc0::MOCK_DA_PATH;
@@ -18,6 +21,7 @@ use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
 use sov_state::ProverStorage;
+use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::TestStorageSpec;
 use tempfile::TempDir;
 
@@ -42,6 +46,9 @@ async fn test_proof_generation() {
     let temp_dir = TempDir::new().expect("Unable to create temporary directory");
     tracing::info!("Creating temp dir at {}", temp_dir.path().display());
     let da_service = MockDaService::new(MockAddress::default());
+    let sequencer_mode = BlobBuildingCtx::Preferred {
+        curr_sequence_number: Arc::new(AtomicU64::new(0)),
+    };
 
     let mut storage_manager =
         NativeStorageManager::<MockDaSpec, ProverStorage<TestStorageSpec>>::new(temp_dir.path())
@@ -72,7 +79,9 @@ async fn test_proof_generation() {
     storage_manager.finalize(&genesis_block.header).unwrap();
 
     // TODO: Fix this with genesis logic.
-    let blocks = get_blocks_from_da().await.expect("Failed to get DA blocks");
+    let blocks = get_blocks_from_da(sequencer_mode)
+        .await
+        .expect("Failed to get DA blocks");
 
     for filtered_block in &blocks[..2] {
         let elf = std::fs::read(MOCK_DA_PATH)

@@ -104,29 +104,29 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 0xee6a0d5790a5016076df89833e189863b4fb4ac2e2d1cbb6b97acea2ef8d537f
+0: 0xa6ba39e5fc6041007310fd55cf91dfdd9f04d6730736c65067ec6dac35d9ae52
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
-```sh,test-ci
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xee6a0d5790a5016076df89833e189863b4fb4ac2e2d1cbb6b97acea2ef8d537f/events | jq
+```sh,test-ci,bashtestmd:compare-output
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xa6ba39e5fc6041007310fd55cf91dfdd9f04d6730736c65067ec6dac35d9ae52/events | jq
 {
   "data": [
     {
       "type": "event",
       "number": 0,
-      "key": "token_created",
+      "key": "Bank/TokenCreated",
       "value": {
-        "token-created": {
+        "token_created": {
           "token_name": "sov-test-token",
           "coins": {
             "amount": 1000000,
             "token_id": "token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"
           },
           "minter": {
-            "User": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+            "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
           },
           "authorized_minters": [
             {
@@ -149,7 +149,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xee6a0d5790a5016076df89833e189863b
 ```
 
 We can see the TokenCreated event which contains the id of the token
-created - `token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7`
+created - `token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42`
 
 ### How to Submit Transactions
 

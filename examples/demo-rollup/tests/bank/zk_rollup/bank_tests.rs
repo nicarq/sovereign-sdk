@@ -11,12 +11,13 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
+use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderMode;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{DaLayerTxSender, SequencerTxSender, TxSender, TOKEN_NAME};
+use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
 use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
@@ -35,7 +36,9 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Standard(Default::default()),
+            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+                should_update_state: true,
+            }),
         )
         .await?;
 
@@ -63,39 +66,14 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
             BLOCK_PRODUCING_CONFIG,
             test_case.finalization_blocks,
             test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Standard(Default::default()),
+            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+                should_update_state: true,
+            }),
         )
         .await?;
 
     let sender = SequencerTxSender {};
 
-    // If the rollup throws an error, return it and stop trying to send the transaction
-    tokio::select! {
-        err = test_rollup.rollup_task => err?,
-        res = send_test_bank_txs(test_case, &test_rollup.client, &test_rollup.da_service, sender) => Ok(res?),
-    }?;
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn bank_tx_tests_instant_finality_using_da_layer_tx_submission() -> anyhow::Result<()> {
-    let test_case = TestCase {
-        wait_for_aggregated_proof: true,
-        finalization_blocks: 0,
-    };
-
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BLOCK_PRODUCING_CONFIG,
-            test_case.finalization_blocks,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Standard(Default::default()),
-        )
-        .await?;
-
-    let sender = DaLayerTxSender::new(test_rollup.da_service.clone());
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
         err = test_rollup.rollup_task => err?,

@@ -11,6 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{CredentialId, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::generators::bank::BankMessageGenerator;
+use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::{MessageGenerator, TestHasher, TestPrivateKey, TestSpec};
 
 type S = <MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Spec;
@@ -67,7 +68,7 @@ fn read_and_parse_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> 
     key_and_address
 }
 
-pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
+pub async fn get_bench_blocks(seq_mode: &BlobBuildingCtx) -> anyhow::Result<Vec<MockBlock>> {
     let txns_per_block = match env::var("TXNS_PER_BLOCK") {
         Ok(txns_per_block) => txns_per_block.parse::<u64>()?,
         Err(_) => {
@@ -98,7 +99,7 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     let blob = create_token_message_gen
         .create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<
         Native,
-    >>::Runtime>();
+    >>::Runtime>(seq_mode);
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
@@ -106,7 +107,7 @@ pub async fn get_bench_blocks() -> anyhow::Result<Vec<MockBlock>> {
     blocks.push(block1);
 
     for i in 0..block_cnt {
-        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>();
+        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(seq_mode );
         let fee = da_service.estimate_fee(blob.len()).await.unwrap();
         da_service.send_transaction(&blob, fee).await.unwrap();
         let blocki = da_service.get_block_at(2 + i).await.unwrap();

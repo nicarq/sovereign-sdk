@@ -1,11 +1,14 @@
 #![allow(clippy::float_arithmetic)]
 
+use core::sync::atomic::{AtomicU64, Ordering};
 use std::env;
+use std::sync::Arc;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use demo_stf::genesis_config::EvmConfig;
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use sov_bank::{Bank, Coins, TokenId};
+use sov_blob_storage::PreferredBatchData;
 use sov_db::storage_manager::NativeChangeSet;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MOCK_SEQUENCER_DA_ADDRESS};
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
@@ -70,8 +73,16 @@ fn bake_bank_tx(
     )
 }
 
-fn build_batch_blob(txs: Vec<FullyBakedTx>) -> RelevantBlobs<MockBlob> {
-    let blob = borsh::to_vec(&Batch::new(txs)).unwrap();
+fn build_batch_blob(
+    txs: Vec<FullyBakedTx>,
+    current_seq_num: &Arc<AtomicU64>,
+) -> RelevantBlobs<MockBlob> {
+    let blob = borsh::to_vec(&PreferredBatchData {
+        data: Batch::new(txs),
+        sequence_number: current_seq_num.fetch_add(1, Ordering::SeqCst),
+        virtual_slots_to_advance: 1,
+    })
+    .unwrap();
 
     let address = MockAddress::from(MOCK_SEQUENCER_DA_ADDRESS);
     let blob = MockBlob::new_with_hash(blob, address);
@@ -167,6 +178,7 @@ fn prefill_state(
     rollup_mega_admin: &TestUser<BenchSpec>,
     senders: &[TestUser<BenchSpec>],
     blocks_to_process: u64,
+    current_seq_num: &Arc<AtomicU64>,
 ) -> (StorageRoot<TestStorageSpec>, TokenId) {
     let token_name = "sov-bench-token";
     let token_id = sov_bank::get_token_id::<BenchSpec>(token_name, &rollup_mega_admin.address());
@@ -204,7 +216,7 @@ fn prefill_state(
 
     let stf_state = storage_manager.create_storage();
     let filtered_block = MockBlock::default_at_height(1);
-    let mut blobs = build_batch_blob(init_messages);
+    let mut blobs = build_batch_blob(init_messages, current_seq_num);
     let apply_slot_output = stf.apply_slot(
         &current_root,
         stf_state,
@@ -225,7 +237,7 @@ fn prefill_state(
             .iter()
             .map(|sender| build_send_tx(sender, i, token_id))
             .collect::<Vec<_>>();
-        let mut blobs = build_batch_blob(send_messages);
+        let mut blobs = build_batch_blob(send_messages, current_seq_num);
         let apply_slot_output = stf.apply_slot(
             &current_root,
             stf_state,
@@ -271,6 +283,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
     let senders: Vec<_> = (0..senders_count)
         .map(|_| TestUser::generate_with_default_balance())
         .collect();
+    let current_seq_number = Arc::new(AtomicU64::new(0));
 
     let user_stake = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE);
     let user_stake_value = user_stake.value(&TestSpec::initial_base_fee_per_gas());
@@ -302,6 +315,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
         &rollup_mega_admin,
         &senders,
         bench_after_blocks,
+        &current_seq_number,
     );
 
     let bench_messages = senders
@@ -313,7 +327,7 @@ fn stf_apply_slot_bench(c: &mut Criterion) {
         b.iter(|| {
             let stf_state = storage_manager.create_storage();
             let filtered_block = MockBlock::default_at_height(bench_after_blocks + 1);
-            let mut blobs = build_batch_blob(bench_messages.clone());
+            let mut blobs = build_batch_blob(bench_messages.clone(), &current_seq_number);
             let apply_slot_output = stf.apply_slot(
                 &current_root,
                 stf_state,
