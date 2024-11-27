@@ -20,7 +20,7 @@ pub struct Requests {
 
 impl Requests {
     /// Creates `Requests` from a list of endpoints and a host.
-    pub fn new(host: &str, endpoints: Vec<&'static str>) -> Self {
+    pub fn new(host: &str, endpoints: Vec<String>) -> Self {
         Self {
             urls: endpoints
                 .into_iter()
