@@ -6,14 +6,12 @@ use super::evm_test_helper;
 use super::test_client::TestClient;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "This test is currently broken. We need to integrate the EVM module with the soft-confirmation kernel to make it work again. Relevant issue: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1904"]
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
     let rollup_prover_config = get_appropriate_rollup_prover_config();
     evm_tx_test(0, rollup_prover_config).await
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "This test is currently broken. We need to integrate the EVM module with the soft-confirmation kernel to make it work again. Relevant issue: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1904"]
 async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
     evm_tx_test(3, RollupProverConfig::Skip).await
 }
