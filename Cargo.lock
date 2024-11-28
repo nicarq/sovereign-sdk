@@ -10130,6 +10130,7 @@ dependencies = [
  "reth-rpc-types",
  "schnellru",
  "serde",
+ "sov-blob-storage",
  "sov-eth-dev-signer",
  "sov-evm",
  "sov-modules-api",

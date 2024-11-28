@@ -21,6 +21,7 @@ sov-rollup-interface = { workspace = true, features = ["native"] }
 
 sov-evm = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
+sov-blob-storage = { workspace = true, features = ["native"] }
 sov-eth-dev-signer = { workspace = true }
 
 borsh = { workspace = true }

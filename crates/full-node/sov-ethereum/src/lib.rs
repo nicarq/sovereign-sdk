@@ -1,3 +1,6 @@
+use std::sync::atomic::{AtomicU64, Ordering};
+
+use sov_blob_storage::PreferredBatchData;
 #[cfg(feature = "local")]
 pub use sov_eth_dev_signer::DevSigner;
 use sov_modules_api::capabilities::HasKernel;
@@ -72,6 +75,7 @@ pub struct Ethereum<
 > {
     da_service: Da,
     batch_builder: Arc<Mutex<EthBatchBuilder>>,
+    sequence_number: Arc<AtomicU64>,
     gas_price_oracle: GasPriceOracle<S>,
     #[cfg(feature = "local")]
     eth_signer: DevSigner,
@@ -97,6 +101,7 @@ impl<
         Self {
             da_service,
             batch_builder,
+            sequence_number: Arc::new(AtomicU64::new(0)),
             gas_price_oracle,
             #[cfg(feature = "local")]
             eth_signer,
@@ -167,8 +172,14 @@ impl<
             .collect::<Vec<_>>();
         let batch = Batch::new(txs);
 
-        let serialized_batch =
-            borsh::to_vec(&batch).map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+        let sequence_number = self.sequence_number.load(Ordering::SeqCst);
+
+        let serialized_batch = borsh::to_vec(&PreferredBatchData {
+            sequence_number,
+            data: batch,
+            virtual_slots_to_advance: 1,
+        })
+        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
         let fee = self
             .da_service
@@ -180,6 +191,9 @@ impl<
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
         tracing::debug!("ETH Batch has been submitted");
+
+        self.sequence_number.fetch_add(1, Ordering::SeqCst);
+
         Ok(())
     }
 
