@@ -10,7 +10,9 @@ mod tracker;
 pub use config::MonitoringConfig;
 #[cfg(feature = "native")]
 pub use tracker::init_metrics_tracker;
-pub use tracker::{RunnerMetrics, TransactionEffect, TransactionProcessingMetrics};
+pub use tracker::{
+    RunnerMetrics, SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
+};
 
 /// Struct for tracking Sovereign metrics.
 ///

@@ -1,6 +1,7 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 mod stf_blueprint;
+
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{BatchSequencerReceipt, VersionReader};
@@ -25,6 +26,8 @@ pub use sov_modules_api::{BatchWithId, BlobData, Runtime};
 use sov_modules_api::{
     BlobDataWithId, DaSpec, Error, ExecutionContext, Gas, GasArray, Genesis, Spec, StateCheckpoint,
 };
+#[cfg(feature = "native")]
+use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
 use sov_state::storage::StateUpdate;
@@ -246,6 +249,8 @@ where
     where
         I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
     {
+        #[cfg(feature = "native")]
+        let start_slot = std::time::Instant::now();
         let mut state =
             StateCheckpoint::with_witness(pre_state.clone(), witness, &self.runtime.kernel());
 
@@ -287,6 +292,10 @@ where
             .blob_selector()
             .get_blobs_for_this_slot(all_blobs, &mut kernel)
             .expect("blob selection must succeed, probably serialization failed");
+        #[cfg(feature = "native")]
+        let blob_selection_time = start_slot.elapsed();
+        #[cfg(feature = "native")]
+        let begin_slot_start = std::time::Instant::now();
 
         KernelSlotHooks::begin_slot_hook(
             &self.runtime,
@@ -315,11 +324,15 @@ where
         if blob_selector_output.should_execute_slot_hooks {
             SlotHooks::begin_slot_hook(&self.runtime, &visible_hash, &mut state);
         }
+        #[cfg(feature = "native")]
+        let begin_slot_hooks_time = begin_slot_start.elapsed();
 
         let mut proof_receipts = Vec::new();
-        let mut batch_receipts = vec![];
+        let mut batch_receipts = Vec::new();
 
         let mut total_gas = S::Gas::zero();
+        #[cfg(feature = "native")]
+        let blob_processing_start = std::time::Instant::now();
         for (blob_idx, (blob, sender)) in
             blob_selector_output.selected_blobs.into_iter().enumerate()
         {
@@ -370,6 +383,10 @@ where
             }
         }
 
+        #[cfg(feature = "native")]
+        let blob_processing_time = blob_processing_start.elapsed();
+        #[cfg(feature = "native")]
+        let end_slot_hooks_start = std::time::Instant::now();
         if blob_selector_output.should_execute_slot_hooks {
             SlotHooks::end_slot_hook(&self.runtime, &mut state);
         }
@@ -381,12 +398,32 @@ where
             .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
 
         KernelSlotHooks::end_slot_hook(&self.runtime, &total_gas, &mut kernel_state_accessor);
+        #[cfg(feature = "native")]
+        let end_slot_hooks_time = end_slot_hooks_start.elapsed();
 
+        #[cfg(feature = "native")]
+        let slot_finalization_start = std::time::Instant::now();
         let (state_root, witness, change_set) = self.materialize_slot(
             blob_selector_output.should_execute_slot_hooks,
             pre_state,
             state,
         );
+        #[cfg(feature = "native")]
+        let slot_finalization_time = slot_finalization_start.elapsed();
+
+        #[cfg(feature = "native")]
+        sov_metrics::track_metrics(|tracker| {
+            tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
+                blobs_selection_time: blob_selection_time,
+                begin_slot_hooks_time,
+                blobs_processing_time: blob_processing_time,
+                end_slot_hooks_time,
+                slot_finalization_time,
+                da_height: slot_header.height(),
+                rollup_height: visible_height,
+                execution_context,
+            });
+        });
 
         ApplySlotOutput {
             state_root,
