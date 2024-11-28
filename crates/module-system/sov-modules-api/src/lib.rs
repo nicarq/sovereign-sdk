@@ -25,6 +25,9 @@ pub mod gas;
 /// Defines default types and trait implementations for rollups built with the SDK
 pub mod default_spec;
 
+/// Defines a more configurable rollup spec
+pub mod configurable_spec;
+
 /// SDK internals. This module contains utilities for working with higher-kinded types and traits.
 pub mod higher_kinded_types;
 

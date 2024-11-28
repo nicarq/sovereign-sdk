@@ -298,6 +298,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                        ^^^^^^^^^^^^^^^^^^^^^^^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Native>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::WitnessGeneration>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Zk>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
@@ -335,6 +338,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                                                               ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Native>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::WitnessGeneration>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Zk>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
@@ -372,6 +378,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |          ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Native>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::WitnessGeneration>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Zk>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>
@@ -436,6 +445,9 @@ error[E0277]: the trait bound `ActualSpec: sov_modules_api::Spec` is not satisfi
     |                  ^^ the trait `sov_modules_api::Spec` is not implemented for `ActualSpec`
     |
     = help: the following other types implement trait `sov_modules_api::Spec`:
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Native>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::WitnessGeneration>
+              ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, sov_modules_api::execution_mode::Zk>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Native>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::WitnessGeneration>
               DefaultSpec<Da, InnerZkvm, OuterZkvm, sov_modules_api::execution_mode::Zk>

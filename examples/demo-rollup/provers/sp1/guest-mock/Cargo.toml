@@ -17,7 +17,9 @@ sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api"
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
-sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "99cfee6d5fdf179062aa983a20f427c59e34cba3", optional = true, features = ["sp1"] }
+sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "99cfee6d5fdf179062aa983a20f427c59e34cba3", optional = true, features = [
+    "sp1",
+] }
 
 [patch.crates-io]
 # Commented out branches, but below there are exact revision, this helps with preventing accidental breakages
@@ -33,6 +35,8 @@ curve25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", re
 ed25519-consensus = { git = "https://github.com/sp1-patches/ed25519-consensus", rev = "2b2c4b43344bc4daf5b1326f367f2d9d661eeabb" }
 #tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", branch = "patch-v2.0.2" }
 tiny-keccak = { git = "https://github.com/sp1-patches/tiny-keccak", rev = "bf0b28f63510a90c7b6c21ac6ff461c93ecd2331" }
+secp256k1 = { git = "https://github.com/sp1-patches/rust-secp256k1", tag = "secp256k1-v0.29.0-patch-v1" }
+
 # Patches aren't useful right now
 # revm = { git = "https://github.com/sp1-patches/revm", branch = "patch-v5.0.0" }
 # reth-primitives = { git = "https://github.com/sp1-patches/reth", branch = "sp1-reth" }
@@ -56,5 +60,5 @@ bench = [
     "sov-modules-api/bench",
     "sov-state/bench",
     "sov-modules-stf-blueprint/bench",
-    "sov-cycle-utils"
+    "sov-cycle-utils",
 ]
