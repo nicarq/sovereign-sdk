@@ -130,16 +130,15 @@ where
                     break;
                 }
                 stf_info_result = self.st_info_receiver.read_next() => {
-                    let stf_infos = match stf_info_result? {
+                    let stf_info = match stf_info_result? {
                         None => {
                             tracing::debug!("Received None instead of StateTransitionInfo. This can happen if the transition has already been processed by the `Receiver`. In that case, it is fine to ignore the notification.");
                             continue;
                         },
-                        Some(stf_infos) => stf_infos,
+                        Some(stf_info) => stf_info,
                     };
-                    for stf_info in stf_infos {
-                        self.proccess_stf_info(stf_info).await?;
-                    }
+
+                    self.proccess_stf_info(stf_info).await?;
                 }
             }
         }

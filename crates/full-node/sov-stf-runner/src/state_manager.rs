@@ -548,9 +548,6 @@ mod tests {
                 sender.next_height_to_receive.fetch_add(1, Ordering::SeqCst);
             };
 
-            assert_eq!(finalized.len(), 1);
-            let finalized = finalized.first().unwrap();
-
             assert_eq!(height, finalized.rollup_height);
             assert_eq!(filtered_block.header, finalized.data.da_block_header);
             assert_eq!(state_root, finalized.data.initial_state_root);

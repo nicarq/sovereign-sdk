@@ -67,7 +67,7 @@ async fn start_stop_empty(
     subscriber.init();
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
-    let restarts = 10;
+    let restarts = 50;
     let mut rng = rand::thread_rng();
 
     let sleep_durations: Vec<std::time::Duration> = (0..restarts)
@@ -76,7 +76,7 @@ async fn start_stop_empty(
 
     for sleep_duration in sleep_durations {
         let test_rollup = tokio::time::timeout(
-            std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(30),
             RollupBuilder::<MockDemoRollup<Native>>::new(
                 test_genesis_source(operation_mode),
                 BlockProducingConfig::Periodic,
