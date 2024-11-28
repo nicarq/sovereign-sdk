@@ -53,11 +53,32 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
     /// This value is synchronized with the receiver end of the channel. On the sender end
     /// it is only persisted in the database after a slot completion.
     pub next_height_to_receive: Arc<AtomicU64>,
+
+    /// The next height to send to the [`Receiver`]. This value is not persisted in the database and
+    /// is merely used to avoid sending twice the same height notification to the [`Receiver`].
+    pub next_height_to_send: u64,
+
     // Max number of entries we will keep in the Db, older data will be pruned.
     max_nb_of_infos_in_db: u64,
 
-    // The notification channel does not contain the actual STF info data,
-    // only the indexes in the Db where the data is stored.
+    /// The notification channel does not contain the actual STF info data,
+    /// only the indexes in the Db where the data is stored.
+    ///
+    /// ## Note
+    /// This channel is used to enforce a back-pressure mechanism to ensure that the
+    /// [`Receiver`] and the [`Sender`] are not too out-of-sync.
+    /// At the end of each slot, the [`Sender`] will send notifications
+    /// to the [`Receiver`] for each rollup height that can be proven.
+    /// If the [`Sender::notifier`] channel is full, the rollup will halt and wait for the
+    /// [`Receiver`] end to catch up.
+    ///
+    /// It is important to note that this is allowed by the fact that _every transition_ goes through the
+    /// channel, and that the receiver processes them individually and sequencially. Otherwise, the
+    /// back-pressure assumptions are broken.
+    ///
+    /// ## Safety
+    /// The size of this channel should not be greater than the [`Sender::max_nb_of_infos_in_db`].
+    /// Otherwise it would mean that we can have more transitions in the channel than what are present in the Db.
     notifier: mpsc::Sender<u64>,
     _phantom: PhantomData<(StateRoot, Witness, Da)>,
 }
@@ -165,23 +186,24 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     // On startup, we need to fill the notification channel with the pending STF info from the db.
     let (notifier, receiver) = tokio::sync::mpsc::channel::<u64>(max_channel_size);
 
-    let next_height_to_receive = Arc::new(AtomicU64::new(
-        ledger_db
-            .get_stf_info_next_rollup_height_to_receive()
-            .await?
-            .unwrap_or(1),
-    ));
+    let next_height_to_receive = ledger_db
+        .get_stf_info_next_rollup_height_to_receive()
+        .await?
+        .unwrap_or(1);
+
+    let next_height_to_receive_ref = Arc::new(AtomicU64::new(next_height_to_receive));
 
     let sender = Sender {
         max_nb_of_infos_in_db,
-        next_height_to_receive: next_height_to_receive.clone(),
+        next_height_to_receive: next_height_to_receive_ref.clone(),
+        next_height_to_send: next_height_to_receive,
         notifier,
 
         _phantom: PhantomData,
     };
 
     let receiver = Receiver {
-        next_height_to_receive,
+        next_height_to_receive: next_height_to_receive_ref,
         ledger_db,
         receiver,
         _phantom: PhantomData,
@@ -208,14 +230,18 @@ where
         };
 
         // The `next_height_to_receive` is the minimum height that should be notified next to the receiver.
-        let next_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
+        let next_height_to_send = self.next_height_to_send;
 
         // We always have to ensure we don't notify for a height that is not already written to the DB.
         // So we always notify up to the `write_rollup_height`, even if the `maximum_provable_height` is higher.
         let height_to_notify = std::cmp::min(maximum_provable_height, write_rollup_height);
 
-        if height_to_notify >= next_height_to_receive {
-            self.notifier.send(height_to_notify).await?;
+        for height in next_height_to_send..=height_to_notify {
+            self.notifier.send(height).await?;
+        }
+
+        if height_to_notify >= next_height_to_send {
+            self.next_height_to_send = height_to_notify.saturating_add(1);
         }
 
         Ok(())
@@ -326,25 +352,19 @@ where
     /// Returns `anyhow::Error` if the channel is closed.
     pub async fn read_next(
         &mut self,
-    ) -> anyhow::Result<Option<Vec<StateTransitionInfo<StateRoot, Witness, Da>>>> {
+    ) -> anyhow::Result<Option<StateTransitionInfo<StateRoot, Witness, Da>>> {
         if let Some(rollup_height) = self.receiver.recv().await {
             let next_height_to_receive = self.next_height_to_receive.load(Ordering::SeqCst);
 
             // We need to ensure that the rollup height received is greater than the next expected height to
             // ensure we don't see the same height multiple times.
             if rollup_height >= next_height_to_receive {
-                let mut stf_infos: Vec<StateTransitionInfo<StateRoot, Witness, Da>> = Vec::new();
+                let stf_info = self.get(rollup_height)?.unwrap_or_else(|| {
+                    panic!("The `stf-info-manager` sender notified that the stf height {} is available but the transition is missing from ledger DB.
+                    Please ensure that the `stf-info-manager` only notifies for heights up to `write_rollup_height`. This is a bug. Please report it", rollup_height)
+                });
 
-                for height in next_height_to_receive..=rollup_height {
-                    stf_infos.push(
-                        self.get(height)?.unwrap_or_else(|| {
-                            panic!("The `stf-info-manager` sender notified that the stf height {} is available but the transition is missing from ledger DB.
-                            Please ensure that the `stf-info-manager` only notifies for heights up to `write_rollup_height`. This is a bug. Please report it", height)
-                        }),
-                    );
-                }
-
-                return Ok(Some(stf_infos));
+                return Ok(Some(stf_info));
             }
 
             return Ok(None);
@@ -437,11 +457,9 @@ mod tests {
             let (ledger_db, _, sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_infos = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_infos.len(), channel_size);
-
-            for (i, stf_info) in stf_infos.iter().enumerate() {
-                assert_eq!(stf_info.rollup_height, (i + 1) as u64);
+            for i in 1..=channel_size {
+                let stf_info = receiver.read_next().await?.unwrap();
+                assert_eq!(stf_info.rollup_height, i as u64);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -452,11 +470,9 @@ mod tests {
             let (ledger_db, mut storage_manager, mut sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_infos = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_infos.len(), channel_size);
-
-            for (i, stf_info) in stf_infos.iter().enumerate() {
-                assert_eq!(stf_info.rollup_height, (i + 1) as u64);
+            for i in 1..=channel_size {
+                let stf_info = receiver.read_next().await?.unwrap();
+                assert_eq!(stf_info.rollup_height, i as u64);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -484,10 +500,7 @@ mod tests {
             let (ledger_db, _, sender, mut receiver) =
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
-            let stf_infos = receiver.read_next().await?.unwrap();
-            assert_eq!(stf_infos.len(), channel_size);
-
-            let stf_info = stf_infos.first().unwrap();
+            let stf_info = receiver.read_next().await?.unwrap();
             assert_eq!(stf_info.rollup_height, 3);
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 2);
         }
@@ -518,8 +531,6 @@ mod tests {
             receiver
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
-            assert_eq!(stf_info.len(), 1);
-            let stf_info = stf_info.first().unwrap();
 
             assert_eq!(stf_info.rollup_height, height as u64);
         }
@@ -550,8 +561,6 @@ mod tests {
             receiver
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
-            assert_eq!(stf_info.len(), 1);
-            let stf_info = stf_info.first().unwrap();
 
             assert_eq!(stf_info.rollup_height, height as u64);
         }
@@ -597,8 +606,6 @@ mod tests {
             receiver
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
-            assert_eq!(stf_info.len(), 1);
-            let stf_info = stf_info.first().unwrap();
 
             assert_eq!(stf_info.rollup_height, height as u64);
         }
