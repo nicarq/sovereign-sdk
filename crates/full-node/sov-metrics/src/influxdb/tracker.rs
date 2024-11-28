@@ -59,6 +59,7 @@ impl MetricsTracker {
     const PROOF_BYTES_PROCESSED: [u8; 32] = *b"sov_rollup_proof_bytes_processed";
     const TRANSACTIONS_PROCESSED: [u8; 33] = *b"sov_rollup_transactions_processed";
     const TRANSACTION_EXECUTION_TIME: [u8; 35] = *b"sov_rollup_transaction_execution_us";
+    const SLOT_EXECUTION_TIME: [u8; 33] = *b"sov_rollup_slot_execution_time_us";
     const PROCESS_SLOT_TIME: [u8; 26] = *b"sov_rollup_process_slot_ms";
     const APPLY_SLOT_TIME: [u8; 24] = *b"sov_rollup_apply_slot_ms";
     const STF_TRANSITION_TIME: [u8; 28] = *b"sov_rollup_stf_transition_ms";
@@ -169,6 +170,30 @@ impl MetricsTracker {
         .unwrap();
         self.submit(measurement);
     }
+
+    /// Tracks metrics related to slot processing. Written as a single point.
+    pub fn track_slot_processing(&self, point: SlotProcessingMetrics) {
+        let timestamp = timestamp();
+        let mut measurement = Self::SLOT_EXECUTION_TIME.to_vec();
+        write!(
+            measurement,
+            ",context={:?} blobs_selection={},begin_hooks={},blobs_processing={},end_hooks={},finalization={},rollup_height={},da_height={} {}",
+            // Tags
+            point.execution_context,
+            // Fields
+            point.blobs_selection_time.as_micros(),
+            point.begin_slot_hooks_time.as_micros(),
+            point.blobs_processing_time.as_micros(),
+            point.end_slot_hooks_time.as_micros(),
+            point.slot_finalization_time.as_micros(),
+            point.rollup_height,
+            point.da_height,
+            // Timestamp
+            timestamp
+        )
+        .unwrap();
+        self.submit(measurement);
+    }
 }
 
 pub(crate) fn timestamp() -> u128 {
@@ -249,4 +274,31 @@ pub struct TransactionProcessingMetrics {
     pub sequencer_address: String,
     /// Call message
     pub call_message: String,
+}
+
+/// Metrics related to processing of a single slot.
+pub struct SlotProcessingMetrics {
+    /// Time it took from slot initialization, till blobs have been selected.
+    /// Includes kernel and state initialization + chain_state logic.
+    pub blobs_selection_time: std::time::Duration,
+
+    /// Time it took for begin slot hooks.
+    /// Includes KernelSlotHooks and normal SlotHooks.
+    pub begin_slot_hooks_time: std::time::Duration,
+
+    /// Time it took to process all blobs: Batches, Proofs and Forced registration
+    pub blobs_processing_time: std::time::Duration,
+
+    /// Time it took for end slot hooks.
+    pub end_slot_hooks_time: std::time::Duration,
+
+    /// Time it took to materialize slot changes and finalize slot hooks.
+    pub slot_finalization_time: std::time::Duration,
+
+    /// Height of DA layer when this slot has been applied.
+    pub da_height: u64,
+    /// Visible rollup height at given slot.
+    pub rollup_height: u64,
+    /// [`sov_rollup_interface::stf::ExecutionContext`]
+    pub execution_context: sov_rollup_interface::stf::ExecutionContext,
 }
