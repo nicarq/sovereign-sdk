@@ -25,7 +25,7 @@ use crate::runtime::Runtime;
 use crate::runtime::{EthereumToRollupAddressConverter, GenesisConfig};
 
 /// Paths pointing to genesis files.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct GenesisPaths {
     /// Bank genesis path.
     pub bank_genesis_path: PathBuf,

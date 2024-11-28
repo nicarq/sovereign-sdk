@@ -24,12 +24,11 @@ async fn evm_tx_test(
 ) -> anyhow::Result<()> {
     let chain_id = config_value!("CHAIN_ID");
     // temp_dir is hold here os it is not removed during test run
-    let (rollup_task, rpc_port, rest_port, _temp_dir) =
-        evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
+    let test_rollup = evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, _) = evm_test_helper::create_test_client(
-        rpc_port,
-        rest_port,
+        test_rollup.rpc_addr,
+        test_rollup.rest_addr,
         chain_id,
         // This will produce an evm key exist in rollup accounts-genesis.
         "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
@@ -37,7 +36,7 @@ async fn evm_tx_test(
     .await;
 
     send_tx_test_to_eth(&test_client).await.unwrap();
-    rollup_task.abort();
+    test_rollup.rollup_task.abort();
     Ok(())
 }
 

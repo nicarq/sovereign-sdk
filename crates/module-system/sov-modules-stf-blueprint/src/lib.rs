@@ -127,6 +127,7 @@ pub struct ApplyTxResult<S: Spec> {
 }
 
 /// Genesis parameters for a blueprint
+#[derive(Clone)]
 pub struct GenesisParams<RuntimeConfig> {
     /// The runtime genesis parameters
     pub runtime: RuntimeConfig,

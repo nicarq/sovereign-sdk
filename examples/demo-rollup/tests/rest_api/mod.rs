@@ -14,11 +14,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
-use sov_test_utils::test_rollup::{
-    get_appropriate_rollup_prover_config, read_private_key, RollupBuilder,
-};
+use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
 use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
@@ -30,15 +26,14 @@ struct ValueResponse {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn trailing_slashes_handled() -> anyhow::Result<()> {
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BlockProducingConfig::OnBatchSubmit,
-            0,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Standard(Default::default()),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BlockProducingConfig::OnBatchSubmit,
+        0,
+    )
+    .with_standard_batch_builder()
+    .start()
+    .await?;
 
     let response = test_rollup
         .client
@@ -67,17 +62,13 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 }
 
 async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BlockProducingConfig::OnBatchSubmit,
-            0,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
-                should_update_state: true,
-            }),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BlockProducingConfig::OnBatchSubmit,
+        0,
+    )
+    .start()
+    .await?;
 
     // Based on an assumption that this key is admin in sov-value-setter
     let key_and_address = read_private_key::<TestSpec>("tx_signer_private_key.json");

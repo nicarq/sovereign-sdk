@@ -116,6 +116,13 @@ pub const TEST_ROLLUP_FINALITY_PERIOD: u64 = 5;
 /// The default name to use for the gas token.
 pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 
+/// Default [`sov_stf_runner::ProofManagerConfig::prover_address`] value in tests.
+pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
+    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
+
+/// Default [`sov_mock_da::MockDaConfig::block_time_ms`] value in tests.
+pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;
+
 /// Generates a default [`TxDetails`] for testing.
 pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
     TxDetails {

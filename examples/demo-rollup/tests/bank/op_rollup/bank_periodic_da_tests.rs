@@ -11,9 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
-use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
+use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -30,17 +28,13 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
         finalization_blocks: 0,
     };
 
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BLOCK_PRODUCING_CONFIG,
-            test_case.finalization_blocks,
-            test_genesis_source(OperatingMode::Optimistic),
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
-                should_update_state: true,
-            }),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Optimistic),
+        BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
+    )
+    .start()
+    .await?;
 
     let sender = SequencerTxSender {};
 

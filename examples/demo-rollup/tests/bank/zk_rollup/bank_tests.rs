@@ -11,9 +11,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
-use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, RollupBuilder};
+use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
@@ -30,17 +28,13 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
         finalization_blocks: 0,
     };
 
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BLOCK_PRODUCING_CONFIG,
-            test_case.finalization_blocks,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
-                should_update_state: true,
-            }),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
+    )
+    .start()
+    .await?;
 
     let sender = SequencerTxSender {};
 
@@ -60,17 +54,13 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         wait_for_aggregated_proof: false,
         finalization_blocks: 2,
     };
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            get_appropriate_rollup_prover_config(),
-            BLOCK_PRODUCING_CONFIG,
-            test_case.finalization_blocks,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
-                should_update_state: true,
-            }),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BLOCK_PRODUCING_CONFIG,
+        test_case.finalization_blocks,
+    )
+    .start()
+    .await?;
 
     let sender = SequencerTxSender {};
 

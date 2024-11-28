@@ -7,14 +7,11 @@ use futures::future::join_all;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use sov_demo_rollup::MockDemoRollup;
-use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig};
+use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::SimpleStorageContract;
-use tokio::task::JoinHandle;
 
 use super::test_client::TestClient;
 use crate::test_helpers::test_genesis_source;
@@ -23,45 +20,25 @@ use crate::test_helpers::test_genesis_source;
 pub(crate) async fn start_node(
     rollup_prover_config: RollupProverConfig,
     finalization_blocks: u32,
-) -> (
-    JoinHandle<anyhow::Result<()>>,
-    SocketAddr,
-    SocketAddr,
-    tempfile::TempDir,
-) {
-    let (rpc_port_tx, rpc_port_rx) = tokio::sync::oneshot::channel();
-    let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-
-    let storage_dir = tempfile::tempdir().unwrap();
-
-    let (_config, rollup_task, _da_service, _shutdown_sender) =
-        // Don't provide a prover since the EVM is not currently provable
-        RollupBuilder::<MockDemoRollup<Native>>::start_rollup_in_background(
-            storage_dir.path(),
-            rpc_port_tx,
-            rest_port_tx,
-            test_genesis_source(sov_modules_api::OperatingMode::Zk),
-            rollup_prover_config,
-            MockDaConfig {
-                connection_string: "sqlite::memory:".to_string(),
-                // This value is important and should match ../test-data/genesis/integration-tests /sequencer_registry.json
-                // Otherwise batches are going to be rejected
-                sender_address: MockAddress::new([0; 32]),
-                finalization_blocks,
-                block_producing: BlockProducingConfig::OnBatchSubmit,
-                block_time_ms: 1_000,
-            },
-            5,
-            30,
-            20,
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig{should_update_state: true}),
-        )
-        .await;
-
-    let rpc_port = rpc_port_rx.await.unwrap();
-    let rest_port = rest_port_rx.await.unwrap();
-
-    (rollup_task, rpc_port, rest_port, storage_dir)
+) -> TestRollup<MockDemoRollup<Native>> {
+    // Don't provide a prover since the EVM is not currently provable
+    RollupBuilder::new(
+        test_genesis_source(sov_modules_api::OperatingMode::Zk),
+        BlockProducingConfig::OnBatchSubmit,
+        finalization_blocks,
+    )
+    .set_config(|c| {
+        c.rollup_prover_config = rollup_prover_config;
+        c.aggregated_proof_block_jump = 5;
+        c.max_infos_in_db = 30;
+        c.max_channel_size = 20;
+    })
+    .set_da_config(|c| {
+        c.block_time_ms = 1_000;
+    })
+    .start()
+    .await
+    .unwrap()
 }
 
 /// Creates a test client to communicate with the rollup node.

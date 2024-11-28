@@ -10,7 +10,6 @@ use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransac
 use sov_modules_api::{OperatingMode, RawTx};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
-use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{TestPrivateKey, TestSpec};
@@ -25,10 +24,6 @@ const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(100);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
-    let temp_dir = tempfile::tempdir()?;
-    let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
-    let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-
     // We need to set the block producing mode to periodic to ensure that the forced registration
     // eventually succeed because the registration batch is deferred.
     let mut da_config = MockDaConfig::instant_with_sender(UNREGISTERED_SENDER);
@@ -38,32 +33,29 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
         .try_into()
         .unwrap();
 
-    let rollup = RollupBuilder::<MockDemoRollup<Native>>::construct_rollup(
-        temp_dir,
+    let rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
-        RollupProverConfig::Skip,
-        da_config,
+        BlockProducingConfig::Periodic,
         1,
-        1,
-        1,
-        BatchBuilderMode::Standard(Default::default()),
     )
-    .await;
-    let da_service = rollup.runner.da_service();
+    .with_standard_batch_builder()
+    .set_config(|c| {
+        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.max_channel_size = 1;
+        c.max_infos_in_db = 1;
+    })
+    .set_da_config(|c| {
+        *c = da_config;
+    })
+    .start()
+    .await
+    .unwrap();
 
-    let rollup_task = tokio::spawn(async move {
-        rollup
-            .run_and_report_addr(Some(rpc_port_tx), Some(rest_port_tx))
-            .await
-            .unwrap();
-    });
-
-    let rest_port = rest_port_rx.await?.port();
-    let client = NodeClient::new_at_localhost(rest_port).await?;
+    let da_service = rollup.da_service.clone();
 
     tokio::select! {
-        err = rollup_task => err?,
-        res = forced_sequencer_registration_test_case(da_service, &client) => res?,
+        err = rollup.rollup_task => err??,
+        res = forced_sequencer_registration_test_case(da_service, &rollup.client) => res?,
     };
     Ok(())
 }

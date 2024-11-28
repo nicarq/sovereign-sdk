@@ -14,8 +14,6 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::{DispatchCall, RawTx, Runtime};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_rest_utils::ResponseObject;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -24,7 +22,6 @@ use sov_test_utils::{
     TestSpec,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
-use tempfile::TempDir;
 use test_strategy::Arbitrary;
 use tokio::time::sleep;
 
@@ -77,21 +74,21 @@ enum WrongNonce {
 }
 
 async fn new_test_rollup(
-    dir: Arc<TempDir>,
+    dir: Arc<tempfile::TempDir>,
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
 ) -> TestRollup<TestBlueprint> {
     const FINALIZATION_BLOCKS: u32 = 10;
 
-    RollupBuilder::<TestBlueprint>::start_memory_da_rollup_in_the_background_with_storage_dir(
-        RollupProverConfig::Skip,
+    RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
-        dir,
         BlockProducingConfig::Periodic,
         FINALIZATION_BLOCKS,
-        None,
-        1,
-        BatchBuilderMode::Preferred(PreferredBatchBuilderConfig::default()),
     )
+    .set_config(|c| {
+        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.storage = dir;
+    })
+    .start()
     .await
     .unwrap()
 }
@@ -217,7 +214,7 @@ async fn run_action_against_test_rollup(
 
     match action {
         TestingAction::Restart => {
-            let storage_dir = test_rollup.storage_dir.clone();
+            let storage_dir = test_rollup.storage.clone();
             let genesis_params = GenesisParams {
                 runtime: rt_genesis_params,
             };
