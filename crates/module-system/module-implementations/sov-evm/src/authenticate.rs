@@ -16,7 +16,7 @@ use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
 
 /// Authenticates a raw evm transaction.
 ///
-/// Due to unfortnate limitations of the Rust type system, this function is generic over an `EvmToRollupAddressConverter` which
+/// Due to unfortunate limitations of the Rust type system, this function is generic over an `EvmToRollupAddressConverter` which
 /// is required to implement `From<reth_primitives::Address>` and `TryInto<S::Address>`. If the caller wishes to support deriving
 /// rollup addresses from the evm address, their implementation of `EvmToRollupAddressConverter` should always return Some(S::Address).
 /// Otherwise, they should simply return None.

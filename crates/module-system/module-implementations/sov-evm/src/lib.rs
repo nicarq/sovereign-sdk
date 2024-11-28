@@ -5,6 +5,9 @@ mod call;
 mod evm;
 mod genesis;
 mod hooks;
+/// Defines a ready-to-use spec for EVM rollups
+#[cfg(feature = "spec")]
+pub mod spec;
 
 pub use call::*;
 pub use evm::*;
