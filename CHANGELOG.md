@@ -1,3 +1,5 @@
+## 2024-11-27
+- #1903 makes significant changes to `demo-rollup` integration tests, which now rely on the `sov_test_utils::test_rollup::RollupBuilder` utility. Migrating similar tests must be done through the new APIs, which are simpler and provide more flexibility and control.
 ## 2024-11-20
 - #1889 makes `demo-rollup` use the `SoftConfirmationsKernel` by default. This may be a breaking change for the consumers of the SDK that rely on the default behavior of the `demo-rollup`. Please make sure to update the `blob` format to `PreferredBlobData` if sending batches using the preferred sequencer in the `demo-rollup`.
 ## 2024-11-26

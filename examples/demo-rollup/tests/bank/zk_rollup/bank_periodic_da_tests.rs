@@ -22,19 +22,21 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         finalization_blocks: 0,
     };
 
-    let test_rollup =
-        RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background(
-            RollupProverConfig::Skip,
-            BlockProducingConfig::Periodic,
-            test_case.finalization_blocks,
-            test_genesis_source(OperatingMode::Zk),
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
-                // FIXME(@theochap): It seems this test is broken because the sequencer state does
-                // not update fast enough. Hence we disable the state update here.
-                should_update_state: false,
-            }),
-        )
-        .await?;
+    let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BlockProducingConfig::Periodic,
+        test_case.finalization_blocks,
+    )
+    .set_config(|c| {
+        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.batch_builder_mode = BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+            // FIXME(@theochap): It seems this test is broken because the sequencer state does
+            // not update fast enough. Hence we disable the state update here.
+            should_update_state: false,
+        });
+    })
+    .start()
+    .await?;
 
     let sender = SequencerTxSender {};
 

@@ -51,7 +51,7 @@ pub trait Runtime<S: Spec>:
 
     /// GenesisPaths type.
     #[cfg(feature = "native")]
-    type GenesisPaths: Send + Sync;
+    type GenesisPaths: Clone + Send + Sync;
 
     /// Default RPC methods and Axum router.
     #[cfg(feature = "native")]

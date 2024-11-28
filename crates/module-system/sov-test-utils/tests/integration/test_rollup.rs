@@ -3,7 +3,6 @@ use std::sync::Arc;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::Runtime;
 use sov_modules_stf_blueprint::GenesisParams;
-use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder};
@@ -34,19 +33,19 @@ async fn start_and_stop_node_in_dir(dir: Arc<TempDir>) {
         ),
     };
 
-    let test_rollup =
-        RollupBuilder::<TestBlueprint>::start_memory_da_rollup_in_the_background_with_storage_dir(
-            RollupProverConfig::Skip,
-            GenesisSource::CustomParams(genesis_params),
-            dir,
-            BlockProducingConfig::Periodic,
-            1,
-            None,
-            1,
-            BatchBuilderMode::Standard(Default::default()),
-        )
-        .await
-        .unwrap();
+    let test_rollup = RollupBuilder::<TestBlueprint>::new(
+        GenesisSource::CustomParams(genesis_params),
+        BlockProducingConfig::Periodic,
+        1,
+    )
+    .set_config(|c| {
+        c.storage = dir;
+        c.rollup_prover_config = RollupProverConfig::Skip;
+    })
+    .with_standard_batch_builder()
+    .start()
+    .await
+    .unwrap();
 
     test_rollup.shutdown().await.unwrap();
 }

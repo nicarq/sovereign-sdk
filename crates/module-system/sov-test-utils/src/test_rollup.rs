@@ -1,18 +1,19 @@
-use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
+use derivative::Derivative;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Spec;
-use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
+use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
+use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
@@ -22,7 +23,11 @@ use sov_stf_runner::{
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
+use crate::{TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS, TEST_DEFAULT_PROVER_ADDRESS};
+
 /// Specifies how to source the genesis data for a rollup.
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
 pub enum GenesisSource<S: Spec, R: Runtime<S>> {
     /// Genesis data will be parsed from files found at the given paths.
     ///
@@ -36,15 +41,115 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
     CustomParams(GenesisParams<R::GenesisConfig>),
 }
 
-/// A one-stop shop for building entire rollups and starting them in the
-/// background to test node APIs.
-#[derive(Default)]
-pub struct RollupBuilder<R> {
-    phantom: PhantomData<R>,
+/// Various configuration options for [`RollupBuilder`].
+#[allow(missing_docs)]
+#[derive(Clone)]
+pub struct RollupBuilderConfig {
+    pub batch_builder_mode: BatchBuilderMode,
+    pub prover_address: String,
+    pub aggregated_proof_block_jump: usize,
+    pub max_infos_in_db: u64,
+    pub max_channel_size: u64,
+    pub rollup_prover_config: RollupProverConfig,
+    /// This is wrapped in an [`Arc`] to enable re-use of the same directory
+    /// when dropping a [`TestRollup`] and creating a new one. The pattern
+    /// looks something like this:
+    ///
+    ///  1. Instantiate a [`RollupBuilder`].
+    ///  2. Clone its [`RollupBuilderConfig::storage`] and store it for later use.
+    ///  3. Run some tests against the [`TestRollup`], then call
+    ///     [`TestRollup::shutdown`].
+    ///  4. Instantiate a new [`RollupBuilder`] and set its
+    ///     [`RollupBuilderConfig::storage`] to the original directory.
+    ///  6. Voila, your data is still there and you can test node behavior after
+    ///     a restart.
+    pub storage: Arc<tempfile::TempDir>,
 }
 
-// TODO: some [`RollupBuilder`] methods have way too many parameters; a
-// builder-like pattern would be nicer to use.
+/// A one-stop shop for building entire rollups and starting them in the
+/// background to test node APIs.
+#[derive(Derivative)]
+#[derivative(Clone(bound = ""))]
+pub struct RollupBuilder<R: FullNodeBlueprint<Native>> {
+    genesis: GenesisSource<R::Spec, R::Runtime>,
+    da_config: MockDaConfig,
+    config: RollupBuilderConfig,
+}
+
+impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
+    /// Creates a new [`RollupBuilder`] with automatic [`StorableMockDaService`]
+    /// configuration.
+    pub fn new(
+        genesis: GenesisSource<R::Spec, R::Runtime>,
+        block_producing: BlockProducingConfig,
+        finalization_blocks: u32,
+    ) -> Self {
+        let da_config = MockDaConfig {
+            // This will be set later based on the storage path. In case of a bug,
+            // SQLite will simply fail to open the file and we'll immediately get a
+            // panic, so it's not dangerous.
+            connection_string: "WILL_BE_SET_LATER".to_string(),
+            // This value is important and should match `examples/test-data/genesis/integration-tests/sequencer_registry.json`
+            // Otherwise batches are going to be rejected in `examples/demo-rollup` tests.
+            sender_address: MockAddress::new([0; 32]),
+            finalization_blocks,
+            block_producing,
+            block_time_ms: TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS,
+        };
+
+        Self {
+            genesis,
+            da_config,
+            config: RollupBuilderConfig {
+                max_channel_size: 60,
+                max_infos_in_db: 80 + finalization_blocks as u64,
+                batch_builder_mode: BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+                    should_update_state: true,
+                }),
+                prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
+                aggregated_proof_block_jump: 1,
+                rollup_prover_config: get_appropriate_rollup_prover_config(),
+                storage: Arc::new(tempfile::tempdir().unwrap()),
+            },
+        }
+        .set_da_connection_string()
+    }
+
+    /// Allows to modify configuration options.
+    pub fn set_config(mut self, config_f: impl FnOnce(&mut RollupBuilderConfig)) -> Self {
+        config_f(&mut self.config);
+        // Storage path might have changed.
+        self.set_da_connection_string()
+    }
+
+    /// Allows to modify DA configuration options.
+    pub fn set_da_config(mut self, config_f: impl FnOnce(&mut MockDaConfig)) -> Self {
+        config_f(&mut self.da_config);
+        self
+    }
+
+    /// Sets the batch builder mode to [`BatchBuilderMode::Standard`].
+    pub fn with_standard_batch_builder(self) -> Self {
+        self.set_config(|c| {
+            c.batch_builder_mode = BatchBuilderMode::Standard(Default::default());
+        })
+    }
+
+    /// Returns the path that will be used for the mock DA database.
+    pub fn mock_da_db_path(&self) -> PathBuf {
+        self.config.storage.path().join("mock_da.sqlite")
+    }
+
+    fn set_da_connection_string(mut self) -> Self {
+        // We store DA data in the same directory as the rollup data. This
+        // ensures that, when reusing the same path, we restore not only node
+        // data but also DA history.
+        self.da_config.connection_string =
+            format!("sqlite://{}?mode=rwc", self.mock_da_db_path().display());
+        self
+    }
+}
+
 impl<R> RollupBuilder<R>
 where
     R: FullNodeBlueprint<Native, DaService = DaServiceWithRetries<StorableMockDaService>>
@@ -52,57 +157,70 @@ where
         + 'static,
     R::Spec: Spec<Da = MockDaSpec>,
 {
-    /// The rollup address that is used for all [`ProofManagerConfig`]s.
-    pub const PROVER_ADDRESS: &'static str =
-        "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
+    /// Creates a new [`TestRollup`] and starts running it in a background Tokio
+    /// task. See [`TestRollup`] for usage information.
+    pub async fn start(self) -> anyhow::Result<TestRollup<R>> {
+        let blueprint: R = Default::default();
 
-    /// Creates a new [`Rollup`] using pre-defined, sensible defaults for
-    /// configuration.
-    ///
-    /// Genesis initialization is automatically performed, and the prover
-    /// service is started.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn construct_rollup(
-        storage_path: impl AsRef<Path>,
-        genesis: GenesisSource<R::Spec, R::Runtime>,
-        rollup_prover_config: RollupProverConfig,
-        da_config: MockDaConfig,
-        aggregated_proof_block_jump: usize,
-        max_number_of_transitions_in_db: u64,
-        max_number_of_transitions_in_memory: u64,
-        batch_builder_mode: BatchBuilderMode,
-    ) -> Rollup<R, Native> {
-        Self::construct_rollup_and_config(
-            storage_path,
-            genesis,
-            rollup_prover_config,
-            da_config,
-            aggregated_proof_block_jump,
-            max_number_of_transitions_in_db,
-            max_number_of_transitions_in_memory,
-            batch_builder_mode,
-        )
-        .await
-        .rollup
+        let rollup_config = self.rollup_config();
+        let rollup = match &self.genesis {
+            GenesisSource::Paths(genesis_paths) => {
+                blueprint
+                    .create_new_rollup(
+                        genesis_paths,
+                        rollup_config.clone(),
+                        Some(self.config.rollup_prover_config),
+                    )
+                    .await?
+            }
+            GenesisSource::CustomParams(genesis_params) => {
+                blueprint
+                    .create_new_rollup_with_genesis_params(
+                        genesis_params.clone(),
+                        rollup_config.clone(),
+                        Some(self.config.rollup_prover_config),
+                    )
+                    .await?
+            }
+        };
+
+        let (rpc_addr_tx, rpc_addr_rx) = tokio::sync::oneshot::channel();
+        let (rest_addr_tx, rest_addr_rx) = tokio::sync::oneshot::channel();
+        let shutdown_sender = rollup.shutdown_sender.clone();
+
+        let da_service = rollup.runner.da_service();
+
+        let rollup_task = tokio::spawn(async move {
+            rollup
+                .run_and_report_addr(Some(rpc_addr_tx), Some(rest_addr_tx))
+                .await?;
+            tracing::info!("Completed running a rollup");
+            Ok(())
+        });
+
+        let rest_addr = rest_addr_rx.await?;
+        let rpc_addr = rpc_addr_rx.await?;
+
+        let rest_port = rest_addr.port();
+        let client = NodeClient::new_at_localhost(rest_port).await?;
+
+        Ok(TestRollup {
+            rollup_task,
+            api_client: sov_api_spec::client::Client::new(&client.base_url),
+            rpc_addr,
+            rest_addr,
+            rollup_config,
+            client,
+            da_service,
+            storage: self.config.storage.clone(),
+            shutdown_sender,
+        })
     }
 
-    // Internal API. Returns a rollup but also its config.
-    #[allow(clippy::too_many_arguments)]
-    async fn construct_rollup_and_config(
-        storage_path: impl AsRef<Path>,
-        genesis: GenesisSource<R::Spec, R::Runtime>,
-        rollup_prover_config: RollupProverConfig,
-        da_config: MockDaConfig,
-        aggregated_proof_block_jump: usize,
-        max_number_of_transitions_in_db: u64,
-        max_number_of_transitions_in_memory: u64,
-        batch_builder_mode: BatchBuilderMode,
-    ) -> RollupWithConfig<R> {
-        let sequencer_address = da_config.sender_address;
-
-        let rollup_config = RollupConfig {
+    fn rollup_config(&self) -> RollupConfig<<R::Spec as Spec>::Address, R::DaService> {
+        RollupConfig {
             storage: StorageConfig {
-                path: storage_path.as_ref().to_path_buf(),
+                path: self.config.storage.path().to_path_buf(),
             },
             runner: RunnerConfig {
                 genesis_height: 0,
@@ -111,202 +229,32 @@ where
                 axum_config: HttpServerConfig::localhost_on_free_port(),
                 concurrent_sync_tasks: Some(1),
             },
-            da: da_config,
+            da: self.da_config.clone(),
             proof_manager: ProofManagerConfig {
-                aggregated_proof_block_jump,
-                prover_address: FromStr::from_str(Self::PROVER_ADDRESS)
+                aggregated_proof_block_jump: self.config.aggregated_proof_block_jump,
+                prover_address: FromStr::from_str(&self.config.prover_address)
                     .expect("Prover address is not valid"),
-                max_number_of_transitions_in_db,
-                max_number_of_transitions_in_memory,
+                max_number_of_transitions_in_db: self.config.max_infos_in_db,
+                max_number_of_transitions_in_memory: self.config.max_channel_size,
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,
                 max_allowed_blocks_behind: 5,
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
-                da_address: sequencer_address,
-                batch_builder: match batch_builder_mode {
+                da_address: self.da_config.sender_address,
+                batch_builder: match self.config.batch_builder_mode.clone() {
                     BatchBuilderMode::Standard(config) => BatchBuilderConfig::standard(config),
                     BatchBuilderMode::Preferred(config) => BatchBuilderConfig::preferred(config),
                 },
             },
+
             monitoring: MonitoringConfig {
                 telegraf_address: SocketAddr::from_str("127.0.0.1:8094").unwrap(),
                 max_datagram_size: None,
                 max_pending_metrics: None,
             },
-        };
-
-        let blueprint: R = Default::default();
-        let rollup = match genesis {
-            GenesisSource::Paths(genesis_paths) => blueprint
-                .create_new_rollup(
-                    &genesis_paths,
-                    rollup_config.clone(),
-                    Some(rollup_prover_config),
-                )
-                .await
-                .unwrap(),
-            GenesisSource::CustomParams(genesis_params) => blueprint
-                .create_new_rollup_with_genesis_params(
-                    genesis_params,
-                    rollup_config.clone(),
-                    Some(rollup_prover_config),
-                )
-                .await
-                .unwrap(),
-        };
-
-        RollupWithConfig {
-            rollup_config,
-            rollup,
         }
-    }
-
-    /// Creates a new [`Rollup`] like [`RollupBuilder::construct_rollup`], but
-    /// also starts running it in a background Tokio task. Node APIs are
-    /// available.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_rollup_in_background(
-        data_path: impl AsRef<Path>,
-        rpc_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
-        rest_reporting_channel: tokio::sync::oneshot::Sender<SocketAddr>,
-        genesis: GenesisSource<R::Spec, R::Runtime>,
-        rollup_prover_config: RollupProverConfig,
-        da_config: MockDaConfig,
-        aggregated_proof_block_jump: usize,
-        max_number_of_transitions_in_db: u64,
-        max_number_of_transitions_in_memory: u64,
-        batch_builder_mode: BatchBuilderMode,
-    ) -> (
-        RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
-        JoinHandle<anyhow::Result<()>>,
-        Arc<R::DaService>,
-        watch::Sender<()>,
-    ) {
-        let RollupWithConfig {
-            rollup_config,
-            rollup,
-        } = Self::construct_rollup_and_config(
-            data_path,
-            genesis,
-            rollup_prover_config,
-            da_config,
-            aggregated_proof_block_jump,
-            max_number_of_transitions_in_db,
-            max_number_of_transitions_in_memory,
-            batch_builder_mode,
-        )
-        .await;
-
-        let shutdown_sender = rollup.shutdown_sender.clone();
-
-        let da_service = rollup.runner.da_service();
-
-        (
-            rollup_config,
-            tokio::spawn(async move {
-                rollup
-                    .run_and_report_addr(Some(rpc_reporting_channel), Some(rest_reporting_channel))
-                    .await?;
-                tracing::info!("Completed running a rollup");
-                Ok(())
-            }),
-            da_service,
-            shutdown_sender,
-        )
-    }
-
-    /// Wrapper around [`RollupBuilder::start_rollup_in_background`] with
-    /// automatic [`StorableMockDaService`] configuration (an in-memory
-    /// SQLite database).
-    pub async fn start_memory_da_rollup_in_the_background(
-        rollup_prover_config: RollupProverConfig,
-        block_producing: BlockProducingConfig,
-        finalization_blocks: u32,
-        genesis: GenesisSource<R::Spec, R::Runtime>,
-        batch_builder_mode: BatchBuilderMode,
-    ) -> anyhow::Result<TestRollup<R>> {
-        let storage_dir = Arc::new(tempfile::tempdir()?);
-
-        Self::start_memory_da_rollup_in_the_background_with_storage_dir(
-            rollup_prover_config,
-            genesis,
-            storage_dir,
-            block_producing,
-            finalization_blocks,
-            None,
-            1,
-            batch_builder_mode,
-        )
-        .await
-    }
-
-    /// Like [`RollupBuilder::start_memory_da_rollup_in_the_background`] but
-    /// with a custom storage directory.
-    ///
-    /// Useful for testing node restarts.
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_memory_da_rollup_in_the_background_with_storage_dir(
-        rollup_prover_config: RollupProverConfig,
-        genesis: GenesisSource<R::Spec, R::Runtime>,
-        storage_dir: Arc<tempfile::TempDir>,
-        block_producing: BlockProducingConfig,
-        finalization_blocks: u32,
-        mock_da_path: Option<&Path>,
-        aggregated_proof_block_jump: usize,
-        batch_builder_mode: BatchBuilderMode,
-    ) -> anyhow::Result<TestRollup<R>> {
-        let (rpc_port_tx, _rpc_port_rx) = tokio::sync::oneshot::channel();
-        let (rest_port_tx, rest_port_rx) = tokio::sync::oneshot::channel();
-
-        // This value is important and should match `../test-data/genesis/integration-tests/sequencer_registry.json`
-        // Otherwise batches are going to be rejected
-        let sequencer_address = MockAddress::new([0; 32]);
-        let block_time_ms = 100;
-        let storable_mock_da_connection_string = match mock_da_path {
-            None => "sqlite::memory:".to_string(),
-            Some(p) => format!("sqlite://{}/mock_da.sqlite?mode=rwc", p.display()),
-        };
-
-        let mock_da_config = MockDaConfig {
-            connection_string: storable_mock_da_connection_string,
-            sender_address: sequencer_address,
-            finalization_blocks,
-            block_producing,
-            block_time_ms,
-        };
-
-        let max_channel_size = 60;
-        let max_infos_in_db = 80 + finalization_blocks as u64;
-
-        let (rollup_config, rollup_task, da_service, shutdown_sender) =
-            Self::start_rollup_in_background(
-                storage_dir.path(),
-                rpc_port_tx,
-                rest_port_tx,
-                genesis,
-                rollup_prover_config,
-                mock_da_config,
-                aggregated_proof_block_jump,
-                max_infos_in_db,
-                max_channel_size,
-                batch_builder_mode,
-            )
-            .await;
-
-        let rest_port = rest_port_rx.await?.port();
-        let client = NodeClient::new_at_localhost(rest_port).await?;
-
-        Ok(TestRollup {
-            rollup_task,
-            api_client: sov_api_spec::client::Client::new(&client.base_url),
-            rollup_config,
-            client,
-            da_service,
-            storage_dir,
-            shutdown_sender,
-        })
     }
 }
 
@@ -351,6 +299,10 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub client: NodeClient,
     /// Auto-generated API client for the rollup.
     pub api_client: sov_api_spec::client::Client,
+    /// Address of the JSON-RPC node server.
+    pub rpc_addr: SocketAddr,
+    /// Address of the REST API server.
+    pub rest_addr: SocketAddr,
     /// The rollup config used to run the rollup.
     pub rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
     /// A copy of the [`DaService`](sov_rollup_interface::node::da::DaService)
@@ -361,23 +313,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
     /// We just hold this together with [`TestRollup`] instance, so the directory
     /// is not deleted before we're done.
-    ///
-    /// This is wrapped in an [`Arc`] to enable re-use of the same directory
-    /// when dropping a [`TestRollup`] and creating a new one. The pattern
-    /// looks something like this:
-    ///
-    ///  1. Create a [`tempfile::TempDir`] and wrap it in an [`Arc`].
-    ///  2. Call e.g.
-    ///     [`RollupBuilder::start_memory_da_rollup_in_the_background_with_storage_dir`]
-    ///     with a cloned storage directory.
-    ///  3. Drop the [`TestRollup`] instance.
-    ///  4. (Optionally.) Wait some time for the rollup to shutdown and
-    ///     databases to be closed.
-    ///  5. Call [`RollupBuilder::start_memory_da_rollup_in_the_background_with_storage_dir`]
-    ///     again with the same storage directory.
-    ///  6. Voila, your data is still there and you test node behavior after a
-    ///     restart.
-    pub storage_dir: Arc<tempfile::TempDir>,
+    pub storage: Arc<tempfile::TempDir>,
     /// @neysofu: used for node cleanup/shutdown logic, but I'm not sure why we
     /// need to hold on to this. TODO: docs.
     pub shutdown_sender: watch::Sender<()>,
@@ -395,9 +331,4 @@ impl<R: FullNodeBlueprint<Native>> TestRollup<R> {
 
         Ok(())
     }
-}
-
-struct RollupWithConfig<R: FullNodeBlueprint<Native>> {
-    rollup_config: RollupConfig<<R::Spec as Spec>::Address, R::DaService>,
-    rollup: Rollup<R, Native>,
 }

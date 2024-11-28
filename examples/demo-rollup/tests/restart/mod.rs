@@ -11,8 +11,6 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use tracing::{Event, Level, Subscriber};
@@ -69,7 +67,6 @@ async fn start_stop_empty(
     subscriber.init();
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
-    let mock_da_dir = tempfile::tempdir()?;
     let restarts = 10;
     let mut rng = rand::thread_rng();
 
@@ -80,18 +77,17 @@ async fn start_stop_empty(
     for sleep_duration in sleep_durations {
         let test_rollup = tokio::time::timeout(
             std::time::Duration::from_secs(60),
-            RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
-                rollup_prover_config,
+            RollupBuilder::<MockDemoRollup<Native>>::new(
                 test_genesis_source(operation_mode),
-                rollup_storage_dir.clone(),
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
-                Some(mock_da_dir.path()),
-                10,
-                BatchBuilderMode::Preferred(PreferredBatchBuilderConfig{
-                    should_update_state: true,
-                }),
-            ),
+            )
+            .set_config(|c| {
+                c.storage = rollup_storage_dir.clone();
+                c.rollup_prover_config = rollup_prover_config;
+                c.aggregated_proof_block_jump = 10;
+            })
+            .start(),
         )
         .await??;
 
@@ -185,12 +181,24 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     subscriber.init();
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
-    let mock_da_dir = tempfile::tempdir()?;
     let finalization_blocks = 0;
 
     let first_chunk = 6;
     let second_chunk = 4;
     let jump_size = first_chunk + second_chunk;
+
+    let rollup_builder = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(OperatingMode::Zk),
+        BlockProducingConfig::OnAnySubmit,
+        finalization_blocks,
+    )
+    .set_config(|c| {
+        c.storage = rollup_storage_dir.clone();
+        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.aggregated_proof_block_jump = jump_size;
+    });
+
+    let mock_da_dir = &rollup_storage_dir;
 
     {
         let mut storable_mock_da_layer =
@@ -201,17 +209,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     }
 
     {
-        let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
-            RollupProverConfig::Skip,
-            test_genesis_source(OperatingMode::Zk),
-            rollup_storage_dir.clone(),
-            BlockProducingConfig::OnAnySubmit,
-            finalization_blocks,
-            Some(mock_da_dir.path()),
-            jump_size,
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig{should_update_state: true}),
-        )
-            .await?;
+        let test_rollup = rollup_builder.clone().start().await?;
         let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
 
         let TestRollup {
@@ -251,17 +249,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     };
 
     {
-        let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::start_memory_da_rollup_in_the_background_with_storage_dir(
-            RollupProverConfig::Skip,
-            test_genesis_source(OperatingMode::Zk),
-            rollup_storage_dir.clone(),
-            BlockProducingConfig::OnAnySubmit,
-            finalization_blocks,
-            Some(mock_da_dir.path()),
-            jump_size,
-            BatchBuilderMode::Preferred(PreferredBatchBuilderConfig{should_update_state: true}),
-        )
-            .await?;
+        let test_rollup = rollup_builder.start().await?;
 
         let mut slot_subscription = test_rollup.client.client.subscribe_slots().await?;
 

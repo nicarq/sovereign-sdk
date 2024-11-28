@@ -16,12 +16,11 @@ async fn test_evm_account_abstraction() {
     let finalization_blocks = 0;
     let rollup_prover_config = get_appropriate_rollup_prover_config();
     // tempdir is held here so it is not removed during test run
-    let (rollup_task, rpc_port, rest_port, _temp_dir) =
-        evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
+    let test_rollup = evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 
     let (test_client, from_addr) = evm_test_helper::create_test_client(
-        rpc_port,
-        rest_port,
+        test_rollup.rpc_addr,
+        test_rollup.rest_addr,
         chain_id,
         // This will produce an evm key that doesn't exist in rollup accounts-genesis so we have to register the credentials in the rollup.
         "0x90cb5be9e2c125d84af44f19a4e6e36af359bd47b41577aedbe8aa24313bbd40",
@@ -33,7 +32,7 @@ async fn test_evm_account_abstraction() {
     // Execute the evm tests.
     execute_evm_tests(&test_client).await.unwrap();
 
-    rollup_task.abort();
+    test_rollup.rollup_task.abort();
 }
 
 async fn send_insert_credentials(test_client: &TestClient, from_addr: Address, chain_id: u64) {
