@@ -47,13 +47,13 @@ bench = [
 ]
 default = []
 native = [
-	"axum",
-	"jsonrpsee",
-	"sov-modules-api/native",
-	"sov-rollup-interface/native",
-	"sov-state/native",
-	"tokio",
-	"sov-cycle-utils?/native",
-	"sov-metrics/native",
+    "axum",
+    "jsonrpsee",
+    "sov-modules-api/native",
+    "sov-rollup-interface/native",
+    "sov-state/native",
+    "tokio",
+    "sov-cycle-utils?/native",
+    "sov-metrics",
 ]
 test-utils = []
