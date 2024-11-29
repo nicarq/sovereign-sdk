@@ -1,24 +1,17 @@
 //! Implementation for the [`MetricsTracker`] for Influxdb.
 
 use std::io::Write;
-#[cfg(feature = "native")]
 use std::sync::OnceLock;
 
-#[cfg(feature = "native")]
-use crate::influxdb::publisher;
-use crate::influxdb::Metric;
-use crate::MetricsTracker;
-#[cfg(feature = "native")]
-use crate::MonitoringConfig;
+use crate::influxdb::{publisher, Metric};
+use crate::{MetricsTracker, MonitoringConfig};
 
-#[cfg(feature = "native")]
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
 
 /// Alias for number of nano-seconds since unix epoch.
 pub(crate) type Timestamp = u128;
 
 /// Spawns task that published metrics in the background.
-#[cfg(feature = "native")]
 pub fn init_metrics_tracker(
     shutdown_receiver: tokio::sync::watch::Receiver<()>,
     config: &MonitoringConfig,

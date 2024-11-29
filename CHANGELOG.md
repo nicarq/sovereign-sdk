@@ -1,3 +1,5 @@
+## 2024-11-29
+- #1948 Makes `sov-metrics` crate native only. Explicit feature gating is required in places where zk guest mode is possible.
 ## 2024-11-27
 - #1903 makes significant changes to `demo-rollup` integration tests, which now rely on the `sov_test_utils::test_rollup::RollupBuilder` utility. Migrating similar tests must be done through the new APIs, which are simpler and provide more flexibility and control.
 ## 2024-11-20

@@ -1,17 +1,13 @@
 //! InfluxDB metrics for Sovereign rollups.
 
-#[cfg(feature = "native")]
 mod config;
-#[cfg(feature = "native")]
 mod publisher;
 mod tracker;
 
-#[cfg(feature = "native")]
 pub use config::MonitoringConfig;
-#[cfg(feature = "native")]
-pub use tracker::init_metrics_tracker;
 pub use tracker::{
-    RunnerMetrics, SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
+    init_metrics_tracker, RunnerMetrics, SlotProcessingMetrics, TransactionEffect,
+    TransactionProcessingMetrics,
 };
 
 pub(crate) type SerializableMetric = Box<dyn Metric>;
@@ -30,17 +26,7 @@ pub trait Metric: Send + Sync {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()>;
 }
 
-/// Stub function for non-native code
-#[cfg(not(feature = "native"))]
-pub fn track_metrics<F>(_f: F)
-where
-    F: FnOnce(&MetricsTracker),
-{
-}
-
-/// Applies a function to the global [`MetricsTracker`] instance if and only if the
-/// `native` feature is enabled and [`MetricsTracker`] has been initialized.
-#[cfg(feature = "native")]
+/// Applies a function to the global [`MetricsTracker`] instance.
 pub fn track_metrics<F>(f: F)
 where
     F: FnOnce(&MetricsTracker),

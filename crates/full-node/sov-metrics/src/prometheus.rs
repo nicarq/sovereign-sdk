@@ -6,21 +6,18 @@ use prometheus::{
     Histogram, IntCounter, IntGauge,
 };
 
-/// Applies a function to the global [`Metrics`] instance if and only if the
-/// `native` feature is enabled.
+/// Applies a function to the global [`Metrics`] instance.
 pub fn update_metrics<F>(f: F)
 where
     F: FnOnce(&Metrics),
 {
-    if cfg!(feature = "native") {
-        static METRICS: OnceLock<Metrics> = OnceLock::new();
+    static METRICS: OnceLock<Metrics> = OnceLock::new();
 
-        f(OnceLock::get_or_init(&METRICS, || {
-            tracing::info!("Initializing and registering Prometheus rollup metrics");
-            Metrics::new(prometheus::default_registry())
-                .expect("failed to create new metrics; this is a bug in the Sovereign SDK")
-        }));
-    }
+    f(OnceLock::get_or_init(&METRICS, || {
+        tracing::info!("Initializing and registering Prometheus rollup metrics");
+        Metrics::new(prometheus::default_registry())
+            .expect("failed to create new metrics; this is a bug in the Sovereign SDK")
+    }));
 }
 
 /// Prometheus metrics for Sovereign rollups.

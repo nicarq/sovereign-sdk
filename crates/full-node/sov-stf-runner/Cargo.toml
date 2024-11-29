@@ -39,7 +39,7 @@ rayon = { workspace = true }
 sov-db = { workspace = true }
 sov-rest-utils = { workspace = true }
 sov-rollup-interface = { workspace = true }
-sov-metrics = { workspace = true, features = ["native"] }
+sov-metrics = { workspace = true }
 tower-http = { workspace = true, features = ["normalize-path"] }
 tower-layer = "0.3.3"
 
