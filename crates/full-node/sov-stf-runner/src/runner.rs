@@ -662,7 +662,7 @@ where
                 .load(std::sync::atomic::Ordering::Acquire);
             let point = RunnerMetrics {
                 sync_distance: target_da_height as i64 - synced_da_height as i64,
-                da_height_processed: next_da_height,
+                da_height: next_da_height,
                 get_block_time,
                 batches_processed: batch_count,
                 batch_bytes_processed,

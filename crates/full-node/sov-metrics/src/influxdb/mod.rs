@@ -14,12 +14,20 @@ pub use tracker::{
     RunnerMetrics, SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
 };
 
+pub(crate) type SerializableMetric = Box<dyn Metric>;
+
 /// Struct for tracking Sovereign metrics.
 ///
 /// Hides underlying monitoring system implementation.
 #[derive(Clone)]
 pub struct MetricsTracker {
-    sender: tokio::sync::mpsc::Sender<Vec<u8>>,
+    sender: tokio::sync::mpsc::Sender<SerializableMetric>,
+}
+
+/// Anything that makes sense to serialize for telegraf.
+pub trait Metric: Send + Sync {
+    /// Write InfluxDb [`line protocol`](https://docs.influxdata.com/influxdb/cloud/reference/syntax/line-protocol/) format.
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()>;
 }
 
 /// Stub function for non-native code
@@ -63,7 +71,8 @@ mod tests {
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
         let monitoring_config = MonitoringConfig {
             telegraf_address: socket.local_addr()?,
-            max_datagram_size: None,
+            // Setting low, so each metric is published immediately
+            max_datagram_size: Some(1),
             max_pending_metrics: None,
         };
 
@@ -81,7 +90,7 @@ mod tests {
 
         let start = timestamp();
         tracker.track_runner_metrics(RunnerMetrics {
-            da_height_processed: 12333,
+            da_height: 12333,
             sync_distance: 55768,
             get_block_time: std::time::Duration::from_millis(1000),
             batches_processed: 2084,
@@ -123,8 +132,7 @@ mod tests {
             );
         }
 
-        // At least 3 metrics should be squeezed, otherwise buffering does not seem to worth it.
-        assert!(received_number_of_metrics > 2);
+        assert_eq!(3, received_number_of_metrics);
         assert!(received_number_of_metrics <= total_expected_number_of_metrics);
 
         let _ = shutdown_sender.send(());
