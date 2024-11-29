@@ -1,10 +1,11 @@
 //! Tasks responsible for actual metrics submission.
 
 use crate::influxdb::config::MonitoringConfig;
+use crate::influxdb::SerializableMetric;
 
 pub(crate) async fn metrics_publisher_task(
     mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    mut receiver: tokio::sync::mpsc::Receiver<Vec<u8>>,
+    mut receiver: tokio::sync::mpsc::Receiver<SerializableMetric>,
     config: &MonitoringConfig,
 ) {
     let max_buffer_size = config.get_max_datagram_size() as usize;
@@ -38,26 +39,19 @@ pub(crate) async fn metrics_publisher_task(
             }
         };
 
-        // Short-circuit in case if metric exceed buffer size and buffer is empty.
-        // If buffer is not empty, go standard route, first submitting what is there and only then going to next iteration.
-        if measurement.len() > max_buffer_size && buffer.is_empty() {
-            tracing::warn!("Received measurement exceeds max buffer size, submitting immediately");
-            send_metrics(&socket, &measurement, config.telegraf_address).await;
-            continue;
+        if !buffer.is_empty() {
+            buffer.push(b'\n');
         }
+        if let Err(error) = measurement.serialize_for_telegraf(&mut buffer) {
+            tracing::warn!(?error, "Failed to format measurement, skipping");
+        };
 
-        // One for '\n'
-        let next_size = buffer.len() + measurement.len() + 1;
         // Exceed max size, need to submit the packet first.
-        if next_size > max_buffer_size {
+        if buffer.len() > max_buffer_size {
             send_metrics(&socket, &buffer, config.telegraf_address).await;
             // Clearing even in case of error, otherwise the UDP packet can grow too much.
             buffer.clear();
         }
-        if !buffer.is_empty() {
-            buffer.push(b'\n');
-        }
-        buffer.extend(measurement);
     }
 
     tracing::debug!("Metrics publishing task has been completed");
@@ -127,15 +121,26 @@ pub(crate) async fn receive_with_timeout(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::influxdb::Metric;
+
+    #[derive(Clone)]
+    struct SampleMetric(Vec<u8>);
+
+    impl Metric for SampleMetric {
+        fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+            buffer.extend_from_slice(&self.0);
+            Ok(())
+        }
+    }
 
     /// This test relies on known metric size to check that the task aggregates data,
     /// but submits it when a threshold is crossed.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_publisher_accumulates_and_submits() -> anyhow::Result<()> {
-        let sample_metric: &[u8; 23] = b"sov-test-metric value=1";
+        let sample_metric = SampleMetric(b"sov-test-metric value=1".to_vec());
         let first_chunk = 2;
         let second_chunk = 3;
-        let max_udp_size = sample_metric.len() * (first_chunk + second_chunk);
+        let max_udp_size = sample_metric.0.len() * (first_chunk + second_chunk);
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
 
         let total_send = first_chunk + second_chunk;
@@ -159,7 +164,8 @@ mod tests {
         });
 
         for _ in 0..first_chunk {
-            sender.send(sample_metric.to_vec()).await?;
+            let x = Box::new(sample_metric.clone());
+            sender.send(x).await?;
         }
 
         assert!(receive_with_timeout(&mut metrics_back_receiver)
@@ -167,19 +173,19 @@ mod tests {
             .is_none());
 
         for _ in 0..second_chunk {
-            sender.send(sample_metric.to_vec()).await?;
+            sender.send(Box::new(sample_metric.clone())).await?;
         }
 
-        let metric_string = std::str::from_utf8(&sample_metric[..])?;
+        let metric_string = std::str::from_utf8(&sample_metric.0[..])?;
 
-        for _ in 0..(total_send - 1) {
+        for _ in 0..total_send {
             let metric = receive_with_timeout(&mut metrics_back_receiver)
                 .await
                 .unwrap();
             assert_eq!(metric, metric_string);
         }
 
-        // Nothing is left in channel.
+        // Nothing is left in the channel.
         assert!(receive_with_timeout(&mut metrics_back_receiver)
             .await
             .is_none());
@@ -191,11 +197,11 @@ mod tests {
     }
 
     /// This test relies on known metric size to check that the task aggregates data.
-    /// It demonstrates, that max packet size option is recommended and not strictly followed.
+    /// It demonstrates that maximum packet size configuration is recommended and not strictly followed.
     #[tokio::test(flavor = "multi_thread")]
     async fn test_metrics_exceed_defined_packed_size() -> anyhow::Result<()> {
         let socket = tokio::net::UdpSocket::bind("127.0.0.1:0").await?;
-        let sample_metric = b"sov-test-metric value=1";
+        let sample_metric = SampleMetric(b"sov-test-metric value=1".to_vec());
         let monitoring_config = MonitoringConfig {
             telegraf_address: socket.local_addr()?,
             max_datagram_size: Some(1),
@@ -212,7 +218,7 @@ mod tests {
             metrics_publisher_task(shutdown_receiver, receiver, &monitoring_config).await;
         });
 
-        sender.send(sample_metric.to_vec()).await?;
+        sender.send(Box::new(sample_metric)).await?;
 
         assert!(receive_with_timeout(&mut metrics_back_receiver)
             .await

@@ -6,12 +6,16 @@ use std::sync::OnceLock;
 
 #[cfg(feature = "native")]
 use crate::influxdb::publisher;
+use crate::influxdb::Metric;
 use crate::MetricsTracker;
 #[cfg(feature = "native")]
 use crate::MonitoringConfig;
 
 #[cfg(feature = "native")]
 pub(crate) static METRICS_TRACKER: OnceLock<MetricsTracker> = OnceLock::new();
+
+/// Alias for number of nano-seconds since unix epoch.
+pub(crate) type Timestamp = u128;
 
 /// Spawns task that published metrics in the background.
 #[cfg(feature = "native")]
@@ -49,150 +53,71 @@ pub fn init_metrics_tracker(
 }
 
 impl MetricsTracker {
-    const PROCESSED_DA_HEIGHT: [u8; 30] = *b"sov_rollup_processed_da_height";
-    const SYNC_DISTANCE: [u8; 24] = *b"sov_rollup_sync_distance";
-    const GET_BLOCK_TIME: [u8; 23] = *b"sov_rollup_get_block_ms";
-
-    const BATCHES_PROCESSED: [u8; 28] = *b"sov_rollup_batches_processed";
-    const BATCH_BYTES_PROCESSED: [u8; 32] = *b"sov_rollup_batch_bytes_processed";
-    const PROOFS_PROCESSED: [u8; 27] = *b"sov_rollup_proofs_processed";
-    const PROOF_BYTES_PROCESSED: [u8; 32] = *b"sov_rollup_proof_bytes_processed";
-    const TRANSACTIONS_PROCESSED: [u8; 33] = *b"sov_rollup_transactions_processed";
-    const TRANSACTION_EXECUTION_TIME: [u8; 35] = *b"sov_rollup_transaction_execution_us";
-    const SLOT_EXECUTION_TIME: [u8; 33] = *b"sov_rollup_slot_execution_time_us";
-    const PROCESS_SLOT_TIME: [u8; 26] = *b"sov_rollup_process_slot_ms";
-    const APPLY_SLOT_TIME: [u8; 24] = *b"sov_rollup_apply_slot_ms";
-    const STF_TRANSITION_TIME: [u8; 28] = *b"sov_rollup_stf_transition_ms";
-    const EXTRACT_RELEVANT_BLOBS_TIME: [u8; 27] = *b"sov_rollup_extract_blobs_us";
-    const EXTRACTION_PROOF_TIME: [u8; 35] = *b"sov_rollup_blob_extraction_proof_us";
-
-    fn submit(&self, measurement: Vec<u8>) {
+    fn submit(&self, measurement: SovRollupMetric) {
         // TODO: Maybe print warning if it fails?
-        let _ = self.sender.try_send(measurement);
-    }
-
-    fn submit_with_value_only_with_timestamp(
-        &self,
-        metric_name: &[u8],
-        value: impl std::fmt::Display,
-        timestamp: u128,
-    ) {
-        let mut measurement = metric_name.to_vec();
-        write!(measurement, " value={} {}", value, timestamp).unwrap();
-        self.submit(measurement);
+        let _ = self.sender.try_send(Box::new(measurement));
     }
 
     /// Tracks all runner-related metrics
     pub fn track_runner_metrics(&self, point: RunnerMetrics) {
         let timestamp = timestamp();
-        self.submit_with_value_only_with_timestamp(
-            &Self::SYNC_DISTANCE,
-            point.sync_distance,
+        let RunnerMetrics {
+            da_height: da_height_processed,
+            sync_distance,
+            get_block_time,
+            batches_processed,
+            batch_bytes_processed,
+            transactions_processed,
+            proofs_processed,
+            proof_bytes_processed,
+            process_slot_time,
+            apply_slot_time,
+            stf_transition_time,
+            extract_blobs_time,
+            extraction_proof_time,
+        } = point;
+        self.submit(SovRollupMetric::RunnerDa(
             timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::PROCESSED_DA_HEIGHT,
-            point.da_height_processed,
+            RunnerDaMetrics {
+                da_height: da_height_processed,
+                sync_distance,
+                get_block_time,
+            },
+        ));
+        self.submit(SovRollupMetric::RunnerCount(
             timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::GET_BLOCK_TIME,
-            point.get_block_time.as_millis(),
+            RunnerCountMetrics {
+                da_height: da_height_processed,
+                batches: batches_processed,
+                batch_bytes: batch_bytes_processed,
+                transactions: transactions_processed,
+                proofs_processed,
+                proof_bytes_processed,
+            },
+        ));
+        self.submit(SovRollupMetric::RunnerTimes(
             timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::BATCHES_PROCESSED,
-            point.batches_processed,
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::BATCH_BYTES_PROCESSED,
-            point.batch_bytes_processed,
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::PROOFS_PROCESSED,
-            point.proofs_processed,
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::PROOF_BYTES_PROCESSED,
-            point.proof_bytes_processed,
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::TRANSACTIONS_PROCESSED,
-            point.transactions_processed,
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::PROCESS_SLOT_TIME,
-            point.process_slot_time.as_millis(),
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::APPLY_SLOT_TIME,
-            point.apply_slot_time.as_millis(),
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::STF_TRANSITION_TIME,
-            point.stf_transition_time.as_millis(),
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::EXTRACT_RELEVANT_BLOBS_TIME,
-            point.extract_blobs_time.as_micros(),
-            timestamp,
-        );
-        self.submit_with_value_only_with_timestamp(
-            &Self::EXTRACTION_PROOF_TIME,
-            point.extraction_proof_time.as_micros(),
-            timestamp,
-        );
+            RunnerTimeMetrics {
+                da_height: da_height_processed,
+                process_slot_time,
+                apply_slot_time,
+                stf_transition_time,
+                extract_blobs_time,
+                extraction_proof_time,
+            },
+        ));
     }
 
     /// Tracks processing of transaction.
     pub fn track_transaction_processing(&self, point: TransactionProcessingMetrics) {
         let timestamp = timestamp();
-        let mut measurement = Self::TRANSACTION_EXECUTION_TIME.to_vec();
-        write!(
-            measurement,
-            ",status={:?},context={:?},call_message={},sequencer={} value={},rollup_height={} {}",
-            point.tx_effect,
-            point.execution_context,
-            point.call_message,
-            point.sequencer_address,
-            point.execution_time.as_micros(),
-            point.rollup_height,
-            timestamp
-        )
-        .unwrap();
-        self.submit(measurement);
+        self.submit(SovRollupMetric::TransactionProcessing(timestamp, point));
     }
 
     /// Tracks metrics related to slot processing. Written as a single point.
     pub fn track_slot_processing(&self, point: SlotProcessingMetrics) {
         let timestamp = timestamp();
-        let mut measurement = Self::SLOT_EXECUTION_TIME.to_vec();
-        write!(
-            measurement,
-            ",context={:?} blobs_selection={},begin_hooks={},blobs_processing={},end_hooks={},finalization={},rollup_height={},da_height={} {}",
-            // Tags
-            point.execution_context,
-            // Fields
-            point.blobs_selection_time.as_micros(),
-            point.begin_slot_hooks_time.as_micros(),
-            point.blobs_processing_time.as_micros(),
-            point.end_slot_hooks_time.as_micros(),
-            point.slot_finalization_time.as_micros(),
-            point.rollup_height,
-            point.da_height,
-            // Timestamp
-            timestamp
-        )
-        .unwrap();
-        self.submit(measurement);
+        self.submit(SovRollupMetric::SlotProcessing(timestamp, point));
     }
 }
 
@@ -206,7 +131,7 @@ pub(crate) fn timestamp() -> u128 {
 /// Metrics related to the main loop of STF runner.
 pub struct RunnerMetrics {
     /// DA height processed in this iteration.
-    pub da_height_processed: u64,
+    pub da_height: u64,
     /// Distance between processed DA height and DA head.
     pub sync_distance: i64,
     /// Time it took to fetch given block from DA layer.
@@ -233,6 +158,30 @@ pub struct RunnerMetrics {
     /// Time it took to extract relevant blobs from the whole DA block.
     pub extract_blobs_time: std::time::Duration,
     /// Time it took to build proof that the relevant blobs were extracted correctly.
+    pub extraction_proof_time: std::time::Duration,
+}
+
+pub(crate) struct RunnerDaMetrics {
+    pub da_height: u64,
+    pub sync_distance: i64,
+    pub get_block_time: std::time::Duration,
+}
+
+pub(crate) struct RunnerCountMetrics {
+    pub da_height: u64,
+    pub batches: u64,
+    pub batch_bytes: u64,
+    pub transactions: u64,
+    pub proofs_processed: u64,
+    pub proof_bytes_processed: u64,
+}
+
+pub(crate) struct RunnerTimeMetrics {
+    pub da_height: u64,
+    pub process_slot_time: std::time::Duration,
+    pub apply_slot_time: std::time::Duration,
+    pub stf_transition_time: std::time::Duration,
+    pub extract_blobs_time: std::time::Duration,
     pub extraction_proof_time: std::time::Duration,
 }
 
@@ -301,4 +250,116 @@ pub struct SlotProcessingMetrics {
     pub rollup_height: u64,
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
+}
+
+impl Metric for RunnerDaMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_runner_da da_height={},sync_distance={},get_block_time_ms={}",
+            self.da_height,
+            self.sync_distance,
+            self.get_block_time.as_millis(),
+        )
+    }
+}
+
+impl Metric for RunnerCountMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_runner_counts da_height={},batches_c={},transactions_c={},proofs_c={},batch_bytes={},proof_bytes={}",
+            self.da_height,
+            self.batches,
+            self.transactions,
+            self.proofs_processed,
+            self.batch_bytes,
+            self.proof_bytes_processed,
+        )
+    }
+}
+
+impl Metric for RunnerTimeMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_runner_times da_height={},process_slot_ms={},apply_slot_ms={},stf_transition_ms={},extract_blobs_us={},blob_extraction_proof_us={}",
+            self.da_height,
+            self.process_slot_time.as_millis(),
+            self.apply_slot_time.as_millis(),
+            self.stf_transition_time.as_millis(),
+            self.extract_blobs_time.as_micros(),
+            self.extraction_proof_time.as_micros(),
+        )
+    }
+}
+
+impl Metric for TransactionProcessingMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(buffer, "sov_rollup_transaction_execution_us,status={:?},context={:?},call_message={},sequencer={} value={},rollup_height={}",
+               // tags
+               self.tx_effect,
+               self.execution_context,
+               self.call_message,
+               self.sequencer_address,
+               //fields
+               self.execution_time.as_micros(),
+               self.rollup_height,
+        )
+    }
+}
+
+impl Metric for SlotProcessingMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},begin_hooks={},blobs_processing={},end_hooks={},finalization={},rollup_height={},da_height={}",
+            // Tags
+            self.execution_context,
+            // Fields
+            self.blobs_selection_time.as_micros(),
+            self.begin_slot_hooks_time.as_micros(),
+            self.blobs_processing_time.as_micros(),
+            self.end_slot_hooks_time.as_micros(),
+            self.slot_finalization_time.as_micros(),
+            self.rollup_height,
+            self.da_height,
+        )
+    }
+}
+
+enum SovRollupMetric {
+    RunnerDa(Timestamp, RunnerDaMetrics),
+    RunnerCount(Timestamp, RunnerCountMetrics),
+    RunnerTimes(Timestamp, RunnerTimeMetrics),
+    SlotProcessing(Timestamp, SlotProcessingMetrics),
+    TransactionProcessing(Timestamp, TransactionProcessingMetrics),
+}
+
+impl Metric for SovRollupMetric {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        let timestamp = match self {
+            SovRollupMetric::RunnerCount(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::RunnerDa(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::RunnerTimes(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::SlotProcessing(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::TransactionProcessing(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+        };
+        write!(buffer, " {}", timestamp)
+    }
 }
