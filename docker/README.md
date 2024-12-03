@@ -69,7 +69,7 @@ To let prometheus gather metrics from rollup binary, bind prometheus listner to 
    --prometheus-exporter-bind=0.0.0.0:9845
 ```
 
-Grafana is available on `http://localhost:3000` with `admin:admin` credentials.
+Grafana is available on `http://localhost:3000` with `admin:admin123` credentials.
 
 ### To save changes in dashboard
 

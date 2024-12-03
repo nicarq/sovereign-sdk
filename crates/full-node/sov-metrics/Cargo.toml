@@ -19,6 +19,7 @@ tracing = { workspace = true }
 tokio = { workspace = true, features = ["sync", "net", "macros", "rt"], default-features = false }
 serde = { workspace = true }
 schemars = { workspace = true }
+http = "1.0"
 derivative = { workspace = true }
 sov-rollup-interface = { workspace = true }
 

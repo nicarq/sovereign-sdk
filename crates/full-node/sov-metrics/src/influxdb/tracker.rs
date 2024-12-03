@@ -112,6 +112,12 @@ impl MetricsTracker {
         let timestamp = timestamp();
         self.submit(SovRollupMetric::SlotProcessing(timestamp, point));
     }
+
+    /// Tracks HTTP-related metrics.
+    pub fn track_http_request(&self, point: HttpMetrics) {
+        let timestamp = timestamp();
+        self.submit(SovRollupMetric::Http(timestamp, point));
+    }
 }
 
 pub(crate) fn timestamp() -> u128 {
@@ -276,11 +282,11 @@ impl Metric for RunnerTimeMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "sov_rollup_runner_times da_height={},process_slot_ms={},apply_slot_ms={},stf_transition_ms={},extract_blobs_us={},blob_extraction_proof_us={}",
+            "sov_rollup_runner_times_us da_height={},process_slot={},apply_slot={},stf_transition={},extract_blobs={},blob_extraction_proof={}",
             self.da_height,
-            self.process_slot_time.as_millis(),
-            self.apply_slot_time.as_millis(),
-            self.stf_transition_time.as_millis(),
+            self.process_slot_time.as_micros(),
+            self.apply_slot_time.as_micros(),
+            self.stf_transition_time.as_micros(),
             self.extract_blobs_time.as_micros(),
             self.extraction_proof_time.as_micros(),
         )
@@ -321,12 +327,45 @@ impl Metric for SlotProcessingMetrics {
     }
 }
 
+/// Metrics for an HTTP subsystem.
+/// Can be applied to REST API or JSON RPC.
+pub struct HttpMetrics {
+    /// HTTP method.
+    pub request_method: http::Method,
+    /// URI being requested.
+    pub request_uri: http::Uri,
+    /// Status code of the response.
+    pub response_status: http::StatusCode,
+    /// Approximate size of the response body.
+    pub response_body_size: u64,
+    /// Time it took for the inner handler to finish processing.
+    /// Does not include request reading and response writing.
+    pub handler_processing_time: std::time::Duration,
+}
+
+impl Metric for HttpMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_http_handlers,req_method={},resp_status={},path={} processing_time_us={},response_body_bytes={}",
+            // Tags
+            self.request_method,
+            self.response_status.as_u16(),
+            self.request_uri.path(),
+            // Fields
+            self.handler_processing_time.as_micros(),
+            self.response_body_size,
+        )
+    }
+}
+
 enum SovRollupMetric {
     RunnerDa(Timestamp, RunnerDaMetrics),
     RunnerCount(Timestamp, RunnerCountMetrics),
     RunnerTimes(Timestamp, RunnerTimeMetrics),
     SlotProcessing(Timestamp, SlotProcessingMetrics),
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
+    Http(Timestamp, HttpMetrics),
 }
 
 impl Metric for SovRollupMetric {
@@ -349,6 +388,10 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::TransactionProcessing(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::Http(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }
