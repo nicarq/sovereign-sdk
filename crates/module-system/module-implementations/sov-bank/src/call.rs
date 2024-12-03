@@ -151,11 +151,18 @@ impl<S: Spec> Bank<S> {
         Ok(())
     }
 
-    /// Burns the set of `coins`.
+    /// Burns (permanently destroys) the specified amount of tokens, removing them from circulation.
+    /// This operation cannot be undone - burned tokens are permanently lost.
     ///
-    /// If there is no token at the address specified in the
-    /// [`Coins`] structure, return an error; on success it updates the total
-    /// supply of tokens.
+    /// # Errors
+    ///
+    /// If the specified token ID does not exist.
+    ///
+    /// If the `owner` has insufficient token balance to burn the requested amount.
+    /// No tokens will be burned in this case.
+    ///
+    /// If the requested burn amount exceeds the token's total supply.
+    /// No tokens will be burned in this case.
     pub fn burn(
         &self,
         coins: Coins,
@@ -171,15 +178,6 @@ impl<S: Spec> Bank<S> {
         token
             .burn(owner, coins.amount, state)
             .with_context(context_logger)?;
-        token.total_supply = token
-            .total_supply
-            .checked_sub(coins.amount)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "The tokens id={} total supply is underflowing",
-                    coins.token_id
-                )
-            })?;
         self.tokens.set(&coins.token_id, &token, state)?;
 
         self.emit_event(

@@ -194,6 +194,7 @@ impl<S: Spec> Token<S> {
         self.balances.set(&to, &to_balance, state)?;
         Ok(())
     }
+
     /// Burns a specified `amount` of token from the address `from`. First check that the address has enough token to burn,
     /// if not returns an error. Otherwise, update the balances by substracting the amount burnt.
     pub(crate) fn burn(
@@ -203,6 +204,12 @@ impl<S: Spec> Token<S> {
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
         let new_balance = self.decrease_balance_checked(from, amount, state)?;
+        self.total_supply = self.total_supply.checked_sub(amount).ok_or_else(|| {
+            anyhow::anyhow!(
+                "The token '{}' total supply is underflowing when attempting to burn",
+                self.name
+            )
+        })?;
         self.balances.set(&from, &new_balance, state)?;
 
         Ok(())
