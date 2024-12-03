@@ -7,8 +7,6 @@ use sov_state::{EventContainer, IsValueCached, Namespace, SlotKey, SlotValue};
 use super::checkpoints::StateCheckpoint;
 use super::internals::RevertableWriter;
 use super::{StateProvider, UniversalStateAccessor};
-#[cfg(feature = "test-utils")]
-use crate::capabilities::Kernel;
 use crate::module::Spec;
 use crate::state::events::TypedEvent;
 use crate::transaction::{
@@ -252,10 +250,13 @@ impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
     }
 }
 
+#[cfg(test)]
+use crate::capabilities::Kernel;
+
+#[cfg(test)]
 impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
     /// A helper function to create a new [`WorkingSet`] with a given gas price and remaining funds.
     /// Note: This method uses a [`MockKernel`] with a default height, this is not compatible with tests over multiple slots.
-    #[cfg(test)]
     pub fn new_with_gas_meter(
         inner: S::Storage,
         remaining_funds: u64,
@@ -278,20 +279,9 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
     }
-}
 
-#[cfg(feature = "test-utils")]
-impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
-    /// Creates a new [`WorkingSet`] instance backed by the given [`Spec::Storage`].
-    ///
-    /// ## Deprecated(@theochap)
-    /// This method is deprecated and will be removed in the future. Please refrain from writing
-    /// tests that use this method.
-    /// Instead, one could use (in decreasing order of preference):
-    /// - the testing framework,
-    /// - or [`crate::ApiStateAccessor::new`]
-    /// - or [`StateCheckpoint::new`]
-    pub fn new_deprecated<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
+    /// Creates a new [`WorkingSet`] instance backed by the given [`Spec::Storage`] and a [`Kernel`].
+    pub fn new_with_kernel<K: Kernel<S>>(inner: S::Storage, kernel: &K) -> Self {
         let state_checkpoint: StateCheckpoint<S::Storage> = StateCheckpoint::new(inner, kernel);
         let tx_scratchpad = TxScratchpad {
             inner: RevertableWriter::new(state_checkpoint),
@@ -305,23 +295,6 @@ impl<S: Spec> WorkingSet<S, StateCheckpoint<S::Storage>> {
             max_fee: 0,
             max_priority_fee_bips: PriorityFeeBips::ZERO,
         }
-    }
-}
-
-#[cfg(feature = "test-utils")]
-impl<S: Spec, I: StateProvider<S>> WorkingSet<S, I> {
-    /// Turns this [`WorkingSet`] into a [`StateProvider`], in preparation for
-    /// committing the changes to the underlying [`Spec::Storage`] via
-    /// [`StateCheckpoint::freeze`].
-    ///
-    /// ## Safety note
-    /// This function calls [`WorkingSet::finalize`] under the hood, please be sure that we can skip this
-    /// intermediary committing step. This function is only accessible in tests
-    pub fn checkpoint(self) -> (I, TransactionConsumption<S::Gas>, Vec<TypedEvent>) {
-        let (tx_scratchpad, transaction_consumption, events) = self.finalize();
-        let checkpoint = tx_scratchpad.commit();
-
-        (checkpoint, transaction_consumption, events)
     }
 }
 
@@ -373,8 +346,13 @@ mod tests {
     use crate::execution_mode::Native;
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
+    use sov_state::codec::BcsCodec;
+    use sov_state::namespaces::User;
+    use sov_state::{Kernel, SlotKey, SlotValue};
+
     use crate::capabilities::mocks::MockKernel;
-    use crate::{PreExecWorkingSet, Spec};
+    use crate::capabilities::Kernel as _;
+    use crate::{PreExecWorkingSet, Spec, StateCheckpoint, StateReader, StateWriter, WorkingSet};
 
     #[test]
     fn test_gas_recording() {
@@ -411,5 +389,50 @@ mod tests {
     ) {
         let gas = <TestSpec as Spec>::Gas::from([5; 2]);
         pre_exec_ws.charge_gas(&gas).unwrap();
+    }
+
+    #[test]
+    fn test_workingset_get() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let codec = BcsCodec {};
+        let storage = new_finalized_storage(tempdir.path());
+
+        let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
+        let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
+        let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
+
+        let mut working_set = WorkingSet::<TestSpec>::new_with_kernel(
+            storage.clone(),
+            &MockKernel::<TestSpec>::default(),
+        );
+        StateWriter::<User>::set(&mut working_set, &storage_key, storage_value.clone()).expect("The set operation should succeed because there should be enough funds in the metered working set");
+        let value = StateReader::<User>::get(&mut working_set, &storage_key).expect("The get operation should succeed because there should be enough funds in the metered working set");
+
+        assert_eq!(Some(storage_value), value);
+    }
+
+    #[test]
+    fn test_kernel_workingset_get() {
+        let tempdir = tempfile::tempdir().unwrap();
+        let codec = BcsCodec {};
+        let storage = new_finalized_storage(tempdir.path());
+
+        let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
+        let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
+        let storage_value = SlotValue::new(&vec![7, 8, 9], &codec);
+        let kernel: MockKernel<TestSpec> = MockKernel::new(4, 1);
+
+        let mut working_set =
+            StateCheckpoint::<<TestSpec as Spec>::Storage>::new(storage.clone(), &kernel);
+        let mut working_set = kernel.accessor(&mut working_set);
+
+        StateWriter::<Kernel>::set(&mut working_set, &storage_key, storage_value.clone())
+            .expect("This should be unfaillible");
+
+        assert_eq!(
+            Some(storage_value),
+            StateReader::<Kernel>::get(&mut working_set, &storage_key)
+                .expect("This should be unfaillible")
+        );
     }
 }

@@ -71,9 +71,10 @@ mod test {
                 {
                     let storage = storage_manager.create_storage();
                     let mut working_set: WorkingSet<TestSpec> =
-                        WorkingSet::new_deprecated(storage.clone(), &kernel);
+                        WorkingSet::new_with_kernel(storage.clone(), &kernel);
                     StateWriter::<User>::set(&mut working_set, &test.key, test.value.clone())?;
-                    let (checkpoint, _gas_meter, _) = working_set.checkpoint();
+                    let (scratchpad, _gas_meter, _) = working_set.finalize();
+                    let checkpoint = scratchpad.commit();
                     let (cache, _, witness) = checkpoint.freeze();
                     let (_, change_set) = storage
                         .validate_and_materialize(cache, &witness)
@@ -120,9 +121,9 @@ mod test {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());
             let mut working_set: WorkingSet<TestSpec> =
-                WorkingSet::new_deprecated(storage.clone(), &MockKernel::<TestSpec>::default());
+                WorkingSet::new_with_kernel(storage.clone(), &MockKernel::<TestSpec>::default());
             StateWriter::<User>::set(&mut working_set, &key, value.clone())?;
-            let (cache, _, witness) = working_set.checkpoint().0.freeze();
+            let (cache, _, witness) = working_set.finalize().0.commit().freeze();
             let (_, change_set) = storage
                 .validate_and_materialize(cache, &witness)
                 .expect("storage is valid");
