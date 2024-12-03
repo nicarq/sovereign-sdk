@@ -79,21 +79,22 @@ async fn test_proof_generation() {
     storage_manager.finalize(&genesis_block.header).unwrap();
 
     // TODO: Fix this with genesis logic.
-    let blocks = get_blocks_from_da(sequencer_mode)
+    let mut blocks = get_blocks_from_da(sequencer_mode)
         .await
         .expect("Failed to get DA blocks");
 
-    for filtered_block in &blocks[..2] {
-        let elf = std::fs::read(MOCK_DA_PATH)
-            .unwrap_or_else(|e| {
-                panic!(
-                    "Could not read guest elf file from `{}`. {}",
-                    MOCK_DA_PATH, e
-                )
-            })
-            .leak();
-        let mut host = Risc0Host::new(elf);
+    let elf = std::fs::read(MOCK_DA_PATH)
+        .unwrap_or_else(|e| {
+            panic!(
+                "Could not read guest elf file from `{}`. {}",
+                MOCK_DA_PATH, e
+            )
+        })
+        .leak();
 
+    let mut host = Risc0Host::new(elf);
+
+    for filtered_block in &mut blocks[..3] {
         let height = filtered_block.header().height();
         tracing::info!(
             "Requesting data for height {} and prev_state_root 0x{}",

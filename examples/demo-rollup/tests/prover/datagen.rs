@@ -48,6 +48,7 @@ pub async fn get_blocks_from_da(mode: BlobBuildingCtx) -> anyhow::Result<Vec<Moc
             txns_per_block,
             private_key_and_address.private_key,
         );
+
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(&mode);
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service.send_transaction(&blob, fee).await.unwrap();
