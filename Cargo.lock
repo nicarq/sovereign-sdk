@@ -10293,6 +10293,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "derivative",
+ "http 1.1.0",
  "prometheus",
  "schemars",
  "serde",

@@ -6,7 +6,7 @@ mod tracker;
 
 pub use config::MonitoringConfig;
 pub use tracker::{
-    init_metrics_tracker, RunnerMetrics, SlotProcessingMetrics, TransactionEffect,
+    init_metrics_tracker, HttpMetrics, RunnerMetrics, SlotProcessingMetrics, TransactionEffect,
     TransactionProcessingMetrics,
 };
 

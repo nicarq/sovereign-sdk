@@ -100,6 +100,10 @@ services:
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards/
     depends_on:
       - prometheus
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
     profiles:
       - monitoring
     networks:

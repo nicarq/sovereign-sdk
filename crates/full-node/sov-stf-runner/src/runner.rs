@@ -3,6 +3,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::body::HttpBody;
 use axum::extract::Request;
 use axum::ServiceExt;
 use jsonrpsee::RpcModule;
@@ -366,6 +367,7 @@ where
 
         self.background_handles.push(tokio::spawn(async move {
             info!(%rest_address, "Starting REST API server");
+            let router = router.layer(axum::middleware::from_fn(measure_time));
             let router = NormalizePathLayer::trim_trailing_slash().layer(router);
 
             axum::serve(listener, ServiceExt::<Request>::into_make_service(router))
@@ -542,7 +544,7 @@ where
             .map(|b| b.verified_data().len() as u64)
             .sum();
         let proof_bytes_processed: u64 = relevant_blobs
-            .batch_blobs
+            .proof_blobs
             .iter()
             .map(|b| b.verified_data().len() as u64)
             .sum();
@@ -725,4 +727,40 @@ fn error_if_tokio_runtime_is_not_multi_threaded() -> anyhow::Result<()> {
         RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
         _ => Ok(())
     }
+}
+
+async fn measure_time(
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> impl axum::response::IntoResponse {
+    let method = req.method().clone();
+    let uri = req.uri().clone();
+
+    let start = std::time::Instant::now();
+
+    let response = next.run(req).await;
+    let duration = start.elapsed();
+
+    let body = response.body();
+    let status = response.status();
+    let size_hint = body.size_hint();
+    let exact_or_lower = size_hint.exact().unwrap_or_else(|| size_hint.lower());
+
+    info!(
+        "{} {} took {:?} response size: {:?}",
+        method, uri, duration, exact_or_lower
+    );
+
+    sov_metrics::track_metrics(|tracker| {
+        let point = sov_metrics::HttpMetrics {
+            request_method: method,
+            request_uri: uri,
+            response_status: status,
+            response_body_size: exact_or_lower,
+            handler_processing_time: duration,
+        };
+        tracker.track_http_request(point);
+    });
+
+    response
 }
