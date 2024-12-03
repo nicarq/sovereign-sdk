@@ -1,0 +1,13 @@
+[package]
+name = "sov-aggregated-proof"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[dependencies]
+hex = "0.4"
+anyhow = "1"
+risc0-zkvm = { version = "1.1", default-features = false }
+risc0-zkp = "1.1"
+borsh = { version = "1", features = ["derive"] }
