@@ -203,6 +203,7 @@ fn transfer_sender_does_not_have_balance() {
     let (
         TestData {
             token_id,
+            token_name,
             user_no_token_balance,
             user_high_token_balance,
             ..
@@ -238,11 +239,14 @@ fn transfer_sender_does_not_have_balance() {
                     message_1
                 );
 
-                let expected_message_part = format!(
-                    "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
-                    token_id
+                assert_eq!(
+                    format!(
+                        "Insufficient balance from={sender_address}, got=0, needed={}, for token={}",
+                        TRANSFER_AMOUNT, token_name
+                    ),
+                    message_2,
+                    "The error message is incorrect"
                 );
-                assert!(message_2.contains(&expected_message_part));
             } else {
                 panic!("The transaction should have failed");
             }

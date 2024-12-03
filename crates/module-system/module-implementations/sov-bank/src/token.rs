@@ -286,8 +286,7 @@ impl<S: Spec> Token<S> {
         amount: Amount,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<Amount> {
-        let try_balance = self.balances.get_or_err(&from, state)?;
-        let balance = try_balance?;
+        let balance = self.balances.get(&from, state)?.unwrap_or(0);
 
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,

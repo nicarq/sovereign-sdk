@@ -67,6 +67,7 @@ fn burn_deployed_tokens_no_balance_fails() {
     let (
         TestData {
             token_id,
+            token_name,
             user_no_token_balance,
             ..
         },
@@ -103,21 +104,27 @@ fn burn_deployed_tokens_no_balance_fails() {
                 TxEffect::Reverted(contents) => {
                     let Error::ModuleError(err) = contents.reason;
                     let mut chain = err.chain();
+
                     let message_1 = chain.next().unwrap().to_string();
                     let message_2 = chain.next().unwrap().to_string();
+
                     assert!(chain.next().is_none());
                     assert_eq!(
+                        message_1,
                         format!(
                             "Failed to burn coins(token_id={} amount={}) from owner {}",
                             token_id, BURN_AMOUNT, user_address
-                        ),
-                        message_1
+                        )
                     );
-                    let expected_error_part = format!(
-                        "Value not found for prefix: \"sov_bank/Bank/tokens/{}\" and storage key:",
-                        token_id
+
+                    assert_eq!(
+                        format!(
+                        "Insufficient balance from={user_address}, got=0, needed={}, for token={}",
+                         BURN_AMOUNT, token_name
+                    ),
+                        message_2,
+                        "The error message is incorrect"
                     );
-                    assert!(message_2.starts_with(&expected_error_part));
                 }
                 _ => {
                     panic!("The transaction should have been reverted")
@@ -289,7 +296,7 @@ fn burn_more_than_available_balance_fails() {
 }
 
 #[test]
-fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
+fn test_burning_zero_tokens_works() {
     let (
         TestData {
             token_name,
@@ -340,7 +347,7 @@ fn burn_deployed_tokens_zero_amount_works_if_user_has_tokens() {
 }
 
 #[test]
-fn burn_deployed_tokens_zero_amount_doesnt_work_if_user_has_no_tokens() {
+fn test_burning_zero_tokens_for_user_with_no_balance() {
     let (
         TestData {
             token_id,
@@ -361,31 +368,28 @@ fn burn_deployed_tokens_zero_amount_doesnt_work_if_user_has_no_tokens() {
                 },
             },
         ),
-        assert: Box::new(move |result, _| match result.tx_receipt {
-            TxEffect::Reverted(contents) => {
-                let Error::ModuleError(err) = contents.reason;
-                let mut chain = err.chain();
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            assert_eq!(result.events.len(), 1);
+            assert_eq!(
+                TestBankRuntimeEvent::Bank(Event::TokenBurned {
+                    owner: TokenHolder::User(user_address),
+                    coins: Coins {
+                        amount: 0,
+                        token_id
+                    }
+                }),
+                result.events[0]
+            );
 
-                let message_1 = chain.next().unwrap().to_string();
-                let message_2 = chain.next().unwrap().to_string();
-
-                assert!(chain.next().is_none());
-                assert_eq!(
-                    message_1,
-                    format!(
-                        "Failed to burn coins(token_id={} amount={}) from owner {}",
-                        token_id, 0, user_address
-                    )
-                );
-
-                // Note, no token balance cause the message.
-                let expected_error_part =
-                    &format!("Value not found for prefix: \"sov_bank/Bank/tokens/{token_id}\" and storage key:");
-                assert!(message_2.starts_with(expected_error_part));
-            }
-            _ => {
-                panic!("The transaction does not have the expected outcome.")
-            }
+            // Check that the user's balance hasn't changed
+            assert_eq!(
+                Bank::<S>::default()
+                    .get_balance_of(&user_address, token_id, state)
+                    .unwrap_infallible(),
+                Some(0),
+                "The user's balance shouldn't have changed"
+            );
         }),
     });
 }
