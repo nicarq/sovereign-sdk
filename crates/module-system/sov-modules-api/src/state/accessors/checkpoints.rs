@@ -8,7 +8,7 @@ use crate::{Spec, VersionReader};
 /// This structure is responsible for storing the `read-write` set.
 ///
 /// A [`StateCheckpoint`] can be obtained from a [`crate::WorkingSet`] in two ways:
-///  1. With [`crate::WorkingSet::checkpoint`].
+///  1. With [`crate::TxScratchpad::commit`].
 ///  2. With [`crate::WorkingSet::revert`].
 pub struct StateCheckpoint<S: Storage> {
     pub(super) delta: Delta<S>,

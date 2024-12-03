@@ -10,7 +10,7 @@ use crate::{Gas, GasArray, Spec};
 /// The [`TransactionConsumption`] data structure can only be built from the [`crate::WorkingSet`] data structure.
 ///
 /// ## Type safety
-/// To build this data structure outside of `sov-modules-api`, one would need to call [`crate::WorkingSet::finalize`] or [`crate::WorkingSet::checkpoint`]
+/// To build this data structure outside of `sov-modules-api`, one would need to call [`crate::WorkingSet::finalize`]
 #[derive(PartialEq, Eq, Debug, derive_more::Display, Serialize, Deserialize)]
 #[display("{:?}", self)]
 #[serde(bound = "GU: Serialize + serde::de::DeserializeOwned")]

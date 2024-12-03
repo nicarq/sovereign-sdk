@@ -129,7 +129,8 @@ impl Condition {
     fn replace_working_set<S: Spec>(&self, working_set: WorkingSet<S>) -> WorkingSet<S> {
         match self {
             Condition::Checkpoint => {
-                let (checkpoint, _tx_consumption, _events) = working_set.checkpoint();
+                let (scratchpad, _tx_consumption, _events) = working_set.finalize();
+                let checkpoint = scratchpad.commit();
                 checkpoint.to_working_set_unmetered()
             }
             Condition::Revert => {
@@ -184,8 +185,9 @@ pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: State
 ) {
     let tmpdir = tempfile::tempdir().unwrap();
     let storage: ProverStorage<StorageSpec> = new_finalized_storage(tmpdir.path());
-    let mut working_set = WorkingSet::<S>::new_deprecated(storage, &MockKernel::<S>::default());
-    let thing = St::create(&mut working_set.to_unmetered());
+    let mut state = StateCheckpoint::<S::Storage>::new(storage, &MockKernel::<S>::default());
+    let thing = St::create(&mut state);
+    let mut working_set = state.to_working_set_unmetered::<S>();
 
     for condition in conditions {
         working_set = condition.process_thing(&thing, working_set);

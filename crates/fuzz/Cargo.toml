@@ -51,12 +51,6 @@ test = false
 doc = false
 
 [[bin]]
-name = "bank_call"
-path = "fuzz_targets/bank_call.rs"
-test = false
-doc = false
-
-[[bin]]
 name = "accounts_call"
 path = "fuzz_targets/accounts_call.rs"
 test = false
