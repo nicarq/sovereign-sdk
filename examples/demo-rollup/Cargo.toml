@@ -66,6 +66,9 @@ sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 
 [dev-dependencies]
+risc0-zkvm = { workspace = true, default-features = false, features = [
+  "std",
+] }
 sov-risc0-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-sp1-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }
