@@ -128,7 +128,7 @@ impl<S: Spec> Module for Bank<S> {
             }
 
             call::CallMessage::Transfer { to, coins } => {
-                self.charge_gas(state, &self.gas.create_token)?;
+                self.charge_gas(state, &self.gas.transfer)?;
                 Ok(self.transfer(&to, coins, context, state)?)
             }
 
