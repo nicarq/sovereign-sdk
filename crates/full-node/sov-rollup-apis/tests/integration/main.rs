@@ -60,8 +60,9 @@ impl TestData {
 
         let state_update_info = StateUpdateInfo {
             storage,
-            latest_event_number: 0,
+            next_event_number: 0,
             rollup_height: 0,
+            latest_finalized_rollup_height: 0,
         };
 
         let (state_update_sender, state_update_receiver) = watch::channel(state_update_info);
@@ -114,8 +115,9 @@ impl TestData {
         let storage = self.runner.storage_manager().create_storage();
         let state_update_info = StateUpdateInfo {
             storage,
-            latest_event_number: 0,
+            next_event_number: 0,
             rollup_height: 0,
+            latest_finalized_rollup_height: 0,
         };
         self.storage_sender.send_replace(state_update_info);
     }

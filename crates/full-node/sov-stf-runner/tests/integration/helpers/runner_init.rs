@@ -206,15 +206,21 @@ pub async fn initialize_runner(
         .await
         .unwrap()
         .unwrap_or_default();
-    let latest_event_number = ledger_db
+    let next_event_number = ledger_db
         .get_latest_event_number()
         .await
         .unwrap()
+        .map(|x| x + 1)
         .unwrap_or_default();
+    let latest_finalized_rollup_height = ledger_db
+        .get_latest_finalized_rollup_height()
+        .await
+        .unwrap();
 
     let (state_update_sender, _state_update_recv) = watch::channel(StateUpdateInfo {
         storage: genesis_storage,
-        latest_event_number,
+        next_event_number,
+        latest_finalized_rollup_height,
         rollup_height,
     });
 

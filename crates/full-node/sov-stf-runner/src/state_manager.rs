@@ -91,15 +91,20 @@ where
             .get_head_rollup_height()
             .await?
             .expect("The rollup height should always be available");
-        let latest_event_number = ledger_state
+
+        let next_event_number = ledger_state
             .get_latest_event_number()
             .await?
+            .map(|x| x.checked_add(1).unwrap())
             .unwrap_or_default();
+        let latest_finalized_rollup_height =
+            ledger_state.get_latest_finalized_rollup_height().await?;
 
         Ok(StateUpdateInfo {
             storage: stf_state,
-            latest_event_number,
+            next_event_number,
             rollup_height,
+            latest_finalized_rollup_height,
         })
     }
 

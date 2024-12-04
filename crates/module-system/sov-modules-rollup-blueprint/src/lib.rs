@@ -260,15 +260,20 @@ mod blueprint {
                 .get_head_rollup_height()
                 .await?
                 .expect("The rollup height should always be available");
-            let latest_event_number = ledger_db
+            let next_event_number = ledger_db
                 .get_latest_event_number()
-                .await?
+                .await
+                .unwrap()
+                .map(|x| x + 1)
                 .unwrap_or_default();
+            let latest_finalized_rollup_height =
+                ledger_db.get_latest_finalized_rollup_height().await?;
 
             let state_update_info = StateUpdateInfo {
                 storage: prover_storage,
-                latest_event_number,
+                next_event_number,
                 rollup_height,
+                latest_finalized_rollup_height,
             };
 
             let (state_update_sender, state_update_receiver) =

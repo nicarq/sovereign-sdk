@@ -148,15 +148,18 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             .get_head_rollup_height()
             .await?
             .unwrap_or_default();
-        let latest_event_number = ledger_db
+        let next_event_number = ledger_db
             .get_latest_event_number()
             .await?
+            .map(|x| x + 1)
             .unwrap_or_default();
+        let latest_finalized_rollup_height = ledger_db.get_latest_finalized_rollup_height().await?;
 
         let state_update_info = StateUpdateInfo {
             storage: stf_state,
-            latest_event_number,
+            next_event_number,
             rollup_height,
+            latest_finalized_rollup_height,
         };
 
         let (_, state_update_receiver) = watch::channel(state_update_info);
