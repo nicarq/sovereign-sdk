@@ -6,6 +6,7 @@ use sov_modules_api::{RawTx, RuntimeEventResponse};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::TxHash;
 use tokio::sync::{broadcast, Mutex, MutexGuard};
 use tracing::{debug, error, info};
@@ -310,37 +311,46 @@ pub struct SequencerEvent<Bb: BatchBuilder> {
 pub async fn sequencer_background_task<Ss: SequencerSpec>(
     inner: Arc<Inner<Ss>>,
     ledger_db: LedgerDb,
-    mut shutdown_receiver: tokio::sync::watch::Receiver<()>,
+    shutdown_receiver: tokio::sync::watch::Receiver<()>,
 ) -> anyhow::Result<()> {
     let mut state_update_receiver = inner.batch_builder.lock().await.state_update_receiver();
 
     loop {
-        tokio::select! {
-            _ = shutdown_receiver.changed() => {
+        match future_or_shutdown(state_update_receiver.changed(), &shutdown_receiver).await {
+            FutureOrShutdownOutput::Shutdown => {
                 info!("Shutting down sequencer background task...");
                 break;
-            },
-            changed = state_update_receiver.changed() => {
+            }
+            FutureOrShutdownOutput::Output(changed) => {
                 if changed.is_err() {
+                    tracing::debug!("Error in state update");
                     continue;
                 }
 
+                tracing::debug!("Updating state for sequencer");
                 // Update storage. It is scoped, so batch builder lock is released early.
                 let storage_rollup_height = {
                     let state_update_info = state_update_receiver.borrow().clone();
                     let rollup_height = state_update_info.rollup_height;
+                    tracing::debug!("getting lock");
                     let mut bb = inner.batch_builder.lock().await;
+                    tracing::debug!("got lock");
                     bb.update_state(state_update_info).await;
                     rollup_height
                 };
 
-                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, storage_rollup_height).await?;
+                tracing::debug!("Done updating state for sequencer");
 
+                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, storage_rollup_height)
+                    .await?;
+
+                tracing::debug!("notified slots");
                 // Now that we retrieved the latest state, we can produce and send a new batch.
                 if inner.automatic_batch_production {
+                    tracing::debug!("producing batch");
                     inner.produce_batch().await?;
                 }
-            },
+            }
         }
     }
 

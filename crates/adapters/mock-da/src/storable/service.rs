@@ -57,32 +57,33 @@ impl BlockProducing {
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         mut drop_notification: DropNotification,
     ) -> Option<JoinHandle<()>> {
-        if let BlockProducing::Periodic(duration) = self {
-            let duration = *duration;
-            return Some(tokio::spawn(async move {
-                tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
-                loop {
-                    tokio::select! {
-                        // Check for shutdown signal
-                        _ = &mut drop_notification => {
-                            tracing::debug!("Received shutdown signal, stopping block production...");
-                            break;
-                        },
-                        _ = tokio::time::sleep(duration) => {
-                            let mut da_layer = da_layer.write().await;
-                            match da_layer.produce_block().await {
-                                Ok(_) => {}
-                                Err(err) => {
-                                    tracing::warn!(error = ?err, "Error producing new block. Will try next time.");
-                                }
+        let BlockProducing::Periodic(duration) = self else {
+            return None;
+        };
+
+        let duration = *duration;
+        Some(tokio::spawn(async move {
+            tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
+            loop {
+                tokio::select! {
+                    // Check for shutdown signal
+                    _ = &mut drop_notification => {
+                        tracing::debug!("Received shutdown signal, stopping block production...");
+                        break;
+                    },
+                    _ = tokio::time::sleep(duration) => {
+                        let mut da_layer = da_layer.write().await;
+                        match da_layer.produce_block().await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                tracing::warn!(error = ?err, "Error producing new block. Will try next time.");
                             }
                         }
                     }
                 }
-                tracing::info!("Periodic block producing is stopped");
-            }));
-        }
-        None
+            }
+            tracing::info!("Periodic block producing is stopped");
+        }))
     }
 }
 

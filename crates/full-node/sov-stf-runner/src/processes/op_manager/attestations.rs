@@ -6,6 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::optimistic::{Attestation, BondingProofService, SerializedAttestation};
 use sov_rollup_interface::stf::ProofSerializer;
 use tokio::task::JoinHandle;
@@ -56,17 +57,19 @@ where
 
     async fn post_attestation_to_da(mut self) -> anyhow::Result<()> {
         loop {
-            tokio::select! {
-                 _ = self.shutdown_receiver.changed() => {
+            match future_or_shutdown(self.st_info_receiver.read_next(), &self.shutdown_receiver)
+                .await
+            {
+                FutureOrShutdownOutput::Shutdown => {
                     tracing::info!("Shutting down attestations posting task...");
                     break;
                 }
-                stf_info_result = self.st_info_receiver.read_next() => {
+                FutureOrShutdownOutput::Output(stf_info_result) => {
                     let stf_info = match stf_info_result? {
                         None => {
                             tracing::debug!("Received None instead of StateTransitionInfo. This can happen if the transition has already been processed by the `Receiver`. In that case, it is fine to ignore the notification.");
                             continue;
-                        },
+                        }
                         Some(stf_info) => stf_info,
                     };
 
