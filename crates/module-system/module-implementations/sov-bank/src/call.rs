@@ -169,16 +169,30 @@ impl<S: Spec> Bank<S> {
         owner: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        let owner = owner.as_token_holder();
-        let context_logger = || format!("Failed to burn coins({}) from owner {}", coins, owner);
+        tracing::debug!("Handling Burn call");
+
         let mut token = self
             .tokens
             .get_or_err(&coins.token_id, state)?
-            .with_context(context_logger)?;
-        token
-            .burn(owner, coins.amount, state)
-            .with_context(context_logger)?;
+            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))?;
+
+        let owner = owner.as_token_holder();
+        token.burn(owner, coins.amount, state).with_context(|| {
+            format!(
+                "Failed to burn token_id={} owner={}",
+                &coins.token_id, owner
+            )
+        })?;
         self.tokens.set(&coins.token_id, &token, state)?;
+
+        tracing::info!(
+            id = %coins.token_id,
+            name = token.name,
+            burnt_amount = coins.amount,
+            %owner,
+            updated_total_supply = token.total_supply,
+            "Successfully burnt tokens"
+        );
 
         self.emit_event(
             state,

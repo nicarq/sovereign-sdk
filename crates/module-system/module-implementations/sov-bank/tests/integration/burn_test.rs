@@ -67,7 +67,6 @@ fn burn_deployed_tokens_no_balance_fails() {
     let (
         TestData {
             token_id,
-            token_name,
             user_no_token_balance,
             ..
         },
@@ -112,16 +111,15 @@ fn burn_deployed_tokens_no_balance_fails() {
                     assert_eq!(
                         message_1,
                         format!(
-                            "Failed to burn coins(token_id={} amount={}) from owner {}",
-                            token_id, BURN_AMOUNT, user_address
+                            "Failed to burn token_id={} owner={}",
+                            token_id, user_address
                         )
                     );
 
                     assert_eq!(
                         format!(
-                        "Insufficient balance from={user_address}, got=0, needed={}, for token={}",
-                         BURN_AMOUNT, token_name
-                    ),
+                            "Insufficient balance from={user_address}, got=0, needed={BURN_AMOUNT}",
+                        ),
                         message_2,
                         "The error message is incorrect"
                     );
@@ -188,16 +186,13 @@ fn burn_more_than_deployed_tokens_fails() {
                 assert!(chain.next().is_none());
                 assert_eq!(
                     message_1,
-                    format!(
-                        "Failed to burn coins(token_id={} amount={}) from owner {}",
-                        token_id, to_burn, user_address
-                    )
+                    format!("Failed to burn token_id={token_id} owner={user_address}",)
                 );
 
                 assert_eq!(
                     format!(
-                        "Insufficient balance from={user_address}, got={}, needed={}, for token={}",
-                        user_token_balance, to_burn, token_name
+                        "Insufficient balance from={user_address}, got={}, needed={}",
+                        user_token_balance, to_burn
                     ),
                     message_2,
                     "The error message is incorrect"
@@ -264,15 +259,14 @@ fn burn_more_than_available_balance_fails() {
                 assert_eq!(
                     message_1,
                     format!(
-                        "Failed to burn coins(token_id={} amount={}) from owner {}",
-                        token_id, to_burn, user_address
+                        "Failed to burn token_id={} owner={}",
+                        token_id, user_address
                     )
                 );
 
                 assert_eq!(
                     format!(
-                        "Insufficient balance from={user_address}, got={}, needed={}, for token={}",
-                        user_token_balance, to_burn, token_name
+                        "Insufficient balance from={user_address}, got={user_token_balance}, needed={to_burn}",
                     ),
                     message_2,
                     "The error message is incorrect"
@@ -408,8 +402,6 @@ fn burn_unknown_token_fails() {
 
     let other_token_id = TestTokenName::new("OtherToken".to_string()).id();
 
-    let user_address = user_high_token_balance.address();
-
     runner.execute_transaction(TransactionTestCase {
         input: user_high_token_balance.create_plain_message::<RT, sov_bank::Bank<S>>(
             sov_bank::CallMessage::Burn {
@@ -436,10 +428,7 @@ fn burn_unknown_token_fails() {
                     assert!(chain.next().is_none());
 
                     assert_eq!(
-                        format!(
-                            "Failed to burn coins(token_id={} amount={}) from owner {}",
-                            other_token_id, AMOUNT_TO_BURN, user_address
-                        ),
+                        format!("Failed to get token_id={other_token_id}"),
                         message_1,
                         "The first message is incorrect"
                     );

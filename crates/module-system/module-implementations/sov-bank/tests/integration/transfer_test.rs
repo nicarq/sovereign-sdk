@@ -119,11 +119,10 @@ fn transfer_balance_too_low() {
                 );
                 assert_eq!(
                     format!(
-                        "Insufficient balance from={}, got={}, needed={}, for token={}",
+                        "Insufficient balance from={}, got={}, needed={}",
                         user_high_token_balance_address,
                         user_high_token_initial_balance,
                         transfer_amount,
-                        token_name
                     ),
                     message_2,
                 );
@@ -203,7 +202,6 @@ fn transfer_sender_does_not_have_balance() {
     let (
         TestData {
             token_id,
-            token_name,
             user_no_token_balance,
             user_high_token_balance,
             ..
@@ -241,8 +239,8 @@ fn transfer_sender_does_not_have_balance() {
 
                 assert_eq!(
                     format!(
-                        "Insufficient balance from={sender_address}, got=0, needed={}, for token={}",
-                        TRANSFER_AMOUNT, token_name
+                        "Insufficient balance from={sender_address}, got=0, needed={}",
+                        TRANSFER_AMOUNT,
                     ),
                     message_2,
                     "The error message is incorrect"
