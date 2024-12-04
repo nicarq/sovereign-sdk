@@ -13,7 +13,9 @@ use sov_metrics::RunnerMetrics;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
-use sov_rollup_interface::node::{DaSyncState, SyncStatus};
+use sov_rollup_interface::node::{
+    future_or_shutdown, DaSyncState, FutureOrShutdownOutput, SyncStatus,
+};
 use sov_rollup_interface::stf::{
     ExecutionContext, ProofOutcome, ProofReceipt, ProofReceiptContents, StateTransitionFunction,
     StoredEvent,
@@ -231,7 +233,6 @@ where
 {
     /// Creates a new [`StateTransitionRunner`].
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-
     pub async fn new(
         runner_config: RunnerConfig,
         da_service: Arc<Da>,
@@ -336,13 +337,9 @@ where
             info!(%rpc_address, "Starting RPC server");
             let server_handle = server.start(methods);
 
-            tokio::select! {
-                _ = shutdown_receiver.changed() => {
-                    info!("Shutting down RPC server...");
-                    server_handle.stop().map_err(|e | anyhow::anyhow!(e))
-                }
-            }?;
-
+            shutdown_receiver.changed().await.ok();
+            info!("Shutting down RPC server...");
+            server_handle.stop().map_err(|e| anyhow::anyhow!(e))?;
             // Wait till the RPC server actually stopped,
             // So when this task is completed,
             // it is safe to assume that the RPC server is running no more.
@@ -385,7 +382,7 @@ where
     fn spawn_sync_status_updater(
         &self,
         polling_interval: Duration,
-        mut shutdown_receiver: watch::Receiver<()>,
+        shutdown_receiver: watch::Receiver<()>,
     ) -> tokio::task::JoinHandle<()> {
         let sync_state = self.sync_state.clone();
         let da_service = self.da_service.clone();
@@ -400,25 +397,22 @@ where
             interval.tick().await; // Tick the interval once because it starts at 0ms.
 
             loop {
-                tokio::select! {
-                    _ = shutdown_receiver.changed() => {
-                            break;
-                    }
-                    Ok(header) = da_service.get_head_block_header() => {
-                       let target_da_height = header.height();
-                       sync_state.update_target(target_da_height);
+                match future_or_shutdown(da_service.get_head_block_header(), &shutdown_receiver)
+                    .await
+                {
+                    FutureOrShutdownOutput::Shutdown => break,
+                    FutureOrShutdownOutput::Output(Err(_)) => continue,
+                    FutureOrShutdownOutput::Output(Ok(header)) => {
+                        let target_da_height = header.height();
+                        sync_state.update_target(target_da_height);
                         if let SyncStatus::Syncing {
                             synced_da_height,
                             target_da_height,
-                        } = sync_state.status() {
+                        } = sync_state.status()
+                        {
                             info!(synced_da_height, target_da_height, "Sync in progress");
                         }
-                        tokio::select! {
-                            _ = shutdown_receiver.changed() => {
-                            break;
-                            },
-                            _ = interval.tick() => ()
-                        };
+                        future_or_shutdown(interval.tick(), &shutdown_receiver).await;
                     }
                 }
             }
@@ -436,13 +430,13 @@ where
             self.shutdown_receiver.clone(),
         );
 
-        let mut shutdown_receiver = self.shutdown_receiver.clone();
         loop {
-            tokio::select! {
-                _ = shutdown_receiver.changed() => {
-                        break;
-                }
-                slot_result = self.process_next_slot(next_da_height) => {
+            let shutdown_receiver = self.shutdown_receiver.clone();
+            match future_or_shutdown(self.process_next_slot(next_da_height), &shutdown_receiver)
+                .await
+            {
+                FutureOrShutdownOutput::Shutdown => break,
+                FutureOrShutdownOutput::Output(slot_result) => {
                     next_da_height = slot_result?;
                 }
             }

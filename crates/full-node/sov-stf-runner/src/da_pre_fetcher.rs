@@ -7,6 +7,7 @@ use futures::stream::FuturesOrdered;
 use futures::{Stream, StreamExt};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::{DaService, SlotData};
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::mpsc::Receiver;
 
 // With the block size up to 10 MB, it should fit into 32 GB of RAM.
@@ -246,9 +247,9 @@ async fn select_with_shutdown<F, T>(
 where
     F: std::future::Future<Output = T>,
 {
-    tokio::select! {
-        res = fut => Some(res),
-        _ = shutdown_receiver.changed() => {
+    match future_or_shutdown(fut, shutdown_receiver).await {
+        FutureOrShutdownOutput::Output(res) => Some(res),
+        FutureOrShutdownOutput::Shutdown => {
             tracing::debug!("Shutting down block fetcher at {}", label);
             None
         }

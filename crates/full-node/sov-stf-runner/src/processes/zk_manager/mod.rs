@@ -4,6 +4,7 @@ use std::sync::Arc;
 use backon::{BackoffBuilder, ExponentialBuilder};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::stf::ProofSerializer;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use tokio::task::JoinHandle;
@@ -124,17 +125,19 @@ where
     /// The proof is created only when there are enough of inner proofs in the `ProverService` queue.
     async fn post_aggregated_proof_to_da_when_ready(mut self) -> anyhow::Result<()> {
         loop {
-            tokio::select! {
-                _ = self.shutdown_receiver.changed() => {
+            match future_or_shutdown(self.st_info_receiver.read_next(), &self.shutdown_receiver)
+                .await
+            {
+                FutureOrShutdownOutput::Shutdown => {
                     tracing::info!("Shutting down aggregated proof posting task...");
                     break;
                 }
-                stf_info_result = self.st_info_receiver.read_next() => {
+                FutureOrShutdownOutput::Output(stf_info_result) => {
                     let stf_info = match stf_info_result? {
                         None => {
                             tracing::debug!("Received None instead of StateTransitionInfo. This can happen if the transition has already been processed by the `Receiver`. In that case, it is fine to ignore the notification.");
                             continue;
-                        },
+                        }
                         Some(stf_info) => stf_info,
                     };
 

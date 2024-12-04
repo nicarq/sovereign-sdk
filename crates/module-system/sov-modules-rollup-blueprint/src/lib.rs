@@ -516,10 +516,11 @@ mod blueprint {
                 .expect("Failed to set up SIGTERM handler");
             let mut quit = tokio::signal::unix::signal(SignalKind::quit())
                 .expect("Failed to set up SIGQUIT handler");
+
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => tracing::info!("Received Ctrl+C"),
                 _ = terminate.recv() => tracing::info!("Received SIGTERM"),
-                _ = quit .recv() => tracing::info!("Received SIGQUIT"),
+                _ = quit.recv() => tracing::info!("Received SIGQUIT"),
                 _ = api_shutdown.changed() => {
                     tracing::debug!("Stopping OS signal handling task, as rollup has been stopped programmatically");
                     return;
