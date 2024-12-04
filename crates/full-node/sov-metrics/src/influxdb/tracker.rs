@@ -113,6 +113,12 @@ impl MetricsTracker {
         self.submit(SovRollupMetric::SlotProcessing(timestamp, point));
     }
 
+    /// Tracks metrics related to batch processing.
+    pub fn track_batch_processing(&self, point: BatchMetrics) {
+        let timestamp = timestamp();
+        self.submit(SovRollupMetric::BatchProcessing(timestamp, point));
+    }
+
     /// Tracks HTTP-related metrics.
     pub fn track_http_request(&self, point: HttpMetrics) {
         let timestamp = timestamp();
@@ -226,7 +232,7 @@ pub struct TransactionProcessingMetrics {
 
 /// Metrics related to processing of a single slot.
 pub struct SlotProcessingMetrics {
-    /// Time it took from slot initialization, till blobs have been selected.
+    /// Time it took from slot initialization till blobs have been selected.
     /// Includes kernel and state initialization + chain_state logic.
     pub blobs_selection_time: std::time::Duration,
 
@@ -327,6 +333,37 @@ impl Metric for SlotProcessingMetrics {
     }
 }
 
+/// Simplified version of a batch outcome.
+#[derive(Debug)]
+pub enum BatchOutcome {
+    #[allow(missing_docs)]
+    Executed,
+    #[allow(missing_docs)]
+    Ignored,
+}
+
+/// Metrics for batch with transactions.
+pub struct BatchMetrics {
+    #[allow(missing_docs)]
+    pub processing_time: std::time::Duration,
+    /// Number of transactions have been processed in batch.
+    pub transactions_count: usize,
+    #[allow(missing_docs)]
+    pub outcome: BatchOutcome,
+}
+
+impl Metric for BatchMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_batch_processing,outcome={:?} processing_time_us={},transactions={}",
+            self.outcome,
+            self.processing_time.as_micros(),
+            self.transactions_count,
+        )
+    }
+}
+
 /// Metrics for an HTTP subsystem.
 /// Can be applied to REST API or JSON RPC.
 pub struct HttpMetrics {
@@ -364,6 +401,7 @@ enum SovRollupMetric {
     RunnerCount(Timestamp, RunnerCountMetrics),
     RunnerTimes(Timestamp, RunnerTimeMetrics),
     SlotProcessing(Timestamp, SlotProcessingMetrics),
+    BatchProcessing(Timestamp, BatchMetrics),
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
     Http(Timestamp, HttpMetrics),
 }
@@ -384,6 +422,10 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::SlotProcessing(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::BatchProcessing(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }
