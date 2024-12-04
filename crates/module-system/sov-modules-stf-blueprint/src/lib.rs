@@ -355,6 +355,8 @@ where
         {
             match blob.data {
                 BlobData::Batch(batch) => {
+                    #[cfg(feature = "native")]
+                    let start_batch_processing = std::time::Instant::now();
                     let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT>(
                         &self.runtime,
                         state,
@@ -365,7 +367,27 @@ where
                         visible_height,
                         execution_context,
                     );
-
+                    // Metrics section
+                    #[cfg(feature = "native")]
+                    {
+                        let processing_time = start_batch_processing.elapsed();
+                        let outcome = match &batch_receipt.inner.outcome {
+                            sov_modules_api::BatchSequencerOutcome::Executed(_) => {
+                                sov_metrics::BatchOutcome::Executed
+                            }
+                            sov_modules_api::BatchSequencerOutcome::Ignored(_) => {
+                                sov_metrics::BatchOutcome::Ignored
+                            }
+                        };
+                        let transactions_count = batch_receipt.tx_receipts.len();
+                        sov_metrics::track_metrics(|tracker| {
+                            tracker.track_batch_processing(sov_metrics::BatchMetrics {
+                                processing_time,
+                                transactions_count,
+                                outcome,
+                            });
+                        });
+                    };
                     total_gas.combine(&batch_receipt.inner.gas_used);
                     batch_receipts.push(batch_receipt);
                     state = next_checkpoint;

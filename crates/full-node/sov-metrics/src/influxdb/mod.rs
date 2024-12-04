@@ -6,8 +6,8 @@ mod tracker;
 
 pub use config::MonitoringConfig;
 pub use tracker::{
-    init_metrics_tracker, HttpMetrics, RunnerMetrics, SlotProcessingMetrics, TransactionEffect,
-    TransactionProcessingMetrics,
+    init_metrics_tracker, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
+    SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
 };
 
 pub(crate) type SerializableMetric = Box<dyn Metric>;
