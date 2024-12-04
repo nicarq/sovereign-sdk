@@ -83,13 +83,14 @@ impl<S: Spec> Bank<S> {
         &self,
         token_name: String,
         initial_balance: Amount,
-        minter: impl Payable<S>,
+        mint_to_address: impl Payable<S>,
         authorized_minters: Vec<impl Payable<S>>,
-        originator: impl Payable<S>,
+        minter: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
-        tracing::info!(%token_name,  %initial_balance, %minter, sender= %originator, "Create token request");
+        tracing::info!(%token_name,  %initial_balance, %mint_to_address, %minter, "Create token request");
 
+        let mint_to_address = mint_to_address.as_token_holder();
         let authorized_minters = authorized_minters
             .iter()
             .map(|minter| minter.as_token_holder())
@@ -97,9 +98,9 @@ impl<S: Spec> Bank<S> {
 
         let (token_id, token) = Token::<S>::create(
             &token_name,
-            &[(minter.as_token_holder(), initial_balance)],
+            &[(mint_to_address, initial_balance)],
             &authorized_minters,
-            originator,
+            &minter,
             self.tokens.prefix(),
             state,
         )?;
@@ -121,6 +122,7 @@ impl<S: Spec> Bank<S> {
                     amount: initial_balance,
                     token_id,
                 },
+                mint_to_address: mint_to_address.into(),
                 minter: minter.as_token_holder().into(),
                 authorized_minters: authorized_minters.iter().map(|m| m.into()).collect(),
             },

@@ -49,7 +49,10 @@ fn create_token() {
                         amount: INITIAL_TOKEN_BALANCE,
                         token_id
                     },
-                    minter: sov_bank::utils::TokenHolder::User(user_high_token_balance_address),
+                    minter: sov_bank::utils::TokenHolder::User(minter.address()),
+                    mint_to_address: sov_bank::utils::TokenHolder::User(
+                        user_high_token_balance_address
+                    ),
                     authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
                 }),
                 "The event should be a TokenCreated event"
@@ -134,6 +137,7 @@ fn create_token_and_mint() {
                         token_id
                     },
                     minter: sov_bank::utils::TokenHolder::User(minter_address),
+                    mint_to_address: sov_bank::utils::TokenHolder::User(minter_address),
                     authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
                 }),
                 "The event should be a TokenCreated event"

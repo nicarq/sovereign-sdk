@@ -1,3 +1,5 @@
+## 2024-12-04
+- #1964 Fix incorrect value in `sov-bank` event field `TokenCreated::minter`. This was incorrectly set to `mint_to_address`. Adds a `mint_to_address` field to the event to capture this value.
 ## 2024-11-29
 - #1948 Makes `sov-metrics` crate native only. Explicit feature gating is required in places where zk guest mode is possible.
 ## 2024-11-27
