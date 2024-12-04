@@ -206,8 +206,9 @@ impl<S: Spec> Token<S> {
         let new_balance = self.decrease_balance_checked(from, amount, state)?;
         self.total_supply = self.total_supply.checked_sub(amount).ok_or_else(|| {
             anyhow::anyhow!(
-                "The token '{}' total supply is underflowing when attempting to burn",
-                self.name
+                "Total supply underflow when burning, supply={} is less than burn amount={}",
+                self.total_supply,
+                amount
             )
         })?;
         self.balances.set(&from, &new_balance, state)?;
@@ -291,8 +292,7 @@ impl<S: Spec> Token<S> {
         let new_balance = match balance.checked_sub(amount) {
             Some(from_balance) => from_balance,
             None => bail!(format!(
-                "Insufficient balance from={from}, got={balance}, needed={amount}, for token={}",
-                self.name
+                "Insufficient balance from={from}, got={balance}, needed={amount}",
             )),
         };
         Ok(new_balance)
