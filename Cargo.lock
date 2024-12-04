@@ -10105,6 +10105,7 @@ dependencies = [
  "reth-primitives",
  "revm 12.1.0",
  "risc0",
+ "risc0-zkvm",
  "secp256k1",
  "serde",
  "serde_json",
