@@ -120,7 +120,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_times_us\" and r._field != \"da_height\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_times_us\" and r._field != \"da_height\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
           "refId": "A"
         }
       ],
@@ -213,7 +213,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and\n    r._field != \"da_height\" and r._field != \"rollup_height\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_slot_execution_time_us\" and\n    r._field != \"da_height\" and r._field != \"rollup_height\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -307,7 +307,7 @@
             "uid": "${DS}"
           },
           "hide": false,
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field != \"da_height\" and r._field != \"sync_distance\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field != \"da_height\" and r._field != \"sync_distance\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
           "refId": "A"
         }
       ],
@@ -400,7 +400,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    r._field == \"value\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_transaction_execution_us\" and\n    r._field == \"value\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
           "refId": "A"
         }
       ],
@@ -508,7 +508,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field == \"sync_distance\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field == \"sync_distance\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -601,7 +601,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field == \"da_height\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_da\" and\n    r._field == \"da_height\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -696,7 +696,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -791,7 +791,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n  |> cumulativeSum()\n",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n\n\nif agg_func == \"raw\" then\n   data |> cumulativeSum()\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)\n    |> cumulativeSum()",
           "refId": "A"
         }
       ],
@@ -886,7 +886,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batches_c\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -981,7 +981,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data\n",
           "refId": "A"
         }
       ],
@@ -1076,7 +1076,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n  |> cumulativeSum()\n",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n\nif agg_func == \"raw\" then\n   data |> cumulativeSum()\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)\n    |> cumulativeSum()\n",
           "refId": "A"
         }
       ],
@@ -1171,7 +1171,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"transactions_c\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1267,7 +1267,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1279,7 +1279,7 @@
         "type": "influxdb",
         "uid": "${DS}"
       },
-      "description": "",
+      "description": "How many batch bytes have been processed",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1363,11 +1363,11 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n  |> cumulativeSum()\n",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n\nif agg_func == \"raw\" then\n   data |> cumulativeSum()\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)\n    |> cumulativeSum()",
           "refId": "A"
         }
       ],
-      "title": "Batches cummulative",
+      "title": "Batches bytes cummulative",
       "type": "timeseries"
     },
     {
@@ -1459,7 +1459,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"batch_bytes\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1555,7 +1555,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proofs_c\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proofs_c\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1651,7 +1651,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proofs_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n  |> cumulativeSum()\n",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proofs_c\"\n  )\n  |> map(fn: (r) => ({_time: r._time, _value: float(v: r._value)}))\n\nif agg_func == \"raw\" then\n   data |> cumulativeSum()\nelse\n   data \n    |> aggregateWindow(every: ${agg_interval}, fn: sum)\n    |> cumulativeSum()\n\n",
           "refId": "A"
         }
       ],
@@ -1747,7 +1747,7 @@
             "type": "influxdb",
             "uid": "provisioned_influxdb_sov"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proof_bytes\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop:v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_runner_counts\" and r._field == \"proof_bytes\"\n  )\n  |> derivative(unit: 1s, nonNegative: true)\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1853,7 +1853,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_http_handlers\" and\n    r._field == \"processing_time_us\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_http_handlers\" and\n    r._field == \"processing_time_us\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1946,7 +1946,7 @@
             "type": "influxdb",
             "uid": "${DS}"
           },
-          "query": "from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_http_handlers\" and r._field == \"response_body_bytes\"\n  )",
+          "query": "agg_func = \"${agg_func}\"\n\ndata = from(bucket: \"sov-rollup\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) =>\n    r._measurement == \"sov_rollup_http_handlers\" and r._field == \"response_body_bytes\"\n  )\n\nif agg_func == \"raw\" then\n  data\nelse if agg_func == \"median\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: median)\nelse if agg_func == \"mean\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: mean)\nelse if agg_func == \"p90\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.90, column: column))\nelse if agg_func == \"p99\" then\n  data |> aggregateWindow(every: ${agg_interval}, fn: (column, tables=<-) =>  tables |> quantile(q: 0.99, column: column))\nelse\n  data",
           "refId": "A"
         }
       ],
@@ -1976,6 +1976,111 @@
         "regex": "",
         "skipUrlSync": false,
         "type": "datasource"
+      },
+      {
+        "current": {
+          "selected": true,
+          "text": "mean",
+          "value": "mean"
+        },
+        "description": "Function to aggregate values. Raw means no aggregation",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Aggregation function",
+        "multi": false,
+        "name": "agg_func",
+        "options": [
+          {
+            "selected": false,
+            "text": "raw",
+            "value": "raw"
+          },
+          {
+            "selected": true,
+            "text": "mean",
+            "value": "mean"
+          },
+          {
+            "selected": false,
+            "text": "median",
+            "value": "median"
+          },
+          {
+            "selected": false,
+            "text": "p90",
+            "value": "p90"
+          },
+          {
+            "selected": false,
+            "text": "p99",
+            "value": "p99"
+          }
+        ],
+        "query": "raw,mean,median,p90,p99",
+        "queryValue": "",
+        "skipUrlSync": false,
+        "type": "custom"
+      },
+      {
+        "auto": false,
+        "auto_count": 30,
+        "auto_min": "10s",
+        "current": {
+          "selected": false,
+          "text": "5s",
+          "value": "5s"
+        },
+        "description": "Interval used for aggergating values, if aggregation is specified",
+        "hide": 0,
+        "label": "Aggregation Interval",
+        "name": "agg_interval",
+        "options": [
+          {
+            "selected": true,
+            "text": "5s",
+            "value": "5s"
+          },
+          {
+            "selected": false,
+            "text": "10s",
+            "value": "10s"
+          },
+          {
+            "selected": false,
+            "text": "30s",
+            "value": "30s"
+          },
+          {
+            "selected": false,
+            "text": "1m",
+            "value": "1m"
+          },
+          {
+            "selected": false,
+            "text": "5m",
+            "value": "5m"
+          },
+          {
+            "selected": false,
+            "text": "10m",
+            "value": "10m"
+          },
+          {
+            "selected": false,
+            "text": "30m",
+            "value": "30m"
+          },
+          {
+            "selected": false,
+            "text": "1h",
+            "value": "1h"
+          }
+        ],
+        "query": "5s,10s,30s,1m,5m,10m,30m,1h",
+        "queryValue": "",
+        "refresh": 2,
+        "skipUrlSync": false,
+        "type": "interval"
       }
     ]
   },
