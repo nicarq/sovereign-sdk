@@ -12,7 +12,7 @@ use sov_modules_api::{
 use tracing::{debug, warn};
 
 use crate::sequencer_mode::common::{
-    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
+    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt,
 };
 use crate::{
     ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, StateCheckpoint, TxProcessingError,
@@ -197,32 +197,8 @@ where
         ?gas_price,
         "Applying a batch"
     );
-    let mut scratchpad = checkpoint.to_tx_scratchpad();
 
-    // The sequencer is not bonded so we don't charge for the batch hook gas.
-    // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
-        warn!(
-            error = %e,
-            batch_id = hex::encode(batch.id),
-            BEGIN_BATCH_HOOK_ERR,
-        );
-
-        return (
-            BatchReceipt {
-                batch_hash: batch.id,
-                tx_receipts: Vec::new(),
-                inner: BatchSequencerReceipt {
-                    da_address: sequencer_da_address,
-                    gas_price: gas_price.clone(),
-                    gas_used: S::Gas::zero(),
-                    outcome: BatchSequencerOutcome::Ignored(BEGIN_BATCH_HOOK_ERR.to_string()),
-                },
-            },
-            scratchpad.commit(),
-        );
-    }
-
+    let scratchpad = checkpoint.to_tx_scratchpad();
     let mut tx_receipts = Vec::new();
     let mut gas_used = S::Gas::zero();
     let mut accumulated_reward = 0;
@@ -282,7 +258,7 @@ where
         execution_context,
     );
 
-    let (tx_result, mut scratchpad) = process_tx_result;
+    let (tx_result, scratchpad) = process_tx_result;
 
     match tx_result {
         Err(error) => {
@@ -324,7 +300,6 @@ where
         },
     };
 
-    runtime.end_batch_hook(&batch_receipt.inner, &mut scratchpad);
     checkpoint = scratchpad.commit();
 
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);

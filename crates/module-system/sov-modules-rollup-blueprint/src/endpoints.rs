@@ -4,11 +4,12 @@ use sov_db::ledger_db::LedgerDb;
 use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
-use sov_modules_api::hooks::ApplyBatchHooks;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
-use sov_modules_api::{RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus};
+use sov_modules_api::{
+    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
+};
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
@@ -126,7 +127,7 @@ where
             // BatchSequencerReceipt<B::DaSpec>,
             // or use some associated type.
             // TODO: But ideally it needs to be addressed properly: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1268
-            <B::Runtime as ApplyBatchHooks>::BatchResult,
+            BatchSequencerReceipt<B::Spec>,
             TxReceiptContents<B::Spec>,
             <B::Runtime as RuntimeEventProcessor>::RuntimeEvent,
         >::axum_router(ledger_db.clone());

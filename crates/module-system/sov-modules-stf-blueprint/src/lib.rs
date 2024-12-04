@@ -30,6 +30,7 @@ use sov_modules_api::{
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
+#[cfg(feature = "native")]
 use sov_state::storage::StateUpdate;
 use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
@@ -142,6 +143,7 @@ where
     RT: Runtime<S>,
 {
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg(feature = "native")]
     fn materialize_slot(
         &self,
         should_execute_slot_hooks: bool,
@@ -161,9 +163,31 @@ where
         if should_execute_slot_hooks {
             self.runtime
                 .finalize_hook(&next_root_hash, &mut accessory_delta);
+            state_update.add_accessory_items(accessory_delta.freeze());
         }
 
-        state_update.add_accessory_items(accessory_delta.freeze());
+        let change_set = storage.materialize_changes(&state_update);
+
+        (next_root_hash, witness, change_set)
+    }
+
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    #[cfg(not(feature = "native"))]
+    fn materialize_slot(
+        &self,
+        storage: S::Storage,
+        checkpoint: StateCheckpoint<S::Storage>,
+    ) -> (
+        <S::Storage as Storage>::Root,
+        <S::Storage as Storage>::Witness,
+        <S::Storage as Storage>::ChangeSet,
+    ) {
+        let (cache_log, _, witness) = checkpoint.freeze();
+
+        let (next_root_hash, state_update) = storage
+            .compute_state_update(cache_log, &witness)
+            .expect("jellyfish merkle tree update must succeed");
+
         let change_set = storage.materialize_changes(&state_update);
 
         (next_root_hash, witness, change_set)
@@ -220,18 +244,11 @@ where
             panic!("Runtime initialization must succeed {}", e);
         }
 
-        let (log, mut accessory_delta, witness) = state_checkpoint.freeze();
-
-        let (genesis_hash, mut state_update) = pre_state
-            .compute_state_update(log, &witness)
-            .expect("Storage update must succeed");
-
-        self.runtime
-            .finalize_hook(&genesis_hash, &mut accessory_delta);
-
-        state_update.add_accessory_items(accessory_delta.freeze());
-
-        let change_set = pre_state.materialize_changes(&state_update);
+        #[cfg(feature = "native")]
+        let (genesis_hash, _, change_set) =
+            self.materialize_slot(true, pre_state, state_checkpoint);
+        #[cfg(not(feature = "native"))]
+        let (genesis_hash, _, change_set) = self.materialize_slot(pre_state, state_checkpoint);
 
         (genesis_hash, change_set)
     }
@@ -297,7 +314,7 @@ where
         #[cfg(feature = "native")]
         let begin_slot_start = std::time::Instant::now();
 
-        KernelSlotHooks::begin_slot_hook(
+        KernelSlotHooks::kernel_begin_slot_hook(
             &self.runtime,
             slot_header,
             validity_condition,
@@ -397,17 +414,26 @@ where
             .chain_state()
             .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
 
-        KernelSlotHooks::end_slot_hook(&self.runtime, &total_gas, &mut kernel_state_accessor);
+        KernelSlotHooks::kernel_end_slot_hook(
+            &self.runtime,
+            &total_gas,
+            &mut kernel_state_accessor,
+        );
         #[cfg(feature = "native")]
         let end_slot_hooks_time = end_slot_hooks_start.elapsed();
 
         #[cfg(feature = "native")]
         let slot_finalization_start = std::time::Instant::now();
+
+        #[cfg(feature = "native")]
         let (state_root, witness, change_set) = self.materialize_slot(
             blob_selector_output.should_execute_slot_hooks,
             pre_state,
             state,
         );
+        #[cfg(not(feature = "native"))]
+        let (state_root, witness, change_set) = self.materialize_slot(pre_state, state);
+
         #[cfg(feature = "native")]
         let slot_finalization_time = slot_finalization_start.elapsed();
 

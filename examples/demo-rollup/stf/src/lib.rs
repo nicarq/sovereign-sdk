@@ -4,7 +4,6 @@
 pub mod authentication;
 #[cfg(feature = "native")]
 pub mod genesis_config;
-mod hooks_impl;
 pub mod runtime;
 
 mod chain_hash;

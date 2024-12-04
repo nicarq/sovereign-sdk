@@ -1,15 +1,18 @@
 use reth_primitives::revm_primitives::{B256, U256};
 use reth_primitives::{Bloom, Bytes};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{AccessoryStateReaderAndWriter, Spec, StateCheckpoint};
+#[cfg(feature = "native")]
+use sov_modules_api::{AccessoryStateReaderAndWriter, FinalizeHook};
+use sov_modules_api::{SlotHooks, Spec, StateCheckpoint};
 use sov_state::{StateRoot, Storage};
 
 use crate::evm::primitive_types::Block;
 use crate::{BlockEnv, Evm, PendingTransaction};
 
-impl<S: Spec> Evm<S> {
+impl<S: Spec> SlotHooks for Evm<S> {
+    type Spec = S;
     /// Logic executed at the beginning of the slot. Here we set the root hash of the previous head.
-    pub fn begin_slot_hook(
+    fn begin_slot_hook(
         &self,
         pre_state_user_root: &<S::Storage as Storage>::Root,
         state: &mut StateCheckpoint<S::Storage>,
@@ -59,7 +62,7 @@ impl<S: Spec> Evm<S> {
 
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_slot_hook of the next slot.
-    pub fn end_slot_hook(&self, state: &mut StateCheckpoint<S::Storage>) {
+    fn end_slot_hook(&self, state: &mut StateCheckpoint<S::Storage>) {
         let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
 
         let block_env = self
@@ -180,13 +183,18 @@ impl<S: Spec> Evm<S> {
 
         self.pending_transactions.clear(state).unwrap_infallible();
     }
+}
+
+#[cfg(feature = "native")]
+impl<S: Spec> FinalizeHook for Evm<S> {
+    type Spec = S;
 
     /// This logic is executed after calculating the root hash.
     /// At this point, it is impossible to alter state variables because the state root is fixed.
     /// However, non-state data can be modified.
     /// This function's purpose is to add the block to the (non-authenticated) blocks structure,
     /// enabling block-related RPC queries.
-    pub fn finalize_hook(
+    fn finalize_hook(
         &self,
         root_hash: &<S::Storage as Storage>::Root,
         state: &mut impl AccessoryStateReaderAndWriter,

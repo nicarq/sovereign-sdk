@@ -1,10 +1,9 @@
 use sov_chain_state::ChainState;
-use sov_modules_api::hooks::FinalizeHook;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, AccessoryStateVec, BlobDataWithId, Context, DaSpec,
-    GenesisState, InfallibleStateAccessor, Module, ModuleError, ModuleId, ModuleInfo, Spec,
-    StateVec, TxState,
+    FinalizeHook, GenesisState, Module, ModuleError, ModuleId, ModuleInfo, SlotHooks, Spec,
+    StateCheckpoint, StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_state::Storage;
@@ -62,16 +61,22 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
     }
 }
 
-impl<S: Spec> TestVisibleHashModule<S> {
+impl<S: Spec> SlotHooks for TestVisibleHashModule<S> {
+    type Spec = S;
+
     fn begin_slot_hook(
         &self,
-        visible_hash: &<S::Storage as Storage>::Root,
-        state: &mut impl InfallibleStateAccessor,
+        visible_hash: &<<S as Spec>::Storage as Storage>::Root,
+        state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
     ) {
         self.begin_slot_hash
             .push(visible_hash, state)
             .unwrap_infallible();
     }
+}
+
+impl<S: Spec> FinalizeHook for TestVisibleHashModule<S> {
+    type Spec = S;
 
     fn finalize_hook(
         &self,

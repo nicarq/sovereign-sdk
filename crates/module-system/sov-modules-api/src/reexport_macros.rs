@@ -186,6 +186,8 @@ pub use sov_modules_macros::Event;
 /// Derives the [`Genesis`](trait.Genesis.html) trait for the underlying runtime
 /// `struct`.
 pub use sov_modules_macros::Genesis;
+/// Derives the [`SlotHooks`](trait.SlotHooks.html) trait for the underlying runtime
+pub use sov_modules_macros::Hooks;
 pub use sov_modules_macros::MessageCodec;
 /// Derives the [`ModuleInfo`] trait for the underlying `struct`.
 ///

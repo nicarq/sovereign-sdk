@@ -44,7 +44,7 @@ use sov_modules_api::macros::UniversalWallet;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{BlobDataWithId, DispatchCall, Event, Genesis, MessageCodec, Spec};
+use sov_modules_api::{BlobDataWithId, DispatchCall, Event, Genesis, Hooks, MessageCodec, Spec};
 
 pub use crate::authentication::EthereumToRollupAddressConverter;
 use crate::chain_hash;
@@ -52,7 +52,7 @@ use crate::chain_hash;
 use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
-#[derive(Default, Genesis, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
+#[derive(Default, Genesis, Hooks, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
 #[dispatch_call(derive(UniversalWallet))]
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 pub struct Runtime<S: Spec> {

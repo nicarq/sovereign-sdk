@@ -129,8 +129,6 @@ pub type AuthTxOutput<S, R> = AuthenticationOutput<
 pub type BatchReceipt<S> =
     sov_rollup_interface::stf::BatchReceipt<BatchSequencerReceipt<S>, TxReceiptContents<S>>;
 
-pub(crate) const BEGIN_BATCH_HOOK_ERR: &str = "Error: The batch was rejected by the 'begin_batch_hook' hook. Skipping batch without slashing the sequencer";
-
 /// Returns the gas used by a transaction from its receipt.
 pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
     match &receipt.receipt {

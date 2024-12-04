@@ -142,6 +142,7 @@ mod rpc;
 use compile_manifest_constants::{make_const_value, ConfigValueInput};
 use dispatch::dispatch_call::DispatchCallMacro;
 use dispatch::genesis::GenesisMacro;
+use dispatch::hooks::HooksMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
 use new_types::address_type_helper;
@@ -185,6 +186,14 @@ pub fn genesis(input: TokenStream) -> TokenStream {
     let genesis_macro = GenesisMacro::new("Genesis");
 
     handle_macro_error_and_expand(fn_name!(), genesis_macro.derive_genesis(input))
+}
+
+#[proc_macro_derive(Hooks)]
+pub fn hooks(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input);
+    let hooks_macro = HooksMacro::new("Hooks");
+
+    handle_macro_error_and_expand(fn_name!(), hooks_macro.derive_hooks(input))
 }
 
 #[proc_macro_derive(DispatchCall, attributes(dispatch_call))]

@@ -8,7 +8,6 @@ generate_runtime! {
     modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
     operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
     minimal_genesis_config_type: MinimalOptimisticGenesisConfig<S>,
-    impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
     gas_enforcer: paymaster: sov_paymaster::Paymaster<S>,
     runtime_trait_impl_bounds: [],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>

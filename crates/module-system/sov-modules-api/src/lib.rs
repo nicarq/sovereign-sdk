@@ -85,6 +85,7 @@ pub use clap;
 pub use common::*;
 pub use containers::*;
 pub use gas::*;
+pub use hooks::*;
 pub use module::*;
 pub use reexport_macros::*;
 #[cfg(feature = "native")]
@@ -118,6 +119,7 @@ pub use sov_rollup_interface::StateUpdateInfo;
 pub use sov_rollup_interface::{execution_mode, BasicAddress, RollupAddress};
 pub use sov_state::{CompileTimeNamespace, Storage};
 pub use state::*;
+pub use transaction::AuthenticatedTransactionData;
 pub use {schemars, sov_universal_wallet};
 
 pub use crate::common::ModuleError as Error;

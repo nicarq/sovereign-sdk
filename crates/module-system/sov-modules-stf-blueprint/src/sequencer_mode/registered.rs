@@ -16,7 +16,7 @@ use tracing::{debug, warn};
 use super::common::ValidatedAuthOutput;
 pub use crate::sequencer_mode::common::PreExecError;
 use crate::sequencer_mode::common::{
-    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt, BEGIN_BATCH_HOOK_ERR,
+    apply_batch_logs, apply_tx, create_tx_receipt, get_gas_used, BatchReceipt,
 };
 use crate::{ApplyTxResult, AuthTxOutput, Runtime, SkippedTxContents, TxProcessingError};
 
@@ -322,23 +322,6 @@ where
 
     let mut gas_used = batch_hook_gas;
 
-    // ApplyBlobHook: begin
-    if let Err(e) = runtime.begin_batch_hook(&sequencer_da_address, &mut scratchpad) {
-        warn!(
-            error = %e,
-            batch_id = hex::encode(batch_with_id.id),
-            BEGIN_BATCH_HOOK_ERR,
-        );
-
-        return (
-            ignored_batch(
-                BEGIN_BATCH_HOOK_ERR.to_string(),
-                sequencer_da_address,
-                gas_used.clone(),
-            ),
-            scratchpad.revert(),
-        );
-    }
     let raw_txs = batch_with_id.batch.txs;
 
     debug!(
@@ -525,7 +508,6 @@ where
         },
     };
 
-    runtime.end_batch_hook(&batch_receipt.inner, &mut batch_scratchpad);
     checkpoint = batch_scratchpad.commit();
     apply_batch_logs(&batch_receipt, &gas_used, blob_idx);
 

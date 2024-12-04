@@ -3,7 +3,6 @@
 //! sequencer is supported. The sequencer's address and bond are registered
 //! during the rollup deployment.
 //!
-//! The module implements the [`sov_modules_api::hooks::ApplyBatchHooks`] trait.
 #![deny(missing_docs)]
 mod call;
 mod capabilities;

@@ -1,9 +1,8 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_evm::Evm;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
-use sov_modules_api::hooks::{FinalizeHook, SlotHooks};
 use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
-use sov_state::{Storage, User};
+use sov_state::User;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
 
 generate_bare_runtime! {
@@ -11,7 +10,6 @@ generate_bare_runtime! {
     modules: [evm: Evm<S>],
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
-    impl_hooks: [ApplyBatchHooks, KernelSlotHooks, TxHooks],
     gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
     runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
@@ -91,45 +89,6 @@ where
 
     fn add_standard_auth(tx: RawTx) -> Self::Input {
         AuthenticatorInput(tx)
-    }
-}
-
-impl<S: Spec> FinalizeHook for TestRuntime<S> {
-    type Spec = S;
-
-    fn finalize_hook(
-        &self,
-        root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut impl sov_modules_api::AccessoryStateReaderAndWriter,
-    ) {
-        self.evm.finalize_hook(root_hash, state);
-    }
-}
-
-impl<S: Spec> SlotHooks for TestRuntime<S> {
-    type Spec = S;
-
-    fn begin_slot_hook(
-        &self,
-        pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
-        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
-    ) {
-        self.evm.begin_slot_hook(pre_state_root, state);
-        assert!(
-            self.evm.block_env(state).unwrap().is_some(),
-            "Block env should be set by the begin slot hook"
-        );
-        assert!(
-            self.evm.head(state).unwrap().is_some(),
-            "Head should be set by the begin slot hook"
-        );
-    }
-
-    fn end_slot_hook(
-        &self,
-        state: &mut sov_modules_api::StateCheckpoint<<Self::Spec as Spec>::Storage>,
-    ) {
-        self.evm.end_slot_hook(state);
     }
 }
 
