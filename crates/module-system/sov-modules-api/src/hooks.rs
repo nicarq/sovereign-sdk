@@ -2,10 +2,9 @@ use sov_rollup_interface::da::DaSpec;
 use sov_state::Storage;
 
 use crate::transaction::AuthenticatedTransactionData;
-use crate::{
-    AccessoryStateReaderAndWriter, Context, KernelStateAccessor, Spec, StateCheckpoint,
-    StateProvider, TxScratchpad, TxState,
-};
+#[cfg(feature = "native")]
+use crate::AccessoryStateReaderAndWriter;
+use crate::{Context, KernelStateAccessor, Module, Spec, StateCheckpoint, TxState};
 
 /// Hooks that execute within the `StateTransitionFunction::apply_blob` function for each processed transaction.
 ///
@@ -37,32 +36,26 @@ pub trait TxHooks {
     }
 }
 
-/// Hooks related to the Sequencer functionality.
-/// In essence, the sequencer locks a bond at the beginning of the `StateTransitionFunction::apply_blob`,
-/// and is rewarded once a blob of transactions is processed.
-pub trait ApplyBatchHooks {
-    /// The runtime spec.
-    type Spec: Spec;
-    /// The result of applying a batch.
-    type BatchResult;
+/// Autoref blanket implementation of the [`TxHooks`] trait.
+/// Any module can override the default behavior by implementing the [`TxHooks`] trait.
+impl<T: Module> TxHooks for &T {
+    type Spec = T::Spec;
 
-    /// Runs at the beginning of apply_blob, locks the sequencer bond.
-    /// If this hook returns Err, batch is not applied
-    fn begin_batch_hook<I: StateProvider<Self::Spec>>(
+    fn pre_dispatch_tx_hook<S: TxState<Self::Spec>>(
         &self,
-        _sender: &<<Self::Spec as Spec>::Da as DaSpec>::Address,
-        _state: &mut TxScratchpad<Self::Spec, I>,
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
+        _state: &mut S,
     ) -> anyhow::Result<()> {
         Ok(())
     }
 
-    /// Executes at the end of apply_blob and rewards or slashed the sequencer
-    /// If this hook returns Err rollup panics
-    fn end_batch_hook<I: StateProvider<Self::Spec>>(
+    fn post_dispatch_tx_hook<S: TxState<Self::Spec>>(
         &self,
-        _result: &Self::BatchResult,
-        _state: &mut TxScratchpad<Self::Spec, I>,
-    ) {
+        _tx: &AuthenticatedTransactionData<Self::Spec>,
+        _ctx: &Context<Self::Spec>,
+        _state: &mut S,
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -86,13 +79,28 @@ pub trait SlotHooks {
     fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
 }
 
+/// Autoref blanket implementation of the [`SlotHooks`] trait.
+/// Any module can override the default behavior by implementing the [`SlotHooks`] trait.
+impl<T: Module> SlotHooks for &T {
+    type Spec = T::Spec;
+
+    fn begin_slot_hook(
+        &self,
+        _visible_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>,
+    ) {
+    }
+
+    fn end_slot_hook(&self, _state: &mut StateCheckpoint<<Self::Spec as Spec>::Storage>) {}
+}
+
 /// Hooks allowing the runtime to get access to the DA layer state
 pub trait KernelSlotHooks {
     /// The runtime spec.
     type Spec: Spec;
 
     /// Called at the beginning of a slot.
-    fn begin_slot_hook(
+    fn kernel_begin_slot_hook(
         &self,
         _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
         _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
@@ -102,7 +110,29 @@ pub trait KernelSlotHooks {
     }
 
     /// Called at the end of a slot
-    fn end_slot_hook(
+    fn kernel_end_slot_hook(
+        &self,
+        _gas_used: &<Self::Spec as Spec>::Gas,
+        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) {
+    }
+}
+
+/// Autoref blanket implementation of the [`KernelSlotHooks`] trait.
+/// Any module can override the default behavior by implementing the [`KernelSlotHooks`] trait.
+impl<T: Module> KernelSlotHooks for &T {
+    type Spec = T::Spec;
+
+    fn kernel_begin_slot_hook(
+        &self,
+        _slot_header: &<<Self::Spec as Spec>::Da as DaSpec>::BlockHeader,
+        _validity_condition: &<<Self::Spec as Spec>::Da as DaSpec>::ValidityCondition,
+        _pre_state_root: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
+    ) {
+    }
+
+    fn kernel_end_slot_hook(
         &self,
         _gas_used: &<Self::Spec as Spec>::Gas,
         _state: &mut KernelStateAccessor<'_, <Self::Spec as Spec>::Storage>,
@@ -111,6 +141,7 @@ pub trait KernelSlotHooks {
 }
 
 /// Trait that defines a hook that runs outside of the main slot processing loop.
+#[cfg(feature = "native")]
 pub trait FinalizeHook {
     /// The runtime spec.
     type Spec: Spec;
@@ -120,6 +151,20 @@ pub trait FinalizeHook {
     /// However, non-state data can be modified.
     /// Use this hook to perform any post-processing changes to the accessory state (changes to the accessory
     /// state are not proved and hence don't affect the state root hash).
+    fn finalize_hook(
+        &self,
+        _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,
+        _state: &mut impl AccessoryStateReaderAndWriter,
+    ) {
+    }
+}
+
+/// Autoref blanket implementation of the [`FinalizeHook`] trait.
+/// Any module can override the default behavior by implementing the [`FinalizeHook`] trait.
+#[cfg(feature = "native")]
+impl<T: Module> FinalizeHook for &T {
+    type Spec = T::Spec;
+
     fn finalize_hook(
         &self,
         _root_hash: &<<Self::Spec as Spec>::Storage as Storage>::Root,

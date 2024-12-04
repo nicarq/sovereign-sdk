@@ -8,7 +8,6 @@ macro_rules! generate_bare_runtime {
         modules: [$($module_name:ident : $module_ty:path),* $(,)?],
         operating_mode: $operating_mode:path,
         minimal_genesis_config_type: $minimal_genesis_config_ty:path,
-        impl_hooks: [$($hook:ident),* $(,)?],
         gas_enforcer: $payer_name:ident : $gas_enforcer_ty:ty,
         runtime_trait_impl_bounds: [$($runtime_trait_impl_bounds:tt)*],
         kernel_type: $kernel_type:ty
@@ -20,6 +19,7 @@ macro_rules! generate_bare_runtime {
             Default,
             Clone,
             ::sov_modules_api::Genesis,
+            ::sov_modules_api::Hooks,
             ::sov_modules_api::DispatchCall,
             ::sov_modules_api::Event,
             ::sov_modules_api::MessageCodec,
@@ -88,10 +88,6 @@ macro_rules! generate_bare_runtime {
                 }
             }
         }
-
-        $(
-            $crate::impl_runtime_hook!($id<S>, $hook);
-        )*
 
         impl<S> $crate::runtime::Runtime<S> for $id<S> where
             S: ::sov_modules_api::Spec,
@@ -280,7 +276,6 @@ macro_rules! generate_optimistic_runtime_with_kernel {
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
             minimal_genesis_config_type: $crate::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
-            impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty,
@@ -310,7 +305,6 @@ macro_rules! generate_zk_runtime_with_kernel {
             modules: [$($module_name : $module_ty),*],
             operating_mode: sov_modules_api::runtime::OperatingMode::Zk,
             minimal_genesis_config_type: $crate::runtime::genesis::zk::MinimalZkGenesisConfig<S>,
-            impl_hooks: [SlotHooks, KernelSlotHooks, FinalizeHook, ApplyBatchHooks, TxHooks],
             gas_enforcer: bank: $crate::runtime::Bank<S>,
             runtime_trait_impl_bounds: [],
             kernel_type: $kernel_ty

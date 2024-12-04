@@ -45,12 +45,11 @@ mod blueprint {
     use sov_db::schema::{DeltaReader, SchemaBatch};
     use sov_modules_api::capabilities::{HasCapabilities, ProofProcessor};
     use sov_modules_api::execution_mode::ExecutionMode;
-    use sov_modules_api::hooks::ApplyBatchHooks;
     use sov_modules_api::provable_height_tracker::MaximumProvableHeight;
     use sov_modules_api::rest::StateUpdateReceiver;
     use sov_modules_api::{
-        OperatingMode, ProofSerializer, RuntimeEndpoints, RuntimeEventProcessor,
-        RuntimeEventResponse, Spec, SyncStatus, ZkVerifier,
+        BatchSequencerReceipt, OperatingMode, ProofSerializer, RuntimeEndpoints,
+        RuntimeEventProcessor, RuntimeEventResponse, Spec, SyncStatus, ZkVerifier,
     };
     use sov_modules_stf_blueprint::{
         GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
@@ -500,7 +499,7 @@ mod blueprint {
     {
         type BatchBuilder = Bb;
         type Da = B::DaService;
-        type BatchReceipt = <B::Runtime as ApplyBatchHooks>::BatchResult;
+        type BatchReceipt = BatchSequencerReceipt<B::Spec>;
         type TxReceipt = TxReceiptContents<B::Spec>;
         type Event = RuntimeEventResponse<<B::Runtime as RuntimeEventProcessor>::RuntimeEvent>;
     }

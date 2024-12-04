@@ -5,8 +5,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use capabilities::{HasCapabilities, HasKernel, TransactionAuthenticator};
 use serde::{Deserialize, Serialize};
 
-use crate::hooks::{ApplyBatchHooks, FinalizeHook, KernelSlotHooks, SlotHooks, TxHooks};
-use crate::{BatchSequencerReceipt, DispatchCall, Genesis, RuntimeEventProcessor, Spec};
+#[cfg(feature = "native")]
+use crate::hooks::FinalizeHook;
+use crate::hooks::{KernelSlotHooks, SlotHooks, TxHooks};
+use crate::{DispatchCall, Genesis, RuntimeEventProcessor, Spec};
 
 /// Flag indicating what mode the rollup is operating in.
 #[derive(
@@ -20,6 +22,7 @@ pub enum OperatingMode {
     Zk,
 }
 
+#[cfg(feature = "native")]
 /// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
 ///
 /// The `TxHooks` implementation sets up a transaction context based on the height at which it is
@@ -37,7 +40,6 @@ pub trait Runtime<S: Spec>:
     + SlotHooks<Spec = S>
     + KernelSlotHooks<Spec = S>
     + FinalizeHook<Spec = S>
-    + ApplyBatchHooks<Spec = S, BatchResult = BatchSequencerReceipt<S>>
     + Default
     + RuntimeEventProcessor
     + 'static
@@ -50,16 +52,45 @@ pub trait Runtime<S: Spec>:
     type GenesisConfig: Clone + Send + Sync;
 
     /// GenesisPaths type.
-    #[cfg(feature = "native")]
     type GenesisPaths: Clone + Send + Sync;
 
     /// Default RPC methods and Axum router.
-    #[cfg(feature = "native")]
     fn endpoints(storage: crate::rest::ApiState<S>) -> RuntimeEndpoints;
 
     /// Reads genesis configs.
-    #[cfg(feature = "native")]
     fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
+
+    /// Gets the operating mode of the runtime (Zk or Optimistic).
+    fn operating_mode(genesis: &Self::GenesisConfig) -> OperatingMode;
+}
+
+#[cfg(not(feature = "native"))]
+/// This trait has to be implemented by a runtime in order to be used in `StfBlueprint`.
+///
+/// The `TxHooks` implementation sets up a transaction context based on the height at which it is
+/// to be executed.
+pub trait Runtime<S: Spec>:
+    DispatchCall<Spec = S>
+    + HasCapabilities<S>
+    + HasKernel<S>
+    + TransactionAuthenticator<
+        S,
+        Decodable = <Self as DispatchCall>::Decodable,
+        AuthorizationData = <Self as HasCapabilities<S>>::AuthorizationData,
+    > + Genesis<Spec = S, Config = Self::GenesisConfig>
+    + TxHooks<Spec = S>
+    + SlotHooks<Spec = S>
+    + KernelSlotHooks<Spec = S>
+    + Default
+    + RuntimeEventProcessor
+    + 'static
+{
+    /// Chain root hash used for transaction verification. Generated from a
+    /// [schema](sov_rollup_interface::sov_universal_wallet::schema::Schema).
+    const CHAIN_HASH: [u8; 32];
+
+    /// GenesisConfig type.
+    type GenesisConfig: Clone + Send + Sync;
 
     /// Gets the operating mode of the runtime (Zk or Optimistic).
     fn operating_mode(genesis: &Self::GenesisConfig) -> OperatingMode;

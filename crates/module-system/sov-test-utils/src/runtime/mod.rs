@@ -63,8 +63,6 @@ generate_optimistic_runtime!(TestOptimisticRuntime <= value_setter: ValueSetter<
 /// Utilities for generating genesis configs.
 pub mod genesis;
 
-/// Utilities for hooks relating to test runtimes.
-pub mod hooks;
 /// Traits used to define interfaces for the runtime.
 pub mod traits;
 use traits::MinimalGenesis;
