@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::{CryptoSpec, ModuleId, Spec};
+use sov_modules_api::{CryptoSpec, MeteredHasher, ModuleId, Spec, TxState};
 use sov_state::codec::{BcsCodec, BorshCodec, EncodeLike};
 
 use crate::derived_holder::DerivedHolder;
@@ -16,6 +16,21 @@ pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>) -> T
 
     let hash: [u8; 32] = hasher.finalize().into();
     TokenId::from(hash)
+}
+
+/// Derives token ID from `token_name` and `originator` while tracking gas usage associated with
+/// hashing operations.
+pub fn get_token_id_metered<S: Spec>(
+    token_name: &str,
+    originator: impl Payable<S>,
+    state: &mut impl TxState<S>,
+) -> anyhow::Result<TokenId> {
+    let mut hasher = MeteredHasher::<_, _, <S::CryptoSpec as CryptoSpec>::Hasher>::new::<S>(state);
+    hasher.update(originator.as_token_holder().as_bytes())?;
+    hasher.update(token_name.as_bytes())?;
+
+    let hash: [u8; 32] = hasher.finalize().map_err(|(_, e)| e)?;
+    Ok(TokenId::from(hash))
 }
 
 /// An identifier which can hold tokens on the rollup. This is implemented by `&S::Address`. To pay a module,

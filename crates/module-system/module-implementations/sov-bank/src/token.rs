@@ -12,13 +12,13 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "arbitrary")]
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{impl_hash32_type, Spec, StateMap};
+use sov_modules_api::{impl_hash32_type, Spec, StateMap, TxState};
 use sov_state::namespaces::User;
 use sov_state::Prefix;
 use thiserror::Error;
 
 use crate::call::prefix_from_address_with_parent;
-use crate::utils::{Payable, TokenHolder, TokenHolderRef};
+use crate::utils::{get_token_id_metered, Payable, TokenHolder, TokenHolderRef};
 
 /// Type alias to store an amount of token.
 pub type Amount = u64;
@@ -309,9 +309,9 @@ impl<S: Spec> Token<S> {
         authorized_minters: &[TokenHolderRef<'_, S>],
         originator: impl Payable<S>,
         parent_prefix: &Prefix,
-        state: &mut impl StateReaderAndWriter<User>,
+        state: &mut impl TxState<S>,
     ) -> anyhow::Result<(TokenId, Self)> {
-        let token_id = super::get_token_id::<S>(token_name, originator);
+        let token_id = get_token_id_metered::<S>(token_name, originator, state)?;
         let token = Self::create_with_token_id(
             token_name,
             identities_and_balances,
