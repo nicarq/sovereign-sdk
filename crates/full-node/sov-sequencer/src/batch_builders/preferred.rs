@@ -240,28 +240,21 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         TxStatusManager::default()
     }
 
-    async fn update_state(
-        &mut self,
-        StateUpdateInfo {
-            storage,
-            latest_event_number,
-            rollup_height,
-        }: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
-    ) {
+    async fn update_state(&mut self, info: StateUpdateInfo<<Z::Spec as Spec>::Storage>) {
         // TODO(@theochap): remove this once we have fully integrated the sequencer and fixed update race conditions.
         // If [`Inner::should_update_state`] is set, we update the state of the batch builder to the
         // one received from the full-node before submitting a batch.
         if self.config.should_update_state {
             let txs_to_process = self.txs_in_next_batch.clone();
-            let checkpoint = StateCheckpoint::new(storage, &Z::Rt::default().kernel());
+            let checkpoint = StateCheckpoint::new(info.storage.clone(), &Z::Rt::default().kernel());
 
             self.checkpoint = Some(checkpoint);
 
             debug!(
-           da_height = rollup_height,
-           num_txs_to_process = txs_to_process.len(),
-           "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
-        );
+                da_height = info.rollup_height,
+                num_txs_to_process = txs_to_process.len(),
+                "The sequencer is now re-applying transaction state changes on top of the latest state processed by the node"
+            );
 
             for (idx, tx) in txs_to_process.iter().enumerate() {
                 trace!(
@@ -280,7 +273,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                 }
             }
 
-            self.next_event_number = latest_event_number + 1;
+            self.next_event_number = info.next_event_number;
             self.checkpoint_sender
                 .send(self.checkpoint.as_ref().unwrap().clone_with_empty_witness())
                 .ok();
