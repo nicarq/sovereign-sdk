@@ -307,7 +307,7 @@ impl<S: Spec> Token<S> {
         token_name: &str,
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         authorized_minters: &[TokenHolderRef<'_, S>],
-        originator: impl Payable<S>,
+        originator: &impl Payable<S>,
         parent_prefix: &Prefix,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(TokenId, Self)> {

@@ -125,8 +125,11 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xa6ba39e5fc6041007310fd55cf91dfdd9
             "amount": 1000000,
             "token_id": "token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"
           },
-          "minter": {
+          "mint_to_address": {
             "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+          },
+          "minter": {
+            "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
           },
           "authorized_minters": [
             {

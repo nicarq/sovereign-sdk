@@ -87,6 +87,7 @@ fn events() -> Vec<StoredEvent> {
             token_id,
         },
         minter: holder.clone(),
+        mint_to_address: holder.clone(),
         authorized_minters: vec![],
     });
     let event_value2 = TestEvent::Bank(sov_bank::event::Event::TokenFrozen {

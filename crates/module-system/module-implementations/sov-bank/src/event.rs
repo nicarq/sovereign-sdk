@@ -25,6 +25,8 @@ pub enum Event<S: Spec> {
         /// The new tokens that were minted.
         coins: Coins,
         /// The token holder that the new tokens are minted to.
+        mint_to_address: TokenHolder<S>,
+        /// The token holder that submitted the minting transaction.
         minter: TokenHolder<S>,
         /// Authorized minter list.
         authorized_minters: Vec<TokenHolder<S>>,

@@ -22,7 +22,7 @@ pub fn get_token_id<S: Spec>(token_name: &str, originator: impl Payable<S>) -> T
 /// hashing operations.
 pub fn get_token_id_metered<S: Spec>(
     token_name: &str,
-    originator: impl Payable<S>,
+    originator: &impl Payable<S>,
     state: &mut impl TxState<S>,
 ) -> anyhow::Result<TokenId> {
     let mut hasher = MeteredHasher::<_, _, <S::CryptoSpec as CryptoSpec>::Hasher>::new::<S>(state);
