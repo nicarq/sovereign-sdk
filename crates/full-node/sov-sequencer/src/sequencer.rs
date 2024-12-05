@@ -327,27 +327,21 @@ pub async fn sequencer_background_task<Ss: SequencerSpec>(
                     continue;
                 }
 
-                tracing::debug!("Updating state for sequencer");
                 // Update storage. It is scoped, so batch builder lock is released early.
                 let storage_rollup_height = {
                     let state_update_info = state_update_receiver.borrow().clone();
                     let rollup_height = state_update_info.rollup_height;
-                    tracing::debug!("getting lock");
                     let mut bb = inner.batch_builder.lock().await;
-                    tracing::debug!("got lock");
                     bb.update_state(state_update_info).await;
                     rollup_height
                 };
 
-                tracing::debug!("Done updating state for sequencer");
-
                 notify_processed_slot::<Ss>(inner.clone(), &ledger_db, storage_rollup_height)
                     .await?;
 
-                tracing::debug!("notified slots");
                 // Now that we retrieved the latest state, we can produce and send a new batch.
                 if inner.automatic_batch_production {
-                    tracing::debug!("producing batch");
+                    tracing::debug!("Producing a batch");
                     inner.produce_batch().await?;
                 }
             }
