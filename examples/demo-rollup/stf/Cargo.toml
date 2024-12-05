@@ -43,11 +43,12 @@ demo-stf = { path = ".", features = ["native"] }
 tempfile = { workspace = true }
 rand = { workspace = true }
 sov-test-utils = { workspace = true }
-sov-mock-zkvm = { workspace = true }
+sov-mock-zkvm = { workspace = true, features = ["arbitrary"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["test-utils"] }
 sov-cli = { workspace = true }
 sov-kernels = { workspace = true, features = ["native"] }
-sov-mock-da = { workspace = true }
+sov-mock-da = { workspace = true, features = ["arbitrary"] }
+sov-evm = { workspace = true, features = ["arbitrary"] }
 
 [features]
 default = []

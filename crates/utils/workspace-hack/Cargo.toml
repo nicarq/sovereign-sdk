@@ -13,6 +13,7 @@ sov-mock-da = { workspace = true, features = ["arbitrary"] }
 sov-celestia-adapter = { workspace = true, features = ["arbitrary"] }
 sov-risc0-adapter = { workspace = true, features = ["arbitrary"] }
 sov-mock-zkvm = { workspace = true, features = ["arbitrary"] }
+sov-evm = { workspace = true, features = ["arbitrary"] }
 
 [lints]
 workspace = true

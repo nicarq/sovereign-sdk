@@ -18,8 +18,14 @@ generate_bare_runtime! {
 /// A converter from an Ethereum address to a rollup address.
 pub struct EthereumToRollupAddressConverter([u8; 20]);
 
-impl From<sov_evm::EvmAddress> for EthereumToRollupAddressConverter {
-    fn from(address: sov_evm::EvmAddress) -> Self {
+impl From<sov_evm::RethAddress> for EthereumToRollupAddressConverter {
+    fn from(address: sov_evm::RethAddress) -> Self {
+        Self(address.into())
+    }
+}
+
+impl From<sov_evm::spec::EthereumAddress> for EthereumToRollupAddressConverter {
+    fn from(address: sov_evm::spec::EthereumAddress) -> Self {
         Self(address.into())
     }
 }
@@ -29,6 +35,14 @@ impl TryInto<reth_primitives::Address> for EthereumToRollupAddressConverter {
 
     fn try_into(self) -> Result<reth_primitives::Address, Self::Error> {
         Ok(reth_primitives::Address::from(self.0))
+    }
+}
+
+impl TryInto<sov_evm::spec::EthereumAddress> for EthereumToRollupAddressConverter {
+    type Error = anyhow::Error;
+
+    fn try_into(self) -> Result<sov_evm::spec::EthereumAddress, Self::Error> {
+        Ok(reth_primitives::Address::from(self.0).into())
     }
 }
 
