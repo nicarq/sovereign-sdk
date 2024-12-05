@@ -52,13 +52,7 @@ fn freeze_token_happy_path() {
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    format!(
-                        "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-                        token_id, 0, minter_address, minter_address
-                    ),
-                    message_1
-                );
+                assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     format!("Attempt to mint frozen token {}", token_name),
                     message_2

@@ -236,7 +236,7 @@ impl<S: Spec> Bank<S> {
     /// On success, it updates the `self.tokens` set to store the new balance.
     pub fn mint_from_eoa(
         &self,
-        coins: &Coins,
+        coins: Coins,
         mint_to_identity: impl Payable<S>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
@@ -255,33 +255,38 @@ impl<S: Spec> Bank<S> {
     /// On success, it updates the `self.tokens` set to store the new minted address.
     pub fn mint(
         &self,
-        coins: &Coins,
+        coins: Coins,
         mint_to_identity: impl Payable<S>,
         authorizer: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
+        tracing::debug!(%authorizer, "Mint token request");
+
         let mint_to_identity = mint_to_identity.as_token_holder();
-        let context_logger = || {
-            format!(
-                "Failed mint coins({}) to {} by authorizer {}",
-                coins, mint_to_identity, authorizer
-            )
-        };
         let mut token = self
             .tokens
             .get_or_err(&coins.token_id, state)
-            .with_context(context_logger)??;
+            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))??;
 
         let authorizer = authorizer.as_token_holder();
         token
             .mint(authorizer, mint_to_identity, coins.amount, state)
-            .with_context(context_logger)?;
+            .with_context(|| format!("Failed to mint token_id={}", &coins.token_id))?;
         self.tokens.set(&coins.token_id, &token, state)?;
+
+        tracing::info!(
+            %authorizer,
+            token_id = %coins.token_id,
+            amount = coins.amount,
+            minted_to = %mint_to_identity,
+            "Successfully minted tokens"
+        );
+
         self.emit_event(
             state,
             Event::TokenMinted {
                 mint_to_identity: mint_to_identity.into(),
-                coins: coins.clone(),
+                coins,
             },
         );
 
