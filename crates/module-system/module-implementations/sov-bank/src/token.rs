@@ -159,6 +159,21 @@ pub struct Token<S: Spec> {
 }
 
 impl<S: Spec> Token<S> {
+    /// Get the name of the token.
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Get the total supply of the token.
+    pub fn total_supply(&self) -> u64 {
+        self.total_supply
+    }
+
+    /// Get the authorized minters of the token.
+    pub fn authorized_minters(&self) -> &[TokenHolder<S>] {
+        &self.authorized_minters
+    }
+
     /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
     /// First checks that there is enough token of that type stored in `from`. If so, update
     /// the balances of the `from` and `to` accounts.
