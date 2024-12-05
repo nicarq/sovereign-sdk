@@ -327,6 +327,7 @@ impl<S: Spec> Token<S> {
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(TokenId, Self)> {
         let token_id = get_token_id_metered::<S>(token_name, originator, state)?;
+        tracing::debug!(%token_name, %originator, %token_id, "Calculated token id");
         let token = Self::create_with_token_id(
             token_name,
             identities_and_balances,
@@ -348,6 +349,7 @@ impl<S: Spec> Token<S> {
         state: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<Token<S>> {
         let token_prefix = prefix_from_address_with_parent(parent_prefix, token_id);
+        tracing::debug!(final_prefix = %token_prefix, %token_id, %parent_prefix, "Creating token with state prefix");
         let balances = sov_modules_api::StateMap::new(token_prefix);
 
         let mut total_supply: Option<u64> = Some(0);
