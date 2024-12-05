@@ -1,3 +1,4 @@
+use sov_bank::utils::TokenHolder;
 use sov_bank::{get_token_id, Bank};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
@@ -34,7 +35,7 @@ fn create_token() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
-            authorized_minters: vec![minter_address]
+            authorized_minters: vec![user_no_token_balance_address, minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
         }),
@@ -49,27 +50,29 @@ fn create_token() {
                         amount: INITIAL_TOKEN_BALANCE,
                         token_id
                     },
-                    minter: sov_bank::utils::TokenHolder::User(minter.address()),
-                    mint_to_address: sov_bank::utils::TokenHolder::User(
-                        user_high_token_balance_address
-                    ),
-                    authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
+                    minter: TokenHolder::User(minter.address()),
+                    mint_to_address: TokenHolder::User(user_high_token_balance_address),
+                    authorized_minters: vec![
+                        TokenHolder::User(user_no_token_balance_address),
+                        TokenHolder::User(minter_address)
+                    ]
                 }),
                 "The event should be a TokenCreated event"
             );
 
-            assert_eq!(
-                Bank::<S>::default()
-                    .get_token_name(&token_id, state)
-                    .unwrap(),
-                Some(token_name.to_string())
-            );
+            let token = Bank::<S>::default()
+                .get_token(&token_id, state)
+                .unwrap()
+                .unwrap();
 
+            assert_eq!(token.name(), token_name);
+            assert_eq!(token.total_supply(), INITIAL_TOKEN_BALANCE);
             assert_eq!(
-                Bank::<S>::default()
-                    .get_total_supply_of(&token_id, state)
-                    .unwrap(),
-                Some(INITIAL_TOKEN_BALANCE)
+                token.authorized_minters(),
+                [
+                    TokenHolder::User(user_no_token_balance_address),
+                    TokenHolder::User(minter_address)
+                ]
             );
 
             assert_eq!(

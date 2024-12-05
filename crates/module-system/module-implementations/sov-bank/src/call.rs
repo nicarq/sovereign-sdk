@@ -347,6 +347,15 @@ impl<S: Spec> Bank<S> {
         Ok(())
     }
 
+    /// Retrieve a token by the provided token id.
+    pub fn get_token<Accessor: StateAccessor>(
+        &self,
+        token_id: &TokenId,
+        state: &mut Accessor,
+    ) -> Result<Option<Token<S>>, <Accessor as StateReader<User>>::Error> {
+        self.tokens.get(token_id, state)
+    }
+
     /// Helper function to return the balance of the token stored at `token_id`
     /// for the user having the address `user_address` from the underlying storage. If the token ID doesn't exist, or
     /// if the user doesn't have tokens of that type, return `None`. Otherwise, wrap the resulting balance in `Some`.
