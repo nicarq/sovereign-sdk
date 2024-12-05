@@ -10914,6 +10914,7 @@ name = "sov-test-utils"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "axum-server",
  "borsh",
  "derivative",
@@ -10921,6 +10922,7 @@ dependencies = [
  "ethereum-types",
  "ethers-contract",
  "ethers-core",
+ "futures",
  "hex",
  "jsonschema",
  "proptest",

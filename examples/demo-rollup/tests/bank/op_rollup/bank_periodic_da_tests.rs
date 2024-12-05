@@ -12,10 +12,11 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::tx_sender::TxSender;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
+use crate::bank::TOKEN_NAME;
 use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
@@ -36,7 +37,7 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
     .start()
     .await?;
 
-    let sender = SequencerTxSender {};
+    let sender = SequencerTxSender::default();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
@@ -50,7 +51,7 @@ async fn flaky_bank_tx_periodic_da_tests() -> anyhow::Result<()> {
 async fn send_test_bank_txs(
     test_case: TestCase,
     client: &NodeClient,
-    tx_sender: impl TxSender,
+    tx_sender: SequencerTxSender,
 ) -> anyhow::Result<()> {
     let mut slots_subscription = client.client.subscribe_slots().await?;
 
