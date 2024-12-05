@@ -1,12 +1,13 @@
 #[cfg(feature = "native")]
 use std::str::FromStr;
 
+use alloy_primitives::AddressError;
 use borsh::{BorshDeserialize, BorshSerialize};
 use digest::consts::U32;
 #[cfg(feature = "native")]
 use private_key::EthereumPrivateKey;
 use reth_primitives::keccak256;
-use reth_primitives::revm_primitives::Address as EvmAddress;
+use reth_primitives::revm_primitives::Address;
 use schemars::JsonSchema;
 use secp256k1::constants::PUBLIC_KEY_SIZE;
 use secp256k1::ecdsa::Signature;
@@ -15,12 +16,117 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::CryptoSpec;
+use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::{BasicAddress, CryptoSpec, RollupAddress};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 
 /// A spec for EVM rollups.
 pub type EvmSpec<Da, InnerZkvm, OuterZkvm, Mode> =
-    ConfigurableSpec<Da, InnerZkvm, OuterZkvm, EvmCryptoSpec, EvmAddress, Mode>;
+    ConfigurableSpec<Da, InnerZkvm, OuterZkvm, EvmCryptoSpec, EthereumAddress, Mode>;
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    UniversalWallet,
+)]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+/// A standard 20 byte Ethereum address with checksum.
+pub struct EthereumAddress(#[sov_wallet(as_ty = "[u8;20]", display = "hex")] pub Address);
+
+impl BasicAddress for EthereumAddress {}
+impl RollupAddress for EthereumAddress {}
+
+impl<'a> From<&'a EthereumPublicKey> for EthereumAddress {
+    fn from(value: &'a EthereumPublicKey) -> Self {
+        // Construct the address from the 64 bytes of public key material (2x32 byte field elements), stripping
+        // out the `UNCOMPRESSED` tag which is the first byte. https://github.com/bitcoin-core/secp256k1/blob/8deef00b33ca81202aca80fe0bcd9730f084fbd2/src/eckey_impl.h#L49
+        Self(Address::from_raw_public_key(
+            &value.pub_key.serialize_uncompressed()[1..],
+        ))
+    }
+}
+
+impl BorshSerialize for EthereumAddress {
+    fn serialize<W: std::io::Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        writer.write_all(&self.0 .0 .0)
+    }
+}
+
+impl AsRef<[u8]> for EthereumAddress {
+    fn as_ref(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl TryFrom<&[u8]> for EthereumAddress {
+    type Error = anyhow::Error;
+
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        Ok(Self(Address::try_from(value)?))
+    }
+}
+
+impl std::str::FromStr for EthereumAddress {
+    type Err = AddressError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self(Address::parse_checksummed(s, None)?))
+    }
+}
+
+impl BorshDeserialize for EthereumAddress {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let bytes: [u8; 20] = borsh::from_reader(reader)?;
+        Ok(Self(bytes.into()))
+    }
+}
+
+impl From<Address> for EthereumAddress {
+    fn from(value: Address) -> Self {
+        Self(value)
+    }
+}
+
+impl From<EthereumAddress> for [u8; 20] {
+    fn from(value: EthereumAddress) -> Self {
+        value.0.into()
+    }
+}
+
+impl From<EthereumAddress> for Address {
+    fn from(value: EthereumAddress) -> Self {
+        value.0
+    }
+}
+
+impl std::fmt::Display for EthereumAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl schemars::JsonSchema for EthereumAddress {
+    fn schema_name() -> String {
+        "EthereumAddress".to_string()
+    }
+
+    fn json_schema(_gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
+        serde_json::from_value(serde_json::json!({
+            "type": "string",
+            "pattern": "^0x[a-fA-F0-9]{64}$",
+            "description": "20 bytes in hexadecimal format, with `0x` prefix.",
+        }))
+        .unwrap()
+    }
+}
 
 #[derive(
     Clone,
@@ -63,6 +169,7 @@ pub mod private_key {
     /// A private key for the sepc256k1 signature scheme.
     /// This struct also stores the corresponding public key.
     #[derive(Clone, serde::Serialize, serde::Deserialize)]
+    #[serde(transparent)]
     pub struct EthereumPrivateKey {
         key_pair: secp256k1::Keypair,
     }
@@ -493,5 +600,16 @@ mod hex_tests {
         let pub_key_upper = EthereumPublicKey::try_from(&pub_key_hex_upper).unwrap();
 
         assert_eq!(pub_key_lower, pub_key_upper);
+    }
+
+    #[test]
+    fn test_key_to_addr() {
+        let decoded = hex::decode("226634643938363630643866613337303631353535653933333134303737393434646131336530333964393237616433643366303762396136396430336339366122").unwrap();
+        let key: EthereumPrivateKey = serde_json::from_slice(&decoded).unwrap();
+        let found_addr: EthereumAddress = (&(key.pub_key())).into();
+        assert_eq!(
+            found_addr,
+            EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap()
+        );
     }
 }

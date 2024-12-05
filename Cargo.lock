@@ -13560,6 +13560,7 @@ name = "workspace-hack"
 version = "0.3.0"
 dependencies = [
  "sov-celestia-adapter",
+ "sov-evm",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-risc0-adapter",

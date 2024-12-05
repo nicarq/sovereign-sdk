@@ -130,8 +130,8 @@ pub struct EthereumToRollupAddressConverter(
     pub [u8; 20],
 );
 
-impl From<sov_evm::EvmAddress> for EthereumToRollupAddressConverter {
-    fn from(address: sov_evm::EvmAddress) -> Self {
+impl From<sov_evm::RethAddress> for EthereumToRollupAddressConverter {
+    fn from(address: sov_evm::RethAddress) -> Self {
         Self(address.into())
     }
 }
