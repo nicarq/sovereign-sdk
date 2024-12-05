@@ -14,6 +14,8 @@ use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 use super::TOKEN_NAME;
 use crate::test_helpers::CHAIN_HASH;
 
+pub type SequencerTxSender = sov_test_utils::tx_sender::SequencerTxSender<Runtime<TestSpec>>;
+
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
     pub(crate) finalization_blocks: u32,

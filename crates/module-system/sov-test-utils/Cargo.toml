@@ -15,11 +15,13 @@ publish = false
 workspace = true
 
 [dependencies]
-derivative = { workspace = true }
-derive_more = { workspace = true }
 anyhow = { workspace = true }
+async-trait = { workspace = true }
 axum-server = { workspace = true }
 borsh = { workspace = true }
+derivative = { workspace = true }
+derive_more = { workspace = true }
+futures = { workspace = true }
 jsonschema = { workspace = true }
 tokio = { workspace = true, features = ["sync"] }
 serde = { workspace = true }

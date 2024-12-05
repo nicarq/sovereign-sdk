@@ -12,10 +12,11 @@ use sov_modules_api::OperatingMode;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_test_utils::test_rollup::RollupBuilder;
+use sov_test_utils::tx_sender::TxSender;
 use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
-use crate::bank::{SequencerTxSender, TxSender, TOKEN_NAME};
+use crate::bank::TOKEN_NAME;
 use crate::test_helpers::test_genesis_source;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
@@ -36,7 +37,7 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
     .start()
     .await?;
 
-    let sender = SequencerTxSender {};
+    let sender = SequencerTxSender::default();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
@@ -62,7 +63,7 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
     .start()
     .await?;
 
-    let sender = SequencerTxSender {};
+    let sender = SequencerTxSender::default();
 
     // If the rollup throws an error, return it and stop trying to send the transaction
     tokio::select! {
@@ -77,7 +78,7 @@ async fn send_test_bank_txs(
     test_case: TestCase,
     client: &NodeClient,
     da_service: &DaServiceWithRetries<StorableMockDaService>,
-    tx_sender: impl TxSender,
+    tx_sender: SequencerTxSender,
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let genesis_gas_balance = client
