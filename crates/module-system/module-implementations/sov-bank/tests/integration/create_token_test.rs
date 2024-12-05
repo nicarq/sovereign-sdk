@@ -1,5 +1,6 @@
 use sov_bank::utils::TokenHolder;
 use sov_bank::{get_token_id, Bank};
+use sov_modules_stf_blueprint::TxEffect;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::genesis::TestTokenName;
 use sov_test_utils::runtime::TestRunner;
@@ -203,6 +204,68 @@ fn create_token_and_mint() {
             );
         }),
     });
+}
+
+#[test]
+fn test_create_token_fails_with_duplicate_ids() {
+    let (
+        TestData {
+            minter,
+            user_high_token_balance,
+            user_no_token_balance,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    const INITIAL_TOKEN_BALANCE: u64 = 1000;
+
+    let user_high_token_balance_address = user_high_token_balance.address();
+    let user_no_token_balance_address = user_no_token_balance.address();
+    let minter_address = minter.as_user().address();
+    let token_name = "Token1";
+    let token_id = get_token_id::<S>(token_name, &minter_address);
+
+    runner
+        .execute_transaction(TransactionTestCase {
+            input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
+                token_name: token_name.try_into().unwrap(),
+                initial_balance: INITIAL_TOKEN_BALANCE,
+                mint_to_address: user_high_token_balance_address,
+                authorized_minters: vec![user_no_token_balance_address, minter_address]
+                    .try_into()
+                    .expect("Tokens can have at least one minter"),
+            }),
+            assert: Box::new(move |result, _state| {
+                assert!(result.tx_receipt.is_successful());
+            }),
+        })
+        .execute_transaction(TransactionTestCase {
+            input: minter.create_plain_message::<RT, Bank<S>>(sov_bank::CallMessage::CreateToken {
+                token_name: token_name.try_into().unwrap(),
+                initial_balance: INITIAL_TOKEN_BALANCE,
+                mint_to_address: user_high_token_balance_address,
+                authorized_minters: vec![user_no_token_balance_address, minter_address]
+                    .try_into()
+                    .expect("Tokens can have at least one minter"),
+            }),
+            assert: Box::new(move |result, _state| {
+                if let TxEffect::Reverted(contents) = result.tx_receipt {
+                    let sov_modules_api::Error::ModuleError(err) = contents.reason;
+                    assert_eq!(
+                        err.to_string(),
+                        format!(
+                            "Token with id already exists {}, name={} minter={}",
+                            token_id,
+                            token_name,
+                            minter.address()
+                        )
+                    );
+                } else {
+                    panic!("The transaction should have failed");
+                }
+            }),
+        });
 }
 
 #[test]
