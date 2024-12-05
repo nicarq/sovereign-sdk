@@ -142,7 +142,7 @@ impl<S: Spec> Module for Bank<S> {
                 mint_to_address,
             } => {
                 self.charge_gas(state, &self.gas.mint)?;
-                self.mint_from_eoa(&coins, &mint_to_address, context, state)?;
+                self.mint_from_eoa(coins, &mint_to_address, context, state)?;
                 Ok(())
             }
 

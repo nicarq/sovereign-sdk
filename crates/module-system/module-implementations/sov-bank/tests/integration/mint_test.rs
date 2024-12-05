@@ -83,16 +83,7 @@ fn mint_token_fails_if_user_unauthorized() {
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    message_1,
-                    format!(
-                        "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-                        token_id,
-                        0,
-                        unauthorized_minter.address(),
-                        unauthorized_minter.address(),
-                    ),
-                );
+                assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     message_2,
                     format!(
@@ -147,16 +138,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    message_1,
-                    format!(
-                        "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-                        token_id,
-                        INITIAL_BALANCE,
-                        user.address(),
-                        user.address(),
-                    ),
-                );
+                assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     message_2,
                     format!(
@@ -196,16 +178,7 @@ fn mint_token_account_balance_overflow() {
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    message_1,
-                    format!(
-                        "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-                        token_id,
-                        u64::MAX,
-                        minter.address(),
-                        minter.address(),
-                    ),
-                );
+                assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     message_2,
                     "Account balance overflow in the mint method of bank module",
@@ -246,16 +219,7 @@ fn mint_token_total_supply_overflow() {
                 let message_1 = chain.next().unwrap().to_string();
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
-                assert_eq!(
-                    message_1,
-                    format!(
-                        "Failed mint coins(token_id={} amount={}) to {} by authorizer {}",
-                        token_id,
-                        u64::MAX - minter_balance - 1,
-                        minter.address(),
-                        minter.address(),
-                    ),
-                );
+                assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
                 assert_eq!(
                     message_2,
                     "Total Supply overflow in the mint method of bank module",
