@@ -10,6 +10,8 @@ use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 
 use super::interface::{CallMessageGenerator, DefaultEmpty, GeneratorState, PickRandom, TagAction};
+use crate::generators::bank::{BankAccount, Tag as BankTag};
+use crate::generators::value_setter::{Tag as ValueSetterTag, ValueSetterAccount};
 use crate::interface::Taggable;
 
 /// The state of an account in the message generator.
@@ -62,6 +64,38 @@ pub struct AccountStateView<S: Spec, Tag, Data = ()> {
     pub additional_info: Option<Data>,
     /// The tag changes for this account.
     pub tag_changes: Vec<TagAction<Tag>>,
+}
+
+impl<S: Spec, Tag: From<BankTag>, Data> From<BankAccount<S>> for AccountStateView<S, Tag, Data> {
+    fn from(value: BankAccount<S>) -> Self {
+        Self {
+            balances: Some(value.balances),
+            can_mint: Some(value.can_mint),
+            sequencing_bond: None,
+            private_key: Some(value.private_key),
+            additional_info: None,
+            tag_changes: value
+                .tag_changes
+                .into_iter()
+                .map(|t| t.map(|tag| tag.into()))
+                .collect(),
+        }
+    }
+}
+
+impl<S: Spec, Tag: From<ValueSetterTag>, Data> From<ValueSetterAccount<S>>
+    for AccountStateView<S, Tag, Data>
+{
+    fn from(value: ValueSetterAccount<S>) -> Self {
+        Self {
+            balances: None,
+            can_mint: None,
+            sequencing_bond: None,
+            private_key: Some(value.private_key),
+            additional_info: None,
+            tag_changes: vec![],
+        }
+    }
 }
 
 impl<'a, S: Spec, Tag, Data: Clone> From<&'a AccountState<S, Data>>
@@ -205,8 +239,14 @@ where
 
     type Tag = M::Tag;
 
-    fn get_account(&self, address: S::Address) -> Option<Self::AccountView> {
-        self.accounts.get(&address).map(Into::into)
+    fn get_account(&self, address: &S::Address) -> Option<Self::AccountView> {
+        self.accounts.get(address).map(Into::into)
+    }
+
+    fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView> {
+        let address = self.tags.get(&tag).and_then(|set| set.first());
+
+        address.and_then(|address: &S::Address| self.get_account(address))
     }
 
     fn get_random_existing_account(

@@ -4095,6 +4095,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-modules-api",
+ "strum",
  "thiserror",
 ]
 

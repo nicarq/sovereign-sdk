@@ -10987,6 +10987,7 @@ dependencies = [
  "sov-paymaster",
  "sov-state",
  "sov-test-utils",
+ "sov-value-setter",
  "strum 0.26.3",
  "thiserror",
  "tracing",

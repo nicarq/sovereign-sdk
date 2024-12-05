@@ -25,6 +25,7 @@ sov-state = { workspace = true, features = ["native"] }
 
 [dependencies]
 anyhow = { workspace = true }
+strum = { workspace = true }
 sov-modules-api = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }

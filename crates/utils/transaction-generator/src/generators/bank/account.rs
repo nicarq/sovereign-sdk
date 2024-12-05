@@ -15,11 +15,11 @@ pub struct BankAccount<S: Spec> {
     /// The account's private key
     pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     /// All tokens of which the account has a non-zero balance
-    balances: Vec<Coins>,
+    pub(crate) balances: Vec<Coins>,
     /// The set of tokens that the account is allowed to mint
-    can_mint: IndexSet<TokenId>,
+    pub(crate) can_mint: IndexSet<TokenId>,
 
-    tag_changes: Vec<TagAction<Tag>>,
+    pub(crate) tag_changes: Vec<TagAction<Tag>>,
 }
 
 impl<S: Spec> Taggable for BankAccount<S> {

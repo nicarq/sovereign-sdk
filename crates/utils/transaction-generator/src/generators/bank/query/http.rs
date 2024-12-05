@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use sov_bank::TokenId;
 use sov_modules_api::prelude::axum::async_trait;
@@ -13,6 +14,16 @@ pub struct HttpBankClient<S: Spec> {
     client: NodeClient,
     phantom: PhantomData<S>,
     rollup_height: Option<u64>,
+}
+
+impl<S: Spec> From<Arc<BasicClientConfig>> for HttpBankClient<S> {
+    fn from(config: Arc<BasicClientConfig>) -> Self {
+        Self {
+            rollup_height: config.rollup_height,
+            phantom: Default::default(),
+            client: NodeClient::new_unchecked(&config.url),
+        }
+    }
 }
 
 impl<S: Spec> From<BasicClientConfig> for HttpBankClient<S> {

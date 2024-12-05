@@ -29,7 +29,7 @@ pub struct ValueSetter<S: Spec> {
 
     /// Some more values kept in state.
     #[state]
-    many_values: StateVec<u8>,
+    pub many_values: StateVec<u8>,
 
     /// Holds the address of the admin user who is allowed to update the value.
     #[state]

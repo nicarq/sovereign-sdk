@@ -27,6 +27,7 @@ pub const MESSAGES: &[sov_bank::CallMessageDiscriminants] =
     sov_bank::CallMessageDiscriminants::VARIANTS;
 
 /// A generator for bank call messages.
+#[derive(Debug, Clone)]
 pub struct BankMessageGenerator<S> {
     message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
     // The fraction of valid messages that should create a new address. This may be
