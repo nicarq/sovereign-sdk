@@ -107,9 +107,10 @@ impl<S: Spec> Bank<S> {
 
         if self.tokens.get(&token_id, state)?.is_some() {
             bail!(
-                "Token {} at {} address already exists",
+                "Token with id already exists {}, name={} minter={}",
+                token_id,
                 token_name,
-                token_id
+                minter.as_token_holder()
             );
         }
 
