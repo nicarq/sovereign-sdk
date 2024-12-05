@@ -4,6 +4,7 @@ use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{Context, EventEmitter, Spec, TxState};
+use strum::{EnumDiscriminants, EnumIs, VariantArray};
 use thiserror::Error;
 
 use super::ValueSetter;
@@ -20,9 +21,12 @@ use crate::event::Event;
     Eq,
     Clone,
     JsonSchema,
+    EnumDiscriminants,
+    EnumIs,
     UniversalWallet,
 )]
 #[serde(rename_all = "snake_case")]
+#[strum_discriminants(derive(VariantArray, EnumIs))]
 pub enum CallMessage {
     /// Single value to set.
     SetValue(

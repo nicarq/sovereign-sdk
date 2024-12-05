@@ -232,7 +232,10 @@ pub trait GeneratorState<S: Spec> {
     type Tag: Hash + Eq;
 
     /// Creates a fresh copy of the appropriate view of the account with the given address.
-    fn get_account(&self, address: S::Address) -> Option<Self::AccountView>;
+    fn get_account(&self, address: &S::Address) -> Option<Self::AccountView>;
+
+    /// Creates a fresh copy of the appropriate view of the account with the given tag.
+    fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView>;
 
     /// Picks an account at random from the generator state and returns a copy.
     fn get_random_existing_account(
@@ -329,8 +332,14 @@ where
 
     type Tag = Tag;
 
-    fn get_account(&self, address: S::Address) -> Option<Self::AccountView> {
+    fn get_account(&self, address: &S::Address) -> Option<Self::AccountView> {
         self.0.get_account(address).map(|acct| (&acct).into())
+    }
+
+    fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView> {
+        self.0
+            .get_account_with_tag(tag.into())
+            .map(|acct| (&acct).into())
     }
 
     fn get_random_existing_account(
