@@ -88,7 +88,7 @@ impl<S: Spec> Bank<S> {
         minter: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
-        tracing::info!(%token_name,  %initial_balance, %mint_to_address, %minter, "Create token request");
+        tracing::debug!(%minter, "Create token request");
 
         let mint_to_address = mint_to_address.as_token_holder();
         let authorized_minters = authorized_minters
@@ -115,6 +115,17 @@ impl<S: Spec> Bank<S> {
         }
 
         self.tokens.set(&token_id, &token, state)?;
+
+        tracing::info!(
+            %token_id,
+            %token_name,
+            %minter,
+            %initial_balance,
+            %mint_to_address,
+            ?authorized_minters,
+            "Token created"
+        );
+
         self.emit_event(
             state,
             Event::TokenCreated {
@@ -128,7 +139,6 @@ impl<S: Spec> Bank<S> {
                 authorized_minters: authorized_minters.iter().map(|m| m.into()).collect(),
             },
         );
-        tracing::info!(%token_name, %token_id, "Token created");
         Ok(token_id)
     }
 
