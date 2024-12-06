@@ -150,9 +150,20 @@ impl<S: Spec> Bank<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
+        tracing::debug!("Transfer token request");
+
         let to = to.as_token_holder();
         let sender = context.sender();
+
         self.transfer_from(sender, to, coins.clone(), state)?;
+
+        tracing::info!(
+            from = %sender,
+            %to,
+            %coins,
+            "Token transfer successful"
+        );
+
         self.emit_event(
             state,
             Event::TokenTransferred {
@@ -346,20 +357,14 @@ impl<S: Spec> Bank<S> {
     ) -> Result<()> {
         let from = from.as_token_holder();
         let to = to.as_token_holder();
-        let context_logger = || {
-            format!(
-                "Failed transfer from={} to={} of coins({})",
-                &from, &to, coins
-            )
-        };
         let token = self
             .tokens
-            .get_or_err(&coins.token_id, state)
-            .map(|token| token.with_context(context_logger))
-            .with_context(context_logger)??;
+            .get_or_err(&coins.token_id, state)?
+            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))?;
+
         token
             .transfer(from, to, coins.amount, state)
-            .with_context(context_logger)?;
+            .with_context(|| format!("Failed to transfer token_id={}", &coins.token_id))?;
 
         Ok(())
     }

@@ -108,13 +108,7 @@ fn transfer_balance_too_low() {
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
                 assert_eq!(
-                    format!(
-                        "Failed transfer from={} to={} of coins(token_id={} amount={})",
-                        user_high_token_balance_address,
-                        user_no_token_balance_address,
-                        token_id,
-                        transfer_amount,
-                    ),
+                    format!("Failed to transfer token_id={}", token_id,),
                     message_1
                 );
                 assert_eq!(
@@ -177,13 +171,7 @@ fn transfer_non_existent_token() {
                 let message_2 = chain.next().unwrap().to_string();
                 assert!(chain.next().is_none());
                 assert_eq!(
-                    format!(
-                        "Failed transfer from={} to={} of coins(token_id={} amount={})",
-                        user_address,
-                        user_address,
-                        non_existent_token.id(),
-                        0,
-                    ),
+                    format!("Failed to get token_id={}", non_existent_token.id()),
                     message_1
                 );
                 assert!(message_2.starts_with(
@@ -230,10 +218,7 @@ fn transfer_sender_does_not_have_balance() {
                 assert!(chain.next().is_none());
 
                 assert_eq!(
-                    format!(
-                        "Failed transfer from={} to={} of coins(token_id={} amount={})",
-                        sender_address, receiver_address, token_id, TRANSFER_AMOUNT,
-                    ),
+                    format!("Failed to transfer token_id={}", token_id),
                     message_1
                 );
 

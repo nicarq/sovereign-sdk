@@ -196,14 +196,13 @@ impl<S: Spec> Token<S> {
 
         let from_balance = self.decrease_balance_checked(from, amount, state)?;
 
-        let to_balance = self
-            .balances
-            .get(&to, state)?
-            .unwrap_or_default()
-            .checked_add(amount)
-            .with_context(|| {
-                format!("Account balance overflow on={} for token={}", to, self.name)
-            })?;
+        let current_to_balance = self.balances.get(&to, state)?.unwrap_or(0);
+        let to_balance = current_to_balance.checked_add(amount).with_context(|| {
+            format!(
+                "Account balance overflow for {} when adding {} to current balance {}",
+                to, amount, current_to_balance
+            )
+        })?;
 
         self.balances.set(&from, &from_balance, state)?;
         self.balances.set(&to, &to_balance, state)?;
