@@ -5,7 +5,7 @@ use sov_mock_da::{MockBlob, MockBlock};
 use sov_mock_zkvm::MockZkvmHost;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProof, AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
+    AggregatedProofPublicData, CodeCommitment, SerializedAggregatedProof,
 };
 use sov_test_utils::ledger_db::sov_api_spec::types::IntOrHash;
 use sov_test_utils::ledger_db::{LedgerTestService, LedgerTestServiceData};
@@ -95,9 +95,9 @@ async fn test_save_aggregated_proof() {
 
         let raw_aggregated_proof = MockZkvmHost::create_serialized_proof(true, public_data.clone());
 
-        let agg_proof = AggregatedProof::new(SerializedAggregatedProof {
+        let agg_proof = SerializedAggregatedProof {
             raw_aggregated_proof,
-        });
+        };
 
         let proof_change_set = ledger_db
             .materialize_aggregated_proof(agg_proof.clone())

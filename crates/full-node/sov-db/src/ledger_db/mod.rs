@@ -7,7 +7,7 @@ use serde::Serialize;
 use sov_rollup_interface::node::da::SlotData;
 use sov_rollup_interface::node::ledger_api::AggregatedProofResponse;
 use sov_rollup_interface::stf::{BatchReceipt, StoredEvent, TxReceiptContents};
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use crate::schema::tables::{
     BatchByHash, BatchByNumber, EventByKey, EventByNumber, FinalizedSlots, ProofByUniqueId,
@@ -408,7 +408,7 @@ impl LedgerDb {
     /// Materializes aggregated zk proof
     pub fn materialize_aggregated_proof(
         &self,
-        agg_proof: AggregatedProof,
+        agg_proof: SerializedAggregatedProof,
     ) -> anyhow::Result<SchemaBatch> {
         let mut schema_batch = SchemaBatch::new();
         let unique_id = 0;

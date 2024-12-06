@@ -5,7 +5,7 @@ use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregateProofVerifier, AggregatedProof, AggregatedProofPublicData,
+    AggregateProofVerifier, AggregatedProofPublicData, SerializedAggregatedProof,
 };
 use sov_stf_runner::InitVariant;
 use tokio::task::JoinHandle;
@@ -77,7 +77,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 }
 
 fn verify_aggregated_proof(
-    agg_proof: AggregatedProof,
+    agg_proof: SerializedAggregatedProof,
 ) -> anyhow::Result<AggregatedProofPublicData> {
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
     verifier.verify(&agg_proof)

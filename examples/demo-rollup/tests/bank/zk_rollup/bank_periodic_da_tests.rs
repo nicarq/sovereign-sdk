@@ -6,9 +6,9 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::OperatingMode;
+use sov_modules_api::{OperatingMode, SerializedAggregatedProof};
 use sov_rollup_interface::zk::aggregated_proof::{
-    AggregateProofVerifier, AggregatedProof, AggregatedProofPublicData,
+    AggregateProofVerifier, AggregatedProofPublicData,
 };
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderMode;
@@ -100,7 +100,7 @@ async fn send_test_bank_txs(
         let aggregated_proof_resp: ApiAggregatedProof =
             aggregated_proof_subscription.next().await.unwrap().unwrap();
 
-        let proof: AggregatedProof = aggregated_proof_resp.try_into()?;
+        let proof: SerializedAggregatedProof = aggregated_proof_resp.try_into()?;
         let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
         let pub_data: AggregatedProofPublicData = verifier.verify(&proof)?;
 

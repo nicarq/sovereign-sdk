@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::common::hex_string_serde;
 use crate::stf::{EventKey, StoredEvent, TxEffect, TxReceiptContents};
-use crate::zk::aggregated_proof::AggregatedProof;
+use crate::zk::aggregated_proof::SerializedAggregatedProof;
 
 /// The finality status of a slot.
 #[derive(
@@ -240,7 +240,7 @@ pub struct ProofInfoResponse {
 #[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
 pub struct AggregatedProofResponse {
     /// Aggregated proof.
-    pub proof: AggregatedProof,
+    pub proof: SerializedAggregatedProof,
 }
 
 /// An RPC response for the module specific event

@@ -13,7 +13,7 @@ use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::da::Time;
 use sov_modules_api::{ModuleId, StoredEvent};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
-use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::TxHash;
 use tempfile::{tempdir, TempDir};
 
@@ -48,11 +48,11 @@ pub async fn materialize_simple_ledger_db_data(
 
     let mut ledger_data = ledger_db.materialize_slot(slot, b"state-root")?;
 
-    ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
-        SerializedAggregatedProof {
+    ledger_data.merge(
+        ledger_db.materialize_aggregated_proof(SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
-        },
-    ))?);
+        })?,
+    );
 
     Ok(ledger_data)
 }
@@ -138,11 +138,11 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
         ledger_data.merge(ledger_db.materialize_slot(slot, state_root.as_bytes())?);
     }
 
-    ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
-        SerializedAggregatedProof {
+    ledger_data.merge(
+        ledger_db.materialize_aggregated_proof(SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
-        },
-    ))?);
+        })?,
+    );
 
     Ok(ledger_data)
 }
