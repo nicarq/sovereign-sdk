@@ -314,24 +314,28 @@ impl<S: Spec> Bank<S> {
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> Result<()> {
-        let context_logger = || {
-            format!(
-                "Failed freeze token_id={} by sender {}",
-                token_id,
-                context.sender()
-            )
-        };
+        let sender_ref = context.sender();
+        let sender = sender_ref.as_token_holder();
+
+        tracing::debug!(freezer = %sender, "Freeze token request");
 
         let mut token = self
             .tokens
-            .get_or_err(&token_id, state)
-            .with_context(context_logger)??;
+            .get_or_err(&token_id, state)?
+            .with_context(|| format!("Failed to get token_id={}", &token_id))?;
 
-        let sender_ref = context.sender();
-        let sender = sender_ref.as_token_holder();
-        token.freeze(sender).with_context(context_logger)?;
+        token
+            .freeze(sender)
+            .with_context(|| format!("Failed to freeze token_id={}", &token_id))?;
 
         self.tokens.set(&token_id, &token, state)?;
+
+        tracing::info!(
+            freezer = %sender,
+            %token_id,
+            "Successfully froze tokens"
+        );
+
         self.emit_event(
             state,
             Event::TokenFrozen {
