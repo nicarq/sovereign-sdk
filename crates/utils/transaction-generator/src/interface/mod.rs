@@ -238,6 +238,7 @@ pub trait GeneratorState<S: Spec> {
     fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView>;
 
     /// Picks an account at random from the generator state and returns a copy.
+    /// If no account exists, generate a new one
     fn get_random_existing_account(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
@@ -245,28 +246,28 @@ pub trait GeneratorState<S: Spec> {
 
     /// Picks an account at random from the generator state and returns a copy.
     fn get_random_existing_account_with_tag(
-        &mut self,
+        &self,
         tag: impl Into<Self::Tag>,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>>;
 
     /// Returns true if the account has the given tag
-    fn has_tag(&mut self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool;
+    fn has_tag(&self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool;
 
     /// Gets the token with the given ID
-    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo>;
+    fn get_token(&self, id: &TokenId) -> Option<TokenInfo>;
 
     /// Gets the token with the given ID
     fn update_token(&mut self, id: TokenId, info: TokenInfo);
 
     /// Gets a random token
     fn get_random_token(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(TokenId, TokenInfo)>;
 
     /// Updates the given account to match the provided view.
-    fn update_account(&mut self, address: S::Address, view: Self::AccountView);
+    fn update_account(&mut self, address: &S::Address, view: Self::AccountView);
 
     /// Generates an empty account and returns it.
     fn generate_account(
@@ -352,7 +353,7 @@ where
     }
 
     fn get_random_existing_account_with_tag(
-        &mut self,
+        &self,
         tag: impl Into<Self::Tag>,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>> {
@@ -362,14 +363,14 @@ where
             .map(|(addr, acct)| (addr, (&acct).into())))
     }
 
-    fn update_account(&mut self, address: S::Address, view: Self::AccountView) {
+    fn update_account(&mut self, address: &S::Address, view: Self::AccountView) {
         let mut mapped = Source::AccountView::default();
         view.apply_to(&mut mapped);
 
         self.0.update_account(address, mapped);
     }
 
-    fn has_tag(&mut self, addr: &<S as Spec>::Address, tag: impl Into<Self::Tag>) -> bool {
+    fn has_tag(&self, addr: &<S as Spec>::Address, tag: impl Into<Self::Tag>) -> bool {
         self.0.has_tag(addr, tag.into())
     }
 
@@ -382,7 +383,7 @@ where
             .map(|(addr, acct)| (addr, (&acct).into()))
     }
 
-    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo> {
+    fn get_token(&self, id: &TokenId) -> Option<TokenInfo> {
         self.0.get_token(id)
     }
 
@@ -391,7 +392,7 @@ where
     }
 
     fn get_random_token(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(TokenId, TokenInfo)> {
         self.0.get_random_token(u)

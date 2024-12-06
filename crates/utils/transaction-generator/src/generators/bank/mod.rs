@@ -73,10 +73,10 @@ impl<S: Spec> BankMessageGenerator<S> {
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
         validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
-        match message_type {
-            CallMessageDiscriminants::Transfer => {
+        match (message_type, validity) {
+            (CallMessageDiscriminants::Transfer, MessageValidity::Valid) => {
                 match self
-                    .generate_transfer(u, generator_state, validity)
+                    .generate_valid_transfer(u, generator_state)
                     .try_to_arbitrary()
                 {
                     Ok(transfer_result) => Ok(transfer_result?),
@@ -85,10 +85,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                             "Failed to generate transfer: {:?}. Generating mint instead",
                             e
                         );
-                        assert!(
-                            validity.is_valid(),
-                            "Failed to generate an invalid transfer message. This should be unreachable, since generating *invalid* transfers is possible regardless of the rollup state."
-                        );
+
                         self.do_generation_with_fallback(
                             CallMessageDiscriminants::Mint,
                             u,
@@ -98,18 +95,21 @@ impl<S: Spec> BankMessageGenerator<S> {
                     }
                 }
             }
-            CallMessageDiscriminants::CreateToken => {
+            (CallMessageDiscriminants::Transfer, MessageValidity::Invalid) => {
+                Ok(self.generate_invalid_transfer(u, generator_state)?)
+            }
+            (CallMessageDiscriminants::CreateToken, MessageValidity::Valid) => {
+                Ok(self.generate_valid_create_token(u, generator_state)?)
+            }
+            (CallMessageDiscriminants::CreateToken, MessageValidity::Invalid) => {
                 match self
-                    .generate_create_token(u, generator_state, validity)
+                    .generate_invalid_create_token(u, generator_state)
                     .try_to_arbitrary()
                 {
                     Ok(create_result) => Ok(create_result?),
                     Err(e) => {
                         warn!("Failed to generate create token: {:?}", e);
-                        assert!(
-                            validity.is_invalid(),
-                            "Valid token creation message gen is infallible"
-                        );
+
                         // Fall back to generating an *invalid* transfer, which is always possible
                         self.do_generation_with_fallback(
                             CallMessageDiscriminants::Transfer,
@@ -120,10 +120,10 @@ impl<S: Spec> BankMessageGenerator<S> {
                     }
                 }
             }
-            CallMessageDiscriminants::Burn => todo!(),
-            CallMessageDiscriminants::Mint => {
+            (CallMessageDiscriminants::Burn, _) => todo!(),
+            (CallMessageDiscriminants::Mint, MessageValidity::Valid) => {
                 match self
-                    .generate_mint(u, generator_state, validity)
+                    .generate_valid_mint(u, generator_state)
                     .try_to_arbitrary()
                 {
                     Ok(transfer_result) => Ok(transfer_result?),
@@ -138,7 +138,10 @@ impl<S: Spec> BankMessageGenerator<S> {
                     }
                 }
             }
-            CallMessageDiscriminants::Freeze => todo!(),
+            (CallMessageDiscriminants::Mint, MessageValidity::Invalid) => {
+                Ok(self.generate_invalid_mint(u, generator_state)?)
+            }
+            (CallMessageDiscriminants::Freeze, _) => todo!(),
         }
     }
 }
@@ -305,9 +308,6 @@ pub(crate) enum InternalMessageGenError {
     // a create or mint token message.
     #[error("Could not find an account with balance to transfer")]
     NoAccountWithBalance,
-    /// An invalid mint could not be generated because no account without appropriate permissions could be found
-    #[error("Could not find an account that is *not* authorized to mint")]
-    NonMintingAccountNotFound,
     /// A mint could not be generated because no account without appropriate permissions could be found
     #[error("Could not find an account that is authorized to mint")]
     NoMintingAccounts,

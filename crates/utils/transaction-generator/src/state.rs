@@ -262,7 +262,7 @@ where
     }
 
     fn get_random_existing_account_with_tag(
-        &mut self,
+        &self,
         tag: impl Into<Self::Tag>,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(<S as Spec>::Address, Self::AccountView)>> {
@@ -281,27 +281,27 @@ where
         }
     }
 
-    fn update_account(&mut self, address: S::Address, mut view: Self::AccountView) {
+    fn update_account(&mut self, address: &S::Address, mut view: Self::AccountView) {
         for action in view.take_tags().into_iter() {
             match action {
                 TagAction::Add(tag) => {
                     self.tags.entry(tag).or_default().insert(address.clone());
                 }
                 TagAction::Remove(tag) => {
-                    self.tags.get_mut(&tag).map(|set| set.swap_remove(&address));
+                    self.tags.get_mut(&tag).map(|set| set.swap_remove(address));
                 }
             }
         }
         assert!(
             self.accounts
-                .get_mut(&address)
+                .get_mut(address)
                 .map(|account| view.apply_to(account))
                 .is_some(),
             "Tried to update account that doesn't exist"
         );
     }
 
-    fn has_tag(&mut self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool {
+    fn has_tag(&self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool {
         self.tags
             .get(&tag.into())
             .map(|tag_holders| tag_holders.contains(addr))
@@ -321,7 +321,7 @@ where
         Ok((address, view))
     }
 
-    fn get_token(&mut self, id: &TokenId) -> Option<TokenInfo> {
+    fn get_token(&self, id: &TokenId) -> Option<TokenInfo> {
         self.tokens.get(id).cloned()
     }
 
@@ -330,7 +330,7 @@ where
     }
 
     fn get_random_token(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(TokenId, TokenInfo)> {
         self.tokens.random_entry(u).map(|(k, v)| (*k, v.clone()))
