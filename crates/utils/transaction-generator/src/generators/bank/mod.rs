@@ -55,7 +55,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         &self,
         message_type: CallMessageDiscriminants,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
         validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         match (message_type, validity) {
@@ -166,7 +166,11 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     fn generate_setup_messages(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag: From<Self::Tag>,
+        >,
     ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>> {
         let config_address_creation_rate = self.address_creation_rate;
 
@@ -190,7 +194,11 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag: From<Self::Tag>,
+        >,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>> {
         let message = *self.message_distribution.select_value(u)?;

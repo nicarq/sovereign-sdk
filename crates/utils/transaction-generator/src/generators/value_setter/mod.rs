@@ -15,7 +15,7 @@ use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent, Taggable,
 };
 use crate::repeatedly;
-use crate::state::{AccountState, ApplyTo};
+use crate::state::{AccountState, ApplyToState};
 
 mod http;
 
@@ -36,16 +36,16 @@ pub struct ValueSetterAccount<S: Spec> {
     pub(crate) private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
 }
 
-impl<S: Spec, T: From<Tag>, Data> From<AccountState<S, T, Data>> for ValueSetterAccount<S> {
-    fn from(value: AccountState<S, T, Data>) -> ValueSetterAccount<S> {
+impl<'a, S: Spec, Data> From<&'a AccountState<S, Data>> for ValueSetterAccount<S> {
+    fn from(value: &AccountState<S, Data>) -> ValueSetterAccount<S> {
         ValueSetterAccount {
-            private_key: value.private_key,
+            private_key: value.private_key.clone(),
         }
     }
 }
 
-impl<S: Spec, T: From<Tag>, Data> ApplyTo<AccountState<S, T, Data>> for ValueSetterAccount<S> {
-    fn apply_to(self, _account: &mut AccountState<S, T, Data>) {}
+impl<S: Spec, Data> ApplyToState<S, Data> for ValueSetterAccount<S> {
+    fn apply_to(self, _account: &mut AccountState<S, Data>) {}
 }
 
 impl<S: Spec> Taggable for ValueSetterAccount<S> {
@@ -120,7 +120,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         _generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = Self::AccountView,
-            Tag = Self::Tag,
+            Tag: From<Self::Tag>,
         >,
     ) -> arbitrary::Result<
         Vec<crate::interface::GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>,
@@ -134,7 +134,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = Self::AccountView,
-            Tag = Self::Tag,
+            Tag: From<Self::Tag>,
         >,
         validity: crate::interface::MessageValidity,
     ) -> sov_modules_api::prelude::arbitrary::Result<
@@ -241,13 +241,13 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = ValueSetterAccount<S>,
-            Tag = Tag,
+            Tag: From<Tag>,
         >,
     ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
     {
         let message_type = self.message_distribution.select_value(u)?;
         let Some((_, admin_account)) =
-            generator_state.get_random_existing_account_with_tag(Tag::IsAdmin, u)?
+            generator_state.get_random_existing_account_with_tag(Tag::IsAdmin.into(), u)?
         else {
             return Err(InternalMessageGenError::AdminNotFound);
         };
@@ -290,7 +290,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = ValueSetterAccount<S>,
-            Tag = Tag,
+            Tag: From<Tag>,
         >,
     ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
     {
@@ -298,7 +298,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 
         repeatedly!(
             let (_address, account) = generator_state.get_or_generate(Percent::fifty(), u)?;
-            until: !generator_state.has_tag(&_address, Tag::IsAdmin),
+            until: !generator_state.has_tag(&_address, Tag::IsAdmin.into()),
             on_failure: panic!("Impossible to get a non-admin account, when there should only be one admin!")
         );
 

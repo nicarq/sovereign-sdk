@@ -24,7 +24,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     fn generate_invalid_mint_helper(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
         invalid_mint_reason: InvalidMintReasons,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         // We return a token ID along with its info and an arbitrary account that:
@@ -42,7 +42,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                     acct,
                 )
             } else if let Some((_, acct)) =
-                generator_state.get_random_existing_account_with_tag(Tag::CanMint, u)?
+                generator_state.get_random_existing_account_with_tag(Tag::CanMint.into(), u)?
             {
                 let token = *acct.can_mint().random_entry(u)?;
                 let token_info = generator_state
@@ -104,7 +104,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(super) fn generate_invalid_mint(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let invalid_mint_reason = InvalidMintReasons::arbitrary(u)?;
         self.generate_invalid_mint_helper(u, generator_state, invalid_mint_reason)
@@ -113,11 +113,11 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(super) fn generate_valid_mint(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         for _ in 0..1_000 {
             let (_, acct) = generator_state
-                .get_random_existing_account_with_tag(Tag::CanMint, u)?
+                .get_random_existing_account_with_tag(Tag::CanMint.into(), u)?
                 .ok_or(InternalMessageGenError::NoMintingAccounts)?;
             let token_id = *acct.can_mint().random_entry(u)?;
             let token_info = generator_state.get_token(&token_id).expect("Token exists");
@@ -168,7 +168,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     }
 
     pub(super) fn update_state_with_mint(
-        state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+        state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
         token_id: TokenId,
         mut old_token_info: TokenInfo,
         amount_minted: Amount,
@@ -181,7 +181,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         // If the supply is maxed, update our index to account for that, and remove the tag from affected accounts
         if new_supply == Amount::MAX {
             while let Some((addr, mut acct)) =
-                state.get_random_existing_account_with_tag(Tag::CanMintById(token_id), u)?
+                state.get_random_existing_account_with_tag(Tag::CanMintById(token_id).into(), u)?
             {
                 acct.remove_can_mint(token_id);
                 state.update_account(&addr, acct);

@@ -7,7 +7,7 @@ use sov_modules_api::{CryptoSpec, Spec};
 
 use super::Tag;
 use crate::interface::{PickRandom, TagAction, Taggable};
-use crate::state::{AccountState, ApplyTo};
+use crate::state::{AccountState, ApplyToState};
 
 /// The view of an account used by the bank message generator
 #[derive(Clone, Debug)]
@@ -22,28 +22,21 @@ pub struct BankAccount<S: Spec> {
     pub(crate) tag_changes: Vec<TagAction<Tag>>,
 }
 
-impl<S: Spec, Tag, T> From<AccountState<S, Tag, T>> for BankAccount<S> {
-    fn from(value: AccountState<S, Tag, T>) -> BankAccount<S> {
+impl<'a, S: Spec, T> From<&'a AccountState<S, T>> for BankAccount<S> {
+    fn from(value: &AccountState<S, T>) -> BankAccount<S> {
         BankAccount {
-            private_key: value.private_key,
-            balances: value.balances,
-            can_mint: value.can_mint,
+            private_key: value.private_key.clone(),
+            balances: value.balances.clone(),
+            can_mint: value.can_mint.clone(),
             tag_changes: Default::default(),
         }
     }
 }
 
-impl<S: Spec, T: From<Tag>, Data> ApplyTo<AccountState<S, T, Data>> for BankAccount<S> {
-    fn apply_to(self, state: &mut AccountState<S, T, Data>) {
+impl<S: Spec, Data> ApplyToState<S, Data> for BankAccount<S> {
+    fn apply_to(self, state: &mut AccountState<S, Data>) {
         state.balances = self.balances;
         state.can_mint = self.can_mint;
-
-        let tags = self
-            .tag_changes
-            .into_iter()
-            .map(|t| t.map(Into::into))
-            .collect();
-        state.tag_changes = tags;
     }
 }
 

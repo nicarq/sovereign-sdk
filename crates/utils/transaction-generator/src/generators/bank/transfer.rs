@@ -152,7 +152,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         u: &mut arbitrary::Unstructured<'_>,
     ) -> InternalMessageGenResult<(S::Address, BankAccount<S>)> {
         generator_state
-            .get_random_existing_account_with_tag(Tag::HasBalance, u)?
+            .get_random_existing_account_with_tag(Tag::HasBalance.into(), u)?
             .ok_or(InternalMessageGenError::NoAccountWithBalance)
     }
 }
