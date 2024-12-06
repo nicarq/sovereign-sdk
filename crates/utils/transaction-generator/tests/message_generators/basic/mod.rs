@@ -49,7 +49,7 @@ pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
 
 pub struct TestGenerator {
     generator: Generator,
-    state: State<S>,
+    state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
     target_buffer_size: usize,
@@ -125,14 +125,13 @@ fn do_test(
     );
 
     // Synchronizes the state with the value setter module
-    let mut state: State<S> = State::with_account_and_tags(
+    let mut state: State<S, BasicTag> = State::with_account_and_tags(
         AccountState {
             private_key: admin.private_key.clone(),
             balances: vec![],
             can_mint: Default::default(),
             sequencing_bond: None,
             additional_info: Default::default(),
-            tag_changes: Default::default(),
         },
         vec![BasicTag::ValueSetter(ValueSetterTag::IsAdmin)],
     );
@@ -141,7 +140,7 @@ fn do_test(
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
     let initial_tx = generator
         .generate_setup_messages(u, &mut state)
-        .expect("Failed to generate setup messages.")
+        .expect("Failed to generate setup messages")
         .pop()
         .unwrap();
     let remaining_randomness = u.len();

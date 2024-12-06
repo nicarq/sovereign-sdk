@@ -10,10 +10,10 @@ pub use rng::*;
 use sov_bank::TokenId;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::{CryptoSpec, Spec};
+use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
 
-use super::state::ApplyTo;
-use crate::state::TokenInfo;
+use super::state::ApplyToState;
+use crate::state::{AccountState, State, TokenInfo};
 
 /// Whether a generated message should be valid or invalid.
 #[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq)]
@@ -225,7 +225,7 @@ impl<const N: usize> Distribution<N> {
 /// it easy to reuse code.
 pub trait GeneratorState<S: Spec> {
     /// The view of an account for a particular module
-    type AccountView: Taggable<Tag = Self::Tag>;
+    type AccountView: Taggable<Tag: Into<Self::Tag>>;
 
     /// The `Tag` enum associated with this generator. Tags form a secondary index
     /// that can be used to quickly recover accounts matching certain criteria.
@@ -247,12 +247,12 @@ pub trait GeneratorState<S: Spec> {
     /// Picks an account at random from the generator state and returns a copy.
     fn get_random_existing_account_with_tag(
         &self,
-        tag: impl Into<Self::Tag>,
+        tag: Self::Tag,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>>;
 
     /// Returns true if the account has the given tag
-    fn has_tag(&self, addr: &S::Address, tag: impl Into<Self::Tag>) -> bool;
+    fn has_tag(&self, addr: &S::Address, tag: Self::Tag) -> bool;
 
     /// Gets the token with the given ID
     fn get_token(&self, id: &TokenId) -> Option<TokenInfo>;
@@ -306,96 +306,137 @@ pub trait Taggable {
 
 /// Converts a more general `GeneratorState` implementation to a more specific one - for example,
 /// the `GeneratorState` for a whole runtime to the state for a particular module
-pub struct GeneratorStateMapper<'a, Source, Acct, Tag>(&'a mut Source, PhantomData<(Acct, Tag)>);
+pub struct GeneratorStateMapper<'a, S: Spec, Acct, Tag, T = ()>(
+    &'a mut State<S, Tag, T>,
+    PhantomData<Acct>,
+);
 
-impl<'a, Source, Acct, Tag> GeneratorStateMapper<'a, Source, Acct, Tag> {
+impl<'a, S: Spec, Acct, Tag, T> GeneratorStateMapper<'a, S, Acct, Tag, T> {
     /// Create  a new [`GeneratorStateMapper`]
-    pub fn new(state: &'a mut Source) -> Self {
+    pub fn new(state: &'a mut State<S, Tag, T>) -> Self {
         Self(state, PhantomData)
     }
 }
 
-impl<'a, Source: GeneratorState<S>, Acct, Tag, S: Spec> GeneratorState<S>
-    for GeneratorStateMapper<'a, Source, Acct, Tag>
+impl<'a, Acct, Tag, S: Spec, T: Default + Clone + 'static> GeneratorState<S>
+    for GeneratorStateMapper<'a, S, Acct, Tag, T>
 where
-    Acct: Taggable<Tag = Tag>
-        + Debug
+    Acct: Debug
         + Clone
-        + From<Source::AccountView>
-        + ApplyTo<Source::AccountView>,
+        + for<'b> From<&'b AccountState<S, T>>
+        + ApplyToState<S, T>
+        + Taggable<Tag: Into<Tag>>,
 
-    Tag: Into<Source::Tag> + Eq + Hash + Debug + Clone,
+    Tag: Eq + Hash + Debug + Clone,
 {
     type AccountView = Acct;
 
     type Tag = Tag;
 
     fn get_account(&self, address: &S::Address) -> Option<Self::AccountView> {
-        self.0.get_account(address).map(|acct| acct.into())
+        self.0.accounts.get(address).map(|acct| acct.into())
     }
 
     fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView> {
-        self.0
-            .get_account_with_tag(tag.into())
-            .map(|acct| acct.into())
+        let address = self.0.tags.get(&tag).and_then(|set| set.first());
+
+        address.and_then(|address: &S::Address| self.get_account(address))
     }
 
     fn get_random_existing_account(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
-        self.0
-            .get_random_existing_account(u)
-            .map(|(addr, acct)| (addr, acct.into()))
+        if self.0.accounts.is_empty() {
+            self.generate_account(u)?;
+        }
+
+        let (address, account) = self.0.accounts.random_entry(u)?;
+        Ok((address.clone(), account.into()))
     }
 
     fn get_random_existing_account_with_tag(
         &self,
-        tag: impl Into<Self::Tag>,
+        tag: Self::Tag,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>> {
-        Ok(self
-            .0
-            .get_random_existing_account_with_tag(tag.into(), u)?
-            .map(|(addr, acct)| (addr, acct.into())))
+        if let Some(accounts) = self.0.tags.get(&tag) {
+            if accounts.is_empty() {
+                return Ok(None);
+            }
+            let address = accounts.random_entry(u)?;
+            let account = self
+                .0
+                .accounts
+                .get(address)
+                .expect("Account from secondary index must exist");
+            Ok(Some((address.clone(), account.into())))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn update_account(&mut self, address: &S::Address, view: Self::AccountView) {
-        let Some(mut account) = self.0.get_account(address) else {
-            panic!("Tried to update an account that does not exist");
-        };
-
-        view.apply_to(&mut account);
-
-        self.0.update_account(address, account);
+    fn update_account(&mut self, address: &S::Address, mut view: Self::AccountView) {
+        for action in view.take_tags().into_iter() {
+            match action {
+                TagAction::Add(tag) => {
+                    self.0
+                        .tags
+                        .entry(tag.into())
+                        .or_default()
+                        .insert(address.clone());
+                }
+                TagAction::Remove(tag) => {
+                    self.0
+                        .tags
+                        .get_mut(&tag.into())
+                        .map(|set| set.swap_remove(address));
+                }
+            }
+        }
+        assert!(
+            self.0
+                .accounts
+                .get_mut(address)
+                .map(|account| view.apply_to(account))
+                .is_some(),
+            "Tried to update account that doesn't exist"
+        );
     }
 
-    fn has_tag(&self, addr: &<S as Spec>::Address, tag: impl Into<Self::Tag>) -> bool {
-        self.0.has_tag(addr, tag.into())
+    fn has_tag(&self, addr: &<S as Spec>::Address, tag: Self::Tag) -> bool {
+        self.0
+            .tags
+            .get(&tag)
+            .map(|tag_holders| tag_holders.contains(addr))
+            .unwrap_or(false)
     }
 
     fn generate_account(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
-        self.0
-            .generate_account(u)
-            .map(|(addr, acct)| (addr, acct.into()))
+        let private_key: <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey =
+            Arbitrary::arbitrary(u)?;
+        let address: S::Address = (&private_key.pub_key()).into();
+        let account = AccountState::<S, T>::with_private_key(private_key);
+        self.0.accounts.insert(address.clone(), account.clone());
+        Ok((address, (&account).into()))
     }
 
     fn get_token(&self, id: &TokenId) -> Option<TokenInfo> {
-        self.0.get_token(id)
+        self.0.tokens.get(id).cloned()
     }
 
     fn update_token(&mut self, id: TokenId, info: TokenInfo) {
-        self.0.update_token(id, info);
+        self.0.tokens.insert(id, info);
     }
 
     fn get_random_token(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> arbitrary::Result<(TokenId, TokenInfo)> {
-        self.0.get_random_token(u)
+        self.0.tokens.random_entry(u).map(|(k, v)| (*k, v.clone()))
     }
 }
 
@@ -449,14 +490,22 @@ pub trait CallMessageGenerator<S: Spec> {
     fn generate_setup_messages(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag: From<Self::Tag>,
+        >,
     ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>>;
 
     /// Generates a `CallMessage`, potentially valid or invalid, based on the provided parameters.
     fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag: From<Self::Tag>,
+        >,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
 

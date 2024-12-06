@@ -2,6 +2,7 @@
 //! the generator can be plugged into any [`Runtime`] implementation.
 
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
@@ -17,7 +18,7 @@ use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, GeneratorStateMapper,
     MessageValidity,
 };
-use crate::state::AccountState;
+use crate::state::{AccountState, State};
 
 /// Generates call messages for the most widely used modules generically.
 ///
@@ -54,12 +55,8 @@ impl<RT: EncodeCall<sov_bank::Bank<S>>, S: Spec, Acct> BasicCallMessageGenerator
     /// Add a value setter admin account to the generator state
     pub fn add_value_setter_admin(
         &self,
-        value_setter_admin: AccountState<S, Tag, Acct>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = AccountState<S, Tag, Acct>,
-            Tag = Tag,
-        >,
+        value_setter_admin: AccountState<S, Acct>,
+        generator_state: &mut impl GeneratorState<S, AccountView = AccountState<S, Acct>, Tag = Tag>,
     ) where
         Acct: Clone,
     {
@@ -104,21 +101,19 @@ pub struct BasicClientConfig {
     pub rollup_height: Option<u64>,
 }
 
-impl<RT: Runtime<S>, S: Spec, BonusAcctData: Debug + Clone>
+impl<RT: Runtime<S>, S: Spec, BonusAcctData: Debug + Clone + Default + 'static>
     BasicCallMessageGenerator<RT, S, BonusAcctData>
 where
     RT: EncodeCall<sov_bank::Bank<S>> + EncodeCall<sov_value_setter::ValueSetter<S>>,
 {
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
-    pub fn generate_setup_messages(
+    pub fn generate_setup_messages<
+        Tag: Clone + Eq + Hash + Debug + From<BankTag> + From<ValueSetterTag>,
+    >(
         &mut self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = AccountState<S, Tag, BonusAcctData>,
-            Tag = Tag,
-        >,
+        generator_state: &mut State<S, Tag, BonusAcctData>,
     ) -> arbitrary::Result<
         Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>>>,
     > {
@@ -126,7 +121,7 @@ where
             .bank
             .generate_setup_messages(
                 u,
-                &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
+                &mut GeneratorStateMapper::<_, _, Tag, _>::new(generator_state),
             )?
             .into_iter()
             .map(|m| GeneratedMessage {
@@ -139,7 +134,7 @@ where
             .value_setter
             .generate_setup_messages(
                 u,
-                &mut GeneratorStateMapper::<_, _, ValueSetterTag>::new(generator_state),
+                &mut GeneratorStateMapper::<_, _, Tag, _>::new(generator_state),
             )?
             .into_iter()
             .map(|m| GeneratedMessage {
@@ -154,14 +149,12 @@ where
     }
 
     /// Generates a call message for the modules supported by this generator.
-    pub fn generate_call_message(
+    pub fn generate_call_message<
+        Tag: Clone + Eq + Hash + Debug + From<BankTag> + From<ValueSetterTag>,
+    >(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = AccountState<S, Tag, BonusAcctData>,
-            Tag = Tag,
-        >,
+        generator_state: &mut State<S, Tag, BonusAcctData>,
         validity: MessageValidity,
     ) -> arbitrary::Result<
         GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>>,
@@ -175,7 +168,7 @@ where
             SupportedModules::Bank => {
                 let generated_message = self.bank.generate_call_message(
                     u,
-                    &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
+                    &mut GeneratorStateMapper::<_, _, Tag, _>::new(generator_state),
                     validity,
                 )?;
 
@@ -194,7 +187,7 @@ where
             SupportedModules::ValueSetter => {
                 let generated_message = self.value_setter.generate_call_message(
                     u,
-                    &mut GeneratorStateMapper::<_, _, ValueSetterTag>::new(generator_state),
+                    &mut GeneratorStateMapper::<_, _, Tag, _>::new(generator_state),
                     validity,
                 )?;
 
