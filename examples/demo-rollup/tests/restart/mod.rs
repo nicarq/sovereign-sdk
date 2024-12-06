@@ -224,6 +224,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
             .transpose()?
             .map(|slot| slot.number)
             .unwrap_or_default();
+
         if rollup_height < first_chunk as u64 {
             let till = first_chunk - rollup_height as usize;
             for _ in 0..till {

@@ -355,10 +355,6 @@ $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg87
 {"data":{"amount":1000000,"token_id":"token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"},"meta":{}}
 ```
 
-```bash,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/aggregated-proofs/latest | jq 'if .data.public_data.initial_rollup_height >= 1 then true else false end'
-true
-```
 
 ## Disclaimer
 

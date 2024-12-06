@@ -70,24 +70,12 @@ impl core::fmt::Display for AggregatedProofPublicData {
 #[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone, BorshDeserialize, BorshSerialize)]
 pub struct AggregatedProof {
     pub(crate) serialized_proof: SerializedAggregatedProof,
-    pub(crate) public_data: AggregatedProofPublicData,
 }
 
 impl AggregatedProof {
     /// Creates AggregatedProofData
-    pub fn new(
-        serialized_proof: SerializedAggregatedProof,
-        public_data: AggregatedProofPublicData,
-    ) -> Self {
-        Self {
-            serialized_proof,
-            public_data,
-        }
-    }
-
-    /// Public input of the aggregated proof.
-    pub fn public_data(&self) -> &AggregatedProofPublicData {
-        &self.public_data
+    pub fn new(serialized_proof: SerializedAggregatedProof) -> Self {
+        Self { serialized_proof }
     }
 
     /// The serialized proof raw bytes.
@@ -119,13 +107,15 @@ impl<Vm: ZkVerifier> AggregateProofVerifier<Vm> {
     }
 
     /// Verifies whether an [`AggregatedProof`] contains a valid proof.
-    pub fn verify(&self, proof_data: &AggregatedProof) -> Result<(), Vm::Error> {
+    pub fn verify(
+        &self,
+        proof_data: &AggregatedProof,
+    ) -> Result<AggregatedProofPublicData, Vm::Error> {
         let public_data = Vm::verify::<AggregatedProofPublicData>(
             proof_data.serialized_proof.raw_aggregated_proof.as_slice(),
             &self.outer_proof_code_commitment,
         )?;
 
-        assert_eq!(public_data, proof_data.public_data);
-        Ok(())
+        Ok(public_data)
     }
 }

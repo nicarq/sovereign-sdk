@@ -610,47 +610,6 @@ components:
     CodeCommitment:
       type: string
       format: byte
-    AggregatedProofPublicData:
-      type: object
-      properties:
-        rewarded_addresses:
-          $ref: "#/components/schemas/RewardedAddresses"
-        validity_conditions:
-          $ref: "#/components/schemas/ValidityConditions"
-        initial_rollup_height:
-          type: integer
-          format: uint64
-        final_rollup_height:
-          type: integer
-          format: uint64
-        genesis_state_root:
-          type: string
-          format: byte
-        initial_state_root:
-          type: string
-          format: byte
-        final_state_root:
-          type: string
-          format: byte
-        initial_slot_hash:
-          type: string
-          format: byte
-        final_slot_hash:
-          type: string
-          format: byte
-        code_commitment:
-          $ref: "#/components/schemas/CodeCommitment"
-      required:
-        - rewarded_addresses
-        - validity_conditions
-        - initial_rollup_height
-        - final_rollup_height
-        - genesis_state_root
-        - initial_state_root
-        - final_state_root
-        - initial_slot_hash
-        - final_slot_hash
-        - code_commitment
     AggregatedProof:
       type: object
       properties:
@@ -658,15 +617,12 @@ components:
           type: string
           enum:
             - aggregatedProof
-        public_data:
-          $ref: "#/components/schemas/AggregatedProofPublicData"
         proof:
           type: string
           format: byte
           description: Serialized aggregated proof, in Base64.
       required:
         - type
-        - public_data
         - proof
     Uint64Range:
       type: object

@@ -879,7 +879,6 @@ struct ModuleRef {
 struct AggregatedProof {
     #[serde_as(as = "serde_with::base64::Base64")]
     pub proof: Vec<u8>,
-    pub public_data: AggregatedProofPublicData,
 }
 
 impl TryFrom<AggregatedProofResponse> for AggregatedProof {
@@ -887,32 +886,7 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
 
     fn try_from(value: AggregatedProofResponse) -> Result<Self, Self::Error> {
         let proof: Vec<u8> = value.proof.serialized_proof().to_vec();
-        let data = value.proof.public_data();
-
-        let public_data = AggregatedProofPublicData {
-            validity_conditions: data
-                .validity_conditions
-                .iter()
-                .map(|v| ValidityCondition(v.clone()))
-                .collect(),
-
-            rewarded_addresses: data
-                .rewarded_addresses
-                .iter()
-                .map(|v| RewardedAddresses(v.clone()))
-                .collect(),
-
-            initial_rollup_height: data.initial_rollup_height,
-            final_rollup_height: data.final_rollup_height,
-            genesis_state_root: data.genesis_state_root.clone(),
-            initial_state_root: data.initial_state_root.clone(),
-            final_state_root: data.final_state_root.clone(),
-            initial_slot_hash: data.initial_slot_hash.clone(),
-            final_slot_hash: data.final_slot_hash.clone(),
-            code_commitment: data.code_commitment.0.clone(),
-        };
-
-        Ok(Self { proof, public_data })
+        Ok(Self { proof })
     }
 }
 

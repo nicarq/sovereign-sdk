@@ -2,8 +2,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregateProofVerifier, AggregatedProof, AggregatedProofPublicData,
+};
 use sov_stf_runner::InitVariant;
 use tokio::task::JoinHandle;
 
@@ -51,14 +54,16 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
     test_node.make_block_proof();
 
     let mut init_slot = 1;
+
+    let mut pub_data = None;
     for _ in (0..nb_of_batches).step_by(jump) {
+        init_slot = calculate_and_check_rollup_height(init_slot, jump);
+
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
-        let pub_data = resp.proof.public_data();
-        init_slot = calculate_and_check_rollup_height(init_slot, jump, pub_data);
+        pub_data = Some(verify_aggregated_proof(resp.proof)?);
     }
 
-    let public_data = test_node.get_latest_public_data().await?.unwrap();
-    test_case.assert(&public_data);
+    test_case.assert(&pub_data.unwrap());
     test_node.stop().await;
     // Joining runner task to avoid error:
     // pthread lock: Invalid argument
@@ -69,6 +74,13 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
     let _x = runner_task.await?;
 
     Ok(())
+}
+
+fn verify_aggregated_proof(
+    agg_proof: AggregatedProof,
+) -> anyhow::Result<AggregatedProofPublicData> {
+    let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
+    verifier.verify(&agg_proof)
 }
 
 // In this test, proofs are created after multiple batches are submitted to the DA.
@@ -97,30 +109,24 @@ async fn run_make_proof_async(test_case: TestCase, nb_of_threads: usize) -> anyh
     test_node.make_block_proof();
 
     let mut init_slot = 1;
+
+    let mut pub_data = None;
     for _ in (0..nb_of_batches).step_by(jump) {
+        init_slot = calculate_and_check_rollup_height(init_slot, jump);
+
         let resp = test_node.wait_for_aggregated_proof_saved_in_db().await;
-        let pub_data = resp.proof.public_data();
-        init_slot = calculate_and_check_rollup_height(init_slot, jump, pub_data);
+        pub_data = Some(verify_aggregated_proof(resp.proof)?);
     }
 
-    let public_data = test_node.get_latest_public_data().await?.unwrap();
-    test_case.assert(&public_data);
+    test_case.assert(&pub_data.unwrap());
     test_node.stop().await;
     let _x = runner_task.await?;
 
     Ok(())
 }
 
-fn calculate_and_check_rollup_height(
-    init_slot: u64,
-    jump: usize,
-    pub_data: &AggregatedProofPublicData,
-) -> u64 {
-    assert_eq!(init_slot, pub_data.initial_rollup_height);
-
+fn calculate_and_check_rollup_height(init_slot: u64, jump: usize) -> u64 {
     let final_slot = init_slot + jump as u64 - 1;
-    assert_eq!(final_slot, pub_data.final_rollup_height);
-
     final_slot + 1
 }
 

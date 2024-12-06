@@ -18,9 +18,7 @@ use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer, SyncStatus}
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::aggregated_proof::{
-    AggregatedProofPublicData, SerializedAggregatedProof,
-};
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
@@ -50,7 +48,6 @@ pub struct TestNode {
     da: Arc<DaServiceWithRetries<MockDaService>>,
     inner_vm: MockZkvmHost,
     _outer_vm: MockZkvmHost,
-    ledger_db: LedgerDb,
     prover_handle: Option<JoinHandle<()>>,
     // Just to remove warnings from logs
     _sync_status_receiver: watch::Receiver<SyncStatus>,
@@ -97,13 +94,6 @@ impl TestNode {
             .next()
             .await
             .expect("No more aggregated proofs; this is a bug, please report it")
-    }
-
-    pub async fn get_latest_public_data(
-        &self,
-    ) -> anyhow::Result<Option<AggregatedProofPublicData>> {
-        let proof_from_db = self.ledger_db.get_latest_aggregated_proof().await?;
-        Ok(proof_from_db.map(|p| p.proof.public_data().clone()))
     }
 
     pub async fn stop(self) {
@@ -308,7 +298,6 @@ pub async fn initialize_runner(
             da: da_service,
             inner_vm,
             _outer_vm: outer_vm,
-            ledger_db,
             prover_handle: handle,
             shutdown_sender,
             _sync_status_receiver,

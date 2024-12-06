@@ -1,3 +1,5 @@
+## 2024-12-06
+- #1997 Removes `AggregatedProofPublicData` from the public API, making it accessible only after proof verification.
 ## 2024-12-04
 - #1964 Fix incorrect value in `sov-bank` event field `TokenCreated::minter`. This was incorrectly set to `mint_to_address`. Adds a `mint_to_address` field to the event to capture this value.
 ## 2024-11-29

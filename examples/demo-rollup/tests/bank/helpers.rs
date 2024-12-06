@@ -134,7 +134,7 @@ pub(crate) async fn assert_aggregated_proof(
     let proof_response = client.client.get_latest_aggregated_proof().await?;
 
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-    verifier.verify(
+    let proof_pub_data = verifier.verify(
         &proof_response
             .data
             .clone()
@@ -142,35 +142,9 @@ pub(crate) async fn assert_aggregated_proof(
             .try_into()?,
     )?;
 
-    let proof_pub_data = &proof_response
-        .data
-        .as_ref()
-        .ok_or_else(|| anyhow!("data should be defined"))?
-        .public_data;
     // We test inequality because proofs are saved asynchronously in the db.
     assert!(initial_slot <= proof_pub_data.initial_rollup_height);
     assert!(final_slot <= proof_pub_data.final_rollup_height);
-
-    let proof_data_info_response = client.client.get_latest_aggregated_proof().await?;
-
-    assert!(
-        initial_slot
-            <= proof_data_info_response
-                .data
-                .as_ref()
-                .ok_or_else(|| anyhow!("data should be defined"))?
-                .public_data
-                .initial_rollup_height
-    );
-    assert!(
-        final_slot
-            <= proof_data_info_response
-                .data
-                .as_ref()
-                .ok_or_else(|| anyhow!("data should be defined"))?
-                .public_data
-                .final_rollup_height
-    );
 
     Ok(())
 }

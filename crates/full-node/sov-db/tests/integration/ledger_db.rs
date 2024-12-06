@@ -95,14 +95,13 @@ async fn test_save_aggregated_proof() {
 
         let raw_aggregated_proof = MockZkvmHost::create_serialized_proof(true, public_data.clone());
 
-        let agg_proof = AggregatedProof::new(
-            SerializedAggregatedProof {
-                raw_aggregated_proof,
-            },
-            public_data.clone(),
-        );
+        let agg_proof = AggregatedProof::new(SerializedAggregatedProof {
+            raw_aggregated_proof,
+        });
 
-        let proof_change_set = ledger_db.materialize_aggregated_proof(agg_proof).unwrap();
+        let proof_change_set = ledger_db
+            .materialize_aggregated_proof(agg_proof.clone())
+            .unwrap();
         storage_manager.commit(proof_change_set);
 
         let proof_from_db = ledger_db
@@ -110,7 +109,8 @@ async fn test_save_aggregated_proof() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(&public_data, proof_from_db.proof.public_data());
+
+        assert_eq!(proof_from_db.proof, agg_proof);
     }
 }
 
