@@ -1,10 +1,15 @@
 use anyhow::Context;
 use futures::StreamExt;
+use sov_api_spec::types::AggregatedProof as ApiAggregatedProof;
 use sov_cli::NodeClient;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
+use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
+use sov_rollup_interface::zk::aggregated_proof::{
+    AggregateProofVerifier, AggregatedProof, AggregatedProofPublicData,
+};
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderMode;
 use sov_stf_runner::processes::RollupProverConfig;
@@ -92,8 +97,13 @@ async fn send_test_bank_txs(
         .context("Balance decreased after second transaction, latest version")?;
 
     if test_case.wait_for_aggregated_proof {
-        let aggregated_proof_resp = aggregated_proof_subscription.next().await.unwrap()?;
-        let pub_data = aggregated_proof_resp.public_data;
+        let aggregated_proof_resp: ApiAggregatedProof =
+            aggregated_proof_subscription.next().await.unwrap().unwrap();
+
+        let proof: AggregatedProof = aggregated_proof_resp.try_into()?;
+        let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
+        let pub_data: AggregatedProofPublicData = verifier.verify(&proof)?;
+
         assert!(slot_batch_1 >= pub_data.initial_rollup_height);
         assert!(slot_batch_1 >= pub_data.final_rollup_height);
         // We can only check this under periodic block producing.

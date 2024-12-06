@@ -696,10 +696,10 @@ where
         for receipt in receipts {
             match receipt.outcome {
                 ProofOutcome::Valid(ProofReceiptContents::AggregateProof(
-                    public_data,
+                    _public_data,
                     raw_proof,
                 )) => {
-                    aggregated_proofs.push(AggregatedProof::new(raw_proof, public_data));
+                    aggregated_proofs.push(AggregatedProof::new(raw_proof));
                 }
                 ProofOutcome::Valid(_) => {
                     tracing::info!("Not aggregated proof, probably running in a different mode. Will be fixed in the future.");

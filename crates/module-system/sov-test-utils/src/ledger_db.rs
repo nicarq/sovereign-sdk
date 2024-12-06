@@ -11,7 +11,7 @@ use sov_db::schema::SchemaBatch;
 use sov_ledger_apis::LedgerRoutes;
 use sov_mock_da::{MockBlock, MockBlockHeader, MockHash};
 use sov_modules_api::da::Time;
-use sov_modules_api::{AggregatedProofPublicData, CodeCommitment, ModuleId, StoredEvent};
+use sov_modules_api::{ModuleId, StoredEvent};
 use sov_rollup_interface::stf::{BatchReceipt, TransactionReceipt, TxEffect};
 use sov_rollup_interface::zk::aggregated_proof::{AggregatedProof, SerializedAggregatedProof};
 use sov_rollup_interface::TxHash;
@@ -51,23 +51,6 @@ pub async fn materialize_simple_ledger_db_data(
     ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
         SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
-        },
-        // By filling all the fields, clients can more thoroughly test
-        // (de)serialization logic.
-        //
-        // This data doesn't make any sense (they're not even hashes...), but
-        // it's just for testing.
-        AggregatedProofPublicData {
-            validity_conditions: vec![],
-            initial_rollup_height: u64::MAX,
-            final_rollup_height: u64::MAX,
-            genesis_state_root: b"genesis-state-root".to_vec(),
-            initial_state_root: b"initial-state-root".to_vec(),
-            final_state_root: b"final-state-root".to_vec(),
-            initial_slot_hash: b"initial-slot-hash".to_vec(),
-            final_slot_hash: b"final-slot-hash".to_vec(),
-            code_commitment: CodeCommitment(b"code-commitment".to_vec()),
-            rewarded_addresses: vec![b"prover-address".to_vec()],
         },
     ))?);
 
@@ -158,23 +141,6 @@ pub fn materialize_complex_ledger_db_data(ledger_db: &LedgerDb) -> anyhow::Resul
     ledger_data.merge(ledger_db.materialize_aggregated_proof(AggregatedProof::new(
         SerializedAggregatedProof {
             raw_aggregated_proof: b"aggregated-proof".to_vec(),
-        },
-        // By filling all the fields, clients can more thoroughly test
-        // (de)serialization logic.
-        //
-        // This data doesn't make any sense (they're not even hashes...), but
-        // it's just for testing.
-        AggregatedProofPublicData {
-            validity_conditions: vec![],
-            initial_rollup_height: u64::MAX,
-            final_rollup_height: u64::MAX,
-            genesis_state_root: b"genesis-state-root".to_vec(),
-            initial_state_root: b"initial-state-root".to_vec(),
-            final_state_root: b"final-state-root".to_vec(),
-            initial_slot_hash: b"initial-slot-hash".to_vec(),
-            final_slot_hash: b"final-slot-hash".to_vec(),
-            code_commitment: CodeCommitment(b"code-commitment".to_vec()),
-            rewarded_addresses: vec![b"prover-address".to_vec()],
         },
     ))?);
 
