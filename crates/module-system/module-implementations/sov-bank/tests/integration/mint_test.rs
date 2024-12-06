@@ -39,6 +39,7 @@ fn mint_token_success() {
                     mint_to_identity: sov_bank::utils::TokenHolder::User(
                         user_no_token_balance.address()
                     ),
+                    authorizer: sov_bank::utils::TokenHolder::User(minter.address()),
                     coins: Coins {
                         amount: MINT_AMOUNT,
                         token_id

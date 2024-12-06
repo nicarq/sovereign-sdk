@@ -286,7 +286,8 @@ impl<S: Spec> Bank<S> {
             state,
             Event::TokenMinted {
                 mint_to_identity: mint_to_identity.into(),
-                coins,
+                authorizer: authorizer.into(),
+                coins: coins.clone(),
             },
         );
 

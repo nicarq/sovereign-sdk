@@ -173,6 +173,7 @@ fn create_token_and_mint() {
                     mint_to_identity: sov_bank::utils::TokenHolder::User(
                         user_no_token_balance_address
                     ),
+                    authorizer: sov_bank::utils::TokenHolder::User(minter_address),
                     coins: sov_bank::Coins {
                         amount: INITIAL_TOKEN_BALANCE,
                         token_id
