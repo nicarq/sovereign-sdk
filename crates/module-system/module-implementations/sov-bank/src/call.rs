@@ -265,8 +265,8 @@ impl<S: Spec> Bank<S> {
         let mint_to_identity = mint_to_identity.as_token_holder();
         let mut token = self
             .tokens
-            .get_or_err(&coins.token_id, state)
-            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))??;
+            .get_or_err(&coins.token_id, state)?
+            .with_context(|| format!("Failed to get token_id={}", &coins.token_id))?;
 
         let authorizer = authorizer.as_token_holder();
         token
