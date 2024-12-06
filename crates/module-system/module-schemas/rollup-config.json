@@ -81,14 +81,14 @@
           "description": "New blocks are produced only when a batch blob is submitted, not proof. This also means that the block has only one blob.",
           "type": "string",
           "enum": [
-            "onbatchsubmit"
+            "on_batch_submit"
           ]
         },
         {
           "description": "New blocks are produced only when batch or proof blobs are submitted. This also means that the block has only one blob.",
           "type": "string",
           "enum": [
-            "onanysubmit"
+            "on_any_submit"
           ]
         }
       ]
@@ -162,7 +162,7 @@
       "properties": {
         "block_producing": {
           "description": "How MockDaService should produce blocks.",
-          "default": "onbatchsubmit",
+          "default": "on_batch_submit",
           "allOf": [
             {
               "$ref": "#/definitions/BlockProducingConfig"
