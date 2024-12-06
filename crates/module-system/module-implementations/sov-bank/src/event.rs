@@ -56,6 +56,8 @@ pub enum Event<S: Spec> {
     },
     /// Event for Token Minting
     TokenMinted {
+        /// The identity that authorized the tokens to be minted
+        authorizer: TokenHolder<S>,
         /// The identity to mint the tokens to
         mint_to_identity: TokenHolder<S>,
         /// The coins minted
