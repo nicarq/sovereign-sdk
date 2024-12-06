@@ -167,7 +167,7 @@ pub(crate) const GENESIS_BLOCK: MockBlock = MockBlock {
 
 /// Configuration for block producing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, JsonSchema)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum BlockProducingConfig {
     /// New blocks are produced periodically.
     /// This means that empty blocks can be produced.
