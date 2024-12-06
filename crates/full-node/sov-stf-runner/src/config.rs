@@ -116,7 +116,7 @@ pub struct RollupConfig<Address, Da: DaService> {
     /// Proof manager configuration.
     pub proof_manager: ProofManagerConfig<Address>,
     /// Sequencer (and batch builder) configuration.
-    pub sequencer: SequencerConfig<Da::Spec, BatchBuilderConfig<Address>>,
+    pub sequencer: SequencerConfig<Da::Spec, Address, BatchBuilderConfig>,
     /// Monitoring configuration.
     pub monitoring: MonitoringConfig,
 }
@@ -239,13 +239,14 @@ mod tests {
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,
+                admin_addresses: vec![],
                 max_allowed_blocks_behind: 5,
                 dropped_tx_ttl_secs: 60,
                 da_address: CelestiaAddress::from_str(
                     "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
                 )
                 .unwrap(),
-                batch_builder: BatchBuilderConfig::standard(StdBatchBuilderConfig {
+                batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                     mempool_max_txs_count: None,
                     max_batch_size_bytes: None,
                 }),

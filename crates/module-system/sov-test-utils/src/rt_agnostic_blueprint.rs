@@ -74,7 +74,7 @@ where
 
     async fn create_endpoints(
         &self,
-        storage: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
+        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
         sync_status_receiver: watch::Receiver<SyncStatus>,
         ledger_db: &LedgerDb,
         sequencer_db: &SequencerDb,
@@ -85,7 +85,7 @@ where
     ) -> anyhow::Result<RuntimeEndpoints> {
         Ok(
             sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
-                storage.clone(),
+                state_update_receiver,
                 sync_status_receiver,
                 ledger_db,
                 sequencer_db,

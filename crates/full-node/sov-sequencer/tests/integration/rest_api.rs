@@ -22,6 +22,5 @@ async fn axum_submit_batch_ok() {
 
     let response_data = &response_result.unwrap().data.clone().unwrap();
 
-    assert_eq!(response_data.da_height, 0);
-    assert_eq!(response_data.num_txs, txs.len() as i32);
+    assert_eq!(response_data.tx_hashes.len(), txs.len());
 }

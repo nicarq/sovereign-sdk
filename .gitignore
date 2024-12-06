@@ -2,6 +2,8 @@ demo-rollup-readme.sh
 /target
 lcov.info
 
+rustc-ice*
+
 .idea/
 
 target/

@@ -10,7 +10,7 @@ use sov_db::schema::SchemaBatch;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_modules_api::{
-    DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, SyncStatus,
+    DaSyncState, RuntimeEventProcessor, RuntimeEventResponse, SlotData, Spec, SyncStatus,
 };
 use sov_modules_stf_blueprint::{BatchReceipt, GenesisParams, TxReceiptContents};
 use sov_paymaster::{PaymasterConfig, SafeVec};
@@ -20,7 +20,7 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{GenericSequencerSpec, SeqDbTx, Sequencer, SequencerDb};
+use sov_sequencer::{GenericSequencerSpec, Sequencer, SequencerConfig, SequencerDb};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
@@ -52,6 +52,12 @@ pub type TestStdBatchBuilder = StdBatchBuilder<(TestSpec, TestOptimisticRuntime<
 /// [`TestSequencerSetup::with_real_batch_builder`].
 pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
     _dir: TempDir,
+    /// The [`SequencerConfig`] used in this test.
+    pub config: SequencerConfig<
+        <<B as BatchBuilder>::Spec as Spec>::Da,
+        <<B as BatchBuilder>::Spec as Spec>::Address,
+        <B as BatchBuilder>::Config,
+    >,
     /// The [`MockDaService`] used by the [`Sequencer`].
     pub da_service: MockDaService,
     /// The [`Sequencer`] used in the test.
@@ -81,7 +87,6 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         da_service: MockDaService,
         batch_builder_config: B::Config,
         register_admin: bool,
-        seq_db_txs: Vec<SeqDbTx>,
         mut storage_manager: NativeStorageManager<
             MockDaSpec,
             ProverStorage<DefaultStorageSpec<TestHasher>>,
@@ -165,26 +170,26 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         let (_, state_update_receiver) = watch::channel(state_update_info);
         let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
         shutdown_receiver.mark_unchanged();
-        let batch_builder = B::create(
-            state_update_receiver,
-            da_sync_state,
-            da_service.sequencer_address(),
-            seq_db_txs,
+
+        let config = SequencerConfig {
+            da_address: da_service.sequencer_address(),
             admin_addresses,
-            &batch_builder_config,
-            0,
-        )
-        .await?;
-        let status_manager = batch_builder.tx_status_manager();
+            automatic_batch_production: false,
+            max_allowed_blocks_behind: 0,
+            dropped_tx_ttl_secs: 0,
+            batch_builder: batch_builder_config,
+        };
+
         let (sequencer, _) = Sequencer::new(
-            batch_builder,
+            state_update_receiver,
             da_service.clone(),
-            status_manager,
+            da_sync_state,
             sequencer_db,
             ledger_db,
-            false,
+            &config,
             shutdown_receiver,
-        );
+        )
+        .await?;
 
         let (axum_addr, sequencer_axum_server) = {
             let router = sequencer.rest_api_server();
@@ -204,6 +209,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
 
         Ok(Self {
             _dir: dir,
+            config,
             da_service,
             sequencer,
             admin_private_key: admin.private_key,
@@ -224,7 +230,6 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         dir: TempDir,
         da_service: MockDaService,
         batch_builder_config: B::Config,
-        seq_db_txs: Vec<SeqDbTx>,
         register_admin: bool,
     ) -> anyhow::Result<Self> {
         let storage_manager = NativeStorageManager::<
@@ -237,7 +242,6 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
             da_service,
             batch_builder_config,
             register_admin,
-            seq_db_txs,
             storage_manager,
         )
         .await
@@ -265,7 +269,6 @@ impl TestSequencerSetup<TestStdBatchBuilder> {
                 mempool_max_txs_count: Some(mempool_max_txs_count),
                 max_batch_size_bytes: None,
             },
-            vec![],
             true,
         )
         .await

@@ -7,14 +7,14 @@ use std::sync::Arc;
 
 use base64::prelude::*;
 use sov_api_spec::types;
-use sov_mock_da::MockDaService;
+use sov_mock_da::{MockDaService, MockDaSpec};
+use sov_modules_api::Spec;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
 use sov_sequencer::batch_builders::preferred::{
     PreferredBatchBuilder, PreferredBatchBuilderConfig,
 };
-use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::SeqDbTxExtend;
+use sov_sequencer::{SeqDbTxExtend, SequencerConfig};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;
@@ -29,14 +29,11 @@ async fn restore_txs_from_seq_db() {
     let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
     let da_service = MockDaService::new(sequencer_addr);
 
-    let batch_builder_config = StdBatchBuilderConfig {
-        mempool_max_txs_count: None,
-        max_batch_size_bytes: None,
-    };
+    let batch_builder_config = PreferredBatchBuilderConfig::default();
 
     let sequencer = TestSequencerSetup::<
-        StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, vec![], true)
+        PreferredBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
+    >::new(dir, da_service, batch_builder_config, true)
     .await
     .unwrap();
 
@@ -69,6 +66,12 @@ async fn restore_txs_from_seq_db() {
         sync_status_sender,
     });
 
+    let config: SequencerConfig<
+        MockDaSpec,
+        <TestSpec as Spec>::Address,
+        PreferredBatchBuilderConfig,
+    > = sequencer.config.clone();
+
     let mut restored_batch_builder: PreferredBatchBuilder<(
         TestSpec,
         TestOptimisticRuntime<TestSpec>,
@@ -79,18 +82,13 @@ async fn restore_txs_from_seq_db() {
             .await
             .state_update_receiver(),
         da_sync_state,
-        sequencer_addr,
         db_txs,
-        Vec::new(),
-        &PreferredBatchBuilderConfig {
-            should_update_state: true,
-        },
-        0,
+        &config,
     )
     .await
     .unwrap();
 
-    let batch = restored_batch_builder.build_next_batch(0, 0).await.unwrap();
+    let batch = restored_batch_builder.build_next_batch(0).await.unwrap();
 
     assert_eq!(batch.hashes.len(), 1);
 }
@@ -111,7 +109,6 @@ async fn not_sequencer_safe_txs_are_restricted() {
         PreferredBatchBuilderConfig {
             should_update_state: true,
         },
-        vec![],
         false,
     )
     .await
@@ -154,7 +151,6 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
         PreferredBatchBuilderConfig {
             should_update_state: true,
         },
-        vec![],
         true,
     )
     .await

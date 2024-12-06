@@ -35,7 +35,7 @@ impl Client {
     pub async fn publish_batch_with_serialized_txs<Tx: BorshSerialize>(
         &self,
         txs: &[Tx],
-    ) -> Result<types::SubmittedBatchInfo, Error<types::PublishBatchResponse>> {
+    ) -> Result<types::SubmitBatchReceipt, Error<types::PublishBatchResponse>> {
         for tx in txs {
             let tx_bytes =
                 borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;

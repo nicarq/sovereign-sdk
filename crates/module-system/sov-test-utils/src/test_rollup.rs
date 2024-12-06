@@ -14,7 +14,7 @@ use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
-use sov_sequencer::{BatchBuilderConfig, BatchBuilderMode, SequencerConfig};
+use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{
     HttpServerConfig, MonitoringConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
@@ -45,7 +45,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 #[allow(missing_docs)]
 #[derive(Clone)]
 pub struct RollupBuilderConfig {
-    pub batch_builder_mode: BatchBuilderMode,
+    pub batch_builder_config: BatchBuilderConfig,
     pub prover_address: String,
     pub aggregated_proof_block_jump: usize,
     pub max_infos_in_db: u64,
@@ -103,7 +103,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
             config: RollupBuilderConfig {
                 max_channel_size: 60,
                 max_infos_in_db: 80 + finalization_blocks as u64,
-                batch_builder_mode: BatchBuilderMode::Preferred(PreferredBatchBuilderConfig {
+                batch_builder_config: BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
                     should_update_state: true,
                 }),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
@@ -128,10 +128,10 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         self
     }
 
-    /// Sets the batch builder mode to [`BatchBuilderMode::Standard`].
+    /// Sets the batch builder mode to [`BatchBuilderConfig::Standard`].
     pub fn with_standard_batch_builder(self) -> Self {
         self.set_config(|c| {
-            c.batch_builder_mode = BatchBuilderMode::Standard(Default::default());
+            c.batch_builder_config = BatchBuilderConfig::Standard(Default::default());
         })
     }
 
@@ -243,10 +243,8 @@ where
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
                 da_address: self.da_config.sender_address,
-                batch_builder: match self.config.batch_builder_mode.clone() {
-                    BatchBuilderMode::Standard(config) => BatchBuilderConfig::standard(config),
-                    BatchBuilderMode::Preferred(config) => BatchBuilderConfig::preferred(config),
-                },
+                admin_addresses: vec![],
+                batch_builder: self.config.batch_builder_config.clone(),
             },
 
             monitoring: MonitoringConfig {
