@@ -67,10 +67,9 @@ impl<RT: EncodeCall<sov_bank::Bank<S>>, S: Spec, Acct> BasicCallMessageGenerator
             changes,
         } = self
             .bank
-            .generate_create_token(
+            .generate_valid_create_token(
                 u,
                 &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
-                MessageValidity::Valid,
             )
             .expect("Valid token creation can't fail");
         self.bank.address_creation_rate = self.config.bank.address_creation_rate;
@@ -94,7 +93,7 @@ impl<RT: EncodeCall<sov_bank::Bank<S>>, S: Spec, Acct> BasicCallMessageGenerator
         Acct: Clone,
     {
         generator_state.update_account(
-            S::Address::from(&value_setter_admin.private_key.pub_key()),
+            &S::Address::from(&value_setter_admin.private_key.pub_key()),
             (&value_setter_admin).into(),
         );
     }

@@ -4,7 +4,7 @@ use sov_modules_api::{SafeString, SafeVec, SizedSafeString, Spec};
 
 use super::{BankAccount, BankChangeLogEntry, BankMessageGenerator, InternalMessageGenResult, Tag};
 use crate::generators::bank::InternalMessageGenError;
-use crate::interface::{GeneratedMessage, GeneratorState, MessageValidity, Taggable};
+use crate::interface::{GeneratedMessage, GeneratorState, Taggable};
 use crate::state::TokenInfo;
 
 const TOKEN_NAME: &str = "TEST_TOKEN_NAME";
@@ -14,35 +14,37 @@ const TOKEN_NAME: &str = "TEST_TOKEN_NAME";
 const MIN_TOKEN_NAME_LEN: usize = 15;
 
 impl<S: Spec> BankMessageGenerator<S> {
-    /// Generate a create_token message
-    #[allow(private_interfaces)]
-    pub(crate) fn generate_create_token(
+    /// A create token is only invalid if the same account tries to reuse the same token name
+    pub(crate) fn generate_invalid_create_token(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
-        validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
-        // A create token is only invalid if the same account tries to reuse the same token name
-        if validity.is_invalid() {
-            let Some((_addr, acct)) =
-                generator_state.get_random_existing_account_with_tag(Tag::HasCreatedToken, u)?
-            else {
-                return Err(InternalMessageGenError::NoAccountsHaveCreatedTokensYet);
-            };
+        let Some((_addr, acct)) =
+            generator_state.get_random_existing_account_with_tag(Tag::HasCreatedToken, u)?
+        else {
+            return Err(InternalMessageGenError::NoAccountsHaveCreatedTokensYet);
+        };
 
-            return Ok(GeneratedMessage::new(
-                CallMessage::CreateToken {
-                    token_name: TOKEN_NAME.try_into().unwrap(),
-                    initial_balance: Arbitrary::arbitrary(u)?,
-                    mint_to_address: Arbitrary::arbitrary(u)?,
-                    authorized_minters: Arbitrary::arbitrary(u)?,
-                },
-                acct.private_key.clone(),
-                Vec::new(),
-            ));
-        }
+        Ok(GeneratedMessage::new(
+            CallMessage::CreateToken {
+                token_name: TOKEN_NAME.try_into().unwrap(),
+                initial_balance: Arbitrary::arbitrary(u)?,
+                mint_to_address: Arbitrary::arbitrary(u)?,
+                authorized_minters: Arbitrary::arbitrary(u)?,
+            },
+            acct.private_key.clone(),
+            Vec::new(),
+        ))
+    }
 
-        // The message is valid.
+    /// Generate a valid create_token message
+    #[allow(private_interfaces)]
+    pub(crate) fn generate_valid_create_token(
+        &self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag = Tag>,
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         // Pick a creator address, and a token name. Compute the token ID
         let (creator_key, token_name, token_id) = {
             let (creator_address, mut creator_acct) =
@@ -59,7 +61,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 arbitrary_safe_string(u, MIN_TOKEN_NAME_LEN)?
             };
             let new_token_id = sov_bank::get_token_id::<S>(token_name.as_str(), &creator_address);
-            generator_state.update_account(creator_address, creator_acct);
+            generator_state.update_account(&creator_address, creator_acct);
             (creator_key, token_name, new_token_id)
         };
 
@@ -72,7 +74,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 }
                 let (addr, mut acct) = generator_state.get_random_existing_account(u)?;
                 acct.add_can_mint(token_id);
-                generator_state.update_account(addr.clone(), acct);
+                generator_state.update_account(&addr, acct);
                 minters
                     .try_push(addr)
                     .expect("Push must succed at least max_size times");
@@ -86,7 +88,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 generator_state.get_random_existing_account(u)?;
             let amount = Arbitrary::arbitrary(u)?;
             recipient_acct.increment_balance(Coins { token_id, amount });
-            generator_state.update_account(recipient_address.clone(), recipient_acct);
+            generator_state.update_account(&recipient_address, recipient_acct);
             (recipient_address, amount)
         };
         let mint_event = Self::update_state_with_mint(
