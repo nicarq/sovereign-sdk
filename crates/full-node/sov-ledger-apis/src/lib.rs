@@ -885,38 +885,9 @@ impl TryFrom<AggregatedProofResponse> for AggregatedProof {
     type Error = anyhow::Error;
 
     fn try_from(value: AggregatedProofResponse) -> Result<Self, Self::Error> {
-        let proof: Vec<u8> = value.proof.serialized_proof().to_vec();
+        let proof: Vec<u8> = value.proof.raw_aggregated_proof.to_vec();
         Ok(Self { proof })
     }
-}
-
-#[serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-struct ValidityCondition(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
-
-#[serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-struct RewardedAddresses(#[serde_as(as = "serde_with::base64::Base64")] Vec<u8>);
-
-#[serde_as]
-#[derive(Debug, PartialEq, Eq, Clone, Serialize, Deserialize)]
-struct AggregatedProofPublicData {
-    pub validity_conditions: Vec<ValidityCondition>,
-    pub initial_rollup_height: u64,
-    pub final_rollup_height: u64,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub genesis_state_root: Vec<u8>,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub initial_state_root: Vec<u8>,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub final_state_root: Vec<u8>,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub initial_slot_hash: Vec<u8>,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub final_slot_hash: Vec<u8>,
-    #[serde_as(as = "serde_with::base64::Base64")]
-    pub code_commitment: Vec<u8>,
-    pub rewarded_addresses: Vec<RewardedAddresses>,
 }
 
 #[cfg(test)]

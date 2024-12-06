@@ -10,7 +10,7 @@ use sov_rollup_interface::node::da::{DaService, SlotData};
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
@@ -193,7 +193,7 @@ where
         stf_changes: Sm::StfChangeSet,
         transition_witness: StateTransitionWitness<StateRoot, Witness, Da::Spec>,
         slot_commit: SlotCommit<S, B, T>,
-        aggregated_proofs: Vec<AggregatedProof>,
+        aggregated_proofs: Vec<SerializedAggregatedProof>,
     ) -> anyhow::Result<()> {
         let rollup_height = self.get_rollup_height()?;
         let new_state_root = transition_witness.final_state_root.clone();

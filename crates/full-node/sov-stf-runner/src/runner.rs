@@ -21,7 +21,7 @@ use sov_rollup_interface::stf::{
     StoredEvent,
 };
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::zk::aggregated_proof::AggregatedProof;
+use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 use sov_rollup_interface::zk::{StateTransitionWitness, Zkvm};
 use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
@@ -691,15 +691,15 @@ where
         receipts: impl Iterator<
             Item = ProofReceipt<Stf::Address, Da::Spec, Stf::StateRoot, Stf::StorageProof>,
         >,
-    ) -> Vec<AggregatedProof> {
-        let mut aggregated_proofs: Vec<AggregatedProof> = Vec::new();
+    ) -> Vec<SerializedAggregatedProof> {
+        let mut aggregated_proofs: Vec<SerializedAggregatedProof> = Vec::new();
         for receipt in receipts {
             match receipt.outcome {
                 ProofOutcome::Valid(ProofReceiptContents::AggregateProof(
                     _public_data,
                     raw_proof,
                 )) => {
-                    aggregated_proofs.push(AggregatedProof::new(raw_proof));
+                    aggregated_proofs.push(raw_proof);
                 }
                 ProofOutcome::Valid(_) => {
                     tracing::info!("Not aggregated proof, probably running in a different mode. Will be fixed in the future.");

@@ -102,15 +102,13 @@ impl Client {
     }
 }
 
-impl TryInto<aggregated_proof::AggregatedProof> for types::AggregatedProof {
+impl TryInto<aggregated_proof::SerializedAggregatedProof> for types::AggregatedProof {
     type Error = anyhow::Error;
 
-    fn try_into(self) -> anyhow::Result<aggregated_proof::AggregatedProof> {
-        Ok(aggregated_proof::AggregatedProof::new(
-            aggregated_proof::SerializedAggregatedProof {
-                raw_aggregated_proof: decode_b64(&self.proof)?,
-            },
-        ))
+    fn try_into(self) -> anyhow::Result<aggregated_proof::SerializedAggregatedProof> {
+        Ok(aggregated_proof::SerializedAggregatedProof {
+            raw_aggregated_proof: decode_b64(&self.proof)?,
+        })
     }
 }
 
