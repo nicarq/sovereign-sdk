@@ -110,12 +110,12 @@ impl<E> From<E> for MaybeRetryable<E> {
 }
 
 /// Output of submit blob operation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SubmitBlobReceipt<T: Debug + Clone> {
     /// Computed blob hash, so it can be identified by fetcher of the blobs.
     pub blob_hash: HexHash,
     /// Identifier of the transaction on the DA layer.
-    pub transaction_id: T,
+    pub da_transaction_id: T,
 }
 
 /// A DaService is the local side of an RPC connection talking to a node of the DA layer

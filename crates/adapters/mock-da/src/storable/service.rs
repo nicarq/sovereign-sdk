@@ -317,7 +317,7 @@ impl DaService for StorableMockDaService {
         }
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
-            transaction_id: blob_hash,
+            da_transaction_id: blob_hash,
         })
     }
 
@@ -354,7 +354,7 @@ impl DaService for StorableMockDaService {
 
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
-            transaction_id: blob_hash,
+            da_transaction_id: blob_hash,
         })
     }
 

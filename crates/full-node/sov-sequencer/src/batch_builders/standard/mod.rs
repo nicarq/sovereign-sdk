@@ -23,7 +23,6 @@ use sov_modules_stf_blueprint::{
     process_tx, ApplyTxResult, PreExecError, TransactionReceipt, TxEffect, TxProcessingError,
     ValidatedAuthOutput,
 };
-use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
@@ -36,7 +35,7 @@ use crate::batch_builders::{
     FreshlyBuiltBatch, StateUpdateInfo, TxWithHash,
 };
 use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SeqDbTx, SeqDbTxExtend, TxHash, TxStatus, TxStatusManager};
+use crate::{SeqDbTx, SeqDbTxExtend, SequencerConfig, TxHash, TxStatus, TxStatusManager};
 
 /// Configuration for [`StdBatchBuilder`].
 #[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize, JsonSchema)]
@@ -64,9 +63,8 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     api_state: ApiState<Z::Spec>,
     state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
     tx_hashes_of_last_batch: Vec<TxHash>,
-    sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
-    admin_addresses: Vec<<Z::Spec as Spec>::Address>,
-    config: StdBatchBuilderConfig,
+    config:
+        SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, StdBatchBuilderConfig>,
 }
 
 /// An error that indicates that the transaction could not be added to the batch.
@@ -121,7 +119,7 @@ where
             &self.runtime,
             tx_scratchpad,
             ctx.gas_price.clone(),
-            &self.sequencer_address,
+            &self.config.da_address,
             seqdb_tx.tx_input::<Self>(),
         );
 
@@ -142,8 +140,8 @@ where
             &self.runtime,
             message,
             authz_data.default_address.as_ref(),
-            &self.sequencer_address,
-            &self.admin_addresses,
+            &self.config.da_address,
+            &self.config.admin_addresses,
         ) {
             ctx.state_checkpoint = tx_scratchpad.revert();
             return (
@@ -159,7 +157,7 @@ where
             ValidatedAuthOutput::Valid(auth_output),
             &gas_info.gas_price,
             &gas_info.gas_used,
-            &self.sequencer_address,
+            &self.config.da_address,
             ctx.visible_height,
             tx_scratchpad,
             ExecutionContext::Sequencer,
@@ -194,6 +192,7 @@ where
 
     fn max_batch_size_bytes(&self) -> usize {
         self.config
+            .batch_builder
             .max_batch_size_bytes
             .unwrap_or(Self::DEFAULT_MAX_BATCH_SIZE_BYTES)
     }
@@ -216,11 +215,8 @@ where
     async fn create(
         state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
-        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
-        admin_addresses: Vec<<Z::Spec as Spec>::Address>,
-        config: &StdBatchBuilderConfig,
-        _last_event_number: u64,
+        config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<Self> {
         let runtime = Z::Rt::default();
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
@@ -248,6 +244,7 @@ where
             mempool: Mempool::new(
                 txsm.clone(),
                 config
+                    .batch_builder
                     .mempool_max_txs_count
                     .unwrap_or(default_mempool_max_txs_count()),
                 seq_db_txs,
@@ -256,11 +253,9 @@ where
             api_state,
             runtime: Z::Rt::default(),
             state_update_recv,
-            admin_addresses,
             checkpoint_sender,
             checkpoint: Some(checkpoint),
             tx_hashes_of_last_batch: vec![],
-            sequencer_address,
             config: config.clone(),
         })
     }
@@ -353,7 +348,7 @@ where
                 &self.runtime,
                 checkpoint.to_tx_scratchpad(),
                 gas_price,
-                &self.sequencer_address,
+                &self.config.da_address,
                 tx_input.clone(),
             );
 
@@ -423,7 +418,6 @@ where
     /// Only transactions which are dispatched successfully are included in the batch.
     async fn build_next_batch(
         &mut self,
-        _height: u64,
         _sequence_number: u64,
     ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
         tracing::debug!("build_next_batch has been called");

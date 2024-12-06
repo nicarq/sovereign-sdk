@@ -246,7 +246,7 @@ paths:
                 type: object
                 properties:
                   data:
-                    $ref: "#/components/schemas/SubmittedBatchInfo"
+                    $ref: "#/components/schemas/SubmitBatchReceipt"
                   meta:
                     type: object
                 required:
@@ -804,18 +804,29 @@ components:
         - dropped
         - submitted
         - published
+        - processed
         - finalized
-    SubmittedBatchInfo:
+    SubmitBatchReceipt:
       type: object
       properties:
-        da_height:
-          type: integer
-        num_txs:
-          type: integer
-          format: int32
+        tx_hashes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TxHash"
+        blob_hash:
+          $ref: "#/components/schemas/Hash"
+        da_transaction_id:
+          oneOf:
+            - type: string
+            # FIXME(@neysofu): da_transaction_id should always JSON-serialize to
+            # a string IMO.
+            - type: array
+              items:
+                type: integer
       required:
-        - da_height
-        - num_txs
+        - tx_hashes
+        - blob_hash
+        - da_transaction_id
     BaseFeePerGas:
       type: object
       properties:

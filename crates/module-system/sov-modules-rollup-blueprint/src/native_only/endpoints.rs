@@ -1,30 +1,32 @@
 use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDb;
+use sov_db::sequencer_db::SequencerDb;
 use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
-use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
+use sov_modules_api::rest::{ApiState, HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
+    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, StateUpdateInfo,
+    SyncStatus,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
-use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::DaSyncState;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
 use sov_sequencer::batch_builders::standard::StdBatchBuilder;
-use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{BatchBuilderMode, SequencerDb};
+use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::{CorsConfiguration, RollupConfig, RunnerConfig};
+use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tracing::warn;
 
 use crate::{FullNodeBlueprint, SequencerBlueprint};
 
-#[allow(clippy::too_many_arguments)]
 /// Register rollup's default RPC methods and Axum router.
+#[allow(clippy::too_many_arguments)]
 pub async fn register_endpoints<B, M>(
     state_update_receiver: StateUpdateReceiver<<B::Spec as Spec>::Storage>,
     sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
@@ -42,74 +44,17 @@ where
         + HasRestApi<B::Spec>
         + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
 {
-    let da_address = config.sequencer.da_address.clone();
-    let last_event_number = ledger_db.get_latest_event_number().await?.unwrap_or(0);
-
-    let (api_state, sequencer_router, sequencer_background_handle) = match &config
-        .sequencer
-        .batch_builder
-        .mode
-    {
-        BatchBuilderMode::Standard(bb_config) => {
-            let batch_builder = StdBatchBuilder::<(B::Spec, B::Runtime)>::create(
-                state_update_receiver.clone(),
-                da_sync_state,
-                da_address,
-                sequencer_db.read_all()?,
-                config.sequencer.batch_builder.admin_addresses.clone(),
-                bb_config,
-                last_event_number,
-            )
-            .await?;
-            let tx_status_manager = batch_builder.tx_status_manager();
-            let (sequencer, background_handle) =
-                SequencerBlueprint::<B, M, StdBatchBuilder<(B::Spec, B::Runtime)>>::new(
-                    batch_builder,
-                    da_service.clone(),
-                    tx_status_manager,
-                    sequencer_db.clone(),
-                    ledger_db.clone(),
-                    config.sequencer.automatic_batch_production,
-                    shutdown_receiver,
-                );
-
-            (
-                sequencer.api_state(),
-                sequencer.rest_api_server(),
-                background_handle,
-            )
-        }
-        BatchBuilderMode::Preferred(bb_config) => {
-            warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
-
-            let batch_builder = PreferredBatchBuilder::<(B::Spec, B::Runtime)>::create(
-                state_update_receiver.clone(),
-                da_sync_state,
-                da_address,
-                sequencer_db.read_all()?,
-                config.sequencer.batch_builder.admin_addresses.clone(),
-                bb_config,
-                last_event_number,
-            )
-            .await?;
-            let tx_status_manager = batch_builder.tx_status_manager();
-            let (sequencer, background_handle) = SequencerBlueprint::<B, M, _>::new(
-                batch_builder,
-                da_service.clone(),
-                tx_status_manager,
-                sequencer_db.clone(),
-                ledger_db.clone(),
-                config.sequencer.automatic_batch_production,
-                shutdown_receiver,
-            );
-
-            (
-                sequencer.api_state(),
-                sequencer.rest_api_server(),
-                background_handle,
-            )
-        }
-    };
+    let (api_state, sequencer_router, sequencer_background_handle) =
+        create_and_start_sequencer::<B, M>(
+            state_update_receiver.clone(),
+            da_sync_state,
+            config.sequencer.clone(),
+            sequencer_db,
+            ledger_db,
+            da_service,
+            shutdown_receiver,
+        )
+        .await?;
 
     let mut endpoints = B::Runtime::endpoints(api_state);
     endpoints
@@ -176,6 +121,70 @@ where
     }
 
     Ok(endpoints)
+}
+
+async fn create_and_start_sequencer<B, M>(
+    state_update_receiver: watch::Receiver<StateUpdateInfo<<B::Spec as Spec>::Storage>>,
+    da_sync_state: Arc<DaSyncState>,
+    config: SequencerConfig<<B::Spec as Spec>::Da, <B::Spec as Spec>::Address, BatchBuilderConfig>,
+    sequencer_db: &SequencerDb,
+    ledger_db: &LedgerDb,
+    da_service: &B::DaService,
+    shutdown_receiver: watch::Receiver<()>,
+) -> anyhow::Result<(
+    ApiState<B::Spec>,
+    sov_modules_api::prelude::axum::Router<()>,
+    JoinHandle<anyhow::Result<()>>,
+)>
+where
+    B: FullNodeBlueprint<M> + 'static,
+    M: ExecutionMode + 'static,
+    B::Runtime: RuntimeEventProcessor
+        + HasRestApi<B::Spec>
+        + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
+{
+    match &config.batch_builder {
+        BatchBuilderConfig::Standard(bb_config) => {
+            let (sequencer, background_handle) =
+                SequencerBlueprint::<B, M, StdBatchBuilder<(B::Spec, B::Runtime)>>::new(
+                    state_update_receiver.clone(),
+                    da_service.clone(),
+                    da_sync_state,
+                    sequencer_db.clone(),
+                    ledger_db.clone(),
+                    &config.with_bb_config(bb_config.clone()),
+                    shutdown_receiver,
+                )
+                .await?;
+
+            Ok((
+                sequencer.api_state(),
+                sequencer.rest_api_server(),
+                background_handle,
+            ))
+        }
+        BatchBuilderConfig::Preferred(bb_config) => {
+            warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
+
+            let (sequencer, background_handle) =
+                SequencerBlueprint::<B, M, PreferredBatchBuilder<(B::Spec, B::Runtime)>>::new(
+                    state_update_receiver.clone(),
+                    da_service.clone(),
+                    da_sync_state,
+                    sequencer_db.clone(),
+                    ledger_db.clone(),
+                    &config.with_bb_config(bb_config.clone()),
+                    shutdown_receiver,
+                )
+                .await?;
+
+            Ok((
+                sequencer.api_state(),
+                sequencer.rest_api_server(),
+                background_handle,
+            ))
+        }
+    }
 }
 
 fn merge_specs(

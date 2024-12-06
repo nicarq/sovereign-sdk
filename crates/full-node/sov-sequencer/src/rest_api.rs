@@ -8,7 +8,7 @@ use axum::{middleware, Json};
 use futures::{StreamExt, TryStreamExt};
 use serde_with::base64::Base64;
 use serde_with::serde_as;
-use sov_modules_api::RawTx;
+use sov_modules_api::{RawTx, Spec};
 use sov_rest_utils::{
     errors, json_obj, preconfigured_router_layers, serve_generic_ws_subscription, to_json_object,
     ApiResult, ErrorObject, Path,
@@ -19,8 +19,8 @@ use sov_rollup_interface::TxHash;
 use tokio_stream::wrappers::BroadcastStream;
 use tracing::error;
 
-use crate::batch_builders::AcceptTxError;
-use crate::{Sequencer, SequencerSpec, SubmittedBatchInfo, TxStatus};
+use crate::batch_builders::{AcceptTxError, BatchBuilder};
+use crate::{Sequencer, SequencerSpec, SubmitBatchReceipt, TxStatus};
 
 // Web server and Axum-related methods.
 impl<Ss: SequencerSpec> Sequencer<Ss> {
@@ -194,7 +194,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     async fn axum_submit_batch(
         sequencer: State<Self>,
         batch: Json<SubmitBatch>,
-    ) -> ApiResult<SubmittedBatchInfo> {
+    ) -> ApiResult<SubmitBatchReceipt<<<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Da>> {
         let batch = batch
             .0
             .transactions

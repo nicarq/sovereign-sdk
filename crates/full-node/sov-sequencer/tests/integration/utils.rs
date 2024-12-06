@@ -33,7 +33,7 @@ pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
         max_batch_size_bytes: None,
     };
 
-    TestSequencerSetup::new(dir, da_service, batch_builder_config, vec![], true)
+    TestSequencerSetup::new(dir, da_service, batch_builder_config, true)
         .await
         .unwrap()
 }

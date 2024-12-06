@@ -1,49 +1,51 @@
 use std::sync::Arc;
 
 use sov_db::ledger_db::LedgerDb;
-use sov_modules_api::rest::ApiState;
-use sov_modules_api::{RawTx, RuntimeEventResponse};
-use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
+use sov_db::sequencer_db::SequencerDb;
+use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
+use sov_modules_api::{DaSyncState, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo};
+use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
-use sov_rollup_interface::node::ledger_api::{ItemOrHash, LedgerStateProvider, QueryMode};
+use sov_rollup_interface::node::ledger_api::{
+    ItemOrHash, LedgerStateProvider, QueryMode, SlotResponse,
+};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use sov_rollup_interface::TxHash;
 use tokio::sync::{broadcast, Mutex, MutexGuard};
 use tracing::{debug, error, info};
 
 use super::tx_status::{TxStatus, TxStatusManager};
-use super::SubmittedBatchInfo;
+use super::SubmitBatchReceipt;
 use crate::batch_builders::{
-    AcceptTxError, AcceptedTx, BatchBuilder, DataWithEvents, FreshlyBuiltBatch,
+    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, SequencerConfirmation,
 };
-use crate::{SeqDbTx, SeqDbTxExtend, SequencerDb, SequencerSpec};
+use crate::{SeqDbTx, SeqDbTxExtend, SequencerConfig, SequencerSpec};
 
 /// Single data structure that manages mempool and batch producing.
 #[derive(Clone, derive_more::Deref)]
 pub struct Sequencer<Ss: SequencerSpec> {
-    #[deref(forward)]
+    // Makes it cheaply clonable.
     inner: Arc<Inner<Ss>>,
 }
 
 pub struct Inner<Ss: SequencerSpec> {
     batch_builder: Mutex<Ss::BatchBuilder>,
-    // The sequencer's copy of the batch-builder's API state. This is
-    // automatically updated by the batch-builder with the latest state.
-    // We simply cache a copy so that we don't need to lock the builder to retrieve it.
+    // The sequencer's own copy of the batch-builder's API state. This is
+    // automatically updated by the batch builder with the latest state.
+    // We simply cache a copy so that we don't need to lock the builder to
+    // retrieve it when needed.
     api_state: ApiState<<Ss::BatchBuilder as BatchBuilder>::Spec>,
     sequencer_db: SequencerDb,
     events_sender: broadcast::Sender<SequencerEvent<Ss::BatchBuilder>>,
     da_service: Ss::Da,
     tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
-    automatic_batch_production: bool,
 }
 
 impl<Ss: SequencerSpec> Inner<Ss> {
     async fn build_and_send_batch(
         &self,
-        da_height: u64,
         batch_builder: &mut MutexGuard<'_, Ss::BatchBuilder>,
-    ) -> anyhow::Result<SubmittedBatchInfo> {
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
         let sequence_number = self
             .sequencer_db
             .get_and_increase_next_sequence_number()
@@ -55,10 +57,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
         let FreshlyBuiltBatch {
             inner: next_batch,
             hashes: tx_hashes,
-        } = batch_builder
-            .build_next_batch(da_height, sequence_number)
-            .await?;
-        let num_txs = tx_hashes.len();
+        } = batch_builder.build_next_batch(sequence_number).await?;
         let serialized_batch = borsh::to_vec(&next_batch)
             .expect("Failed to serialize batch inside sequencer; this is a bug, please report it");
 
@@ -85,64 +84,95 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             self.tx_status_manager.notify(
                 *tx_hash,
                 TxStatus::Published {
-                    da_tx_id: submit_blob_receipt.transaction_id.clone(),
+                    da_tx_id: submit_blob_receipt.da_transaction_id.clone(),
                 },
             );
         }
 
-        Ok(SubmittedBatchInfo { da_height, num_txs })
+        Ok(SubmitBatchReceipt {
+            tx_hashes,
+            submit_blob_receipt,
+        })
     }
 
     async fn produce_batch(&self) -> anyhow::Result<()> {
-        let da_height = self
-            .da_service
-            .get_head_block_header()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?
-            .height();
-
-        // Acquire the lock before any DA operation, to avoid out-of-order
-        // batches and other potential issues.
         let mut batch_builder = self.batch_builder.lock().await;
-        self.build_and_send_batch(da_height, &mut batch_builder)
-            .await?;
+        self.build_and_send_batch(&mut batch_builder).await?;
 
         Ok(())
     }
 }
 
 impl<Ss: SequencerSpec> Sequencer<Ss> {
+    // FIXME(@neysofu): this is way too small.
+    const EVENTS_CHANNEL_SIZE: usize = 100;
+
     /// Creates a new [`Sequencer`] from a [`BatchBuilder`] and a [`DaService`].
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        batch_builder: Ss::BatchBuilder,
+    #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+    pub async fn new(
+        state_update_receiver: StateUpdateReceiver<
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
+        >,
         da_service: Ss::Da,
-        tx_status_manager: TxStatusManager<<Ss::Da as DaService>::Spec>,
+        da_sync_state: Arc<DaSyncState>,
         sequencer_db: SequencerDb,
         ledger_db: LedgerDb,
-        automatic_batch_production: bool,
+        config: &SequencerConfig<
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Da,
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Address,
+            <Ss::BatchBuilder as BatchBuilder>::Config,
+        >,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    ) -> (Self, tokio::task::JoinHandle<anyhow::Result<()>>) {
-        let (events_sender, _) = broadcast::channel(100);
+    ) -> anyhow::Result<(Self, tokio::task::JoinHandle<anyhow::Result<()>>)> {
+        let (events_sender, _) = broadcast::channel(Self::EVENTS_CHANNEL_SIZE);
 
+        // This MAY be the height the batch builder uses to rebuild its internal
+        // state, but it MAY also be a bit lower. Between this call and batch
+        // builder initialization, the channel may have produced new values
+        // which means this is only a lower bound. Luckily, that's all we need
+        // for sending tx status notifications.
+        let lower_bound_on_latest_height_notifications =
+            state_update_receiver.borrow().rollup_height;
+
+        let batch_builder = Ss::BatchBuilder::create(
+            state_update_receiver.clone(),
+            da_sync_state.clone(),
+            sequencer_db.read_all()?,
+            config,
+        )
+        .await?;
+
+        let tx_status_manager = batch_builder.tx_status_manager();
         let api_state = batch_builder.api_state();
 
-        let inner = Arc::new(Inner {
-            batch_builder: Mutex::new(batch_builder),
-            events_sender,
-            api_state,
-            sequencer_db,
-            da_service,
-            tx_status_manager,
-            automatic_batch_production,
-        });
+        let sequencer = Self {
+            inner: Arc::new(Inner {
+                batch_builder: Mutex::new(batch_builder),
+                api_state,
+                events_sender,
+                sequencer_db,
+                da_service,
+                tx_status_manager,
+            }),
+        };
 
         let background_handle = tokio::spawn({
-            let inner = inner.clone();
-            async move { sequencer_background_task::<Ss>(inner, ledger_db, shutdown_receiver).await }
+            let s = sequencer.clone();
+            let automatic_batch_production = config.automatic_batch_production;
+
+            async move {
+                s.loop_background_task(
+                    state_update_receiver,
+                    lower_bound_on_latest_height_notifications,
+                    ledger_db,
+                    shutdown_receiver,
+                    automatic_batch_production,
+                )
+                .await
+            }
         });
 
-        (Self { inner }, background_handle)
+        Ok((sequencer, background_handle))
     }
 
     /// Returns a reference to the underlying [`SequencerDb`].
@@ -179,38 +209,39 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     pub async fn submit_batch(
         &self,
         txs: Vec<<Ss::BatchBuilder as BatchBuilder>::TxInput>,
-    ) -> anyhow::Result<SubmittedBatchInfo> {
-        // Acquire the lock before any DA operation, to avoid out-of-order
-        // batches and other potential issues.
+    ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
         let mut batch_builder = self.batch_builder().await;
 
         let mut accept_tx_results = vec![];
         for tx in txs {
             let mut result = batch_builder.accept_tx(tx.clone()).await;
 
-            if let Ok(accepted) = &result {
-                for event in accepted.confirmation.events() {
-                    self.events_sender
-                        .send(SequencerEvent {
-                            tx_hash: accepted.tx_hash,
-                            event,
-                        })
-                        .ok();
-                }
+            match &result {
+                Ok(accepted) => {
+                    for event in accepted.confirmation.events() {
+                        self.events_sender
+                            .send(SequencerEvent {
+                                tx_hash: accepted.tx_hash,
+                                event,
+                            })
+                            .ok();
+                    }
 
-                let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
+                    let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
 
-                // Send notification.
-                self.tx_status_manager
-                    .notify(accepted.tx_hash, TxStatus::Submitted);
-                if let Err(e) = self.sequencer_db.insert(&stored_tx).await {
-                    error!(%e, "Database error. Failed to add transaction to batch");
-                    result = Err(AcceptTxError {
-                        http_status: 500,
-                        title: "Database Error".to_string(),
-                        details: String::new(),
-                    });
+                    // Send notification.
+                    self.tx_status_manager
+                        .notify(accepted.tx_hash, TxStatus::Submitted);
+                    if let Err(e) = self.sequencer_db.insert(&stored_tx).await {
+                        error!(%e, "Database error. Failed to add transaction to batch");
+                        result = Err(AcceptTxError {
+                            http_status: 500,
+                            title: "Database Error".to_string(),
+                            details: String::new(),
+                        });
+                    }
                 }
+                Err(_) => {}
             }
 
             accept_tx_results.push(result);
@@ -218,16 +249,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         tracing::info!("Submit batch request has been received!");
 
-        let da_height = self
-            .da_service
-            .get_head_block_header()
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to fetch current head: {}", e))?
-            .height();
-
-        self.inner
-            .build_and_send_batch(da_height, &mut batch_builder)
-            .await
+        self.inner.build_and_send_batch(&mut batch_builder).await
     }
 
     /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
@@ -293,6 +315,128 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     }
 }
 
+/// Private background loop -related code.
+impl<Ss: SequencerSpec> Sequencer<Ss> {
+    #[tracing::instrument(skip_all)]
+    async fn loop_background_task(
+        &self,
+        mut state_update_receiver: StateUpdateReceiver<
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
+        >,
+        mut lower_bound_on_latest_height_notifications: u64,
+        ledger_db: LedgerDb,
+        shutdown_receiver: tokio::sync::watch::Receiver<()>,
+        automatic_batch_production: bool,
+    ) -> anyhow::Result<()> {
+        loop {
+            let fut = future_or_shutdown(state_update_receiver.changed(), &shutdown_receiver);
+            let changed = match fut.await {
+                FutureOrShutdownOutput::Output(c) => c,
+                FutureOrShutdownOutput::Shutdown => {
+                    info!("Shutting down sequencer background task...");
+                    break;
+                }
+            };
+
+            if changed.is_err() {
+                tracing::debug!("Error in state update");
+                continue;
+            }
+
+            // Remember: we are dealing with a `watch::Receiver`, so > 1 num. of
+            // values MAY have been produced since the last time we took this
+            // code path. We MUST assume that some updates MAY be skipped (not
+            // *lost*, but *skipped* as in "superseded by a newer value").
+
+            let info = (*state_update_receiver.borrow()).clone();
+            self.handle_state_update_info(
+                info,
+                &mut lower_bound_on_latest_height_notifications,
+                &ledger_db,
+                automatic_batch_production,
+            )
+            .await?;
+        }
+
+        debug!("The background loop of the sequencer is shutting down");
+        Ok(())
+    }
+
+    async fn handle_state_update_info(
+        &self,
+        state_update_info: StateUpdateInfo<
+            <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
+        >,
+        lower_bound_on_latest_height_notifications: &mut u64,
+        ledger_db: &LedgerDb,
+        automatic_batch_production: bool,
+    ) -> anyhow::Result<()> {
+        // Update storage. It is scoped, so batch builder lock is released early.
+        let storage_rollup_height = {
+            let rollup_height = state_update_info.rollup_height;
+            let mut bb = self.batch_builder().await;
+            bb.update_state(state_update_info.clone()).await;
+            rollup_height
+        };
+
+        self.notify_processed_slots(
+            ledger_db,
+            *lower_bound_on_latest_height_notifications..=storage_rollup_height,
+        )
+        .await?;
+
+        // Now that we retrieved the latest state, we can produce and send a new batch.
+        if automatic_batch_production {
+            tracing::debug!("Producing a batch");
+            self.produce_batch().await?;
+        }
+
+        *lower_bound_on_latest_height_notifications = state_update_info.rollup_height;
+
+        Ok(())
+    }
+
+    async fn notify_processed_slots(
+        &self,
+        ledger_db: &LedgerDb,
+        rollup_height_range: impl Iterator<Item = u64>,
+    ) -> anyhow::Result<()> {
+        for rollup_height in rollup_height_range {
+            let slot = ledger_db
+                .get_slot_by_rollup_height::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
+                    rollup_height,
+                    QueryMode::Full,
+                )
+                .await?
+                .unwrap();
+            self.notify_processed_slot(slot).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn notify_processed_slot(
+        &self,
+        slot: SlotResponse<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>,
+    ) -> anyhow::Result<()> {
+        for batch in slot.batches.unwrap_or_default().iter() {
+            let ItemOrHash::Full(batch) = batch else {
+                continue;
+            };
+            for tx in batch.txs.as_deref().unwrap_or_default().iter() {
+                let ItemOrHash::Full(tx) = tx else {
+                    continue;
+                };
+
+                self.tx_status_manager
+                    .notify(TxHash::new(tx.hash), TxStatus::Processed);
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct SequencerNotReadyDetails {
     pub da_height: u64,
@@ -305,79 +449,7 @@ pub struct SequencerNotReadyDetails {
 pub struct SequencerEvent<Bb: BatchBuilder> {
     tx_hash: TxHash,
     #[serde(flatten)]
-    event: RuntimeEventResponse<<<Bb as BatchBuilder>::Confirmation as DataWithEvents>::EventInner>,
-}
-
-pub async fn sequencer_background_task<Ss: SequencerSpec>(
-    inner: Arc<Inner<Ss>>,
-    ledger_db: LedgerDb,
-    shutdown_receiver: tokio::sync::watch::Receiver<()>,
-) -> anyhow::Result<()> {
-    let mut state_update_receiver = inner.batch_builder.lock().await.state_update_receiver();
-
-    loop {
-        match future_or_shutdown(state_update_receiver.changed(), &shutdown_receiver).await {
-            FutureOrShutdownOutput::Shutdown => {
-                info!("Shutting down sequencer background task...");
-                break;
-            }
-            FutureOrShutdownOutput::Output(changed) => {
-                if changed.is_err() {
-                    tracing::debug!("Error in state update");
-                    continue;
-                }
-
-                // Update storage. It is scoped, so batch builder lock is released early.
-                let storage_rollup_height = {
-                    let state_update_info = state_update_receiver.borrow().clone();
-                    let rollup_height = state_update_info.rollup_height;
-                    let mut bb = inner.batch_builder.lock().await;
-                    bb.update_state(state_update_info).await;
-                    rollup_height
-                };
-
-                notify_processed_slot::<Ss>(inner.clone(), &ledger_db, storage_rollup_height)
-                    .await?;
-
-                // Now that we retrieved the latest state, we can produce and send a new batch.
-                if inner.automatic_batch_production {
-                    tracing::debug!("Producing a batch");
-                    inner.produce_batch().await?;
-                }
-            }
-        }
-    }
-
-    debug!("The background loop of the sequencer is shutting down");
-    Ok(())
-}
-
-async fn notify_processed_slot<Ss: SequencerSpec>(
-    inner: Arc<Inner<Ss>>,
-    ledger_db: &LedgerDb,
-    rollup_height: u64,
-) -> anyhow::Result<()> {
-    let slot = ledger_db
-        .get_slot_by_rollup_height::<Ss::BatchReceipt, Ss::TxReceipt, Ss::Event>(
-            rollup_height,
-            QueryMode::Full,
-        )
-        .await?
-        .unwrap();
-    for batch in slot.batches.unwrap_or_default().iter() {
-        let ItemOrHash::Full(batch) = batch else {
-            continue;
-        };
-        for tx in batch.txs.as_deref().unwrap_or_default().iter() {
-            let ItemOrHash::Full(tx) = tx else {
-                continue;
-            };
-
-            let tx_hash = TxHash::new(tx.hash);
-
-            inner.tx_status_manager.notify(tx_hash, TxStatus::Processed);
-        }
-    }
-
-    Ok(())
+    event: RuntimeEventResponse<
+        <<Bb as BatchBuilder>::Confirmation as SequencerConfirmation>::EventInner,
+    >,
 }

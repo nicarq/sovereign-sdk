@@ -363,7 +363,7 @@
       ],
       "properties": {
         "admin_addresses": {
-          "description": "The list of addresses which can perform admin operations on the sequencer",
+          "description": "The list of addresses that are allowed to perform admin operations on the sequencer.",
           "type": "array",
           "items": {
             "$ref": "#/definitions/Address"
@@ -383,7 +383,7 @@
           ]
         },
         "dropped_tx_ttl_secs": {
-          "description": "How many long  the sequencer keeps track of dropped transactions after being done with them.\n\nLarger values result in higher memory usage, but better tx status tracking for users.",
+          "description": "For how many seconds the sequencer keeps track of dropped transactions after being done with them.\n\nLarger values result in higher memory usage, but better tx status tracking for users.",
           "default": 60,
           "type": "integer",
           "format": "uint64",

@@ -139,7 +139,7 @@ impl CelestiaService {
 
         Ok(SubmitBlobReceipt {
             blob_hash,
-            transaction_id: tx_hash,
+            da_transaction_id: tx_hash,
         })
     }
 }

@@ -1,6 +1,5 @@
 //! See [`PreferredBatchBuilder`].
 
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -26,13 +25,13 @@ use tracing::{debug, trace, warn};
 
 use super::{
     generic_accept_tx_error, pre_exec_err_to_accept_tx_err, sender_is_allowed, tx_auth,
-    DataWithEvents, RtAwareBatchBuilderSpec,
+    RtAwareBatchBuilderSpec, SequencerConfirmation,
 };
 use crate::batch_builders::{
     AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, TxWithHash,
 };
 use crate::sequencer::SequencerNotReadyDetails;
-use crate::{SeqDbTxExtend, TxStatusManager};
+use crate::{SeqDbTxExtend, SequencerConfig, TxStatusManager};
 
 #[serde_with::serde_as]
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -47,7 +46,7 @@ pub struct Confirmation<Z: RtAwareBatchBuilderSpec> {
     receipt: TxEffect<Z::Spec>,
 }
 
-impl<Z: RtAwareBatchBuilderSpec> DataWithEvents for Confirmation<Z> {
+impl<Z: RtAwareBatchBuilderSpec> SequencerConfirmation for Confirmation<Z> {
     type EventInner = <Z::Rt as RuntimeEventProcessor>::RuntimeEvent;
 
     fn events(&self) -> Vec<RuntimeEventResponse<Self::EventInner>> {
@@ -83,7 +82,6 @@ pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
     da_sync_state: Arc<DaSyncState>,
-    last_da_height: u64,
     txs_in_next_batch: Vec<TxWithHash>,
     next_event_number: u64,
     acceptor: TxAcceptor<Z>,
@@ -160,15 +158,14 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     async fn create(
         state_update_receiver: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
         da_sync_state: Arc<DaSyncState>,
-        sequencer_address: <<Z::Spec as Spec>::Da as DaSpec>::Address,
         seq_db_txs: Vec<SeqDbTx>,
-        admin_addresses: Vec<<Self::Spec as Spec>::Address>,
-        config: &Self::Config,
-        last_event_number: u64,
+        config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<Self> {
+        let state_info = state_update_receiver.borrow().clone();
+
         let runtime: Z::Rt = Default::default();
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
-            state_update_receiver.borrow().storage.clone(),
+            state_info.storage.clone(),
             &runtime.kernel(),
         ));
         let api_state = ApiState::build(
@@ -178,26 +175,23 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
             None,
         );
 
-        let initial_checkpoint = StateCheckpoint::new(
-            state_update_receiver.borrow().storage.clone(),
-            &runtime.kernel(),
-        );
+        let initial_checkpoint =
+            StateCheckpoint::new(state_info.storage.clone(), &runtime.kernel());
 
         let mut bb = Self {
             acceptor: TxAcceptor {
                 runtime: Default::default(),
-                sequencer_address,
-                admin_addresses,
+                admin_addresses: config.admin_addresses.clone(),
+                sequencer_address: config.da_address.clone(),
             },
             state_update_receiver,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
-            last_da_height: da_sync_state.synced_da_height.load(Ordering::Acquire),
             da_sync_state,
             txs_in_next_batch: vec![],
-            next_event_number: last_event_number + 1,
-            config: config.clone(),
+            next_event_number: state_info.next_event_number,
+            config: config.batch_builder.clone(),
         };
 
         // Restore persisted transactions.
@@ -322,7 +316,6 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
     async fn build_next_batch(
         &mut self,
-        height: u64,
         sequence_number: u64,
     ) -> anyhow::Result<FreshlyBuiltBatch<Self>> {
         let (txs, hashes) = self
@@ -334,17 +327,12 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         let batch = FreshlyBuiltBatch {
             inner: PreferredBatchData {
                 data: Batch { txs },
-                virtual_slots_to_advance: height
-                    .saturating_sub(self.last_da_height)
-                    .min(1)
-                    .try_into()
-                    .unwrap_or(u8::MAX),
+                virtual_slots_to_advance: 1,
                 sequence_number,
             },
             hashes,
         };
 
-        self.last_da_height = height;
         Ok(batch)
     }
 

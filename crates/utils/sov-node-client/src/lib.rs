@@ -231,27 +231,26 @@ impl NodeClient {
         );
 
         if wait_for_processing {
-            let target_da_height: u64 = response_data
-                .da_height
-                .try_into()
-                .expect("da_height is out of range");
+            // We pick the first tx hash of the batch, any would work.
+            let tx_hash_to_wait = response_data.tx_hashes[0].clone();
             let max_waiting_time = Duration::from_secs(300);
             println!(
-                "Going to wait for target rollup height {} to be processed, up to {:?}",
-                target_da_height, max_waiting_time
+                "Going to wait for batch to be processed, up to {:?}",
+                max_waiting_time
             );
             let start_wait = Instant::now();
 
-            // Subscribe to slots only to check our batch if the slot has been published.
-            let mut slot_subscription = self.client.subscribe_slots().await?;
+            let mut subscription = self
+                .client
+                .subscribe_to_tx_status_updates(tx_hash_to_wait.parse()?)
+                .await?;
 
             while start_wait.elapsed() < max_waiting_time {
-                if let Some(latest_slot) = slot_subscription.next().await.transpose()? {
-                    if latest_slot.number >= target_da_height {
-                        println!(
-                            "Rollup has processed target DA height={}!",
-                            target_da_height
-                        );
+                if let Some(tx_info) = subscription.next().await.transpose()? {
+                    if tx_info.status == types::TxStatus::Processed
+                        || tx_info.status == types::TxStatus::Finalized
+                    {
+                        println!("Rollup has processed the submitted batch!");
                         return Ok(());
                     }
                 }

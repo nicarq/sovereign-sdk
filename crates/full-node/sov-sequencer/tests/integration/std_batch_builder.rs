@@ -171,7 +171,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
 
     let sequencer = TestSequencerSetup::<
         StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, vec![], false)
+    >::new(dir, da_service, batch_builder_config, false)
     .await
     .unwrap();
 
@@ -216,7 +216,7 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
 
     let sequencer = TestSequencerSetup::<
         StdBatchBuilder<(TestSpec, TestOptimisticRuntime<TestSpec>)>,
-    >::new(dir, da_service, batch_builder_config, vec![], true)
+    >::new(dir, da_service, batch_builder_config, true)
     .await
     .unwrap();
 

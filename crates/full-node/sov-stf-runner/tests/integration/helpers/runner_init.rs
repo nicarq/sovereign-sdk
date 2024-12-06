@@ -65,7 +65,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
-            .map(|receipt| receipt.transaction_id)
+            .map(|receipt| receipt.da_transaction_id)
     }
 
     /// Creates a DA block containing an empty transaction blob, optionally including an aggregated proof.
@@ -75,7 +75,7 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
-            .map(|receipt| receipt.transaction_id)
+            .map(|receipt| receipt.da_transaction_id)
     }
 
     /// Unlocks the prover service worker thread and completes the block proof.
@@ -174,8 +174,9 @@ pub async fn initialize_runner(
             max_allowed_blocks_behind: 5,
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
+            admin_addresses: vec![],
             da_address: da_service.da_service().sequencer_address(),
-            batch_builder: BatchBuilderConfig::standard(StdBatchBuilderConfig {
+            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
                 mempool_max_txs_count: None,
                 max_batch_size_bytes: None,
             }),

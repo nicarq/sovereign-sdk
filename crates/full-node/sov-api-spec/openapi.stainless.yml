@@ -71,7 +71,7 @@ resources:
         methods:
           create: post /sequencer/batches
         models:
-          submittedBatchInfo: SubmittedBatchInfo
+          submittedBatchInfo: SubmitBatchReceipt
       txs:
         methods:
           create: post /sequencer/txs
