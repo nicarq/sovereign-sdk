@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 2,
+  "id": 1,
   "links": [],
   "panels": [
     {
@@ -1705,7 +1705,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1800,7 +1801,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1895,7 +1897,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2000,7 +2003,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2092,7 +2096,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -2145,8 +2150,8 @@
       {
         "current": {
           "selected": false,
-          "text": "InfluxDb",
-          "value": "provisioned_influxdb_sov"
+          "text": "influxdb-private",
+          "value": "de63rb7w3y1oga"
         },
         "hide": 0,
         "includeAll": false,
@@ -2277,13 +2282,11 @@
         "description": "Bucket where rollup metrics are placed. Should not start with underscore",
         "hide": 0,
         "includeAll": false,
-        "label": "bucket",
+        "label": "Bucket",
         "multi": false,
         "name": "bucket",
         "options": [],
-        "query": {
-          "query": "buckets()"
-        },
+        "query": "buckets()",
         "refresh": 1,
         "regex": "^[^_].*",
         "skipUrlSync": false,
@@ -2300,6 +2303,6 @@
   "timezone": "browser",
   "title": "Sovereign Rollup Dashboard: Influx",
   "uid": "sov_rollup_dashboard_influx",
-  "version": 1,
+  "version": 2,
   "weekStart": ""
 }
