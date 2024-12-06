@@ -6,19 +6,18 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use derivative::Derivative;
-use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::prelude::{arbitrary, tokio};
 use sov_modules_api::{DispatchCall, EncodeCall, PrivateKey, Spec};
 use sov_modules_stf_blueprint::Runtime;
 
-use super::bank::{BankAccount, BankChangeLogEntry, BankMessageGenerator, Tag as BankTag};
+use super::bank::{BankChangeLogEntry, BankMessageGenerator, Tag as BankTag};
 use super::value_setter::{Tag as ValueSetterTag, ValueSetterMessageGenerator};
-use crate::generators::value_setter::{ValueSetterAccount, ValueSetterChangeLogEntry};
+use crate::generators::value_setter::ValueSetterChangeLogEntry;
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, GeneratorState, GeneratorStateMapper,
-    MessageValidity, Percent,
+    MessageValidity,
 };
-use crate::state::{AccountState, AccountStateView};
+use crate::state::AccountState;
 
 /// Generates call messages for the most widely used modules generically.
 ///
@@ -26,7 +25,9 @@ use crate::state::{AccountState, AccountStateView};
 /// may instantiate multiple generators and run them in parallel so long as the initial
 /// states of the generators are fully disjoin.
 pub struct BasicCallMessageGenerator<RT, S: Spec, Acct = ()> {
-    config: BasicCallMessageGeneratorConfig<S>,
+    /// Controls the relative frequency of messages from each supported module.
+    pub module_distribution: Distribution<{ SUPPORTED_MODULES.len() }>,
+
     bank: BankMessageGenerator<S>,
     value_setter: ValueSetterMessageGenerator<S>,
 
@@ -38,132 +39,61 @@ impl<RT: EncodeCall<sov_bank::Bank<S>>, S: Spec, Acct> BasicCallMessageGenerator
     /// Instantiate a new [`BasicCallMessageGenerator`] with the given
     /// subset of state.
     pub fn new(
-        config: BasicCallMessageGeneratorConfig<S>,
+        module_distribution: Distribution<{ SUPPORTED_MODULES.len() }>,
         bank_generator: BankMessageGenerator<S>,
         value_setter_generator: ValueSetterMessageGenerator<S>,
     ) -> Self {
         Self {
-            config,
+            module_distribution,
             bank: bank_generator,
             value_setter: value_setter_generator,
             phantom: PhantomData,
         }
     }
 
-    /// Generate an initial `CreateToken` message to get the generator into a usable state.
-    pub fn generate_initial_token(
-        &mut self,
-        u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = AccountStateView<S, Tag<S>, Acct>,
-            Tag = Tag<S>,
-        >,
-    ) -> GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>> {
-        self.bank.address_creation_rate = Percent::one_hundred();
-        let GeneratedMessage {
-            message,
-            sender,
-            changes,
-        } = self
-            .bank
-            .generate_valid_create_token(
-                u,
-                &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
-            )
-            .expect("Valid token creation can't fail");
-        self.bank.address_creation_rate = self.config.bank.address_creation_rate;
-        GeneratedMessage {
-            message: <RT as EncodeCall<sov_bank::Bank<S>>>::to_decodable(message),
-            sender,
-            changes: changes.into_iter().map(Into::into).collect(),
-        }
-    }
-
     /// Add a value setter admin account to the generator state
     pub fn add_value_setter_admin(
         &self,
-        value_setter_admin: AccountState<S, Acct>,
+        value_setter_admin: AccountState<S, Tag, Acct>,
         generator_state: &mut impl GeneratorState<
             S,
-            AccountView = AccountStateView<S, Tag<S>, Acct>,
-            Tag = Tag<S>,
+            AccountView = AccountState<S, Tag, Acct>,
+            Tag = Tag,
         >,
     ) where
         Acct: Clone,
     {
         generator_state.update_account(
             &S::Address::from(&value_setter_admin.private_key.pub_key()),
-            (&value_setter_admin).into(),
+            value_setter_admin,
         );
     }
 }
 
 /// The set of tags supported by the [`BasicCallMessageGenerator`].
 // TODO: Macro generate all of this
-#[derive(Clone, Copy, Derivative, Debug)]
+#[derive(Clone, Copy, Derivative, Debug, derive_more::From)]
 #[derivative(PartialEq, Eq, Hash)]
-#[derivative(PartialEq(bound = "S: Spec"))]
-#[derivative(Eq(bound = "S: Spec"))]
-#[derivative(Hash(bound = "S: Spec"))]
-pub enum Tag<S: Spec> {
+pub enum Tag {
     /// Tags for the bank module
-    Bank(<BankMessageGenerator<S> as CallMessageGenerator<S>>::Tag),
+    Bank(BankTag),
     /// Tags for the value setter module
-    ValueSetter(<ValueSetterMessageGenerator<S> as CallMessageGenerator<S>>::Tag),
-}
-
-impl<S: Spec> From<BankTag> for Tag<S> {
-    fn from(value: BankTag) -> Self {
-        Self::Bank(value)
-    }
-}
-
-impl<S: Spec> From<ValueSetterTag> for Tag<S> {
-    fn from(value: ValueSetterTag) -> Self {
-        Self::ValueSetter(value)
-    }
+    ValueSetter(ValueSetterTag),
 }
 
 /// The set of change log entries supported by the [`BasicCallMessageGenerator`].
-#[derive(Clone, Debug, strum::EnumDiscriminants)]
+#[derive(Clone, Debug, strum::EnumDiscriminants, derive_more::From)]
 #[strum_discriminants(name(SupportedModules))]
 pub enum BasicChangelogEntry<S: Spec> {
     /// Changes from the bank module
-    Bank(<BankMessageGenerator<S> as CallMessageGenerator<S>>::ChangelogEntry),
+    Bank(BankChangeLogEntry<S>),
     /// Changes from the value setter module
-    ValueSetter(<ValueSetterMessageGenerator<S> as CallMessageGenerator<S>>::ChangelogEntry),
-}
-
-impl<S: Spec> From<BankChangeLogEntry<S>> for BasicChangelogEntry<S> {
-    fn from(value: BankChangeLogEntry<S>) -> Self {
-        Self::Bank(value)
-    }
-}
-
-impl<S: Spec> From<ValueSetterChangeLogEntry> for BasicChangelogEntry<S> {
-    fn from(value: ValueSetterChangeLogEntry) -> Self {
-        Self::ValueSetter(value)
-    }
+    ValueSetter(ValueSetterChangeLogEntry),
 }
 
 /// The list of modules supported by the [`BasicCallMessageGenerator`].
 pub const SUPPORTED_MODULES: &[SupportedModules] =
     &[SupportedModules::Bank, SupportedModules::ValueSetter];
-
-/// Configuratino of a [`BasicCallMessageGenerator`].
-#[derive(Clone, Debug)]
-pub struct BasicCallMessageGeneratorConfig<S: Spec>
-where
-    BankMessageGenerator<S>: CallMessageGenerator<S>,
-{
-    /// Controls the relative frequency of messages from each supported module.
-    pub module_distribution: Distribution<{ SUPPORTED_MODULES.len() }>,
-    /// Configuration for the bank module.
-    pub bank: <BankMessageGenerator<S> as CallMessageGenerator<S>>::Config,
-    /// Configuration for the value setter module.
-    pub value_setter: <ValueSetterMessageGenerator<S> as CallMessageGenerator<S>>::Config,
-}
 
 /// The basic configuration for any rollup http client.
 #[derive(Debug, Clone)]
@@ -174,63 +104,70 @@ pub struct BasicClientConfig {
     pub rollup_height: Option<u64>,
 }
 
-#[async_trait]
-impl<RT: Runtime<S>, S: Spec, BonusAcctData: Debug + Clone> CallMessageGenerator<S>
-    for BasicCallMessageGenerator<RT, S, BonusAcctData>
+impl<RT: Runtime<S>, S: Spec, BonusAcctData: Debug + Clone>
+    BasicCallMessageGenerator<RT, S, BonusAcctData>
 where
-    Self: Send + Sync + 'static,
-    AccountState<S, BonusAcctData>: Clone + std::fmt::Debug,
     RT: EncodeCall<sov_bank::Bank<S>> + EncodeCall<sov_value_setter::ValueSetter<S>>,
-    BankMessageGenerator<S>: CallMessageGenerator<
-        S,
-        RollupStateReader: From<Arc<BasicClientConfig>>,
-        CallMessage = sov_bank::CallMessage<S>,
-        AccountView = BankAccount<S>,
-        Tag = BankTag,
-        ChangelogEntry: Into<BasicChangelogEntry<S>>,
-    >,
-    ValueSetterMessageGenerator<S>: CallMessageGenerator<
-        S,
-        RollupStateReader: From<Arc<BasicClientConfig>>,
-        CallMessage = sov_value_setter::CallMessage,
-        AccountView = ValueSetterAccount<S>,
-        Tag = ValueSetterTag,
-        ChangelogEntry: Into<BasicChangelogEntry<S>>,
-    >,
 {
-    type CallMessage = <RT as DispatchCall>::Decodable;
+    /// Generate call messages needed to properly setup the generator.
+    #[allow(clippy::type_complexity)]
+    pub fn generate_setup_messages(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<
+            S,
+            AccountView = AccountState<S, Tag, BonusAcctData>,
+            Tag = Tag,
+        >,
+    ) -> arbitrary::Result<
+        Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>>>,
+    > {
+        let bank = self
+            .bank
+            .generate_setup_messages(
+                u,
+                &mut GeneratorStateMapper::<_, _, BankTag>::new(generator_state),
+            )?
+            .into_iter()
+            .map(|m| GeneratedMessage {
+                message: <RT as EncodeCall<sov_bank::Bank<S>>>::to_decodable(m.message),
+                sender: m.sender,
+                changes: m.changes.into_iter().map(Into::into).collect(),
+            });
 
-    type Tag = Tag<S>;
+        let value_setter = self
+            .value_setter
+            .generate_setup_messages(
+                u,
+                &mut GeneratorStateMapper::<_, _, ValueSetterTag>::new(generator_state),
+            )?
+            .into_iter()
+            .map(|m| GeneratedMessage {
+                message: <RT as EncodeCall<sov_value_setter::ValueSetter<S>>>::to_decodable(
+                    m.message,
+                ),
+                sender: m.sender,
+                changes: m.changes.into_iter().map(Into::into).collect(),
+            });
 
-    type AccountView = AccountStateView<S, Tag<S>, BonusAcctData>;
-
-    type RollupStateReader = BasicClientConfig;
-
-    type ChangelogEntry = BasicChangelogEntry<S>;
-
-    type Config = BasicCallMessageGeneratorConfig<S>;
-
-    fn set_config(&mut self, config: Self::Config) {
-        self.bank.set_config(config.bank);
+        Ok(bank.chain(value_setter).collect())
     }
 
-    // We need to apply Bank state to G::State if AccountState; Apply<To> G::State
-    fn generate_call_message(
+    /// Generates a call message for the modules supported by this generator.
+    pub fn generate_call_message(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<
             S,
-            AccountView = AccountStateView<S, Tag<S>, BonusAcctData>,
-            Tag = Self::Tag,
+            AccountView = AccountState<S, Tag, BonusAcctData>,
+            Tag = Tag,
         >,
         validity: MessageValidity,
-    ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, Self::ChangelogEntry>>
-    {
-        let module = *self
-            .config
-            .module_distribution
-            .select_from(SUPPORTED_MODULES, u)?;
-        let GeneratedMessage::<S, <RT as DispatchCall>::Decodable, _> {
+    ) -> arbitrary::Result<
+        GeneratedMessage<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>>,
+    > {
+        let module = *self.module_distribution.select_from(SUPPORTED_MODULES, u)?;
+        let GeneratedMessage::<S, <RT as DispatchCall>::Decodable, BasicChangelogEntry<S>> {
             message,
             sender,
             changes,
@@ -282,18 +219,11 @@ where
         })
     }
 
-    fn assert_full_state(
+    /// Assert an incremental change of state of the rollup.
+    pub async fn assert_incremental_state(
         &self,
-        _rollup_state_accessor: &Self::RollupStateReader,
-        _generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView>,
-    ) -> Result<(), anyhow::Error> {
-        todo!()
-    }
-
-    async fn assert_incremental_state(
-        &self,
-        rollup_state_accessor: Self::RollupStateReader,
-        changes: Vec<Self::ChangelogEntry>,
+        rollup_state_accessor: BasicClientConfig,
+        changes: Vec<BasicChangelogEntry<S>>,
     ) -> Result<(), anyhow::Error> {
         // TODO: Add other module changes here
         let mut bank_changes = vec![];
@@ -313,7 +243,7 @@ where
 
         joinset.spawn(async move {
             bank_generator
-                .assert_incremental_state(accessor_cloned.into(), bank_changes)
+                .assert_state(accessor_cloned.into(), bank_changes)
                 .await
                 .unwrap_or_else(|e| {
                     panic!("Bank module failed to assert incremental state: {}", e)
@@ -325,7 +255,7 @@ where
 
         joinset.spawn(async move {
             value_setter_generator
-                .assert_incremental_state(accessor_cloned.into(), value_setter_changes)
+                .assert_state(accessor_cloned.into(), value_setter_changes)
                 .await
                 .unwrap_or_else(|e| {
                     panic!(

@@ -12,18 +12,15 @@ use sov_test_utils::{
     generate_runtime, TestSequencer, TestSpec as S, TestUser, TransactionTestCase, TransactionType,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
-use sov_transaction_generator::generators::bank::{
-    BankMessageGenerator, BankMessageGeneratorConfig,
-};
+use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
-    BasicCallMessageGenerator, BasicCallMessageGeneratorConfig, BasicChangelogEntry,
-    BasicClientConfig, Tag as BasicTag,
+    BasicCallMessageGenerator, BasicChangelogEntry, BasicClientConfig, Tag as BasicTag,
 };
 use sov_transaction_generator::generators::value_setter::{
-    Tag as ValueSetterTag, ValueSetterGeneratorConfig, ValueSetterMessageGenerator,
+    Tag as ValueSetterTag, ValueSetterMessageGenerator,
 };
 use sov_transaction_generator::interface::{
-    CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent,
+    Distribution, GeneratedMessage, MessageValidity, Percent,
 };
 use sov_transaction_generator::state::{AccountState, State};
 use sov_value_setter::{
@@ -52,7 +49,7 @@ pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
 
 pub struct TestGenerator {
     generator: Generator,
-    state: State<S, Generator>,
+    state: State<S>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
     target_buffer_size: usize,
@@ -108,51 +105,45 @@ fn do_test(
     max_value_setter_vec_len: usize,
 ) -> TestGenerator {
     use sov_bank::CallMessageDiscriminants::*;
-    let bank_config = BankMessageGeneratorConfig {
-        message_distribution: Distribution::with_equiprobable_values([
-            Transfer,
-            Transfer,
-            Transfer,
-            Mint,
-            CreateToken,
-        ]),
+    let bank_generator = BankMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values([Transfer, Transfer, Transfer, Mint, CreateToken]),
         address_creation_rate,
-    };
-    let bank_generator = BankMessageGenerator::<S>::from_config(bank_config.clone());
+    );
 
-    let value_setter_config = ValueSetterGeneratorConfig::<S> {
-        message_distribution: Distribution::with_equiprobable_values([
+    let value_setter_generator = ValueSetterMessageGenerator::<S>::new(
+        Distribution::with_equiprobable_values([
             ValueSetterDiscriminants::SetValue,
             ValueSetterDiscriminants::SetManyValues,
         ]),
-        maximum_vec_length: max_value_setter_vec_len,
-        phantom: Default::default(),
-    };
-    let value_setter_generator =
-        ValueSetterMessageGenerator::<S>::from_config(value_setter_config.clone());
+        max_value_setter_vec_len,
+    );
 
-    let config = BasicCallMessageGeneratorConfig {
-        module_distribution: Distribution::equiprobable(),
-        bank: bank_config,
-        value_setter: value_setter_config,
-    };
-    let mut generator = Generator::new(config, bank_generator, value_setter_generator);
+    let mut generator = Generator::new(
+        Distribution::equiprobable(),
+        bank_generator,
+        value_setter_generator,
+    );
 
     // Synchronizes the state with the value setter module
-    let mut state: State<S, Generator> = State::with_account_and_tags(
+    let mut state: State<S> = State::with_account_and_tags(
         AccountState {
             private_key: admin.private_key.clone(),
             balances: vec![],
             can_mint: Default::default(),
             sequencing_bond: None,
             additional_info: Default::default(),
+            tag_changes: Default::default(),
         },
         vec![BasicTag::ValueSetter(ValueSetterTag::IsAdmin)],
     );
 
     let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
-    let initial_tx = generator.generate_initial_token(u, &mut state);
+    let initial_tx = generator
+        .generate_setup_messages(u, &mut state)
+        .expect("Failed to generate setup messages.")
+        .pop()
+        .unwrap();
     let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,

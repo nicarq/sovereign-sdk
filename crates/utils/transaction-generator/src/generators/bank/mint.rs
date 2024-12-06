@@ -150,11 +150,13 @@ impl<S: Spec> BankMessageGenerator<S> {
                 u,
             )?;
             let changes = vec![
-                BankChangeLogEntry::balance_changed(
-                    recipient_addr.clone(),
-                    token_id,
-                    recipient_balance,
-                ),
+                BankChangeLogEntry::BalanceChanged {
+                    address: recipient_addr.clone(),
+                    coins: Coins {
+                        token_id,
+                        amount: recipient_balance,
+                    },
+                },
                 mint_change,
             ];
 
@@ -189,6 +191,9 @@ impl<S: Spec> BankMessageGenerator<S> {
         old_token_info.total_supply = new_supply;
         state.update_token(token_id, old_token_info);
 
-        Ok(BankChangeLogEntry::supply_changed(token_id, new_supply))
+        Ok(BankChangeLogEntry::SupplyChanged {
+            token_id,
+            total_supply: new_supply,
+        })
     }
 }

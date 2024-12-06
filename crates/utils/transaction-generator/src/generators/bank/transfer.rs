@@ -127,12 +127,20 @@ impl<S: Spec> BankMessageGenerator<S> {
         generator_state.update_account(&to_addr, to_account);
         generator_state.update_account(&from_addr, from_account);
         let changelog_entries = vec![
-            BankChangeLogEntry::balance_changed(
-                from_addr.clone(),
-                token_id,
-                remaining_from_balance,
-            ),
-            BankChangeLogEntry::balance_changed(to_addr, token_id, receiver_balance),
+            BankChangeLogEntry::BalanceChanged {
+                address: from_addr.clone(),
+                coins: Coins {
+                    token_id,
+                    amount: remaining_from_balance,
+                },
+            },
+            BankChangeLogEntry::BalanceChanged {
+                address: to_addr,
+                coins: Coins {
+                    token_id,
+                    amount: receiver_balance,
+                },
+            },
         ];
 
         // Finally, return the generated message

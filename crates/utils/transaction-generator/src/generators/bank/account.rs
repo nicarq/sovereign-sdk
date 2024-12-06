@@ -7,7 +7,7 @@ use sov_modules_api::{CryptoSpec, Spec};
 
 use super::Tag;
 use crate::interface::{PickRandom, TagAction, Taggable};
-use crate::state::{AccountState, AccountStateView, ApplyTo};
+use crate::state::{AccountState, ApplyTo};
 
 /// The view of an account used by the bank message generator
 #[derive(Clone, Debug)]
@@ -20,6 +20,31 @@ pub struct BankAccount<S: Spec> {
     pub(crate) can_mint: IndexSet<TokenId>,
 
     pub(crate) tag_changes: Vec<TagAction<Tag>>,
+}
+
+impl<S: Spec, Tag, T> From<AccountState<S, Tag, T>> for BankAccount<S> {
+    fn from(value: AccountState<S, Tag, T>) -> BankAccount<S> {
+        BankAccount {
+            private_key: value.private_key,
+            balances: value.balances,
+            can_mint: value.can_mint,
+            tag_changes: Default::default(),
+        }
+    }
+}
+
+impl<S: Spec, T: From<Tag>, Data> ApplyTo<AccountState<S, T, Data>> for BankAccount<S> {
+    fn apply_to(self, state: &mut AccountState<S, T, Data>) {
+        state.balances = self.balances;
+        state.can_mint = self.can_mint;
+
+        let tags = self
+            .tag_changes
+            .into_iter()
+            .map(|t| t.map(Into::into))
+            .collect();
+        state.tag_changes = tags;
+    }
 }
 
 impl<S: Spec> Taggable for BankAccount<S> {
@@ -165,51 +190,5 @@ impl<S: Spec> BankAccount<S> {
             .balances
             .get_mut(idx)
             .expect("We just checked that the entry was present.");
-    }
-}
-
-impl<S: Spec, T> From<&AccountState<S, T>> for BankAccount<S> {
-    fn from(value: &AccountState<S, T>) -> BankAccount<S> {
-        BankAccount {
-            private_key: value.private_key.clone(),
-            balances: value.balances.clone(),
-            can_mint: value.can_mint.clone(),
-            tag_changes: Default::default(),
-        }
-    }
-}
-
-impl<S: Spec, Tag, Data> From<&AccountStateView<S, Tag, Data>> for BankAccount<S> {
-    fn from(value: &AccountStateView<S, Tag, Data>) -> BankAccount<S> {
-        BankAccount {
-            private_key: value
-                .private_key
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-            balances: value
-                .balances
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-            can_mint: value
-                .can_mint
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-            tag_changes: Default::default(),
-        }
-    }
-}
-
-impl<S: Spec, Tag: From<super::Tag>, Data> ApplyTo<AccountStateView<S, Tag, Data>>
-    for BankAccount<S>
-{
-    fn apply_to(self, account: &mut AccountStateView<S, Tag, Data>) {
-        account.balances = Some(self.balances);
-        account.can_mint = Some(self.can_mint);
-        account
-            .tag_changes
-            .extend(self.tag_changes.into_iter().map(|t| t.map(Into::into)));
     }
 }

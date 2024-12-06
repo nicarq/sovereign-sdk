@@ -11,12 +11,11 @@ use sov_modules_api::{CryptoSpec, Spec};
 use sov_value_setter::{CallMessage, CallMessageDiscriminants};
 use strum::VariantArray;
 
-use crate::generators::basic::Tag as BasicTag;
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent, Taggable,
 };
 use crate::repeatedly;
-use crate::state::{AccountState, AccountStateView, ApplyTo};
+use crate::state::{AccountState, ApplyTo};
 
 mod http;
 
@@ -37,30 +36,16 @@ pub struct ValueSetterAccount<S: Spec> {
     pub(crate) private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
 }
 
-impl<S: Spec, Tag: From<BasicTag<S>>, Data> ApplyTo<AccountStateView<S, Tag, Data>>
-    for ValueSetterAccount<S>
-{
-    fn apply_to(self, _account: &mut AccountStateView<S, Tag, Data>) {}
-}
-
-impl<S: Spec, T> From<&AccountState<S, T>> for ValueSetterAccount<S> {
-    fn from(value: &AccountState<S, T>) -> ValueSetterAccount<S> {
+impl<S: Spec, T: From<Tag>, Data> From<AccountState<S, T, Data>> for ValueSetterAccount<S> {
+    fn from(value: AccountState<S, T, Data>) -> ValueSetterAccount<S> {
         ValueSetterAccount {
-            private_key: value.private_key.clone(),
+            private_key: value.private_key,
         }
     }
 }
 
-impl<S: Spec, Tag, Data> From<&AccountStateView<S, Tag, Data>> for ValueSetterAccount<S> {
-    fn from(value: &AccountStateView<S, Tag, Data>) -> ValueSetterAccount<S> {
-        ValueSetterAccount {
-            private_key: value
-                .private_key
-                .as_ref()
-                .expect("Cannot construct bank account from empty account view")
-                .clone(),
-        }
-    }
+impl<S: Spec, T: From<Tag>, Data> ApplyTo<AccountState<S, T, Data>> for ValueSetterAccount<S> {
+    fn apply_to(self, _account: &mut AccountState<S, T, Data>) {}
 }
 
 impl<S: Spec> Taggable for ValueSetterAccount<S> {
@@ -89,25 +74,17 @@ pub struct ValueSetterMessageGenerator<S: Spec> {
 }
 
 impl<S: Spec> ValueSetterMessageGenerator<S> {
-    /// Creates a new [`ValueSetterMessageGenerator`] from a [`ValueSetterGeneratorConfig`]
-    pub fn from_config(config: ValueSetterGeneratorConfig<S>) -> Self {
+    /// Creates a new [`ValueSetterMessageGenerator`]
+    pub fn new(
+        message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+        maximum_vec_length: usize,
+    ) -> Self {
         Self {
-            message_distribution: config.message_distribution,
-            maximum_vec_length: config.maximum_vec_length,
-            phantom: Default::default(),
+            message_distribution,
+            maximum_vec_length,
+            phantom: PhantomData,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-/// The configuration of a value setter generator
-pub struct ValueSetterGeneratorConfig<S: Spec> {
-    /// The distribution of message types
-    pub message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
-    /// The maximum length of a `SetManyValues` message
-    pub maximum_vec_length: usize,
-    /// The phantom type
-    pub phantom: PhantomData<S>,
 }
 
 /// A complete description of any possible state change created by the [`ValueSetterMessageGenerator`].
@@ -135,13 +112,20 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
 
     type Tag = Tag;
 
-    type Config = ValueSetterGeneratorConfig<S>;
-
     type RollupStateReader = HttpValueSetterClient<S>;
 
-    fn set_config(&mut self, config: Self::Config) {
-        self.message_distribution = config.message_distribution;
-        self.maximum_vec_length = config.maximum_vec_length;
+    fn generate_setup_messages(
+        &mut self,
+        _u: &mut sov_modules_api::prelude::arbitrary::Unstructured<'_>,
+        _generator_state: &mut impl crate::interface::GeneratorState<
+            S,
+            AccountView = Self::AccountView,
+            Tag = Self::Tag,
+        >,
+    ) -> arbitrary::Result<
+        Vec<crate::interface::GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>,
+    > {
+        Ok(vec![])
     }
 
     fn generate_call_message(
@@ -179,19 +163,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         }
     }
 
-    fn assert_full_state(
-        &self,
-        _rollup_state_accessor: &Self::RollupStateReader,
-        _generator_state: &mut impl crate::interface::GeneratorState<
-            S,
-            AccountView = Self::AccountView,
-            Tag = Self::Tag,
-        >,
-    ) -> Result<(), anyhow::Error> {
-        todo!()
-    }
-
-    async fn assert_incremental_state(
+    async fn assert_state(
         &self,
         rollup_state_accessor: Self::RollupStateReader,
         changes: Vec<Self::ChangelogEntry>,
