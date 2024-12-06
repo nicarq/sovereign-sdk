@@ -1,4 +1,4 @@
-use sov_bank::{Bank, CallMessage, Coins};
+use sov_bank::{Bank, CallMessage, Coins, TokenId};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Error, SafeVec, TxEffect};
 use sov_test_utils::{AsUser, TransactionTestCase};
@@ -229,4 +229,84 @@ fn mint_token_total_supply_overflow() {
             }
         }),
     });
+}
+
+#[test]
+fn test_mint_token_fails_if_token_doesnt_exist() {
+    let (
+        TestData {
+            user_high_token_balance: unauthorized_minter,
+            ..
+        },
+        mut runner,
+    ) = setup();
+    let invalid_token_id = TokenId::generate::<S>("invalid");
+
+    runner.execute_transaction(TransactionTestCase {
+        input: unauthorized_minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
+            coins: Coins {
+                amount: 50,
+                token_id: invalid_token_id,
+            },
+            mint_to_address: unauthorized_minter.address(),
+        }),
+        assert: Box::new(move |result, _state| {
+            if let TxEffect::Reverted(contents) = result.tx_receipt {
+                let Error::ModuleError(err) = contents.reason;
+                let mut chain = err.chain();
+                let message_1 = chain.next().unwrap().to_string();
+                assert_eq!(
+                    message_1,
+                    format!("Failed to get token_id={}", invalid_token_id)
+                );
+            } else {
+                panic!("The transaction should have failed");
+            }
+        }),
+    });
+}
+
+#[test]
+fn test_mint_token_fails_if_token_is_frozen() {
+    let (
+        TestData {
+            token_id,
+            token_name,
+            minter,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    runner
+        .execute_transaction(TransactionTestCase {
+            input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Freeze { token_id }),
+            assert: Box::new(move |result, _state| {
+                assert!(result.tx_receipt.is_successful());
+            }),
+        })
+        .execute_transaction(TransactionTestCase {
+            input: minter.create_plain_message::<RT, Bank<S>>(CallMessage::Mint {
+                coins: Coins {
+                    amount: 50,
+                    token_id,
+                },
+                mint_to_address: minter.address(),
+            }),
+            assert: Box::new(move |result, _state| {
+                if let TxEffect::Reverted(contents) = result.tx_receipt {
+                    let Error::ModuleError(err) = contents.reason;
+                    let mut chain = err.chain();
+                    let message_1 = chain.next().unwrap().to_string();
+                    let message_2 = chain.next().unwrap().to_string();
+                    assert_eq!(message_1, format!("Failed to mint token_id={}", token_id));
+                    assert_eq!(
+                        message_2,
+                        format!("Attempt to mint frozen token {}", token_name)
+                    );
+                } else {
+                    panic!("The transaction should have failed");
+                }
+            }),
+        });
 }
