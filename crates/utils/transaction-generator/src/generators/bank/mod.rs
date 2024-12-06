@@ -9,6 +9,7 @@ use sov_modules_api::prelude::{arbitrary, tokio};
 use sov_modules_api::Spec;
 use strum::VariantArray;
 use tracing::warn;
+
 mod mint;
 mod query;
 pub use query::http::HttpBankClient;
@@ -36,17 +37,6 @@ pub struct BankMessageGenerator<S> {
     phantom: PhantomData<S>,
 }
 
-/// Configuration for the [`BankMessageGenerator`]
-#[derive(Debug, Clone)]
-pub struct BankMessageGeneratorConfig {
-    /// The distribution of messages to generate
-    pub message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
-    /// The fraction of valid callmessages which should generate new addresses. This parameter
-    /// is used on a best-effort basis; if some kind of call message cannot create a new address,
-    /// the actual percentage will be less than requested.
-    pub address_creation_rate: Percent,
-}
-
 impl<S: Spec> BankMessageGenerator<S> {
     /// Instantiate a new [`BankMessageGenerator`]
     pub fn new(
@@ -58,11 +48,6 @@ impl<S: Spec> BankMessageGenerator<S> {
             address_creation_rate,
             phantom: PhantomData,
         }
-    }
-
-    /// Instantiate a new [`BankMessageGenerator`] from the provided config
-    pub fn from_config(config: BankMessageGeneratorConfig) -> Self {
-        Self::new(config.message_distribution, config.address_creation_rate)
     }
 
     /// Performs callmessage generation, falling back to variants that are more likely to succeed with limited state
@@ -166,27 +151,6 @@ pub enum BankChangeLogEntry<S: Spec> {
     },
 }
 
-impl<S: Spec> BankChangeLogEntry<S> {
-    /// Creates a `BalanceChanged` [`BankChangeLogEntry`] and returns it
-    pub fn balance_changed(address: S::Address, token_id: TokenId, new_balance: u64) -> Self {
-        Self::BalanceChanged {
-            address,
-            coins: Coins {
-                amount: new_balance,
-                token_id,
-            },
-        }
-    }
-
-    /// Creates a [`BankChangeLogEntry::SupplyChanged`] and returns it
-    pub fn supply_changed(token_id: TokenId, total_supply: Amount) -> Self {
-        Self::SupplyChanged {
-            token_id,
-            total_supply,
-        }
-    }
-}
-
 #[async_trait]
 impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     type CallMessage = sov_bank::CallMessage<S>;
@@ -199,11 +163,28 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
     type ChangelogEntry = BankChangeLogEntry<S>;
 
-    type Config = BankMessageGeneratorConfig;
+    fn generate_setup_messages(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+    ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>> {
+        let config_address_creation_rate = self.address_creation_rate;
 
-    fn set_config(&mut self, config: Self::Config) {
-        self.message_distribution = config.message_distribution;
-        self.address_creation_rate = config.address_creation_rate;
+        self.address_creation_rate = Percent::one_hundred();
+        let GeneratedMessage {
+            message,
+            sender,
+            changes,
+        } = self
+            .generate_valid_create_token(u, generator_state)
+            .expect("Valid token creation can't fail");
+        self.address_creation_rate = config_address_creation_rate;
+
+        Ok(vec![GeneratedMessage {
+            message,
+            sender,
+            changes: changes.into_iter().map(Into::into).collect(),
+        }])
     }
 
     fn generate_call_message(
@@ -218,15 +199,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
             .expect("Could not generate bank callmessage")
     }
 
-    fn assert_full_state(
-        &self,
-        _rollup_state_accessor: &Self::RollupStateReader,
-        _generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView>,
-    ) -> Result<(), anyhow::Error> {
-        todo!()
-    }
-
-    async fn assert_incremental_state(
+    async fn assert_state(
         &self,
         rollup_state_accessor: Self::RollupStateReader,
         changes: Vec<Self::ChangelogEntry>,

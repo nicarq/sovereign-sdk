@@ -267,6 +267,7 @@ pub trait GeneratorState<S: Spec> {
     ) -> arbitrary::Result<(TokenId, TokenInfo)>;
 
     /// Updates the given account to match the provided view.
+    /// If the account for the provided address does not exist, it is created from the provided view.
     fn update_account(&mut self, address: &S::Address, view: Self::AccountView);
 
     /// Generates an empty account and returns it.
@@ -314,18 +315,14 @@ impl<'a, Source, Acct, Tag> GeneratorStateMapper<'a, Source, Acct, Tag> {
     }
 }
 
-/// A marker trait indicating that the `Default` implementation of a trait
-/// corresponds to no change when applied to an Account
-pub trait DefaultEmpty: Default {}
-
-impl<'a, Source: GeneratorState<S, AccountView: DefaultEmpty>, Acct, Tag, S: Spec> GeneratorState<S>
+impl<'a, Source: GeneratorState<S>, Acct, Tag, S: Spec> GeneratorState<S>
     for GeneratorStateMapper<'a, Source, Acct, Tag>
 where
-    Acct: for<'acct> From<&'acct Source::AccountView>
-        + ApplyTo<Source::AccountView>
-        + Taggable<Tag = Tag>
+    Acct: Taggable<Tag = Tag>
         + Debug
-        + Clone,
+        + Clone
+        + From<Source::AccountView>
+        + ApplyTo<Source::AccountView>,
 
     Tag: Into<Source::Tag> + Eq + Hash + Debug + Clone,
 {
@@ -334,13 +331,13 @@ where
     type Tag = Tag;
 
     fn get_account(&self, address: &S::Address) -> Option<Self::AccountView> {
-        self.0.get_account(address).map(|acct| (&acct).into())
+        self.0.get_account(address).map(|acct| acct.into())
     }
 
     fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView> {
         self.0
             .get_account_with_tag(tag.into())
-            .map(|acct| (&acct).into())
+            .map(|acct| acct.into())
     }
 
     fn get_random_existing_account(
@@ -349,7 +346,7 @@ where
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
         self.0
             .get_random_existing_account(u)
-            .map(|(addr, acct)| (addr, (&acct).into()))
+            .map(|(addr, acct)| (addr, acct.into()))
     }
 
     fn get_random_existing_account_with_tag(
@@ -360,14 +357,17 @@ where
         Ok(self
             .0
             .get_random_existing_account_with_tag(tag.into(), u)?
-            .map(|(addr, acct)| (addr, (&acct).into())))
+            .map(|(addr, acct)| (addr, acct.into())))
     }
 
     fn update_account(&mut self, address: &S::Address, view: Self::AccountView) {
-        let mut mapped = Source::AccountView::default();
-        view.apply_to(&mut mapped);
+        let Some(mut account) = self.0.get_account(address) else {
+            panic!("Tried to update an account that does not exist");
+        };
 
-        self.0.update_account(address, mapped);
+        view.apply_to(&mut account);
+
+        self.0.update_account(address, account);
     }
 
     fn has_tag(&self, addr: &<S as Spec>::Address, tag: impl Into<Self::Tag>) -> bool {
@@ -380,7 +380,7 @@ where
     ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
         self.0
             .generate_account(u)
-            .map(|(addr, acct)| (addr, (&acct).into()))
+            .map(|(addr, acct)| (addr, acct.into()))
     }
 
     fn get_token(&self, id: &TokenId) -> Option<TokenInfo> {
@@ -444,11 +444,13 @@ pub trait CallMessageGenerator<S: Spec> {
     /// The relevant post state from a generatd message.
     type ChangelogEntry: Clone + std::fmt::Debug + Send + Sync + 'static;
 
-    /// The config for this message generator.
-    type Config: Clone + std::fmt::Debug;
-
-    /// Updates the configuration of this generator
-    fn set_config(&mut self, config: Self::Config);
+    /// Generate call messages needed to properly setup the generator.
+    #[allow(clippy::type_complexity)]
+    fn generate_setup_messages(
+        &mut self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
+    ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>>;
 
     /// Generates a `CallMessage`, potentially valid or invalid, based on the provided parameters.
     fn generate_call_message(
@@ -458,17 +460,10 @@ pub trait CallMessageGenerator<S: Spec> {
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
 
-    /// Assert that the every value in the generator state matches the rollup state.
-    fn assert_full_state(
-        &self,
-        rollup_state_accessor: &Self::RollupStateReader,
-        generator_state: &mut impl GeneratorState<S, AccountView = Self::AccountView, Tag = Self::Tag>,
-    ) -> Result<(), anyhow::Error>;
-
     /// Assert that the rollup state matches the expected value. This method
     /// *must* detect when two changes conflict (if applicable) and assert only
     /// the most recent change.
-    async fn assert_incremental_state(
+    async fn assert_state(
         &self,
         rollup_state_accessor: Self::RollupStateReader,
         changes: Vec<Self::ChangelogEntry>,

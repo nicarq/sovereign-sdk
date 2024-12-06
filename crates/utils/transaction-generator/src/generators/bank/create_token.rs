@@ -108,7 +108,10 @@ impl<S: Spec> BankMessageGenerator<S> {
             },
             creator_key,
             vec![
-                BankChangeLogEntry::balance_changed(recipient_address, token_id, amount),
+                BankChangeLogEntry::BalanceChanged {
+                    address: recipient_address,
+                    coins: Coins { token_id, amount },
+                },
                 mint_event,
             ],
         ))
