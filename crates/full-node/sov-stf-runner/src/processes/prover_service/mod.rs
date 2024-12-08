@@ -15,10 +15,6 @@ use thiserror::Error;
 
 pub use crate::processes::StateTransitionInfo;
 
-/// Bytes of the genesis state root.
-#[derive(Clone, Debug)]
-pub struct RawGenesisStateRoot(pub Vec<u8>);
-
 /// The possible configurations of the prover with the arguments needed to construct them
 #[derive(PartialEq, Eq, strum::Display)]
 #[strum(serialize_all = "snake_case")]
@@ -146,7 +142,7 @@ pub trait ProverService: Send + Sync + 'static {
     async fn create_aggregated_proof(
         &self,
         block_header_hashes: &[<<Self::DaService as DaService>::Spec as DaSpec>::SlotHash],
-        genesis_state_root: &RawGenesisStateRoot,
+        genesis_state_root: &Self::StateRoot,
     ) -> anyhow::Result<ProofAggregationStatus>;
 }
 

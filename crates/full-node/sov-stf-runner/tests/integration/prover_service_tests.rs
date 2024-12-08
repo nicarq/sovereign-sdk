@@ -6,11 +6,11 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::processes::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
-    ProverServiceError, RawGenesisStateRoot, RollupProverConfig, StateTransitionInfo,
+    ProverServiceError, RollupProverConfig, StateTransitionInfo,
 };
 use tokio::time;
 
-use crate::helpers::genesis_state_root;
+use crate::helpers::{genesis_state_root, RawGenesisStateRoot};
 
 type StateRoot = Vec<u8>;
 type Address = Vec<u8>;
@@ -38,7 +38,7 @@ async fn test_successful_prover_execution() -> Result<(), ProverServiceError> {
 
     // The proof has already been sent, and the prover_service no longer has a reference to it.
     let err = prover_service
-        .create_aggregated_proof(&[header_hash], &genesis_state_root())
+        .create_aggregated_proof(&[header_hash], &genesis_state_root().0)
         .await
         .unwrap_err();
 
@@ -75,7 +75,7 @@ async fn test_prover_status_busy() -> anyhow::Result<()> {
         ));
 
         let proof_submission_status = prover_service
-            .create_aggregated_proof(&[header_hash], &genesis_state_root)
+            .create_aggregated_proof(&[header_hash], &genesis_state_root.0)
             .await?;
 
         assert_eq!(
@@ -100,7 +100,7 @@ async fn test_prover_status_busy() -> anyhow::Result<()> {
         ));
 
         let err = prover_service
-            .create_aggregated_proof(&[header_hash], &genesis_state_root)
+            .create_aggregated_proof(&[header_hash], &genesis_state_root.0)
             .await
             .unwrap_err();
 
@@ -292,7 +292,7 @@ async fn wait_for_aggregated_proof(
     let mut counter = 0;
     loop {
         let status = prover_service
-            .create_aggregated_proof(header_hashes, genesis_state_root)
+            .create_aggregated_proof(header_hashes, &genesis_state_root.0)
             .await?;
 
         if let ProofAggregationStatus::Success(_) = &status {

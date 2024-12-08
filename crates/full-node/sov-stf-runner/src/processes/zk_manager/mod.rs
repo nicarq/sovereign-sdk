@@ -13,7 +13,7 @@ use tokio::time::{sleep, Duration};
 use types::{BlockProofInfo, BlockProofStatus, UnAggregatedProofList};
 
 use self::types::AggregateProofMetadata;
-use super::{RawGenesisStateRoot, StateTransitionInfo};
+use super::StateTransitionInfo;
 use crate::processes::{ProverService, Receiver};
 
 mod types;
@@ -31,7 +31,7 @@ pub struct ZkProofManager<Ps: ProverService> {
     aggregated_proof_block_jump: NonZero<usize>,
     proof_serializer: Box<dyn ProofSerializer>,
     backoff_policy: ExponentialBuilder,
-    genesis_state_root: RawGenesisStateRoot,
+    genesis_state_root: Ps::StateRoot,
     st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
     shutdown_receiver: tokio::sync::watch::Receiver<()>,
 }
@@ -47,7 +47,7 @@ where
         prover_service: Ps,
         aggregated_proof_block_jump: NonZero<usize>,
         proof_serializer: Box<dyn ProofSerializer>,
-        genesis_state_root: RawGenesisStateRoot,
+        genesis_state_root: Ps::StateRoot,
         st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self {
@@ -71,7 +71,7 @@ where
         &self,
         mut metadata: AggregateProofMetadata<Ps>,
         prover_service: &Ps,
-        genesis_state_root: &RawGenesisStateRoot,
+        genesis_state_root: &Ps::StateRoot,
     ) -> anyhow::Result<SerializedAggregatedProof> {
         let mut attempt_num = 1u32;
         let mut backoff_iter = self.backoff_policy.build();

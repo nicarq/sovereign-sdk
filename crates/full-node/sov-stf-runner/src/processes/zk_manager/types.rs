@@ -6,8 +6,7 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 
 use crate::processes::{
-    ProofAggregationStatus, ProofProcessingStatus, ProverService, RawGenesisStateRoot,
-    StateTransitionInfo,
+    ProofAggregationStatus, ProofProcessingStatus, ProverService, StateTransitionInfo,
 };
 
 /// A [`VecDeque`] which is guaranteed to contain at least one item at all
@@ -126,7 +125,7 @@ impl<Ps: ProverService> AggregateProofMetadata<Ps> {
     pub async fn prove(
         mut self,
         prover_service: &Ps,
-        genesis_state_root: &RawGenesisStateRoot,
+        genesis_state_root: &Ps::StateRoot,
     ) -> Result<SerializedAggregatedProof, (Self, anyhow::Error)> {
         self.prove_any_unproven_blocks(prover_service).await;
         let agg_proof_hashes: Vec<_> = self

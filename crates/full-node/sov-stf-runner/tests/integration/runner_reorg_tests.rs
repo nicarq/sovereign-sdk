@@ -11,13 +11,12 @@ use sov_modules_api::{Batch, FullyBakedTx, StateTransitionFunction};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
-use sov_state::{ArrayWitness, ProverStorage, Storage};
-use sov_stf_runner::InitVariant;
+use sov_state::{ArrayWitness, ProverStorage, Storage, StorageRoot};
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
 
 use crate::helpers::hash_stf::{HashStf, S};
-use crate::helpers::runner_init::initialize_runner;
+use crate::helpers::runner_init::{initialize_runner, InitVariant};
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
@@ -143,7 +142,7 @@ async fn check_runner(
     da_service: Arc<DaServiceWithRetries<MockDaService>>,
     tmpdir: &TempDir,
     init_variant: MockInitVariant,
-    expected_state_root: [u8; 32],
+    expected_state_root: StorageRoot<S>,
 ) {
     let (mut runner, _test_node) =
         initialize_runner(da_service, tmpdir.path(), init_variant, 1, None).await;
@@ -176,7 +175,7 @@ fn get_saved_root_hash(
 fn get_expected_execution_hash_from(
     genesis_params: &[u8],
     blobs: Vec<Vec<u8>>,
-) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
+) -> (StorageRoot<S>, Option<<ProverStorage<S> as Storage>::Root>) {
     let blocks: Vec<MockBlock> = blobs
         .into_iter()
         .enumerate()
@@ -199,7 +198,7 @@ fn get_expected_execution_hash_from(
 fn get_result_from_blocks(
     genesis_params: &[u8],
     blocks: &[MockBlock],
-) -> ([u8; 32], Option<<ProverStorage<S> as Storage>::Root>) {
+) -> (StorageRoot<S>, Option<<ProverStorage<S> as Storage>::Root>) {
     let tmpdir = tempfile::tempdir().unwrap();
 
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());

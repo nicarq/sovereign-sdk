@@ -12,7 +12,7 @@ use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_metrics::RunnerMetrics;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
-use sov_rollup_interface::node::ledger_api::{LedgerStateProvider, QueryMode};
+use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::{
     future_or_shutdown, DaSyncState, FutureOrShutdownOutput, SyncStatus,
 };
@@ -30,7 +30,7 @@ use tower_layer::Layer;
 use tracing::{debug, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
-use crate::processes::{new_stf_info_channel, RawGenesisStateRoot, Receiver};
+use crate::processes::{new_stf_info_channel, Receiver};
 use crate::state_manager::StateManager;
 use crate::{MonitoringConfig, ProofManagerConfig, RunnerConfig};
 
@@ -69,24 +69,6 @@ where
     background_handles: Vec<tokio::task::JoinHandle<anyhow::Result<()>>>,
 }
 
-/// How [`StateTransitionRunner`] is initialized
-pub enum InitVariant<
-    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
-    InnerVm: Zkvm,
-    OuterVm: Zkvm,
-    Da: DaService,
-> {
-    /// From give state root
-    Initialized(Stf::StateRoot),
-    /// From empty state root
-    Genesis {
-        /// Genesis block header should be finalized at an initialization moment.
-        block: Da::FilteredBlock,
-        /// Genesis params for Stf::init.
-        genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
-    },
-}
-
 struct DiscardEvents;
 impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
     type Error = anyhow::Error;
@@ -99,13 +81,13 @@ impl TryFrom<(u64, StoredEvent)> for DiscardEvents {
 /// Initializes rollup genesis.
 /// Gets proper DA block and finalizes storage.
 /// Returns root hashes.
-async fn initialize_state<Stf, InnerVm, OuterVm, Da, Sm>(
+pub async fn initialize_state<Stf, InnerVm, OuterVm, Da, Sm>(
     stf: &Stf,
     storage_manager: &mut Sm,
     ledger_db: &LedgerDb,
     genesis_block: Da::FilteredBlock,
     genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
-) -> anyhow::Result<(Stf::StateRoot, RawGenesisStateRoot)>
+) -> anyhow::Result<Stf::StateRoot>
 where
     Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
     InnerVm: Zkvm,
@@ -144,72 +126,8 @@ where
     ledger_change_set.merge(finalized_slot_changes);
     storage_manager.save_change_set(&block_header, initialized_storage, ledger_change_set)?;
     storage_manager.finalize(&block_header)?;
-    let raw_genesis_state_root = RawGenesisStateRoot(genesis_state_root.as_ref().to_vec());
-    Ok((genesis_state_root, raw_genesis_state_root))
-}
 
-impl<
-        Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
-        InnerVm: Zkvm,
-        OuterVm: Zkvm,
-        Da: DaService,
-    > InitVariant<Stf, InnerVm, OuterVm, Da>
-{
-    /// Initializes the rollup state and calculates initial state roots for the rollup.
-    pub async fn initialize<Sm>(
-        self,
-        ledger_db: &mut LedgerDb,
-        stf: &Stf,
-        storage_manager: &mut Sm,
-    ) -> anyhow::Result<(Stf::StateRoot, RawGenesisStateRoot)>
-    where
-        Sm: HierarchicalStorageManager<
-            Da::Spec,
-            LedgerChangeSet = SchemaBatch,
-            LedgerState = DeltaReader,
-            StfState = Stf::PreState,
-            StfChangeSet = Stf::ChangeSet,
-        >,
-    {
-        let (prev_state_root, raw_genesis_state_root) = match self {
-            InitVariant::Initialized(prev_state_root) => {
-                //
-                debug!("Chain is already initialized; skipping initialization");
-                // Since we're just getting the state root, we don't care about fetching the events.
-                // QueryModeCompact prevents us from actually fetching them, but we still need to provide a value for
-                // the event generic, so we use a dummy type.
-                let raw_genesis_state_root = ledger_db
-                    .get_slot_by_rollup_height::<Stf::BatchReceiptContents, Stf::TxReceiptContents, DiscardEvents>(
-                        0,
-                        QueryMode::Compact,
-                    )
-                    .await?
-                    .expect("Rollup was already initialized. Slot 0 should exist")
-                    .state_root;
-                (prev_state_root, RawGenesisStateRoot(raw_genesis_state_root))
-            }
-            InitVariant::Genesis {
-                block,
-                genesis_params: params,
-            } => {
-                initialize_state::<Stf, InnerVm, OuterVm, Da, Sm>(
-                    stf,
-                    storage_manager,
-                    ledger_db,
-                    block,
-                    params,
-                )
-                .await?
-            }
-        };
-
-        info!(
-            genesis_state_root = hex::encode(&raw_genesis_state_root.0),
-            "Chain initialization is done"
-        );
-
-        Ok((prev_state_root, raw_genesis_state_root))
-    }
+    Ok(genesis_state_root)
 }
 
 impl<Stf, Sm, Da, InnerVm, OuterVm> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>

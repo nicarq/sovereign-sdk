@@ -32,10 +32,10 @@ use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
 use sov_state::storage::NativeStorage;
 use sov_state::Storage;
-use sov_stf_runner::processes::{
-    ProverService, RawGenesisStateRoot, RollupProverConfig, WorkflowProcessManager,
+use sov_stf_runner::processes::{ProverService, RollupProverConfig, WorkflowProcessManager};
+use sov_stf_runner::{
+    initialize_state, query_state_update_info, RollupConfig, StateTransitionRunner,
 };
-use sov_stf_runner::{query_state_update_info, InitVariant, RollupConfig, StateTransitionRunner};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::oneshot;
 pub use wallet::*;
@@ -183,8 +183,16 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             .transpose()?;
 
         let is_genesis = prev_root.is_none();
-        let init_variant: InitVariant<_, _, _, Self::DaService> = match prev_root {
-            Some(prev_state_root) => InitVariant::Initialized(prev_state_root),
+
+        let native_stf = StfBlueprint::new();
+
+        let (prev_state_root, genesis_state_root) = match prev_root {
+            Some(prev_state_root) => {
+                let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
+                let genesis_state_root = prover_storage.get_root_hash(0)?;
+
+                (prev_state_root, genesis_state_root)
+            }
             None => {
                 tracing::info!(
                         rollup_genesis_height = rollup_config.runner.genesis_height,
@@ -192,19 +200,20 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 let rollup_genesis_block = da_service
                     .get_block_at(rollup_config.runner.genesis_height)
                     .await?;
-                InitVariant::Genesis {
-                    block: rollup_genesis_block,
-                    genesis_params,
-                }
+
+                let genesis_state_root: <<Self::Spec as Spec>::Storage as Storage>::Root =
+                    initialize_state::<_, _, _, Self::DaService, _>(
+                        &native_stf,
+                        &mut storage_manager,
+                        &ledger_db,
+                        rollup_genesis_block,
+                        genesis_params,
+                    )
+                    .await?;
+
+                (genesis_state_root.clone(), genesis_state_root)
             }
         };
-        let native_stf = StfBlueprint::new();
-        let (prev_state_root, genesis_state_root): (
-            <<Self::Spec as Spec>::Storage as Storage>::Root,
-            RawGenesisStateRoot,
-        ) = init_variant
-            .initialize(&mut ledger_db, &native_stf, &mut storage_manager)
-            .await?;
 
         let prover_storage = if is_genesis {
             // Re-create bootstrap storage, so it fetches the latest version after initialization.
@@ -229,7 +238,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         tracing::debug!(
             prev_root_hash = hex::encode(prev_state_root.as_ref()),
-            raw_genesis_state_root = hex::encode(&genesis_state_root.0),
+            raw_genesis_state_root = hex::encode(genesis_state_root.as_ref()),
             "Rollup state initialization is completed"
         );
 
