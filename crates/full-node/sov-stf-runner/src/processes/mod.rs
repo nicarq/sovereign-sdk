@@ -6,11 +6,10 @@ use std::sync::Arc;
 
 use op_manager::attestations::AttestationsManager;
 pub use prover_service::*;
-use sov_db::ledger_db::LedgerDb;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::optimistic::BondingProofService;
 use sov_rollup_interface::stf::ProofSerializer;
-use sov_rollup_interface::ProvableHeightTracker;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 pub use zk_manager::*;
 mod stf_info_manager;
@@ -23,28 +22,32 @@ pub use stf_info_manager::*;
 pub struct WorkflowProcessManager<Ps: ProverService> {
     prover_service: Ps,
     da_service: Arc<Ps::DaService>,
-    ledger_db: LedgerDb,
     genesis_state_root: RawGenesisStateRoot,
+    shutdown_receiver: watch::Receiver<()>,
     proof_serializer: Box<dyn ProofSerializer>,
+    st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
 }
 
-impl<Ps: ProverService> WorkflowProcessManager<Ps>
+impl<Ps> WorkflowProcessManager<Ps>
 where
+    Ps: ProverService,
     Ps::DaService: DaService<Error = anyhow::Error>,
 {
-    /// Creates a new [WorkflowProcessManager].
+    /// Creates a new [`WorkflowProcessManager`].
     pub fn new(
         prover_service: Ps,
         da_service: Arc<Ps::DaService>,
-        ledger_db: LedgerDb,
         genesis_state_root: RawGenesisStateRoot,
+        shutdown_receiver: watch::Receiver<()>,
+        st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         proof_serializer: Box<dyn ProofSerializer>,
     ) -> Self {
         Self {
             prover_service,
             da_service,
-            ledger_db,
             genesis_state_root,
+            shutdown_receiver,
+            st_info_receiver,
             proof_serializer,
         }
     }
@@ -53,70 +56,36 @@ where
     pub async fn start_zk_workflow_in_background(
         self,
         aggregated_proof_block_jump: usize,
-        max_channel_size: usize,
-        max_nb_of_infos_in_db: u64,
-        shutdown_receiver: tokio::sync::watch::Receiver<()>,
-        maximum_provable_height_tracker: &dyn ProvableHeightTracker,
-    ) -> anyhow::Result<(
-        Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
-        JoinHandle<()>,
-    )> {
-        let ledger_db = self.ledger_db.clone();
-        let (mut st_info_sender, st_info_receiver) =
-            new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
-
+    ) -> anyhow::Result<JoinHandle<()>> {
         let proof_manager = ZkProofManager::new(
             self.da_service,
             self.prover_service,
             aggregated_proof_block_jump,
             self.proof_serializer,
             self.genesis_state_root,
-            st_info_receiver,
-            shutdown_receiver,
+            self.st_info_receiver,
+            self.shutdown_receiver,
         );
 
-        let handle = proof_manager
+        Ok(proof_manager
             .post_aggregated_proof_to_da_in_background()
-            .await;
-
-        st_info_sender
-            .startup_notify_about_infos_from_db(&ledger_db, maximum_provable_height_tracker)
-            .await?;
-
-        Ok((st_info_sender, handle))
+            .await)
     }
 
     /// Starts the process that generates optimistic proofs in the background.
     pub async fn start_op_workflow_in_background<Bps: BondingProofService>(
         self,
         bonding_proof_service: Bps,
-        max_channel_size: usize,
-        max_nb_of_infos_in_db: u64,
-        shutdown_receiver: tokio::sync::watch::Receiver<()>,
-        maximum_provable_height_tracker: &dyn ProvableHeightTracker,
-    ) -> anyhow::Result<(
-        Sender<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
-        JoinHandle<()>,
-    )> {
-        let ledger_db = self.ledger_db.clone();
-        let (mut st_info_sender, st_info_receiver) =
-            new_stf_info_channel(self.ledger_db, max_channel_size, max_nb_of_infos_in_db).await?;
-
+    ) -> anyhow::Result<JoinHandle<()>> {
         let attestations_manager = AttestationsManager::new(
-            st_info_receiver,
+            self.st_info_receiver,
             bonding_proof_service,
             self.proof_serializer,
             self.da_service,
-            shutdown_receiver,
+            self.shutdown_receiver,
         );
-        let handle = attestations_manager
+        Ok(attestations_manager
             .post_attestation_to_da_in_background()
-            .await;
-
-        st_info_sender
-            .startup_notify_about_infos_from_db(&ledger_db, maximum_provable_height_tracker)
-            .await?;
-
-        Ok((st_info_sender, handle))
+            .await)
     }
 }

@@ -30,9 +30,9 @@ use tower_layer::Layer;
 use tracing::{debug, info};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
-use crate::processes::{RawGenesisStateRoot, Sender};
+use crate::processes::{new_stf_info_channel, RawGenesisStateRoot, Receiver};
 use crate::state_manager::StateManager;
-use crate::{MonitoringConfig, RunnerConfig};
+use crate::{MonitoringConfig, ProofManagerConfig, RunnerConfig};
 
 type GenesisParams<ST, InnerVm, OuterVm, Da> =
     <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
@@ -61,6 +61,7 @@ where
     state_manager: StateManager<Stf::StateRoot, Stf::Witness, Sm, Da>,
     listen_address_rpc: SocketAddr,
     listen_address_axum: SocketAddr,
+    st_info_receiver: Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>>,
     sync_state: Arc<DaSyncState>,
     sync_fetcher: FinalizedBlocksBulkFetcher<Da>,
     shutdown_receiver: watch::Receiver<()>,
@@ -213,7 +214,7 @@ impl<
 
 impl<Stf, Sm, Da, InnerVm, OuterVm> StateTransitionRunner<Stf, Sm, Da, InnerVm, OuterVm>
 where
-    Da: DaService<Error = anyhow::Error> + Clone,
+    Da: DaService<Error = anyhow::Error>,
     InnerVm: Zkvm,
     OuterVm: Zkvm,
     Sm: HierarchicalStorageManager<
@@ -235,13 +236,13 @@ where
     #[allow(clippy::too_many_arguments, clippy::type_complexity)]
     pub async fn new(
         runner_config: RunnerConfig,
+        pm_config: Option<ProofManagerConfig<Stf::Address>>,
         da_service: Arc<Da>,
         ledger_db: LedgerDb,
         stf: Stf,
         storage_manager: Sm,
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
         prev_state_root: Stf::StateRoot,
-        st_info_sender: Option<Sender<Stf::StateRoot, Stf::Witness, Da::Spec>>,
         sync_status_sender: watch::Sender<SyncStatus>,
         state_height_tracker: Box<dyn ProvableHeightTracker>,
         shutdown_receiver: watch::Receiver<()>,
@@ -257,7 +258,6 @@ where
         let listen_address_axum =
             SocketAddr::new(axum_config.bind_host.parse()?, axum_config.bind_port);
 
-        // Start the main rollup loop
         let next_item_numbers = ledger_db.get_next_items_numbers()?;
         let last_slot_processed_before_shutdown = next_item_numbers.rollup_height.saturating_sub(1);
 
@@ -267,6 +267,19 @@ where
         let first_unprocessed_height_at_startup = da_height_processed + 1;
         debug!(%last_slot_processed_before_shutdown, %runner_config.genesis_height, %first_unprocessed_height_at_startup, "Initializing StfRunner");
 
+        let (st_info_sender, st_info_receiver) = if let Some(config) = pm_config {
+            let channel = new_stf_info_channel(
+                ledger_db.clone(),
+                config.max_number_of_transitions_in_memory as _,
+                config.max_number_of_transitions_in_db,
+            )
+            .await?;
+
+            (Some(channel.0), Some(channel.1))
+        } else {
+            (None, None)
+        };
+
         let state_manager = StateManager::new(
             storage_manager,
             ledger_db,
@@ -274,7 +287,8 @@ where
             state_update_channel,
             st_info_sender,
             state_height_tracker,
-        );
+        )
+        .await?;
 
         let (sync_fetcher, fetcher_background_handle) = FinalizedBlocksBulkFetcher::new(
             da_service.clone(),
@@ -310,11 +324,22 @@ where
                 target_da_height: AtomicU64::new(u64::MAX),
                 sync_status_sender,
             }),
+            st_info_receiver,
             sync_fetcher,
             shutdown_receiver,
             secondary_shutdown_sender,
             background_handles: vec![fetcher_background_handle, monitoring_handle],
         })
+    }
+
+    /// Subscribes to this runner's [`StateUpdateInfo`] channel, if enabled.
+    ///
+    /// Only one [`Receiver`] is allowed, and subsequent calls to this method
+    /// will return [`None`].
+    pub fn take_st_info_receiver(
+        &mut self,
+    ) -> Option<Receiver<Stf::StateRoot, Stf::Witness, Da::Spec>> {
+        self.st_info_receiver.take()
     }
 
     /// Returns the [`DaSyncState`] of the node.
@@ -712,6 +737,31 @@ where
 
         aggregated_proofs
     }
+}
+
+/// Creates a new [`StateUpdateInfo`] with some storage state and chain data
+/// queried from [`LedgerDb`].
+pub async fn query_state_update_info<S>(
+    ledger_db: &LedgerDb,
+    storage: S,
+) -> anyhow::Result<StateUpdateInfo<S>> {
+    let rollup_height = ledger_db
+        .get_head_rollup_height()
+        .await?
+        .expect("The rollup height should always be available");
+    let next_event_number = ledger_db
+        .get_latest_event_number()
+        .await?
+        .map(|x| x + 1)
+        .unwrap_or_default();
+    let latest_finalized_rollup_height = ledger_db.get_latest_finalized_rollup_height().await?;
+
+    Ok(StateUpdateInfo {
+        storage,
+        next_event_number,
+        rollup_height,
+        latest_finalized_rollup_height,
+    })
 }
 
 fn error_if_tokio_runtime_is_not_multi_threaded() -> anyhow::Result<()> {

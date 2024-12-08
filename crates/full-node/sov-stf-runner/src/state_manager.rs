@@ -7,7 +7,6 @@ use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::{DeltaReader, SchemaBatch};
 use sov_rollup_interface::da::{BlockHeaderTrait, DaSpec};
 use sov_rollup_interface::node::da::{DaService, SlotData};
-use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::stf::TxReceiptContents;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -16,6 +15,7 @@ use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
 
 use crate::processes::{Sender as StfInfoSender, StateTransitionInfo};
+use crate::query_state_update_info;
 
 /// Point where rollup execution can be resumed after DA fork happened.
 struct ForkPoint<Da: DaService, StateRoot> {
@@ -53,7 +53,7 @@ where
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
 where
-    Da: DaService<Error = anyhow::Error> + Clone,
+    Da: DaService<Error = anyhow::Error>,
     StateRoot: Clone + AsRef<[u8]> + Serialize + DeserializeOwned,
     Witness: Serialize + DeserializeOwned,
     Sm: HierarchicalStorageManager<
@@ -63,15 +63,23 @@ where
     >,
     Sm::StfState: Clone,
 {
-    pub(crate) fn new(
+    pub(crate) async fn new(
         storage_manager: Sm,
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
-        st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+        mut st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
         state_height_tracker: Box<dyn ProvableHeightTracker>,
-    ) -> Self {
-        Self {
+    ) -> anyhow::Result<Self> {
+        if let Some(sender) = &mut st_info_sender {
+            // If this state manager uses a channel, it MUST be correctly
+            // initialized before usage.
+            sender
+                .startup_notify_about_infos_from_db(&ledger_db, &*state_height_tracker)
+                .await?;
+        }
+
+        Ok(Self {
             storage_manager,
             ledger_db,
             state_root: initial_state_root,
@@ -79,32 +87,6 @@ where
             state_update_sender: state_update_channel,
             st_info_sender,
             maximum_provable_height_tracker: state_height_tracker,
-        }
-    }
-
-    /// Creates a new [`StateUpdateInfo`] from a [`HierarchicalStorageManager::StfState`] and a [`LedgerDb`].
-    pub async fn new_state_info(
-        stf_state: Sm::StfState,
-        ledger_state: &LedgerDb,
-    ) -> Result<StateUpdateInfo<Sm::StfState>, anyhow::Error> {
-        let rollup_height = ledger_state
-            .get_head_rollup_height()
-            .await?
-            .expect("The rollup height should always be available");
-
-        let next_event_number = ledger_state
-            .get_latest_event_number()
-            .await?
-            .map(|x| x.checked_add(1).unwrap())
-            .unwrap_or_default();
-        let latest_finalized_rollup_height =
-            ledger_state.get_latest_finalized_rollup_height().await?;
-
-        Ok(StateUpdateInfo {
-            storage: stf_state,
-            next_event_number,
-            rollup_height,
-            latest_finalized_rollup_height,
         })
     }
 
@@ -123,7 +105,7 @@ where
     ) -> anyhow::Result<()> {
         self.ledger_db.replace_reader(ledger_state);
 
-        let state_update_info = Self::new_state_info(stf_state, &self.ledger_db).await?;
+        let state_update_info = query_state_update_info(&self.ledger_db, stf_state).await?;
 
         // `send_replace` is superior to `send` for our use case. It never fails
         // because it doesn't need to notify all receivers, unlike `send`, which
@@ -426,18 +408,19 @@ mod tests {
 
         let ledger_db = LedgerDb::with_reader(ledger_state)?;
 
-        let update_info = TestStateManager::new_state_info(stf_state, &ledger_db).await?;
+        let update_info = query_state_update_info(&ledger_db, stf_state).await?;
 
         let (state_update_sender, _state_update_recv) = watch::channel(update_info);
 
-        Ok(StateManager::new(
+        StateManager::new(
             storage_manager,
             ledger_db,
             state_root,
             state_update_sender,
             None,
             Box::new(InfiniteHeight),
-        ))
+        )
+        .await
     }
 
     fn produce_synthetic_changes(

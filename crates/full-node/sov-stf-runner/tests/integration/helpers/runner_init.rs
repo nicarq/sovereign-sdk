@@ -1,4 +1,3 @@
-use std::str::FromStr;
 use std::sync::Arc;
 
 use axum::async_trait;
@@ -14,12 +13,11 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
-use sov_modules_api::{Address, Batch, FullyBakedTx, ProofSerializer, SyncStatus};
+use sov_modules_api::{Batch, FullyBakedTx, ProofSerializer, StateUpdateInfo, SyncStatus};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_state::{DefaultStorageSpec, ProverStorage};
@@ -148,41 +146,7 @@ pub async fn initialize_runner(
     >,
     TestNode,
 ) {
-    let rollup_config = RollupConfig::<_, MockDaService> {
-        storage: StorageConfig {
-            path: path.to_path_buf(),
-        },
-        runner: RunnerConfig {
-            genesis_height: 0,
-            da_polling_interval_ms: 150,
-            rpc_config: HttpServerConfig::localhost_on_free_port(),
-            axum_config: HttpServerConfig::localhost_on_free_port(),
-            concurrent_sync_tasks: Some(1),
-        },
-        da: MockDaConfig::instant_with_sender(da_service.da_service().sequencer_address()),
-        proof_manager: ProofManagerConfig {
-            aggregated_proof_block_jump,
-            prover_address: Address::<Sha256>::from_str(
-                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
-            )
-            .expect("Prover address is not valid"),
-            max_number_of_transitions_in_db: 30,
-            max_number_of_transitions_in_memory: 20,
-        },
-        sequencer: SequencerConfig {
-            automatic_batch_production: false,
-            max_allowed_blocks_behind: 5,
-            // Set ttl to zero to disable for testing. This prevents nondeterminism.
-            dropped_tx_ttl_secs: 0,
-            admin_addresses: vec![],
-            da_address: da_service.da_service().sequencer_address(),
-            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
-                mempool_max_txs_count: None,
-                max_batch_size_bytes: None,
-            }),
-        },
-        monitoring: MonitoringConfig::standard(),
-    };
+    let rollup_config = rollup_config(da_service.da_service(), path, aggregated_proof_block_jump);
 
     let stf = HashStf::<MockValidityCond>::new();
 
@@ -192,33 +156,32 @@ pub async fn initialize_runner(
 
     let mut ledger_db = LedgerDb::with_reader(ledger_state).unwrap();
 
-    let rollup_height = ledger_db
-        .get_head_rollup_height()
-        .await
-        .unwrap()
-        .unwrap_or_default();
-    let next_event_number = ledger_db
-        .get_latest_event_number()
-        .await
-        .unwrap()
-        .map(|x| x + 1)
-        .unwrap_or_default();
-    let latest_finalized_rollup_height = ledger_db
-        .get_latest_finalized_rollup_height()
-        .await
-        .unwrap();
+    let (state_update_sender, _state_update_recv) = {
+        let rollup_height = ledger_db
+            .get_head_rollup_height()
+            .await
+            .unwrap()
+            .unwrap_or_default();
+        let next_event_number = ledger_db
+            .get_latest_event_number()
+            .await
+            .unwrap()
+            .map(|x| x + 1)
+            .unwrap_or_default();
+        let latest_finalized_rollup_height = ledger_db
+            .get_latest_finalized_rollup_height()
+            .await
+            .unwrap();
 
-    let (state_update_sender, _state_update_recv) = watch::channel(StateUpdateInfo {
-        storage: genesis_storage,
-        next_event_number,
-        latest_finalized_rollup_height,
-        rollup_height,
-    });
+        watch::channel(StateUpdateInfo {
+            storage: genesis_storage,
+            next_event_number,
+            rollup_height,
+            latest_finalized_rollup_height,
+        })
+    };
 
-    let (sync_sender, _sync_status_receiver) = watch::channel(SyncStatus::Syncing {
-        synced_da_height: 0,
-        target_da_height: 0,
-    });
+    let (sync_sender, _sync_status_receiver) = watch::channel(SyncStatus::START);
     let (shutdown_sender, mut shutdown_receiver) = watch::channel(());
     shutdown_receiver.mark_unchanged();
 
@@ -231,44 +194,57 @@ pub async fn initialize_runner(
         .await
         .unwrap();
 
-    let prover_config = RollupProverConfig::Prove;
+    let mut runner = StateTransitionRunner::new(
+        rollup_config.runner.clone(),
+        if nb_of_prover_threads.is_some() {
+            Some(rollup_config.proof_manager)
+        } else {
+            None
+        },
+        da_service.clone(),
+        ledger_db.clone(),
+        stf,
+        storage_manager,
+        state_update_sender,
+        prev_state_root,
+        sync_sender,
+        Box::new(InfiniteHeight),
+        shutdown_receiver.clone(),
+        rollup_config.monitoring.clone(),
+    )
+    .await
+    .unwrap();
 
-    let (st_info_sender, handle) = match nb_of_prover_threads {
-        Some(threads) => {
-            let prover_service = ParallelProverService::<_, _, _, _, MockZkvm, MockZkvm>::new(
-                inner_vm.clone(),
-                outer_vm.clone(),
-                verifier,
-                prover_config,
-                threads,
-                Default::default(),
-                Vec::<u8>::default(),
-            );
+    let handle = if let Some(st_info_receiver) = runner.take_st_info_receiver() {
+        let prover_service = ParallelProverService::<_, _, _, _, MockZkvm, MockZkvm>::new(
+            inner_vm.clone(),
+            outer_vm.clone(),
+            verifier,
+            RollupProverConfig::Prove,
+            nb_of_prover_threads.unwrap(),
+            Default::default(),
+            Vec::<u8>::default(),
+        );
 
-            let process_manager = WorkflowProcessManager::new(
-                prover_service,
-                da_service.clone(),
-                ledger_db.clone(),
-                genesis_state_root,
-                Box::new(DummyProofSerializer {}),
-            );
+        let process_manager = WorkflowProcessManager::new(
+            prover_service,
+            da_service.clone(),
+            genesis_state_root,
+            shutdown_receiver.clone(),
+            st_info_receiver,
+            Box::new(DummyProofSerializer {}),
+        );
 
-            let rollup_height_tracker: Box<dyn ProvableHeightTracker> = Box::new(InfiniteHeight);
+        let handle = process_manager
+            .start_zk_workflow_in_background(
+                rollup_config.proof_manager.aggregated_proof_block_jump,
+            )
+            .await
+            .unwrap();
 
-            let (st_info_sender, handle) = process_manager
-                .start_zk_workflow_in_background(
-                    rollup_config.proof_manager.aggregated_proof_block_jump,
-                    10,
-                    10,
-                    shutdown_receiver.clone(),
-                    &*rollup_height_tracker,
-                )
-                .await
-                .unwrap();
-
-            (Some(st_info_sender), Some(handle))
-        }
-        None => (None, None),
+        Some(handle)
+    } else {
+        None
     };
 
     let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
@@ -277,22 +253,7 @@ pub async fn initialize_runner(
     > = ledger_db.subscribe_proof_saved();
 
     (
-        StateTransitionRunner::new(
-            rollup_config.runner.clone(),
-            da_service.clone(),
-            ledger_db.clone(),
-            stf,
-            storage_manager,
-            state_update_sender,
-            prev_state_root,
-            st_info_sender,
-            sync_sender,
-            Box::new(InfiniteHeight),
-            shutdown_receiver,
-            rollup_config.monitoring.clone(),
-        )
-        .await
-        .unwrap(),
+        runner,
         TestNode {
             proof_posted_in_da_sub,
             agg_proof_saved_in_db_sub,
@@ -304,4 +265,43 @@ pub async fn initialize_runner(
             _sync_status_receiver,
         },
     )
+}
+
+fn rollup_config(
+    da_service: &MockDaService,
+    path: &std::path::Path,
+    aggregated_proof_block_jump: usize,
+) -> RollupConfig<[u8; 32], MockDaService> {
+    RollupConfig {
+        storage: StorageConfig {
+            path: path.to_path_buf(),
+        },
+        runner: RunnerConfig {
+            genesis_height: 0,
+            da_polling_interval_ms: 150,
+            rpc_config: HttpServerConfig::localhost_on_free_port(),
+            axum_config: HttpServerConfig::localhost_on_free_port(),
+            concurrent_sync_tasks: Some(1),
+        },
+        da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
+        proof_manager: ProofManagerConfig {
+            aggregated_proof_block_jump,
+            prover_address: [0u8; 32],
+            max_number_of_transitions_in_db: 30,
+            max_number_of_transitions_in_memory: 20,
+        },
+        sequencer: SequencerConfig {
+            automatic_batch_production: false,
+            max_allowed_blocks_behind: 5,
+            // Set ttl to zero to disable for testing. This prevents nondeterminism.
+            dropped_tx_ttl_secs: 0,
+            admin_addresses: vec![],
+            da_address: da_service.sequencer_address(),
+            batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {
+                mempool_max_txs_count: None,
+                max_batch_size_bytes: None,
+            }),
+        },
+        monitoring: MonitoringConfig::standard(),
+    }
 }
