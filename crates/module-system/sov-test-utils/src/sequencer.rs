@@ -4,6 +4,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
+use async_trait::async_trait;
 use sov_api_spec::Client;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::schema::SchemaBatch;
@@ -20,11 +21,13 @@ use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::StateUpdateInfo;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_sequencer::batch_builders::BatchBuilder;
-use sov_sequencer::{GenericSequencerSpec, Sequencer, SequencerConfig, SequencerDb};
+use sov_sequencer::{
+    GenericSequencerSpec, SequenceNumberProvider, Sequencer, SequencerConfig, SequencerDb,
+};
 use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::TempDir;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 
 use crate::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use crate::runtime::{GenesisConfig, TestOptimisticRuntime};
@@ -279,5 +282,23 @@ impl TestSequencerSetup<TestStdBatchBuilder> {
     pub async fn with_real_batch_builder() -> anyhow::Result<Self> {
         Self::with_real_batch_builder_and_mempool_max_txs_count(NonZero::new(usize::MAX).unwrap())
             .await
+    }
+}
+
+/// A [`SequenceNumberProvider`] that can be used in tests.
+#[derive(Default)]
+pub struct IncrementalSequenceNumberProvider {
+    next_sequence_number: Mutex<u64>,
+}
+
+#[async_trait]
+impl SequenceNumberProvider for IncrementalSequenceNumberProvider {
+    async fn next_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<u64> {
+        let mut lock = self.next_sequence_number.lock().await;
+
+        let n = *lock;
+        *lock += 1;
+
+        Ok(n)
     }
 }

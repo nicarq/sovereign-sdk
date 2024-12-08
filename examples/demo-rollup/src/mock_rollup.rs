@@ -13,17 +13,15 @@ use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
 use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
-use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint};
+use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::node::da::DaServiceWithRetries;
-use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
-use sov_sequencer::SequencerDb;
+use sov_sequencer::SequenceNumberProvider;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
-use tokio::sync::watch;
 
 /// Rollup with MockDa
 #[derive(Default)]
@@ -70,23 +68,18 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
     async fn create_endpoints(
         &self,
         state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
-        sync_status_receiver: watch::Receiver<SyncStatus>,
+        sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
         ledger_db: &LedgerDb,
-        sequencer_db: &SequencerDb,
+        sequencer: &SequencerCreationReceipt<Self::Spec>,
         da_service: &Self::DaService,
-        da_sync_state: Arc<DaSyncState>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> anyhow::Result<RuntimeEndpoints> {
         let mut endpoints = sov_modules_rollup_blueprint::register_endpoints::<Self, Native>(
             state_update_receiver.clone(),
             sync_status_receiver,
             ledger_db,
-            sequencer_db,
-            da_service,
-            da_sync_state,
+            sequencer,
             rollup_config,
-            shutdown_receiver,
         )
         .await?;
 
@@ -153,12 +146,9 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     fn create_proof_serializer(
         &self,
-        rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        sequencer_db: &SequencerDb,
+        _rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+        sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
     ) -> anyhow::Result<Self::ProofSerializer> {
-        Ok(Self::ProofSerializer::new(
-            sequencer_db,
-            rollup_config.sequencer.is_preferred_sequencer(),
-        ))
+        Ok(Self::ProofSerializer::new(sequence_number_provider))
     }
 }

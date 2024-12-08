@@ -1,5 +1,7 @@
 //! Standard implementation of [`ProofSerializer`].
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_modules_api::capabilities::config_chain_id;
@@ -8,24 +10,25 @@ use sov_modules_api::transaction::{PriorityFeeBips, TxDetails};
 use sov_modules_api::{ProofSerializer, Spec};
 use sov_rollup_interface::optimistic::{SerializedAttestation, SerializedChallenge};
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_sequencer::SequencerDb;
+use sov_sequencer::SequenceNumberProvider;
 
 const MAX_FEE: u64 = 10_000_000;
 
 /// Adds metadata about gas & fees to the proof blob.
 pub struct SovApiProofSerializer<S: Spec> {
     _phantom: std::marker::PhantomData<S>,
-    is_preferred_sequencer: bool,
-    sequencer_db: SequencerDb,
+    sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>,
 }
 
 impl<S: Spec> SovApiProofSerializer<S> {
-    /// Creates a new [`SovApiProofSerializer`] with the given [`SequencerDb`].
-    pub fn new(sequencer_db: &SequencerDb, is_preferred_sequencer: bool) -> Self {
+    /// Creates a new [`SovApiProofSerializer`].
+    ///
+    /// If `sequence_number_provider` is [`Some`], the proof serializer will
+    /// produce preferred blobs.
+    pub fn new(sequence_number_provider: Option<Arc<dyn SequenceNumberProvider>>) -> Self {
         Self {
             _phantom: Default::default(),
-            is_preferred_sequencer,
-            sequencer_db: sequencer_db.clone(),
+            sequence_number_provider,
         }
     }
 
@@ -35,11 +38,8 @@ impl<S: Spec> SovApiProofSerializer<S> {
     ) -> anyhow::Result<Vec<u8>> {
         let data = borsh::to_vec(&proof_with_details)?;
 
-        if self.is_preferred_sequencer {
-            let sequence_number = self
-                .sequencer_db
-                .get_and_increase_next_sequence_number()
-                .await?;
+        if let Some(ref provider) = self.sequence_number_provider {
+            let sequence_number = provider.next_sequence_number(&data).await?;
 
             let bytes = borsh::to_vec(&PreferredProofData {
                 sequence_number,

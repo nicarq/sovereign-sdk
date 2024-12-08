@@ -3,7 +3,6 @@ use std::convert::Infallible;
 use sov_attester_incentives::Attestation;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
-use sov_db::sequencer_db::SequencerDb;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvmHost;
 use sov_modules_api::{
@@ -175,12 +174,10 @@ pub(crate) fn make_attestation_blob(
     >,
 ) -> Vec<u8> {
     let serialized_attestation = SerializedAttestation::from_attestation(&attestation).unwrap();
-    let tmp_dir = tempfile::tempdir().unwrap();
-    let seq_db = SequencerDb::new(tmp_dir.path(), Default::default()).unwrap();
 
     tokio::task::block_in_place(|| {
         let f = async move {
-            SovApiProofSerializer::<S>::new(&seq_db, false)
+            SovApiProofSerializer::<S>::new(None)
                 .serialize_attestation_blob_with_metadata(serialized_attestation)
                 .await
                 .unwrap()
@@ -291,12 +288,9 @@ pub(crate) fn make_challenge_blob(
         raw_challenge: serialized_challenge,
     };
 
-    let tmp_dir = tempfile::tempdir().unwrap();
-    let seq_db = SequencerDb::new(tmp_dir.path(), Default::default()).unwrap();
-
     task::block_in_place(move || {
         let f = async move {
-            SovApiProofSerializer::<S>::new(&seq_db, false)
+            SovApiProofSerializer::<S>::new(None)
                 .serialize_challenge_blob_with_metadata(serialized_challenge, challenge_slot)
                 .await
                 .unwrap()

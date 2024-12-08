@@ -10,7 +10,7 @@ mod tx_status;
 
 use batch_builders::BatchBuilder;
 pub use config::{BatchBuilderConfig, SequencerConfig};
-pub use sequencer::Sequencer;
+pub use sequencer::{SequenceNumberProvider, Sequencer};
 use serde::Serialize;
 pub use sov_db::sequencer_db::{SeqDbTx, SeqDbTxId, SequencerDb};
 use sov_modules_api::{DaSpec, FullyBakedTx};
