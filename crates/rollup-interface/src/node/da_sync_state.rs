@@ -33,6 +33,12 @@ pub enum SyncStatus {
 }
 
 impl SyncStatus {
+    /// Where a node starts syncing from.
+    pub const START: Self = SyncStatus::Syncing {
+        synced_da_height: 0,
+        target_da_height: 0,
+    };
+
     /// Returns true if the sync status is `Synced`
     pub fn is_synced(&self) -> bool {
         match self {

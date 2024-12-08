@@ -124,7 +124,7 @@ pub struct SubmitBlobReceipt<T: Debug + Clone> {
 /// The DaService has two responsibilities - fetching data from the DA layer, transforming the
 /// data into a representation that can be efficiently verified in circuit.
 #[async_trait::async_trait]
-pub trait DaService: Send + Sync + 'static {
+pub trait DaService: Clone + Send + Sync + 'static {
     /// A handle to the types used by the DA layer.
     type Spec: DaSpec;
 

@@ -89,7 +89,8 @@ impl<
         Da: DaSpec,
     > Sender<StateRoot, Witness, Da>
 {
-    /// This method is only called when starting up the stf info manager. It ensures that the state is correctly set and synchronized
+    /// This method is only called when starting up the stf info manager. It
+    /// ensures that the state is correctly set and synchronized.
     pub(crate) async fn startup_notify_about_infos_from_db(
         &mut self,
         ledger_db: &LedgerDb,

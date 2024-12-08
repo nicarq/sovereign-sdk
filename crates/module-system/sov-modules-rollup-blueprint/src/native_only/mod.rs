@@ -25,10 +25,9 @@ use sov_modules_stf_blueprint::{
     GenesisParams, Runtime as RuntimeTrait, StfBlueprint, TxReceiptContents,
 };
 use sov_rollup_interface::node::da::DaService;
-use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
-use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
+use sov_rollup_interface::ProvableHeightTracker;
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{Sequencer, SequencerDb, SequencerSpec};
 use sov_state::storage::NativeStorage;
@@ -36,7 +35,7 @@ use sov_state::Storage;
 use sov_stf_runner::processes::{
     ProverService, RawGenesisStateRoot, RollupProverConfig, WorkflowProcessManager,
 };
-use sov_stf_runner::{InitVariant, RollupConfig, StateTransitionRunner};
+use sov_stf_runner::{query_state_update_info, InitVariant, RollupConfig, StateTransitionRunner};
 use tokio::signal::unix::SignalKind;
 use tokio::sync::oneshot;
 pub use wallet::*;
@@ -48,7 +47,7 @@ use crate::RollupBlueprint;
 #[async_trait]
 pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     /// Data Availability service.
-    type DaService: DaService<Spec = <Self::Spec as Spec>::Da, Error = anyhow::Error> + Clone;
+    type DaService: DaService<Spec = <Self::Spec as Spec>::Da, Error = anyhow::Error>;
 
     /// Manager for the native storage lifecycle.
     type StorageManager: HierarchicalStorageManager<
@@ -223,24 +222,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             prover_storage
         };
 
-        let rollup_height = ledger_db
-            .get_head_rollup_height()
-            .await?
-            .expect("The rollup height should always be available");
-        let next_event_number = ledger_db
-            .get_latest_event_number()
-            .await
-            .unwrap()
-            .map(|x| x + 1)
-            .unwrap_or_default();
-        let latest_finalized_rollup_height = ledger_db.get_latest_finalized_rollup_height().await?;
-
-        let state_update_info = StateUpdateInfo {
-            storage: prover_storage,
-            next_event_number,
-            rollup_height,
-            latest_finalized_rollup_height,
-        };
+        let state_update_info = query_state_update_info(&ledger_db, prover_storage).await?;
 
         let (state_update_sender, state_update_receiver) =
             tokio::sync::watch::channel(state_update_info);
@@ -267,91 +249,72 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             MaximumProvableHeight::new(state_update_sender.subscribe(), Self::Runtime::default()),
         );
 
-        let st_info_sender = match prover_config {
-            Some(config) => {
-                let prover_service = self
-                    .create_prover_service(config, &rollup_config, &da_service)
-                    .await;
-
-                let process_manager = WorkflowProcessManager::new(
-                    prover_service,
-                    da_service.clone(),
-                    ledger_db.clone(),
-                    genesis_state_root,
-                    Box::new(self.create_proof_serializer(&rollup_config, &sequencer_db)?),
-                );
-
-                let max_channel_size = rollup_config
-                    .proof_manager
-                    .max_number_of_transitions_in_memory
-                    as usize;
-                let max_infos_in_db = rollup_config.proof_manager.max_number_of_transitions_in_db;
-
-                let st_info_sender = match operating_mode {
-                    OperatingMode::Optimistic => {
-                        let prover_address = rollup_config.proof_manager.prover_address.clone();
-                        let receiver = state_update_sender.subscribe();
-                        let bonding_proof_service = Self::Runtime::default()
-                            .proof_processor()
-                            .create_bonding_proof_service(
-                                prover_address,
-                                receiver,
-                                Self::Runtime::default(),
-                            );
-
-                        let (st_info_sender, pm_handle) = process_manager
-                            .start_op_workflow_in_background(
-                                bonding_proof_service,
-                                max_channel_size,
-                                max_infos_in_db,
-                                secondary_shutdown_receiver.clone(),
-                                &*visible_state_height_tracker,
-                            )
-                            .await?;
-                        background_handles.push(pm_handle);
-                        st_info_sender
-                    }
-                    OperatingMode::Zk => {
-                        let (st_info_sender, pm_handle) = process_manager
-                            .start_zk_workflow_in_background(
-                                rollup_config.proof_manager.aggregated_proof_block_jump,
-                                max_channel_size,
-                                max_infos_in_db,
-                                secondary_shutdown_receiver.clone(),
-                                &*visible_state_height_tracker,
-                            )
-                            .await?;
-                        background_handles.push(pm_handle);
-                        st_info_sender
-                    }
-                };
-
-                Some(st_info_sender)
-            }
-            None => None,
-        };
-
         let (sync_status_sender, sync_status_receiver) =
-            tokio::sync::watch::channel(SyncStatus::Syncing {
-                synced_da_height: 0,
-                target_da_height: 0,
-            });
+            tokio::sync::watch::channel(SyncStatus::START);
 
-        let runner = StateTransitionRunner::new(
+        let mut runner = StateTransitionRunner::new(
             rollup_config.runner.clone(),
+            if prover_config.is_some() {
+                Some(rollup_config.proof_manager.clone())
+            } else {
+                None
+            },
             da_service.clone(),
             ledger_db.clone(),
             native_stf,
             storage_manager,
             state_update_sender,
             prev_state_root,
-            st_info_sender,
             sync_status_sender,
             visible_state_height_tracker,
             main_shutdown_receiver.clone(),
             rollup_config.monitoring.clone(),
         )
         .await?;
+
+        if let Some(st_info_receiver) = runner.take_st_info_receiver() {
+            let prover_config = prover_config
+                .expect("This code path should not be possible; this is a bug, please report it");
+
+            let prover_service = self
+                .create_prover_service(prover_config, &rollup_config, &da_service)
+                .await;
+
+            let process_manager = WorkflowProcessManager::new(
+                prover_service,
+                da_service.clone(),
+                genesis_state_root,
+                secondary_shutdown_receiver.clone(),
+                st_info_receiver,
+                Box::new(self.create_proof_serializer(&rollup_config, &sequencer_db)?),
+            );
+
+            let workflow_task_handle = match operating_mode {
+                OperatingMode::Optimistic => {
+                    let prover_address = rollup_config.proof_manager.prover_address.clone();
+                    let bonding_proof_service = Self::Runtime::default()
+                        .proof_processor()
+                        .create_bonding_proof_service(
+                            prover_address,
+                            state_update_receiver.clone(),
+                            Self::Runtime::default(),
+                        );
+
+                    process_manager
+                        .start_op_workflow_in_background(bonding_proof_service)
+                        .await?
+                }
+                OperatingMode::Zk => {
+                    process_manager
+                        .start_zk_workflow_in_background(
+                            rollup_config.proof_manager.aggregated_proof_block_jump,
+                        )
+                        .await?
+                }
+            };
+
+            background_handles.push(workflow_task_handle);
+        }
 
         let endpoints = self
             .create_endpoints(
