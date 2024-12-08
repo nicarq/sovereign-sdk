@@ -23,7 +23,7 @@ pub use stf_info_manager::*;
 pub struct WorkflowProcessManager<Ps: ProverService> {
     prover_service: Ps,
     da_service: Arc<Ps::DaService>,
-    genesis_state_root: RawGenesisStateRoot,
+    genesis_state_root: Ps::StateRoot,
     shutdown_receiver: watch::Receiver<()>,
     proof_serializer: Box<dyn ProofSerializer>,
     st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
@@ -38,7 +38,7 @@ where
     pub fn new(
         prover_service: Ps,
         da_service: Arc<Ps::DaService>,
-        genesis_state_root: RawGenesisStateRoot,
+        genesis_state_root: Ps::StateRoot,
         shutdown_receiver: watch::Receiver<()>,
         st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
         proof_serializer: Box<dyn ProofSerializer>,

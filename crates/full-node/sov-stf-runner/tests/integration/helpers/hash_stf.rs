@@ -12,7 +12,7 @@ use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, StateAccesses,
-    StateRoot, Storage,
+    Storage, StorageRoot,
 };
 
 pub type S = DefaultStorageSpec<sha2::Sha256>;
@@ -38,7 +38,7 @@ impl<Cond> HashStf<Cond> {
         hasher: sha2::Sha256,
         storage: ProverStorage<S>,
         witness: &ArrayWitness,
-    ) -> ([u8; 32], NativeChangeSet) {
+    ) -> (StorageRoot<S>, NativeChangeSet) {
         let result = hasher.finalize();
 
         let hash_key = HashStf::<Cond>::hash_key();
@@ -59,7 +59,7 @@ impl<Cond> HashStf<Cond> {
 
         let change_set = storage.materialize_changes(&state_update);
 
-        (jmt_root_hash.global_root(), change_set)
+        (jmt_root_hash, change_set)
     }
 }
 
@@ -67,7 +67,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for HashStf<Cond>
 {
     type Address = [u8; 32];
-    type StateRoot = [u8; 32];
+    type StateRoot = StorageRoot<S>;
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<S>;
     type ChangeSet = NativeChangeSet;
@@ -116,8 +116,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
         );
 
         assert_eq!(
-            pre_state_root,
-            &storage_root_hash.root_hash().0,
+            pre_state_root, &storage_root_hash,
             "Incorrect pre_state_root has been passed"
         );
 

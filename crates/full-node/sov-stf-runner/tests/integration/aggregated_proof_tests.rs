@@ -7,10 +7,9 @@ use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData, SerializedAggregatedProof,
 };
-use sov_stf_runner::InitVariant;
 use tokio::task::JoinHandle;
 
-use crate::helpers::runner_init::{initialize_runner, TestNode};
+use crate::helpers::runner_init::{initialize_runner, InitVariant, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_fetch_aggregated_proof_test_sync() -> anyhow::Result<()> {

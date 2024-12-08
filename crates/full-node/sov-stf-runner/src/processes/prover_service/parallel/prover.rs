@@ -20,8 +20,7 @@ use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
 use crate::processes::prover_service::block_proof::BlockProof;
 use crate::processes::{
-    ProofAggregationStatus, ProofProcessingStatus, RawGenesisStateRoot, RollupProverConfig,
-    StateTransitionInfo,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
 };
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
@@ -167,7 +166,7 @@ where
         &self,
         mut outer_vm: OuterVm,
         block_header_hashes: &[<Da::Spec as DaSpec>::SlotHash],
-        genesis_state_root: &RawGenesisStateRoot,
+        genesis_state_root: &StateRoot,
     ) -> anyhow::Result<ProofAggregationStatus> {
         assert!(!block_header_hashes.is_empty());
         let mut prover_state = self.prover_state.write().expect("Lock was poisoned");
@@ -211,7 +210,7 @@ where
             rewarded_addresses,
             initial_rollup_height: initial_block_proof.rollup_height,
             final_rollup_height: final_block_proof.rollup_height,
-            genesis_state_root: genesis_state_root.0.to_vec(),
+            genesis_state_root: genesis_state_root.as_ref().to_vec(),
             initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
             final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
             initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),

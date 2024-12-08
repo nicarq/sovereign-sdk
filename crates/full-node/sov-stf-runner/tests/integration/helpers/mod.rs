@@ -1,6 +1,9 @@
-use sov_stf_runner::processes::RawGenesisStateRoot;
 pub mod hash_stf;
 pub mod runner_init;
+
+/// Bytes of the genesis state root.
+#[derive(Clone, Debug)]
+pub struct RawGenesisStateRoot(pub Vec<u8>);
 
 const GENESIS_STATE_ROOT: [u8; 32] = [22; 32];
 

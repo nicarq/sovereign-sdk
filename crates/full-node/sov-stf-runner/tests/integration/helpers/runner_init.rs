@@ -4,8 +4,10 @@ use std::sync::Arc;
 use axum::async_trait;
 use futures::stream::BoxStream;
 use futures::{Stream, StreamExt};
+use rockbound::SchemaBatch;
 use sha2::Sha256;
 use sov_db::ledger_db::LedgerDb;
+use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
@@ -14,19 +16,22 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
-use sov_modules_api::{Batch, FullyBakedTx, ProofSerializer, StateUpdateInfo, SyncStatus};
+use sov_modules_api::{
+    Batch, FullyBakedTx, ProofSerializer, StateTransitionFunction, StateUpdateInfo, SyncStatus,
+};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
+use sov_rollup_interface::zk::Zkvm;
 use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
-use sov_state::{DefaultStorageSpec, ProverStorage};
+use sov_state::{DefaultStorageSpec, NativeStorage, ProverStorage};
 use sov_stf_runner::processes::{
     ParallelProverService, RollupProverConfig, WorkflowProcessManager,
 };
 use sov_stf_runner::{
-    HttpServerConfig, InitVariant, ProofManagerConfig, RollupConfig, RunnerConfig,
+    initialize_state, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
     StateTransitionRunner, StorageConfig,
 };
 use tokio::sync::broadcast::Receiver;
@@ -266,6 +271,77 @@ pub async fn initialize_runner(
             _sync_status_receiver,
         },
     )
+}
+
+type GenesisParams<ST, InnerVm, OuterVm, Da> =
+    <ST as StateTransitionFunction<InnerVm, OuterVm, Da>>::GenesisParams;
+
+/// How [`StateTransitionRunner`] is initialized
+pub enum InitVariant<
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Da: DaService,
+> {
+    /// From give state root
+    Initialized(Stf::StateRoot),
+    /// From empty state root
+    Genesis {
+        /// Genesis block header should be finalized at an initialization moment.
+        block: Da::FilteredBlock,
+        /// Genesis params for Stf::init.
+        genesis_params: GenesisParams<Stf, InnerVm, OuterVm, Da::Spec>,
+    },
+}
+
+impl<Stf, InnerVm, OuterVm, Da> InitVariant<Stf, InnerVm, OuterVm, Da>
+where
+    Stf::PreState: NativeStorage<Root = Stf::StateRoot>,
+    Stf: StateTransitionFunction<InnerVm, OuterVm, Da::Spec>,
+    InnerVm: Zkvm,
+    OuterVm: Zkvm,
+    Da: DaService,
+{
+    async fn initialize<Sm>(
+        self,
+        ledger_db: &mut LedgerDb,
+        stf: &Stf,
+        storage_manager: &mut Sm,
+    ) -> anyhow::Result<(Stf::StateRoot, Stf::StateRoot)>
+    where
+        Sm: HierarchicalStorageManager<
+            Da::Spec,
+            LedgerChangeSet = SchemaBatch,
+            LedgerState = DeltaReader,
+            StfState = Stf::PreState,
+            StfChangeSet = Stf::ChangeSet,
+        >,
+    {
+        let (prev_state_root, genesis_state_root) = match self {
+            InitVariant::Initialized(prev_state_root) => {
+                let (prover_storage, _ledger_state) = storage_manager.create_bootstrap_state()?;
+                let genesis_state_root = prover_storage.get_root_hash(0)?;
+
+                (prev_state_root, genesis_state_root)
+            }
+            InitVariant::Genesis {
+                block,
+                genesis_params: params,
+            } => {
+                let genesis_state_root = initialize_state::<Stf, InnerVm, OuterVm, Da, Sm>(
+                    stf,
+                    storage_manager,
+                    ledger_db,
+                    block,
+                    params,
+                )
+                .await?;
+                (genesis_state_root.clone(), genesis_state_root)
+            }
+        };
+
+        Ok((prev_state_root, genesis_state_root))
+    }
 }
 
 fn rollup_config(
