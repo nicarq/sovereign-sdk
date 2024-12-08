@@ -88,7 +88,7 @@ fn mint_token_fails_if_user_unauthorized() {
                 assert_eq!(
                     message_2,
                     format!(
-                        "Sender {} is not an authorized minter of token {}",
+                        "Sender {} is not an admin of token {}",
                         unauthorized_minter.address(),
                         token_name
                     ),
@@ -120,7 +120,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
             token_name: token_name.to_string().try_into().unwrap(),
             initial_balance: 100,
             mint_to_address: user.address(),
-            authorized_minters: SafeVec::new(),
+            admins: SafeVec::new(),
         }),
     );
 
@@ -143,7 +143,7 @@ fn try_create_token_and_mint_should_fail_if_not_authorized() {
                 assert_eq!(
                     message_2,
                     format!(
-                        "Sender {} is not an authorized minter of token {}",
+                        "Sender {} is not an admin of token {}",
                         user.address(),
                         token_name
                     ),

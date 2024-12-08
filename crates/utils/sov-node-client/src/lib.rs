@@ -30,8 +30,8 @@ struct TokenIdResponse {
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
 #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-struct AuthorizedMintersResponse<S: sov_modules_api::Spec> {
-    authorized_minters: Vec<TokenHolder<S>>,
+struct AdminsResponse<S: sov_modules_api::Spec> {
+    admins: Vec<TokenHolder<S>>,
 }
 
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -155,26 +155,21 @@ impl NodeClient {
         self.query_amount(&total_supply_url).await
     }
 
-    /// Get list of authorized minters for given token.
-    pub async fn get_authorized_minters<S: sov_modules_api::Spec>(
+    /// Get list of admins for given token.
+    pub async fn get_admins<S: sov_modules_api::Spec>(
         &self,
         token_id: &TokenId,
     ) -> anyhow::Result<Vec<TokenHolder<S>>> {
-        let url = format!(
-            "{}/modules/bank/tokens/{}/authorized-minters",
-            self.base_url, token_id
-        );
+        let url = format!("{}/modules/bank/tokens/{}/admins", self.base_url, token_id);
 
         let response = self.http_client.get(url).send().await?;
-        let response = response
-            .json::<ResponseObject<AuthorizedMintersResponse<S>>>()
-            .await?;
+        let response = response.json::<ResponseObject<AdminsResponse<S>>>().await?;
 
         let data = response
             .data
             .ok_or_else(|| anyhow::anyhow!("No data in balance response"))?;
 
-        Ok(data.authorized_minters)
+        Ok(data.admins)
     }
 
     /// Get balance of the user.

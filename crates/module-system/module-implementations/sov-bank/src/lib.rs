@@ -107,11 +107,11 @@ impl<S: Spec> Module for Bank<S> {
                 token_name,
                 initial_balance,
                 mint_to_address,
-                authorized_minters,
+                admins,
             } => {
                 self.charge_gas(state, &self.gas.create_token)?;
 
-                let authorized_minters = authorized_minters
+                let admins = admins
                     .iter()
                     .map(|minter| TokenHolderRef::from(&minter))
                     .collect::<Vec<_>>();
@@ -120,7 +120,7 @@ impl<S: Spec> Module for Bank<S> {
                     token_name.into(),
                     initial_balance,
                     &mint_to_address,
-                    authorized_minters,
+                    admins,
                     context.sender(),
                     state,
                 )?;

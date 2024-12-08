@@ -4,7 +4,7 @@ use sov_test_utils::{AsUser, TransactionTestCase};
 
 use crate::helpers::{setup, TestBankRuntimeEvent, TestData, RT, S};
 
-/// Check that the authorized minter can freeze a token
+/// Check that the admin can freeze a token
 #[test]
 fn freeze_token_happy_path() {
     let (
@@ -133,7 +133,7 @@ fn unauthorized_minter_cannot_freeze_token() {
                 assert_eq!(format!("Failed to freeze token_id={}", token_id), message_1);
                 assert_eq!(
                     format!(
-                        "Sender {} is not an authorized minter of token {}",
+                        "Sender {} is not an admin of token {}",
                         unauthorized_address, token_name
                     ),
                     message_2

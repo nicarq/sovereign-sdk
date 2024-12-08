@@ -96,18 +96,18 @@ impl<S: Spec> Bank<S> {
         Ok(types::TokenIdResponse { token_id }.into())
     }
 
-    async fn route_authorized_minters(
+    async fn route_admins(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
         Path(token_id): Path<TokenId>,
-    ) -> ApiResult<types::AuthorizedMintersResponse<S>> {
-        let authorized_minters = state
+    ) -> ApiResult<types::AdminsResponse<S>> {
+        let admins = state
             .tokens
             .get(&token_id, &mut accessor)
             .unwrap_infallible()
             .ok_or_else(|| errors::not_found_404("Token", token_id))?
-            .authorized_minters;
-        Ok(types::AuthorizedMintersResponse { authorized_minters }.into())
+            .admins;
+        Ok(types::AdminsResponse { admins }.into())
     }
 }
 
@@ -124,10 +124,7 @@ impl<S: Spec> HasCustomRestApi for Bank<S> {
                 "/tokens/:tokenId/total-supply",
                 get(Self::route_total_supply),
             )
-            .route(
-                "/tokens/:tokenId/authorized-minters",
-                get(Self::route_authorized_minters),
-            )
+            .route("/tokens/:tokenId/admins", get(Self::route_admins))
             .route("/tokens", get(Self::route_find_token_id))
             .with_state(state.with(self.clone()))
     }
@@ -161,7 +158,7 @@ pub mod types {
 
     #[derive(Debug, Eq, PartialEq, serde::Deserialize, serde::Serialize, Clone)]
     #[serde(bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned")]
-    pub struct AuthorizedMintersResponse<S: sov_modules_api::Spec> {
-        pub authorized_minters: Vec<TokenHolder<S>>,
+    pub struct AdminsResponse<S: sov_modules_api::Spec> {
+        pub admins: Vec<TokenHolder<S>>,
     }
 }

@@ -254,7 +254,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                         token_name: token_name.to_string(),
                         token_id: token_name.id(),
                         address_and_balances: Vec::new(),
-                        authorized_minters: Vec::new(),
+                        admins: Vec::new(),
                     };
 
                     token_configs.push(initial_token_config);
@@ -263,7 +263,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
                 };
 
                 if token_info.is_minter {
-                    token_config.authorized_minters.push(user_address.clone());
+                    token_config.admins.push(user_address.clone());
                 }
 
                 token_config
@@ -363,7 +363,7 @@ impl<S: Spec> MinimalOptimisticGenesisConfig<S> {
 
                         additional_accounts_vec
                     },
-                    authorized_minters: vec![],
+                    admins: vec![],
                 },
                 tokens: Self::parse_token_configs(additional_accounts),
             },

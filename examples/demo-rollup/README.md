@@ -104,14 +104,14 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 0xa6ba39e5fc6041007310fd55cf91dfdd9f04d6730736c65067ec6dac35d9ae52
+0: 0x87bafc1273247bcfefffd768ea05a731e9c61fcb1ec56a935b9571c13933e8a2
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xa6ba39e5fc6041007310fd55cf91dfdd9f04d6730736c65067ec6dac35d9ae52/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x87bafc1273247bcfefffd768ea05a731e9c61fcb1ec56a935b9571c13933e8a2/events | jq
 {
   "data": [
     {
@@ -131,7 +131,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xa6ba39e5fc6041007310fd55cf91dfdd9
           "minter": {
             "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
           },
-          "authorized_minters": [
+          "admins": [
             {
               "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
             },
@@ -198,8 +198,8 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
         mint_to_address: S::Address,
-        /// Authorized minter list.
-        authorized_minters: Vec<S::Address>,
+        /// Admins list.
+        admins: Vec<S::Address>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
@@ -319,7 +319,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x44187785252131f9a1ccd1bda83ac148d2cd3c8c6de1c8b9f0791a8df83870f6",
+  "chain_hash": "0xf331baa73e51921a130b44c11e6da94357e18382d6d3a10b058df55d8cedfacf",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

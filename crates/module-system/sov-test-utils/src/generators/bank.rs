@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use sha2::Digest;
-use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId, MAX_AUTHORIZED_MINTERS};
+use sov_bank::{get_token_id, Bank, CallMessage, Coins, TokenId, MAX_ADMINS};
 use sov_modules_api::transaction::PriorityFeeBips;
 use sov_modules_api::{CryptoSpec, PrivateKey as _, SafeVec, Spec};
 
@@ -31,8 +31,8 @@ pub struct TokenCreateData<S: Spec> {
     pub mint_to_address: S::Address,
     /// The private key of the minter.
     pub minter_pkey: Rc<<S::CryptoSpec as CryptoSpec>::PrivateKey>,
-    /// The authorized minters.
-    pub authorized_minters: SafeVec<S::Address, MAX_AUTHORIZED_MINTERS>,
+    /// The admins.
+    pub admins: SafeVec<S::Address, MAX_ADMINS>,
 }
 
 impl<S: Spec> TokenCreateData<S> {
@@ -104,7 +104,7 @@ where
     pub fn generate_create_token(
         token_name: String,
         minter_pkey: Rc<<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey>,
-        authorized_minters: SafeVec<<S as Spec>::Address, MAX_AUTHORIZED_MINTERS>,
+        admins: SafeVec<<S as Spec>::Address, MAX_ADMINS>,
         initial_balance: u64,
     ) -> Self {
         Self {
@@ -113,7 +113,7 @@ where
                 initial_balance,
                 mint_to_address: (&minter_pkey.pub_key()).into(),
                 minter_pkey,
-                authorized_minters,
+                admins,
             }],
             transfer_txs: vec![],
         }
@@ -152,7 +152,7 @@ where
             initial_balance: 1000,
             mint_to_address: minter.clone(),
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter.clone()])
+            admins: Vec::from([minter.clone()])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
         };
@@ -193,7 +193,7 @@ impl BankMessageGenerator<TestSpec> {
             initial_balance: 1000,
             mint_to_address: minter,
             minter_pkey: Rc::new(minter_key.clone()),
-            authorized_minters: Vec::from([minter])
+            admins: Vec::from([minter])
                 .try_into()
                 .expect("Tokens can have at least one minter"),
         };
@@ -223,7 +223,7 @@ pub(crate) fn create_token_tx<S: Spec>(input: &TokenCreateData<S>) -> CallMessag
         token_name: input.token_name.clone().try_into().unwrap(),
         initial_balance: input.initial_balance,
         mint_to_address: input.mint_to_address.clone(),
-        authorized_minters: input.authorized_minters.clone(),
+        admins: input.admins.clone(),
     }
 }
 

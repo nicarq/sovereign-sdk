@@ -310,8 +310,8 @@
             "doc": ""
           },
           {
-            "display_name": "authorized_minters",
-            "serde_display_name": "authorized_minters",
+            "display_name": "admins",
+            "serde_display_name": "admins",
             "silent": false,
             "value": {
               "ByIndex": 8

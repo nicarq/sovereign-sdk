@@ -215,7 +215,7 @@ impl<S: Spec> MinimalZkGenesisConfig<S> {
 
                         additional_accounts_vec
                     },
-                    authorized_minters: vec![],
+                    admins: vec![],
                 },
                 tokens: vec![],
             },
