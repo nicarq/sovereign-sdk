@@ -54,7 +54,13 @@ pub mod execution_mode {
     }
     /// Marker trait for execution modes.
     pub trait ExecutionMode:
-        super::sealed::Sealed + Send + Sync + Default + Serialize + serde::de::DeserializeOwned
+        super::sealed::Sealed
+        + Send
+        + Sync
+        + 'static
+        + Default
+        + Serialize
+        + serde::de::DeserializeOwned
     {
         /// An enum variant equivalent to the implementing type.
         const EXECUTION_MODE: RuntimeExecutionMode;

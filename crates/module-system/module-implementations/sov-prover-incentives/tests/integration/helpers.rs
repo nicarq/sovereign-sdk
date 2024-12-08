@@ -3,7 +3,6 @@ use std::convert::Infallible;
 use serde::Serialize;
 use sov_bank::{config_gas_token_id, Bank};
 use sov_chain_state::ChainState;
-use sov_db::sequencer_db::SequencerDb;
 use sov_mock_da::MockValidityCond;
 use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::prelude::tokio::runtime::{self, Handle};
@@ -115,12 +114,9 @@ pub(crate) fn serialize_proof<T: Serialize>(agg_proof: T) -> Vec<u8> {
         raw_aggregated_proof: proof,
     };
 
-    let tmp_dir = tempfile::tempdir().unwrap();
-    let seq_db = SequencerDb::new(tmp_dir.path(), Default::default()).unwrap();
-
     task::block_in_place(move || {
         let f = async move {
-            SovApiProofSerializer::<S>::new(&seq_db, false)
+            SovApiProofSerializer::<S>::new(None)
                 .serialize_proof_blob_with_metadata(serialized_proof)
                 .await
                 .unwrap()

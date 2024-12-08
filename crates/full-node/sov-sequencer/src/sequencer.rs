@@ -1,7 +1,8 @@
 use std::sync::Arc;
 
+use axum::async_trait;
 use sov_db::ledger_db::LedgerDb;
-use sov_db::sequencer_db::SequencerDb;
+use sov_db::sequencer_db::{SequenceNumber, SequencerDb};
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
 use sov_modules_api::{DaSyncState, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo};
 use sov_rollup_interface::da::DaSpec;
@@ -16,8 +17,10 @@ use tracing::{debug, error, info};
 
 use super::tx_status::{TxStatus, TxStatusManager};
 use super::SubmitBatchReceipt;
+use crate::batch_builders::preferred::PreferredBatchBuilder;
 use crate::batch_builders::{
-    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, SequencerConfirmation,
+    AcceptTxError, AcceptedTx, BatchBuilder, FreshlyBuiltBatch, RtAwareBatchBuilderSpec,
+    SequencerConfirmation,
 };
 use crate::{SeqDbTx, SeqDbTxExtend, SequencerConfig, SequencerSpec};
 
@@ -123,7 +126,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             <Ss::BatchBuilder as BatchBuilder>::Config,
         >,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    ) -> anyhow::Result<(Self, tokio::task::JoinHandle<anyhow::Result<()>>)> {
+    ) -> anyhow::Result<(Self, tokio::task::JoinHandle<()>)> {
         let (events_sender, _) = broadcast::channel(Self::EVENTS_CHANNEL_SIZE);
 
         // This MAY be the height the batch builder uses to rebuild its internal
@@ -161,14 +164,18 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             let automatic_batch_production = config.automatic_batch_production;
 
             async move {
-                s.loop_background_task(
-                    state_update_receiver,
-                    lower_bound_on_latest_height_notifications,
-                    ledger_db,
-                    shutdown_receiver,
-                    automatic_batch_production,
-                )
-                .await
+                if let Err(error) = s
+                    .loop_background_task(
+                        state_update_receiver,
+                        lower_bound_on_latest_height_notifications,
+                        ledger_db,
+                        shutdown_receiver,
+                        automatic_batch_production,
+                    )
+                    .await
+                {
+                    error!(%error, "Sequencer background task failed");
+                }
             }
         });
 
@@ -452,4 +459,30 @@ pub struct SequencerEvent<Bb: BatchBuilder> {
     event: RuntimeEventResponse<
         <<Bb as BatchBuilder>::Confirmation as SequencerConfirmation>::EventInner,
     >,
+}
+
+/// An object-safe interface to the preferred sequencer, which can be used to
+/// get a sequence number assigned to preferred proof blobs.
+#[async_trait]
+pub trait SequenceNumberProvider: Send + Sync + 'static {
+    /// Returns the next sequence number.
+    ///
+    /// Subsequent calls to this method MUST return different (greater) values.
+    async fn next_sequence_number(&self, preferred_blob: &[u8]) -> anyhow::Result<SequenceNumber>;
+}
+
+#[async_trait]
+impl<Z, Ss> SequenceNumberProvider for Sequencer<Ss>
+where
+    Z: RtAwareBatchBuilderSpec,
+    Ss: SequencerSpec<BatchBuilder = PreferredBatchBuilder<Z>>,
+    //                               ^^^^^^^^^^^^^^^^^^^^^^^^
+    // One should not be able to use a non-preferred sequencer to produce
+    // sequence numbers.
+{
+    async fn next_sequence_number(&self, _preferred_blob: &[u8]) -> anyhow::Result<SequenceNumber> {
+        self.sequencer_db
+            .get_and_increase_next_sequence_number()
+            .await
+    }
 }

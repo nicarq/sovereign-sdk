@@ -1,29 +1,19 @@
-use std::sync::Arc;
-
 use sov_db::ledger_db::LedgerDb;
-use sov_db::sequencer_db::SequencerDb;
 use sov_ledger_apis::LedgerRoutes;
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::prelude::utoipa_swagger_ui::Config;
 use sov_modules_api::rest::utils::{cors_layer, errors};
-use sov_modules_api::rest::{ApiState, HasRestApi, StateUpdateReceiver};
+use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
 use sov_modules_api::{
-    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, StateUpdateInfo,
-    SyncStatus,
+    BatchSequencerReceipt, RuntimeEndpoints, RuntimeEventProcessor, Spec, SyncStatus,
 };
 use sov_modules_stf_blueprint::{Runtime as RuntimeTrait, TxReceiptContents};
 use sov_rollup_apis::{DefaultRollupStateProvider, RollupTxRouter};
-use sov_rollup_interface::node::DaSyncState;
-use sov_sequencer::batch_builders::preferred::PreferredBatchBuilder;
-use sov_sequencer::batch_builders::standard::StdBatchBuilder;
-use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::{CorsConfiguration, RollupConfig, RunnerConfig};
-use tokio::sync::watch;
-use tokio::task::JoinHandle;
-use tracing::warn;
 
-use crate::{FullNodeBlueprint, SequencerBlueprint};
+use super::SequencerCreationReceipt;
+use crate::FullNodeBlueprint;
 
 /// Register rollup's default RPC methods and Axum router.
 #[allow(clippy::too_many_arguments)]
@@ -31,11 +21,8 @@ pub async fn register_endpoints<B, M>(
     state_update_receiver: StateUpdateReceiver<<B::Spec as Spec>::Storage>,
     sync_status_receiver: tokio::sync::watch::Receiver<SyncStatus>,
     ledger_db: &LedgerDb,
-    sequencer_db: &SequencerDb,
-    da_service: &B::DaService,
-    da_sync_state: Arc<DaSyncState>,
+    sequencer: &SequencerCreationReceipt<B::Spec>,
     config: &RollupConfig<<B::Spec as Spec>::Address, B::DaService>,
-    shutdown_receiver: tokio::sync::watch::Receiver<()>,
 ) -> anyhow::Result<RuntimeEndpoints>
 where
     B: FullNodeBlueprint<M> + 'static,
@@ -44,25 +31,10 @@ where
         + HasRestApi<B::Spec>
         + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
 {
-    let (api_state, sequencer_router, sequencer_background_handle) =
-        create_and_start_sequencer::<B, M>(
-            state_update_receiver.clone(),
-            da_sync_state,
-            config.sequencer.clone(),
-            sequencer_db,
-            ledger_db,
-            da_service,
-            shutdown_receiver,
-        )
-        .await?;
-
-    let mut endpoints = B::Runtime::endpoints(api_state);
-    endpoints
-        .background_handles
-        .push(sequencer_background_handle);
+    let mut endpoints = B::Runtime::endpoints(sequencer.api_state.clone());
 
     // Sequencer endpoints.
-    endpoints.axum_router = endpoints.axum_router.merge(sequencer_router);
+    endpoints.axum_router = endpoints.axum_router.merge(sequencer.axum_router.clone());
 
     // Ledger endpoint.
     {
@@ -121,70 +93,6 @@ where
     }
 
     Ok(endpoints)
-}
-
-async fn create_and_start_sequencer<B, M>(
-    state_update_receiver: watch::Receiver<StateUpdateInfo<<B::Spec as Spec>::Storage>>,
-    da_sync_state: Arc<DaSyncState>,
-    config: SequencerConfig<<B::Spec as Spec>::Da, <B::Spec as Spec>::Address, BatchBuilderConfig>,
-    sequencer_db: &SequencerDb,
-    ledger_db: &LedgerDb,
-    da_service: &B::DaService,
-    shutdown_receiver: watch::Receiver<()>,
-) -> anyhow::Result<(
-    ApiState<B::Spec>,
-    sov_modules_api::prelude::axum::Router<()>,
-    JoinHandle<anyhow::Result<()>>,
-)>
-where
-    B: FullNodeBlueprint<M> + 'static,
-    M: ExecutionMode + 'static,
-    B::Runtime: RuntimeEventProcessor
-        + HasRestApi<B::Spec>
-        + HasCapabilities<B::Spec, AuthorizationData = AuthorizationData<B::Spec>>,
-{
-    match &config.batch_builder {
-        BatchBuilderConfig::Standard(bb_config) => {
-            let (sequencer, background_handle) =
-                SequencerBlueprint::<B, M, StdBatchBuilder<(B::Spec, B::Runtime)>>::new(
-                    state_update_receiver.clone(),
-                    da_service.clone(),
-                    da_sync_state,
-                    sequencer_db.clone(),
-                    ledger_db.clone(),
-                    &config.with_bb_config(bb_config.clone()),
-                    shutdown_receiver,
-                )
-                .await?;
-
-            Ok((
-                sequencer.api_state(),
-                sequencer.rest_api_server(),
-                background_handle,
-            ))
-        }
-        BatchBuilderConfig::Preferred(bb_config) => {
-            warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
-
-            let (sequencer, background_handle) =
-                SequencerBlueprint::<B, M, PreferredBatchBuilder<(B::Spec, B::Runtime)>>::new(
-                    state_update_receiver.clone(),
-                    da_service.clone(),
-                    da_sync_state,
-                    sequencer_db.clone(),
-                    ledger_db.clone(),
-                    &config.with_bb_config(bb_config.clone()),
-                    shutdown_receiver,
-                )
-                .await?;
-
-            Ok((
-                sequencer.api_state(),
-                sequencer.rest_api_server(),
-                background_handle,
-            ))
-        }
-    }
 }
 
 fn merge_specs(
