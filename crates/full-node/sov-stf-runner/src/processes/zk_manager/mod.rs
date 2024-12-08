@@ -1,3 +1,4 @@
+use std::num::NonZero;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -27,7 +28,7 @@ pub struct ZkProofManager<Ps: ProverService> {
     da_service: Arc<Ps::DaService>,
     prover_service: Ps,
     proofs_to_create: UnAggregatedProofList<Ps>,
-    aggregated_proof_block_jump: usize,
+    aggregated_proof_block_jump: NonZero<usize>,
     proof_serializer: Box<dyn ProofSerializer>,
     backoff_policy: ExponentialBuilder,
     genesis_state_root: RawGenesisStateRoot,
@@ -44,7 +45,7 @@ where
     pub fn new(
         da_service: Arc<Ps::DaService>,
         prover_service: Ps,
-        aggregated_proof_block_jump: usize,
+        aggregated_proof_block_jump: NonZero<usize>,
         proof_serializer: Box<dyn ProofSerializer>,
         genesis_state_root: RawGenesisStateRoot,
         st_info_receiver: Receiver<Ps::StateRoot, Ps::Witness, <Ps::DaService as DaService>::Spec>,
@@ -192,7 +193,7 @@ where
         let num_proofs_to_create = self.proofs_to_create.current_proof_jump();
 
         // If we've covered enough blocks for the aggregate proof, generate and submit it to DA
-        if num_proofs_to_create >= self.aggregated_proof_block_jump {
+        if num_proofs_to_create >= self.aggregated_proof_block_jump.get() {
             self.proofs_to_create.close_newest_proof();
             let metadata = self.proofs_to_create.take_oldest();
 

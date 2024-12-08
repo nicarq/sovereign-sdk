@@ -351,6 +351,7 @@ where
 #[cfg(test)]
 mod tests {
     use core::sync::atomic::Ordering;
+    use std::num::NonZero;
 
     use sov_db::storage_manager::{NativeChangeSet, NativeStorageManager};
     use sov_mock_da::{
@@ -512,8 +513,12 @@ mod tests {
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
 
-        let (sender, mut receiver) =
-            crate::processes::new_stf_info_channel(state_manager.ledger_db.clone(), 40, 40).await?;
+        let (sender, mut receiver) = crate::processes::new_stf_info_channel(
+            state_manager.ledger_db.clone(),
+            NonZero::new(40).unwrap(),
+            NonZero::new(40).unwrap(),
+        )
+        .await?;
         state_manager.st_info_sender = Some(sender);
         let da_service = DaServiceWithRetries::new_fast(MockDaService::new(SEQUENCER_ADDRESS));
 

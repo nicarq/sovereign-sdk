@@ -1,6 +1,7 @@
 // TODO: Rust 1.80 upgrade https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1059
 #![allow(clippy::blocks_in_conditions)]
 
+use std::num::NonZero;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -154,10 +155,10 @@ pub struct CelestiaConfig {
     pub celestia_rpc_address: String,
     /// The maximum size of a Celestia RPC response, in bytes
     #[serde(default = "default_max_response_size")]
-    pub max_celestia_response_body_size: u32,
+    pub max_celestia_response_body_size: NonZero<u32>,
     /// The timeout for a Celestia RPC request, in seconds
     #[serde(default = "default_request_timeout_seconds")]
-    pub celestia_rpc_timeout_seconds: u64,
+    pub celestia_rpc_timeout_seconds: NonZero<u64>,
     /// See [`DaService::safe_lead_time`].
     #[serde(default = "default_safe_lead_time_ms")]
     pub safe_lead_time_ms: u64,
@@ -171,12 +172,13 @@ fn default_rpc_addr() -> String {
     "http://localhost:11111/".into()
 }
 
-fn default_max_response_size() -> u32 {
-    1024 * 1024 * 100 // 100 MB
+fn default_max_response_size() -> NonZero<u32> {
+    // 100 MiB
+    NonZero::new(1024 * 1024 * 100).unwrap()
 }
 
-const fn default_request_timeout_seconds() -> u64 {
-    60
+fn default_request_timeout_seconds() -> NonZero<u64> {
+    NonZero::new(60).unwrap()
 }
 
 impl CelestiaService {
@@ -192,10 +194,10 @@ impl CelestiaService {
 
             jsonrpsee::http_client::HttpClientBuilder::default()
                 .set_headers(headers)
-                .max_response_size(config.max_celestia_response_body_size)
-                .max_request_size(config.max_celestia_response_body_size)
+                .max_response_size(config.max_celestia_response_body_size.get())
+                .max_request_size(config.max_celestia_response_body_size.get())
                 .request_timeout(std::time::Duration::from_secs(
-                    config.celestia_rpc_timeout_seconds,
+                    config.celestia_rpc_timeout_seconds.get(),
                 ))
                 .set_http_middleware(ServiceBuilder::new().layer(TimingLayer))
                 .build(&config.celestia_rpc_address)
@@ -510,6 +512,7 @@ fn gas_to_consume_from_data(bytes: usize, gas_per_byte: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZero;
     use std::time::Duration;
 
     use celestia_types::blob::RawBlob;
@@ -545,11 +548,13 @@ mod tests {
         // Start a background HTTP server on a random local port
         let mock_server = MockServer::start().await;
 
-        let timeout_sec = timeout_sec.unwrap_or_else(default_request_timeout_seconds);
+        let timeout_sec = timeout_sec
+            .map(|t| NonZero::new(t).unwrap())
+            .unwrap_or_else(default_request_timeout_seconds);
         let config = CelestiaConfig {
             celestia_rpc_auth_token: "RPC_TOKEN".to_string(),
             celestia_rpc_address: mock_server.uri(),
-            max_celestia_response_body_size: 120_000,
+            max_celestia_response_body_size: NonZero::new(120_000).unwrap(),
             celestia_rpc_timeout_seconds: timeout_sec,
             safe_lead_time_ms: 0,
         };

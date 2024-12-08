@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::num::NonZero;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -231,11 +232,13 @@ where
             },
             da: self.da_config.clone(),
             proof_manager: ProofManagerConfig {
-                aggregated_proof_block_jump: self.config.aggregated_proof_block_jump,
+                aggregated_proof_block_jump: NonZero::new(self.config.aggregated_proof_block_jump)
+                    .unwrap(),
                 prover_address: FromStr::from_str(&self.config.prover_address)
                     .expect("Prover address is not valid"),
-                max_number_of_transitions_in_db: self.config.max_infos_in_db,
-                max_number_of_transitions_in_memory: self.config.max_channel_size,
+                max_number_of_transitions_in_db: NonZero::new(self.config.max_infos_in_db).unwrap(),
+                max_number_of_transitions_in_memory: NonZero::new(self.config.max_channel_size)
+                    .unwrap(),
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,

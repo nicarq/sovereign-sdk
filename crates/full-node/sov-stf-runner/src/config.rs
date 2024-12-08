@@ -1,3 +1,4 @@
+use std::num::NonZero;
 use std::path::{Path, PathBuf};
 
 use schemars::JsonSchema;
@@ -91,15 +92,15 @@ pub struct StorageConfig {
 #[derive(Debug, Clone, PartialEq, Deserialize, Copy, JsonSchema)]
 pub struct ProofManagerConfig<Address> {
     /// The "distance" measured in the number of blocks between two consecutive aggregated proofs.
-    pub aggregated_proof_block_jump: usize,
+    pub aggregated_proof_block_jump: NonZero<usize>,
     /// The prover receives rewards to this address.
     pub prover_address: Address,
     /// A number of state transition info entries are allowed to be stored in the database.
     /// When the number is exceeded, older entries are removed.
-    pub max_number_of_transitions_in_db: u64,
+    pub max_number_of_transitions_in_db: NonZero<u64>,
     /// A number of state transition info entries are allowed to be kept in memory.
     /// If the number is exceeded, rollup execution will be blocked until provers cathes up.
-    pub max_number_of_transitions_in_memory: u64,
+    pub max_number_of_transitions_in_memory: NonZero<u64>,
 }
 
 /// Rollup Configuration
@@ -221,21 +222,21 @@ mod tests {
             da: sov_celestia_adapter::CelestiaConfig {
                 celestia_rpc_auth_token: "SECRET_RPC_TOKEN".to_string(),
                 celestia_rpc_address: "http://localhost:11111/".into(),
-                max_celestia_response_body_size: 980,
-                celestia_rpc_timeout_seconds: 60,
+                max_celestia_response_body_size: NonZero::new(980).unwrap(),
+                celestia_rpc_timeout_seconds: NonZero::new(60).unwrap(),
                 safe_lead_time_ms: 10,
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
             },
             proof_manager: ProofManagerConfig {
-                aggregated_proof_block_jump: 22,
+                aggregated_proof_block_jump: NonZero::new(22).unwrap(),
                 prover_address: Address::from_str(
                     "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
                 )
                 .unwrap(),
-                max_number_of_transitions_in_db: 1025,
-                max_number_of_transitions_in_memory: 768,
+                max_number_of_transitions_in_db: NonZero::new(1025).unwrap(),
+                max_number_of_transitions_in_memory: NonZero::new(768).unwrap(),
             },
             sequencer: SequencerConfig {
                 automatic_batch_production: false,

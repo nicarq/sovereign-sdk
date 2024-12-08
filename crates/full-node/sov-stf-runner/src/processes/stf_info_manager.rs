@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::marker::PhantomData;
+use std::num::NonZero;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -59,7 +60,7 @@ pub struct Sender<StateRoot, Witness, Da: DaSpec> {
     pub next_height_to_send: u64,
 
     // Max number of entries we will keep in the Db, older data will be pruned.
-    max_nb_of_infos_in_db: u64,
+    max_nb_of_infos_in_db: NonZero<u64>,
 
     /// The notification channel does not contain the actual STF info data,
     /// only the indexes in the Db where the data is stored.
@@ -120,7 +121,7 @@ impl<
                 );
 
                 assert!(
-                    (write_rollup_height - next_rollup_height_to_receive) <= self.max_nb_of_infos_in_db,
+                    (write_rollup_height - next_rollup_height_to_receive) <= self.max_nb_of_infos_in_db.get(),
                     "Too many STF infos in the db: {}, vs max allowed {} last_submitted={} write={}",
                     write_rollup_height - next_rollup_height_to_receive,
                     self.max_nb_of_infos_in_db,
@@ -168,14 +169,14 @@ pub struct Receiver<StateRoot, Witness, Da: DaSpec> {
 /// The channel can only be created if `max_channel_size` is less than or equal to `max_nb_of_infos_in_db`.
 pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     ledger_db: LedgerDb,
-    max_channel_size: usize,
-    max_nb_of_infos_in_db: u64,
+    max_channel_size: NonZero<u64>,
+    max_nb_of_infos_in_db: NonZero<u64>,
 ) -> anyhow::Result<(
     Sender<StateRoot, Witness, Da>,
     Receiver<StateRoot, Witness, Da>,
 )> {
     assert!(
-        max_channel_size <= max_nb_of_infos_in_db as usize,
+        max_channel_size <= max_nb_of_infos_in_db,
         "Channel size should be smaller than the max number of STFInfos in the db"
     );
 
@@ -185,7 +186,8 @@ pub async fn new_stf_info_channel<StateRoot, Witness, Da: DaSpec>(
     // 3. The next height of the retrieved STF info (increased on every `read_next`` operation).
 
     // On startup, we need to fill the notification channel with the pending STF info from the db.
-    let (notifier, receiver) = tokio::sync::mpsc::channel::<u64>(max_channel_size);
+    let (notifier, receiver) =
+        tokio::sync::mpsc::channel::<u64>(max_channel_size.get().try_into()?);
 
     let next_height_to_receive = ledger_db
         .get_stf_info_next_rollup_height_to_receive()
@@ -254,7 +256,8 @@ where
         next_height_to_receive: u64,
         write_rollup_height: u64,
     ) -> anyhow::Result<SchemaBatch> {
-        let Some(prune_up_to) = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db) else {
+        let Some(prune_up_to) = write_rollup_height.checked_sub(self.max_nb_of_infos_in_db.get())
+        else {
             // If we have not reached [`Self::max_nb_of_infos_in_db`] we don't need to prune the data
             return Ok(Default::default());
         };
@@ -408,7 +411,7 @@ mod tests {
 
     async fn setup(
         path: &Path,
-        max_channel_size: usize,
+        max_channel_size: u64,
         max_nb_of_infos_in_db: u64,
     ) -> anyhow::Result<(
         LedgerDb,
@@ -421,8 +424,8 @@ mod tests {
 
         let (mut sender, receiver) = new_stf_info_channel::<StateRoot, Witness, MockDaSpec>(
             ledger_db.clone(),
-            max_channel_size,
-            max_nb_of_infos_in_db,
+            NonZero::new(max_channel_size).unwrap(),
+            NonZero::new(max_nb_of_infos_in_db).unwrap(),
         )
         .await?;
 
@@ -437,7 +440,7 @@ mod tests {
     async fn test_stf_info_start_stop_db() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir()?;
 
-        let channel_size: usize = 10;
+        let channel_size = 10;
         let max_nb_of_infos_in_db = 10;
 
         // Write some data to the Db.
@@ -446,7 +449,7 @@ mod tests {
                 setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
             for height in 1..=channel_size {
-                let stf_info = make_stf_info(height as u64);
+                let stf_info = make_stf_info(height);
                 let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
                 sender.notify(stf_info.rollup_height, &ledger_db).await?;
                 storage_manager.commit(schema_batch);
@@ -460,7 +463,7 @@ mod tests {
 
             for i in 1..=channel_size {
                 let stf_info = receiver.read_next().await?.unwrap();
-                assert_eq!(stf_info.rollup_height, i as u64);
+                assert_eq!(stf_info.rollup_height, i);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -473,7 +476,7 @@ mod tests {
 
             for i in 1..=channel_size {
                 let stf_info = receiver.read_next().await?.unwrap();
-                assert_eq!(stf_info.rollup_height, i as u64);
+                assert_eq!(stf_info.rollup_height, i);
             }
 
             assert_eq!(sender.get_oldest_rollup_height(&ledger_db).await?, 1);
@@ -483,12 +486,12 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(2, Ordering::SeqCst);
 
-            let stf_info = make_stf_info((channel_size + 1) as u64);
+            let stf_info = make_stf_info(channel_size + 1);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
             sender.notify(stf_info.rollup_height, &ledger_db).await?;
 
-            let stf_info = make_stf_info((channel_size + 2) as u64);
+            let stf_info = make_stf_info(channel_size + 2);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
             sender.notify(stf_info.rollup_height, &ledger_db).await?;
@@ -520,7 +523,7 @@ mod tests {
 
         // Fill the db.
         for height in 1..channel_size {
-            let stf_info = make_stf_info(height as u64);
+            let stf_info = make_stf_info(height);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
             sender.notify(stf_info.rollup_height, &ledger_db).await?;
@@ -533,7 +536,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height as u64);
+            assert_eq!(stf_info.rollup_height, height);
         }
 
         Ok(())
@@ -549,7 +552,7 @@ mod tests {
             setup(temp_dir.path(), channel_size, max_nb_of_infos_in_db).await?;
 
         for height in 1..3 {
-            let stf_info = make_stf_info(height as u64);
+            let stf_info = make_stf_info(height);
             let schema_batch = sender.materialize_stf_info(&stf_info, &ledger_db).await?;
             storage_manager.commit(schema_batch);
             sender.notify(stf_info.rollup_height, &ledger_db).await?;
@@ -563,7 +566,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height as u64);
+            assert_eq!(stf_info.rollup_height, height);
         }
 
         let stf_info = receiver.read_next().await;
@@ -588,7 +591,7 @@ mod tests {
         tokio::spawn(async move {
             // Fill the db.
             for height in 1..=channel_size {
-                let stf_info = make_stf_info(height as u64);
+                let stf_info = make_stf_info(height);
                 let schema_batch = sender
                     .materialize_stf_info(&stf_info, &ledger_db)
                     .await
@@ -608,7 +611,7 @@ mod tests {
                 .next_height_to_receive
                 .fetch_add(1, Ordering::SeqCst);
 
-            assert_eq!(stf_info.rollup_height, height as u64);
+            assert_eq!(stf_info.rollup_height, height);
         }
 
         Ok(())
@@ -657,7 +660,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_stf_info_db_pruning() -> anyhow::Result<()> {
         struct TestCase {
-            channel_size: usize,
+            channel_size: u64,
             max_nb_of_infos_in_db: u64,
             nb_of_stf_infos: u64,
         }
