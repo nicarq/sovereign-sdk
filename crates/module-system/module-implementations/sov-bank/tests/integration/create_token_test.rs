@@ -36,7 +36,7 @@ fn create_token() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: user_high_token_balance_address,
-            authorized_minters: vec![user_no_token_balance_address, minter_address]
+            admins: vec![user_no_token_balance_address, minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
         }),
@@ -53,7 +53,7 @@ fn create_token() {
                     },
                     minter: TokenHolder::User(minter.address()),
                     mint_to_address: TokenHolder::User(user_high_token_balance_address),
-                    authorized_minters: vec![
+                    admins: vec![
                         TokenHolder::User(user_no_token_balance_address),
                         TokenHolder::User(minter_address)
                     ]
@@ -69,7 +69,7 @@ fn create_token() {
             assert_eq!(token.name(), token_name);
             assert_eq!(token.total_supply(), INITIAL_TOKEN_BALANCE);
             assert_eq!(
-                token.authorized_minters(),
+                token.admins(),
                 [
                     TokenHolder::User(user_no_token_balance_address),
                     TokenHolder::User(minter_address)
@@ -125,7 +125,7 @@ fn create_token_and_mint() {
             token_name: token_name.try_into().unwrap(),
             initial_balance: INITIAL_TOKEN_BALANCE,
             mint_to_address: minter_address,
-            authorized_minters: vec![minter_address]
+            admins: vec![minter_address]
                 .try_into()
                 .expect("Tokens can have at least one minter"),
         }),
@@ -142,7 +142,7 @@ fn create_token_and_mint() {
                     },
                     minter: sov_bank::utils::TokenHolder::User(minter_address),
                     mint_to_address: sov_bank::utils::TokenHolder::User(minter_address),
-                    authorized_minters: vec![sov_bank::utils::TokenHolder::User(minter_address)]
+                    admins: vec![sov_bank::utils::TokenHolder::User(minter_address)]
                 }),
                 "The event should be a TokenCreated event"
             );
@@ -233,7 +233,7 @@ fn test_create_token_fails_with_duplicate_ids() {
                 token_name: token_name.try_into().unwrap(),
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
-                authorized_minters: vec![user_no_token_balance_address, minter_address]
+                admins: vec![user_no_token_balance_address, minter_address]
                     .try_into()
                     .expect("Tokens can have at least one minter"),
             }),
@@ -246,7 +246,7 @@ fn test_create_token_fails_with_duplicate_ids() {
                 token_name: token_name.try_into().unwrap(),
                 initial_balance: INITIAL_TOKEN_BALANCE,
                 mint_to_address: user_high_token_balance_address,
-                authorized_minters: vec![user_no_token_balance_address, minter_address]
+                admins: vec![user_no_token_balance_address, minter_address]
                     .try_into()
                     .expect("Tokens can have at least one minter"),
             }),

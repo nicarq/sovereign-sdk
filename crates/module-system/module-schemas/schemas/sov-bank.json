@@ -13,14 +13,14 @@
         "create_token": {
           "type": "object",
           "required": [
-            "authorized_minters",
+            "admins",
             "initial_balance",
             "mint_to_address",
             "token_name"
           ],
           "properties": {
-            "authorized_minters": {
-              "description": "Authorized minter list.",
+            "admins": {
+              "description": "Admins list.",
               "allOf": [
                 {
                   "$ref": "#/definitions/SafeVec_20_of_Address"

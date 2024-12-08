@@ -174,7 +174,7 @@ fn create_test_rt_genesis_config<S: Spec>(
                     ]);
                     additional_accounts_vec
                 },
-                authorized_minters: vec![admin.clone()],
+                admins: vec![admin.clone()],
             },
             tokens: vec![],
         },
@@ -241,7 +241,7 @@ fn test_define_token() {
     assert_eq!(genesis_config.bank.tokens.len(), 2);
     let token_0 = genesis_config.bank.tokens.first().unwrap();
     assert_eq!(token_0.token_name, "TestToken(0)");
-    assert_eq!(token_0.authorized_minters.len(), 1);
+    assert_eq!(token_0.admins.len(), 1);
     assert_eq!(token_0.address_and_balances.len(), 3);
     assert!(token_0
         .address_and_balances
@@ -257,7 +257,7 @@ fn test_define_token() {
 
     let token_1 = genesis_config.bank.tokens.get(1).unwrap();
     assert_eq!(token_1.token_name, "TestToken(MyTestToken)");
-    assert_eq!(token_1.authorized_minters.len(), 0);
+    assert_eq!(token_1.admins.len(), 0);
     assert_eq!(token_1.address_and_balances.len(), 1);
     assert!(token_1
         .address_and_balances

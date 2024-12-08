@@ -150,12 +150,12 @@ pub struct Token<S: Spec> {
     /// Mapping from user address to user balance.
     pub(crate) balances: StateMap<TokenHolder<S>, Amount>,
 
-    /// Vector containing the authorized minters
+    /// Vector containing the admins
     /// Empty vector indicates that the token supply is frozen.
     /// Non-empty vector indicates members of the vector can mint.
     /// Freezing a token requires emptying the vector
     /// NOTE: This is explicit, so if a creator doesn't add themselves, then they can't mint.
-    pub(crate) authorized_minters: Vec<TokenHolder<S>>,
+    pub(crate) admins: Vec<TokenHolder<S>>,
 }
 
 impl<S: Spec> Token<S> {
@@ -169,9 +169,9 @@ impl<S: Spec> Token<S> {
         self.total_supply
     }
 
-    /// Get the authorized minters of the token.
-    pub fn authorized_minters(&self) -> &[TokenHolder<S>] {
-        &self.authorized_minters
+    /// Get the admins of the token.
+    pub fn admins(&self) -> &[TokenHolder<S>] {
+        &self.admins
     }
 
     /// Transfer the amount `amount` of tokens from the address `from` to the address `to`.
@@ -230,22 +230,22 @@ impl<S: Spec> Token<S> {
         Ok(())
     }
 
-    /// Freezing a token requires emptying the authorized_minter vector
-    /// authorized_minter: Vec<Address> is used to determine if the token is frozen or not
+    /// Freezing a token requires emptying the admin vector
+    /// admins: Vec<Address> is used to determine if the token is frozen or not
     /// If the vector is empty when the function is called, this means the token is already frozen
     pub(crate) fn freeze(&mut self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
         let sender = sender.as_token_holder();
-        if self.authorized_minters.is_empty() {
+        if self.admins.is_empty() {
             bail!("Token {} is already frozen", self.name)
         }
-        self.is_authorized_minter(sender)?;
-        self.authorized_minters = vec![];
+        self.assert_is_admin(sender)?;
+        self.admins = vec![];
         Ok(())
     }
 
     /// Mints a given `amount` of token sent by `sender` to the specified `mint_to_address`.
-    /// Checks that the `authorized_minters` set is not empty for the token and that the `sender`
-    /// is an `authorized_minter`. If so, update the balances of token for the `mint_to_address` by
+    /// Checks that the `admins` set is not empty for the token and that the `sender`
+    /// is an `admin`. If so, update the balances of token for the `mint_to_address` by
     /// adding the minted tokens. Updates the `total_supply` of that token.
     pub(crate) fn mint(
         &mut self,
@@ -254,11 +254,11 @@ impl<S: Spec> Token<S> {
         amount: Amount,
         state: &mut impl StateAccessor,
     ) -> anyhow::Result<()> {
-        if self.authorized_minters.is_empty() {
+        if self.admins.is_empty() {
             bail!("Attempt to mint frozen token {}", self.name)
         }
 
-        self.is_authorized_minter(authorizer)?;
+        self.assert_is_admin(authorizer)?;
 
         let to_balance: Amount = self
             .balances
@@ -279,18 +279,14 @@ impl<S: Spec> Token<S> {
         Ok(())
     }
 
-    fn is_authorized_minter(&self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
-        for minter in self.authorized_minters.iter() {
+    fn assert_is_admin(&self, sender: TokenHolderRef<'_, S>) -> anyhow::Result<()> {
+        for minter in self.admins.iter() {
             if sender == minter.as_token_holder() {
                 return Ok(());
             }
         }
 
-        bail!(
-            "Sender {} is not an authorized minter of token {}",
-            sender,
-            self.name
-        )
+        bail!("Sender {} is not an admin of token {}", sender, self.name)
     }
 
     // Check that amount can be deducted from address
@@ -320,7 +316,7 @@ impl<S: Spec> Token<S> {
     pub(crate) fn create(
         token_name: &str,
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
-        authorized_minters: &[TokenHolderRef<'_, S>],
+        admins: &[TokenHolderRef<'_, S>],
         originator: &impl Payable<S>,
         parent_prefix: &Prefix,
         state: &mut impl TxState<S>,
@@ -330,7 +326,7 @@ impl<S: Spec> Token<S> {
         let token = Self::create_with_token_id(
             token_name,
             identities_and_balances,
-            authorized_minters,
+            admins,
             &token_id,
             parent_prefix,
             state,
@@ -342,7 +338,7 @@ impl<S: Spec> Token<S> {
     pub(crate) fn create_with_token_id(
         token_name: &str,
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
-        authorized_minters: &[TokenHolderRef<'_, S>],
+        admins: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
         parent_prefix: &Prefix,
         state: &mut impl StateReaderAndWriter<User>,
@@ -362,20 +358,20 @@ impl<S: Spec> Token<S> {
             None => bail!("Total supply overflow"),
         };
 
-        let authorized_minters = unique_minters(authorized_minters);
+        let admins = unique_minters(admins);
 
         Ok(Token::<S> {
             name: token_name.to_owned(),
             total_supply,
             balances,
-            authorized_minters,
+            admins,
         })
     }
 }
 
 fn unique_minters<S: Spec>(minters: &[TokenHolderRef<'_, S>]) -> Vec<TokenHolder<S>> {
     // IMPORTANT:
-    // We can't just put `authorized_minters` into a `HashSet` because the order of the elements in the `HashSet`` is not guaranteed.
+    // We can't just put `admins` into a `HashSet` because the order of the elements in the `HashSet`` is not guaranteed.
     // The algorithm below ensures that the order of the elements in the `auth_minter_list` is deterministic (both in zk and native execution).
     let mut indices = HashSet::new();
     let mut auth_minter_list = Vec::new();

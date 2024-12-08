@@ -11,8 +11,8 @@ use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
 use crate::{Amount, Bank, Coins, Token, TokenId};
 
-/// The maximum number of addresses that can be authorized to mint a token.
-pub const MAX_AUTHORIZED_MINTERS: usize = 20;
+/// The maximum number of addresses that can be authorized to mint or freeze a token.
+pub const MAX_ADMINS: usize = 20;
 
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
 #[derive(
@@ -41,8 +41,8 @@ pub enum CallMessage<S: Spec> {
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
         mint_to_address: S::Address,
-        /// Authorized minter list.
-        authorized_minters: SafeVec<S::Address, MAX_AUTHORIZED_MINTERS>,
+        /// Admins list.
+        admins: SafeVec<S::Address, MAX_ADMINS>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
@@ -84,14 +84,14 @@ impl<S: Spec> Bank<S> {
         token_name: String,
         initial_balance: Amount,
         mint_to_address: impl Payable<S>,
-        authorized_minters: Vec<impl Payable<S>>,
+        admins: Vec<impl Payable<S>>,
         minter: impl Payable<S>,
         state: &mut impl TxState<S>,
     ) -> Result<TokenId> {
         tracing::debug!(%minter, "Create token request");
 
         let mint_to_address = mint_to_address.as_token_holder();
-        let authorized_minters = authorized_minters
+        let admins = admins
             .iter()
             .map(|minter| minter.as_token_holder())
             .collect::<Vec<_>>();
@@ -99,7 +99,7 @@ impl<S: Spec> Bank<S> {
         let (token_id, token) = Token::<S>::create(
             &token_name,
             &[(mint_to_address, initial_balance)],
-            &authorized_minters,
+            &admins,
             &minter,
             self.tokens.prefix(),
             state,
@@ -122,7 +122,7 @@ impl<S: Spec> Bank<S> {
             %minter,
             %initial_balance,
             %mint_to_address,
-            ?authorized_minters,
+            ?admins,
             "Token created"
         );
 
@@ -136,7 +136,7 @@ impl<S: Spec> Bank<S> {
                 },
                 mint_to_address: mint_to_address.into(),
                 minter: minter.as_token_holder().into(),
-                authorized_minters: authorized_minters.iter().map(|m| m.into()).collect(),
+                admins: admins.iter().map(|m| m.into()).collect(),
             },
         );
         Ok(token_id)

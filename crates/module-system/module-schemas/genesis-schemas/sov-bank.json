@@ -35,7 +35,7 @@
       "type": "object",
       "required": [
         "address_and_balances",
-        "authorized_minters",
+        "admins",
         "token_name"
       ],
       "properties": {
@@ -58,7 +58,7 @@
             "minItems": 2
           }
         },
-        "authorized_minters": {
+        "admins": {
           "description": "The addresses that are authorized to mint the token.",
           "type": "array",
           "items": {
@@ -76,7 +76,7 @@
       "type": "object",
       "required": [
         "address_and_balances",
-        "authorized_minters",
+        "admins",
         "token_id",
         "token_name"
       ],
@@ -100,7 +100,7 @@
             "minItems": 2
           }
         },
-        "authorized_minters": {
+        "admins": {
           "description": "The addresses that are authorized to mint the token.",
           "type": "array",
           "items": {

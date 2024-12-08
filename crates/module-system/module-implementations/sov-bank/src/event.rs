@@ -28,8 +28,8 @@ pub enum Event<S: Spec> {
         mint_to_address: TokenHolder<S>,
         /// The token holder that submitted the minting transaction.
         minter: TokenHolder<S>,
-        /// Authorized minter list.
-        authorized_minters: Vec<TokenHolder<S>>,
+        /// Admin list.
+        admins: Vec<TokenHolder<S>>,
     },
     /// Event for Token Transfer
     TokenTransferred {

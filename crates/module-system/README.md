@@ -110,7 +110,7 @@ fn call(
             token_name,
             initial_balance,
             mint_to_address,
-            authorized_minters,
+            admins,
         } => {
             self.charge_gas(state, &self.gas.create_token)?;
             // Implementation elided...

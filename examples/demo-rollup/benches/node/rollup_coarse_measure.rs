@@ -247,7 +247,7 @@ fn setup(
         // Mint for everyone, including themselves.
         initial_balance: 0,
         mint_to_address: *token_deployer_address,
-        authorized_minters: vec![*token_deployer_address]
+        admins: vec![*token_deployer_address]
             .try_into()
             .expect("Tokens can have at least one minter"),
     };

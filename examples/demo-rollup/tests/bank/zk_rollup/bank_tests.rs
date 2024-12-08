@@ -167,7 +167,7 @@ async fn send_test_bank_txs(
             },
             minter: TokenHolder::User(user_address),
             mint_to_address: TokenHolder::User(user_address),
-            authorized_minters: vec![],
+            admins: vec![],
         },
     )
     .await?;

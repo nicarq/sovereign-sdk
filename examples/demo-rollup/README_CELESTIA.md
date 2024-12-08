@@ -184,8 +184,8 @@ pub enum CallMessage<S: sov_modules_api::Spec> {
         initial_balance: Amount,
         /// The address of the account that the new tokens are minted to.
         mint_to_address: S::Address,
-        /// Authorized minter list.
-        authorized_minters: Vec<S::Address>,
+        /// Admins list.
+        admins: Vec<S::Address>,
     },
 
     /// Transfers a specified amount of tokens to the specified address.
@@ -297,7 +297,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x44187785252131f9a1ccd1bda83ac148d2cd3c8c6de1c8b9f0791a8df83870f6",
+  "chain_hash": "0xf331baa73e51921a130b44c11e6da94357e18382d6d3a10b058df55d8cedfacf",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

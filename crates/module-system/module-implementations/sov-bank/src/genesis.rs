@@ -33,7 +33,7 @@ pub struct TokenConfig<S: Spec> {
     /// A vector of tuples containing the initial addresses and balances (as u64)
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
-    pub authorized_minters: Vec<S::Address>,
+    pub admins: Vec<S::Address>,
 }
 
 /// [`GasTokenConfig`] specifies a configuration for the rollup's gas token.
@@ -46,7 +46,7 @@ pub struct GasTokenConfig<S: Spec> {
     /// A vector of tuples containing the initial addresses and balances (as u64)
     pub address_and_balances: Vec<(S::Address, u64)>,
     /// The addresses that are authorized to mint the token.
-    pub authorized_minters: Vec<S::Address>,
+    pub admins: Vec<S::Address>,
 }
 
 impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
@@ -55,7 +55,7 @@ impl<S: Spec> From<GasTokenConfig<S>> for TokenConfig<S> {
             token_name: gas_token_config.token_name,
             token_id: crate::config_gas_token_id(),
             address_and_balances: gas_token_config.address_and_balances,
-            authorized_minters: gas_token_config.authorized_minters,
+            admins: gas_token_config.admins,
         }
     }
 }
@@ -98,8 +98,8 @@ impl<S: Spec> Bank<S> {
                 token_id = %token_id,
                 "Genesis of the token");
 
-            let authorized_minters = token_config
-                .authorized_minters
+            let admins = token_config
+                .admins
                 .iter()
                 .map(|minter| TokenHolderRef::<'_, S>::from(&minter))
                 .collect::<Vec<_>>();
@@ -113,7 +113,7 @@ impl<S: Spec> Bank<S> {
             let token = Token::<S>::create_with_token_id(
                 &token_config.token_name,
                 &address_and_balances,
-                &authorized_minters,
+                &admins,
                 token_id,
                 parent_prefix,
                 state,
@@ -160,13 +160,13 @@ mod tests {
             gas_token_config: GasTokenConfig {
                 token_name: "sov-gas-token".to_owned(),
                 address_and_balances: vec![(sender_address, 100000000)],
-                authorized_minters: vec![sender_address],
+                admins: vec![sender_address],
             },
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
                 token_id,
                 address_and_balances: vec![(sender_address, 1000)],
-                authorized_minters: vec![sender_address],
+                admins: vec![sender_address],
             }],
         };
 
@@ -175,14 +175,14 @@ mod tests {
             "gas_token_config": {
                 "token_name":"sov-gas-token",
                 "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",100000000]],
-                "authorized_minters":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
+                "admins":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
             },
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
                     "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7",
                     "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",1000]],
-                    "authorized_minters":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
+                    "admins":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
                 }
             ]
         }"#;

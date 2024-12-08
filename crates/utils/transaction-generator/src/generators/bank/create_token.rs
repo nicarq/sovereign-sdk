@@ -31,7 +31,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 token_name: TOKEN_NAME.try_into().unwrap(),
                 initial_balance: Arbitrary::arbitrary(u)?,
                 mint_to_address: Arbitrary::arbitrary(u)?,
-                authorized_minters: Arbitrary::arbitrary(u)?,
+                admins: Arbitrary::arbitrary(u)?,
             },
             acct.private_key.clone(),
             Vec::new(),
@@ -105,7 +105,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 token_name,
                 initial_balance: amount,
                 mint_to_address: recipient_address.clone(),
-                authorized_minters: minters,
+                admins: minters,
             },
             creator_key,
             vec![

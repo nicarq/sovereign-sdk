@@ -48,7 +48,7 @@ fn gas_test_setup(
             token_name: "sov-test-token".try_into().unwrap(),
             initial_balance: 1000,
             mint_to_address: user.address(),
-            authorized_minters: SafeVec::new(),
+            admins: SafeVec::new(),
         }),
         assert: Box::new(move |result, state| {
             create_token_assert(PostCreateTokenContext {
