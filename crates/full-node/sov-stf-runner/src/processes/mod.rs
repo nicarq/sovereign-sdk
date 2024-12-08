@@ -2,6 +2,7 @@
 mod op_manager;
 mod prover_service;
 mod zk_manager;
+use std::num::NonZero;
 use std::sync::Arc;
 
 use op_manager::attestations::AttestationsManager;
@@ -55,7 +56,7 @@ where
     /// Starts a process that generates aggregated proofs in the background.
     pub async fn start_zk_workflow_in_background(
         self,
-        aggregated_proof_block_jump: usize,
+        aggregated_proof_block_jump: NonZero<usize>,
     ) -> anyhow::Result<JoinHandle<()>> {
         let proof_manager = ZkProofManager::new(
             self.da_service,

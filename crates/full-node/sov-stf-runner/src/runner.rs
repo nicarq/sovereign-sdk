@@ -270,7 +270,7 @@ where
         let (st_info_sender, st_info_receiver) = if let Some(config) = pm_config {
             let channel = new_stf_info_channel(
                 ledger_db.clone(),
-                config.max_number_of_transitions_in_memory as _,
+                config.max_number_of_transitions_in_memory,
                 config.max_number_of_transitions_in_db,
             )
             .await?;

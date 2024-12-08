@@ -45,7 +45,7 @@ pub struct StdBatchBuilderConfig {
     pub mempool_max_txs_count: Option<NonZero<usize>>,
     /// Maximum size of a batch. The batch builder will not build batches larger
     /// than this size.
-    pub max_batch_size_bytes: Option<usize>,
+    pub max_batch_size_bytes: Option<NonZero<usize>>,
 }
 
 /// A [`BatchBuilder`] that creates batches of transactions in a way that's
@@ -92,8 +92,6 @@ impl<Z> StdBatchBuilder<Z>
 where
     Z: RtAwareBatchBuilderSpec,
 {
-    const DEFAULT_MAX_BATCH_SIZE_BYTES: usize = 1024 * 1024;
-
     /// Returns [`None`] if the transaction does not fit inside the batch.
     #[allow(clippy::type_complexity)]
     fn try_add_tx_to_batch(
@@ -109,7 +107,7 @@ where
         // To fill a batch as big as possible, we only check if valid
         // tx can fit in the batch.
         let tx_len = fully_baked.data.len();
-        if ctx.current_batch_size_in_bytes + tx_len > self.max_batch_size_bytes() {
+        if ctx.current_batch_size_in_bytes + tx_len > self.max_batch_size_bytes().get() {
             return (ctx, Ok(None));
         }
 
@@ -186,15 +184,21 @@ where
     fn mempool_cursor(&self, ctx: &BatchConstructionContext<Z::Spec>) -> MempoolCursor {
         MempoolCursor::new(
             self.max_batch_size_bytes()
+                .get()
                 .saturating_sub(ctx.current_batch_size_in_bytes),
         )
     }
 
-    fn max_batch_size_bytes(&self) -> usize {
+    fn max_batch_size_bytes(&self) -> NonZero<usize> {
         self.config
             .batch_builder
             .max_batch_size_bytes
-            .unwrap_or(Self::DEFAULT_MAX_BATCH_SIZE_BYTES)
+            .unwrap_or(self.default_max_batch_size_bytes())
+    }
+
+    fn default_max_batch_size_bytes(&self) -> NonZero<usize> {
+        // 1 MiB
+        NonZero::new(1024 * 1024).unwrap()
     }
 }
 
@@ -320,7 +324,7 @@ where
             "`accept_tx` has been called"
         );
 
-        if baked_tx.data.len() > self.max_batch_size_bytes() {
+        if baked_tx.data.len() > self.max_batch_size_bytes().get() {
             return Err(AcceptTxError {
                 http_status: StatusCode::PAYLOAD_TOO_LARGE.as_u16(),
                 title: "Transaction is too big".to_string(),

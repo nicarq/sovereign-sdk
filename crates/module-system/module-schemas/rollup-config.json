@@ -253,19 +253,19 @@
           "description": "The \"distance\" measured in the number of blocks between two consecutive aggregated proofs.",
           "type": "integer",
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 1.0
         },
         "max_number_of_transitions_in_db": {
           "description": "A number of state transition info entries are allowed to be stored in the database. When the number is exceeded, older entries are removed.",
           "type": "integer",
           "format": "uint64",
-          "minimum": 0.0
+          "minimum": 1.0
         },
         "max_number_of_transitions_in_memory": {
           "description": "A number of state transition info entries are allowed to be kept in memory. If the number is exceeded, rollup execution will be blocked until provers cathes up.",
           "type": "integer",
           "format": "uint64",
-          "minimum": 0.0
+          "minimum": 1.0
         },
         "prover_address": {
           "description": "The prover receives rewards to this address.",
@@ -408,7 +408,7 @@
             "null"
           ],
           "format": "uint",
-          "minimum": 0.0
+          "minimum": 1.0
         },
         "mempool_max_txs_count": {
           "description": "Maximum number of transactions in mempool. Once this limit is reached, the batch builder will evict older transactions.",

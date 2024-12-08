@@ -1,3 +1,4 @@
+use std::num::NonZero;
 use std::sync::Arc;
 
 use axum::async_trait;
@@ -285,10 +286,10 @@ fn rollup_config(
         },
         da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
         proof_manager: ProofManagerConfig {
-            aggregated_proof_block_jump,
+            aggregated_proof_block_jump: NonZero::new(aggregated_proof_block_jump).unwrap(),
             prover_address: [0u8; 32],
-            max_number_of_transitions_in_db: 30,
-            max_number_of_transitions_in_memory: 20,
+            max_number_of_transitions_in_db: NonZero::new(30).unwrap(),
+            max_number_of_transitions_in_memory: NonZero::new(20).unwrap(),
         },
         sequencer: SequencerConfig {
             automatic_batch_production: false,
