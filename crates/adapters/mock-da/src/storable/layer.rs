@@ -1,5 +1,6 @@
 //! Data Availability layer is a single entry to all available blocks.
 
+use chrono::DateTime;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Database, DatabaseConnection, EntityTrait, QueryFilter, Set,
 };
@@ -57,7 +58,7 @@ impl StorableMockDaLayer {
         Self::new_from_connection("sqlite::memory:", blocks_to_finality).await
     }
 
-    /// Creates SQLite instance at a given path.
+    /// Creates an SQLite instance at a given path.
     pub async fn new_in_path(
         path: impl AsRef<std::path::Path>,
         blocks_to_finality: u32,
@@ -72,8 +73,11 @@ impl StorableMockDaLayer {
         Self::new_from_connection(&connection_string, blocks_to_finality).await
     }
 
-    /// Saves new block header into a database.
-    pub async fn produce_block(&mut self) -> anyhow::Result<()> {
+    /// Produce new block with provided timestamp.
+    pub async fn produce_block_with_timestamp(
+        &mut self,
+        timestamp: sov_rollup_interface::da::Time,
+    ) -> anyhow::Result<()> {
         tracing::trace!(
             next_height = self.next_height,
             "Start producing a new block at"
@@ -121,6 +125,9 @@ impl StorableMockDaLayer {
             height: Set(self.next_height as i32),
             prev_hash: Set(prev_block_hash.to_vec()),
             hash: Set(this_block_hash.to_vec()),
+            created_at: Set(
+                DateTime::from_timestamp(timestamp.secs(), timestamp.subsec_nanos()).unwrap(),
+            ),
             ..Default::default()
         };
         block.insert(&self.conn).await?;
@@ -152,6 +159,12 @@ impl StorableMockDaLayer {
             };
         }
         Ok(())
+    }
+
+    /// Saves new block header into a database.
+    pub async fn produce_block(&mut self) -> anyhow::Result<()> {
+        let timestamp = sov_rollup_interface::da::Time::now();
+        self.produce_block_with_timestamp(timestamp).await
     }
 
     async fn get_header_at(&self, height: u32) -> anyhow::Result<MockBlockHeader> {

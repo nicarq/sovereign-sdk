@@ -90,6 +90,13 @@
           "enum": [
             "on_any_submit"
           ]
+        },
+        {
+          "description": "Blocks produced by hand.",
+          "type": "string",
+          "enum": [
+            "manual"
+          ]
         }
       ]
     },

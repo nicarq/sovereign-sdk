@@ -178,6 +178,8 @@ pub enum BlockProducingConfig {
     /// New blocks are produced only when batch or proof blobs are submitted.
     /// This also means that the block has only one blob.
     OnAnySubmit,
+    /// Blocks produced by hand.
+    Manual,
 }
 
 /// The configuration for Mock Da.
@@ -235,6 +237,7 @@ impl MockDaConfig {
             BlockProducingConfig::OnAnySubmit => {
                 BlockProducing::OnAnySubmit(Duration::from_millis(self.block_time_ms))
             }
+            BlockProducingConfig::Manual => BlockProducing::Manual,
         }
     }
 }
