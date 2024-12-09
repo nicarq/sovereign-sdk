@@ -102,6 +102,7 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
     async fn create_da_service(
         &self,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+        _shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self::DaService {
         DaServiceWithRetries::with_exponential_backoff(
             CelestiaService::new(

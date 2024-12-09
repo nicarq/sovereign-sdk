@@ -111,6 +111,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     async fn create_da_service(
         &self,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
+        shutdown_receiver: watch::Receiver<()>,
     ) -> Self::DaService;
 
     /// Creates an instance of [`ProverService`].
@@ -240,11 +241,22 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     where
         <Self::Spec as Spec>::Storage: NativeStorage,
     {
+        let (main_shutdown_sender, mut main_shutdown_receiver) = tokio::sync::watch::channel(());
+        main_shutdown_receiver.mark_unchanged();
+        let (secondary_shutdown_sender, mut secondary_shutdown_receiver) =
+            tokio::sync::watch::channel(());
+        secondary_shutdown_receiver.mark_unchanged();
+
         let operating_mode =
             <Self::Runtime as RuntimeTrait<Self::Spec>>::operating_mode(&genesis_params.runtime);
         tracing::debug!(?operating_mode, "Creating new rollup");
 
-        let da_service = Arc::new(self.create_da_service(&rollup_config).await);
+        let da_service = self
+            .create_da_service(&rollup_config, secondary_shutdown_receiver.clone())
+            .await;
+        let da_service_handle = da_service.take_background_join_handle();
+        let da_service = Arc::new(da_service);
+
         let mut storage_manager = self.create_storage_manager(&rollup_config)?;
 
         let (prover_storage, ledger_state) = storage_manager.create_bootstrap_state()?;
@@ -315,12 +327,10 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
             "Rollup state initialization is completed"
         );
 
-        let (main_shutdown_sender, mut main_shutdown_receiver) = tokio::sync::watch::channel(());
-        main_shutdown_receiver.mark_unchanged();
-        let (secondary_shutdown_sender, mut secondary_shutdown_receiver) =
-            tokio::sync::watch::channel(());
-        secondary_shutdown_receiver.mark_unchanged();
-        let mut background_handles = Vec::new();
+        let mut background_handles = vec![];
+        if let Some(handle) = da_service_handle {
+            background_handles.push(handle);
+        }
 
         let visible_state_height_tracker: Box<dyn ProvableHeightTracker> = Box::new(
             MaximumProvableHeight::new(state_update_sender.subscribe(), Self::Runtime::default()),

@@ -2,8 +2,6 @@
 #![doc = include_str!("../README.md")]
 
 #[cfg(feature = "native")]
-mod drop_notifier;
-#[cfg(feature = "native")]
 mod fee;
 #[cfg(feature = "native")]
 mod in_memory;
