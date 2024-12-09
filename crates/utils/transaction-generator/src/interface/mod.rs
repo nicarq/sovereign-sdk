@@ -3,14 +3,14 @@ mod rng;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
-
+pub mod traits;
 use derive_more::derive::AsRef;
 use derive_more::{Add, Mul};
 pub use rng::*;
 use sov_bank::TokenId;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
-use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
+pub use traits::*;
 
 use super::state::ApplyToState;
 use crate::state::{AccountState, State, TokenInfo};
@@ -199,111 +199,6 @@ impl<const N: usize> Distribution<N> {
     }
 }
 
-/// The state of the transaction generator, which is shared across all modules.
-///
-/// The generator state maintains a global state, but partitions it into "views" containing
-/// information relevant to a single module. For example, to test the "bank" and sequencer
-/// registry modules, the global state would looks something like this:
-///
-/// ```rust
-/// use sov_bank::Coins;
-/// use sov_modules_api::{CryptoSpec, Spec};
-///
-/// struct AccountState<S: Spec> {
-///   pub balances: Vec<Coins>,
-///   pub sequencing_bond: Option<u64>,
-///   pub private_key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-/// }
-///
-/// ```
-///
-/// In this example, the `Bank` account view would be constructed from the global
-/// state by cloning the `balances` array, and the sequencer registry would
-/// be constructed by cloning the `sequencing_bond`.
-///
-/// Splitting the GeneratorState for each module into its own view this way makes
-/// it easy to reuse code.
-pub trait GeneratorState<S: Spec> {
-    /// The view of an account for a particular module
-    type AccountView: Taggable<Tag: Into<Self::Tag>>;
-
-    /// The `Tag` enum associated with this generator. Tags form a secondary index
-    /// that can be used to quickly recover accounts matching certain criteria.
-    type Tag: Hash + Eq;
-
-    /// Creates a fresh copy of the appropriate view of the account with the given address.
-    fn get_account(&self, address: &S::Address) -> Option<Self::AccountView>;
-
-    /// Creates a fresh copy of the appropriate view of the account with the given tag.
-    fn get_account_with_tag(&self, tag: Self::Tag) -> Option<Self::AccountView>;
-
-    /// Picks an account at random from the generator state and returns a copy.
-    /// If no account exists, generate a new one
-    fn get_random_existing_account(
-        &mut self,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<(S::Address, Self::AccountView)>;
-
-    /// Picks an account at random from the generator state and returns a copy.
-    fn get_random_existing_account_with_tag(
-        &self,
-        tag: Self::Tag,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<Option<(S::Address, Self::AccountView)>>;
-
-    /// Returns true if the account has the given tag
-    fn has_tag(&self, addr: &S::Address, tag: Self::Tag) -> bool;
-
-    /// Gets the token with the given ID
-    fn get_token(&self, id: &TokenId) -> Option<TokenInfo>;
-
-    /// Gets the token with the given ID
-    fn update_token(&mut self, id: TokenId, info: TokenInfo);
-
-    /// Gets a random token
-    fn get_random_token(
-        &self,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<(TokenId, TokenInfo)>;
-
-    /// Updates the given account to match the provided view.
-    /// If the account for the provided address does not exist, it is created from the provided view.
-    fn update_account(&mut self, address: &S::Address, view: Self::AccountView);
-
-    /// Generates an empty account and returns it.
-    fn generate_account(
-        &mut self,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<(S::Address, Self::AccountView)>;
-
-    /// Either picks or generates an account.
-    fn get_or_generate(
-        &mut self,
-        generation_probability: Percent,
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<(S::Address, Self::AccountView)> {
-        if Percent::arbitrary(u)? < generation_probability {
-            self.generate_account(u)
-        } else {
-            self.get_random_existing_account(u)
-        }
-    }
-}
-
-/// Allows items to be tagged
-pub trait Taggable {
-    /// The tag type
-    type Tag;
-    /// Takes the list of tags
-    fn take_tags(&mut self) -> impl IntoIterator<Item = TagAction<Self::Tag>>;
-
-    /// Adds the tag
-    fn add_tag(&mut self, tag: Self::Tag);
-
-    /// Removes the tag, if present
-    fn remove_tag(&mut self, tag: Self::Tag);
-}
-
 /// Converts a more general `GeneratorState` implementation to a more specific one - for example,
 /// the `GeneratorState` for a whole runtime to the state for a particular module
 pub struct GeneratorStateMapper<'a, S: Spec, Acct, Tag, T = ()>(
@@ -440,13 +335,6 @@ where
     }
 }
 
-/// Converts a type into a partial implementation of another type
-/// without loss.
-pub trait Updatewith<T> {
-    /// Convert the item into a part-empty type.
-    fn update_with(&mut self, view: T);
-}
-
 /// The action to take on a particular tag
 #[derive(Debug, Clone)]
 pub enum TagAction<T> {
@@ -464,59 +352,6 @@ impl<T> TagAction<T> {
             TagAction::Remove(item) => TagAction::Remove(f(item)),
         }
     }
-}
-
-/// A standard interface for generating call messages and checking that they produce
-/// the expected effects.
-#[async_trait]
-pub trait CallMessageGenerator<S: Spec> {
-    /// The module callmessage being generated.
-    type CallMessage;
-
-    /// The tag type used by this module, if applicable
-    type Tag: std::fmt::Debug + Hash + Eq;
-
-    /// The view of account state used by the module message generator
-    type AccountView: Clone + std::fmt::Debug;
-
-    /// A service which returns the current rollup state.
-    type RollupStateReader: 'static;
-
-    /// The relevant post state from a generatd message.
-    type ChangelogEntry: Clone + std::fmt::Debug + Send + Sync + 'static;
-
-    /// Generate call messages needed to properly setup the generator.
-    #[allow(clippy::type_complexity)]
-    fn generate_setup_messages(
-        &mut self,
-        u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = Self::AccountView,
-            Tag: From<Self::Tag>,
-        >,
-    ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>>;
-
-    /// Generates a `CallMessage`, potentially valid or invalid, based on the provided parameters.
-    fn generate_call_message(
-        &self,
-        u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<
-            S,
-            AccountView = Self::AccountView,
-            Tag: From<Self::Tag>,
-        >,
-        validity: MessageValidity,
-    ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>;
-
-    /// Assert that the rollup state matches the expected value. This method
-    /// *must* detect when two changes conflict (if applicable) and assert only
-    /// the most recent change.
-    async fn assert_state(
-        &self,
-        rollup_state_accessor: Self::RollupStateReader,
-        changes: Vec<Self::ChangelogEntry>,
-    ) -> Result<(), anyhow::Error>;
 }
 
 /// Try to take an action repeatedly, breaking when the `until` condition is true and executing

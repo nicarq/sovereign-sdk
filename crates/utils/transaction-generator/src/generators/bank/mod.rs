@@ -1,11 +1,10 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
-use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
+use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::prelude::{arbitrary, tokio};
 use sov_modules_api::Spec;
 use strum::VariantArray;
 use tracing::warn;
@@ -16,6 +15,10 @@ pub use query::http::HttpBankClient;
 pub use query::BankClient;
 mod account;
 mod create_token;
+
+/// The traits to be implemented to interface with the harness
+pub mod harness_interface;
+
 mod transfer;
 pub use account::BankAccount;
 
@@ -55,7 +58,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         &self,
         message_type: CallMessageDiscriminants,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
         validity: MessageValidity,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         match (message_type, validity) {
@@ -153,13 +156,13 @@ pub enum BankChangeLogEntry<S: Spec> {
 
 #[async_trait]
 impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
-    type CallMessage = sov_bank::CallMessage<S>;
+    type Module = sov_bank::Bank<S>;
 
     type AccountView = BankAccount<S>;
 
-    type Tag = Tag;
+    type Tag = BankTag;
 
-    type RollupStateReader = HttpBankClient<S>;
+    type ClientConfig = HttpBankClient<S>;
 
     type ChangelogEntry = BankChangeLogEntry<S>;
 
@@ -171,7 +174,8 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
             AccountView = Self::AccountView,
             Tag: From<Self::Tag>,
         >,
-    ) -> arbitrary::Result<Vec<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>> {
+    ) -> arbitrary::Result<Vec<GeneratedMessage<S, sov_bank::CallMessage<S>, Self::ChangelogEntry>>>
+    {
         let config_address_creation_rate = self.address_creation_rate;
 
         self.address_creation_rate = Percent::one_hundred();
@@ -200,7 +204,8 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
             Tag: From<Self::Tag>,
         >,
         validity: MessageValidity,
-    ) -> arbitrary::Result<GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>> {
+    ) -> arbitrary::Result<GeneratedMessage<S, sov_bank::CallMessage<S>, Self::ChangelogEntry>>
+    {
         let message = *self.message_distribution.select_value(u)?;
         self.do_generation_with_fallback(message, u, generator_state, validity)
             .try_to_arbitrary()
@@ -209,57 +214,33 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
     async fn assert_state(
         &self,
-        rollup_state_accessor: Self::RollupStateReader,
-        changes: Vec<Self::ChangelogEntry>,
+        rollup_state_accessor: Self::ClientConfig,
+        change: &Self::ChangelogEntry,
     ) -> Result<(), anyhow::Error> {
-        // Since newer changes will stomp older ones, we need to remember
-        // which keys we've already checked.
-        let mut checked_balances = HashSet::new();
-        let mut checked_supplies = HashSet::new();
-        let mut joinset = tokio::task::JoinSet::new();
         let accessor = Arc::new(rollup_state_accessor);
-        for change in changes.into_iter().rev() {
-            match change {
-                BankChangeLogEntry::BalanceChanged { address, coins } => {
-                    let Coins { token_id, amount } = coins;
-                    let key = (address.clone(), token_id);
-                    if checked_balances.contains(&key) {
-                        continue;
-                    } else {
-                        checked_balances.insert(key);
-                        let accessor = accessor.clone();
-                        joinset.spawn(async move {
-                            let found_balance = accessor.get_balance(&address, token_id).await;
-                            assert_eq!(
-                                found_balance, amount,
-                                "Unexpected balance of {} at address {}",
-                                token_id, &address
-                            );
-                        });
-                    }
-                }
-                BankChangeLogEntry::SupplyChanged {
-                    token_id,
-                    total_supply,
-                } => {
-                    // HashSet::insert returns whether the value was newly inserted
-                    if !checked_supplies.insert(token_id) {
-                        continue;
-                    }
-                    let accessor = accessor.clone();
-                    joinset.spawn(async move {
-                        let found_supply = accessor.get_total_supply(&token_id).await;
-                        assert_eq!(
-                            found_supply, total_supply,
-                            "Unexpected total supply of {}",
-                            token_id,
-                        );
-                    });
-                }
+        match change {
+            BankChangeLogEntry::BalanceChanged { address, coins } => {
+                let Coins { token_id, amount } = coins;
+                let accessor = accessor.clone();
+                let found_balance = &accessor.get_balance(address, *token_id).await;
+                assert_eq!(
+                    found_balance, amount,
+                    "Unexpected balance of {} at address {}",
+                    token_id, &address
+                );
             }
-        }
-        while let Some(result) = joinset.join_next().await {
-            result?;
+            BankChangeLogEntry::SupplyChanged {
+                token_id,
+                total_supply,
+            } => {
+                let accessor = accessor.clone();
+                let found_supply = &accessor.get_total_supply(token_id).await;
+                assert_eq!(
+                    found_supply, total_supply,
+                    "Unexpected total supply of {}",
+                    token_id,
+                );
+            }
         }
 
         Ok(())
@@ -268,7 +249,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
 
 /// A tag used for indexing by the bank message generator
 #[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
-pub enum Tag {
+pub enum BankTag {
     /// Accounts which have a balance of some token. These can be used to generate transfers.
     HasBalance,
     /// Accounts which are allowed to mint some token.

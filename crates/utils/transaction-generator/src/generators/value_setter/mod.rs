@@ -4,9 +4,9 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use http::HttpValueSetterClient;
+use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
-use sov_modules_api::prelude::{arbitrary, tokio};
 use sov_modules_api::{CryptoSpec, Spec};
 use sov_value_setter::{CallMessage, CallMessageDiscriminants};
 use strum::VariantArray;
@@ -19,13 +19,17 @@ use crate::state::{AccountState, ApplyToState};
 
 mod http;
 
+mod harness_interface;
+
+pub use harness_interface::*;
+
 /// The call message discriminants used by the `Bank` module
 pub const MESSAGES: &[sov_value_setter::CallMessageDiscriminants] =
     sov_value_setter::CallMessageDiscriminants::VARIANTS;
 
 /// Tags that can be applied to an account
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Tag {
+pub enum ValueSetterTag {
     /// The account is an admin
     IsAdmin,
 }
@@ -49,7 +53,7 @@ impl<S: Spec, Data> ApplyToState<S, Data> for ValueSetterAccount<S> {
 }
 
 impl<S: Spec> Taggable for ValueSetterAccount<S> {
-    type Tag = Tag;
+    type Tag = ValueSetterTag;
 
     fn add_tag(&mut self, _tag: Self::Tag) {}
 
@@ -64,7 +68,7 @@ impl<S: Spec> Taggable for ValueSetterAccount<S> {
 ///
 /// ## Note
 /// For the [`ValueSetterMessageGenerator`] to be `useful` (ie to be able to send valid messages), users of the testing-harness
-/// have to make sure there is an admin account in the [`crate::interface::GeneratorState`] with the tag [`Tag::IsAdmin`].
+/// have to make sure there is an admin account in the [`crate::interface::GeneratorState`] with the tag [`ValueSetterTag::IsAdmin`].
 #[derive(Debug, Clone)]
 pub struct ValueSetterMessageGenerator<S: Spec> {
     message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
@@ -104,15 +108,15 @@ pub enum ValueSetterChangeLogEntry {
 
 #[async_trait]
 impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
-    type CallMessage = sov_value_setter::CallMessage;
+    type Module = sov_value_setter::ValueSetter<S>;
 
     type AccountView = ValueSetterAccount<S>;
 
     type ChangelogEntry = ValueSetterChangeLogEntry;
 
-    type Tag = Tag;
+    type Tag = ValueSetterTag;
 
-    type RollupStateReader = HttpValueSetterClient<S>;
+    type ClientConfig = HttpValueSetterClient<S>;
 
     fn generate_setup_messages(
         &mut self,
@@ -123,7 +127,13 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
             Tag: From<Self::Tag>,
         >,
     ) -> arbitrary::Result<
-        Vec<crate::interface::GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>>,
+        Vec<
+            crate::interface::GeneratedMessage<
+                S,
+                sov_value_setter::CallMessage,
+                Self::ChangelogEntry,
+            >,
+        >,
     > {
         Ok(vec![])
     }
@@ -138,7 +148,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
         >,
         validity: crate::interface::MessageValidity,
     ) -> sov_modules_api::prelude::arbitrary::Result<
-        crate::interface::GeneratedMessage<S, Self::CallMessage, Self::ChangelogEntry>,
+        crate::interface::GeneratedMessage<S, sov_value_setter::CallMessage, Self::ChangelogEntry>,
     > {
         match validity {
             MessageValidity::Valid => {
@@ -165,52 +175,27 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
 
     async fn assert_state(
         &self,
-        rollup_state_accessor: Self::RollupStateReader,
-        changes: Vec<Self::ChangelogEntry>,
+        rollup_state_accessor: Self::ClientConfig,
+        change: &Self::ChangelogEntry,
     ) -> Result<(), anyhow::Error> {
-        let mut seen_single_value_change = false;
-        let mut seen_many_value_change = false;
-        let mut joinset = tokio::task::JoinSet::new();
         let accessor = Arc::new(rollup_state_accessor);
 
-        for change in changes.into_iter().rev() {
-            match change {
-                ValueSetterChangeLogEntry::ValueUpdated { new_value } => {
-                    if seen_single_value_change {
-                        continue;
-                    }
-                    seen_single_value_change = true;
+        match change {
+            ValueSetterChangeLogEntry::ValueUpdated { new_value } => {
+                let value = accessor.get_value().await;
 
-                    let accessor = accessor.clone();
-                    joinset.spawn(async move {
-                        let value = accessor.get_value().await;
+                assert_eq!(value, Some(*new_value));
+            }
+            ValueSetterChangeLogEntry::ManyValuesUpdated { new_values } => {
+                let values_len = accessor.get_many_values_len().await;
 
-                        assert_eq!(value, Some(new_value));
-                    });
-                }
-                ValueSetterChangeLogEntry::ManyValuesUpdated { new_values } => {
-                    if seen_many_value_change {
-                        continue;
-                    }
-                    seen_many_value_change = true;
+                assert_eq!(values_len, Some(new_values.len() as u64));
 
-                    let accessor = accessor.clone();
-                    joinset.spawn(async move {
-                        let values_len = accessor.get_many_values_len().await;
-
-                        assert_eq!(values_len, Some(new_values.len() as u64));
-
-                        for i in 0..values_len.unwrap() {
-                            let value = accessor.get_many_values_item(i).await;
-                            assert_eq!(value, Some(new_values[i as usize]));
-                        }
-                    });
+                for i in 0..values_len.unwrap() {
+                    let value = accessor.get_many_values_item(i).await;
+                    assert_eq!(value, Some(new_values[i as usize]));
                 }
             }
-        }
-
-        while let Some(result) = joinset.join_next().await {
-            result?;
         }
 
         Ok(())
@@ -241,13 +226,13 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = ValueSetterAccount<S>,
-            Tag: From<Tag>,
+            Tag: From<ValueSetterTag>,
         >,
     ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
     {
         let message_type = self.message_distribution.select_value(u)?;
-        let Some((_, admin_account)) =
-            generator_state.get_random_existing_account_with_tag(Tag::IsAdmin.into(), u)?
+        let Some((_, admin_account)) = generator_state
+            .get_random_existing_account_with_tag(ValueSetterTag::IsAdmin.into(), u)?
         else {
             return Err(InternalMessageGenError::AdminNotFound);
         };
@@ -290,7 +275,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
         generator_state: &mut impl crate::interface::GeneratorState<
             S,
             AccountView = ValueSetterAccount<S>,
-            Tag: From<Tag>,
+            Tag: From<ValueSetterTag>,
         >,
     ) -> Result<GeneratedMessage<S, CallMessage, ValueSetterChangeLogEntry>, InternalMessageGenError>
     {
@@ -298,7 +283,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 
         repeatedly!(
             let (_address, account) = generator_state.get_or_generate(Percent::fifty(), u)?;
-            until: !generator_state.has_tag(&_address, Tag::IsAdmin.into()),
+            until: !generator_state.has_tag(&_address, ValueSetterTag::IsAdmin.into()),
             on_failure: panic!("Impossible to get a non-admin account, when there should only be one admin!")
         );
 

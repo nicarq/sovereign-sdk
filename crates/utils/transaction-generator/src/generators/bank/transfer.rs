@@ -3,8 +3,8 @@ use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::Spec;
 
 use super::{
-    BankAccount, BankChangeLogEntry, BankMessageGenerator, InternalMessageGenError,
-    InternalMessageGenResult, Tag,
+    BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenError,
+    InternalMessageGenResult,
 };
 use crate::interface::{GeneratedMessage, GeneratorState};
 use crate::repeatedly;
@@ -23,7 +23,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         &self,
         error_reason: InvalidTransferReasons,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let from_key = {
             if let InvalidTransferReasons::AccountDoesNotExist = error_reason {
@@ -62,7 +62,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(crate) fn generate_invalid_transfer(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let invalid_reason = InvalidTransferReasons::arbitrary(u)?;
         self.generate_invalid_transfer_helper(invalid_reason, u, generator_state)
@@ -74,7 +74,7 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(crate) fn generate_valid_transfer(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         let (from_addr, mut from_account) =
             Self::get_random_account_with_balance(generator_state, u)?;
@@ -148,11 +148,11 @@ impl<S: Spec> BankMessageGenerator<S> {
     }
 
     fn get_random_account_with_balance(
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
         u: &mut arbitrary::Unstructured<'_>,
     ) -> InternalMessageGenResult<(S::Address, BankAccount<S>)> {
         generator_state
-            .get_random_existing_account_with_tag(Tag::HasBalance.into(), u)?
+            .get_random_existing_account_with_tag(BankTag::HasBalance.into(), u)?
             .ok_or(InternalMessageGenError::NoAccountWithBalance)
     }
 }
