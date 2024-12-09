@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use serde::Deserialize;
 use sov_modules_api::rest::utils::ResponseObject;
@@ -30,16 +29,6 @@ struct IdxResponse<T> {
     #[allow(unused)]
     index: u64,
     value: Option<T>,
-}
-
-impl<S: Spec> From<Arc<BasicClientConfig>> for HttpValueSetterClient<S> {
-    fn from(value: Arc<BasicClientConfig>) -> Self {
-        Self {
-            rollup_height: value.rollup_height,
-            phantom: Default::default(),
-            client: NodeClient::new_unchecked(&value.url),
-        }
-    }
 }
 
 impl<S: Spec> From<BasicClientConfig> for HttpValueSetterClient<S> {

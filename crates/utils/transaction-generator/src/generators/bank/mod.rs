@@ -1,6 +1,5 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
-use std::sync::Arc;
 
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
@@ -12,7 +11,6 @@ use tracing::warn;
 mod mint;
 mod query;
 pub use query::http::HttpBankClient;
-pub use query::BankClient;
 mod account;
 mod create_token;
 
@@ -217,12 +215,10 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         rollup_state_accessor: Self::ClientConfig,
         change: &Self::ChangelogEntry,
     ) -> Result<(), anyhow::Error> {
-        let accessor = Arc::new(rollup_state_accessor);
         match change {
             BankChangeLogEntry::BalanceChanged { address, coins } => {
                 let Coins { token_id, amount } = coins;
-                let accessor = accessor.clone();
-                let found_balance = &accessor.get_balance(address, *token_id).await;
+                let found_balance = &rollup_state_accessor.get_balance(address, *token_id).await;
                 assert_eq!(
                     found_balance, amount,
                     "Unexpected balance of {} at address {}",
@@ -233,8 +229,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
                 token_id,
                 total_supply,
             } => {
-                let accessor = accessor.clone();
-                let found_supply = &accessor.get_total_supply(token_id).await;
+                let found_supply = &rollup_state_accessor.get_total_supply(token_id).await;
                 assert_eq!(
                     found_supply, total_supply,
                     "Unexpected total supply of {}",
