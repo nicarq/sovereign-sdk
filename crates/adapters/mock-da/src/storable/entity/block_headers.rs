@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use sea_orm::entity::prelude::*;
-use sov_rollup_interface::da::Time;
+use sov_rollup_interface::da::{NanoSeconds, Time};
 
 use crate::{MockBlockHeader, MockHash};
 
@@ -16,10 +16,7 @@ pub struct Model {
     pub height: i32,
     pub prev_hash: Vec<u8>,
     pub hash: Vec<u8>,
-    #[sea_orm(
-        column_type = "TimestampWithTimeZone",
-        default_expr = "Expr::current_timestamp()"
-    )]
+    #[sea_orm(column_type = "TimestampWithTimeZone")]
     pub created_at: DateTime<Utc>,
 }
 
@@ -33,7 +30,9 @@ impl From<Model> for MockBlockHeader {
         let hash = MockHash::try_from(value.hash).expect("Corrupted `hash` in database");
         let prev_hash =
             MockHash::try_from(value.prev_hash).expect("Corrupted `prev_hash` in database");
-        let time = Time::from_secs(value.created_at.timestamp());
+        let seconds = value.created_at.timestamp();
+        let nanos = value.created_at.timestamp_subsec_nanos();
+        let time = Time::new(seconds, NanoSeconds::new(nanos).unwrap());
 
         MockBlockHeader {
             prev_hash,

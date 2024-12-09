@@ -27,7 +27,7 @@ const DEFAULT_BLOCK_WAITING_TIME: Duration = Duration::from_secs(120);
 const EXTRA_TIME_FOR_MAX_BLOCK: Duration = Duration::from_secs(10);
 
 /// Defines how StorableMockService should produce new blocks.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum BlockProducing {
     /// Produced a new block at every time. Not guaranteed to have precise block time.
     Periodic(Duration),
@@ -134,6 +134,22 @@ impl StorableMockDaService {
         )
     }
 
+    /// Create a new [` StorableMockDaService `] with the given address and [`BlockProducing::Manual`].
+    /// Shorter constructor.
+    pub fn new_manual_producing(
+        sequencer_da_address: MockAddress,
+        da_layer: Arc<RwLock<StorableMockDaLayer>>,
+    ) -> Self {
+        let (drop_notifier, _) = DropNotifier::build();
+        let drop_notifier = Arc::new(drop_notifier);
+        Self::new(
+            sequencer_da_address,
+            da_layer,
+            BlockProducing::Manual,
+            drop_notifier,
+        )
+    }
+
     /// Will receive notification one block before the proof is included on the DA.
     pub fn subscribe_proof_posted(&self) -> broadcast::Receiver<()> {
         self.aggregated_proof_sender.subscribe()
@@ -201,6 +217,17 @@ impl StorableMockDaService {
                 }
             }
         }
+    }
+
+    /// Trigger creation of a new block on underlying [`StorableMockDaLayer`].
+    pub async fn produce_block_now(&self) -> anyhow::Result<()> {
+        anyhow::ensure!(
+            self.block_producing == BlockProducing::Manual,
+            "Can only trigger block producing in Manual mode, but current is {:?}",
+            self.block_producing
+        );
+        let mut da_layer = self.da_layer.write().await;
+        da_layer.produce_block().await
     }
 }
 
