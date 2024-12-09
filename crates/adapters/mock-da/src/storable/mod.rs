@@ -20,7 +20,6 @@ mod tests {
     use sov_rollup_interface::node::da::DaService;
     use tokio::sync::RwLock;
 
-    use super::*;
     use crate::storable::layer::StorableMockDaLayer;
     use crate::storable::service::StorableMockDaService;
     use crate::{BlockProducingConfig, MockAddress, MockDaConfig, MockFee};
@@ -41,7 +40,10 @@ mod tests {
         let blocks = 5;
         let start = Time::now();
 
-        let da_service = service::StorableMockDaService::from_config(config).await;
+        let (_shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
+        shutdown_receiver.mark_unchanged();
+
+        let da_service = StorableMockDaService::from_config(config, shutdown_receiver).await;
         let da_service_reader = da_service.clone();
 
         let (tx, mut rx) = tokio::sync::mpsc::channel(1);
