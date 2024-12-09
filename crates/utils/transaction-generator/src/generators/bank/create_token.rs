@@ -8,6 +8,7 @@ use super::{
 use crate::generators::bank::InternalMessageGenError;
 use crate::interface::{GeneratedMessage, GeneratorState, Taggable};
 use crate::state::TokenInfo;
+use crate::Percent;
 
 const TOKEN_NAME: &str = "TEST_TOKEN_NAME";
 /// To avoid collisions, we make sure token names have at least 15 characters.
@@ -40,17 +41,18 @@ impl<S: Spec> BankMessageGenerator<S> {
         ))
     }
 
-    /// Generate a valid create_token message
+    /// Generate a valid create_token message with a custom address creation rate
     #[allow(private_interfaces)]
-    pub(crate) fn generate_valid_create_token(
+    pub(crate) fn generate_valid_create_token_with_creation_rate(
         &self,
+        creation_rate: Percent,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         // Pick a creator address, and a token name. Compute the token ID
         let (creator_key, token_name, token_id) = {
             let (creator_address, mut creator_acct) =
-                generator_state.get_or_generate(self.address_creation_rate, u)?;
+                generator_state.get_or_generate(creation_rate, u)?;
             let creator_key = creator_acct.private_key.clone();
             creator_acct.add_tag(BankTag::HasCreatedToken);
             // Use the standard name for the first token of each account, then pick at random
@@ -118,6 +120,21 @@ impl<S: Spec> BankMessageGenerator<S> {
                 mint_event,
             ],
         ))
+    }
+
+    /// Generate a valid create_token message. Same as [`Self::generate_valid_create_token_with_creation_rate`]
+    /// with the default address creation rate.
+    #[allow(private_interfaces)]
+    pub(crate) fn generate_valid_create_token(
+        &self,
+        u: &mut arbitrary::Unstructured<'_>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
+    ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
+        self.generate_valid_create_token_with_creation_rate(
+            self.address_creation_rate,
+            u,
+            generator_state,
+        )
     }
 }
 

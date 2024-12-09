@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use sov_modules_api::capabilities::config_chain_id;
 use sov_modules_api::prelude::{arbitrary, schemars, tokio};
 use sov_modules_api::transaction::TxDetails;
@@ -31,6 +33,9 @@ use sov_value_setter::{
 
 use crate::{get_random_bytes, randomize_buffer};
 
+const USER_BALANCE: u64 = 1_000_000_000_000;
+const MAX_VEC_LEN_VALUE_SETTER: usize = 1000;
+
 generate_runtime! {
     name: TestRuntime,
     modules: [paymaster: Paymaster<S>, value_setter: ValueSetter<S>],
@@ -48,12 +53,27 @@ type GeneratorOutput = GeneratedMessage<S, TestRuntimeCall<S>, BasicChangeLogEnt
 pub const BUFFER_SIZE: usize = 100_000;
 // The minimum randomness needed to guarantee successful transaction generation
 pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
+/// The number of transactions to generate.
+pub const TXS_TO_GENERATE: u64 = 100;
+
+enum ModulesToUse {
+    Bank,
+    ValueSetter,
+}
+
+struct NumTxsExecuted {
+    num_bank_txs: u64,
+    num_value_setter_txs: u64,
+}
 
 pub struct TestGenerator {
     generator: Generator,
     bank_harness: BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
     value_setter_harness:
         ValueSetterHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
+    #[allow(clippy::type_complexity)]
+    modules_to_use:
+        Vec<Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
@@ -63,17 +83,6 @@ pub struct TestGenerator {
 }
 
 impl TestGenerator {
-    #[allow(clippy::type_complexity)]
-    fn produce_module_boxed_list(
-        &self,
-    ) -> Vec<Box<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>>
-    {
-        vec![
-            Box::new(self.bank_harness.clone()),
-            Box::new(self.value_setter_harness.clone()),
-        ]
-    }
-
     pub fn generate(&mut self, validity: MessageValidity) -> GeneratorOutput {
         if let Some(tx) = self.initial_transaction.take() {
             return tx;
@@ -83,7 +92,7 @@ impl TestGenerator {
                 let u =
                     &mut arbitrary::Unstructured::new(&self.randomness[self.randomness_offset()..]);
 
-                let modules_boxed = self.produce_module_boxed_list();
+                let modules_boxed = &self.modules_to_use;
 
                 if let Ok(output) = self.generator.generate_call_message(
                     modules_boxed,
@@ -124,6 +133,7 @@ fn do_test(
     address_creation_rate: Percent,
     admin: &TestUser<S>,
     max_value_setter_vec_len: usize,
+    modules_to_use: Vec<ModulesToUse>,
 ) -> TestGenerator {
     use sov_bank::CallMessageDiscriminants::*;
 
@@ -140,15 +150,26 @@ fn do_test(
         max_value_setter_vec_len,
     ));
 
-    let dyn_bank_harness: Box<
-        dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-    > = Box::new(bank_harness.clone());
-
-    let dyn_value_setter_harness: Box<
-        dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-    > = Box::new(value_setter_harness.clone());
-
-    let modules = vec![dyn_bank_harness, dyn_value_setter_harness];
+    #[allow(clippy::type_complexity)]
+    let modules: Vec<
+        Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>>,
+    > = modules_to_use
+        .iter()
+        .map(|module_to_use| match module_to_use {
+            ModulesToUse::Bank => {
+                let module: Arc<
+                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+                > = Arc::new(bank_harness.clone());
+                module
+            }
+            ModulesToUse::ValueSetter => {
+                let module: Arc<
+                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+                > = Arc::new(value_setter_harness.clone());
+                module
+            }
+        })
+        .collect();
 
     let mut factory = Generator::new();
 
@@ -167,13 +188,13 @@ fn do_test(
     let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
     let initial_tx = factory
-        .generate_setup_messages(modules, u, &mut state)
+        .generate_setup_messages(&modules, u, &mut state)
         .expect("Failed to generate setup messages")
-        .pop()
-        .unwrap();
+        .pop();
     let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,
+        modules_to_use: modules,
         bank_harness,
         value_setter_harness,
         remaining_randomness,
@@ -181,7 +202,7 @@ fn do_test(
         state,
         target_buffer_size: BUFFER_SIZE,
         salt: 1,
-        initial_transaction: Some(initial_tx),
+        initial_transaction: initial_tx,
     }
 }
 
@@ -240,11 +261,7 @@ fn setup(user_balance: u64) -> Setup {
     }
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_successful_transaction_generation() {
-    const USER_BALANCE: u64 = 1_000_000_000_000;
-    const MAX_VEC_LEN_VALUE_SETTER: usize = 1000;
-
+async fn test_with_modules(modules: Vec<ModulesToUse>) -> NumTxsExecuted {
     let mut num_bank_txs = 0;
     let mut num_value_setter_txs = 0;
 
@@ -253,6 +270,7 @@ async fn test_successful_transaction_generation() {
         Percent::one_hundred(),
         &setup.value_setter_admin,
         MAX_VEC_LEN_VALUE_SETTER,
+        modules,
     );
 
     let mut runner = TestRunner::<RT, S>::new_with_genesis(
@@ -265,8 +283,8 @@ async fn test_successful_transaction_generation() {
         url: runner.base_path(),
         rollup_height: None,
     };
-    // Generate and execute 100 txs
-    for _ in 0..100 {
+    // Generate and execute [`TXS_TO_GENERATE`] txs
+    for _ in 0..TXS_TO_GENERATE {
         let output = generator.generate(MessageValidity::Valid);
 
         match output.message.clone() {
@@ -305,7 +323,44 @@ async fn test_successful_transaction_generation() {
         }
     }
 
+    NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_successful_transaction_generation() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    } = test_with_modules(vec![ModulesToUse::Bank, ModulesToUse::ValueSetter]).await;
+
     // We should have generated at least one bank and one value setter tx
     assert!(num_bank_txs > 0);
     assert!(num_value_setter_txs > 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_generate_txs_only_value_setter() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    } = test_with_modules(vec![ModulesToUse::ValueSetter]).await;
+
+    // We should have generated zero bank transaction and 100 value setter transactions
+    assert_eq!(num_bank_txs, 0);
+    assert_eq!(num_value_setter_txs, TXS_TO_GENERATE);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_generate_txs_only_bank() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    } = test_with_modules(vec![ModulesToUse::Bank]).await;
+
+    // We should have generated zero bank transaction and 100 value setter transactions
+    assert_eq!(num_bank_txs, TXS_TO_GENERATE);
+    assert_eq!(num_value_setter_txs, 0);
 }

@@ -4,14 +4,15 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::sync::Arc;
 
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::{DispatchCall, Spec};
 use sov_modules_stf_blueprint::Runtime;
 
-use crate::interface::{GeneratedMessage, MessageValidity, PickRandomMut};
+use crate::interface::{GeneratedMessage, MessageValidity};
 use crate::state::State;
-use crate::HarnessModule;
+use crate::{HarnessModule, PickRandom};
 
 /// Generates call messages for the modules passed as inputs.
 ///
@@ -55,8 +56,8 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn generate_setup_messages(
         &mut self,
-        modules: Vec<
-            Box<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
+        modules: &Vec<
+            Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
         >,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
@@ -66,7 +67,7 @@ impl<
             GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>,
         > = vec![];
 
-        for mut module in modules {
+        for module in modules {
             messages.append(&mut module.generate_setup_messages(u, generator_state)?);
         }
 
@@ -77,15 +78,15 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn generate_call_message(
         &self,
-        mut modules: Vec<
-            Box<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
+        modules: &Vec<
+            Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
         >,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>
     {
-        let module = modules.random_entry_mut(u)?;
+        let module = modules.random_entry(u)?;
 
         let GeneratedMessage {
             message,
