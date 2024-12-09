@@ -9,7 +9,7 @@ use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{ChainState, HasKernel, TransactionAuthenticator};
-use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
+use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
     Batch, DaSpec, ExecutionContext, FullyBakedTx, GasMeter, KernelStateAccessor, NestedEnumUtils,
     RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateCheckpoint, StateProvider,
@@ -77,7 +77,6 @@ fn confirmation<Z: RtAwareBatchBuilderSpec>(
 
 /// A batch builder with instant transaction confirmation.
 pub struct PreferredBatchBuilder<Z: RtAwareBatchBuilderSpec> {
-    state_update_receiver: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
@@ -156,16 +155,14 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type Spec = Z::Spec;
 
     async fn create(
-        state_update_receiver: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
+        latest_state_update: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
         da_sync_state: Arc<DaSyncState>,
         seq_db_txs: Vec<SeqDbTx>,
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<Self> {
-        let state_info = state_update_receiver.borrow().clone();
-
         let runtime: Z::Rt = Default::default();
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
-            state_info.storage.clone(),
+            latest_state_update.storage.clone(),
             &runtime.kernel(),
         ));
         let api_state = ApiState::build(
@@ -176,7 +173,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         );
 
         let initial_checkpoint =
-            StateCheckpoint::new(state_info.storage.clone(), &runtime.kernel());
+            StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
         let mut bb = Self {
             acceptor: TxAcceptor {
@@ -184,13 +181,12 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                 admin_addresses: config.admin_addresses.clone(),
                 sequencer_address: config.da_address.clone(),
             },
-            state_update_receiver,
+            next_event_number: latest_state_update.next_event_number,
             checkpoint: Some(initial_checkpoint),
             checkpoint_sender,
             api_state,
             da_sync_state,
             txs_in_next_batch: vec![],
-            next_event_number: state_info.next_event_number,
             config: config.batch_builder.clone(),
         };
 
@@ -220,10 +216,6 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                 }
             }
         }
-    }
-
-    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage> {
-        self.state_update_receiver.clone()
     }
 
     fn api_state(&self) -> ApiState<Self::Spec> {

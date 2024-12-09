@@ -13,7 +13,7 @@ use sov_modules_api::capabilities::{
     AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
     SequencerAuthorization, TransactionAuthenticator,
 };
-use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
+use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
     BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
     RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, StateUpdateInfo,
@@ -76,11 +76,6 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     // transactions differently to support multiple transaction types.
     fn encode_tx(raw: RawTx) -> Self::TxInput;
 
-    /// A [`StateUpdateReceiver`] which is notified each time the rollup's head storage changes.
-    /// This happens when DA layer reorgs or a new block is successfully processed on top of
-    /// the previous head.
-    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage>;
-
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
 
@@ -89,7 +84,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
 
     /// Creates a new [`BatchBuilder`].
     async fn create(
-        state_update_receiver: StateUpdateReceiver<<Self::Spec as Spec>::Storage>,
+        latest_state_info: StateUpdateInfo<<Self::Spec as Spec>::Storage>,
         da_sync_state: Arc<DaSyncState>,
         seq_db_txs: Vec<SeqDbTx>,
         config: &SequencerConfig<

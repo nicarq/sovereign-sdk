@@ -13,7 +13,7 @@ use serde::Deserialize;
 use sov_modules_api::capabilities::{
     AuthenticationError, ChainState, HasKernel, TransactionAuthenticator,
 };
-use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
+use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
     Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, RawTx, Spec,
@@ -61,7 +61,6 @@ pub struct StdBatchBuilder<Z: RtAwareBatchBuilderSpec> {
     checkpoint: Option<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     checkpoint_sender: watch::Sender<StateCheckpoint<<Z::Spec as Spec>::Storage>>,
     api_state: ApiState<Z::Spec>,
-    state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
     tx_hashes_of_last_batch: Vec<TxHash>,
     config:
         SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, StdBatchBuilderConfig>,
@@ -217,7 +216,7 @@ where
     type Spec = Z::Spec;
 
     async fn create(
-        state_update_recv: StateUpdateReceiver<<Z::Spec as Spec>::Storage>,
+        latest_state_update: StateUpdateInfo<<Z::Spec as Spec>::Storage>,
         _da_sync_state: Arc<DaSyncState>,
         seq_db_txs: Vec<SeqDbTx>,
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
@@ -226,9 +225,7 @@ where
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
         let kernel = runtime.kernel();
 
-        let state_update_ref = state_update_recv.borrow();
-
-        let checkpoint = StateCheckpoint::new(state_update_ref.storage.clone(), &kernel);
+        let checkpoint = StateCheckpoint::new(latest_state_update.storage.clone(), &kernel);
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(checkpoint);
 
         let api_state = ApiState::build(
@@ -238,11 +235,8 @@ where
             None,
         );
 
-        let checkpoint = StateCheckpoint::new(state_update_ref.storage.clone(), &kernel);
+        let checkpoint = StateCheckpoint::new(latest_state_update.storage.clone(), &kernel);
         let txsm = TxStatusManager::default();
-
-        // We must drop it to retake ownership over `storage_recv`.
-        drop(state_update_ref);
 
         Ok(Self {
             mempool: Mempool::new(
@@ -256,7 +250,6 @@ where
             txsm,
             api_state,
             runtime: Z::Rt::default(),
-            state_update_recv,
             checkpoint_sender,
             checkpoint: Some(checkpoint),
             tx_hashes_of_last_batch: vec![],
@@ -270,10 +263,6 @@ where
 
     fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         Ok(())
-    }
-
-    fn state_update_receiver(&self) -> StateUpdateReceiver<<Self::Spec as Spec>::Storage> {
-        self.state_update_recv.clone()
     }
 
     fn tx_status_manager(&self) -> TxStatusManager<<Z::Spec as Spec>::Da> {

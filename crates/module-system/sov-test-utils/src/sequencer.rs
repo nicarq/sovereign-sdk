@@ -63,6 +63,8 @@ pub struct TestSequencerSetup<B: BatchBuilder<Spec = TestSpec>> {
     >,
     /// The [`MockDaService`] used by the [`Sequencer`].
     pub da_service: MockDaService,
+    /// The argument passed to [`Sequencer::new`].
+    pub state_update_receiver: watch::Receiver<StateUpdateInfo<<TestSpec as Spec>::Storage>>,
     /// The [`Sequencer`] used in the test.
     pub sequencer: TestSequencer<B>,
     /// The admin private key used to create an external user account for transaction handling.
@@ -184,7 +186,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
         };
 
         let (sequencer, _) = Sequencer::new(
-            state_update_receiver,
+            state_update_receiver.clone(),
             da_service.clone(),
             da_sync_state,
             sequencer_db,
@@ -212,6 +214,7 @@ impl<B: BatchBuilder<Spec = TestSpec>> TestSequencerSetup<B> {
 
         Ok(Self {
             _dir: dir,
+            state_update_receiver,
             config,
             da_service,
             sequencer,

@@ -76,11 +76,7 @@ async fn restore_txs_from_seq_db() {
         TestSpec,
         TestOptimisticRuntime<TestSpec>,
     )> = PreferredBatchBuilder::create(
-        sequencer
-            .sequencer
-            .batch_builder()
-            .await
-            .state_update_receiver(),
+        sequencer.state_update_receiver.borrow().clone(),
         da_sync_state,
         db_txs,
         &config,
