@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
-use celestia_tendermint::account::Id;
 use celestia_types::state::{AccAddress, AddressKind, AddressTrait};
 // use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
@@ -43,7 +42,7 @@ mod arbitrary_impls {
     use super::*;
 
     fn new(bytes: [u8; 20]) -> CelestiaAddress {
-        CelestiaAddress(AccAddress::new(Id::new(bytes)))
+        CelestiaAddress(AccAddress::new(tendermint::account::Id::new(bytes)))
     }
 
     impl<'a> ::arbitrary::Arbitrary<'a> for CelestiaAddress {
@@ -54,13 +53,13 @@ mod arbitrary_impls {
     }
 
     #[cfg(feature = "arbitrary")]
-    impl ::proptest::arbitrary::Arbitrary for CelestiaAddress {
+    impl proptest::arbitrary::Arbitrary for CelestiaAddress {
         type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
         fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
             any::<[u8; 20]>().prop_map(new).boxed()
         }
+
+        type Strategy = BoxedStrategy<Self>;
     }
 }
 
@@ -82,11 +81,12 @@ fn deserialize_celestia_address(
     reader: &mut impl borsh::io::Read,
 ) -> Result<AccAddress, borsh::io::Error> {
     let bytes: Vec<u8> = BorshDeserialize::deserialize_reader(reader)?;
-    let id = bytes
-        .try_into()
-        .map_err(|e: <Vec<u8> as TryInto<Id>>::Error| {
-            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-        })?;
+    let id =
+        bytes
+            .try_into()
+            .map_err(|e: <Vec<u8> as TryInto<tendermint::account::Id>>::Error| {
+                std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+            })?;
     Ok(AccAddress::new(id))
 }
 
@@ -126,7 +126,7 @@ impl<'a> TryFrom<&'a [u8]> for CelestiaAddress {
             s.parse().context("failed parsing celestia address")
         } else {
             let array = value.try_into().context("invalid slice length")?;
-            let id = celestia_tendermint::account::Id::new(array);
+            let id = tendermint::account::Id::new(array);
             Ok(Self(AccAddress::new(id)))
         }
     }

@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 use std::slice::Chunks;
 
-use anyhow::{bail, ensure};
+use anyhow::ensure;
 // use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_proto::celestia::blob::v1::MsgPayForBlobs;
-use celestia_types::consts::appconsts::SHARE_SIZE;
 /// Reexport the [`Namespace`] from `celestia-types`
 pub use celestia_types::nmt::Namespace;
 use celestia_types::nmt::{NamespacedHash, Nmt, NmtExt, NS_SIZE};
-use celestia_types::row_namespace_data::NamespacedShares;
-use celestia_types::{Commitment, ExtendedDataSquare, ExtendedHeader, ValidateBasic};
+use celestia_types::row_namespace_data::NamespaceData;
+use celestia_types::{
+    AppVersion, Commitment, ExtendedDataSquare, ExtendedHeader, ValidateBasicWithAppVersion,
+};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 #[cfg(feature = "native")]
@@ -28,10 +29,14 @@ use crate::verifier::ChainValidityCondition;
 use crate::verifier::PARITY_SHARES_NAMESPACE;
 use crate::{parse_pfb_namespace, CelestiaHeader, TxPosition};
 
+pub(crate) const APP_VERSION: AppVersion = AppVersion::V3;
+pub(crate) const SUBTREE_ROOT_THRESHOLD: u64 =
+    celestia_types::consts::appconsts::v3::SUBTREE_ROOT_THRESHOLD;
+
 /// Celestia namespace and corresponding shares.
 pub struct NamespaceWithShares {
     pub(crate) namespace: Namespace,
-    pub(crate) rows: NamespacedShares,
+    pub(crate) rows: NamespaceData,
 }
 
 impl NamespaceWithShares {
@@ -39,7 +44,7 @@ impl NamespaceWithShares {
         pfbs: &Vec<(MsgPayForBlobs, TxPosition)>,
         batch_shares: Self,
         proof_shares: Self,
-    ) -> (NamespaceData, NamespaceData) {
+    ) -> (NamespaceRelevenatData, NamespaceRelevenatData) {
         // Parse out the pfds and store them for later retrieval.
         trace!("Decoding pfb protobufs...");
         let mut batch_pbf_map = HashMap::new();
@@ -58,14 +63,14 @@ impl NamespaceWithShares {
             }
         }
 
-        let rollup_batch_data = NamespaceData {
+        let rollup_batch_data = NamespaceRelevenatData {
             namespace: batch_shares.namespace,
             group: NamespaceGroup::from(&batch_shares.rows),
             relevant_pfbs: batch_pbf_map,
             rows: batch_shares.rows,
         };
 
-        let rollup_proof_data = NamespaceData {
+        let rollup_proof_data = NamespaceRelevenatData {
             namespace: proof_shares.namespace,
             group: NamespaceGroup::from(&proof_shares.rows),
             relevant_pfbs: proof_pbf_map,
@@ -86,7 +91,7 @@ pub struct BlobWithSender {
 
 /// Data that is required for extracting the relevant blobs from the namespace
 #[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub struct NamespaceData {
+pub struct NamespaceRelevenatData {
     /// Celestia namespace.
     pub(crate) namespace: Namespace,
     pub(crate) group: NamespaceGroup,
@@ -94,10 +99,10 @@ pub struct NamespaceData {
     /// for each blob addressed to the relevant namespace.
     pub(crate) relevant_pfbs: HashMap<Bytes, (MsgPayForBlobs, TxPosition)>,
     /// All relevant rollup shares as they appear in extended data square, with proofs.
-    pub(crate) rows: NamespacedShares,
+    pub(crate) rows: NamespaceData,
 }
 
-impl NamespaceData {
+impl NamespaceRelevenatData {
     pub fn get_blob_with_sender(&self) -> Vec<BlobWithSender> {
         let mut output = Vec::new();
         for blob_ref in self.group.blobs() {
@@ -106,8 +111,12 @@ impl NamespaceData {
                 continue;
             }
 
-            let commitment = Commitment::from_shares(self.namespace, &blob_ref.celestia_shares())
-                .expect("blob must be valid");
+            let commitment = Commitment::from_shares(
+                self.namespace,
+                &blob_ref.celestia_shares(),
+                SUBTREE_ROOT_THRESHOLD,
+            )
+            .expect("blob must be valid");
 
             let sender = self
                 .relevant_pfbs
@@ -138,12 +147,12 @@ impl NamespaceData {
 pub struct FilteredCelestiaBlock {
     pub(crate) header: CelestiaHeader,
     /// All rows in the extended data square which contain pfb data
-    pub(crate) etx_rows: NamespacedShares,
+    pub(crate) etx_rows: NamespaceData,
     /// Batch related data.
-    pub(crate) rollup_batch_data: NamespaceData,
+    pub(crate) rollup_batch_data: NamespaceRelevenatData,
 
     /// Proof related data.
-    pub(crate) rollup_proof_data: NamespaceData,
+    pub(crate) rollup_proof_data: NamespaceRelevenatData,
 }
 
 #[cfg(feature = "native")]
@@ -153,8 +162,8 @@ impl SlotData for FilteredCelestiaBlock {
 
     fn hash(&self) -> [u8; 32] {
         match self.header.header.hash() {
-            celestia_tendermint::Hash::Sha256(h) => h,
-            celestia_tendermint::Hash::None => {
+            tendermint::Hash::Sha256(h) => h,
+            tendermint::Hash::None => {
                 unreachable!("tendermint::Hash::None should not be possible")
             }
         }
@@ -177,7 +186,7 @@ impl FilteredCelestiaBlock {
         rollup_batch_shares: NamespaceWithShares,
         rollup_proof_shares: NamespaceWithShares,
         header: ExtendedHeader,
-        etx_rows: NamespacedShares,
+        etx_rows: NamespaceData,
     ) -> Result<Self, BoxError> {
         let tx_data = NamespaceGroup::from(&etx_rows);
         let pfbs = parse_pfb_namespace(tx_data)?;
@@ -247,7 +256,7 @@ pub enum ValidationError {
 
 impl CelestiaHeader {
     pub fn validate_dah(&self) -> Result<(), ValidationError> {
-        self.dah.validate_basic()?;
+        self.dah.validate_basic(APP_VERSION)?;
         let data_hash = self
             .header
             .data_hash
@@ -263,7 +272,7 @@ impl CelestiaHeader {
 pub trait ExtendedDataSquareExt {
     fn square_size(&self) -> Result<usize, BoxError>;
 
-    fn rows(&self) -> Result<Chunks<'_, Vec<u8>>, BoxError>;
+    fn rows(&self) -> Result<Chunks<'_, celestia_types::Share>, BoxError>;
 
     fn validate(&self) -> Result<(), BoxError>;
 }
@@ -280,7 +289,7 @@ impl ExtendedDataSquareExt for ExtendedDataSquare {
         Ok(square_size)
     }
 
-    fn rows(&self) -> Result<Chunks<'_, Vec<u8>>, BoxError> {
+    fn rows(&self) -> Result<Chunks<'_, celestia_types::Share>, BoxError> {
         let square_size = self.square_size()?;
         Ok(self.data_square().chunks(square_size))
     }
@@ -288,15 +297,6 @@ impl ExtendedDataSquareExt for ExtendedDataSquare {
     fn validate(&self) -> Result<(), BoxError> {
         let len = self.square_size()?;
         ensure!(len * len == self.data_square().len(), "Invalid square size");
-
-        if let Some(share) = self
-            .rows()
-            .expect("after first check this must succeed")
-            .flatten()
-            .find(|shares| shares.len() != SHARE_SIZE)
-        {
-            bail!("Invalid share size: {}", share.len())
-        }
         Ok(())
     }
 }
@@ -341,7 +341,7 @@ fn share_namespace_unchecked(share: &[u8]) -> Namespace {
 pub mod tests {
     use crate::parse_pfb_namespace;
     use crate::test_helper::files::*;
-    use crate::types::{NamespaceGroup, NamespacedShares};
+    use crate::types::{NamespaceData, NamespaceGroup};
     use crate::verifier::PFB_NAMESPACE;
 
     #[test]
@@ -362,7 +362,7 @@ pub mod tests {
         let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
-            .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
+            .filter(|share| share.data().starts_with(PFB_NAMESPACE.as_ref()))
             .count();
         assert_eq!(pfbs_count, 1);
         assert_eq!(rollup_proof_data.relevant_pfbs.len(), 1);
@@ -387,7 +387,7 @@ pub mod tests {
         let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
-            .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
+            .filter(|share| share.data().starts_with(PFB_NAMESPACE.as_ref()))
             .count();
         assert_eq!(pfbs_count, 1);
         assert_eq!(rollup_batch_data.relevant_pfbs.len(), 1);
@@ -414,7 +414,7 @@ pub mod tests {
         let pfbs_count = block.etx_rows.rows[0]
             .shares
             .iter()
-            .filter(|share| share.starts_with(PFB_NAMESPACE.as_ref()))
+            .filter(|share| share.data().starts_with(PFB_NAMESPACE.as_ref()))
             .count();
         assert_eq!(pfbs_count, 2);
         assert_eq!(rollup_batch_data.relevant_pfbs.len(), 0);
@@ -423,7 +423,7 @@ pub mod tests {
     #[test]
     fn test_get_pfbs() {
         let path = make_test_path(with_rollup_batch_data::DATA_PATH);
-        let rows: NamespacedShares = load_from_file(&path, ETX_ROWS_JSON).unwrap();
+        let rows: NamespaceData = load_from_file(&path, ETX_ROWS_JSON).unwrap();
 
         let pfb_ns = NamespaceGroup::from(&rows);
         let pfbs = parse_pfb_namespace(pfb_ns).expect("failed to parse pfb shares");
@@ -433,7 +433,7 @@ pub mod tests {
     #[test]
     fn test_get_rollup_data() {
         let path = make_test_path(with_rollup_batch_data::DATA_PATH);
-        let rows: NamespacedShares = load_from_file(&path, ROLLUP_BATCH_ROWS_JSON).unwrap();
+        let rows: NamespaceData = load_from_file(&path, ROLLUP_BATCH_ROWS_JSON).unwrap();
 
         let rollup_ns_group = NamespaceGroup::from(&rows);
         let mut blobs = rollup_ns_group.blobs();

@@ -4,7 +4,7 @@ pub(crate) mod files {
 
     use anyhow::Context;
     use celestia_types::nmt::Namespace;
-    use celestia_types::row_namespace_data::NamespacedShares;
+    use celestia_types::row_namespace_data::NamespaceData;
     use celestia_types::ExtendedHeader;
     use serde::de::DeserializeOwned;
 
@@ -70,9 +70,9 @@ pub(crate) mod files {
         path: &Path,
     ) -> anyhow::Result<FilteredCelestiaBlock> {
         let header: ExtendedHeader = load_from_file(path, HEADER_JSON)?;
-        let rollup_batch_rows: NamespacedShares = load_from_file(path, ROLLUP_BATCH_ROWS_JSON)?;
-        let rollup_proof_rows: NamespacedShares = load_from_file(path, ROLLUP_PROOF_ROWS_JSON)?;
-        let etx_rows: NamespacedShares = load_from_file(path, ETX_ROWS_JSON)?;
+        let rollup_batch_rows: NamespaceData = load_from_file(path, ROLLUP_BATCH_ROWS_JSON)?;
+        let rollup_proof_rows: NamespaceData = load_from_file(path, ROLLUP_PROOF_ROWS_JSON)?;
+        let etx_rows: NamespaceData = load_from_file(path, ETX_ROWS_JSON)?;
 
         let rollup_batch_shares = NamespaceWithShares {
             namespace: batch_namespace,

@@ -16,13 +16,13 @@ workspace = true
 [dependencies]
 borsh = { workspace = true, features = ["bytes"] }
 bech32 = { workspace = true }
-prost = "0.12"
+prost = "0.13"
 
-celestia-proto = { version = "0.4.1" }
-celestia-rpc = { version = "0.6.0", default-features = false, optional = true }
-celestia-types = { version = "0.6.1", default-features = false }
-celestia-tendermint = { version = "0.32.2", default-features = false }
-celestia-tendermint-proto = { version = "0.32.2" }
+celestia-proto = { version = "0.6.0" }
+celestia-rpc = { version = "0.8.0", default-features = false, optional = true }
+celestia-types = { version = "0.9.0", default-features = false }
+tendermint = { version = "0.40.0", default-features = false }
+tendermint-proto = { version = "0.40.0" }
 nmt-rs = { workspace = true }
 
 # Convenience
@@ -68,15 +68,15 @@ risc0-zkvm-platform = { workspace = true }
 [features]
 default = []
 native = [
-	"celestia-tendermint/default",
-	"dep:celestia-rpc",
-	"dep:futures",
-	"dep:jsonrpsee",
-	"dep:tokio",
-	"sov-celestia-adapter/native",
-	"sov-rollup-interface/native",
-	"sov-cycle-utils?/native",
-	"dep:tower",
+    "tendermint/default",
+    "dep:celestia-rpc",
+    "dep:futures",
+    "dep:jsonrpsee",
+    "dep:tokio",
+    "sov-celestia-adapter/native",
+    "sov-rollup-interface/native",
+    "sov-cycle-utils?/native",
+    "dep:tower",
 ]
 risc0 = ["sov-celestia-adapter/risc0", "sov-cycle-utils?/risc0"]
 bench = [
@@ -87,9 +87,9 @@ bench = [
     "sov-celestia-adapter/risc0",
 ]
 arbitrary = [
-	"dep:arbitrary",
-	"dep:proptest",
-	"sov-celestia-adapter/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-test-utils/arbitrary"
+    "dep:arbitrary",
+    "dep:proptest",
+    "sov-celestia-adapter/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary"
 ]

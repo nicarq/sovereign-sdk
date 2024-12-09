@@ -1,8 +1,9 @@
 use std::convert::Infallible;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use celestia_types::consts::appconsts::v3::SUBTREE_ROOT_THRESHOLD;
 use celestia_types::nmt::{Namespace, NS_SIZE};
-use celestia_types::row_namespace_data::NamespacedShares;
+use celestia_types::row_namespace_data::NamespaceData;
 use celestia_types::{Commitment, DataAvailabilityHeader};
 use nmt_rs::NamespacedSha2Hasher;
 use serde::{Deserialize, Serialize};
@@ -47,7 +48,7 @@ impl BlobReaderTrait for BlobWithSender {
     }
 
     fn hash(&self) -> Self::BlobHash {
-        TmHash(celestia_tendermint::Hash::Sha256(self.hash.0))
+        TmHash(tendermint::Hash::Sha256(self.hash.0))
     }
 
     fn verified_data(&self) -> &[u8] {
@@ -66,7 +67,7 @@ impl BlobReaderTrait for BlobWithSender {
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Clone, Eq, Hash, Serialize, Deserialize)]
-pub struct TmHash(pub celestia_tendermint::Hash);
+pub struct TmHash(pub tendermint::Hash);
 
 impl BorshSerialize for TmHash {
     fn serialize<W: std::io::Write>(&self, writer: &mut W) -> Result<(), std::io::Error> {
@@ -77,12 +78,12 @@ impl BorshSerialize for TmHash {
 impl BorshDeserialize for TmHash {
     fn deserialize(buf: &mut &[u8]) -> Result<Self, std::io::Error> {
         let bytes = <[u8; 32] as BorshDeserialize>::deserialize(buf)?;
-        Ok(Self(celestia_tendermint::Hash::Sha256(bytes)))
+        Ok(Self(tendermint::Hash::Sha256(bytes)))
     }
 
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let bytes = <[u8; 32]>::deserialize_reader(reader)?;
-        Ok(Self(celestia_tendermint::Hash::Sha256(bytes)))
+        Ok(Self(tendermint::Hash::Sha256(bytes)))
     }
 }
 
@@ -103,7 +104,7 @@ impl core::str::FromStr for TmHash {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let stripped = s.strip_prefix("0x").unwrap_or(s);
-        let inner = celestia_tendermint::Hash::from_str(stripped)?;
+        let inner = tendermint::Hash::from_str(stripped)?;
         Ok(TmHash(inner))
     }
 }
@@ -111,10 +112,10 @@ impl core::str::FromStr for TmHash {
 impl TmHash {
     pub fn inner(&self) -> &[u8; 32] {
         match self.0 {
-            celestia_tendermint::Hash::Sha256(ref h) => h,
+            tendermint::Hash::Sha256(ref h) => h,
             // Hack: when the hash is None, we return a hash of all 255s as a placeholder.
             // TODO: add special casing for the genesis block at a higher level
-            celestia_tendermint::Hash::None => unreachable!("Only the genesis block has a None hash, and we use a placeholder in that corner case")
+            tendermint::Hash::None => unreachable!("Only the genesis block has a None hash, and we use a placeholder in that corner case")
         }
     }
 }
@@ -131,7 +132,7 @@ impl TryFrom<[u8; 32]> for TmHash {
     type Error = Infallible;
 
     fn try_from(value: [u8; 32]) -> Result<Self, Self::Error> {
-        Ok(Self(celestia_tendermint::Hash::Sha256(value)))
+        Ok(Self(tendermint::Hash::Sha256(value)))
     }
 }
 
@@ -166,7 +167,7 @@ impl DaSpec for CelestiaSpec {
 
     type InclusionMultiProof = Vec<EtxProof>;
 
-    type CompletenessProof = NamespacedShares;
+    type CompletenessProof = NamespaceData;
 
     type ChainParams = RollupParams;
 }
@@ -280,7 +281,7 @@ impl CelestiaVerifier {
         txs: &[BlobWithSender],
         namespace: Namespace,
         inclusion_proof: Vec<EtxProof>,
-        completeness_proof: NamespacedShares,
+        completeness_proof: NamespaceData,
     ) -> Result<(), ValidationError> {
         // Check the validity and completeness of the rollup row proofs, against the DAH.
         // Extract the data from the row proofs and build a namespace_group from it
@@ -411,10 +412,12 @@ impl CelestiaVerifier {
                 }
 
                 // Link blob commitment to e-tx commitment
-                let expected_commitment =
-                    Commitment::from_shares(namespace, &blob_ref.celestia_shares()).map_err(
-                        |_| ValidationError::InvalidEtxProof("failed to recreate commitment"),
-                    )?;
+                let expected_commitment = Commitment::from_shares(
+                    namespace,
+                    &blob_ref.celestia_shares(),
+                    SUBTREE_ROOT_THRESHOLD,
+                )
+                .map_err(|_| ValidationError::InvalidEtxProof("failed to recreate commitment"))?;
 
                 assert_eq!(&pfb.share_commitments[blob_idx][..], &expected_commitment.0);
             }
@@ -429,7 +432,7 @@ impl CelestiaVerifier {
 
     fn verify_row_proofs(
         namespace: Namespace,
-        row_proofs: NamespacedShares,
+        row_proofs: NamespaceData,
         dah: &DataAvailabilityHeader,
     ) -> Result<NamespaceGroup, ValidationError> {
         let mut row_proofs = row_proofs.rows.into_iter();

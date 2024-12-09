@@ -1,14 +1,14 @@
 use std::ops::Range;
 
 // use borsh::{BorshDeserialize, BorshSerialize};
-use celestia_types::nmt::{Namespace, NamespaceProof, NS_SIZE};
-use celestia_types::row_namespace_data::{NamespacedShares, RowNamespaceData};
+use celestia_types::nmt::NamespaceProof;
+use celestia_types::row_namespace_data::{NamespaceData, RowNamespaceData};
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use tracing::warn;
 
 use super::CelestiaSpec;
-use crate::types::NamespaceData;
+use crate::types::NamespaceRelevenatData;
 use crate::{CelestiaHeader, TxPosition};
 
 // TODO: derive borsh Serialize, Deserialize <https://github.com/eigerco/celestia-node-rs/issues/155>
@@ -28,8 +28,8 @@ pub struct EtxRangeProof {
 
 pub fn new_inclusion_proof(
     header: &CelestiaHeader,
-    etx_rows: &NamespacedShares,
-    rollup_data: &NamespaceData,
+    etx_rows: &NamespaceData,
+    rollup_data: &NamespaceRelevenatData,
     blobs: &[<CelestiaSpec as sov_rollup_interface::da::DaSpec>::BlobTransaction],
 ) -> Vec<EtxProof> {
     let mut needed_tx_shares = Vec::new();
@@ -60,8 +60,8 @@ pub fn new_inclusion_proof(
 /// [ B7, C1, C2, C3]
 /// ```
 ///
-/// Here, the NamespacedShares for namespace B will be shaped as [[B1, B2], [B3, B4, B5, B6], [B7]].
-/// `NamespacedShares` also includes row proofs for every included (sub)row. These are merkle
+/// Here, the NamespaceData for namespace B will be shaped as [[B1, B2], [B3, B4, B5, B6], [B7]].
+/// `NamespaceData` also includes row proofs for every included (sub)row. These are merkle
 /// proofs whose root is the EDS row root - for example, in case above, B3-B6 make a complete row
 /// so the merkle proof is trivial, while the two partial rows B1-B2 and B7 respectively each get a
 /// merkle proof that can be used to verify inclusion in the EDS row. (In turn, the extended data
@@ -87,7 +87,7 @@ pub fn new_inclusion_proof(
 /// this code and will relax the implicit ordering and non-overlap requirement.
 fn subnamespace_inclusion_proofs(
     row_length: usize,
-    namespace_with_proof: &NamespacedShares,
+    namespace_with_proof: &NamespaceData,
     ranges_to_prove: &mut [TxPosition], // When proving blobs, start_offset will always be 0, so these
     // can become just ranges instead of `TxPosition`s
     height: u64,
@@ -102,13 +102,11 @@ fn subnamespace_inclusion_proofs(
     };
     let Some(first_share) = first_row.shares.first() else {
         warn!("Row must contain at least one share. This is a bug in either Lumina or the connected Celestia Node. This is a known bug in the Celestia adapter that will be fixed in a future release. Height: {}", height);
-        return vec![];
+        return Vec::new();
     };
     // .expect("Row must contain at least one share. This is a bug in either Lumina or the connected Celestia Node.");
 
-    let namespace_id = Namespace::from_raw(&first_share[..NS_SIZE]).expect(
-        "Invalid namespace id. This is a bug in either Lumina or the connected Celestia Node.",
-    );
+    let namespace_id = first_share.namespace();
 
     // We iterate over the rows, and check if any range to proof overlaps the current row at least
     // partially. If so, we generate a sub-proof from the row proof for that overlap.

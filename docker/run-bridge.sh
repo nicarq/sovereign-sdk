@@ -9,7 +9,7 @@ NODE_NAME="bridge-${1:-0}"
 # a private local network
 P2P_NETWORK="private"
 # a bridge node configuration directory
-CONFIG_DIR="$CELESTIA_HOME/.celestia-bridge-$P2P_NETWORK"
+CONFIG_DIR="$CELESTIA_HOME"
 # directory and the files shared with the validator node
 CREDENTIALS_DIR="/credentials"
 # node credentials

@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_types::nmt::{Namespace, NS_SIZE};
-use celestia_types::row_namespace_data::NamespacedShares;
+use celestia_types::row_namespace_data::NamespaceData;
 use prost::bytes::Buf;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::Bytes;
@@ -236,8 +236,8 @@ impl FromIterator<Share> for NamespaceGroup {
     }
 }
 
-impl From<&NamespacedShares> for NamespaceGroup {
-    fn from(value: &NamespacedShares) -> Self {
+impl From<&NamespaceData> for NamespaceGroup {
+    fn from(value: &NamespaceData) -> Self {
         Self::from_shares(value.rows.iter().flat_map(|row| row.shares.iter()))
     }
 }
@@ -526,7 +526,7 @@ impl<'a> Iterator for NamespaceIterator<'a> {
                 }
 
                 self.offset = shares.len();
-                return Some(BlobRef::with(&shares[start..self.offset]));
+                Some(BlobRef::with(&shares[start..self.offset]))
             }
         }
     }
@@ -583,7 +583,7 @@ mod tests {
     /// current share's data was read - even if the next share did not exist and would never be read.
     #[test]
     fn test_reading_full_blob_regression() {
-        let data: NamespacedShares = serde_json::from_str("[{\"shares\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAc292LXRlc3QBAAAB3gEAAADWAQAA2EYzlAhN9KIdK3QP5WgAxmNMAiO3KOZd54PG1ndFjNud8Ij/Tn3TfZMkgVVIPduDBwKbg/S5/ShVT2cNHhn7CvitJDeieeHIkywHNYyR3E/jSGSpjGwl8pjioBmcFQn/UQEAAAIBSwEAAEZCB10foCn5JspyMO6m5QA8qYnV44fWffQU2E57kHzs4hKqnEjNwYnUJABmr6B1OJ/5+v7+BgPeOpxnaK4M5XovSUs8ExC7QtzrZxZT08DiU8nKCzK0VEUcDiu72Iyhnycjfxep9Nk7NuWt18/cz7YyUWYzlQcn6AN12JxkNF/Afx+DJzDJEzFE7bpzdjvFrl0im+L+wFF/T0IWonUXPL+oCvKoNDrDr+xA25mn9/rMDG/UGT0FI+KXHqx7c3ZR+5lLQheaxdVMRQcz2Mnst9uh8JKxVVVl9Fg4d7Jh6n2f9ZbBAfwg3YhW/5szA8YPKNg6o6nVnb90Cgk2RFVSOvxym4BijKId47SK6dfCS7G69iRFrDU+OcQTxsvkNb3mmnYa4TI9TGRHwl2N1yMHoJcWIboQPcLsKuykcJV+w4bvuB+uu8/pMVPjIDYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"],\"proof\":{\"start\":1,\"end\":2,\"nodes\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABH1fFJqiHwbfG4vQXdK1Oh9vrkjlqWB365SYrsZxmaER\",\"/////////////////////////////////////////////////////////////////////////////yu8ipB5WivrLzIkx/iKuwyXvQFePPFTx9ZGUEhlxazq\"],\"leaf_hash\":\"\",\"is_max_namespace_ignored\":true}}]").unwrap();
+        let data: NamespaceData = serde_json::from_str("[{\"shares\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAc292LXRlc3QBAAAB3gEAAADWAQAA2EYzlAhN9KIdK3QP5WgAxmNMAiO3KOZd54PG1ndFjNud8Ij/Tn3TfZMkgVVIPduDBwKbg/S5/ShVT2cNHhn7CvitJDeieeHIkywHNYyR3E/jSGSpjGwl8pjioBmcFQn/UQEAAAIBSwEAAEZCB10foCn5JspyMO6m5QA8qYnV44fWffQU2E57kHzs4hKqnEjNwYnUJABmr6B1OJ/5+v7+BgPeOpxnaK4M5XovSUs8ExC7QtzrZxZT08DiU8nKCzK0VEUcDiu72Iyhnycjfxep9Nk7NuWt18/cz7YyUWYzlQcn6AN12JxkNF/Afx+DJzDJEzFE7bpzdjvFrl0im+L+wFF/T0IWonUXPL+oCvKoNDrDr+xA25mn9/rMDG/UGT0FI+KXHqx7c3ZR+5lLQheaxdVMRQcz2Mnst9uh8JKxVVVl9Fg4d7Jh6n2f9ZbBAfwg3YhW/5szA8YPKNg6o6nVnb90Cgk2RFVSOvxym4BijKId47SK6dfCS7G69iRFrDU+OcQTxsvkNb3mmnYa4TI9TGRHwl2N1yMHoJcWIboQPcLsKuykcJV+w4bvuB+uu8/pMVPjIDYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\"],\"proof\":{\"start\":1,\"end\":2,\"nodes\":[\"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABH1fFJqiHwbfG4vQXdK1Oh9vrkjlqWB365SYrsZxmaER\",\"/////////////////////////////////////////////////////////////////////////////yu8ipB5WivrLzIkx/iKuwyXvQFePPFTx9ZGUEhlxazq\"],\"leaf_hash\":\"\",\"is_max_namespace_ignored\":true}}]").unwrap();
         let ns_group: NamespaceGroup = (&data).into();
         let blob: Blob = ns_group.blobs().next().unwrap().into();
         let mut blob = CountedBufReader::new(blob.into_iter());

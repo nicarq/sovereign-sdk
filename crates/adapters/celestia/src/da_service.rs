@@ -28,7 +28,7 @@ use tower::ServiceBuilder;
 use tracing::{debug, info, instrument, trace};
 
 use crate::middleware::{TimingLayer, TimingMiddleware};
-use crate::types::{FilteredCelestiaBlock, NamespaceWithShares};
+use crate::types::{FilteredCelestiaBlock, NamespaceWithShares, APP_VERSION};
 use crate::utils::BoxError;
 use crate::verifier::proofs::{self};
 use crate::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams, TmHash, PFB_NAMESPACE};
@@ -104,7 +104,7 @@ impl CelestiaService {
         let bytes = blob.len();
         debug!(bytes, ?fee, ?namespace, "Sending raw data to Celestia");
 
-        let blob = JsonBlob::new(namespace, blob.to_vec())?;
+        let blob = JsonBlob::new(namespace, blob.to_vec(), APP_VERSION)?;
         info!(
             commitment = hex::encode(blob.commitment.0),
             ?fee,
@@ -126,7 +126,7 @@ impl CelestiaService {
             .await?;
 
         let tx_hash = TmHash(
-            celestia_tendermint::Hash::from_str(&tx_response.txhash)
+            tendermint::Hash::from_str(&tx_response.txhash)
                 .expect("Failed to decode hash from `TxResponse`"),
         );
 
@@ -270,13 +270,13 @@ impl DaService for CelestiaService {
         trace!(%header, height, time_ms = start_get_block.elapsed().as_millis(), "Got the block header");
 
         let data_futures_all = Instant::now();
-        let etx_rows_future = client.share_get_shares_by_namespace(&header, PFB_NAMESPACE);
+        let etx_rows_future = client.share_get_namespace_data(&header, PFB_NAMESPACE);
 
         let rollup_batch_rows_future =
-            client.share_get_shares_by_namespace(&header, self.rollup_batch_namespace);
+            client.share_get_namespace_data(&header, self.rollup_batch_namespace);
 
         let rollup_proof_rows_future =
-            client.share_get_shares_by_namespace(&header, self.rollup_proof_namespace);
+            client.share_get_namespace_data(&header, self.rollup_proof_namespace);
 
         let (batch_rows, proof_rows, etx_rows) = tokio::try_join!(
             rollup_batch_rows_future,
@@ -530,7 +530,7 @@ mod tests {
     };
     use crate::da_service::{CelestiaConfig, CelestiaFee, CelestiaService, GAS_PRICE_UTIA};
     use crate::test_helper::files::*;
-    use crate::types::FilteredCelestiaBlock;
+    use crate::types::{FilteredCelestiaBlock, APP_VERSION};
     use crate::verifier::{CelestiaVerifier, RollupParams};
 
     async fn setup_test_service(
@@ -584,9 +584,13 @@ mod tests {
         let blob = [1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes_as_in_golang(blob.len());
 
-        let raw_blob: RawBlob = JsonBlob::new(rollup_params.rollup_batch_namespace, blob.to_vec())
-            .unwrap()
-            .into();
+        let raw_blob: RawBlob = JsonBlob::new(
+            rollup_params.rollup_batch_namespace,
+            blob.to_vec(),
+            APP_VERSION,
+        )
+        .unwrap()
+        .into();
         let mut tx_config = celestia_types::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
@@ -923,10 +927,13 @@ mod tests {
         let zk_proof: Vec<u8> = vec![1, 2, 3, 4, 5, 11, 12, 13, 14, 15];
         let gas_limit = get_gas_limit_for_bytes_as_in_golang(zk_proof.len());
 
-        let raw_blob: RawBlob =
-            JsonBlob::new(rollup_params.rollup_proof_namespace, zk_proof.to_vec())
-                .unwrap()
-                .into();
+        let raw_blob: RawBlob = JsonBlob::new(
+            rollup_params.rollup_proof_namespace,
+            zk_proof.to_vec(),
+            APP_VERSION,
+        )
+        .unwrap()
+        .into();
         let mut tx_config = celestia_types::TxConfig::default();
         tx_config
             .with_gas_price(GAS_PRICE_UTIA as f64)
@@ -1083,7 +1090,7 @@ mod tests {
         for payload_size in sizes {
             let payload = vec![255; payload_size];
             let namespace = Namespace::new_v0(b"test").unwrap();
-            let blob = JsonBlob::new(namespace, payload).unwrap();
+            let blob = JsonBlob::new(namespace, payload, APP_VERSION).unwrap();
 
             let shares = blob.to_shares().unwrap();
 
