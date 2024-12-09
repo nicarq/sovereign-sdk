@@ -130,14 +130,7 @@ impl StorableMockDaService {
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
     ) -> Self {
-        let (drop_notifier, _) = DropNotifier::build();
-        let drop_notifier = Arc::new(drop_notifier);
-        Self::new(
-            sequencer_da_address,
-            da_layer,
-            BlockProducing::Manual,
-            drop_notifier,
-        )
+        Self::new(sequencer_da_address, da_layer, BlockProducing::Manual)
     }
 
     /// Will receive notification one block before the proof is included on the DA.
@@ -145,7 +138,7 @@ impl StorableMockDaService {
         self.aggregated_proof_sender.subscribe()
     }
 
-    /// Creates new [`StorableMockDaService`] with given address.
+    /// Creates new [`StorableMockDaService`] with a given address.
     /// Block producing happens on blob submission.
     /// Data is stored only in memory.
     /// It is very similar to [`crate::MockDaService`] parameters.
