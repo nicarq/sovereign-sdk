@@ -1,8 +1,9 @@
 use sha2::Digest;
 use sov_db::storage_manager::NativeChangeSet;
+use sov_mock_da::MockAddress;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::{
-    AggregatedProofPublicData, ProofOutcome, ProofReceipt, ProofReceiptContents,
+    AggregatedProofPublicData, ProofOutcome, ProofReceipt, ProofReceiptContents, Storage,
 };
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobIters};
 use sov_rollup_interface::stf::{ApplySlotOutput, StateTransitionFunction};
@@ -12,7 +13,7 @@ use sov_state::namespaces::User;
 use sov_state::storage::{NativeStorage, SlotKey, SlotValue};
 use sov_state::{
     ArrayWitness, DefaultStorageSpec, OrderedReadsAndWrites, Prefix, ProverStorage, StateAccesses,
-    Storage, StorageRoot,
+    StorageRoot,
 };
 
 pub type S = DefaultStorageSpec<sha2::Sha256>;
@@ -66,7 +67,7 @@ impl<Cond> HashStf<Cond> {
 impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
     StateTransitionFunction<InnerVm, OuterVm, Da> for HashStf<Cond>
 {
-    type Address = [u8; 32];
+    type Address = MockAddress;
     type StateRoot = StorageRoot<S>;
     type GenesisParams = Vec<u8>;
     type PreState = ProverStorage<S>;
@@ -144,7 +145,7 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Cond: ValidityCondition, Da: DaSpec>
             if raw_proof.is_empty() {
                 continue;
             }
-            let public_data: AggregatedProofPublicData =
+            let public_data: AggregatedProofPublicData<Self::Address, Da, Self::StateRoot> =
                 match <MockZkVerifier as ZkVerifier>::verify(
                     raw_proof,
                     &MockCodeCommitment::default(),

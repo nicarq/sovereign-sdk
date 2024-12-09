@@ -10,7 +10,7 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{OperatingMode, SerializedAggregatedProof};
+use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec, Storage};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::{
@@ -204,7 +204,11 @@ async fn send_test_bank_txs(
 
         let proof: SerializedAggregatedProof = aggregated_proof_resp.try_into()?;
         let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-        let pub_data: AggregatedProofPublicData = verifier.verify(&proof)?;
+        let pub_data: AggregatedProofPublicData<
+            <TestSpec as Spec>::Address,
+            <TestSpec as Spec>::Da,
+            <<TestSpec as Spec>::Storage as Storage>::Root,
+        > = verifier.verify(&proof)?;
 
         // Because da blocks produced only on submit to DA layer, we can guarantee those rollup heights:
         assert_eq!(1, pub_data.initial_rollup_height);

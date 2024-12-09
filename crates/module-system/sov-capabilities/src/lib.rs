@@ -13,7 +13,8 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     AggregatedProofPublicData, Context, DaSpec, ExecutionContext, Gas, InfallibleStateAccessor,
-    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, TxState,
+    InvalidProofError, ModuleInfo, SovAttestation, SovStateTransitionPublicData, Spec, Storage,
+    TxState,
 };
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
 #[cfg(feature = "native")]
@@ -288,12 +289,19 @@ impl<'a, S: Spec, T> ProofProcessor<S> for StandardProvenRollupCapabilities<'a, 
         )
     }
 
+    #[allow(clippy::type_complexity)]
     fn process_aggregated_proof(
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError> {
+    ) -> Result<
+        (
+            AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
+            SerializedAggregatedProof,
+        ),
+        InvalidProofError,
+    > {
         let result = self
             .prover_incentives
             .process_proof(&proof, prover_address, state)?;

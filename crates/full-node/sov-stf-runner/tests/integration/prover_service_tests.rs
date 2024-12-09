@@ -216,12 +216,13 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_data =
-                    <MockZkVerifier as ZkVerifier>::verify::<AggregatedProofPublicData>(
-                        proof.raw_aggregated_proof.as_ref(),
-                        &MockCodeCommitment::default(),
-                    )
-                    .unwrap();
+                let public_data = <MockZkVerifier as ZkVerifier>::verify::<
+                    AggregatedProofPublicData<Address, MockDaSpec, StateRoot>,
+                >(
+                    proof.raw_aggregated_proof.as_ref(),
+                    &MockCodeCommitment::default(),
+                )
+                .unwrap();
                 assert_eq!(public_data.initial_rollup_height, 0);
                 assert_eq!(public_data.final_rollup_height, (jump - 1) as u64);
             }
@@ -251,12 +252,13 @@ async fn test_aggregated_proof() -> Result<(), ProverServiceError> {
 
         match status {
             ProofAggregationStatus::Success(proof) => {
-                let public_data =
-                    <MockZkVerifier as ZkVerifier>::verify::<AggregatedProofPublicData>(
-                        proof.raw_aggregated_proof.as_ref(),
-                        &MockCodeCommitment::default(),
-                    )
-                    .unwrap();
+                let public_data = <MockZkVerifier as ZkVerifier>::verify::<
+                    AggregatedProofPublicData<Address, MockDaSpec, StateRoot>,
+                >(
+                    proof.raw_aggregated_proof.as_ref(),
+                    &MockCodeCommitment::default(),
+                )
+                .unwrap();
                 assert_eq!(public_data.initial_rollup_height as usize, jump);
                 assert_eq!(
                     public_data.final_rollup_height as usize,

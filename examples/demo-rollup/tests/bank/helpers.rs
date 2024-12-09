@@ -5,7 +5,7 @@ use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{PrivateKey, SafeVec, Spec};
+use sov_modules_api::{AggregatedProofPublicData, PrivateKey, SafeVec, Spec, Storage};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
 use sov_test_utils::test_rollup::read_private_key;
@@ -134,7 +134,11 @@ pub(crate) async fn assert_aggregated_proof(
     let proof_response = client.client.get_latest_aggregated_proof().await?;
 
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-    let proof_pub_data = verifier.verify(
+    let proof_pub_data: AggregatedProofPublicData<
+        <TestSpec as Spec>::Address,
+        <TestSpec as Spec>::Da,
+        <<TestSpec as Spec>::Storage as Storage>::Root,
+    > = verifier.verify(
         &proof_response
             .data
             .clone()

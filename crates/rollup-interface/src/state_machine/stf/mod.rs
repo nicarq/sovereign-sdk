@@ -84,7 +84,10 @@ pub struct ProofReceipt<Address, Da: DaSpec, Root, StorageProof> {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum ProofReceiptContents<Address, Da: DaSpec, Root, StorageProof> {
     /// A receipt for an aggregate proof contains the public data form the proof and the serialized proof.
-    AggregateProof(AggregatedProofPublicData, SerializedAggregatedProof),
+    AggregateProof(
+        AggregatedProofPublicData<Address, Da, Root>,
+        SerializedAggregatedProof,
+    ),
     /// A receipt for a block proof contains the public data from the state transition which was proven.
     BlockProof(StateTransitionPublicData<Address, Da, Root>),
     /// A receipt for an attestation contains the public data that the attestation made a claim about.
