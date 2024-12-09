@@ -5,7 +5,7 @@ use sov_bank::{Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::{CryptoSpec, Spec};
 
-use super::Tag;
+use super::BankTag;
 use crate::interface::{PickRandom, TagAction, Taggable};
 use crate::state::{AccountState, ApplyToState};
 
@@ -19,7 +19,7 @@ pub struct BankAccount<S: Spec> {
     /// The set of tokens that the account is allowed to mint
     pub(crate) can_mint: IndexSet<TokenId>,
 
-    pub(crate) tag_changes: Vec<TagAction<Tag>>,
+    pub(crate) tag_changes: Vec<TagAction<BankTag>>,
 }
 
 impl<'a, S: Spec, T> From<&'a AccountState<S, T>> for BankAccount<S> {
@@ -41,7 +41,7 @@ impl<S: Spec, Data> ApplyToState<S, Data> for BankAccount<S> {
 }
 
 impl<S: Spec> Taggable for BankAccount<S> {
-    type Tag = Tag;
+    type Tag = BankTag;
 
     fn take_tags(&mut self) -> impl IntoIterator<Item = TagAction<Self::Tag>> {
         std::mem::take(&mut self.tag_changes)
@@ -60,16 +60,16 @@ impl<S: Spec> BankAccount<S> {
     /// Set this account as being able to mint the given token
     pub fn add_can_mint(&mut self, token_id: TokenId) {
         self.can_mint.insert(token_id);
-        self.add_tag(Tag::CanMint);
-        self.add_tag(Tag::CanMintById(token_id));
+        self.add_tag(BankTag::CanMint);
+        self.add_tag(BankTag::CanMintById(token_id));
     }
 
     /// Set this account as being unable to mint the given token
     pub fn remove_can_mint(&mut self, token_id: TokenId) {
         self.can_mint.swap_remove(&token_id);
-        self.remove_tag(Tag::CanMintById(token_id));
+        self.remove_tag(BankTag::CanMintById(token_id));
         if self.can_mint.is_empty() {
-            self.remove_tag(Tag::CanMint);
+            self.remove_tag(BankTag::CanMint);
         }
     }
 
@@ -88,7 +88,7 @@ impl<S: Spec> BankAccount<S> {
                 .map(|coins| coins.amount)
                 .unwrap_or_default()
         } else {
-            self.add_tag(Tag::HasBalance);
+            self.add_tag(BankTag::HasBalance);
             let balance = self.find_or_insert(token_id);
             balance.amount += amount;
             balance.amount
@@ -134,7 +134,7 @@ impl<S: Spec> BankAccount<S> {
             .unwrap();
         self.balances.remove(index);
         if self.balances.is_empty() {
-            self.remove_tag(Tag::HasBalance);
+            self.remove_tag(BankTag::HasBalance);
         }
     }
 

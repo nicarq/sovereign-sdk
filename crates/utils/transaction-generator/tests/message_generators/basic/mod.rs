@@ -12,17 +12,19 @@ use sov_test_utils::{
     generate_runtime, TestSequencer, TestSpec as S, TestUser, TransactionTestCase, TransactionType,
     TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
+use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
-    BasicCallMessageGenerator, BasicChangelogEntry, BasicClientConfig, Tag as BasicTag,
+    BasicCallMessageFactory, BasicChangeLogEntry, BasicClientConfig, BasicTag,
 };
 use sov_transaction_generator::generators::value_setter::{
-    Tag as ValueSetterTag, ValueSetterMessageGenerator,
+    ValueSetterHarness, ValueSetterMessageGenerator, ValueSetterTag,
 };
 use sov_transaction_generator::interface::{
     Distribution, GeneratedMessage, MessageValidity, Percent,
 };
 use sov_transaction_generator::state::{AccountState, State};
+use sov_transaction_generator::{CallMessageGenerator, HarnessModule};
 use sov_value_setter::{
     CallMessageDiscriminants as ValueSetterDiscriminants, ValueSetter, ValueSetterConfig,
 };
@@ -40,8 +42,8 @@ generate_runtime! {
 }
 
 type RT = TestRuntime<S>;
-type Generator = BasicCallMessageGenerator<RT, S>;
-type GeneratorOutput = GeneratedMessage<S, TestRuntimeCall<S>, BasicChangelogEntry<S>>;
+type Generator = BasicCallMessageFactory<RT, S>;
+type GeneratorOutput = GeneratedMessage<S, TestRuntimeCall<S>, BasicChangeLogEntry<S>>;
 
 pub const BUFFER_SIZE: usize = 100_000;
 // The minimum randomness needed to guarantee successful transaction generation
@@ -49,6 +51,9 @@ pub const SAFE_MIN_RANDOMNESS: usize = 1_000;
 
 pub struct TestGenerator {
     generator: Generator,
+    bank_harness: BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
+    value_setter_harness:
+        ValueSetterHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
@@ -58,6 +63,17 @@ pub struct TestGenerator {
 }
 
 impl TestGenerator {
+    #[allow(clippy::type_complexity)]
+    fn produce_module_boxed_list(
+        &self,
+    ) -> Vec<Box<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>>
+    {
+        vec![
+            Box::new(self.bank_harness.clone()),
+            Box::new(self.value_setter_harness.clone()),
+        ]
+    }
+
     pub fn generate(&mut self, validity: MessageValidity) -> GeneratorOutput {
         if let Some(tx) = self.initial_transaction.take() {
             return tx;
@@ -66,10 +82,15 @@ impl TestGenerator {
             if self.has_enough_randomness() {
                 let u =
                     &mut arbitrary::Unstructured::new(&self.randomness[self.randomness_offset()..]);
-                if let Ok(output) =
-                    self.generator
-                        .generate_call_message(u, &mut self.state, validity)
-                {
+
+                let modules_boxed = self.produce_module_boxed_list();
+
+                if let Ok(output) = self.generator.generate_call_message(
+                    modules_boxed,
+                    u,
+                    &mut self.state,
+                    validity,
+                ) {
                     self.remaining_randomness = u.len();
                     return output;
                 } else {
@@ -105,24 +126,31 @@ fn do_test(
     max_value_setter_vec_len: usize,
 ) -> TestGenerator {
     use sov_bank::CallMessageDiscriminants::*;
-    let bank_generator = BankMessageGenerator::<S>::new(
+
+    let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values([Transfer, Transfer, Transfer, Mint, CreateToken]),
         address_creation_rate,
-    );
+    ));
 
-    let value_setter_generator = ValueSetterMessageGenerator::<S>::new(
+    let value_setter_harness = ValueSetterHarness::new(ValueSetterMessageGenerator::<S>::new(
         Distribution::with_equiprobable_values([
             ValueSetterDiscriminants::SetValue,
             ValueSetterDiscriminants::SetManyValues,
         ]),
         max_value_setter_vec_len,
-    );
+    ));
 
-    let mut generator = Generator::new(
-        Distribution::equiprobable(),
-        bank_generator,
-        value_setter_generator,
-    );
+    let dyn_bank_harness: Box<
+        dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+    > = Box::new(bank_harness.clone());
+
+    let dyn_value_setter_harness: Box<
+        dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+    > = Box::new(value_setter_harness.clone());
+
+    let modules = vec![dyn_bank_harness, dyn_value_setter_harness];
+
+    let mut factory = Generator::new();
 
     // Synchronizes the state with the value setter module
     let mut state: State<S, BasicTag> = State::with_account_and_tags(
@@ -138,16 +166,18 @@ fn do_test(
 
     let random_bytes: Vec<u8> = get_random_bytes(100_000, 0);
     let u = &mut arbitrary::Unstructured::new(&random_bytes[..]);
-    let initial_tx = generator
-        .generate_setup_messages(u, &mut state)
+    let initial_tx = factory
+        .generate_setup_messages(modules, u, &mut state)
         .expect("Failed to generate setup messages")
         .pop()
         .unwrap();
     let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,
+        bank_harness,
+        value_setter_harness,
         remaining_randomness,
-        generator,
+        generator: factory,
         state,
         target_buffer_size: BUFFER_SIZE,
         salt: 1,
@@ -262,11 +292,27 @@ async fn test_successful_transaction_generation() {
                 assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);
             }),
         });
-        generator
-            .generator
-            .assert_incremental_state(config.clone(), output.changes)
-            .await
-            .expect("State must be correct");
+
+        for change in output.changes {
+            match change {
+                BasicChangeLogEntry::Bank(bank_changelog_entry) => {
+                    generator
+                        .bank_harness
+                        .inner()
+                        .assert_state(config.clone().into(), &bank_changelog_entry)
+                        .await
+                        .expect("State must be correct");
+                }
+                BasicChangeLogEntry::ValueSetter(value_setter_changelog_entry) => {
+                    generator
+                        .value_setter_harness
+                        .inner()
+                        .assert_state(config.clone().into(), &value_setter_changelog_entry)
+                        .await
+                        .expect("State must be correct");
+                }
+            }
+        }
     }
 
     // We should have generated at least one bank and one value setter tx

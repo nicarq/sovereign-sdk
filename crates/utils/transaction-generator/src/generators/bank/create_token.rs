@@ -2,7 +2,9 @@ use sov_bank::{CallMessage, Coins};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary, Unstructured};
 use sov_modules_api::{SafeString, SafeVec, SizedSafeString, Spec};
 
-use super::{BankAccount, BankChangeLogEntry, BankMessageGenerator, InternalMessageGenResult, Tag};
+use super::{
+    BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenResult,
+};
 use crate::generators::bank::InternalMessageGenError;
 use crate::interface::{GeneratedMessage, GeneratorState, Taggable};
 use crate::state::TokenInfo;
@@ -18,10 +20,10 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(crate) fn generate_invalid_create_token(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
-        let Some((_addr, acct)) =
-            generator_state.get_random_existing_account_with_tag(Tag::HasCreatedToken.into(), u)?
+        let Some((_addr, acct)) = generator_state
+            .get_random_existing_account_with_tag(BankTag::HasCreatedToken.into(), u)?
         else {
             return Err(InternalMessageGenError::NoAccountsHaveCreatedTokensYet);
         };
@@ -43,20 +45,20 @@ impl<S: Spec> BankMessageGenerator<S> {
     pub(crate) fn generate_valid_create_token(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
-        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<Tag>>,
+        generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
         // Pick a creator address, and a token name. Compute the token ID
         let (creator_key, token_name, token_id) = {
             let (creator_address, mut creator_acct) =
                 generator_state.get_or_generate(self.address_creation_rate, u)?;
             let creator_key = creator_acct.private_key.clone();
-            creator_acct.add_tag(Tag::HasCreatedToken);
+            creator_acct.add_tag(BankTag::HasCreatedToken);
             // Use the standard name for the first token of each account, then pick at random
             // This makes it easy to generate *invalid* messages, since we can just pick any account
             // that has already created a token and output another create_token from that account using the standard token name,
             // (recall that creating two tokens with the same name from the same account is not allowed)
             let token_name =
-                if !generator_state.has_tag(&creator_address, Tag::HasCreatedToken.into()) {
+                if !generator_state.has_tag(&creator_address, BankTag::HasCreatedToken.into()) {
                     TOKEN_NAME.to_string().try_into().unwrap()
                 } else {
                     arbitrary_safe_string(u, MIN_TOKEN_NAME_LEN)?
