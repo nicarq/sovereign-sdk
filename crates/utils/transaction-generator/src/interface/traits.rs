@@ -139,7 +139,7 @@ pub trait CallMessageGenerator<S: Spec> {
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
     fn generate_setup_messages(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<
             S,
@@ -187,7 +187,7 @@ pub trait HarnessModule<
     /// Generates a list of setup messages for the module.
     #[allow(clippy::type_complexity)]
     fn generate_setup_messages(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
     ) -> arbitrary::Result<Vec<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>>;
@@ -195,7 +195,7 @@ pub trait HarnessModule<
     /// Generates a list of call messages for the module.
     #[allow(clippy::type_complexity)]
     fn generate_call_message(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut State<S, Tag, BonusAcctData>,
         validity: MessageValidity,

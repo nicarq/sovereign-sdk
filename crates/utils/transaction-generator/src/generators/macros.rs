@@ -48,7 +48,7 @@ macro_rules! impl_harness_module {
             for $harness_name<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
         {
             fn generate_setup_messages(
-                &mut self,
+                &self,
                 u: &mut ::sov_modules_api::prelude::arbitrary::Unstructured<'_>,
                 generator_state: &mut $crate::State<S, Tag, BonusAcctData>,
             ) -> ::sov_modules_api::prelude::arbitrary::Result<
@@ -79,7 +79,7 @@ macro_rules! impl_harness_module {
             }
 
             fn generate_call_message(
-                &mut self,
+                &self,
                 u: &mut sov_modules_api::prelude::arbitrary::Unstructured<'_>,
                 generator_state: &mut $crate::State<S, Tag, BonusAcctData>,
                 validity: $crate::MessageValidity,

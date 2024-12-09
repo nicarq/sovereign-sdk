@@ -165,7 +165,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
     type ChangelogEntry = BankChangeLogEntry<S>;
 
     fn generate_setup_messages(
-        &mut self,
+        &self,
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<
             S,
@@ -174,17 +174,17 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         >,
     ) -> arbitrary::Result<Vec<GeneratedMessage<S, sov_bank::CallMessage<S>, Self::ChangelogEntry>>>
     {
-        let config_address_creation_rate = self.address_creation_rate;
-
-        self.address_creation_rate = Percent::one_hundred();
         let GeneratedMessage {
             message,
             sender,
             changes,
         } = self
-            .generate_valid_create_token(u, generator_state)
+            .generate_valid_create_token_with_creation_rate(
+                Percent::one_hundred(),
+                u,
+                generator_state,
+            )
             .expect("Valid token creation can't fail");
-        self.address_creation_rate = config_address_creation_rate;
 
         Ok(vec![GeneratedMessage {
             message,

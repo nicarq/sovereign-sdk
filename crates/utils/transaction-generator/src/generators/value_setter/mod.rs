@@ -119,7 +119,7 @@ impl<S: Spec> CallMessageGenerator<S> for ValueSetterMessageGenerator<S> {
     type ClientConfig = HttpValueSetterClient<S>;
 
     fn generate_setup_messages(
-        &mut self,
+        &self,
         _u: &mut sov_modules_api::prelude::arbitrary::Unstructured<'_>,
         _generator_state: &mut impl crate::interface::GeneratorState<
             S,
