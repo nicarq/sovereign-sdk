@@ -6,12 +6,13 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{OperatingMode, SerializedAggregatedProof};
+use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec};
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
 };
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::BatchBuilderConfig;
+use sov_state::Storage;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::tx_sender::TxSender;
@@ -102,7 +103,11 @@ async fn send_test_bank_txs(
 
         let proof: SerializedAggregatedProof = aggregated_proof_resp.try_into()?;
         let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
-        let pub_data: AggregatedProofPublicData = verifier.verify(&proof)?;
+        let pub_data: AggregatedProofPublicData<
+            <TestSpec as Spec>::Address,
+            <TestSpec as Spec>::Da,
+            <<TestSpec as Spec>::Storage as Storage>::Root,
+        > = verifier.verify(&proof)?;
 
         assert!(slot_batch_1 >= pub_data.initial_rollup_height);
         assert!(slot_batch_1 >= pub_data.final_rollup_height);

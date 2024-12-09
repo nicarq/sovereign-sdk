@@ -1,14 +1,16 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService};
+use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData, SerializedAggregatedProof,
 };
+use sov_state::StorageRoot;
 use tokio::task::JoinHandle;
 
+use crate::helpers::hash_stf::S;
 use crate::helpers::runner_init::{initialize_runner, InitVariant, TestNode};
 
 #[tokio::test(flavor = "multi_thread")]
@@ -77,7 +79,7 @@ async fn run_make_proof_sync(test_case: TestCase, nb_of_threads: usize) -> anyho
 
 fn verify_aggregated_proof(
     agg_proof: SerializedAggregatedProof,
-) -> anyhow::Result<AggregatedProofPublicData> {
+) -> anyhow::Result<AggregatedProofPublicData<MockAddress, MockDaSpec, StorageRoot<S>>> {
     let verifier = AggregateProofVerifier::<MockZkVerifier>::new(MockCodeCommitment::default());
     verifier.verify(&agg_proof)
 }
@@ -206,7 +208,10 @@ impl TestCase {
         self.output.initial_rollup_height + (self.input.jump as u64) - 1
     }
 
-    fn assert(&self, public_data: &AggregatedProofPublicData) {
+    fn assert(
+        &self,
+        public_data: &AggregatedProofPublicData<MockAddress, MockDaSpec, StorageRoot<S>>,
+    ) {
         assert_eq!(
             self.output.initial_rollup_height,
             public_data.initial_rollup_height,

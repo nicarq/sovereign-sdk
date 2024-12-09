@@ -11,8 +11,8 @@ use sov_db::schema::DeltaReader;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_metrics::MonitoringConfig;
 use sov_mock_da::{
-    MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee, MockHash,
-    MockValidityCond,
+    MockAddress, MockBlockHeader, MockDaConfig, MockDaService, MockDaSpec, MockDaVerifier, MockFee,
+    MockHash, MockValidityCond,
 };
 use sov_mock_zkvm::{MockZkvm, MockZkvmHost};
 use sov_modules_api::provable_height_tracker::InfiniteHeight;
@@ -42,7 +42,8 @@ use crate::helpers::hash_stf::HashStf;
 
 type MockInitVariant =
     InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
-type S = DefaultStorageSpec<Sha256>;
+
+pub type S = DefaultStorageSpec<Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
 
 /// TestNode simulates a full-node.
@@ -229,7 +230,7 @@ pub async fn initialize_runner(
             RollupProverConfig::Prove,
             nb_of_prover_threads.unwrap(),
             Default::default(),
-            Vec::<u8>::default(),
+            MockAddress::new([0u8; 32]),
         );
 
         let process_manager = WorkflowProcessManager::new(
@@ -348,7 +349,7 @@ fn rollup_config(
     da_service: &MockDaService,
     path: &std::path::Path,
     aggregated_proof_block_jump: usize,
-) -> RollupConfig<[u8; 32], MockDaService> {
+) -> RollupConfig<MockAddress, MockDaService> {
     RollupConfig {
         storage: StorageConfig {
             path: path.to_path_buf(),
@@ -363,7 +364,7 @@ fn rollup_config(
         da: MockDaConfig::instant_with_sender(da_service.sequencer_address()),
         proof_manager: ProofManagerConfig {
             aggregated_proof_block_jump: NonZero::new(aggregated_proof_block_jump).unwrap(),
-            prover_address: [0u8; 32],
+            prover_address: MockAddress::new([0u8; 32]),
             max_number_of_transitions_in_db: NonZero::new(30).unwrap(),
             max_number_of_transitions_in_memory: NonZero::new(20).unwrap(),
         },

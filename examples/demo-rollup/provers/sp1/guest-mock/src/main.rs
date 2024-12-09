@@ -5,7 +5,7 @@ sp1_zkvm::entrypoint!(main);
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_mock_da::{MockDaSpec, MockDaVerifier};
-pub use sov_mock_zkvm::{MockZkGuest, MockZkvm};
+pub use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;

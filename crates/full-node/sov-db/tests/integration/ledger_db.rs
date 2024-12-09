@@ -1,7 +1,7 @@
 use futures::StreamExt;
 use sov_db::ledger_db::{LedgerDb, SlotCommit};
 use sov_db::schema::types::{RollupHeight, StoredStfInfo};
-use sov_mock_da::{MockBlob, MockBlock};
+use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockDaSpec, MockHash};
 use sov_mock_zkvm::MockZkvmHost;
 use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
 use sov_rollup_interface::zk::aggregated_proof::{
@@ -80,17 +80,17 @@ async fn test_save_aggregated_proof() {
     assert_eq!(None, proof_from_db);
 
     for i in 0..10 {
-        let public_data = AggregatedProofPublicData {
+        let public_data = AggregatedProofPublicData::<MockAddress, MockDaSpec, Vec<u8>> {
             validity_conditions: vec![],
             initial_rollup_height: i as u64,
             final_rollup_height: i as u64,
             genesis_state_root: vec![1],
             initial_state_root: vec![i],
             final_state_root: vec![i + 1],
-            initial_slot_hash: vec![i + 2],
-            final_slot_hash: vec![i + 3],
+            initial_slot_hash: MockHash([i + 2; 32]),
+            final_slot_hash: MockHash([i + 3; 32]),
             code_commitment: CodeCommitment::default(),
-            rewarded_addresses: Default::default(),
+            rewarded_addresses: vec![MockAddress::default()],
         };
 
         let raw_aggregated_proof = MockZkvmHost::create_serialized_proof(true, public_data.clone());

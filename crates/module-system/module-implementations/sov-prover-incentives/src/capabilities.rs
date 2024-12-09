@@ -3,8 +3,8 @@ use std::cmp::max;
 use sov_bank::{config_gas_token_id, Coins, IntoPayable};
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
-    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec, TxState,
-    VersionReader, ZkVerifier, Zkvm,
+    AggregatedProofPublicData, Gas, InvalidProofError, SerializedAggregatedProof, Spec, Storage,
+    TxState, VersionReader, ZkVerifier, Zkvm,
 };
 use thiserror::Error;
 
@@ -67,12 +67,16 @@ enum Paycheck {
 
 impl<S: Spec> ProverIncentives<S> {
     /// Try to process a zk proof, if the prover is bonded.
+    #[allow(clippy::type_complexity)]
     pub fn process_proof(
         &self,
         proof: &SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<AggregatedProofPublicData, ProcessProofError> {
+    ) -> Result<
+        AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
+        ProcessProofError,
+    > {
         if !self.should_reward_fees(state) {
             return Err(ProcessProofError::InvalidOperatingMode);
         }
@@ -105,7 +109,7 @@ impl<S: Spec> ProverIncentives<S> {
             .expect("The code commitment should be set at genesis");
         // Don't return an error for invalid proofs - those are expected and shouldn't cause reverts.
         let verification_result = <<S as Spec>::OuterZkvm as Zkvm>::Verifier::verify::<
-            AggregatedProofPublicData,
+            AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
         >(&proof.raw_aggregated_proof, &code_commitment);
 
         let public_outputs = match verification_result {
@@ -260,7 +264,11 @@ impl<S: Spec> ProverIncentives<S> {
     /// Check that the initial and final state values of the proof output are valid against the chain state module
     fn check_proof_outputs<ST: VersionReader>(
         &self,
-        public_outputs: &AggregatedProofPublicData,
+        public_outputs: &AggregatedProofPublicData<
+            S::Address,
+            S::Da,
+            <S::Storage as Storage>::Root,
+        >,
         state: &mut ST,
     ) -> Result<Option<SlashingReason>, ST::Error> {
         let expected_genesis_hash = self
@@ -269,7 +277,7 @@ impl<S: Spec> ProverIncentives<S> {
             .expect("The genesis hash should be set at genesis");
 
         // We have to check that the genesis hash is valid
-        if expected_genesis_hash.as_ref() != public_outputs.genesis_state_root {
+        if expected_genesis_hash != public_outputs.genesis_state_root {
             return Ok(Some(SlashingReason::IncorrectGenesisHash));
         }
 
@@ -293,13 +301,13 @@ impl<S: Spec> ProverIncentives<S> {
             expected_genesis_hash
         };
 
-        if initial_state_root.as_ref() != public_outputs.initial_state_root {
+        if initial_state_root != public_outputs.initial_state_root {
             return Ok(Some(SlashingReason::IncorrectInitialStateRoot));
         }
 
         let initial_transition_hash = initial_transition.slot_hash();
 
-        if initial_transition_hash.as_ref() != public_outputs.initial_slot_hash {
+        if initial_transition_hash != &public_outputs.initial_slot_hash {
             return Ok(Some(SlashingReason::IncorrectInitialSlotHash));
         }
 
@@ -314,11 +322,11 @@ impl<S: Spec> ProverIncentives<S> {
             None => return Ok(Some(SlashingReason::FinalTransitionDoesNotExist)),
         };
 
-        if expected_final_transition.post_state_root().as_ref() != public_outputs.final_state_root {
+        if expected_final_transition.post_state_root() != &public_outputs.final_state_root {
             return Ok(Some(SlashingReason::IncorrectFinalStateRoot));
         }
 
-        if expected_final_transition.slot_hash().as_ref() != public_outputs.final_slot_hash {
+        if expected_final_transition.slot_hash() != &public_outputs.final_slot_hash {
             return Ok(Some(SlashingReason::IncorrectFinalSlotHash));
         }
 
@@ -339,10 +347,7 @@ impl<S: Spec> ProverIncentives<S> {
                 .get_historical_transitions(slot_num, state)?
             {
                 Some(transition) => {
-                    if borsh::to_vec(transition.validity_condition())
-                        .expect("Should always be able to serialize the validity condition")
-                        != output_condition.clone()
-                    {
+                    if transition.validity_condition() != output_condition {
                         return Ok(Some(SlashingReason::IncorrectValidityConditions));
                     }
                 }

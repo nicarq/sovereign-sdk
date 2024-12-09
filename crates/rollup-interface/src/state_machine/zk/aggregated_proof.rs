@@ -2,12 +2,11 @@
 use core::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 use super::ZkVerifier;
-
-type SerializedValidityCondition = Vec<u8>;
-type SerializedAddress = Vec<u8>;
+use crate::da::DaSpec;
 
 /// Aggregated proof code commitment.
 #[derive(
@@ -25,42 +24,44 @@ impl core::fmt::Display for CodeCommitment {
 }
 
 /// Public data of an aggregated proof.
-#[derive(Debug, Eq, PartialEq, BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone)]
-pub struct AggregatedProofPublicData {
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize, Clone)]
+pub struct AggregatedProofPublicData<Address, Da: DaSpec, Root> {
     /// Contains the validity conditions for each block in the aggregated proof.
-    pub validity_conditions: Vec<SerializedValidityCondition>,
+    pub validity_conditions: Vec<Da::ValidityCondition>,
     /// Initial rollup height.
     pub initial_rollup_height: u64,
     /// Final rollup height.
     pub final_rollup_height: u64,
     /// The genesis state root of the aggregated proof.
-    pub genesis_state_root: Vec<u8>,
+    pub genesis_state_root: Root,
     /// The initial state root of the aggregated proof.
-    pub initial_state_root: Vec<u8>,
+    pub initial_state_root: Root,
     /// The final state root of the aggregated proof.
-    pub final_state_root: Vec<u8>,
+    pub final_state_root: Root,
     /// The initial slot hash of the aggregated proof.
-    pub initial_slot_hash: Vec<u8>,
+    pub initial_slot_hash: Da::SlotHash,
     /// The final slot hash of the aggregated proof.
-    pub final_slot_hash: Vec<u8>,
+    pub final_slot_hash: Da::SlotHash,
     /// Code Commitment of the aggregated proof circuit.
     pub code_commitment: CodeCommitment,
     /// These are the addresses of the provers who proved individual blocks.
-    pub rewarded_addresses: Vec<SerializedAddress>,
+    pub rewarded_addresses: Vec<Address>,
 }
 
-impl core::fmt::Display for AggregatedProofPublicData {
+impl<Address, Da: DaSpec, Root: AsRef<[u8]>> core::fmt::Display
+    for AggregatedProofPublicData<Address, Da, Root>
+{
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "AggregatedProofPublicData(initial_rollup_height: {}, final_rollup_height: {}, genesis_state_root: {}, initial_state_root: 0x{}, final_state_root: 0x{}, initial_slot_hash: 0x{}, final_slot_hash: 0x{}, code_commitment: {})",
             self.initial_rollup_height,
             self.final_rollup_height,
-            hex::encode(&self.genesis_state_root),
-            hex::encode(&self.initial_state_root),
-            hex::encode(&self.final_state_root),
-            hex::encode(&self.initial_slot_hash),
-            hex::encode(&self.final_slot_hash),
+            hex::encode(self.genesis_state_root.as_ref()),
+            hex::encode(self.initial_state_root.as_ref()),
+            hex::encode(self.final_state_root.as_ref()),
+            hex::encode(self.initial_slot_hash.as_ref()),
+            hex::encode(self.final_slot_hash.as_ref()),
             self.code_commitment
         )
     }
@@ -89,11 +90,11 @@ impl<Vm: ZkVerifier> AggregateProofVerifier<Vm> {
     }
 
     /// Verifies whether an [`SerializedAggregatedProof`] contains a valid proof.
-    pub fn verify(
+    pub fn verify<Address: DeserializeOwned, Da: DaSpec, Root: DeserializeOwned>(
         &self,
         proof_data: &SerializedAggregatedProof,
-    ) -> Result<AggregatedProofPublicData, Vm::Error> {
-        let public_data = Vm::verify::<AggregatedProofPublicData>(
+    ) -> Result<AggregatedProofPublicData<Address, Da, Root>, Vm::Error> {
+        let public_data = Vm::verify::<AggregatedProofPublicData<Address, Da, Root>>(
             proof_data.raw_aggregated_proof.as_slice(),
             &self.outer_proof_code_commitment,
         )?;

@@ -196,25 +196,20 @@ where
         let mut rewarded_addresses = Vec::default();
         let mut validity_conditions = Vec::default();
         for bp in block_proofs_data.iter() {
-            rewarded_addresses.push(
-                borsh::to_vec(&bp.st.prover_address).expect("Serializing to vec is infallible"),
-            );
-
-            validity_conditions.push(
-                borsh::to_vec(&bp.st.validity_condition).expect("Serializing to vec is infallible"),
-            );
+            rewarded_addresses.push(bp.st.prover_address.clone());
+            validity_conditions.push(bp.st.validity_condition);
         }
 
-        let public_data = AggregatedProofPublicData {
+        let public_data = AggregatedProofPublicData::<Address, Da::Spec, StateRoot> {
             validity_conditions,
             rewarded_addresses,
             initial_rollup_height: initial_block_proof.rollup_height,
             final_rollup_height: final_block_proof.rollup_height,
-            genesis_state_root: genesis_state_root.as_ref().to_vec(),
-            initial_state_root: initial_block_proof.st.initial_state_root.as_ref().to_vec(),
-            final_state_root: final_block_proof.st.final_state_root.as_ref().to_vec(),
-            initial_slot_hash: initial_block_proof.st.slot_hash.clone().into().to_vec(),
-            final_slot_hash: final_block_proof.st.slot_hash.clone().into().to_vec(),
+            genesis_state_root: genesis_state_root.clone(),
+            initial_state_root: initial_block_proof.st.initial_state_root.clone(),
+            final_state_root: final_block_proof.st.final_state_root.clone(),
+            initial_slot_hash: initial_block_proof.st.slot_hash.clone(),
+            final_slot_hash: final_block_proof.st.slot_hash.clone(),
             code_commitment: self.code_commitment.clone(),
         };
 

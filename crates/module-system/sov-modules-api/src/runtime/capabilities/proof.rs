@@ -10,7 +10,7 @@ use sov_rollup_interface::zk::aggregated_proof::{
 use super::HasKernel;
 #[cfg(feature = "native")]
 use crate::rest::StateUpdateReceiver;
-use crate::{SovAttestation, SovStateTransitionPublicData, Spec, TxState};
+use crate::{SovAttestation, SovStateTransitionPublicData, Spec, Storage, TxState};
 
 /// The `ProofProcessor` capability is responsible for processing proofs inside
 /// the stf-blueprint.
@@ -29,12 +29,19 @@ pub trait ProofProcessor<S: Spec> {
     ) -> Self::BondingProofService<K>;
 
     /// Called by the stf once the zk-proof is received.
+    #[allow(clippy::type_complexity)]
     fn process_aggregated_proof(
         &self,
         proof: SerializedAggregatedProof,
         prover_address: &S::Address,
         state: &mut impl TxState<S>,
-    ) -> Result<(AggregatedProofPublicData, SerializedAggregatedProof), InvalidProofError>;
+    ) -> Result<
+        (
+            AggregatedProofPublicData<S::Address, S::Da, <S::Storage as Storage>::Root>,
+            SerializedAggregatedProof,
+        ),
+        InvalidProofError,
+    >;
 
     /// Called by the stf once the attestation is received.
     fn process_attestation(

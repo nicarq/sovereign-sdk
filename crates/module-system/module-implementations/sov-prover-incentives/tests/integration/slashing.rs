@@ -1,7 +1,8 @@
 use sov_mock_da::MockValidityCond;
 use sov_modules_api::{
-    AggregatedProofPublicData, ApiStateAccessor, InvalidProofError, ProofOutcome,
+    AggregatedProofPublicData, ApiStateAccessor, InvalidProofError, ProofOutcome, Spec,
 };
+use sov_state::Storage;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
     assert_matches, ProofAssertContext, ProofInput, ProofTestCase, TestProver, TestSpec, TestUser,
@@ -30,7 +31,16 @@ fn assert_slashed(
         .is_none());
 }
 
-fn prepare_for_slashing() -> (TestRunner<RT, S>, TestProver<S>, AggregatedProofPublicData) {
+#[allow(clippy::type_complexity)]
+fn prepare_for_slashing() -> (
+    TestRunner<RT, S>,
+    TestProver<S>,
+    AggregatedProofPublicData<
+        <S as Spec>::Address,
+        <S as Spec>::Da,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+) {
     let (mut runner, prover, other_user) = setup();
 
     for _ in 0..3 {
@@ -198,7 +208,7 @@ fn test_invalid_validity_condition() {
     let (mut runner, prover, mut aggregated_proof) = prepare_for_slashing();
     aggregated_proof
         .validity_conditions
-        .push(borsh::to_vec(&MockValidityCond { is_valid: false }).unwrap());
+        .push(MockValidityCond { is_valid: false });
 
     runner.execute_proof::<TestProverIncentives>(ProofTestCase {
         input: ProofInput(serialize_proof(aggregated_proof)),

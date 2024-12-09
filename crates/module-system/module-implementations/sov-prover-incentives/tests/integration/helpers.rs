@@ -11,7 +11,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::registration_lib::StakeRegistration;
 use sov_modules_api::{
     AggregatedProofPublicData, ApiStateAccessor, CodeCommitment, ProofSerializer as _,
-    SerializedAggregatedProof, Spec,
+    SerializedAggregatedProof, Spec, Storage,
 };
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_prover_incentives::ProverIncentives;
@@ -59,12 +59,20 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, TestProver<TestSpec>, TestUser<S>) 
     setup_with_custom_runtime(TestRuntime::default())
 }
 
+#[allow(clippy::type_complexity)]
 pub(crate) fn build_proof(
     state: &mut ApiStateAccessor<S>,
     initial_slot: u64,
     end_slot: u64,
     prover_address: <S as Spec>::Address,
-) -> Result<AggregatedProofPublicData, Infallible> {
+) -> Result<
+    AggregatedProofPublicData<
+        <S as Spec>::Address,
+        <S as Spec>::Da,
+        <<S as Spec>::Storage as Storage>::Root,
+    >,
+    Infallible,
+> {
     let chain_state = ChainState::<S>::default();
     let genesis_hash = chain_state
         .get_genesis_hash(state)
@@ -78,22 +86,19 @@ pub(crate) fn build_proof(
         .get_historical_transitions(end_slot, state)
         .unwrap()
         .unwrap();
-    let vec_validity_cond = borsh::to_vec(&MockValidityCond { is_valid: true }).unwrap();
+    let vec_validity_cond = MockValidityCond { is_valid: true };
 
     Ok(AggregatedProofPublicData {
-        validity_conditions: vec![
-            vec_validity_cond.clone();
-            (end_slot - initial_slot + 1) as usize
-        ],
+        validity_conditions: vec![vec_validity_cond; (end_slot - initial_slot + 1) as usize],
         initial_rollup_height: initial_slot,
         final_rollup_height: end_slot,
-        initial_state_root: genesis_hash.as_ref().to_vec(),
-        genesis_state_root: genesis_hash.as_ref().to_vec(),
-        final_state_root: end_transition.post_state_root().as_ref().to_vec(),
-        initial_slot_hash: initial_transition.slot_hash().as_ref().to_vec(),
-        final_slot_hash: end_transition.slot_hash().as_ref().to_vec(),
+        initial_state_root: genesis_hash,
+        genesis_state_root: genesis_hash,
+        final_state_root: *end_transition.post_state_root(),
+        initial_slot_hash: *initial_transition.slot_hash(),
+        final_slot_hash: *end_transition.slot_hash(),
         code_commitment: CodeCommitment(MOCK_CODE_COMMITMENT.0.to_vec()),
-        rewarded_addresses: vec![prover_address.as_ref().to_vec()],
+        rewarded_addresses: vec![prover_address],
     })
 }
 
