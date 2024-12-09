@@ -11,6 +11,7 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::da::BlockHeaderTrait;
+use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use tracing::{Event, Level, Subscriber};
@@ -102,7 +103,7 @@ async fn start_stop_empty(
         } = test_rollup;
 
         let storable_mock_da = da_service.da_service();
-        let block_producing_handle = storable_mock_da.take_block_producing_handle().unwrap();
+        let block_producing_handle = storable_mock_da.take_background_join_handle().unwrap();
         drop(da_service);
         tracing::info!("Triggering shutdown....");
         shutdown_sender.send(())?;

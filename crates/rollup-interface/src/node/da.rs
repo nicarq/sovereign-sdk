@@ -247,6 +247,12 @@ pub trait DaService: Clone + Send + Sync + 'static {
 
     /// Estimates the appropriate fee for a blob with a given size
     async fn estimate_fee(&self, blob_size: usize) -> Result<Self::Fee, Self::Error>;
+
+    /// Returns a [`tokio::task::JoinHandle`] to the DA service background task,
+    /// if it exists.
+    fn take_background_join_handle(&self) -> Option<tokio::task::JoinHandle<()>> {
+        None
+    }
 }
 
 async fn run_maybe_retryable_async_fn_with_retries<F, Fut, T, E>(

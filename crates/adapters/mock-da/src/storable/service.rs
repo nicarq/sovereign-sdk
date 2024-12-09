@@ -11,11 +11,11 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs,
 };
 use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
-use tokio::sync::{broadcast, RwLock};
+use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
+use tokio::sync::{broadcast, watch, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep};
 
-use crate::drop_notifier::{DropNotification, DropNotifier};
 use crate::storable::layer::StorableMockDaLayer;
 use crate::types::WAIT_ATTEMPT_PAUSE;
 use crate::{
@@ -51,11 +51,12 @@ impl BlockProducing {
             BlockProducing::Manual => DEFAULT_BLOCK_WAITING_TIME * 1000,
         }
     }
+
     /// Spawns periodic block producing. Useful for testing or custom setup.
     fn spawn_block_producing_if_needed(
         &self,
+        shutdown_receiver: watch::Receiver<()>,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
-        mut drop_notification: DropNotification,
     ) -> Option<JoinHandle<()>> {
         let BlockProducing::Periodic(duration) = self else {
             return None;
@@ -65,13 +66,12 @@ impl BlockProducing {
         Some(tokio::spawn(async move {
             tracing::debug!(interval = ?duration, "Spawning a task for periodic producing");
             loop {
-                tokio::select! {
-                    // Check for shutdown signal
-                    _ = &mut drop_notification => {
+                match future_or_shutdown(tokio::time::sleep(duration), &shutdown_receiver).await {
+                    FutureOrShutdownOutput::Shutdown => {
                         tracing::debug!("Received shutdown signal, stopping block production...");
                         break;
-                    },
-                    _ = tokio::time::sleep(duration) => {
+                    }
+                    FutureOrShutdownOutput::Output(_) => {
                         let mut da_layer = da_layer.write().await;
                         match da_layer.produce_block().await {
                             Ok(_) => {}
@@ -94,7 +94,6 @@ pub struct StorableMockDaService {
     da_layer: Arc<RwLock<StorableMockDaLayer>>,
     block_producing: BlockProducing,
     aggregated_proof_sender: broadcast::Sender<()>,
-    _drop_notifier: Arc<DropNotifier>,
     block_producer_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
 }
 
@@ -103,7 +102,6 @@ impl StorableMockDaService {
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducing,
-        drop_notifier: Arc<DropNotifier>,
         block_producer_handle: Option<JoinHandle<()>>,
     ) -> Self {
         let (aggregated_proof_subscription, mut rec) = broadcast::channel(16);
@@ -113,7 +111,6 @@ impl StorableMockDaService {
             da_layer,
             block_producing,
             aggregated_proof_sender: aggregated_proof_subscription,
-            _drop_notifier: drop_notifier,
             block_producer_handle: Arc::new(Mutex::new(block_producer_handle)),
         }
     }
@@ -123,15 +120,8 @@ impl StorableMockDaService {
         sequencer_da_address: MockAddress,
         da_layer: Arc<RwLock<StorableMockDaLayer>>,
         block_producing: BlockProducing,
-        drop_notifier: Arc<DropNotifier>,
     ) -> Self {
-        Self::construct(
-            sequencer_da_address,
-            da_layer,
-            block_producing,
-            drop_notifier,
-            None,
-        )
+        Self::construct(sequencer_da_address, da_layer, block_producing, None)
     }
 
     /// Create a new [` StorableMockDaService `] with the given address and [`BlockProducing::Manual`].
@@ -164,17 +154,15 @@ impl StorableMockDaService {
             .await
             .expect("Failed to initialize StorableMockDaLayer");
         let producing = BlockProducing::OnBatchSubmit(DEFAULT_BLOCK_WAITING_TIME);
-        let (drop_notifier, _) = DropNotifier::build();
         Self::new(
             sequencer_da_address,
             Arc::new(RwLock::new(da_layer)),
             producing,
-            Arc::new(drop_notifier),
         )
     }
 
     /// Creates new in memory [`StorableMockDaService`] from [`MockDaConfig`].
-    pub async fn from_config(config: MockDaConfig) -> Self {
+    pub async fn from_config(config: MockDaConfig, shutdown_receiver: watch::Receiver<()>) -> Self {
         let da_layer = StorableMockDaLayer::new_from_connection(
             &config.connection_string,
             config.finalization_blocks,
@@ -183,20 +171,9 @@ impl StorableMockDaService {
         .expect("Failed to initialize StorableMockDaLayer");
         let block_producing = config.block_producing();
         let da_layer = Arc::new(RwLock::new(da_layer));
-        let (drop_notifier, dropped) = DropNotifier::build();
-        let handle = block_producing.spawn_block_producing_if_needed(da_layer.clone(), dropped);
-        Self::construct(
-            config.sender_address,
-            da_layer,
-            block_producing,
-            Arc::new(drop_notifier),
-            handle,
-        )
-    }
-
-    /// Joins a background task for blocks producing if it was started and not joined before.
-    pub fn take_block_producing_handle(&self) -> Option<JoinHandle<()>> {
-        self.block_producer_handle.lock().unwrap().take()
+        let handle =
+            block_producing.spawn_block_producing_if_needed(shutdown_receiver, da_layer.clone());
+        Self::construct(config.sender_address, da_layer, block_producing, handle)
     }
 
     async fn wait_for_height(&self, height: u32) -> anyhow::Result<()> {
@@ -396,6 +373,10 @@ impl DaService for StorableMockDaService {
     async fn estimate_fee(&self, _blob_size: usize) -> Result<Self::Fee, Self::Error> {
         Ok(MockFee::zero())
     }
+
+    fn take_background_join_handle(&self) -> Option<JoinHandle<()>> {
+        self.block_producer_handle.lock().unwrap().take()
+    }
 }
 
 #[cfg(test)]
@@ -439,11 +420,11 @@ mod tests {
         let block_time = Duration::from_millis(50);
         let block_producing = BlockProducing::Periodic(block_time);
 
-        let (drop_notifier, dropped) = DropNotifier::build();
-        let drop_notifier = Arc::new(drop_notifier);
+        let (shutdown_sender, mut shutdown_receiver) = tokio::sync::watch::channel(());
+        shutdown_receiver.mark_unchanged();
 
         let producing_handle =
-            block_producing.spawn_block_producing_if_needed(da_layer.clone(), dropped);
+            block_producing.spawn_block_producing_if_needed(shutdown_receiver, da_layer.clone());
 
         let services_count = 20;
         let blobs_per_service = 50;
@@ -467,14 +448,9 @@ mod tests {
             let this_block_producing = block_producing.clone();
             let address = MockAddress::new([idx as u8; 32]);
             let fee = MockFee::zero();
-            let drop_notifier = drop_notifier.clone();
             handlers.push(tokio::spawn(async move {
-                let da_service = StorableMockDaService::new(
-                    address,
-                    this_da_layer,
-                    this_block_producing,
-                    drop_notifier,
-                );
+                let da_service =
+                    StorableMockDaService::new(address, this_da_layer, this_block_producing);
                 for (wait, blob) in this_service_blobs {
                     sleep(wait).await;
                     da_service.send_transaction(&blob, fee).await.unwrap();
@@ -488,15 +464,11 @@ mod tests {
         // Sleep extra block time so all blocks are produced.
         sleep(block_time * 2).await;
 
-        let da_service = StorableMockDaService::new(
-            MockAddress::new([1; 32]),
-            da_layer,
-            block_producing,
-            drop_notifier.clone(),
-        );
+        let da_service =
+            StorableMockDaService::new(MockAddress::new([1; 32]), da_layer, block_producing);
         check_consistency(&da_service, services_count * blobs_per_service).await?;
 
-        drop(drop_notifier);
+        shutdown_sender.send(())?;
         drop(da_service);
         producing_handle.unwrap().await?;
 
