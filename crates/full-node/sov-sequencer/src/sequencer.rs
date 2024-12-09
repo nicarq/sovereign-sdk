@@ -129,16 +129,11 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     ) -> anyhow::Result<(Self, tokio::task::JoinHandle<()>)> {
         let (events_sender, _) = broadcast::channel(Self::EVENTS_CHANNEL_SIZE);
 
-        // This MAY be the height the batch builder uses to rebuild its internal
-        // state, but it MAY also be a bit lower. Between this call and batch
-        // builder initialization, the channel may have produced new values
-        // which means this is only a lower bound. Luckily, that's all we need
-        // for sending tx status notifications.
-        let lower_bound_on_latest_height_notifications =
-            state_update_receiver.borrow().rollup_height;
+        let latest_state_update = state_update_receiver.borrow().clone();
+        let latest_processed_rollup_height = latest_state_update.rollup_height;
 
         let batch_builder = Ss::BatchBuilder::create(
-            state_update_receiver.clone(),
+            latest_state_update,
             da_sync_state.clone(),
             sequencer_db.read_all()?,
             config,
@@ -167,7 +162,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 if let Err(error) = s
                     .loop_background_task(
                         state_update_receiver,
-                        lower_bound_on_latest_height_notifications,
+                        latest_processed_rollup_height,
                         ledger_db,
                         shutdown_receiver,
                         automatic_batch_production,
@@ -330,7 +325,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         mut state_update_receiver: StateUpdateReceiver<
             <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
         >,
-        mut lower_bound_on_latest_height_notifications: u64,
+        mut latest_processed_rollup_height: u64,
         ledger_db: LedgerDb,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
         automatic_batch_production: bool,
@@ -358,7 +353,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             let info = (*state_update_receiver.borrow()).clone();
             self.handle_state_update_info(
                 info,
-                &mut lower_bound_on_latest_height_notifications,
+                &mut latest_processed_rollup_height,
                 &ledger_db,
                 automatic_batch_production,
             )
@@ -374,7 +369,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         state_update_info: StateUpdateInfo<
             <<Ss::BatchBuilder as BatchBuilder>::Spec as Spec>::Storage,
         >,
-        lower_bound_on_latest_height_notifications: &mut u64,
+        latest_processed_rollup_height: &mut u64,
         ledger_db: &LedgerDb,
         automatic_batch_production: bool,
     ) -> anyhow::Result<()> {
@@ -388,7 +383,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
         self.notify_processed_slots(
             ledger_db,
-            *lower_bound_on_latest_height_notifications..=storage_rollup_height,
+            *latest_processed_rollup_height..=storage_rollup_height,
         )
         .await?;
 
@@ -398,7 +393,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             self.produce_batch().await?;
         }
 
-        *lower_bound_on_latest_height_notifications = state_update_info.rollup_height;
+        *latest_processed_rollup_height = state_update_info.rollup_height;
 
         Ok(())
     }
