@@ -5,15 +5,7 @@ use anyhow::Context;
 use borsh::{BorshDeserialize, BorshSerialize};
 use celestia_proto::celestia::blob::v1::MsgPayForBlobs;
 use celestia_proto::cosmos::tx::v1beta1::Tx;
-pub use celestia_tendermint::block::Header as TendermintHeader;
-use celestia_tendermint::block::Height;
-use celestia_tendermint::crypto::default::Sha256;
-use celestia_tendermint::merkle::simple_hash_from_byte_vectors;
-use celestia_tendermint::Hash;
-use celestia_tendermint_proto::google::protobuf::Timestamp;
-pub use celestia_tendermint_proto::v0_34 as celestia_tm_version;
-use celestia_tendermint_proto::v0_34::types::IndexWrapper;
-use celestia_tendermint_proto::Protobuf;
+use celestia_proto::proto::blob::v1::IndexWrapper;
 use celestia_types::{DataAvailabilityHeader, ExtendedHeader};
 use prost::bytes::Buf;
 use prost::Message;
@@ -21,6 +13,14 @@ use serde::{Deserialize, Serialize};
 use sov_rollup_interface::da::{BlockHeaderTrait as BlockHeader, NanoSeconds, Time};
 #[cfg(feature = "native")]
 use sov_rollup_interface::node::da::SlotData;
+pub use tendermint::block::Header as TendermintHeader;
+use tendermint::block::Height;
+use tendermint::crypto::default::Sha256;
+use tendermint::merkle::simple_hash_from_byte_vectors;
+use tendermint::Hash;
+use tendermint_proto::google::protobuf::Timestamp;
+pub use tendermint_proto::v0_38 as celestia_tm_version;
+use tendermint_proto::Protobuf;
 use tracing::trace;
 
 use crate::shares::{BlobRefIterator, NamespaceGroup};
@@ -87,31 +87,27 @@ pub struct CompactHeader {
 
 impl From<TendermintHeader> for CompactHeader {
     fn from(value: TendermintHeader) -> Self {
-        let data_hash = match value.data_hash {
+        let data_hash = value.data_hash.and_then(|h| match h {
             Hash::Sha256(value) => Some(ProtobufHash(value)),
             Hash::None => None,
-        };
+        });
         Self {
-            version: Protobuf::<celestia_tm_version::version::Consensus>::encode_vec(
-                &value.version,
-            )
-            .unwrap(),
-            chain_id: value.chain_id.encode_vec().unwrap(),
-            height: value.height.encode_vec().unwrap(),
-            time: value.time.encode_vec().unwrap(),
+            version: Protobuf::<celestia_tm_version::version::Consensus>::encode_vec(value.version),
+            chain_id: value.chain_id.encode_vec(),
+            height: value.height.encode_vec(),
+            time: value.time.encode_vec(),
             last_block_id: Protobuf::<celestia_tm_version::types::BlockId>::encode_vec(
-                &value.last_block_id.unwrap_or_default(),
-            )
-            .unwrap(),
-            last_commit_hash: value.last_commit_hash.encode_vec().unwrap(),
+                value.last_block_id.unwrap_or_default(),
+            ),
+            last_commit_hash: value.last_commit_hash.unwrap().encode_vec(),
             data_hash,
-            validators_hash: value.validators_hash.encode_vec().unwrap(),
-            next_validators_hash: value.next_validators_hash.encode_vec().unwrap(),
-            consensus_hash: value.consensus_hash.encode_vec().unwrap(),
-            app_hash: value.app_hash.encode_vec().unwrap(),
-            last_results_hash: value.last_results_hash.encode_vec().unwrap(),
-            evidence_hash: value.evidence_hash.encode_vec().unwrap(),
-            proposer_address: value.proposer_address.encode_vec().unwrap(),
+            validators_hash: value.validators_hash.encode_vec(),
+            next_validators_hash: value.next_validators_hash.encode_vec(),
+            consensus_hash: value.consensus_hash.encode_vec(),
+            app_hash: value.app_hash.encode_vec(),
+            last_results_hash: value.last_results_hash.unwrap().encode_vec(),
+            evidence_hash: value.evidence_hash.unwrap().encode_vec(),
+            proposer_address: value.proposer_address.encode_vec(),
         }
     }
 }
@@ -219,11 +215,12 @@ impl BlockHeader for CelestiaHeader {
         }
 
         // In all other cases, we simply return the previous block hash parsed from the header
-        let hash = <celestia_tendermint::block::Id as Protobuf<
-            celestia_tm_version::types::BlockId,
-        >>::decode(self.header.last_block_id.as_ref())
-        .expect("must not call prev_hash on block with no predecessor")
-        .hash;
+        let hash =
+            <tendermint::block::Id as Protobuf<celestia_tm_version::types::BlockId>>::decode(
+                self.header.last_block_id.as_ref(),
+            )
+            .expect("must not call prev_hash on block with no predecessor")
+            .hash;
         *cached_hash = Some(TmHash(hash));
         TmHash(hash)
     }
@@ -233,13 +230,13 @@ impl BlockHeader for CelestiaHeader {
     }
 
     fn height(&self) -> u64 {
-        let height = celestia_tendermint::block::Height::decode(self.header.height.as_slice())
+        let height = tendermint::block::Height::decode(self.header.height.as_slice())
             .expect("Height must be valid");
         height.value()
     }
 
     fn time(&self) -> Time {
-        let protobuf_time = celestia_tendermint::time::Time::decode(self.header.time.as_slice())
+        let protobuf_time = tendermint::time::Time::decode(self.header.time.as_slice())
             .expect("Timestamp must be valid");
 
         let timestamp: Timestamp = protobuf_time.into();

@@ -708,11 +708,6 @@ async fn measure_time(
     let size_hint = body.size_hint();
     let exact_or_lower = size_hint.exact().unwrap_or_else(|| size_hint.lower());
 
-    info!(
-        "{} {} took {:?} response size: {:?}",
-        method, uri, duration, exact_or_lower
-    );
-
     sov_metrics::track_metrics(|tracker| {
         let point = sov_metrics::HttpMetrics {
             request_method: method,

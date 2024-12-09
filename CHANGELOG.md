@@ -4,7 +4,9 @@
 - #1978 changes the response format of `POST /sequencer/batches`. `da_height` and `num_txs` were removed, it now contains `tx_hashes`.
 - #1996 Renames `authorized_minters` field to `admins` for bank related call messages and opearations. This field is also used to determine who can freeze tokens, `admin` better encompasses the users full privlidges.
 ## 2024-12-04
+- #1963 Upgrades `sov-celestia-adapter` to the latest client version. Please make sure running against >= `celestia-node:v0.20.4-mocha`
 - #1964 Fix incorrect value in `sov-bank` event field `TokenCreated::minter`. This was incorrectly set to `mint_to_address`. Adds a `mint_to_address` field to the event to capture this value.
+
 ## 2024-11-29
 - #1948 Makes `sov-metrics` crate native only. Explicit feature gating is required in places where zk guest mode is possible.
 ## 2024-11-27
