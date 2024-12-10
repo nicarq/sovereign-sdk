@@ -1,6 +1,7 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
 
+use derivative::Derivative;
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
@@ -137,7 +138,7 @@ impl<S: Spec> BankMessageGenerator<S> {
 pub enum BankChangeLogEntry<S: Spec> {
     /// The balance of an address changed
     BalanceChanged {
-        #[allow(missing_docs)]
+        /// The address for which the balance was changed
         address: S::Address,
         /// The balance after the change
         coins: Coins,
@@ -145,11 +146,45 @@ pub enum BankChangeLogEntry<S: Spec> {
 
     /// The supply of a token changed
     SupplyChanged {
-        #[allow(missing_docs)]
+        /// The token id for which the supply was changed
         token_id: TokenId,
         /// The total supply after the change
         total_supply: Amount,
     },
+}
+
+/// Information used to discriminate between successive bank change log entries
+#[derive(Derivative, Debug, Clone, PartialEq, Eq)]
+#[derivative(Hash(bound = "S: Spec"))]
+pub enum BankChangeLogDiscriminant<S: Spec> {
+    /// The balance of an address changed
+    BalanceChanged {
+        /// The address for which the balance was changed
+        address: S::Address,
+    },
+
+    /// The supply of a token changed
+    SupplyChanged {
+        /// The token id for which the supply was changed
+        token_id: TokenId,
+    },
+}
+
+impl<'a, S: Spec> From<&'a BankChangeLogEntry<S>> for BankChangeLogDiscriminant<S> {
+    fn from(value: &'a BankChangeLogEntry<S>) -> Self {
+        match value {
+            BankChangeLogEntry::BalanceChanged { address, .. } => {
+                BankChangeLogDiscriminant::BalanceChanged {
+                    address: address.clone(),
+                }
+            }
+            BankChangeLogEntry::SupplyChanged { token_id, .. } => {
+                BankChangeLogDiscriminant::SupplyChanged {
+                    token_id: *token_id,
+                }
+            }
+        }
+    }
 }
 
 #[async_trait]

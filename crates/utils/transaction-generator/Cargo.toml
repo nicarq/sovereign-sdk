@@ -16,6 +16,7 @@ sov-modules-api = { workspace = true, features = ["native", "arbitrary"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-node-client = { workspace = true }
 
+schemars = { workspace = true }
 serde = { workspace = true }
 anyhow = { workspace = true }
 derivative = { workspace = true }

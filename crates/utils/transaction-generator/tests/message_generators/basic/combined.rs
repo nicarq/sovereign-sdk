@@ -11,20 +11,25 @@ use super::{
 };
 use crate::basic::RT;
 
-async fn test_successful_generation_helper(modules: Vec<ModulesToUse>) -> NumTxsExecuted {
+async fn test_combined_generation_helper(modules: Vec<ModulesToUse>) -> NumTxsExecuted {
     let mut transaction_exec_closure =
-        |tx: TransactionType<RT, S>, _output: GeneratorOutput, runner: &mut TestRunner<RT, S>| {
+        |tx: TransactionType<RT, S>, output: GeneratorOutput, runner: &mut TestRunner<RT, S>| {
             runner.execute_transaction(TransactionTestCase {
                 input: tx,
                 assert: Box::new(move |result, _state| {
-                    assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);
+                    // If we expect to have at least one change on the state, the transaction should be successful
+                    if !output.changes.is_empty() {
+                        assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);
+                    } else {
+                        assert!(result.tx_receipt.is_reverted(), "{:?}", result.tx_receipt);
+                    }
                 }),
             });
         };
 
     let (mut runner, generator, outputs) = test_with_modules(
         modules,
-        MessageValidity::as_distribution(Percent::one_hundred()),
+        MessageValidity::as_distribution(Percent::fifty()),
         &mut transaction_exec_closure,
     )
     .await;
@@ -44,6 +49,7 @@ async fn test_successful_generation_helper(modules: Vec<ModulesToUse>) -> NumTxs
         },
     );
 
+    // We also assert the changes against the state if there is any positive changes.
     let changes = outputs
         .into_iter()
         .flat_map(|output| output.changes)
@@ -65,12 +71,11 @@ async fn test_successful_generation_helper(modules: Vec<ModulesToUse>) -> NumTxs
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_successful_transaction_generation() {
+async fn test_combined_transaction_generation() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_successful_generation_helper(vec![ModulesToUse::Bank, ModulesToUse::ValueSetter])
-        .await;
+    } = test_combined_generation_helper(vec![ModulesToUse::Bank, ModulesToUse::ValueSetter]).await;
 
     // We should have generated at least one bank and one value setter tx
     assert!(num_bank_txs > 0);
@@ -82,7 +87,7 @@ async fn test_generate_txs_only_value_setter() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_successful_generation_helper(vec![ModulesToUse::ValueSetter]).await;
+    } = test_combined_generation_helper(vec![ModulesToUse::ValueSetter]).await;
 
     // We should have generated zero bank transaction and 100 value setter transactions
     assert_eq!(num_bank_txs, 0);
@@ -94,9 +99,9 @@ async fn test_generate_txs_only_bank() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_successful_generation_helper(vec![ModulesToUse::Bank]).await;
+    } = test_combined_generation_helper(vec![ModulesToUse::Bank]).await;
 
-    // We should have generated zero bank transaction and 100 value setter transactions
+    // We should have generated zero value setter transaction and 100 bank transactions
     assert_eq!(num_bank_txs, TXS_TO_GENERATE);
     assert_eq!(num_value_setter_txs, 0);
 }

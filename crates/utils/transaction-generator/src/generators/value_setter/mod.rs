@@ -92,7 +92,9 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the [`ValueSetterMessageGenerator`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, strum::EnumDiscriminants)]
+#[strum_discriminants(name(ValueSetterChangeLogDiscriminant))]
+#[strum_discriminants(derive(Hash))]
 pub enum ValueSetterChangeLogEntry {
     /// The single value was updated
     ValueUpdated {

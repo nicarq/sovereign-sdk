@@ -24,8 +24,21 @@ pub enum MessageValidity {
     Invalid,
 }
 
+impl MessageValidity {
+    /// Make a distribution of message validity with the provided percentage of valid messages
+    pub fn as_distribution(percentage_valid_messages: Percent) -> Distribution<2, MessageValidity> {
+        Distribution::with_values(
+            [MessageValidity::Valid, MessageValidity::Invalid],
+            [
+                percentage_valid_messages.0 as u64,
+                (100 - percentage_valid_messages.0) as u64,
+            ],
+        )
+    }
+}
+
 /// A generated message for a particular module.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GeneratedMessage<S: Spec, M, E> {
     /// The generated call message
     pub message: M,
