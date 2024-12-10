@@ -2,7 +2,7 @@ use reth_primitives::{TxKind, U256};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
 use revm::primitives::{BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, ExecutionResult};
-use sov_evm::{convert_to_transaction_signed, executor, Evm, SpecId};
+use sov_evm::{convert_to_transaction_signed, executor, EthereumAuthenticator, Evm, SpecId};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
 use sov_test_utils::{SimpleStorageContract, TransactionType};
@@ -31,7 +31,9 @@ fn test_invalid_contract_execution() {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
 
-    runner.execute(TransactionType::<RT, S>::PreSigned(raw_tx));
+    runner.execute(TransactionType::<RT, S>::PreAuthenticated(
+        RT::encode_with_ethereum_auth(raw_tx),
+    ));
 
     runner.query_visible_state(|state| {
         let evm = Evm::<S>::default();

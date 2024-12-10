@@ -15,6 +15,7 @@ demo_data_1/
 demo_data_2/
 
 .vscode/settings.json
+.vscode/*
 
 /docker/credentials/*
 !/docker/credentials/bridge-0.addr

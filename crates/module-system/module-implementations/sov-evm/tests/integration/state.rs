@@ -1,7 +1,7 @@
 use reth_primitives::{TxKind, U256};
 use reth_rpc_types::transaction::EIP1559TransactionRequest;
 use reth_rpc_types::TypedTransactionRequest;
-use sov_evm::Evm;
+use sov_evm::{EthereumAuthenticator, Evm};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
 use sov_test_utils::{BatchTestCase, SimpleStorageContract, TransactionTestCase, TransactionType};
@@ -32,7 +32,9 @@ fn test_block_updates() {
     };
 
     runner.execute_transaction(TransactionTestCase {
-        input: TransactionType::<RT, S>::PreSigned(create_contract_tx),
+        input: TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(
+            create_contract_tx,
+        )),
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             assert!(evm.pending_head(state).is_none());
@@ -96,8 +98,8 @@ fn test_transactions_receipts() {
 
     runner.execute_batch(BatchTestCase {
         input: vec![
-            TransactionType::<RT, S>::PreSigned(tx_1),
-            TransactionType::<RT, S>::PreSigned(tx_2),
+            TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(tx_1)),
+            TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(tx_2)),
         ]
         .into(),
         assert: Box::new(move |_result, state| {
