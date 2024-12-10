@@ -276,6 +276,7 @@ impl<S: Spec> Token<S> {
             .ok_or(anyhow::Error::msg(
                 "Total Supply overflow in the mint method of bank module",
             ))?;
+
         Ok(())
     }
 
