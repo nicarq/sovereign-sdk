@@ -135,7 +135,7 @@ fn setup_harness(
     use sov_bank::CallMessageDiscriminants::*;
 
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
-        Distribution::with_equiprobable_values([Transfer, Transfer, Transfer, Mint, CreateToken]),
+        Distribution::with_equiprobable_values([Transfer, Freeze, Burn, Mint, CreateToken]),
         address_creation_rate,
     ));
 

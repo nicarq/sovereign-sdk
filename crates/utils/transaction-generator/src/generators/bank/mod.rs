@@ -9,6 +9,8 @@ use sov_modules_api::Spec;
 use strum::VariantArray;
 use tracing::warn;
 
+mod burn;
+mod freeze;
 mod mint;
 mod query;
 pub use query::http::HttpBankClient;
@@ -107,7 +109,26 @@ impl<S: Spec> BankMessageGenerator<S> {
                     }
                 }
             }
-            (CallMessageDiscriminants::Burn, _) => todo!(),
+            (CallMessageDiscriminants::Burn, MessageValidity::Valid) => {
+                match self
+                    .generate_valid_burn(u, generator_state)
+                    .try_to_arbitrary()
+                {
+                    Ok(transfer_result) => Ok(transfer_result?),
+                    Err(e) => {
+                        warn!("Failed to generate burn: {:?}", e);
+                        self.do_generation_with_fallback(
+                            CallMessageDiscriminants::CreateToken,
+                            u,
+                            generator_state,
+                            validity,
+                        )
+                    }
+                }
+            }
+            (CallMessageDiscriminants::Burn, MessageValidity::Invalid) => {
+                Ok(self.generate_invalid_burn(u, generator_state)?)
+            }
             (CallMessageDiscriminants::Mint, MessageValidity::Valid) => {
                 match self
                     .generate_valid_mint(u, generator_state)
@@ -128,7 +149,26 @@ impl<S: Spec> BankMessageGenerator<S> {
             (CallMessageDiscriminants::Mint, MessageValidity::Invalid) => {
                 Ok(self.generate_invalid_mint(u, generator_state)?)
             }
-            (CallMessageDiscriminants::Freeze, _) => todo!(),
+            (CallMessageDiscriminants::Freeze, MessageValidity::Valid) => {
+                match self
+                    .generate_valid_freeze(u, generator_state)
+                    .try_to_arbitrary()
+                {
+                    Ok(transfer_result) => Ok(transfer_result?),
+                    Err(e) => {
+                        warn!("Failed to generate freeze: {:?}", e);
+                        self.do_generation_with_fallback(
+                            CallMessageDiscriminants::CreateToken,
+                            u,
+                            generator_state,
+                            validity,
+                        )
+                    }
+                }
+            }
+            (CallMessageDiscriminants::Freeze, MessageValidity::Invalid) => {
+                Ok(self.generate_invalid_freeze(u, generator_state)?)
+            }
         }
     }
 }
@@ -151,6 +191,12 @@ pub enum BankChangeLogEntry<S: Spec> {
         /// The total supply after the change
         total_supply: Amount,
     },
+
+    /// The token was frozen
+    TokenFrozen {
+        /// The token id for which the freeze event was triggered
+        token_id: TokenId,
+    },
 }
 
 /// Information used to discriminate between successive bank change log entries
@@ -168,6 +214,12 @@ pub enum BankChangeLogDiscriminant<S: Spec> {
         /// The token id for which the supply was changed
         token_id: TokenId,
     },
+
+    /// The token was frozen
+    TokenFrozen {
+        /// The token id for which the freeze event was triggered
+        token_id: TokenId,
+    },
 }
 
 impl<'a, S: Spec> From<&'a BankChangeLogEntry<S>> for BankChangeLogDiscriminant<S> {
@@ -180,6 +232,11 @@ impl<'a, S: Spec> From<&'a BankChangeLogEntry<S>> for BankChangeLogDiscriminant<
             }
             BankChangeLogEntry::SupplyChanged { token_id, .. } => {
                 BankChangeLogDiscriminant::SupplyChanged {
+                    token_id: *token_id,
+                }
+            }
+            BankChangeLogEntry::TokenFrozen { token_id } => {
+                BankChangeLogDiscriminant::TokenFrozen {
                     token_id: *token_id,
                 }
             }
@@ -271,6 +328,13 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
                     token_id,
                 );
             }
+            BankChangeLogEntry::TokenFrozen { token_id } => {
+                assert!(
+                    rollup_state_accessor.is_frozen(token_id).await,
+                    "Token with id {} should be frozen",
+                    token_id
+                );
+            }
         }
 
         Ok(())
@@ -298,7 +362,7 @@ pub(crate) enum InternalMessageGenError {
     /// A transfer could not be generated because no account with sufficient balance was found.
     // Note: If no account with balance can be found, we can simply try to generate
     // a create or mint token message.
-    #[error("Could not find an account with balance to transfer")]
+    #[error("Could not find an account with available token balance")]
     NoAccountWithBalance,
     /// A mint could not be generated because no account without appropriate permissions could be found
     #[error("Could not find an account that is authorized to mint")]
