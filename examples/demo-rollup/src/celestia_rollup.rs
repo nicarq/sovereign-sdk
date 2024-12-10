@@ -34,13 +34,14 @@ pub struct CelestiaDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
+type CelestiaRollupSpec<M> = DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>;
+
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
-    DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>: PluggableSpec,
-    EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M> as Spec>::Address>,
+    CelestiaRollupSpec<M>: PluggableSpec,
+    EthereumToRollupAddressConverter: TryInto<<CelestiaRollupSpec<M> as Spec>::Address>,
 {
-    type Spec = DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>;
+    type Spec = CelestiaRollupSpec<M>;
     type Runtime = Runtime<Self::Spec>;
 }
 

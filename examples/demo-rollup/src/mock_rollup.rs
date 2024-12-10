@@ -29,13 +29,14 @@ pub struct MockDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
+type MockRollupSpec<M> = DefaultSpec<MockDaSpec, Risc0, MockZkvm, M>;
+
 impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
 where
-    DefaultSpec<MockDaSpec, Risc0, MockZkvm, M>: PluggableSpec,
-    EthereumToRollupAddressConverter:
-        TryInto<<DefaultSpec<MockDaSpec, Risc0, MockZkvm, M> as Spec>::Address>,
+    MockRollupSpec<M>: PluggableSpec,
+    EthereumToRollupAddressConverter: TryInto<<MockRollupSpec<M> as Spec>::Address>,
 {
-    type Spec = DefaultSpec<MockDaSpec, Risc0, MockZkvm, M>;
+    type Spec = MockRollupSpec<M>;
     type Runtime = Runtime<Self::Spec>;
 }
 
