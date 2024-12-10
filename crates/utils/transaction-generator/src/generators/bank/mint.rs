@@ -54,12 +54,12 @@ impl<S: Spec> BankMessageGenerator<S> {
         let amount = {
             if let InvalidMintReasons::MintAmountOverflows = invalid_mint_reason {
                 // Generate an amount large enough to overflow if possible
-                let max_amount_without_overflow = token_info.total_supply;
+                let max_amount_without_overflow = Amount::MAX - token_info.total_supply;
 
                 if let Some(max_amount_without_overflow) =
                     max_amount_without_overflow.checked_add(1)
                 {
-                    u.int_in_range((max_amount_without_overflow)..=Amount::MAX)?
+                    u.int_in_range((max_amount_without_overflow + 1)..=Amount::MAX)?
                 } else {
                     // If we can't overflow, we try to generate another message.
                     return self.generate_invalid_mint(u, generator_state);
@@ -109,56 +109,45 @@ impl<S: Spec> BankMessageGenerator<S> {
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> InternalMessageGenResult<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
-        for _ in 0..1_000 {
-            let (_, acct) = generator_state
-                .get_random_existing_account_with_tag(BankTag::CanMint.into(), u)?
-                .ok_or(InternalMessageGenError::NoMintingAccounts)?;
-            let token_id = *acct.can_mint().random_entry(u)?;
-            let token_info = generator_state.get_token(&token_id).expect("Token exists");
-            if token_info.total_supply == Amount::MAX {
-                continue;
-            }
+        let (_, acct) = generator_state
+            .get_random_existing_account_with_tag(BankTag::CanMint.into(), u)?
+            .ok_or(InternalMessageGenError::NoMintingAccounts)?;
+        let token_id = *acct.can_mint().random_entry(u)?;
+        let token_info = generator_state.get_token(&token_id).expect("Token exists");
 
-            let key = acct.private_key.clone();
-            let (recipient_addr, mut recipient_acct) =
-                generator_state.get_or_generate(self.address_creation_rate, u)?;
+        let key = acct.private_key.clone();
+        let (recipient_addr, mut recipient_acct) =
+            generator_state.get_or_generate(self.address_creation_rate, u)?;
 
-            let amount_to_mint = u.int_in_range(0..=Amount::MAX - token_info.total_supply)?;
-            let recipient_balance = recipient_acct.increment_balance(Coins {
+        let amount_to_mint = u.int_in_range(0..=Amount::MAX - token_info.total_supply)?;
+        let recipient_balance = recipient_acct.increment_balance(Coins {
+            token_id,
+            amount: amount_to_mint,
+        });
+
+        let message = CallMessage::Mint {
+            coins: Coins {
                 token_id,
                 amount: amount_to_mint,
-            });
-
-            let message = CallMessage::Mint {
+            },
+            mint_to_address: recipient_addr.clone(),
+        };
+        let mint_change =
+            Self::update_state_with_mint(generator_state, token_id, token_info, amount_to_mint, u)?;
+        let changes = vec![
+            BankChangeLogEntry::BalanceChanged {
+                address: recipient_addr.clone(),
                 coins: Coins {
                     token_id,
-                    amount: amount_to_mint,
+                    amount: recipient_balance,
                 },
-                mint_to_address: recipient_addr.clone(),
-            };
-            let mint_change = Self::update_state_with_mint(
-                generator_state,
-                token_id,
-                token_info,
-                amount_to_mint,
-                u,
-            )?;
-            let changes = vec![
-                BankChangeLogEntry::BalanceChanged {
-                    address: recipient_addr.clone(),
-                    coins: Coins {
-                        token_id,
-                        amount: recipient_balance,
-                    },
-                },
-                mint_change,
-            ];
+            },
+            mint_change,
+        ];
 
-            generator_state.update_account(&recipient_addr, recipient_acct);
+        generator_state.update_account(&recipient_addr, recipient_acct);
 
-            return Ok(GeneratedMessage::new(message, key, changes));
-        }
-        Err(InternalMessageGenError::NoMintingAccounts)
+        Ok(GeneratedMessage::new(message, key, changes))
     }
 
     pub(super) fn update_state_with_mint(

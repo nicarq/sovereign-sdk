@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use derivative::Derivative;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
@@ -8,6 +9,11 @@ use sov_rollup_interface::da::RelevantBlobs;
 use crate::runtime::Runtime;
 
 /// Defines the type of a message that can be sent to the runtime.
+#[derive(Derivative)]
+#[derivative(
+    Clone(bound = "RT: Runtime<S>, S: Spec"),
+    Debug(bound = "RT: Runtime<S>, S: Spec")
+)]
 pub enum TransactionType<RT: Runtime<S>, S: Spec> {
     /// A transaction which is pre-signed and pre-wrapped in the `<Runtime as TransactionAuthenticator>::Input` type.
     PreAuthenticated(FullyBakedTx),

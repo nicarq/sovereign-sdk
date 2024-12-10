@@ -15,13 +15,18 @@ async fn test_combined_generation_helper(modules: Vec<ModulesToUse>) -> NumTxsEx
     let mut transaction_exec_closure =
         |tx: TransactionType<RT, S>, output: GeneratorOutput, runner: &mut TestRunner<RT, S>| {
             runner.execute_transaction(TransactionTestCase {
-                input: tx,
+                input: tx.clone(),
                 assert: Box::new(move |result, _state| {
                     // If we expect to have at least one change on the state, the transaction should be successful
                     if !output.changes.is_empty() {
                         assert!(result.tx_receipt.is_successful(), "{:?}", result.tx_receipt);
                     } else {
-                        assert!(result.tx_receipt.is_reverted(), "{:?}", result.tx_receipt);
+                        assert!(
+                            result.tx_receipt.is_reverted(),
+                            "Receipt: {:?}, tx: {:?}",
+                            result.tx_receipt,
+                            tx
+                        );
                     }
                 }),
             });

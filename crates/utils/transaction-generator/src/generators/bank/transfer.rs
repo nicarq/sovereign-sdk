@@ -1,4 +1,4 @@
-use sov_bank::{CallMessage, Coins, TokenId};
+use sov_bank::{CallMessage, Coins};
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::Spec;
 
@@ -7,15 +7,13 @@ use super::{
     InternalMessageGenResult,
 };
 use crate::interface::{GeneratedMessage, GeneratorState};
-use crate::repeatedly;
+use crate::{repeatedly, PickRandom};
 
 #[derive(Arbitrary, Clone, Debug)]
 enum InvalidTransferReasons {
     InvalidTokenID,
     AccountDoesNotExist,
-    // TODO
-    // AccountDoesNotHoldToken,
-    // NotEnoughFunds,
+    NotEnoughFunds,
 }
 
 impl<S: Spec> BankMessageGenerator<S> {
@@ -25,28 +23,63 @@ impl<S: Spec> BankMessageGenerator<S> {
         u: &mut arbitrary::Unstructured<'_>,
         generator_state: &mut impl GeneratorState<S, AccountView = BankAccount<S>, Tag: From<BankTag>>,
     ) -> arbitrary::Result<GeneratedMessage<S, CallMessage<S>, BankChangeLogEntry<S>>> {
+        let (coin, acct) = if let InvalidTransferReasons::InvalidTokenID = error_reason {
+            // The probability that a random TokenID exists is the same as that of a hash collision
+            let token_id = Arbitrary::arbitrary(u)?;
+
+            // Sanity check, ensure the token doesn't exist
+            assert!(generator_state.get_token(&token_id).is_none());
+
+            let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
+            (
+                Coins {
+                    amount: 0,
+                    token_id,
+                },
+                acct,
+            )
+        } else if let Some(acct) = generator_state.get_account_with_tag(BankTag::HasBalance.into())
+        {
+            let coin = acct.balances.random_entry(u)?;
+
+            (coin.clone(), acct)
+        } else {
+            let (token_id, _token_info) = generator_state.get_random_token(u)?;
+            let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
+            (
+                Coins {
+                    amount: 0,
+                    token_id,
+                },
+                acct,
+            )
+        };
+
         let from_key = {
             if let InvalidTransferReasons::AccountDoesNotExist = error_reason {
                 Arbitrary::arbitrary(u)?
             } else {
-                let Ok((_, from_account)) =
-                    Self::get_random_account_with_balance(generator_state, u)
-                else {
-                    // If we can't find any account with balance, we try again with a different error reason
-                    return self.generate_invalid_transfer(u, generator_state);
-                };
-
-                from_account.private_key
+                acct.private_key
             }
+        };
+
+        let amount = if let InvalidTransferReasons::NotEnoughFunds = error_reason {
+            // If the account has [`u64::MAX`] balance then try again to generate a different message
+            if coin.amount == u64::MAX {
+                return self.generate_invalid_transfer(u, generator_state);
+            }
+
+            u.int_in_range(coin.amount + 1..=u64::MAX)?
+        } else {
+            u.int_in_range(1..=u64::MAX)?
         };
 
         let to_address = S::Address::arbitrary(u)?;
         let message = CallMessage::Transfer {
             to: to_address,
             coins: Coins {
-                amount: 1,
-                // The probability that a random TokenID exists is the same as that of a hash collision
-                token_id: TokenId::arbitrary(u)?,
+                token_id: coin.token_id,
+                amount,
             },
         };
 
@@ -58,7 +91,6 @@ impl<S: Spec> BankMessageGenerator<S> {
     /// - transferring from an account that doesn't exist
     /// - transferring from an account that doesn't hold the token
     /// - transferring more tokens than the account has.
-    /// In a future PR, we will generate each kind of invalid tx - but for brevity, we implement case 1 here.
     pub(crate) fn generate_invalid_transfer(
         &self,
         u: &mut arbitrary::Unstructured<'_>,
