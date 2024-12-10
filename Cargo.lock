@@ -10924,6 +10924,7 @@ dependencies = [
  "indexmap 2.5.0",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
+ "schemars",
  "serde",
  "sov-bank",
  "sov-kernels",
