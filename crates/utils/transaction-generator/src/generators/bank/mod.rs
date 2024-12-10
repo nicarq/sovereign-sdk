@@ -1,7 +1,6 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
 
-use derivative::Derivative;
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
@@ -199,47 +198,30 @@ pub enum BankChangeLogEntry<S: Spec> {
     },
 }
 
-/// Information used to discriminate between successive bank change log entries
-#[derive(Derivative, Debug, Clone, PartialEq, Eq)]
-#[derivative(Hash(bound = "S: Spec"))]
-pub enum BankChangeLogDiscriminant<S: Spec> {
-    /// The balance of an address changed
-    BalanceChanged {
-        /// The address for which the balance was changed
-        address: S::Address,
-    },
-
-    /// The supply of a token changed
-    SupplyChanged {
-        /// The token id for which the supply was changed
-        token_id: TokenId,
-    },
-
-    /// The token was frozen
-    TokenFrozen {
-        /// The token id for which the freeze event was triggered
-        token_id: TokenId,
-    },
-}
-
-impl<'a, S: Spec> From<&'a BankChangeLogEntry<S>> for BankChangeLogDiscriminant<S> {
-    fn from(value: &'a BankChangeLogEntry<S>) -> Self {
-        match value {
-            BankChangeLogEntry::BalanceChanged { address, .. } => {
-                BankChangeLogDiscriminant::BalanceChanged {
-                    address: address.clone(),
-                }
-            }
-            BankChangeLogEntry::SupplyChanged { token_id, .. } => {
-                BankChangeLogDiscriminant::SupplyChanged {
-                    token_id: *token_id,
-                }
-            }
-            BankChangeLogEntry::TokenFrozen { token_id } => {
-                BankChangeLogDiscriminant::TokenFrozen {
-                    token_id: *token_id,
-                }
-            }
+impl<S: Spec> PartialEq<BankChangeLogEntry<S>> for BankChangeLogEntry<S> {
+    fn eq(&self, other: &BankChangeLogEntry<S>) -> bool {
+        match (self, other) {
+            (
+                Self::BalanceChanged { address, .. },
+                Self::BalanceChanged {
+                    address: other_address,
+                    ..
+                },
+            ) => address == other_address,
+            (
+                Self::SupplyChanged { token_id, .. },
+                Self::SupplyChanged {
+                    token_id: other_token_id,
+                    ..
+                },
+            )
+            | (
+                Self::TokenFrozen { token_id },
+                Self::TokenFrozen {
+                    token_id: other_token_id,
+                },
+            ) => token_id == other_token_id,
+            _ => false,
         }
     }
 }

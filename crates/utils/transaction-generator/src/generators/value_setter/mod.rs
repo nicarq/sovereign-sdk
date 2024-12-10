@@ -92,9 +92,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the [`ValueSetterMessageGenerator`].
-#[derive(Debug, Clone, strum::EnumDiscriminants)]
-#[strum_discriminants(name(ValueSetterChangeLogDiscriminant))]
-#[strum_discriminants(derive(Hash))]
+#[derive(Debug, Clone)]
 pub enum ValueSetterChangeLogEntry {
     /// The single value was updated
     ValueUpdated {
@@ -106,6 +104,19 @@ pub enum ValueSetterChangeLogEntry {
         /// The new value vector stored in state
         new_values: Vec<u8>,
     },
+}
+
+impl PartialEq<ValueSetterChangeLogEntry> for ValueSetterChangeLogEntry {
+    fn eq(&self, other: &ValueSetterChangeLogEntry) -> bool {
+        matches!(
+            (self, other),
+            (Self::ValueUpdated { .. }, Self::ValueUpdated { .. })
+                | (
+                    Self::ManyValuesUpdated { .. },
+                    Self::ManyValuesUpdated { .. }
+                )
+        )
+    }
 }
 
 #[async_trait]
