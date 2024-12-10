@@ -33,14 +33,8 @@ impl<S: Spec> BankMessageGenerator<S> {
         let (token_id, token_info, acct) = {
             if let InvalidMintReasons::TokenDoesNotExist = invalid_mint_reason {
                 // An arbitrary token ID will never exist
-                let (_, acct) = generator_state.get_random_existing_account(u)?;
-                (
-                    TokenId::arbitrary(u)?,
-                    TokenInfo {
-                        total_supply: u64::MAX,
-                    },
-                    acct,
-                )
+                let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
+                (TokenId::arbitrary(u)?, TokenInfo { total_supply: 0 }, acct)
             } else if let Some((_, acct)) =
                 generator_state.get_random_existing_account_with_tag(BankTag::CanMint.into(), u)?
             {
@@ -52,7 +46,7 @@ impl<S: Spec> BankMessageGenerator<S> {
             } else {
                 // If we can't get a valid account, we get a random token and a random account.
                 let (token_id, token_info) = generator_state.get_random_token(u)?;
-                let (_, acct) = generator_state.get_random_existing_account(u)?;
+                let (_, acct) = generator_state.get_or_generate(self.address_creation_rate, u)?;
                 (token_id, token_info, acct)
             }
         };

@@ -40,4 +40,13 @@ impl<S: Spec> HttpBankClient<S> {
     pub async fn get_total_supply(&self, token_id: &TokenId) -> sov_bank::Amount {
         self.client.get_total_supply(token_id).await.unwrap()
     }
+
+    /// Check if a token is frozen
+    pub async fn is_frozen(&self, token_id: &TokenId) -> bool {
+        self.client
+            .get_admins::<S>(token_id)
+            .await
+            .unwrap()
+            .is_empty()
+    }
 }

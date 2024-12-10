@@ -74,10 +74,10 @@ impl<S: Spec> BankMessageGenerator<S> {
         let minters = {
             let mut minters = SafeVec::new();
             for _ in 0..minters.max_size() {
-                if u.ratio(1, 2)? {
+                if bool::arbitrary(u)? {
                     break;
                 }
-                let (addr, mut acct) = generator_state.get_random_existing_account(u)?;
+                let (addr, mut acct) = generator_state.get_or_generate(creation_rate, u)?;
                 acct.add_can_mint(token_id);
                 generator_state.update_account(&addr, acct);
                 minters
@@ -90,7 +90,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         // Generate a receiver and amount, updating the state as necessary
         let (recipient_address, amount) = {
             let (recipient_address, mut recipient_acct) =
-                generator_state.get_random_existing_account(u)?;
+                generator_state.get_or_generate(creation_rate, u)?;
             let amount = Arbitrary::arbitrary(u)?;
             recipient_acct.increment_balance(Coins { token_id, amount });
             generator_state.update_account(&recipient_address, recipient_acct);
