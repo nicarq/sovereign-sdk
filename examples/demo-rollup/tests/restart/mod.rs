@@ -3,7 +3,8 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use ethers_providers::StreamExt;
+use anyhow::Context;
+use futures::StreamExt;
 use rand::Rng;
 use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::storable::layer::StorableMockDaLayer;
@@ -13,9 +14,8 @@ use sov_modules_api::OperatingMode;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
+use sov_test_utils::test_rollup::{RollupBuilder, RollupBuilderConfig, TestRollup};
 use tracing::{Event, Level, Subscriber};
-use tracing_subscriber::layer::Context;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, Layer};
 
@@ -29,7 +29,7 @@ impl<S> Layer<S> for LogCollector
 where
     S: Subscriber,
 {
-    fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
+    fn on_event(&self, event: &Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
         let level = *event.metadata().level();
 
         if level <= Level::WARN {
@@ -90,7 +90,8 @@ async fn start_stop_empty(
             })
             .start(),
         )
-        .await??;
+        .await
+        .context("Starting rollup failed")??;
 
         // Let rollup run for some time
         tokio::time::sleep(sleep_duration).await;
@@ -107,7 +108,9 @@ async fn start_stop_empty(
         drop(da_service);
         tracing::info!("Triggering shutdown....");
         shutdown_sender.send(())?;
-        tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task).await???;
+        tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task)
+            .await
+            .context("Joining rollup task failed")???;
         block_producing_handle.await?;
     }
 
@@ -308,4 +311,148 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
     assert_eq!(HashSet::<(Level, String)>::new(), recorded_errors_warnings);
 
     Ok(())
+}
+
+// Test setup is sneaky and might be redundant if prover takes its own database.
+// Basically, ST info is saved to the storage manager in the same loop iteration,
+// but notified height is written in the next iteration.
+// In each loop we submit several blocks, enough to keep the runner busy.
+// We cannot be 100% sure that extra ST info will be written each time,
+// That's why we do more restarts comparing to channel size.
+// The downside of this test is that it won't fail if there's no bug,
+// But it might succeed if there's a bug.
+async fn check_with_increasing_stf_infos(
+    operating_mode: OperatingMode,
+    finalization_blocks: u32,
+    aggregated_proof_jump: usize,
+    max_channel_size: u64,
+    max_infos_in_db: u64,
+    restarts: usize,
+    blocks_per_start: usize,
+) -> anyhow::Result<()> {
+    // Checks startup process isn't dead locked.
+    let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
+
+    let rollup_builder = RollupBuilder::<MockDemoRollup<Native>>::new(
+        test_genesis_source(operating_mode),
+        BlockProducingConfig::Manual,
+        finalization_blocks,
+    )
+    .set_config(|c: &mut RollupBuilderConfig| {
+        c.storage = rollup_storage_dir.clone();
+        c.rollup_prover_config = RollupProverConfig::Skip;
+        c.aggregated_proof_block_jump = aggregated_proof_jump;
+        c.max_channel_size = max_channel_size;
+        c.max_infos_in_db = max_infos_in_db;
+    });
+
+    let mut last_processed_slot_number = 0;
+    for idx in 0..restarts {
+        let test_rollup = tokio::time::timeout(
+            std::time::Duration::from_secs(30),
+            rollup_builder.clone().start(),
+        )
+        .await
+        .with_context(|| format!("start n={} of the rollup failed", idx))??;
+
+        let TestRollup {
+            shutdown_sender,
+            rollup_task,
+            da_service,
+            api_client,
+            ..
+        } = test_rollup;
+        let da_service_ref = da_service.da_service();
+        let mut slot_subscription = api_client.subscribe_slots().await?;
+
+        // Produce enough blocks to fill the channel and accommodate slot processing time.
+        for _ in 0..blocks_per_start {
+            da_service_ref.produce_block_now().await?;
+        }
+
+        let slot =
+            tokio::time::timeout(std::time::Duration::from_secs(30), slot_subscription.next())
+                .await
+                .context("waiting for next slot is failed")?
+                .transpose()?
+                .unwrap();
+        assert!(
+            slot.number > last_processed_slot_number,
+            "Received notification for slot n={} is lower than last seen: {}",
+            slot.number,
+            last_processed_slot_number
+        );
+        last_processed_slot_number = slot.number;
+
+        drop(slot_subscription);
+        drop(da_service);
+        shutdown_sender.send(())?;
+        tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task)
+            .await
+            .context("Joining rollup task failed")???;
+    }
+
+    Ok(())
+}
+
+async fn try_to_clog_channel_instant_finality(operating_mode: OperatingMode) -> anyhow::Result<()> {
+    let max_channel_size = 5;
+    // We assume that each restart we produce 1 extra STF info with 10% probability
+    let restarts = 50;
+    // Submission to MockDa is faster than processing single slot
+    // and with more data in StateDb single slot processing time should slightly degrade
+    let blocks_per_start = 30;
+
+    // Never produce aggregated proof
+    let aggregated_proof_jump: usize = 200;
+    let max_infos_in_db = 500;
+
+    check_with_increasing_stf_infos(
+        operating_mode,
+        1,
+        aggregated_proof_jump,
+        max_channel_size,
+        max_infos_in_db,
+        restarts,
+        blocks_per_start,
+    )
+    .await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+// Flaky because of an existing problem: "Error: IO error: lock hold by current process,"
+async fn flaky_test_increasing_stf_infos_zk_instant_finality() -> anyhow::Result<()> {
+    try_to_clog_channel_instant_finality(OperatingMode::Zk).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+// Flaky because of an existing problem: "Error: IO error: lock hold by current process,"
+async fn flaky_test_increasing_stf_infos_optimistic_instant_finality() -> anyhow::Result<()> {
+    try_to_clog_channel_instant_finality(OperatingMode::Optimistic).await
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "Disabled while https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1924"]
+async fn flaky_try_to_clog_db_zk_instant_finality() -> anyhow::Result<()> {
+    let max_channel_size = 100;
+    let max_infos_in_db = 5;
+    // We assume that each restart we produce 1 extra STF info with 10% probability
+    let restarts = 50;
+    // Submission to MockDa is faster than processing a single slot,
+    // and with more data in StateDb single slot processing time should slightly degrade
+    let blocks_per_start = 30;
+
+    // Never produce aggregated proof
+    let aggregated_proof_jump: usize = 200;
+
+    check_with_increasing_stf_infos(
+        OperatingMode::Zk,
+        1,
+        aggregated_proof_jump,
+        max_channel_size,
+        max_infos_in_db,
+        restarts,
+        blocks_per_start,
+    )
+    .await
 }
