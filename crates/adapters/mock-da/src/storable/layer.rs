@@ -19,7 +19,7 @@ pub struct StorableMockDaLayer {
     conn: DatabaseConnection,
     /// Height which is currently being built.
     pub(crate) next_height: u32,
-    /// Defines how many blocks should be submitted, before block is finalized.
+    /// Defines how many blocks should be submitted before the block is finalized.
     /// Zero means instant finality.
     blocks_to_finality: u32,
     pub(crate) finalized_header_sender: broadcast::Sender<MockBlockHeader>,
@@ -277,6 +277,9 @@ mod tests {
         Proof(Vec<u8>),
     }
 
+    const ISSUE_REMINDER: &str = "Leave a comment in https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1396 if you see this error";
+    const ASYNC_OPERATION_TIMEOUT: Duration = Duration::from_secs(60);
+
     async fn check_da_layer_consistency(da_layer: &StorableMockDaLayer) -> anyhow::Result<()> {
         let mut prev_block_hash = GENESIS_HEADER.prev_hash;
 
@@ -294,7 +297,7 @@ mod tests {
         da_layer: &StorableMockDaLayer,
         expected_blocks: &[Vec<(TestBlob, MockAddress)>],
     ) -> anyhow::Result<()> {
-        // A current height is expected to be the next of number of blocks sent.
+        // The current height is expected to be the next of the number of blocks sent.
         // Meaning da layer is "building next block".
         assert_eq!(expected_blocks.len() as u32 + 1, da_layer.next_height);
         check_da_layer_consistency(da_layer).await?;
@@ -338,21 +341,35 @@ mod tests {
         expected_num_headers: usize,
     ) -> JoinHandle<Vec<MockBlockHeader>> {
         let mut receiver = da.finalized_header_sender.subscribe();
-        // All finalized headers should be pushed by that time.
-        let timeout_duration = Duration::from_millis(1000);
         tokio::spawn(async move {
             let mut received = Vec::with_capacity(expected_num_headers);
-            for _ in 0..=expected_num_headers {
-                match time::timeout(timeout_duration, receiver.recv()).await {
+            for i in 0..expected_num_headers {
+                match time::timeout(ASYNC_OPERATION_TIMEOUT, receiver.recv()).await {
                     Ok(Ok(header)) => received.push(header),
-                    _ => break,
+                    Err(time) => {
+                        panic!(
+                            "Timeout waiting for finalized header {}, {:?}. {}",
+                            i + 1,
+                            time,
+                            ISSUE_REMINDER
+                        )
+                    }
+                    Ok(Err(err)) => panic!(
+                        "Finalized header channel has been closed at height {}: {:?}. {}",
+                        i + 1,
+                        err,
+                        ISSUE_REMINDER,
+                    ),
                 }
             }
             received
         })
     }
 
-    // Gets vector of blocks. Block contains Vec of blobs and sender
+    // Gets vector of blocks.
+    // Block contains Vec of blobs and sender.
+    // Checks that submission works and finalized headers are sent.
+    // And that same data is there after reopening the same file again.
     async fn submit_blobs_and_restart(
         connection_string: &str,
         blocks: Vec<Vec<(TestBlob, MockAddress)>>,
@@ -376,7 +393,7 @@ mod tests {
                     }
                 }
                 da_layer.produce_block().await?;
-                let head_block_header = da_layer.get_head_block_header().await.unwrap();
+                let head_block_header = da_layer.get_head_block_header().await?;
                 assert_eq!(
                     prev_head_block_header.height() + 1,
                     head_block_header.height()
@@ -389,7 +406,7 @@ mod tests {
             assert_eq!(
                 blocks.len(),
                 finalized_headers.len(),
-                "Incorrect number of finalized headers received"
+                "Incorrect number of finalized headers received",
             );
             let mut prev_block_hash = GENESIS_HEADER.hash;
             for (idx, header) in finalized_headers.iter().enumerate() {
@@ -432,7 +449,7 @@ mod tests {
         let last_finalized_height = da_layer.get_last_finalized_height();
         assert_eq!(0, last_finalized_height);
 
-        // Non existing
+        // Non-existing
         let response = da_layer.get_block_at(1).await;
         assert!(response.is_err());
         assert_eq!(
