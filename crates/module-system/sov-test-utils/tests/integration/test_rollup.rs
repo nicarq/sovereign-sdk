@@ -14,13 +14,13 @@ generate_optimistic_runtime!(TestRuntime <=);
 type TestBlueprint = RtAgnosticBlueprint<TestRuntime<TestSpec>>;
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rollup_shutdown_works_as_expected() {
+async fn flaky_test_rollup_shutdown_works_as_expected() {
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
     start_and_stop_node_in_dir(dir.clone()).await;
     start_and_stop_node_in_dir(dir.clone()).await;
 
-    Arc::try_unwrap(dir)
+    Arc::into_inner(dir)
         .expect("Someone is still holding on to the directory, but everything was shutdown.")
         .close()
         .expect("Node storage directory didn't close successfully.");
