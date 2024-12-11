@@ -141,12 +141,16 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         self.config.storage.path().join("mock_da.sqlite")
     }
 
+    /// Get a connection string for [`sov_mock_da::storable::layer::StorableMockDaLayer`].
+    pub fn mock_da_connection_string(&self) -> String {
+        format!("sqlite://{}?mode=rwc", self.mock_da_db_path().display())
+    }
+
     fn set_da_connection_string(mut self) -> Self {
         // We store DA data in the same directory as the rollup data. This
         // ensures that, when reusing the same path, we restore not only node
         // data but also DA history.
-        self.da_config.connection_string =
-            format!("sqlite://{}?mode=rwc", self.mock_da_db_path().display());
+        self.da_config.connection_string = self.mock_da_connection_string();
         self
     }
 }
@@ -315,8 +319,8 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     /// We just hold this together with [`TestRollup`] instance, so the directory
     /// is not deleted before we're done.
     pub storage: Arc<tempfile::TempDir>,
-    /// @neysofu: used for node cleanup/shutdown logic, but I'm not sure why we
-    /// need to hold on to this. TODO: docs.
+    /// Allows programmatically initialize shutdown of the test-rollup.
+    /// Used for checking graceful shutdown and restart.
     pub shutdown_sender: watch::Sender<()>,
     /// Used for cleanup/shutdown logic.
     pub rollup_task: JoinHandle<anyhow::Result<()>>,

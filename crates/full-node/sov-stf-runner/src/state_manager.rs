@@ -49,6 +49,7 @@ where
     state_update_sender: watch::Sender<StateUpdateInfo<Sm::StfState>>,
     st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
     maximum_provable_height_tracker: Box<dyn ProvableHeightTracker>,
+    is_initialized: bool,
 }
 
 impl<StateRoot, Witness, Sm, Da> StateManager<StateRoot, Witness, Sm, Da>
@@ -63,22 +64,14 @@ where
     >,
     Sm::StfState: Clone,
 {
-    pub(crate) async fn new(
+    pub(crate) fn new(
         storage_manager: Sm,
         ledger_db: LedgerDb,
         initial_state_root: StateRoot,
         state_update_channel: watch::Sender<StateUpdateInfo<Sm::StfState>>,
-        mut st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
+        st_info_sender: Option<StfInfoSender<StateRoot, Witness, Da::Spec>>,
         state_height_tracker: Box<dyn ProvableHeightTracker>,
     ) -> anyhow::Result<Self> {
-        if let Some(sender) = &mut st_info_sender {
-            // If this state manager uses a channel, it MUST be correctly
-            // initialized before usage.
-            sender
-                .startup_notify_about_infos_from_db(&ledger_db, &*state_height_tracker)
-                .await?;
-        }
-
         Ok(Self {
             storage_manager,
             ledger_db,
@@ -87,7 +80,23 @@ where
             state_update_sender: state_update_channel,
             st_info_sender,
             maximum_provable_height_tracker: state_height_tracker,
+            is_initialized: false,
         })
+    }
+
+    pub(crate) async fn startup(&mut self) -> anyhow::Result<()> {
+        if let Some(sender) = &mut self.st_info_sender {
+            // If this state manager uses a channel, it MUST be correctly
+            // initialized before usage.
+            sender
+                .startup_notify_about_infos_from_db(
+                    &self.ledger_db,
+                    &*self.maximum_provable_height_tracker,
+                )
+                .await?;
+        }
+        self.is_initialized = true;
+        Ok(())
     }
 
     /// Updates both the [`LedgerDb`] and the [`StateUpdateInfo`]
@@ -127,6 +136,11 @@ where
         mut filtered_block: Da::FilteredBlock,
         da_service: &Da,
     ) -> anyhow::Result<(Sm::StfState, Da::FilteredBlock)> {
+        if !self.is_initialized {
+            anyhow::bail!(
+                "StateManager wasn't initialized. Please call `.startup()` method before using"
+            );
+        }
         let reorg_happened = if let Some(ForkPoint {
             block: new_block,
             pre_state_root,
@@ -177,6 +191,11 @@ where
         slot_commit: SlotCommit<S, B, T>,
         aggregated_proofs: Vec<SerializedAggregatedProof>,
     ) -> anyhow::Result<()> {
+        if !self.is_initialized {
+            anyhow::bail!(
+                "StateManager wasn't initialized. Please call `.startup()` method before using"
+            );
+        }
         let rollup_height = self.get_rollup_height()?;
         let new_state_root = transition_witness.final_state_root.clone();
         let block_header: <<Da as DaService>::Spec as DaSpec>::BlockHeader =
@@ -413,15 +432,18 @@ mod tests {
 
         let (state_update_sender, _state_update_recv) = watch::channel(update_info);
 
-        StateManager::new(
+        let mut state_manager = StateManager::new(
             storage_manager,
             ledger_db,
             state_root,
             state_update_sender,
             None,
             Box::new(InfiniteHeight),
-        )
-        .await
+        )?;
+
+        state_manager.startup().await?;
+
+        Ok(state_manager)
     }
 
     fn produce_synthetic_changes(

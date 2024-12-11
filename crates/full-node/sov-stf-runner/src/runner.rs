@@ -183,7 +183,12 @@ where
             runner_config.genesis_height + last_slot_processed_before_shutdown;
 
         let first_unprocessed_height_at_startup = da_height_processed + 1;
-        debug!(%last_slot_processed_before_shutdown, %runner_config.genesis_height, %first_unprocessed_height_at_startup, "Initializing StfRunner");
+        debug!(
+            %last_slot_processed_before_shutdown,
+            %runner_config.genesis_height,
+            %first_unprocessed_height_at_startup,
+            proof_manager_config = ?pm_config,
+            "Initializing StfRunner");
 
         let (st_info_sender, st_info_receiver) = if let Some(config) = pm_config {
             let channel = new_stf_info_channel(
@@ -205,8 +210,7 @@ where
             state_update_channel,
             st_info_sender,
             state_height_tracker,
-        )
-        .await?;
+        )?;
 
         let (sync_fetcher, fetcher_background_handle) = FinalizedBlocksBulkFetcher::new(
             da_service.clone(),
@@ -364,6 +368,7 @@ where
 
     /// Runs the rollup.
     pub async fn run_in_process(&mut self) -> anyhow::Result<()> {
+        self.state_manager.startup().await?;
         let mut next_da_height = self.first_unprocessed_height_at_startup;
         let target_da_height = self.da_service.get_head_block_header().await?.height();
         self.sync_state.update_target(target_da_height);
