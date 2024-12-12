@@ -71,7 +71,7 @@ impl<S: Spec> Taggable for ValueSetterAccount<S> {
 /// have to make sure there is an admin account in the [`crate::interface::GeneratorState`] with the tag [`ValueSetterTag::IsAdmin`].
 #[derive(Debug, Clone)]
 pub struct ValueSetterMessageGenerator<S: Spec> {
-    message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+    message_distribution: Distribution<CallMessageDiscriminants>,
     /// The maximum length of a `SetManyValues` message
     maximum_vec_length: usize,
     phantom: PhantomData<S>,
@@ -80,7 +80,7 @@ pub struct ValueSetterMessageGenerator<S: Spec> {
 impl<S: Spec> ValueSetterMessageGenerator<S> {
     /// Creates a new [`ValueSetterMessageGenerator`]
     pub fn new(
-        message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+        message_distribution: Distribution<CallMessageDiscriminants>,
         maximum_vec_length: usize,
     ) -> Self {
         Self {

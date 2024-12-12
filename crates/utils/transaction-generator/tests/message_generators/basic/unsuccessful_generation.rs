@@ -2,11 +2,12 @@ use sov_modules_api::prelude::tokio;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{TestSpec as S, TransactionTestCase, TransactionType};
 use sov_transaction_generator::interface::{MessageValidity, Percent};
+use sov_transaction_generator::Distribution;
 
 use super::{ModulesToUse, NumTxsExecuted};
 use crate::basic::{test_with_modules, GeneratorOutput, TestRuntimeCall, RT, TXS_TO_GENERATE};
 
-async fn test_reverted_transactions_helper(modules: Vec<ModulesToUse>) -> NumTxsExecuted {
+async fn test_reverted_transactions_helper(modules: Distribution<ModulesToUse>) -> NumTxsExecuted {
     let mut transaction_exec_closure =
         move |tx: TransactionType<RT, S>,
               expected_output: GeneratorOutput,
@@ -54,7 +55,10 @@ async fn test_reverted_transactions_only_bank() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_reverted_transactions_helper(vec![ModulesToUse::Bank]).await;
+    } = test_reverted_transactions_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::Bank,
+    ]))
+    .await;
     assert_eq!(
         num_bank_txs, TXS_TO_GENERATE,
         "Not enough bank txs generated: generated {num_bank_txs}, expected {TXS_TO_GENERATE}"
@@ -70,7 +74,10 @@ async fn test_reverted_transactions_only_value_setter() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_reverted_transactions_helper(vec![ModulesToUse::ValueSetter]).await;
+    } = test_reverted_transactions_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::ValueSetter,
+    ]))
+    .await;
     assert_eq!(
         num_value_setter_txs, TXS_TO_GENERATE,
         "Not enough value setter txs generated: generated {num_value_setter_txs}, expected {TXS_TO_GENERATE}"
@@ -86,8 +93,11 @@ async fn test_reverted_transactions_both_bank_and_value_setter() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_reverted_transactions_helper(vec![ModulesToUse::ValueSetter, ModulesToUse::Bank])
-        .await;
+    } = test_reverted_transactions_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::ValueSetter,
+        ModulesToUse::Bank,
+    ]))
+    .await;
     assert!(
         num_value_setter_txs > 0,
         "Not enough value setter txs generated: generated {num_value_setter_txs}, expected at least 1"
@@ -95,5 +105,25 @@ async fn test_reverted_transactions_both_bank_and_value_setter() {
     assert!(
         num_bank_txs > 0,
         "Not enough bank txs generated: generated {num_bank_txs}, expected at least 1"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_reverted_transaction_generation_mixed() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    } = test_reverted_transactions_helper(Distribution::with_values(vec![
+        (8, ModulesToUse::Bank),
+        (2, ModulesToUse::ValueSetter),
+    ]))
+    .await;
+
+    // We should have generated at least one bank and one value setter tx
+    assert!(num_bank_txs > 0);
+    assert!(num_value_setter_txs > 0);
+    assert!(
+        num_bank_txs > 2 * num_value_setter_txs,
+        "There should be at more bank transactions generated"
     );
 }

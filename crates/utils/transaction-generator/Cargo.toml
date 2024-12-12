@@ -29,6 +29,10 @@ derive_more = { workspace = true, features = [
 strum = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+
+rand = { workspace = true }
+rand_chacha = { workspace = true }
+
 indexmap = "2"
 
 [dev-dependencies]
@@ -40,8 +44,6 @@ sov-state = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 
 borsh = { workspace = true }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
 serde = { workspace = true }
 
 [lints]

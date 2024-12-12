@@ -21,13 +21,12 @@ use sov_transaction_generator::generators::basic::{
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator, ValueSetterTag,
 };
+use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::{MessageValidity, Percent};
 use sov_transaction_generator::{
     AccountState, Distribution, GeneratedMessage, HarnessModule, State,
 };
 use sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
-
-use crate::{get_random_bytes, randomize_buffer};
 
 mod combined;
 mod successful_generation;
@@ -61,6 +60,39 @@ enum ModulesToUse {
     ValueSetter,
 }
 
+impl ModulesToUse {
+    /// Builds dynamic module reference
+    #[allow(clippy::type_complexity)]
+    pub fn select(
+        &self,
+        bank_harness: &BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
+        value_setter_harness: &ValueSetterHarness<
+            S,
+            RT,
+            BasicTag,
+            BasicChangeLogEntry<S>,
+            BasicClientConfig,
+            (),
+        >,
+    ) -> Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>
+    {
+        match self {
+            ModulesToUse::Bank => {
+                let module: Arc<
+                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+                > = Arc::new(bank_harness.clone());
+                module
+            }
+            ModulesToUse::ValueSetter => {
+                let module: Arc<
+                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
+                > = Arc::new(value_setter_harness.clone());
+                module
+            }
+        }
+    }
+}
+
 struct NumTxsExecuted {
     num_bank_txs: u64,
     num_value_setter_txs: u64,
@@ -71,9 +103,6 @@ pub struct TestGenerator {
     bank_harness: BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
     value_setter_harness:
         ValueSetterHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
-    #[allow(clippy::type_complexity)]
-    modules_to_use:
-        Vec<Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
@@ -83,16 +112,21 @@ pub struct TestGenerator {
 }
 
 impl TestGenerator {
-    pub fn generate(&mut self, validity: MessageValidity) -> GeneratorOutput {
+    #[allow(clippy::type_complexity)]
+    pub fn generate(
+        &mut self,
+        modules_distribution: &Distribution<
+            Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>>,
+        >,
+        validity: MessageValidity,
+    ) -> GeneratorOutput {
         for _ in 0..20 {
             if self.has_enough_randomness() {
                 let u =
                     &mut arbitrary::Unstructured::new(&self.randomness[self.randomness_offset()..]);
 
-                let modules_boxed = &self.modules_to_use;
-
                 if let Ok(output) = self.generator.generate_call_message(
-                    modules_boxed,
+                    modules_distribution,
                     u,
                     &mut self.state,
                     validity,
@@ -130,17 +164,17 @@ fn setup_harness(
     address_creation_rate: Percent,
     admin: &TestUser<S>,
     max_value_setter_vec_len: usize,
-    modules_to_use: Vec<ModulesToUse>,
+    modules_distribution: &Distribution<ModulesToUse>,
 ) -> TestGenerator {
     use sov_bank::CallMessageDiscriminants::*;
 
     let bank_harness = BankHarness::new(BankMessageGenerator::<S>::new(
-        Distribution::with_equiprobable_values([Transfer, Freeze, Burn, Mint, CreateToken]),
+        Distribution::with_equiprobable_values(vec![Transfer, Freeze, Burn, Mint, CreateToken]),
         address_creation_rate,
     ));
 
     let value_setter_harness = ValueSetterHarness::new(ValueSetterMessageGenerator::<S>::new(
-        Distribution::with_equiprobable_values([
+        Distribution::with_equiprobable_values(vec![
             ValueSetterDiscriminants::SetValue,
             ValueSetterDiscriminants::SetManyValues,
         ]),
@@ -150,22 +184,10 @@ fn setup_harness(
     #[allow(clippy::type_complexity)]
     let modules: Vec<
         Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>>,
-    > = modules_to_use
+    > = modules_distribution
+        .inner()
         .iter()
-        .map(|module_to_use| match module_to_use {
-            ModulesToUse::Bank => {
-                let module: Arc<
-                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-                > = Arc::new(bank_harness.clone());
-                module
-            }
-            ModulesToUse::ValueSetter => {
-                let module: Arc<
-                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-                > = Arc::new(value_setter_harness.clone());
-                module
-            }
-        })
+        .map(|(_, module_to_use)| module_to_use.select(&bank_harness, &value_setter_harness))
         .collect();
 
     let mut factory = Generator::new();
@@ -191,7 +213,6 @@ fn setup_harness(
     let remaining_randomness = u.len();
     TestGenerator {
         randomness: random_bytes,
-        modules_to_use: modules,
         bank_harness,
         value_setter_harness,
         remaining_randomness,
@@ -259,8 +280,8 @@ fn setup(user_balance: u64) -> Setup {
 }
 
 async fn test_with_modules(
-    modules: Vec<ModulesToUse>,
-    validity: Distribution<2, MessageValidity>,
+    modules: Distribution<ModulesToUse>,
+    validity: Distribution<MessageValidity>,
     transaction_exec_closure: &mut impl FnMut(
         TransactionType<RT, S>,
         GeneratorOutput,
@@ -275,7 +296,7 @@ async fn test_with_modules(
         Percent::one_hundred(),
         &setup.value_setter_admin,
         MAX_VEC_LEN_VALUE_SETTER,
-        modules,
+        &modules,
     );
 
     let mut runner = TestRunner::<RT, S>::new_with_genesis(
@@ -305,11 +326,15 @@ async fn test_with_modules(
         });
     }
 
+    let modules = modules.map_values(&mut |module| {
+        module.select(&generator.bank_harness, &generator.value_setter_harness)
+    });
+
     // Generate and execute [`TXS_TO_GENERATE`] txs
     let outputs: Vec<_> = (0..TXS_TO_GENERATE)
         .map(|_| {
             let validity = validity.select_value(u).expect("Ran out of randomness");
-            let expected_output = generator.generate(*validity);
+            let expected_output = generator.generate(&modules, *validity);
 
             let tx = TransactionType::Plain {
                 message: expected_output.message.clone(),
