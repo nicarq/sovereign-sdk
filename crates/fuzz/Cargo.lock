@@ -5520,7 +5520,6 @@ version = "0.3.0"
 dependencies = [
  "derivative",
  "http",
- "prometheus",
  "schemars",
  "serde",
  "sov-rollup-interface",

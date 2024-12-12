@@ -1,3 +1,5 @@
+## 2024-12-09
+- #2021 removes prometheus tracking from STF runner. Initialization of Prometheus registry is kept for other crates.
 ## 2024-12-06
 - #1997 Removes `AggregatedProofPublicData` from the public API, making it accessible only after proof verification.
 ## 2024-12-05

@@ -10243,7 +10243,6 @@ dependencies = [
  "anyhow",
  "derivative",
  "http 1.1.0",
- "prometheus",
  "schemars",
  "serde",
  "sov-rollup-interface",
