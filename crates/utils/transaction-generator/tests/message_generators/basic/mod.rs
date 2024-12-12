@@ -16,16 +16,15 @@ use sov_test_utils::{
 use sov_transaction_generator::generators::bank::harness_interface::BankHarness;
 use sov_transaction_generator::generators::bank::BankMessageGenerator;
 use sov_transaction_generator::generators::basic::{
-    BasicCallMessageFactory, BasicChangeLogEntry, BasicClientConfig, BasicTag,
+    BasicBankHarness, BasicCallMessageFactory, BasicChangeLogEntry, BasicModuleRef, BasicTag,
+    BasicValueSetterHarness,
 };
 use sov_transaction_generator::generators::value_setter::{
     ValueSetterHarness, ValueSetterMessageGenerator, ValueSetterTag,
 };
 use sov_transaction_generator::interface::rng_utils::{get_random_bytes, randomize_buffer};
 use sov_transaction_generator::interface::{MessageValidity, Percent};
-use sov_transaction_generator::{
-    AccountState, Distribution, GeneratedMessage, HarnessModule, State,
-};
+use sov_transaction_generator::{AccountState, Distribution, GeneratedMessage, State};
 use sov_value_setter::CallMessageDiscriminants as ValueSetterDiscriminants;
 
 mod combined;
@@ -46,7 +45,6 @@ generate_runtime! {
 }
 
 type RT = TestRuntime<S>;
-type Generator = BasicCallMessageFactory<RT, S>;
 type GeneratorOutput = GeneratedMessage<S, TestRuntimeCall<S>, BasicChangeLogEntry<S>>;
 
 pub const BUFFER_SIZE: usize = 100_000;
@@ -62,31 +60,18 @@ enum ModulesToUse {
 
 impl ModulesToUse {
     /// Builds dynamic module reference
-    #[allow(clippy::type_complexity)]
     pub fn select(
         &self,
-        bank_harness: &BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
-        value_setter_harness: &ValueSetterHarness<
-            S,
-            RT,
-            BasicTag,
-            BasicChangeLogEntry<S>,
-            BasicClientConfig,
-            (),
-        >,
-    ) -> Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>>
-    {
+        bank_harness: &BasicBankHarness<S, RT>,
+        value_setter_harness: &BasicValueSetterHarness<S, RT>,
+    ) -> BasicModuleRef<S, RT> {
         match self {
             ModulesToUse::Bank => {
-                let module: Arc<
-                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-                > = Arc::new(bank_harness.clone());
+                let module: BasicModuleRef<S, RT> = Arc::new(bank_harness.clone());
                 module
             }
             ModulesToUse::ValueSetter => {
-                let module: Arc<
-                    dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>,
-                > = Arc::new(value_setter_harness.clone());
+                let module: BasicModuleRef<S, RT> = Arc::new(value_setter_harness.clone());
                 module
             }
         }
@@ -99,10 +84,9 @@ struct NumTxsExecuted {
 }
 
 pub struct TestGenerator {
-    generator: Generator,
-    bank_harness: BankHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
-    value_setter_harness:
-        ValueSetterHarness<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig, ()>,
+    generator: BasicCallMessageFactory<S, RT>,
+    bank_harness: BasicBankHarness<S, RT>,
+    value_setter_harness: BasicValueSetterHarness<S, RT>,
     state: State<S, BasicTag>,
     randomness: Vec<u8>,
     remaining_randomness: usize,
@@ -112,12 +96,9 @@ pub struct TestGenerator {
 }
 
 impl TestGenerator {
-    #[allow(clippy::type_complexity)]
     pub fn generate(
         &mut self,
-        modules_distribution: &Distribution<
-            Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>>,
-        >,
+        modules_distribution: &Distribution<BasicModuleRef<S, RT>>,
         validity: MessageValidity,
     ) -> GeneratorOutput {
         for _ in 0..20 {
@@ -181,16 +162,13 @@ fn setup_harness(
         max_value_setter_vec_len,
     ));
 
-    #[allow(clippy::type_complexity)]
-    let modules: Vec<
-        Arc<dyn HarnessModule<S, RT, BasicTag, BasicChangeLogEntry<S>, BasicClientConfig>>,
-    > = modules_distribution
+    let modules: Vec<BasicModuleRef<S, RT>> = modules_distribution
         .inner()
         .iter()
         .map(|(_, module_to_use)| module_to_use.select(&bank_harness, &value_setter_harness))
         .collect();
 
-    let mut factory = Generator::new();
+    let mut factory = BasicCallMessageFactory::<S, RT>::new();
 
     // Synchronizes the state with the value setter module
     let mut state: State<S, BasicTag> = State::with_account_and_tags(

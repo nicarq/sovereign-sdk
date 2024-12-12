@@ -21,18 +21,18 @@ use crate::{Distribution, HarnessModule};
 /// states of the generators are fully disjoin.
 #[derive(Debug, Clone, Default)]
 pub struct CallMessageFactory<
-    RT,
     S: Spec,
+    RT,
     Tag: Clone + Eq + Hash + Debug,
     ChangelogEntry,
     ClientConfig,
     Acct = (),
 > {
-    phantom: PhantomData<(RT, S, Tag, ChangelogEntry, ClientConfig, Acct)>,
+    phantom: PhantomData<(S, RT, Tag, ChangelogEntry, ClientConfig, Acct)>,
 }
 
-impl<RT, S: Spec, Tag: Clone + Eq + Hash + Debug, ChangelogEntry, ClientConfig, Acct>
-    CallMessageFactory<RT, S, Tag, ChangelogEntry, ClientConfig, Acct>
+impl<S: Spec, RT, Tag: Clone + Eq + Hash + Debug, ChangelogEntry, ClientConfig, Acct>
+    CallMessageFactory<S, RT, Tag, ChangelogEntry, ClientConfig, Acct>
 {
     /// Instantiate a new [`CallMessageFactory`] with the given
     /// subset of state.
@@ -50,7 +50,7 @@ impl<
         ChangelogEntry: 'static + Clone + Send + Sync,
         ClientConfig: 'static + Clone + Send + Sync,
         BonusAcctData: Debug + Clone + Default + Send + Sync + 'static,
-    > CallMessageFactory<RT, S, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
+    > CallMessageFactory<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>
 {
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
