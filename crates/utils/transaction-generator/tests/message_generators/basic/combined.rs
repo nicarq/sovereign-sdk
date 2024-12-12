@@ -3,7 +3,7 @@ use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{TestSpec as S, TransactionTestCase, TransactionType};
 use sov_transaction_generator::generators::basic::{assert_logs_against_state, BasicClientConfig};
 use sov_transaction_generator::interface::MessageValidity;
-use sov_transaction_generator::Percent;
+use sov_transaction_generator::{Distribution, Percent};
 
 use super::{
     test_with_modules, GeneratorOutput, ModulesToUse, NumTxsExecuted, TestRuntimeCall,
@@ -11,7 +11,7 @@ use super::{
 };
 use crate::basic::RT;
 
-async fn test_combined_generation_helper(modules: Vec<ModulesToUse>) -> NumTxsExecuted {
+async fn test_combined_generation_helper(modules: Distribution<ModulesToUse>) -> NumTxsExecuted {
     let mut transaction_exec_closure =
         |tx: TransactionType<RT, S>, output: GeneratorOutput, runner: &mut TestRunner<RT, S>| {
             runner.execute_transaction(TransactionTestCase {
@@ -80,7 +80,11 @@ async fn test_combined_transaction_generation() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_combined_generation_helper(vec![ModulesToUse::Bank, ModulesToUse::ValueSetter]).await;
+    } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::Bank,
+        ModulesToUse::ValueSetter,
+    ]))
+    .await;
 
     // We should have generated at least one bank and one value setter tx
     assert!(num_bank_txs > 0);
@@ -88,11 +92,34 @@ async fn test_combined_transaction_generation() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn test_combined_transaction_generation_mixed() {
+    let NumTxsExecuted {
+        num_bank_txs,
+        num_value_setter_txs,
+    } = test_combined_generation_helper(Distribution::with_values(vec![
+        (8, ModulesToUse::Bank),
+        (2, ModulesToUse::ValueSetter),
+    ]))
+    .await;
+
+    // We should have generated at least one bank and one value setter tx
+    assert!(num_bank_txs > 0);
+    assert!(num_value_setter_txs > 0);
+    assert!(
+        num_bank_txs > 2 * num_value_setter_txs,
+        "There should be at more bank transactions generated"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn test_generate_txs_only_value_setter() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_combined_generation_helper(vec![ModulesToUse::ValueSetter]).await;
+    } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::ValueSetter,
+    ]))
+    .await;
 
     // We should have generated zero bank transaction and 100 value setter transactions
     assert_eq!(num_bank_txs, 0);
@@ -104,7 +131,10 @@ async fn test_generate_txs_only_bank() {
     let NumTxsExecuted {
         num_bank_txs,
         num_value_setter_txs,
-    } = test_combined_generation_helper(vec![ModulesToUse::Bank]).await;
+    } = test_combined_generation_helper(Distribution::with_equiprobable_values(vec![
+        ModulesToUse::Bank,
+    ]))
+    .await;
 
     // We should have generated zero value setter transaction and 100 bank transactions
     assert_eq!(num_bank_txs, TXS_TO_GENERATE);

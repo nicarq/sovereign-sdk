@@ -26,14 +26,14 @@ pub enum MessageValidity {
 
 impl MessageValidity {
     /// Make a distribution of message validity with the provided percentage of valid messages
-    pub fn as_distribution(percentage_valid_messages: Percent) -> Distribution<2, MessageValidity> {
-        Distribution::with_values(
-            [MessageValidity::Valid, MessageValidity::Invalid],
-            [
-                percentage_valid_messages.0 as u64,
+    pub fn as_distribution(percentage_valid_messages: Percent) -> Distribution<MessageValidity> {
+        Distribution::with_values(vec![
+            (percentage_valid_messages.0 as u64, MessageValidity::Valid),
+            (
                 (100 - percentage_valid_messages.0) as u64,
-            ],
-        )
+                MessageValidity::Invalid,
+            ),
+        ])
     }
 }
 
@@ -140,75 +140,94 @@ impl PartialEq<u8> for Percent {
 /// ```rust
 ///# use sov_transaction_generator::interface::Distribution;
 ///
-/// Distribution::new([1, 1, 1]); // Selects each of the three possibilities one third of the time
-/// Distribution::new([3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
-/// Distribution::new([3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
+/// Distribution::new(vec![1, 1, 1]); // Selects each of the three possibilities one third of the time
+/// Distribution::new(vec![3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
+/// Distribution::new(vec![3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
 /// ```
 #[derive(Debug, Clone)]
-pub struct Distribution<const N: usize, T = ()> {
-    values: [T; N],
-    weights: [u64; N],
-    sum: u128,
+pub struct Distribution<T = ()> {
+    weights_and_values: Vec<(Percent, T)>,
 }
 
-impl<const N: usize, T> Distribution<N, T> {
-    /// Creates a new distribution with the given weights
-    pub fn with_values(values: [T; N], weights: [u64; N]) -> Self {
-        let sum = weights.iter().map(|v| *v as u128).sum();
-        Self {
-            values,
-            weights,
-            sum,
-        }
+impl<T> Distribution<T> {
+    /// Returns the inner array of weights and values
+    pub fn inner(&self) -> &Vec<(Percent, T)> {
+        &self.weights_and_values
     }
 
     /// Creates a new distribution with the given weights
-    pub fn with_equiprobable_values(values: [T; N]) -> Self {
-        Self::with_values(values, [1; N])
+    pub fn with_values(weights_and_values: Vec<(u64, T)>) -> Self {
+        let sum: u128 = weights_and_values.iter().map(|v| v.0 as u128).sum();
+        assert_ne!(
+            sum, 0,
+            "Impossible to build a distribution with null weights"
+        );
+
+        let weights_and_values = weights_and_values
+            .into_iter()
+            .map(|(weight, value)| {
+                (
+                    Percent(
+                        (((weight * 100) as u128) / sum)
+                            .try_into()
+                            .expect("Sum should always be above parts (when parts >= 0)"),
+                    ),
+                    value,
+                )
+            })
+            .collect();
+
+        Self { weights_and_values }
     }
 
-    /// Pick from the distribution at random. Return a usize in range 0..N
-    ///
-    /// # Panics
-    /// Panics if the number of provided choices is not `N`
+    /// Creates a new distribution with the given weights
+    pub fn with_equiprobable_values(values: Vec<T>) -> Self {
+        let weights_and_values = values.into_iter().map(|value| (1, value)).collect();
+        Self::with_values(weights_and_values)
+    }
+
+    /// Pick from the distribution at random. Return a usize in range `0..len(self.weights_and_values)``
     pub fn select_idx(&self, u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<usize> {
-        let mut target: u128 = u.int_in_range(1..=self.sum)?;
-        for (idx, item) in self.weights.iter().cloned().enumerate() {
-            if target <= (item as u128) {
+        let mut target: u8 = u.int_in_range(1..=100)?;
+
+        for (idx, (percent, _)) in self.weights_and_values.iter().enumerate() {
+            if target <= percent.0 {
                 return Ok(idx);
             } else {
-                target -= item as u128;
+                target -= percent.0;
             }
         }
-        unreachable!()
+
+        Ok(self.weights_and_values.len().saturating_sub(1))
     }
 
     /// Pick from the values at random.
     pub fn select_value(&self, u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<&T> {
-        Ok(&self.values[self.select_idx(u)?])
+        Ok(&self.weights_and_values[self.select_idx(u)?].1)
+    }
+
+    /// Maps the values inside the distribution using the mapping function
+    pub fn map_values<U>(self, map_fn: &mut impl (FnMut(T) -> U)) -> Distribution<U> {
+        Distribution {
+            weights_and_values: self
+                .weights_and_values
+                .into_iter()
+                .map(|(p, t)| (p, map_fn(t)))
+                .collect(),
+        }
     }
 }
 
-impl<const N: usize> Distribution<N> {
+impl Distribution {
     /// Creates a new distribution with the given weights
-    pub fn new(weights: [u64; N]) -> Self {
-        Self::with_values([(); N], weights)
-    }
-    /// Select an entry at random from `choices` according to the probability distribution
-    ///
-    /// # Panics
-    /// Panics if the number of provided choices is not `N`
-    pub fn select_from<'a, T>(
-        &self,
-        choices: &'a [T],
-        u: &mut arbitrary::Unstructured<'_>,
-    ) -> arbitrary::Result<&'a T> {
-        Ok(&choices[self.select_idx(u)?])
+    pub fn new(weights: Vec<u64>) -> Self {
+        let weights_and_values = weights.into_iter().map(|weight| (weight, ())).collect();
+        Self::with_values(weights_and_values)
     }
 
     /// Take all branches with equal probability
-    pub fn equiprobable() -> Self {
-        Self::new([1; N])
+    pub fn equiprobable(n: usize) -> Self {
+        Self::new(vec![1; n])
     }
 }
 
@@ -382,4 +401,46 @@ macro_rules! repeatedly {
             $err
         };
     };
+}
+
+#[cfg(test)]
+mod test {
+    use arbitrary::Unstructured;
+    use rng_utils::get_random_bytes;
+
+    use super::*;
+
+    #[test]
+    fn test_uniform_distribution() {
+        let distribution = Distribution::equiprobable(10);
+        distribution
+            .weights_and_values
+            .iter()
+            .for_each(|(weight, _)| {
+                assert_eq!(weight, &Percent(10));
+            });
+    }
+
+    #[test]
+    fn test_distribution_with_values() {
+        let distribution = Distribution::with_values(vec![(1, "a"), (0, "b")]);
+
+        let weights_and_values = distribution.weights_and_values.clone();
+
+        assert_eq!(
+            weights_and_values.first().unwrap().0,
+            Percent::one_hundred()
+        );
+        assert_eq!(weights_and_values.last().unwrap().0, Percent::zero());
+
+        let data = get_random_bytes(10000, 1);
+        let mut u = Unstructured::new(&data);
+
+        for _ in 0..1000 {
+            let value = distribution
+                .select_value(&mut u)
+                .expect("Out of randomness");
+            assert_eq!(value, &"a", "The value must be equal to a");
+        }
+    }
 }

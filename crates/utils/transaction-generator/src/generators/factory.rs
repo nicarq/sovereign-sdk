@@ -12,7 +12,7 @@ use sov_modules_stf_blueprint::Runtime;
 
 use crate::interface::{GeneratedMessage, MessageValidity};
 use crate::state::State;
-use crate::{HarnessModule, PickRandom};
+use crate::{Distribution, HarnessModule};
 
 /// Generates call messages for the modules passed as inputs.
 ///
@@ -78,7 +78,7 @@ impl<
     #[allow(clippy::type_complexity)]
     pub fn generate_call_message(
         &self,
-        modules: &Vec<
+        modules: &Distribution<
             Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
         >,
         u: &mut arbitrary::Unstructured<'_>,
@@ -86,7 +86,7 @@ impl<
         validity: MessageValidity,
     ) -> arbitrary::Result<GeneratedMessage<S, <RT as DispatchCall>::Decodable, ChangelogEntry>>
     {
-        let module = modules.random_entry(u)?;
+        let module = modules.select_value(u)?;
 
         let GeneratedMessage {
             message,

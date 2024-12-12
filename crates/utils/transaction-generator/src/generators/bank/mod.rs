@@ -33,7 +33,7 @@ pub const MESSAGES: &[sov_bank::CallMessageDiscriminants] =
 /// A generator for bank call messages.
 #[derive(Debug, Clone)]
 pub struct BankMessageGenerator<S> {
-    message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+    message_distribution: Distribution<CallMessageDiscriminants>,
     // The fraction of valid messages that should create a new address. This may be
     // any valid percent from 0 to 100 (inclusive).
     pub(crate) address_creation_rate: Percent,
@@ -43,7 +43,7 @@ pub struct BankMessageGenerator<S> {
 impl<S: Spec> BankMessageGenerator<S> {
     /// Instantiate a new [`BankMessageGenerator`]
     pub fn new(
-        message_distribution: Distribution<{ MESSAGES.len() }, CallMessageDiscriminants>,
+        message_distribution: Distribution<CallMessageDiscriminants>,
         address_creation_rate: Percent,
     ) -> Self {
         Self {
