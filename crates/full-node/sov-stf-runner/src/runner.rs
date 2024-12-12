@@ -411,9 +411,6 @@ where
             current_state_root = hex::encode(prev_state_root.as_ref()),
             "Requesting DA block"
         );
-        sov_metrics::update_metrics(|metrics| {
-            metrics.current_da_height.set(next_da_height as i64);
-        });
 
         let mut transaction_count = 0;
         let mut batch_count = 0;
@@ -545,55 +542,6 @@ where
             time = ?loop_start.elapsed(),
             "Execution of block is completed"
         );
-        // Legacy Prometheus metrics
-        sov_metrics::update_metrics(|metrics| {
-            metrics.da_blocks_processed.inc();
-            metrics.rollup_batches_processed.inc_by(batch_count);
-            metrics.batch_bytes_processed.inc_by(batch_bytes_processed);
-            metrics.proof_bytes_processed.inc_by(proof_bytes_processed);
-            metrics
-                .proof_blobs_processed
-                .inc_by(proof_blobs_processed as _);
-            metrics.rollup_txns_processed.inc_by(transaction_count as _);
-            let synced_da_height = self
-                .sync_state
-                .synced_da_height
-                .load(std::sync::atomic::Ordering::Acquire);
-            let target_da_height = self
-                .sync_state
-                .target_da_height
-                .load(std::sync::atomic::Ordering::Acquire);
-
-            let distance = target_da_height as i64 - synced_da_height as i64;
-            metrics.sync_distance.set(distance);
-
-            metrics
-                .process_slot_sec
-                .observe(loop_start.elapsed().as_secs_f64());
-            metrics
-                .stf_transition_sec
-                .observe(stf_execution_start.elapsed().as_secs_f64());
-            metrics.get_block_sec.observe(get_block_time.as_secs_f64());
-
-            metrics
-                .process_slot_ms_by_slot
-                .set(loop_start.elapsed().as_millis() as i64);
-            metrics
-                .stf_transition_with_commit_ms_by_slot
-                .set(apply_slot_start.elapsed().as_millis() as i64);
-            metrics
-                .apply_slot_ms_by_slot
-                .set(apply_slot_time.as_millis() as i64);
-            metrics
-                .extract_blobs_ms_by_slot
-                .set(da_extraction_time.as_millis() as i64);
-            metrics
-                .get_blob_extraction_proof_ms_by_slot
-                .set(get_relevant_proofs_time.as_millis() as i64);
-            metrics
-                .get_block_ms_by_slot
-                .set(get_block_time.as_millis() as i64);
-        });
         // New influxdb metrics
         sov_metrics::track_metrics(|metrics| {
             let synced_da_height = self
