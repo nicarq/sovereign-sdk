@@ -87,7 +87,10 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	zepter
 	zepter
 	$(MAKE) check-fuzz
-	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features
+	$(MAKE) clippy
+
+clippy:
+	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features -- -A clippy::too_many_arguments
 
 cargo-deny-check-licenses:
 	cargo deny check licenses

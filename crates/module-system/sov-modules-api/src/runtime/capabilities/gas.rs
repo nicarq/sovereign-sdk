@@ -17,11 +17,6 @@ pub trait GasEnforcer<S: Spec> {
         <S as GasSpec>::max_tx_check_costs()
     }
 
-    /// The gas used in the batch hooks.
-    fn batch_hook_gas(&self) -> <S as Spec>::Gas {
-        <S as GasSpec>::batch_hook_gas()
-    }
-
     /// The gas used for the transaction pre-execution checks.
     /// For example nonce checks, context resolution etc..
     fn process_tx_pre_exec_checks_gas(&self) -> <S as Spec>::Gas {

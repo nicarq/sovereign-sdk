@@ -8,7 +8,9 @@ use sov_bank::Bank;
 use sov_mock_da::{MockAddress, MockBlob, MockDaSpec};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{ApiStateAccessor, Batch, DaSpec, Gas, PrivateKey, RawTx, Rewards, Spec};
+use sov_modules_api::{
+    ApiStateAccessor, DaSpec, FullyBakedTx, Gas, PrivateKey, RawTx, Rewards, Spec,
+};
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_sequencer_registry::{AllowedSequencerError, SequencerRegistry};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -208,7 +210,7 @@ fn create_tx_out_of_gas(
 
 /// Builds a [`MockBlob`] from a [`Batch`] and a given address.
 pub fn new_test_blob_from_batch(
-    batch: Batch,
+    batch: Vec<FullyBakedTx>,
     address: &[u8],
 ) -> <MockDaSpec as DaSpec>::BlobTransaction {
     let address = MockAddress::try_from(address).unwrap();
@@ -242,6 +244,5 @@ fn default_rewards() -> Rewards {
     Rewards {
         accumulated_reward: 0,
         accumulated_penalty: 0,
-        hooks_cost: 0,
     }
 }

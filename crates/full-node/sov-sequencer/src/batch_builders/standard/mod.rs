@@ -16,7 +16,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::transaction::SequencerReward;
 use sov_modules_api::{
-    Batch, ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, RawTx, Spec,
+    ExecutionContext, FullyBakedTx, Gas, GasMeter, NestedEnumUtils, NoOpControlFlow, RawTx, Spec,
     StateCheckpoint, StateProvider, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{
@@ -26,6 +26,7 @@ use sov_modules_stf_blueprint::{
 use sov_rollup_interface::node::DaSyncState;
 use thiserror::Error;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tracing::error;
 
 use self::mempool::{Mempool, MempoolCursor};
@@ -158,6 +159,7 @@ where
             ctx.visible_height,
             tx_scratchpad,
             ExecutionContext::Sequencer,
+            &NoOpControlFlow,
         );
 
         match res {
@@ -211,7 +213,7 @@ where
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
     type Confirmation = EmptyConfirmation<Z>;
-    type Batch = Batch;
+    type Batch = Vec<FullyBakedTx>;
     type Config = StdBatchBuilderConfig;
     type Spec = Z::Spec;
 
@@ -220,7 +222,7 @@ where
         _da_sync_state: Arc<DaSyncState>,
         seq_db_txs: Vec<SeqDbTx>,
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
         let runtime = Z::Rt::default();
         let kernel_with_slot_mapping = runtime.kernel_with_slot_mapping();
         let kernel = runtime.kernel();
@@ -238,23 +240,26 @@ where
         let checkpoint = StateCheckpoint::new(latest_state_update.storage.clone(), &kernel);
         let txsm = TxStatusManager::default();
 
-        Ok(Self {
-            mempool: Mempool::new(
-                txsm.clone(),
-                config
-                    .batch_builder
-                    .mempool_max_txs_count
-                    .unwrap_or(default_mempool_max_txs_count()),
-                seq_db_txs,
-            )?,
-            txsm,
-            api_state,
-            runtime: Z::Rt::default(),
-            checkpoint_sender,
-            checkpoint: Some(checkpoint),
-            tx_hashes_of_last_batch: vec![],
-            config: config.clone(),
-        })
+        Ok((
+            Self {
+                mempool: Mempool::new(
+                    txsm.clone(),
+                    config
+                        .batch_builder
+                        .mempool_max_txs_count
+                        .unwrap_or(default_mempool_max_txs_count()),
+                    seq_db_txs,
+                )?,
+                txsm,
+                api_state,
+                runtime: Z::Rt::default(),
+                checkpoint_sender,
+                checkpoint: Some(checkpoint),
+                tx_hashes_of_last_batch: vec![],
+                config: config.clone(),
+            },
+            None,
+        ))
     }
 
     fn encode_tx(raw: RawTx) -> Self::TxInput {
@@ -534,10 +539,7 @@ where
 
             (
                 ctx.state_checkpoint,
-                Ok(FreshlyBuiltBatch {
-                    inner: Batch { txs },
-                    hashes,
-                }),
+                Ok(FreshlyBuiltBatch { inner: txs, hashes }),
             )
         })(state_checkpoint);
 

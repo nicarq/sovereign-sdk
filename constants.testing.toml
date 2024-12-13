@@ -53,14 +53,10 @@ GAS_TO_CHARGE_PER_BYTE_HASH_FINALIZE = [3, 3]
 # The cost of verifying a signature per byte of the signature
 DEFAULT_GAS_TO_CHARGE_PER_BYTE_SIGNATURE_VERIFICATION = [1, 1]
 # The fixed cost of verifying a signature
-DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION = [
-    100, 100
-]
+DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION = [100, 100]
 # --- End Gas parameters to specify how to charge gas for signature verification ---
 # Maximum amount of gas the sequencer can pay for the tx execution ---
-MAX_SEQUENCER_EXEC_GAS_PER_TX =  [100000, 100000]
-# Gas parameters to specify batch hook costs ---
-BATCH_HOOK_GAS = [0, 0]
+MAX_SEQUENCER_EXEC_GAS_PER_TX = [100000, 100000]
 # Gas parameters to specify tx pre execution costs ---
 PROCESS_TX_PRE_EXEC_GAS = [0, 0]
 # The cost of deserializing a message using Borsh
@@ -78,7 +74,6 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 # The elasticity multiplier of the base fee.
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
-
 
 
 CONST_TOKEN_ID = { const = { bech32 = "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm", type = "MyTokenId" } }
@@ -138,5 +133,5 @@ ARRAY_OF_U8 = [
     11,
     11,
     11,
-    11
+    11,
 ]

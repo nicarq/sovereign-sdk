@@ -10,7 +10,7 @@ use sov_blob_storage::PreferredBatchData;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
-use sov_modules_api::{Batch, CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
+use sov_modules_api::{CryptoSpec, EncodeCall, FullyBakedTx, Module, RawTx, Spec};
 use sov_modules_stf_blueprint::Runtime;
 
 use crate::{TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
@@ -77,7 +77,7 @@ impl<S: Spec, Mod: Module> Message<S, Mod> {
 }
 
 /// The execution mode of the blob sender. This is used to specify how to appropriately serialize blobs (
-/// using the [`PreferredBatchData`] struct or the standard [`Batch`] struct).
+/// using the [`PreferredBatchData`] struct or a standard batch ).
 pub enum BlobBuildingCtx {
     /// Standard execution mode
     Standard,
@@ -190,7 +190,7 @@ pub trait MessageGenerator {
     }
 
     /// Generates a list of blobs originating from the module using default transaction details.
-    /// This function calls [`MessageGenerator::create_default_encoded_txs`] and then wraps the resulting vec of [`RawTx`]s into a [`Batch`].
+    /// This function calls [`MessageGenerator::create_default_encoded_txs`].
     fn create_blobs<
         RT: TransactionAuthenticator<Self::Spec> + EncodeCall<Self::Module> + Runtime<Self::Spec>,
     >(
@@ -202,15 +202,13 @@ pub trait MessageGenerator {
             .into_iter()
             .collect();
 
-        let batch = Batch::new(txs);
-
         match mode {
-            BlobBuildingCtx::Standard => borsh::to_vec(&batch).unwrap(),
+            BlobBuildingCtx::Standard => borsh::to_vec(&txs).unwrap(),
             BlobBuildingCtx::Preferred {
                 curr_sequence_number,
             } => {
                 let batch = PreferredBatchData {
-                    data: batch,
+                    data: txs,
                     sequence_number: curr_sequence_number
                         .fetch_add(1, std::sync::atomic::Ordering::SeqCst),
                     virtual_slots_to_advance: 1,

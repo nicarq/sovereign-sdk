@@ -1,12 +1,13 @@
 //! The demo-rollup supports `EVM` and `sov-module` authenticators.
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_evm::EthereumAuthenticator;
+use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
     calculate_hash, AuthenticationError, AuthenticationOutput, AuthorizationData, FatalError,
     UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
+use sov_modules_api::transaction::TransactionWithoutCall;
 use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
 use sov_state::User;
 
@@ -22,6 +23,27 @@ where
     type AuthorizationData = AuthorizationData<S>;
 
     type Input = Auth;
+
+    type Signature = Auth<TransactionSigned, TransactionWithoutCall<S>>;
+
+    fn parse_input(
+        &self,
+        tx: &Self::Input,
+    ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
+        match tx {
+            Auth::Evm(rlp_tx) => {
+                let (call, tx) = sov_evm::parse_input(rlp_tx)?;
+                Ok((
+                    RuntimeCall::Evm(sov_evm::CallMessage { rlp: call }),
+                    Auth::Evm(tx),
+                ))
+            }
+            Auth::Mod(raw_tx) => {
+                let (call, tx) = sov_modules_api::capabilities::parse_input::<_, Self>(raw_tx)?;
+                Ok((call, Auth::Mod(tx)))
+            }
+        }
+    }
 
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
@@ -106,13 +128,13 @@ where
 /// Describes which authenticator to use to deserialize and check the signature on
 /// the transaction.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
-pub enum Auth {
+pub enum Auth<Evm = Vec<u8>, Mod = Vec<u8>> {
     /// Authenticate using the `EVM` authenticator, which expects a standard EVM transaction
     /// (i.e. an rlp-encoded payload signed using secp256k1 and hashed using keccak256).
-    Evm(Vec<u8>),
+    Evm(Evm),
     /// Authenticate using the standard `sov-module` authenticator, which uses the default
     /// signature scheme and hashing algorithm defined in the rollup's [`Spec`].
-    Mod(Vec<u8>),
+    Mod(Mod),
 }
 
 impl<S: Spec> EthereumAuthenticator<S> for Runtime<S>

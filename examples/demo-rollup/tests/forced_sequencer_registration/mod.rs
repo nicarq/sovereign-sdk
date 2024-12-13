@@ -37,6 +37,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::Periodic,
         1,
+        0,
     )
     .with_standard_batch_builder()
     .set_config(|c| {

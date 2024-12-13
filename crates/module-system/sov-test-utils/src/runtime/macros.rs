@@ -198,6 +198,15 @@ macro_rules! impl_standard_runtime_authenticator {
             type AuthorizationData = ::sov_modules_api::capabilities::AuthorizationData<S>;
             type Input = AuthenticatorInput;
 
+            type Signature = ::sov_modules_api::transaction::TransactionWithoutCall<S>;
+
+            fn parse_input(
+                &self,
+                tx: &Self::Input,
+            ) -> Result<(Self::Decodable, Self::Signature), ::sov_modules_api::capabilities::FatalError> {
+                ::sov_modules_api::capabilities::parse_input::<_, Self>(&tx.0.data)
+            }
+
 
             fn authenticate<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,

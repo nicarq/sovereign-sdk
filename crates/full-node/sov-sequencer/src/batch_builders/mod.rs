@@ -21,6 +21,7 @@ use sov_modules_api::{
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
+use tokio::task::JoinHandle;
 use tracing::error;
 
 use crate::sequencer::SequencerNotReadyDetails;
@@ -92,7 +93,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
             <Self::Spec as Spec>::Address,
             Self::Config,
         >,
-    ) -> anyhow::Result<Self>;
+    ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)>;
 
     /// Returns a copy of the [`TxStatusManager`] that the [`BatchBuilder`] uses
     /// to notify about dropped transactions.

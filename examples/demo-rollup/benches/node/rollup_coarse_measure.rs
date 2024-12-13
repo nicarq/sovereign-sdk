@@ -19,7 +19,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlob, MockBlock, MockBlockHeader};
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{Batch, BatchSequencerOutcome, EncodeCall, FullyBakedTx, RawTx, Spec};
+use sov_modules_api::{BatchSequencerOutcome, EncodeCall, FullyBakedTx, RawTx, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_rollup_interface::crypto::{PrivateKey, PublicKey};
 use sov_rollup_interface::da::{BlockHeaderTrait, RelevantBlobs};
@@ -269,10 +269,9 @@ fn setup(
         deployer_nonce += 1;
     }
 
-    let batch = Batch::new(setup_txs);
     let setup_blob = MockBlob::new_with_hash(
         borsh::to_vec(&PreferredBatchData {
-            data: batch,
+            data: setup_txs,
             sequence_number: curr_seq_num,
             virtual_slots_to_advance: 1,
         })
@@ -351,10 +350,9 @@ fn setup(
             txs.push(ser_tx);
         }
 
-        let batch = Batch::new(txs);
         let blob = MockBlob::new_with_hash(
             borsh::to_vec(&PreferredBatchData {
-                data: batch,
+                data: txs,
                 sequence_number: curr_seq_num,
                 virtual_slots_to_advance: 1,
             })

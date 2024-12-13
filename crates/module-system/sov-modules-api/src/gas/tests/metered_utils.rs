@@ -199,27 +199,24 @@ pub struct BorshTestStruct {
 
 #[test]
 fn test_metered_deserializer() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
-    let gas_price = GasPrice::<2>::from([1, 1]);
-
     let data = BorshTestStruct {
         field1: 1,
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
+    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
+        GasUnit<2>,
+    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
-    let remaining_funds = gas_to_charge_for_deserialization
-        .clone()
-        .scalar_product(serialized_data.len() as u64)
-        .value(&gas_price);
+    let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
     let deserialized_data =
-            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize_with_custom_cost(
+            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize::<S>(
                 &mut serialized_data.as_slice(),
                 &mut ws,
-                gas_to_charge_for_deserialization,
             )
             .expect("Deserialization should succeed because there should be enough gas available in the gas meter");
 
@@ -231,27 +228,24 @@ fn test_metered_deserializer() {
 
 #[test]
 fn test_metered_deserializer_not_enough_gas() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
-    let gas_price = GasPrice::<2>::from([1, 1]);
-
     let data = BorshTestStruct {
         field1: 1,
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
+    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
+        GasUnit<2>,
+    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
-    let remaining_funds = gas_to_charge_for_deserialization
-        .clone()
-        .scalar_product(serialized_data.len() as u64 - 1)
-        .value(&gas_price);
+    let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price) - 1;
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
     let deserialized_err =
-            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize_with_custom_cost(
+            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize::<S>(
                 &mut serialized_data.as_slice(),
                 &mut ws,
-                gas_to_charge_for_deserialization,
             )
             .expect_err("Deserialization should fail because there should not be enough gas available in the gas meter");
 
@@ -263,27 +257,24 @@ fn test_metered_deserializer_not_enough_gas() {
 
 #[test]
 fn test_metered_deserializer_invalid_data() {
-    let gas_to_charge_for_deserialization = GasUnit::<2>::from([5, 5]);
-    let gas_price = GasPrice::<2>::from([1, 1]);
-
     let data = BorshTestStruct {
         field1: 1,
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
+    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
+        GasUnit<2>,
+    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_price = GasPrice::<2>::from([1, 1]);
 
-    let remaining_funds = gas_to_charge_for_deserialization
-        .clone()
-        .scalar_product(serialized_data.len() as u64)
-        .value(&gas_price);
+    let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
     let deserialize_err =
-        <BorshTestStruct as MeteredBorshDeserialize<GasUnit<2>>>::deserialize_with_custom_cost(
+        <BorshTestStruct as MeteredBorshDeserialize<GasUnit<2>>>::deserialize::<S>(
             &mut &serialized_data[1..],
             &mut ws,
-            gas_to_charge_for_deserialization,
         )
         .expect_err("Deserialization should fail because the data is invalid");
 

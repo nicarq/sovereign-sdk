@@ -7,7 +7,7 @@ use sov_mock_da::{
     PlannedFork,
 };
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::{Batch, FullyBakedTx, StateTransitionFunction};
+use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
 use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
@@ -252,8 +252,5 @@ fn get_result_from_blocks(
 }
 
 fn batch(data: Vec<u8>) -> Vec<u8> {
-    borsh::to_vec(&Batch {
-        txs: vec![FullyBakedTx { data }],
-    })
-    .unwrap()
+    borsh::to_vec(&vec![FullyBakedTx { data }]).unwrap()
 }

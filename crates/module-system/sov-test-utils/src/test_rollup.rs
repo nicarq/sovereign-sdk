@@ -84,6 +84,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         genesis: GenesisSource<R::Spec, R::Runtime>,
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
+        minimum_profit_per_tx: u64,
     ) -> Self {
         let da_config = MockDaConfig {
             // This will be set later based on the storage path. In case of a bug,
@@ -106,6 +107,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                 max_infos_in_db: 80 + finalization_blocks as u64,
                 batch_builder_config: BatchBuilderConfig::Preferred(PreferredBatchBuilderConfig {
                     should_update_state: true,
+                    minimum_profit_per_tx,
                 }),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,

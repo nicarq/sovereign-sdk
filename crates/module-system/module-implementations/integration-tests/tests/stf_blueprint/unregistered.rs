@@ -1,5 +1,3 @@
-use std::env;
-
 use helpers::*;
 use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
@@ -114,7 +112,6 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
             sov_modules_api::BatchSequencerOutcome::Executed(Rewards {
                 accumulated_reward: seq_fee,
                 accumulated_penalty: 0,
-                hooks_cost: 0
             })
         );
 
@@ -129,7 +126,6 @@ fn check_unreg_txs(tx_statuses: Vec<TxStatus>, priority_fee_bips: PriorityFeeBip
 #[test]
 #[serial]
 fn execute_seq_registration_success_test() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 100]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![TxStatus::Success, TxStatus::Success];
     check_unreg_txs(tx_statuses, priority_fee_bips);
@@ -139,7 +135,6 @@ fn execute_seq_registration_success_test() {
 #[test]
 #[serial]
 fn execute_seq_registration_failure_test() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[10, 10]");
     let priority_fee_bips = PriorityFeeBips::from_percentage(5);
     let tx_statuses = vec![
         TxStatus::OutOfGas,

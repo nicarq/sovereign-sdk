@@ -16,8 +16,8 @@ use sov_mock_zkvm::MockCodeCommitment;
 use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{
-    Batch, BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, Gas, GasSpec,
-    GasUnit, RawTx, Spec,
+    BatchSequencerOutcome, BatchSequencerReceipt, EncodeCall, FullyBakedTx, Gas, GasSpec, GasUnit,
+    RawTx, Spec,
 };
 use sov_modules_macros::config_value;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
@@ -78,7 +78,7 @@ fn build_batch_blob(
     current_seq_num: &Arc<AtomicU64>,
 ) -> RelevantBlobs<MockBlob> {
     let blob = borsh::to_vec(&PreferredBatchData {
-        data: Batch::new(txs),
+        data: txs,
         sequence_number: current_seq_num.fetch_add(1, Ordering::SeqCst),
         virtual_slots_to_advance: 1,
     })

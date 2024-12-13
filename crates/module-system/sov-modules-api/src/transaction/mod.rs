@@ -81,6 +81,37 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
 }
 impl<R: TransactionCallable, S: Spec> Eq for Transaction<R, S> {}
 
+/// a [`Transaction`] with the runtime_call removed
+pub struct TransactionWithoutCall<S: Spec> {
+    /// The signature of the transaction.
+    pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    /// The public key of the sender of the transaction.
+    pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+    /// The nonce of the transaction.
+    pub nonce: u64,
+    /// The transaction metadata. Contains gas parameters and the chain ID.
+    pub details: TxDetails<S>,
+}
+
+impl<S: Spec> TransactionWithoutCall<S> {
+    /// Construct a [`Transaction`] by adding back the appropriate CallMessage.
+    pub fn with_call<R: TransactionCallable>(self, runtime_call: R::Call) -> Transaction<R, S> {
+        let TransactionWithoutCall {
+            nonce,
+            details,
+            signature,
+            pub_key,
+        } = self;
+        Transaction {
+            nonce,
+            details,
+            signature,
+            pub_key,
+            runtime_call,
+        }
+    }
+}
+
 /// Errors that can be raised by the [`Transaction::verify`] method.
 #[derive(Error, Debug)]
 pub enum TransactionVerificationError<GU: Gas> {
@@ -157,6 +188,26 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
             nonce,
             details,
         }
+    }
+
+    /// Extract the runtime call from the transaction
+    pub fn split(self) -> (TransactionWithoutCall<S>, R::Call) {
+        let Transaction {
+            runtime_call,
+            nonce,
+            details,
+            signature,
+            pub_key,
+        } = self;
+        (
+            TransactionWithoutCall {
+                nonce,
+                details,
+                signature,
+                pub_key,
+            },
+            runtime_call,
+        )
     }
 
     fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {

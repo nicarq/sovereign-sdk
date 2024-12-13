@@ -27,9 +27,9 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
-    ApiStateAccessor, ApplySlotOutput, Batch, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall,
-    Error, Gas, Genesis, InfallibleStateAccessor, Module, PrivateKey, Spec, StateCheckpoint,
-    TxEffect, VersionReader,
+    ApiStateAccessor, ApplySlotOutput, BlobDataWithId, CryptoSpec, DaSpec, EncodeCall, Error, Gas,
+    Genesis, InfallibleStateAccessor, Module, PrivateKey, Spec, StateCheckpoint, TxEffect,
+    VersionReader,
 };
 use sov_modules_stf_blueprint::{
     get_gas_used, StfBlueprint, TransactionReceipt, TxReceiptContents,
@@ -497,8 +497,7 @@ where
                     .into_iter()
                     .map(|tx| tx.to_serialized_authenticated_tx(nonces))
                     .collect::<Vec<_>>();
-                let batch = Batch::new(txns);
-                MockBlob::new_with_hash(borsh::to_vec(&batch).unwrap(), sequencer)
+                MockBlob::new_with_hash(borsh::to_vec(&txns).unwrap(), sequencer)
             })
             .collect::<Vec<_>>();
 
@@ -535,11 +534,11 @@ where
                             sequence_number,
                         } => borsh::to_vec(&PreferredBatchData {
                             sequence_number,
-                            data: Batch::new(raw_txns),
+                            data: raw_txns,
                             virtual_slots_to_advance: slots_to_advance as u8,
                         })
                         .unwrap(),
-                        SequencerInfo::Regular => borsh::to_vec(&Batch::new(raw_txns)).unwrap(),
+                        SequencerInfo::Regular => borsh::to_vec(&raw_txns).unwrap(),
                     };
 
                     MockBlob::new_with_hash(serialized_batch, sequencer_address)

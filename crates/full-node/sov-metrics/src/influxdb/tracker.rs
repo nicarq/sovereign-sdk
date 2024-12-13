@@ -107,6 +107,12 @@ impl MetricsTracker {
         self.submit(SovRollupMetric::TransactionProcessing(timestamp, point));
     }
 
+    /// Tracks metrics related to the part of slot processing that happens in user space. Written as a single point.
+    pub fn track_user_space_slot_processing(&self, point: UserSpaceSlotProcessingMetrics) {
+        let timestamp = timestamp();
+        self.submit(SovRollupMetric::UserSpaceSlotProcessing(timestamp, point));
+    }
+
     /// Tracks metrics related to slot processing. Written as a single point.
     pub fn track_slot_processing(&self, point: SlotProcessingMetrics) {
         let timestamp = timestamp();
@@ -236,6 +242,21 @@ pub struct SlotProcessingMetrics {
     /// Includes kernel and state initialization + chain_state logic.
     pub blobs_selection_time: std::time::Duration,
 
+    /// Time it took to materialize slot changes and finalize slot hooks.
+    pub slot_finalization_time: std::time::Duration,
+
+    /// Height of DA layer when this slot has been applied.
+    pub da_height: u64,
+
+    /// Visible rollup height at given slot.
+    pub rollup_height: u64,
+
+    /// [`sov_rollup_interface::stf::ExecutionContext`]
+    pub execution_context: sov_rollup_interface::stf::ExecutionContext,
+}
+
+/// Metrics related to processing of a single slot.
+pub struct UserSpaceSlotProcessingMetrics {
     /// Time it took for begin slot hooks.
     /// Includes KernelSlotHooks and normal SlotHooks.
     pub begin_slot_hooks_time: std::time::Duration,
@@ -246,13 +267,9 @@ pub struct SlotProcessingMetrics {
     /// Time it took for end slot hooks.
     pub end_slot_hooks_time: std::time::Duration,
 
-    /// Time it took to materialize slot changes and finalize slot hooks.
-    pub slot_finalization_time: std::time::Duration,
-
-    /// Height of DA layer when this slot has been applied.
-    pub da_height: u64,
     /// Visible rollup height at given slot.
     pub rollup_height: u64,
+
     /// [`sov_rollup_interface::stf::ExecutionContext`]
     pub execution_context: sov_rollup_interface::stf::ExecutionContext,
 }
@@ -318,17 +335,30 @@ impl Metric for SlotProcessingMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},begin_hooks={},blobs_processing={},end_hooks={},finalization={},rollup_height={},da_height={}",
+            "sov_rollup_slot_execution_time_us,context={:?} blobs_selection={},finalization={},rollup_height={},da_height={}",
             // Tags
             self.execution_context,
             // Fields
             self.blobs_selection_time.as_micros(),
-            self.begin_slot_hooks_time.as_micros(),
-            self.blobs_processing_time.as_micros(),
-            self.end_slot_hooks_time.as_micros(),
             self.slot_finalization_time.as_micros(),
             self.rollup_height,
             self.da_height,
+        )
+    }
+}
+
+impl Metric for UserSpaceSlotProcessingMetrics {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_slot_execution_time_us,context={:?} begin_hooks={},blobs_processing={},end_hooks={},rollup_height={}",
+            // Tags
+            self.execution_context,
+            // Fields
+            self.begin_slot_hooks_time.as_micros(),
+            self.blobs_processing_time.as_micros(),
+            self.end_slot_hooks_time.as_micros(),
+            self.rollup_height,
         )
     }
 }
@@ -401,6 +431,7 @@ enum SovRollupMetric {
     RunnerCount(Timestamp, RunnerCountMetrics),
     RunnerTimes(Timestamp, RunnerTimeMetrics),
     SlotProcessing(Timestamp, SlotProcessingMetrics),
+    UserSpaceSlotProcessing(Timestamp, UserSpaceSlotProcessingMetrics),
     BatchProcessing(Timestamp, BatchMetrics),
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
     Http(Timestamp, HttpMetrics),
@@ -434,6 +465,10 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::Http(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::UserSpaceSlotProcessing(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }

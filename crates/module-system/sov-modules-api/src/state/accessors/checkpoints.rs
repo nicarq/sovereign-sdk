@@ -61,7 +61,27 @@ impl<S: Storage> StateCheckpoint<S> {
     /// of the other related [`Storage`] methods. Note that this data is moved
     /// **out** of the [`StateCheckpoint`] i.e. it can't be extracted twice.
     pub fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness) {
-        self.delta.freeze()
+        let (state_accesses, accesory_delta, witness, _storage) = self.delta.freeze();
+        (state_accesses, accesory_delta, witness)
+    }
+
+    /// Extracts ordered reads, writes, and witness from this [`StateCheckpoint`] and uses
+    /// them to compute the `StateUpdate` created by this StateCheckpoint.
+    pub fn materialize_update(
+        self,
+    ) -> (
+        <S as Storage>::Root,
+        <S as Storage>::StateUpdate,
+        AccessoryDelta<S>,
+        S::Witness,
+        S,
+    ) {
+        let (cache_log, accessory_delta, witness, storage) = self.delta.freeze();
+
+        let (root, update) = storage
+            .compute_state_update(cache_log, &witness)
+            .expect("state update computation must succeed");
+        (root, update, accessory_delta, witness, storage)
     }
 
     /// Updates the true rollup height and the virtual rollup height.
@@ -69,6 +89,22 @@ impl<S: Storage> StateCheckpoint<S> {
     #[cfg(test)]
     pub fn update_version(&mut self, virtual_slot_num: u64) {
         self.virtual_slot_num = virtual_slot_num;
+    }
+
+    /// Directly apply a set of changes to the state checkpoint. This method should generally *not* be used
+    /// during normal execution, since changes should happen through `StateValue` types which
+    /// use the UniversalStateAccessor API. It is primarily intended for use in the sequencer, which has to manage
+    /// its own state.
+    // TODO: Remove this method when we stop using `StateCheckpoint` in the sequencer
+    #[cfg(feature = "native")]
+    pub fn apply_changes(&mut self, changeset: super::TxChangeSet) {
+        for ((key, namespace), value) in changeset.changes {
+            if let Some(value) = value {
+                self.set(namespace, &key, value);
+            } else {
+                self.delete(namespace, &key);
+            }
+        }
     }
 }
 
