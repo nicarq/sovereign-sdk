@@ -27,7 +27,7 @@ use sov_rollup_interface::{ProvableHeightTracker, StateUpdateInfo};
 use tokio::sync::watch;
 use tower_http::normalize_path::NormalizePathLayer;
 use tower_layer::Layer;
-use tracing::{debug, info};
+use tracing::{debug, info, trace};
 
 use crate::da_pre_fetcher::FinalizedBlocksBulkFetcher;
 use crate::processes::{new_stf_info_channel, Receiver};
@@ -357,7 +357,12 @@ where
                             target_da_height,
                         } = sync_state.status()
                         {
-                            info!(synced_da_height, target_da_height, "Sync in progress");
+                            let distance = target_da_height - synced_da_height;
+                            if distance > 1 {
+                                info!(synced_da_height, target_da_height, "Sync in progress");
+                            } else {
+                                trace!(synced_da_height, target_da_height, "Sync in progress");
+                            }
                         }
                         future_or_shutdown(interval.tick(), &shutdown_receiver).await;
                     }
