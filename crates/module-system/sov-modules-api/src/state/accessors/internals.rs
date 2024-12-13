@@ -48,7 +48,7 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub(super) fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness) {
+    pub(super) fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness, S) {
         let Self {
             inner,
             user_cache,
@@ -66,9 +66,10 @@ impl<S: Storage> Delta<S> {
             AccessoryDelta {
                 version,
                 writes: accessory_writes,
-                storage: inner,
+                storage: inner.clone(),
             },
             witness,
+            inner,
         )
     }
 }
@@ -199,6 +200,14 @@ impl<T> RevertableWriter<T> {
             inner,
             writes: Default::default(),
         }
+    }
+
+    /// Get an iterator over the current writes
+    pub fn changes(&self) -> Vec<((SlotKey, Namespace), Option<SlotValue>)> {
+        self.writes
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
 
     /// Commit all items from [`RevertableWriter`] returning the inner storage.

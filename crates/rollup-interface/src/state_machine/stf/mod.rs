@@ -103,6 +103,16 @@ pub enum ExecutionContext {
     Node,
 }
 
+impl ExecutionContext {
+    /// Returns true if and only if `self` matches [`ExecutionContext::Sequencer`].
+    pub fn is_sequencer(&self) -> bool {
+        match self {
+            Self::Sequencer => true,
+            Self::Node => false,
+        }
+    }
+}
+
 /// The error returned when the proof that was processed is invalid.
 #[derive(Debug, Clone, Error, Eq, PartialEq)]
 pub enum InvalidProofError {

@@ -1,11 +1,10 @@
 use std::convert::Infallible;
-use std::env;
 
 use serial_test::serial;
 use sov_bank::config_gas_token_id;
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Batch, BatchSequencerOutcome, PrivateKey, PublicKey};
+use sov_modules_api::{BatchSequencerOutcome, PrivateKey, PublicKey};
 use sov_modules_stf_blueprint::TxProcessingError;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
@@ -26,7 +25,6 @@ fn assert_outcome(outcome: &BatchSequencerOutcome) {
         BatchSequencerOutcome::Executed(rewards) => {
             assert_eq!(rewards.accumulated_reward, 0);
             assert!(rewards.accumulated_penalty > 0);
-            assert_eq!(rewards.hooks_cost, 0);
         }
         BatchSequencerOutcome::Ignored(e) => panic!(
             "The outcome should be `Executed`. Instead the batch was ignored with the message {e}"
@@ -37,7 +35,6 @@ fn assert_outcome(outcome: &BatchSequencerOutcome) {
 #[test]
 #[serial]
 fn test_tx_revert() -> Result<(), Infallible> {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     // Test checks:
     //  - Batch is successfully applied even with incorrect txs
     //  - Nonce for bad transactions has increased
@@ -50,7 +47,7 @@ fn test_tx_revert() -> Result<(), Infallible> {
     let sequencer_rollup_address = sequencer.user_info.address();
 
     let txs = simulate_da_with_revert_msg(admin_key.clone());
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -119,14 +116,13 @@ fn test_tx_revert() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_tx_bad_signature() -> Result<(), Infallible> {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();
 
     let txs = simulate_da_with_bad_sig(admin_key.clone());
 
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -193,14 +189,13 @@ fn get_attester_stake_for_block(
 #[test]
 #[serial]
 fn test_tx_bad_nonce() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();
 
     let txs = simulate_da_with_bad_nonce(admin_key);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -251,7 +246,6 @@ fn test_tx_bad_nonce() {
 #[test]
 #[serial]
 fn test_tx_bad_serialization() -> Result<(), Infallible> {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_key = admin.private_key.clone();
@@ -270,7 +264,7 @@ fn test_tx_bad_serialization() -> Result<(), Infallible> {
     };
 
     let txs = simulate_da_with_bad_serialization(admin_key.clone());
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),

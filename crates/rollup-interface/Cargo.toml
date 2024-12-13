@@ -66,6 +66,6 @@ arbitrary = [
     "proptest",
     "proptest-derive",
     "sov-rollup-interface/arbitrary",
-    "sov-test-utils/arbitrary"
+    "sov-test-utils/arbitrary",
 ]
 vec-compat = []

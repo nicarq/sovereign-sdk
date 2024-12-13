@@ -9,7 +9,7 @@ mod tests;
 pub use accessors::UnmeteredStateWrapper;
 pub use accessors::{
     AccessoryDelta, BootstrapWorkingSet, GenesisStateAccessor, KernelStateAccessor,
-    PreExecWorkingSet, StateCheckpoint, StateProvider, TxScratchpad, WorkingSet,
+    PreExecWorkingSet, StateCheckpoint, StateProvider, TxChangeSet, TxScratchpad, WorkingSet,
 };
 #[cfg(feature = "native")]
 pub use accessors::{AccessoryStateCheckpoint, ApiStateAccessor};

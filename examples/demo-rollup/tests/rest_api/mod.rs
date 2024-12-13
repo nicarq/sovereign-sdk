@@ -30,6 +30,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
         0,
+        0,
     )
     .with_standard_batch_builder()
     .start()
@@ -65,6 +66,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
     let test_rollup = RollupBuilder::<MockDemoRollup<Native>>::new(
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
+        0,
         0,
     )
     .start()

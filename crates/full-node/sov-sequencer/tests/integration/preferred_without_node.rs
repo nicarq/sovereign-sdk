@@ -6,7 +6,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use base64::prelude::*;
-use sov_api_spec::types;
+use sov_api_spec::types::{self};
 use sov_mock_da::{MockDaService, MockDaSpec};
 use sov_modules_api::Spec;
 use sov_rollup_interface::node::{DaSyncState, SyncStatus};
@@ -72,17 +72,15 @@ async fn restore_txs_from_seq_db() {
         PreferredBatchBuilderConfig,
     > = sequencer.config.clone();
 
-    let mut restored_batch_builder: PreferredBatchBuilder<(
-        TestSpec,
-        TestOptimisticRuntime<TestSpec>,
-    )> = PreferredBatchBuilder::create(
-        sequencer.state_update_receiver.borrow().clone(),
-        da_sync_state,
-        db_txs,
-        &config,
-    )
-    .await
-    .unwrap();
+    let (mut restored_batch_builder, _shutdown_handle) =
+        PreferredBatchBuilder::<(TestSpec, TestOptimisticRuntime<TestSpec>)>::create(
+            sequencer.state_update_receiver.borrow().clone(),
+            da_sync_state,
+            db_txs,
+            &config,
+        )
+        .await
+        .unwrap();
 
     let batch = restored_batch_builder.build_next_batch(0).await.unwrap();
 
@@ -104,6 +102,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
         da_service,
         PreferredBatchBuilderConfig {
             should_update_state: true,
+            ..Default::default()
         },
         false,
     )
@@ -146,6 +145,7 @@ async fn sequencer_safe_txs_from_admins_are_accepted() {
         da_service,
         PreferredBatchBuilderConfig {
             should_update_state: true,
+            ..Default::default()
         },
         true,
     )

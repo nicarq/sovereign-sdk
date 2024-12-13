@@ -1,4 +1,5 @@
 use borsh::BorshDeserialize;
+use reth_primitives::TransactionSigned;
 use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationOutput, AuthorizationData, FatalError,
     TransactionAuthenticator,
@@ -12,7 +13,8 @@ use sov_modules_api::{FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::TxHash;
 use sov_state::User;
 
-use crate::{convert_to_transaction_signed, CallMessage, RlpEvmTransaction};
+use crate::conversions::RlpConversionError;
+use crate::{CallMessage, RlpEvmTransaction};
 
 /// Authenticates a raw evm transaction.
 ///
@@ -35,20 +37,8 @@ pub fn authenticate<
 ) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
     // TODO: Charge gas for deserialization & signature check.
 
-    let tx = RlpEvmTransaction::try_from_slice(raw_tx)
+    let (rlp, tx) = parse_input(raw_tx)
         .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
-
-    let tx_clone = tx.clone();
-
-    let tx = RlpEvmTransaction::try_from_slice(raw_tx)
-        .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
-
-    let tx = convert_to_transaction_signed(tx).map_err(
-        |e: crate::conversions::RlpConversionError| {
-            fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state)
-        },
-    )?;
-
     let hash = TxHash::new(tx.hash().into());
     let signer = tx.recover_signer().ok_or(AuthenticationError::FatalError(
         FatalError::SigVerificationFailed(format!("Invalid ethereum signature: tx hash {}", hash)),
@@ -85,8 +75,25 @@ pub fn authenticate<
         credentials,
         default_address: signer.try_into().ok(),
     };
-    let call = CallMessage { rlp: tx_clone };
+    let call = CallMessage { rlp };
     Ok((tx_and_raw_hash, auth_data, call))
+}
+
+/// Decode a byte sequence into an EVM transaction without checking the signature
+pub fn parse_input(raw_tx: &[u8]) -> Result<(RlpEvmTransaction, TransactionSigned), FatalError> {
+    let tx_data = RlpEvmTransaction::try_from_slice(raw_tx)
+        .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+
+    if tx_data.rlp.is_empty() {
+        return Err(FatalError::DeserializationFailed(
+            RlpConversionError::EmptyRawTx.to_string(),
+        ));
+    }
+
+    let tx = TransactionSigned::decode_enveloped(&mut &tx_data.rlp[..])
+        .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+
+    Ok((tx_data, tx))
 }
 
 /// Indicates that a runtime supports the `Ethereum` transaction authenticator

@@ -6,7 +6,7 @@ use borsh::BorshDeserialize;
 use sov_api_spec::types;
 use sov_mock_da::MockDaService;
 use sov_modules_api::prelude::*;
-use sov_modules_api::{Address, Batch, BlobReaderTrait, DispatchCall};
+use sov_modules_api::{Address, BlobReaderTrait, DispatchCall, FullyBakedTx};
 use sov_rollup_interface::node::da::DaService;
 use sov_sequencer::batch_builders::standard::{StdBatchBuilder, StdBatchBuilderConfig};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -66,11 +66,11 @@ async fn test_submit_happy_path() {
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
 
-    let batch = Batch::try_from_slice(block_data).unwrap();
+    let batch = Vec::<FullyBakedTx>::try_from_slice(block_data).unwrap();
 
-    assert_eq!(batch.txs.len(), 2);
-    assert_eq!(wrap_with_auth(tx1), batch.txs[0]);
-    assert_eq!(wrap_with_auth(tx2), batch.txs[1]);
+    assert_eq!(batch.len(), 2);
+    assert_eq!(wrap_with_auth(tx1), batch[0]);
+    assert_eq!(wrap_with_auth(tx2), batch[1]);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -95,9 +95,9 @@ async fn test_accept_tx() {
         .unwrap();
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
-    let batch = Batch::try_from_slice(block_data).unwrap();
+    let batch = Vec::<FullyBakedTx>::try_from_slice(block_data).unwrap();
 
-    assert_eq!(wrap_with_auth(tx).data, batch.txs[0].data);
+    assert_eq!(wrap_with_auth(tx).data, batch[0].data);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -152,9 +152,9 @@ async fn test_batch_building_with_out_of_gas_error() {
     // As a sanity check, assert that the second transaction wasn't included
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
-    let batch = Batch::try_from_slice(block_data).unwrap();
-    assert_eq!(wrap_with_auth(drainer).data, batch.txs[0].data);
-    assert_eq!(batch.txs.len(), 1);
+    let batch = Vec::<FullyBakedTx>::try_from_slice(block_data).unwrap();
+    assert_eq!(wrap_with_auth(drainer).data, batch[0].data);
+    assert_eq!(batch.len(), 1);
 }
 
 // Checks that transactions that are not sequencer safe are rejected

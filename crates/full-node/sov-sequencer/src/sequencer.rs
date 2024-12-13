@@ -126,13 +126,13 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             <Ss::BatchBuilder as BatchBuilder>::Config,
         >,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
-    ) -> anyhow::Result<(Self, tokio::task::JoinHandle<()>)> {
+    ) -> anyhow::Result<(Self, Vec<tokio::task::JoinHandle<()>>)> {
         let (events_sender, _) = broadcast::channel(Self::EVENTS_CHANNEL_SIZE);
 
         let latest_state_update = state_update_receiver.borrow().clone();
         let latest_processed_rollup_height = latest_state_update.rollup_height;
 
-        let batch_builder = Ss::BatchBuilder::create(
+        let (batch_builder, maybe_bb_join_handle) = Ss::BatchBuilder::create(
             latest_state_update,
             da_sync_state.clone(),
             sequencer_db.read_all()?,
@@ -174,7 +174,12 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
             }
         });
 
-        Ok((sequencer, background_handle))
+        let mut handles = vec![background_handle];
+        if let Some(bb_handle) = maybe_bb_join_handle {
+            handles.push(bb_handle);
+        }
+
+        Ok((sequencer, handles))
     }
 
     /// Returns a reference to the underlying [`SequencerDb`].
@@ -441,7 +446,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
 #[derive(Debug, serde::Serialize)]
 pub struct SequencerNotReadyDetails {
-    pub da_height: u64,
+    pub target_da_height: u64,
     pub synced_da_height: u64,
 }
 

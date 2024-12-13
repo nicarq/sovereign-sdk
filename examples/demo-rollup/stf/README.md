@@ -87,17 +87,13 @@ We recommend borsh, since it's both fast and safe for hashing.
 
 The next step is to implement `Hooks` for `MyRuntime`. Hooks are abstractions that allow for the injection of custom logic into the transaction processing pipeline.
 
-There are two kind of hooks:
+The runtime provides hooks for executing custom logic inside the tx processing pipeline:
 
-`TxHooks`, which has the following methods:
+`TxHooks` has the following methods:
 
 1. `pre_dispatch_tx_hook`: Invoked immediately before each transaction is processed. This is a good time to apply stateful transaction verification, like checking the nonce.
 2. `post_dispatch_tx_hook`: Invoked immediately after each transaction is executed. This is a good place to perform any post-execution operations, like incrementing the nonce.
 
-`ApplyBatchHooks`, which has the following methods:
-
-1. `begin_batch_hook `Invoked at the beginning of the `apply_blob` function, before the blob is deserialized into a group of transactions. This is a good time to ensure that the sequencer is properly bonded.
-2. `end_batch_hook` invoked at the end of the `apply_blob` function.
 
 To use the `StfBlueprint`, the runtime needs to provide implementation of these hooks which specifies what needs to happen at each of these four stages.
 

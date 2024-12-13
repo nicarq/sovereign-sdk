@@ -20,6 +20,23 @@ pub struct BlobSelectorOutput<S: Spec, BlobType> {
     pub should_execute_slot_hooks: bool,
 }
 
+impl<S: Spec, B> BlobSelectorOutput<S, B> {
+    /// Apply the given function to each blob
+    pub fn map_blobs<Target>(
+        self,
+        mut f: impl FnMut(B) -> Target,
+    ) -> BlobSelectorOutput<S, Target> {
+        BlobSelectorOutput {
+            selected_blobs: self
+                .selected_blobs
+                .into_iter()
+                .map(|(batch, sender)| (f(batch), sender))
+                .collect(),
+            should_execute_slot_hooks: self.should_execute_slot_hooks,
+        }
+    }
+}
+
 /// BlobSelector decides which blobs to process in a current slot.
 pub trait BlobSelector {
     /// Spec type

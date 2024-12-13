@@ -174,29 +174,21 @@ pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
         config_value_private!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION")
     }
 
+    /// Computes the cost to deserialize the given buffer, in Gas.
+    fn gas_cost_to_deserialize<Spec: GasSpec<Gas = GU>>(buf: &[u8]) -> GU {
+        let mut deserialization_cost = Spec::gas_to_charge_per_byte_borsh_deserialization();
+        deserialization_cost.scalar_product(buf.len() as u64);
+        deserialization_cost
+    }
+
     /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
     /// amount of gas for each byte of the struct to deserialize.
     fn deserialize<Spec: GasSpec<Gas = GU>>(
         buf: &mut &[u8],
         meter: &mut impl GasMeter<GU>,
     ) -> Result<Self, MeteredBorshDeserializeError<GU>> {
-        let deserialization_cost = Spec::gas_to_charge_per_byte_borsh_deserialization();
-
-        Self::deserialize_with_custom_cost(buf, meter, deserialization_cost)
-    }
-
-    /// Deserializes a value from a byte slice with the provided gas meter and custom deserialization cost.
-    fn deserialize_with_custom_cost(
-        buf: &mut &[u8],
-        meter: &mut impl GasMeter<GU>,
-        deserialization_cost: GU,
-    ) -> Result<Self, MeteredBorshDeserializeError<GU>> {
         meter
-            .charge_gas(
-                deserialization_cost
-                    .clone()
-                    .scalar_product(buf.len() as u64),
-            )
+            .charge_gas(&Self::gas_cost_to_deserialize::<Spec>(buf))
             .map_err(|e| MeteredBorshDeserializeError::GasError(e))?;
 
         <Self as BorshDeserialize>::deserialize(buf)

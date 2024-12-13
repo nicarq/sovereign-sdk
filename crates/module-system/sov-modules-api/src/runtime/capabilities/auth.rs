@@ -39,6 +39,7 @@ use thiserror::Error;
 
 use crate::transaction::{
     AuthenticatedTransactionAndRawHash, Credentials, Transaction, TransactionVerificationError,
+    TransactionWithoutCall,
 };
 use crate::{
     Context, CryptoSpec, DispatchCall, ExecutionContext, FullyBakedTx, GasMeter, GasMeteringError,
@@ -67,6 +68,9 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// The input to the authenticator
     type Input: BorshDeserialize + BorshSerialize + Clone + std::fmt::Debug + Send + Sync + 'static;
 
+    /// The signature of the transaction.
+    type Signature;
+
     /// Authenticates a transaction (typically by checking the signature) and deserializes its contents
     /// into an executable message.
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
@@ -77,6 +81,12 @@ pub trait TransactionAuthenticator<S: Spec> {
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
     >;
+
+    /// Decode an input into a message and signature
+    fn parse_input(
+        &self,
+        tx: &Self::Input,
+    ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
 
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
@@ -277,23 +287,32 @@ pub fn authenticate<
     S: Spec,
     D: DispatchCall<Spec = S>,
 >(
-    mut raw_tx: &[u8],
+    raw_tx: &[u8],
     chain_hash: &[u8; 32],
     state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
+    let (call, tx_info) =
+        parse_input::<S, D>(raw_tx).map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
+    state
+        .charge_gas(&Transaction::<D, S>::gas_cost_to_deserialize::<S>(raw_tx))
+        .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
-    let tx =
-        <Transaction<D, S> as MeteredBorshDeserialize<_>>::deserialize::<S>(&mut raw_tx, state)
-            .map_err(|e| {
-                AuthenticationError::FatalError(
-                    FatalError::DeserializationFailed(e.to_string()),
-                    raw_tx_hash,
-                )
-            })?;
+    let tx = tx_info.with_call(call);
 
     verify_and_decode_tx::<S, D>(raw_tx_hash, tx, chain_hash, state)
+}
+
+/// Decode bytes as a Sovereign SDK transaction, returning the message and tx info.
+pub fn parse_input<S: Spec, D: DispatchCall<Spec = S>>(
+    raw_tx: &[u8],
+) -> Result<(D::Decodable, TransactionWithoutCall<S>), FatalError> {
+    let tx: Transaction<D, S> =
+        borsh::from_slice(raw_tx).map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+    let (tx, call) = tx.split();
+
+    Ok((call, tx))
 }
 
 /// Calculates the hash of `data` and charges gas.

@@ -1,7 +1,9 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use reth_primitives::TransactionSigned;
 use sov_evm::Evm;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
 use sov_modules_api::runtime::Runtime;
+use sov_modules_api::transaction::TransactionWithoutCall;
 use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
 use sov_state::User;
 use sov_test_utils::{generate_bare_runtime, TestSpec};
@@ -17,9 +19,9 @@ generate_bare_runtime! {
 }
 
 #[derive(std::fmt::Debug, Clone, BorshDeserialize, BorshSerialize)]
-pub enum Auth {
-    Evm(sov_modules_api::RawTx),
-    Standard(sov_modules_api::RawTx),
+pub enum Auth<T = sov_modules_api::RawTx, U = sov_modules_api::RawTx> {
+    Evm(T),
+    Standard(U),
 }
 
 impl<S: Spec> TransactionAuthenticator<S> for TestRuntime<S>
@@ -31,6 +33,28 @@ where
     type AuthorizationData = AuthorizationData<S>;
 
     type Input = Auth;
+
+    type Signature = Auth<TransactionSigned, TransactionWithoutCall<S>>;
+
+    fn parse_input(
+        &self,
+        tx: &Self::Input,
+    ) -> Result<(Self::Decodable, Self::Signature), sov_modules_api::capabilities::FatalError> {
+        match tx {
+            Auth::Evm(raw_tx) => {
+                let (call, tx) = sov_evm::parse_input(&raw_tx.data)?;
+                Ok((
+                    TestRuntimeCall::Evm(sov_evm::CallMessage { rlp: call }),
+                    Auth::Evm(tx),
+                ))
+            }
+            Auth::Standard(raw_tx) => {
+                let (call, tx) =
+                    sov_modules_api::capabilities::parse_input::<S, Self>(&raw_tx.data)?;
+                Ok((call, Auth::Standard(tx)))
+            }
+        }
+    }
 
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,

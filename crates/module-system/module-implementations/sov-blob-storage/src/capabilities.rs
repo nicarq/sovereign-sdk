@@ -5,8 +5,9 @@ use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
-    Batch, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, InfallibleKernelStateAccessor,
-    InfallibleStateAccessor, KernelStateAccessor, RawTx, Spec, VersionReader,
+    Batch, BatchWithId, BlobData, BlobReaderTrait, DaSpec, FullyBakedTx,
+    InfallibleKernelStateAccessor, InfallibleStateAccessor, KernelStateAccessor, RawTx, Spec,
+    VersionReader,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -16,6 +17,9 @@ use crate::{
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
     PreferredSequenced, SequenceNumber,
 };
+
+pub(crate) type BlobDataWithId<B = BatchWithId<Vec<FullyBakedTx>>> =
+    sov_modules_api::BlobDataWithId<B>;
 
 /// Why blob can be discarded
 #[derive(Debug)]
@@ -94,8 +98,8 @@ impl<S: Spec> BlobStorage<S> {
                         if let Some(proof) =
                             self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)
                         {
-                            let data = BlobDataWithId {
-                                data: BlobData::Proof(proof),
+                            let data = BlobDataWithId::Proof {
+                                proof,
                                 id: blob.hash().into(),
                             };
                             batches.push((data, blob.sender()));
@@ -116,12 +120,12 @@ impl<S: Spec> BlobStorage<S> {
 
                             tracing::trace!(%from_registered_sequencer);
                             let res = if from_registered_sequencer {
-                                self.deserialize_or_try_slash_sender::<Batch>(
+                                self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(
                                     blob,
                                     from_registered_sequencer,
                                     state,
                                 )
-                                .map(BlobData::Batch)
+                                .map(BlobData::new_batch)
                             } else {
                                 unregistered_blobs += 1;
                                 self.deserialize_or_try_slash_sender::<RawTx>(
@@ -139,13 +143,7 @@ impl<S: Spec> BlobStorage<S> {
                                     hex::encode(blob.hash()),
                                 );
 
-                                batches.push((
-                                    BlobDataWithId {
-                                        data,
-                                        id: blob.hash().into(),
-                                    },
-                                    blob.sender(),
-                                ));
+                                batches.push((data.with_id(blob.hash().into()), blob.sender()));
                             }
                         }
                     };
@@ -310,7 +308,7 @@ impl<S: Spec> BlobStorage<S> {
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
         preferred_sender: &<S::Da as DaSpec>::Address,
-    ) -> BlobSelectorOutput<S, BlobDataWithId>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -350,10 +348,7 @@ impl<S: Spec> BlobStorage<S> {
                             })
                         {
                             next_sequence_number += 1;
-                            let data = BlobDataWithId {
-                                data: BlobData::Proof(proof.data),
-                                id: blob.hash().into(),
-                            };
+                            let data = BlobData::Proof(proof.data).with_id(blob.hash().into());
                             blobs_to_process.push((data, preferred_sender.clone()));
                         }
                     } else if self
@@ -364,10 +359,7 @@ impl<S: Spec> BlobStorage<S> {
                         if let Some(proof) =
                             self.deserialize_or_try_slash_sender::<Vec<u8>>(blob, true, state)
                         {
-                            let data = BlobDataWithId {
-                                data: BlobData::Proof(proof),
-                                id: blob.hash().into(),
-                            };
+                            let data = BlobData::Proof(proof).with_id(blob.hash().into());
                             new_forced_blobs.push((data, blob.sender()));
                         }
                     } else {
@@ -415,12 +407,12 @@ impl<S: Spec> BlobStorage<S> {
                                 // Otherwise, the batch is from a valid sender (checked in step 1) but not the preferred sender
                                 // Deserialize it as a normal batch and store it in memory
                                 let data = if from_registered_sequencer {
-                                    self.deserialize_or_try_slash_sender::<Batch>(
+                                    self.deserialize_or_try_slash_sender::<Vec<FullyBakedTx>>(
                                         blob,
                                         from_registered_sequencer,
                                         state,
                                     )
-                                    .map(BlobData::Batch)
+                                    .map(BlobData::new_batch)
                                 } else {
                                     self.deserialize_or_try_slash_sender::<RawTx>(
                                         blob,
@@ -430,13 +422,8 @@ impl<S: Spec> BlobStorage<S> {
                                     .map(BlobData::EmergencyRegistration)
                                 };
                                 if let Some(data) = data {
-                                    new_forced_blobs.push((
-                                        BlobDataWithId {
-                                            data,
-                                            id: blob.hash().into(),
-                                        },
-                                        blob.sender(),
-                                    ));
+                                    new_forced_blobs
+                                        .push((data.with_id(blob.hash().into()), blob.sender()));
                                 }
                             }
                         }
@@ -459,10 +446,8 @@ impl<S: Spec> BlobStorage<S> {
                         next_preferred_batch = Some((next_batch, next_blob.id));
                     }
                     PreferredBlobData::Proof(p) => {
-                        let data = BlobDataWithId {
-                            data: BlobData::Proof(p.data),
-                            id: next_blob.id,
-                        };
+                        let data = BlobData::Proof(p.data).with_id(next_blob.id);
+
                         blobs_to_process.push((data, preferred_sender.clone()));
                     }
                 }
@@ -482,10 +467,8 @@ impl<S: Spec> BlobStorage<S> {
             .set(&next_sequence_number, state)
             .unwrap_infallible();
         let num_slots_to_advance = if let Some((preferred_batch, id)) = next_preferred_batch {
-            let next_batch = BlobDataWithId {
-                data: BlobData::Batch(preferred_batch.data),
-                id,
-            };
+            let next_batch =
+                BlobDataWithId::Batch(BatchWithId::new(Batch::new(preferred_batch.data), id));
 
             blobs_to_process.push((next_batch, preferred_sender.clone()));
             tracing::debug!(
@@ -530,7 +513,11 @@ impl<S: Spec> BlobStorage<S> {
                 batches_from_next_slot.len(),
                 slot_to_check
             );
-            blobs_to_process.extend(batches_from_next_slot.into_iter());
+            blobs_to_process.extend(
+                batches_from_next_slot
+                    .into_iter()
+                    .map(|(b, seq)| (b.map_batch(BatchWithId::to_iterable), seq)),
+            );
         }
 
         // Check if we also need the blobs from the current slot. Add them to the set to be processed or store them as appropriate.
@@ -538,7 +525,11 @@ impl<S: Spec> BlobStorage<S> {
             .visible_rollup_height()
             .saturating_add(num_slots_to_advance);
         if next_virtual_height >= state.rollup_height_to_access() {
-            blobs_to_process.extend(new_forced_blobs);
+            blobs_to_process.extend(
+                new_forced_blobs
+                    .into_iter()
+                    .map(|b| (b.0.map_batch(BatchWithId::to_iterable), b.1)),
+            );
         } else {
             self.store_batches(state.rollup_height_to_access(), &new_forced_blobs, state);
         }
@@ -595,7 +586,7 @@ impl<S: Spec> BlobStorage<S> {
 impl<S: Spec> BlobSelector for BlobStorage<S> {
     type Spec = S;
 
-    type BlobType = BlobDataWithId;
+    type BlobType = BlobDataWithId<BatchWithId>;
 
     // This implementation returns three categories of blobs:
     // 1. Any blobs sent by the preferred sequencer ("prority blobs")
@@ -605,14 +596,16 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer
         if config_deferred_slots_count() == 0 {
-            return Ok(self.select_blobs_as_based_sequencer(current_blobs, state));
+            return Ok(self
+                .select_blobs_as_based_sequencer(current_blobs, state)
+                .map_blobs(|b| b.map_batch(BatchWithId::to_iterable)));
         }
 
         // If there's a preferred sequencer, sequence accordingly.
@@ -626,7 +619,9 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
 
         // Otherwise, we're configured for a preferred sequencer but one doesn't exist. This usually means that the preferred sequencer was slashed.
         // Entery recovery mode.
-        Ok(self.select_blobs_in_recovery_mode(current_blobs, state))
+        Ok(self
+            .select_blobs_in_recovery_mode(current_blobs, state)
+            .map_blobs(|b| b.map_batch(BatchWithId::to_iterable)))
     }
 }
 

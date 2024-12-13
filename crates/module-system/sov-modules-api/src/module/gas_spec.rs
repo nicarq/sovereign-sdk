@@ -73,9 +73,6 @@ pub trait GasSpec:
     /// of authentication (sig check) gas and process_tx_pre_exec_checks_gas.
     fn max_tx_check_costs() -> Self::Gas;
 
-    /// The gas used in the batch hooks.
-    fn batch_hook_gas() -> Self::Gas;
-
     /// The gas used for the transaction pre-execution checks.
     /// For example nonce checks, context resolution etc..
     fn process_tx_pre_exec_checks_gas() -> Self::Gas;
@@ -156,10 +153,6 @@ impl<S: Spec> GasSpec for S {
 
     fn max_tx_check_costs() -> Self::Gas {
         Self::Gas::from(config_value_private!("MAX_SEQUENCER_EXEC_GAS_PER_TX"))
-    }
-
-    fn batch_hook_gas() -> Self::Gas {
-        Self::Gas::from(config_value_private!("BATCH_HOOK_GAS"))
     }
 
     fn process_tx_pre_exec_checks_gas() -> Self::Gas {

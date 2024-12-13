@@ -4,8 +4,9 @@ mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{BatchSequencerReceipt, VersionReader};
+use sov_modules_api::{BatchSequencerReceipt, IncrementalBatch, VersionReader};
 mod proof_processing;
+use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
 #[cfg(feature = "test-utils")]
 mod utils;
@@ -18,7 +19,8 @@ pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    BlobOrigin, BlobSelector, ChainState, HasKernel, Kernel, TransactionAuthenticator,
+    BlobOrigin, BlobSelector, BlobSelectorOutput, ChainState, HasKernel, Kernel,
+    TransactionAuthenticator,
 };
 use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
@@ -71,6 +73,9 @@ pub enum TxProcessingError {
     /// Impossible to resolve the context of the transaction.
     #[error("Impossible to resolve the context of the transaction, reason: {0}.")]
     CannotResolveContext(String),
+    /// Rejected by a pre-flight check.
+    #[error("The transaction was rejected by a pre-flight check.")]
+    RejectedByPreFlight,
     /// The transaction ran out of gas
     #[error("The transaction ran out of gas, reason: {0}.")]
     OutOfGas(String),
@@ -142,23 +147,20 @@ where
     S: Spec,
     RT: Runtime<S>,
 {
+    /// Compute the new state root and change set after running a batch.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     #[cfg(feature = "native")]
-    fn materialize_slot(
+    pub fn materialize_slot(
         &self,
         should_execute_slot_hooks: bool,
-        storage: S::Storage,
         checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
         <S::Storage as Storage>::ChangeSet,
     ) {
-        let (cache_log, mut accessory_delta, witness) = checkpoint.freeze();
-
-        let (next_root_hash, mut state_update) = storage
-            .compute_state_update(cache_log, &witness)
-            .expect("jellyfish merkle tree update must succeed");
+        let (next_root_hash, mut state_update, mut accessory_delta, witness, storage) =
+            checkpoint.materialize_update();
 
         if should_execute_slot_hooks {
             self.runtime
@@ -175,18 +177,13 @@ where
     #[cfg(not(feature = "native"))]
     fn materialize_slot(
         &self,
-        storage: S::Storage,
         checkpoint: StateCheckpoint<S::Storage>,
     ) -> (
         <S::Storage as Storage>::Root,
         <S::Storage as Storage>::Witness,
         <S::Storage as Storage>::ChangeSet,
     ) {
-        let (cache_log, _, witness) = checkpoint.freeze();
-
-        let (next_root_hash, state_update) = storage
-            .compute_state_update(cache_log, &witness)
-            .expect("jellyfish merkle tree update must succeed");
+        let (next_root_hash, state_update, _, witness, storage) = checkpoint.materialize_update();
 
         let change_set = storage.materialize_changes(&state_update);
 
@@ -227,9 +224,7 @@ where
         pre_state: Self::PreState,
         params: Self::GenesisParams,
     ) -> (Self::StateRoot, Self::ChangeSet) {
-        // TODO(@preston-evans98): Get rid of the Clone here by making pre-state read only.
-        let mut state_checkpoint =
-            StateCheckpoint::new::<S, _>(pre_state.clone(), &self.runtime.kernel());
+        let mut state_checkpoint = StateCheckpoint::new::<S, _>(pre_state, &self.runtime.kernel());
 
         let mut genesis_accessor =
             state_checkpoint.to_genesis_state_accessor::<RT, S>(&params.runtime);
@@ -245,10 +240,9 @@ where
         }
 
         #[cfg(feature = "native")]
-        let (genesis_hash, _, change_set) =
-            self.materialize_slot(true, pre_state, state_checkpoint);
+        let (genesis_hash, _, change_set) = self.materialize_slot(true, state_checkpoint);
         #[cfg(not(feature = "native"))]
-        let (genesis_hash, _, change_set) = self.materialize_slot(pre_state, state_checkpoint);
+        let (genesis_hash, _, change_set) = self.materialize_slot(state_checkpoint);
 
         (genesis_hash, change_set)
     }
@@ -311,8 +305,9 @@ where
             .expect("blob selection must succeed, probably serialization failed");
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();
+
         #[cfg(feature = "native")]
-        let begin_slot_start = std::time::Instant::now();
+        let should_execute_slot_hooks = blob_selector_output.should_execute_slot_hooks;
 
         KernelSlotHooks::kernel_begin_slot_hook(
             &self.runtime,
@@ -322,6 +317,119 @@ where
             &mut kernel,
         );
 
+        #[cfg(feature = "native")]
+        let visible_height = state.rollup_height_to_access();
+        let (total_gas, proof_receipts, batch_receipts, mut state) = self
+            .apply_batches_in_user_space(
+                blob_selector_output,
+                state,
+                execution_context,
+                visible_hash,
+            );
+
+        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut state);
+
+        self.runtime
+            .chain_state()
+            .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
+
+        KernelSlotHooks::kernel_end_slot_hook(
+            &self.runtime,
+            &total_gas,
+            &mut kernel_state_accessor,
+        );
+
+        #[cfg(not(feature = "native"))]
+        let (state_root, witness, change_set) = self.materialize_slot(state);
+
+        #[cfg(feature = "native")]
+        let (state_root, witness, change_set) = {
+            let slot_finalization_start = std::time::Instant::now();
+
+            // Note the call to materialize slot mixed in with metrics operations here.
+            let (state_root, witness, change_set) =
+                self.materialize_slot(should_execute_slot_hooks, state);
+
+            let slot_finalization_time = slot_finalization_start.elapsed();
+            sov_metrics::track_metrics(|tracker| {
+                tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
+                    blobs_selection_time: blob_selection_time,
+                    slot_finalization_time,
+                    da_height: slot_header.height(),
+                    execution_context,
+                    rollup_height: visible_height,
+                });
+            });
+            (state_root, witness, change_set)
+        };
+
+        ApplySlotOutput {
+            state_root,
+            change_set,
+            proof_receipts,
+            batch_receipts,
+            witness,
+        }
+    }
+}
+
+impl<S, RT> StfBlueprint<S, RT>
+where
+    S: Spec,
+    RT: Runtime<S>,
+    RT: HasKernel<S>,
+{
+    /// Run batches provided by the blob selector
+    #[allow(clippy::type_complexity)]
+    pub fn run_batches_from_blob_selector(
+        &self,
+        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>,
+        state: StateCheckpoint<S::Storage>,
+        execution_context: ExecutionContext,
+        visible_hash: <<S as Spec>::Storage as Storage>::Root,
+    ) -> (
+        <S as Spec>::Gas,
+        Vec<
+            ProofReceipt<
+                <S as Spec>::Address,
+                <S as Spec>::Da,
+                <<S as Spec>::Storage as Storage>::Root,
+                StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+            >,
+        >,
+        Vec<BatchReceipt<S>>,
+        StateCheckpoint<S::Storage>,
+    ) {
+        self.apply_batches_in_user_space(
+            blob_selector_output,
+            state,
+            execution_context,
+            visible_hash,
+        )
+    }
+
+    /// Run the provided sequence of batches, updating the user-space rollup state as we go.
+    /// Batches can inject control flow, which will be respected by the runner.
+    #[allow(clippy::type_complexity)]
+    pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
+        &self,
+        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,
+        mut state: StateCheckpoint<S::Storage>,
+        execution_context: ExecutionContext,
+        visible_hash: <<S as Spec>::Storage as Storage>::Root,
+    ) -> (
+        <S as Spec>::Gas,
+        Vec<
+            ProofReceipt<
+                <S as Spec>::Address,
+                <S as Spec>::Da,
+                <<S as Spec>::Storage as Storage>::Root,
+                StorageProof<<<S as Spec>::Storage as Storage>::Proof>,
+            >,
+        >,
+        Vec<BatchReceipt<S>>,
+        StateCheckpoint<S::Storage>,
+    ) {
         // Note: The gas price should be computed after all the capabilities involving the [`KernelStateAccessor`] to have the
         // most recent version of the virtual rollup height.
         let gas_price = self.runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
@@ -338,6 +446,8 @@ where
         // following invariant: the `user_space` root only updates when the `virtual_slot_height`` gets increased.
         // If not enforced, this may break soft-confirmations because it will not be possible to deterministically
         // predict the user space state when executing priority blobs.
+        #[cfg(feature = "native")]
+        let begin_slot_start = std::time::Instant::now();
         if blob_selector_output.should_execute_slot_hooks {
             SlotHooks::begin_slot_hook(&self.runtime, &visible_hash, &mut state);
         }
@@ -350,17 +460,19 @@ where
         let mut total_gas = S::Gas::zero();
         #[cfg(feature = "native")]
         let blob_processing_start = std::time::Instant::now();
+        // TODO: Inject closure to report state changes here
         for (blob_idx, (blob, sender)) in
             blob_selector_output.selected_blobs.into_iter().enumerate()
         {
-            match blob.data {
-                BlobData::Batch(batch) => {
+            match blob {
+                BlobDataWithId::Batch(batch) => {
                     #[cfg(feature = "native")]
                     let start_batch_processing = std::time::Instant::now();
-                    let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT>(
+                    let batch_id = batch.id();
+                    let (batch_receipt, next_checkpoint) = registered::apply_batch::<S, RT, B>(
                         &self.runtime,
                         state,
-                        BatchWithId { batch, id: blob.id },
+                        batch,
                         blob_idx,
                         sender,
                         &gas_price,
@@ -389,16 +501,16 @@ where
                         });
                     };
                     total_gas.combine(&batch_receipt.inner.gas_used);
-                    batch_receipts.push(batch_receipt);
+                    batch_receipts.push(batch_receipt.finalize(batch_id.unwrap_or([0u8; 32])));
                     state = next_checkpoint;
                 }
-                BlobData::EmergencyRegistration(tx) => {
+                BlobDataWithId::EmergencyRegistration { tx, id } => {
                     let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
                         &self.runtime,
                         state,
                         BatchWithSingleTx {
                             auth_input: RT::add_standard_auth(tx),
-                            id: blob.id,
+                            id,
                         },
                         blob_idx,
                         sender,
@@ -411,9 +523,9 @@ where
                     batch_receipts.push(batch_receipt);
                     state = next_checkpoint;
                 }
-                BlobData::Proof(proof) => {
+                BlobDataWithId::Proof { proof, id } => {
                     let (receipt, next_checkpoint, gas_used) =
-                        self.process_proof(blob.id, sender, &gas_price, proof, state);
+                        self.process_proof(id, sender, &gas_price, proof, state);
 
                     state = next_checkpoint;
                     proof_receipts.push(receipt);
@@ -426,59 +538,28 @@ where
         let blob_processing_time = blob_processing_start.elapsed();
         #[cfg(feature = "native")]
         let end_slot_hooks_start = std::time::Instant::now();
+
+        // Note that we run the end-slot hooks even in non-native mode, which is why this can't
+        // be a single "native" block
         if blob_selector_output.should_execute_slot_hooks {
             SlotHooks::end_slot_hook(&self.runtime, &mut state);
         }
-
-        let mut kernel_state_accessor = self.runtime.kernel().accessor(&mut state);
-
-        self.runtime
-            .chain_state()
-            .finalise_chain_state(&total_gas, &mut kernel_state_accessor);
-
-        KernelSlotHooks::kernel_end_slot_hook(
-            &self.runtime,
-            &total_gas,
-            &mut kernel_state_accessor,
-        );
         #[cfg(feature = "native")]
-        let end_slot_hooks_time = end_slot_hooks_start.elapsed();
-
-        #[cfg(feature = "native")]
-        let slot_finalization_start = std::time::Instant::now();
-
-        #[cfg(feature = "native")]
-        let (state_root, witness, change_set) = self.materialize_slot(
-            blob_selector_output.should_execute_slot_hooks,
-            pre_state,
-            state,
-        );
-        #[cfg(not(feature = "native"))]
-        let (state_root, witness, change_set) = self.materialize_slot(pre_state, state);
-
-        #[cfg(feature = "native")]
-        let slot_finalization_time = slot_finalization_start.elapsed();
-
-        #[cfg(feature = "native")]
-        sov_metrics::track_metrics(|tracker| {
-            tracker.track_slot_processing(sov_metrics::SlotProcessingMetrics {
-                blobs_selection_time: blob_selection_time,
-                begin_slot_hooks_time,
-                blobs_processing_time: blob_processing_time,
-                end_slot_hooks_time,
-                slot_finalization_time,
-                da_height: slot_header.height(),
-                rollup_height: visible_height,
-                execution_context,
+        {
+            let end_slot_hooks_time = end_slot_hooks_start.elapsed();
+            sov_metrics::track_metrics(|tracker| {
+                tracker.track_user_space_slot_processing(
+                    sov_metrics::UserSpaceSlotProcessingMetrics {
+                        begin_slot_hooks_time,
+                        blobs_processing_time: blob_processing_time,
+                        rollup_height: visible_height,
+                        execution_context,
+                        end_slot_hooks_time,
+                    },
+                );
             });
-        });
-
-        ApplySlotOutput {
-            state_root,
-            change_set,
-            proof_receipts,
-            batch_receipts,
-            witness,
         }
+
+        (total_gas, proof_receipts, batch_receipts, state)
     }
 }

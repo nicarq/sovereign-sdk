@@ -33,6 +33,7 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
+        0,
     )
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;
@@ -40,6 +41,7 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
             // FIXME(@theochap): It seems this test is broken because the sequencer state does
             // not update fast enough. Hence we disable the state update here.
             should_update_state: false,
+            ..Default::default()
         });
     })
     .start()

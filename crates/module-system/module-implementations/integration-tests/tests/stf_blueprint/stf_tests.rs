@@ -1,10 +1,10 @@
 use std::convert::Infallible;
-use std::{env, vec};
+use std::vec;
 
 use serial_test::serial;
 use sov_mock_da::MockAddress;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{Batch, BatchSequencerOutcome, FullyBakedTx, Spec};
+use sov_modules_api::{BatchSequencerOutcome, FullyBakedTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::generators::bank::get_default_token_id;
 use sov_test_utils::TestSpec;
@@ -22,14 +22,13 @@ use crate::stf_blueprint::{
 #[test]
 #[serial]
 fn test_demo_values_in_db() -> Result<(), Infallible> {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_address: <TestSpec as Spec>::Address = admin.address();
     let admin_private_key = admin.private_key.clone();
 
     let txs = simulate_da(admin_private_key);
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -77,7 +76,6 @@ fn test_demo_values_in_db() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_demo_values_in_cache() -> Result<(), Infallible> {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, sequencer) = setup(1);
     let admin = users.first().unwrap();
     let admin_address: <TestSpec as Spec>::Address = admin.address();
@@ -85,7 +83,7 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 
     let txs = simulate_da(admin_private_key);
 
-    let blob = new_test_blob_from_batch(Batch { txs }, sequencer.da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, sequencer.da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -130,7 +128,6 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_register() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, mut users, _) = setup(2);
     let other_sequencer = users.pop().unwrap();
     let direct_sequencer = users.pop().unwrap();
@@ -201,7 +198,6 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
 #[test]
 #[serial]
 fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, users, _) = setup(1);
 
     let other_sequencer = users.first().unwrap();
@@ -226,7 +222,7 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
         .into_iter()
         .map(|tx| FullyBakedTx::new(tx.data))
         .collect();
-    let blob = new_test_blob_from_batch(Batch { txs }, direct_sequencer_da_address.as_ref());
+    let blob = new_test_blob_from_batch(txs, direct_sequencer_da_address.as_ref());
 
     let relevant_blobs = RelevantBlobs {
         proof_blobs: Default::default(),
@@ -260,7 +256,6 @@ fn test_unregistered_sequencer_registration_is_limited_to_one_per_batch() {
 #[test]
 #[serial]
 fn test_unregistered_sequencer_registration_incorrect_call_message() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, mut users, _) = setup(1);
 
     let other_sequencer = users.pop().unwrap();
@@ -299,7 +294,6 @@ fn test_unregistered_sequencer_registration_incorrect_call_message() {
 #[test]
 #[serial]
 fn test_unregistered_sequencer_batches_are_limited_to_the_configured_amount_per_slot() {
-    env::set_var("SOV_SDK_CONST_OVERRIDE_BATCH_HOOK_GAS", "[0, 0]");
     let (mut runner, mut users, _) = setup(1);
 
     let other_sequencer_da_address = MockAddress::new([86; 32]);

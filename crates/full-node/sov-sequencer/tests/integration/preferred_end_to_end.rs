@@ -76,18 +76,22 @@ enum WrongNonce {
 async fn new_test_rollup(
     dir: Arc<tempfile::TempDir>,
     genesis_params: GenesisParams<<TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig>,
+    minimum_profit_per_tx: u64,
 ) -> TestRollup<TestBlueprint> {
     const FINALIZATION_BLOCKS: u32 = 10;
+    let sequencer_addr = genesis_params.runtime.sequencer_registry.seq_da_address;
 
     RollupBuilder::<TestBlueprint>::new(
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::Periodic,
         FINALIZATION_BLOCKS,
+        minimum_profit_per_tx,
     )
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;
         c.storage = dir;
     })
+    .set_da_config(|c| c.sender_address = sequencer_addr)
     .start()
     .await
     .unwrap()
@@ -116,6 +120,42 @@ fn outer_preferred_sequencer_is_resistant_to_miscellaneous_edge_cases() {
     );
 
     result.unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn txs_below_min_fee_are_rejected() {
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let admin = genesis_config.additional_accounts[0].clone();
+
+    let rt_genesis_config =
+        <TestRuntime<TestSpec> as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+            genesis_config.into(),
+            ValueSetterConfig {
+                admin: admin.address(),
+            },
+        );
+    let genesis_params = GenesisParams {
+        runtime: rt_genesis_config.clone(),
+    };
+
+    let dir = Arc::new(tempfile::tempdir().unwrap());
+
+    let test_rollup = new_test_rollup(dir.clone(), genesis_params, 1).await;
+
+    let client = test_rollup.api_client.clone();
+    let tx = tx_set_value(&admin.private_key, 0, 7);
+    let Err(e) = client
+        .accept_tx(&api_types::AcceptTxBody {
+            body: BASE64_STANDARD.encode(&tx),
+        })
+        .await
+    else {
+        panic!("Tx must have been rejected for insufficient fee");
+    };
+    assert!(e
+        .to_string()
+        .contains("This transaction did not pay a sufficient net fee."));
 }
 
 #[should_panic] // FIXME(@neysofu)
@@ -148,7 +188,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
 
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
-    let test_rollup = new_test_rollup(dir.clone(), genesis_params).await;
+    let test_rollup = new_test_rollup(dir.clone(), genesis_params, 0).await;
     let client = test_rollup.api_client.clone();
 
     let mut next_nonce = 0u64;
@@ -223,7 +263,7 @@ async fn run_action_against_test_rollup(
 
             sleep(Duration::from_millis(100)).await;
 
-            return Ok(new_test_rollup(storage_dir, genesis_params).await);
+            return Ok(new_test_rollup(storage_dir, genesis_params, 0).await);
         }
         TestingAction::TryAcceptBadTx { wrong_nonce } => {
             let bad_nonce = match wrong_nonce {

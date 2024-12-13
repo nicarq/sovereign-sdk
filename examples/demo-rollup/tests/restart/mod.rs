@@ -82,6 +82,7 @@ async fn start_stop_empty(
                 test_genesis_source(operation_mode),
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
+                0,
             )
             .set_config(|c| {
                 c.storage = rollup_storage_dir.clone();
@@ -112,6 +113,11 @@ async fn start_stop_empty(
             .await
             .context("Joining rollup task failed")???;
         block_producing_handle.await?;
+        // // By design, child tasks don't always report back to their parents when they finish shutting down. This is fine
+        // // during normal operation, but it means that we can't "await" until every spawned task is shutdown for this test. That makes
+        // // the test flaky, since we sometimes try to restart the rollup before we finish shutting it down, causing rocksdb locks to trigger.
+        // // A small sleep prevents this.
+        // tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
 
     let known = [
@@ -186,6 +192,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
 
     let rollup_storage_dir = Arc::new(tempfile::tempdir()?);
     let finalization_blocks = 0;
+    let minimum_fee_per_tx = 0;
 
     let first_chunk = 6;
     let second_chunk = 4;
@@ -195,6 +202,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Zk),
         BlockProducingConfig::OnAnySubmit,
         finalization_blocks,
+        minimum_fee_per_tx,
     )
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
@@ -337,6 +345,7 @@ async fn check_with_increasing_stf_infos(
         test_genesis_source(operating_mode),
         BlockProducingConfig::Manual,
         finalization_blocks,
+        0,
     )
     .set_config(|c: &mut RollupBuilderConfig| {
         c.storage = rollup_storage_dir.clone();

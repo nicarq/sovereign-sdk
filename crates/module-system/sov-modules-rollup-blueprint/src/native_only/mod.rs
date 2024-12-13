@@ -180,7 +180,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
 
         match &rollup_config.sequencer.batch_builder {
             BatchBuilderConfig::Standard(bb_config) => {
-                let (sequencer, background_handle) = SequencerBlueprint::<
+                let (sequencer, background_handles) = SequencerBlueprint::<
                     Self,
                     M,
                     StdBatchBuilder<(Self::Spec, Self::Runtime)>,
@@ -198,14 +198,14 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
                     axum_router: sequencer.rest_api_server(),
-                    background_handles: vec![background_handle],
+                    background_handles,
                     sequence_number_provider: None,
                 })
             }
             BatchBuilderConfig::Preferred(bb_config) => {
                 warn!("The preferred sequencer is **experimental** and may not work as expected. Please report any issues you encounter.");
 
-                let (sequencer, background_handle) = SequencerBlueprint::<
+                let (sequencer, background_handles) = SequencerBlueprint::<
                     Self,
                     M,
                     PreferredBatchBuilder<(Self::Spec, Self::Runtime)>,
@@ -223,7 +223,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 Ok(SequencerCreationReceipt {
                     api_state: sequencer.api_state(),
                     axum_router: sequencer.rest_api_server(),
-                    background_handles: vec![background_handle],
+                    background_handles,
                     sequence_number_provider: Some(Arc::new(sequencer)),
                 })
             }

@@ -26,6 +26,7 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
         test_genesis_source(OperatingMode::Optimistic),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
+        0,
     )
     .start()
     .await?;

@@ -5,7 +5,7 @@ use sov_blob_storage::PreferredBatchData;
 pub use sov_eth_dev_signer::DevSigner;
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::rest::StateUpdateReceiver;
-use sov_modules_api::Spec;
+use sov_modules_api::{FullyBakedTx, Spec};
 mod batch_builder;
 mod gas_price;
 #[cfg(feature = "local")]
@@ -21,7 +21,7 @@ use reth_rpc_eth_types::EthApiError;
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
 pub use sov_evm::EthereumAuthenticator;
 use sov_evm::{convert_to_transaction_signed, Evm, RlpEvmTransaction};
-use sov_modules_api::{ApiStateAccessor, Batch, RawTx, StateCheckpoint};
+use sov_modules_api::{ApiStateAccessor, RawTx, StateCheckpoint};
 use sov_rollup_interface::node::da::DaService;
 
 use crate::batch_builder::EthBatchBuilder;
@@ -169,14 +169,13 @@ impl<
         let txs = tx_batch
             .into_iter()
             .map(|tx| RT::encode_with_ethereum_auth(RawTx::new(tx)))
-            .collect::<Vec<_>>();
-        let batch = Batch::new(txs);
+            .collect::<Vec<FullyBakedTx>>();
 
         let sequence_number = self.sequence_number.load(Ordering::SeqCst);
 
         let serialized_batch = borsh::to_vec(&PreferredBatchData {
             sequence_number,
-            data: batch,
+            data: txs,
             virtual_slots_to_advance: 1,
         })
         .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;

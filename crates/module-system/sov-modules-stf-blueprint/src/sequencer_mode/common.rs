@@ -9,6 +9,7 @@ use sov_modules_api::{
 use sov_rollup_interface::TxHash;
 use tracing::{debug, info, warn};
 
+use super::registered::IncrementalBatchReceipt;
 use crate::stf_blueprint::convert_to_runtime_events;
 use crate::{
     ApplyTxResult, RevertedTxContents, Runtime, SkippedTxContents, SuccessfulTxContents,
@@ -141,12 +142,10 @@ pub fn get_gas_used<S: Spec>(receipt: &TransactionReceipt<S>) -> S::Gas {
 pub(crate) fn create_tx_receipt<S: Spec>(
     skipped: SkippedTxContents<S>,
     raw_tx_hash: TxHash,
-    idx: usize,
 ) -> TransactionReceipt<S> {
     warn!(
         error = %skipped.error,
         raw_tx_hash = %raw_tx_hash,
-        tx_idx = %idx,
         "An error occurred while processing a transaction. The transaction was not executed. The sequencer was penalized.",
     );
 
@@ -158,16 +157,39 @@ pub(crate) fn create_tx_receipt<S: Spec>(
     }
 }
 
-pub(crate) fn apply_batch_logs<S: Spec>(
-    batch_receipt: &BatchReceipt<S>,
+pub(crate) struct BatchReceiptContents<'a, S: Spec> {
+    pub tx_receipts: &'a Vec<TransactionReceipt<S>>,
+    pub inner: &'a BatchSequencerReceipt<S>,
+}
+
+impl<'a, S: Spec> From<&'a IncrementalBatchReceipt<S>> for BatchReceiptContents<'a, S> {
+    fn from(value: &'a IncrementalBatchReceipt<S>) -> Self {
+        Self {
+            tx_receipts: &value.tx_receipts,
+            inner: &value.inner,
+        }
+    }
+}
+
+impl<'a, S: Spec> From<&'a BatchReceipt<S>> for BatchReceiptContents<'a, S> {
+    fn from(value: &'a BatchReceipt<S>) -> Self {
+        Self {
+            tx_receipts: &value.tx_receipts,
+            inner: &value.inner,
+        }
+    }
+}
+
+pub(crate) fn apply_batch_logs<'a, S: Spec>(
+    batch_receipt: impl Into<BatchReceiptContents<'a, S>>,
     gas_used: &S::Gas,
     blob_idx: usize,
 ) {
-    let batch_sequencer_receipt = &batch_receipt.inner;
+    let batch_receipt = batch_receipt.into();
+    let batch_sequencer_receipt = batch_receipt.inner;
 
     info!(
         blob_idx,
-        blob_hash = hex::encode(batch_receipt.batch_hash),
         sequencer_da_address = %batch_sequencer_receipt.da_address,
         num_txs = batch_receipt.tx_receipts.len(),
         sequencer_outcome = ?batch_receipt.inner,

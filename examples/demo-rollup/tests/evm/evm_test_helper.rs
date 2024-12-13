@@ -26,6 +26,7 @@ pub(crate) async fn start_node(
         test_genesis_source(sov_modules_api::OperatingMode::Zk),
         BlockProducingConfig::OnBatchSubmit,
         finalization_blocks,
+        0,
     )
     .set_config(|c| {
         c.rollup_prover_config = rollup_prover_config;

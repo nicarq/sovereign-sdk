@@ -7,11 +7,16 @@ use sov_chain_state::TransitionHeight;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Batch, BlobDataWithId, DaSpec, GenesisState, InfallibleKernelStateAccessor,
+    BatchWithId, BlobDataWithId, DaSpec, FullyBakedTx, GenesisState, InfallibleKernelStateAccessor,
     InfallibleStateAccessor, KernelStateMap, KernelStateValue, Module, ModuleId, ModuleInfo,
     NotInstantiable, Spec,
 };
 use sov_state::codec::BcsCodec;
+
+type BlobAndSender<S> = (
+    BlobDataWithId<BatchWithId<Vec<FullyBakedTx>>>,
+    <<S as Spec>::Da as DaSpec>::Address,
+);
 
 /// For how many slots deferred blobs are stored before being executed
 pub fn config_deferred_slots_count() -> u64 {
@@ -40,8 +45,7 @@ pub struct BlobStorage<S: Spec> {
     /// Caller controls the order of blobs in the vector
     #[state]
     #[allow(clippy::type_complexity)]
-    pub(crate) deferred_blobs:
-        KernelStateMap<u64, Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>, BcsCodec>,
+    pub(crate) deferred_blobs: KernelStateMap<u64, Vec<BlobAndSender<S>>, BcsCodec>,
 
     /// Any preferred sequencer blobs which were received out of order. Mapped from sequence number to batch.
     #[state]
@@ -65,7 +69,7 @@ impl<S: Spec> BlobStorage<S> {
     pub fn store_batches(
         &self,
         rollup_height: TransitionHeight,
-        batches: &[(BlobDataWithId, <S::Da as DaSpec>::Address)],
+        batches: &[BlobAndSender<S>],
         state: &mut impl InfallibleKernelStateAccessor,
     ) {
         self.deferred_blobs
@@ -79,7 +83,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         slot_height: TransitionHeight,
         state: &mut impl InfallibleKernelStateAccessor,
-    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)> {
+    ) -> Vec<BlobAndSender<S>> {
         self.deferred_blobs
             .remove(&slot_height, state)
             .unwrap_infallible()
@@ -132,7 +136,7 @@ pub struct PreferredBatchData {
     /// the rollup will defer processsing of the batch until the proof is received.
     pub sequence_number: u64,
     /// The actual data of the blob.
-    pub data: Batch,
+    pub data: Vec<FullyBakedTx>,
     /// The number of virtual slots to advance after processing the batch. Minimum 1.
     pub virtual_slots_to_advance: u8,
 }

@@ -38,6 +38,7 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
         test_genesis_source(OperatingMode::Zk),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
+        0,
     )
     .start()
     .await?;
@@ -64,6 +65,7 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         test_genesis_source(OperatingMode::Zk),
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
+        0,
     )
     .start()
     .await?;

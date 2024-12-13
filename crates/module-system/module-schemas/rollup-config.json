@@ -239,6 +239,13 @@
       "description": "Configuration for [`PreferredBatchBuilder`].",
       "type": "object",
       "properties": {
+        "minimum_profit_per_tx": {
+          "description": "The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero. Sequencers should set this to a non-zero value if they wish to cover their DA costs.",
+          "default": 0,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "should_update_state": {
           "description": "Whether the sequencer should update its state to track the received state of the full-node before submitting a batch. ## TODO(@theochap) This is a temporary solution to prevent breakage of the sequencer. It should be removed once we have fully integrated the sequencer and fixed update race conditions.",
           "default": false,

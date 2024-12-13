@@ -31,7 +31,7 @@ pub use checkpoints::StateCheckpoint;
 pub use genesis::GenesisStateAccessor;
 pub use internals::AccessoryDelta;
 pub use kernel::{BootstrapWorkingSet, KernelStateAccessor};
-pub use scratchpad::{PreExecWorkingSet, TxScratchpad, WorkingSet};
+pub use scratchpad::{PreExecWorkingSet, TxChangeSet, TxScratchpad, WorkingSet};
 
 use self::seal::*;
 use super::{StateReaderAndWriter, VersionReader};

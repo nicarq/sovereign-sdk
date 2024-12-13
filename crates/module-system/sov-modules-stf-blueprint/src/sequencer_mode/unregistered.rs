@@ -267,7 +267,7 @@ where
                 gas_used: S::Gas::zero(),
             };
 
-            let tx_receipt = create_tx_receipt(skipped, raw_tx_hash, 0);
+            let tx_receipt = create_tx_receipt(skipped, raw_tx_hash);
             tx_receipts.push(tx_receipt);
         }
         Ok(ApplyTxResult {
@@ -294,8 +294,6 @@ where
             outcome: BatchSequencerOutcome::Executed(Rewards {
                 accumulated_reward,
                 accumulated_penalty: 0,
-                // In the unregistered case, the sequencer does not cover the costs for the hooks.
-                hooks_cost: 0,
             }),
         },
     };
