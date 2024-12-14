@@ -1,13 +1,13 @@
+pub mod byte_display;
 pub mod visitor;
 use core::panic;
 use std::fmt::Debug;
 
-use bech32::{Bech32, Bech32m, Hrp};
 use borsh::{BorshDeserialize, BorshSerialize};
+pub use byte_display::ByteDisplay;
 #[cfg(feature = "serde")]
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::display::FormatError;
 use crate::schema::{IndexLinking, Link, OverrideSchema, Primitive};
 
 pub trait LinkingScheme: Clone + Debug {
@@ -229,99 +229,6 @@ pub enum IntegerDisplay {
     Hex,
     #[default]
     Decimal,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, BorshDeserialize, BorshSerialize)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ByteDisplay {
-    #[default]
-    Hex,
-    Decimal,
-    Bech32 {
-        #[cfg_attr(feature = "serde", serde(with = "hrp_serde"))]
-        #[borsh(
-            serialize_with = "hrp_borsh::borsh_serialize",
-            deserialize_with = "hrp_borsh::borsh_deserialize"
-        )]
-        prefix: Hrp,
-    },
-    Bech32m {
-        #[cfg_attr(feature = "serde", serde(with = "hrp_serde"))]
-        #[borsh(
-            serialize_with = "hrp_borsh::borsh_serialize",
-            deserialize_with = "hrp_borsh::borsh_deserialize"
-        )]
-        prefix: Hrp,
-    },
-    Base58,
-}
-
-mod hrp_borsh {
-    use bech32::Hrp;
-    use borsh::{BorshDeserialize, BorshSerialize};
-
-    pub fn borsh_serialize<W: borsh::io::Write>(
-        hrp: &Hrp,
-        w: &mut W,
-    ) -> Result<(), borsh::io::Error> {
-        let s = hrp.as_str();
-        BorshSerialize::serialize(&s, w)
-    }
-
-    pub fn borsh_deserialize<R: borsh::io::Read>(r: &mut R) -> Result<Hrp, borsh::io::Error> {
-        let s: String = BorshDeserialize::deserialize_reader(r)?;
-        Hrp::parse(&s).map_err(borsh::io::Error::other)
-    }
-}
-
-#[cfg(feature = "serde")]
-mod hrp_serde {
-    use bech32::Hrp;
-    use serde::de::{self, Unexpected};
-    use serde::{Deserialize, Deserializer, Serializer};
-
-    pub fn serialize<S>(hrp: &Hrp, ser: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = hrp.as_str();
-        ser.serialize_str(s)
-    }
-
-    pub fn deserialize<'de, D>(d: D) -> Result<Hrp, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = <&str>::deserialize(d)?;
-        Hrp::parse(s).map_err(|_| de::Error::invalid_value(Unexpected::Str(s), &"a valid HRP"))
-    }
-}
-
-impl ByteDisplay {
-    pub fn format(&self, input: &[u8], f: &mut impl core::fmt::Write) -> Result<(), FormatError> {
-        match self {
-            ByteDisplay::Hex => {
-                f.write_str("0x")?;
-                for byte in input {
-                    write!(f, "{:02x}", byte)?;
-                }
-            }
-            ByteDisplay::Decimal => {
-                write!(f, "{:?}", input)?;
-            }
-            ByteDisplay::Bech32 { prefix } => {
-                bech32::encode_to_fmt::<Bech32, _>(f, *prefix, input)?
-            }
-            ByteDisplay::Bech32m { prefix } => {
-                bech32::encode_to_fmt::<Bech32m, _>(f, *prefix, input)?
-            }
-            ByteDisplay::Base58 => {
-                let out = bs58::encode(input).into_string();
-                f.write_str(&out)?;
-            }
-        }
-        Ok(())
-    }
 }
 
 pub trait ByteDisplayable {

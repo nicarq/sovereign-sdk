@@ -8,6 +8,7 @@ license = "MIT OR Apache-2.0"
 arrayvec = { workspace = true, optional = true }
 bech32 = { workspace = true }
 bs58 = { workspace = true }
+hex = { workspace = true }
 thiserror = { workspace = true }
 
 borsh = { workspace = true, features = [] }
@@ -32,9 +33,10 @@ serde = { workspace = true }
 macros = ["sov-universal-wallet-macros"]
 serde = [
 	"dep:serde",
-    "schemars",
+	"schemars",
 	"serde_json",
 	"sov-universal-wallet/serde",
 	"nmt-rs/serde",
 	"arrayvec?/serde",
+	"hex/serde"
 ]

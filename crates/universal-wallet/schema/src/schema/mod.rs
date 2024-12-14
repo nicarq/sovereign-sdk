@@ -23,6 +23,7 @@ use transaction_templates::TransactionTemplateSet;
 use crate::display::{Context as DisplayContext, DisplayVisitor, FormatError};
 #[cfg(feature = "serde")]
 use crate::json_to_borsh::{Context as EncodeContext, EncodeError, EncodeVisitor};
+use crate::ty::byte_display::ByteParseError;
 use crate::ty::{LinkingScheme, Ty};
 
 #[derive(Debug, Error)]
@@ -34,6 +35,8 @@ pub enum SchemaError {
     #[cfg(feature = "serde")]
     #[error(transparent)]
     EncodeError(#[from] EncodeError),
+    #[error(transparent)]
+    Bech32Error(#[from] ByteParseError),
     #[error("Rollup type {0:?} was missing from schema")]
     MissingRollupRoot(RollupRoots),
     #[error("Template {0} not found in schema")]
