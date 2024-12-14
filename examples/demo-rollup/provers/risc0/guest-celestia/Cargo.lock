@@ -4039,6 +4039,7 @@ dependencies = [
  "bech32",
  "borsh",
  "bs58",
+ "hex",
  "nmt-rs",
  "schemars",
  "serde",
