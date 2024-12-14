@@ -225,20 +225,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
             match &result {
                 Ok(accepted) => {
-                    for event in accepted.confirmation.events() {
-                        self.events_sender
-                            .send(SequencerEvent {
-                                tx_hash: accepted.tx_hash,
-                                event,
-                            })
-                            .ok();
-                    }
-
                     let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
 
-                    // Send notification.
-                    self.tx_status_manager
-                        .notify(accepted.tx_hash, TxStatus::Submitted);
                     if let Err(e) = self.sequencer_db.insert(&stored_tx).await {
                         error!(%e, "Database error. Failed to add transaction to batch");
                         result = Err(AcceptTxError {
@@ -246,6 +234,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                             title: "Database Error".to_string(),
                             details: String::new(),
                         });
+                    } else {
+                        self.notify_accepted_tx(accepted);
                     }
                 }
                 Err(_) => {}
@@ -277,17 +267,8 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         let tx_bytes = borsh::to_vec(&tx_input).expect("Failed to serialize transaction");
         tracing::info!(tx = hex::encode(&tx_bytes), "Accepting transaction");
         let accepted = batch_builder.accept_tx(tx_input.clone()).await?;
-
-        for event in accepted.confirmation.events() {
-            self.events_sender
-                .send(SequencerEvent {
-                    tx_hash: accepted.tx_hash,
-                    event,
-                })
-                .ok();
-        }
-
         let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx_input);
+
         self.sequencer_db.insert(&stored_tx).await.map_err(|e| {
             error!(%e, "Database error. Failed to accept transaction");
             AcceptTxError {
@@ -296,8 +277,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
                 details: String::new(),
             }
         })?;
-        self.tx_status_manager
-            .notify(accepted.tx_hash, TxStatus::Submitted);
+        self.notify_accepted_tx(&accepted);
 
         Ok(accepted)
     }
@@ -441,6 +421,23 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         }
 
         Ok(())
+    }
+
+    fn notify_accepted_tx(
+        &self,
+        tx: &AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>,
+    ) {
+        for event in tx.confirmation.events() {
+            self.events_sender
+                .send(SequencerEvent {
+                    tx_hash: tx.tx_hash,
+                    event,
+                })
+                .ok();
+        }
+
+        self.tx_status_manager
+            .notify(tx.tx_hash, TxStatus::Submitted);
     }
 }
 
