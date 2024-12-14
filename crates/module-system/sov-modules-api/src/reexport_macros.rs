@@ -119,10 +119,9 @@
 /// use sov_modules_api::{DaSpec, DispatchCall, Spec};
 /// use sov_bank::Bank;
 /// use sov_sequencer_registry::SequencerRegistry;
-/// use sov_modules_api::macros::UniversalWallet;
 ///
 /// #[derive(DispatchCall)]
-/// #[dispatch_call(serde(untagged), derive(UniversalWallet))]
+/// #[dispatch_call(serde(untagged))]
 /// struct MyRuntime<S: Spec> {
 ///   pub bank: Bank<S>,
 ///   pub sequencer_registry: SequencerRegistry<S>,

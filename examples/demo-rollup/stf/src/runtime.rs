@@ -40,7 +40,6 @@ use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
 use sov_modules_api::capabilities::{AuthorizationData, Guard, HasCapabilities, HasKernel};
-use sov_modules_api::macros::UniversalWallet;
 #[cfg(feature = "native")]
 use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
@@ -53,7 +52,6 @@ use crate::genesis_config::GenesisPaths;
 
 /// The `demo-stf runtime`.
 #[derive(Default, Genesis, Hooks, DispatchCall, Event, MessageCodec, RuntimeRestApi)]
-#[dispatch_call(derive(UniversalWallet))]
 #[cfg_attr(feature = "native", derive(CliWallet), expose_rpc)]
 pub struct Runtime<S: Spec> {
     /// The Bank module.
