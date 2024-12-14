@@ -4,6 +4,7 @@ use std::fmt::Debug;
 mod container;
 mod primitive;
 pub mod safe_string;
+pub mod transaction_templates;
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use container::Container;
 use nmt_rs::simple_merkle::db::MemDb;
@@ -17,6 +18,7 @@ mod schema_impls;
 mod tests;
 
 use thiserror::Error;
+use transaction_templates::TransactionTemplateSet;
 
 use crate::display::{Context as DisplayContext, DisplayVisitor, FormatError};
 #[cfg(feature = "serde")]
@@ -34,6 +36,8 @@ pub enum SchemaError {
     EncodeError(#[from] EncodeError),
     #[error("Rollup type {0:?} was missing from schema")]
     MissingRollupRoot(RollupRoots),
+    #[error("Template {0} not found in schema")]
+    UnknownTemplate(String),
     #[error("Index {0} not found in schema")]
     InvalidIndex(usize),
 }
@@ -63,6 +67,8 @@ pub enum Link {
     ByIndex(usize),
     Immediate(Primitive),
     Placeholder,
+    /// Placeholder indexed by its place in the parent datastructure
+    IndexedPlaceholder(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -141,6 +147,11 @@ pub struct Schema {
     #[cfg_attr(feature = "serde", serde(skip))]
     chain_hash: Option<[u8; 32]>,
 
+    /// A list of templatable objects that can be constructed from standard input, per root type (in
+    /// order corresponding to root_type_indices). Mapped by template name.
+    /// Should be skipped in binary serialisation for hardware wallet apps.
+    templates: Vec<TransactionTemplateSet>,
+
     /// Cached (lazily-constructed) merkelization of the entire schema.
     #[cfg_attr(feature = "serde", serde(skip))]
     merkle_tree: MerkleTreeCache,
@@ -163,13 +174,7 @@ impl Schema {
     pub fn of_single_type<T: SchemaGenerator>() -> Self {
         // TODO: this could easily be implemented with a macro for N types for any N >= 1, if ever needed
         let mut schema = Self::default();
-        let link = T::write_schema(&mut schema);
-        schema.push_root_link(link);
-        assert!(
-            schema.under_construction.is_empty(),
-            "Schema generation left some types partially constructed. This is a bug in the schema. {:?}",
-            schema
-        );
+        T::make_root_of(&mut schema);
         schema
     }
 
@@ -187,22 +192,14 @@ impl Schema {
         chain_metadata: &Metadata,
     ) -> Result<Self, SchemaError> {
         let hasher = TmSha2Hasher::new();
+        let mut schema = Self::default();
+        Transaction::make_root_of(&mut schema);
+        UnsignedTransaction::make_root_of(&mut schema);
+        RuntimeCall::make_root_of(&mut schema);
+
+        let templates_hash = hasher.hash_leaf(&borsh::to_vec(&schema.templates)?);
         let metadata_hash = hasher.hash_leaf(&borsh::to_vec(&chain_metadata)?);
-        let mut schema = Self {
-            metadata_hash,
-            ..Default::default()
-        };
-        let link = Transaction::write_schema(&mut schema);
-        schema.push_root_link(link);
-        let link = UnsignedTransaction::write_schema(&mut schema);
-        schema.push_root_link(link);
-        let link = RuntimeCall::write_schema(&mut schema);
-        schema.push_root_link(link);
-        assert!(
-            schema.under_construction.is_empty(),
-            "Schema generation left some types partially constructed. This is a bug in the schema. {:?}",
-            schema
-        );
+        schema.metadata_hash = hasher.hash_nodes(&templates_hash, &metadata_hash);
         Ok(schema)
     }
 
@@ -276,6 +273,64 @@ impl Schema {
             .get(type_index)
             .ok_or(SchemaError::InvalidIndex(type_index))?
             .visit(self, &mut visitor, EncodeContext::new(input)?)?;
+
+        Ok(output)
+    }
+
+    #[cfg(feature = "serde")]
+    pub fn fill_template_from_json(
+        &self,
+        type_index: usize,
+        template_name: &str,
+        input: &str,
+    ) -> Result<Vec<u8>, SchemaError> {
+        fn serde_to_schema_err(e: serde_json::Error) -> SchemaError {
+            SchemaError::EncodeError(EncodeError::Json(e.to_string()))
+        }
+
+        let template = self
+            .templates
+            .get(type_index)
+            .ok_or(SchemaError::InvalidIndex(type_index))?
+            .0
+            .get(template_name)
+            .ok_or(SchemaError::UnknownTemplate(template_name.to_string()))?;
+
+        // Parse the JSON as a map/object of inputs
+        let mut input_map: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(input)
+                .map_err(serde_to_schema_err)?;
+
+        let mut output = template.preencoded_bytes().to_owned();
+
+        // For every input in the template, starting from the end (to preserve the `offset` values
+        // of previous inputs)...
+        for (name, input) in template.inputs().iter().rev() {
+            // ...get its type from the schema,
+            let ty = match input.type_link() {
+                Link::ByIndex(i) => self.types.get(*i).expect("Template {name} contained an invalid link: {i}. This is a major bug with template generation."),
+                Link::Immediate(ty) => &ty.clone().into(),
+                Link::Placeholder | Link::IndexedPlaceholder(_) => panic!("Template {name} contained placeholder link. This is a major bug with template generation.")
+            };
+            // find the corresponding JSON value,
+            let json_value = input_map.remove(name).ok_or(EncodeError::MissingType {
+                name: name.to_owned(),
+            })?;
+            // and use our json_to_borsh functionality to get the bytes for the input.
+            let mut buf = Vec::new();
+            let mut visitor = EncodeVisitor::new(&mut buf)?;
+            ty.visit(self, &mut visitor, EncodeContext::from_val(json_value))?;
+
+            // Finally, splice the obtained bytes at the specified offset into the template.
+            output.splice(input.offset()..input.offset(), buf);
+        }
+
+        if !input_map.is_empty() {
+            // Unwrap: we know input_map isn't empty, so it must have at least one entry
+            return Err(SchemaError::EncodeError(EncodeError::UnusedInput {
+                value: input_map.iter().next().unwrap().0.to_owned(),
+            }));
+        }
 
         Ok(output)
     }
@@ -355,7 +410,7 @@ impl Schema {
         match link {
             Link::ByIndex(i) => self.root_type_indices.push(i),
             Link::Immediate(..) => {},
-            Link::Placeholder => panic!("Attempted to register a placeholder link as a schema root - are you passing the right link?"),
+            Link::Placeholder | Link::IndexedPlaceholder(_) => panic!("Attempted to register a placeholder link as a schema root - are you passing the right link?"),
         }
     }
 }
@@ -378,7 +433,7 @@ pub trait SchemaGenerator: Sized + 'static {
     /// add a `Default` bound on all types that implement SchemaGenerator) which Rustc doesn't like.
     /// So, we have a slightly messier signature where the type is expected to register each of its child
     /// types with the schema directly rather than returning them to the caller for future registration.
-    fn get_child_links(_schema: &mut Schema) -> Vec<Link>;
+    fn get_child_links(schema: &mut Schema) -> Vec<Link>;
 
     /// Generate the "scaffolding" of the item. If the item is a primtive, this is just the corresponding primtive.
     /// If the type is composed of other types, this is the container with all links set to [`Link::Placeholder`].
@@ -405,6 +460,27 @@ pub trait SchemaGenerator: Sized + 'static {
                 link.into_inner()
             }
         }
+    }
+
+    /// Writes the type and all its children to the schema, if not already present, and sets the
+    /// type as a root type. Generates any templates defined on that type.
+    fn make_root_of(schema: &mut Schema) {
+        let link = Self::write_schema(schema);
+        assert!(
+            schema.under_construction.is_empty(),
+            "Schema generation left some types partially constructed. This is a bug in the schema. {:?}",
+            schema
+        );
+        schema.push_root_link(link);
+        let templates = Self::get_child_templates(schema);
+        schema.templates.push(templates);
+    }
+
+    /// Empty by default
+    /// When derived by the macro, builds a template set from annotations on the fields + the field
+    /// types' own get_child_templates()
+    fn get_child_templates(_schema: &mut Schema) -> TransactionTemplateSet {
+        Default::default()
     }
 
     /// Gets a link to the type, writing the type to the schema if necessary.
