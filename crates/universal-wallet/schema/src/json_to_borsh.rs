@@ -32,7 +32,7 @@ pub enum EncodeError {
     WrongArrayLength { expected: usize, actual: usize },
     #[error("Only array sizes that fit into u32 are supported; input contained size {0}")]
     InvalidVecLength(usize),
-    #[error("The JSON contained an unexpected extra value")]
+    #[error("The JSON contained an unexpected extra value: {value}")]
     UnusedInput { value: String },
 }
 

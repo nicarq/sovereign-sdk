@@ -81,8 +81,10 @@ impl_hash32_type!(TokenId, TokenIdBech32, "token_");
 #[sov_wallet(show_as = "{} coins of token ID {}")]
 pub struct Coins {
     /// The number of tokens
+    #[sov_wallet(template("transfer" = input("amount")))]
     pub amount: Amount,
     /// The ID of the token
+    #[sov_wallet(template("transfer" = input("token_id")))]
     pub token_id: TokenId,
 }
 

@@ -92,7 +92,9 @@ impl TypeResolver for Schema {
                     })
             }
             crate::schema::Link::Immediate(primitive) => Ok(primitive.clone().into()),
-            crate::schema::Link::Placeholder => Err(ResolutionError::ErrContainsPlaceholder),
+            crate::schema::Link::Placeholder | crate::schema::Link::IndexedPlaceholder(_) => {
+                Err(ResolutionError::ErrContainsPlaceholder)
+            }
         }
     }
 }

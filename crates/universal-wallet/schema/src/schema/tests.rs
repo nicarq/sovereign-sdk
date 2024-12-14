@@ -1,3 +1,4 @@
+use core::str::FromStr;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::ops::Range;
@@ -22,7 +23,7 @@ macro_rules! encode_decode_tests_simple {
     ($schema:ident, $item:ident, $expected_display:literal) => {
         let borsh_ser = borsh::to_vec(&$item).unwrap();
         let json = serde_json::to_string(&$item).unwrap();
-        println!("{}", json);
+        // println!("{}", json);
         assert_eq!($schema.display(0, &borsh_ser).unwrap(), $expected_display);
         assert_eq!($schema.json_to_borsh(0, &json).unwrap(), borsh_ser);
     };
@@ -130,9 +131,106 @@ pub struct MinimalStruct {
         show_as = "This is a simple struct, with {} tokens, and the following message: {}. End of template!"
     )
 )]
-pub struct SimpleStructWithTemplate {
+pub struct SimpleStructWithShowAs {
     tokens: u64,
     msg: SafeString,
+}
+
+#[test]
+fn test_simple_struct_schema_with_showas() {
+    let my_registration = SimpleStructWithShowAs {
+        tokens: 1000,
+        msg: "abc".to_string().try_into().unwrap(),
+    };
+
+    encode_decode_tests!(SimpleStructWithShowAs, my_registration, "This is a simple struct, with 1000 tokens, and the following message: \"abc\". End of template!");
+}
+
+#[derive(
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct SimpleStructWithTemplate {
+    #[sov_wallet(template("transfer" = input("amount"), "transfer_2" = value("19")))]
+    tokens: u64,
+    #[sov_wallet(template("transfer" = value("ababab"), "transfer_2" = input("msg")))]
+    msg: SafeString,
+}
+
+// trivial implementation for tests: comma-separated fields e.g. "4,afdsa"
+impl FromStr for SimpleStructWithTemplate {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (tokens, msg) = s.split_once(',').unwrap();
+        let tokens = tokens.parse().unwrap();
+        let msg = msg.try_into().unwrap();
+        Ok(Self { tokens, msg })
+    }
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub enum SimpleEnumWithTemplate {
+    One(SimpleStructWithTemplate),
+    Two {
+        #[sov_wallet(template("mint_2" = input("mint_msg")))]
+        msg: u8,
+    },
+    Three(NestedStructWithNonNestedTemplates),
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct NestedStructWithTemplate {
+    inner: SimpleStructWithTemplate,
+    #[sov_wallet(template("transfer" = value("6"), "transfer_2" = input("int_msg")))]
+    msg: u8,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct NestedStructWithNonNestedTemplates {
+    #[sov_wallet(template("mint" = value("4,aa")))]
+    inner: SimpleStructWithTemplate,
+    #[sov_wallet(template("mint" = input("inner")))]
+    inner2: SimpleStructWithTemplate,
+    #[sov_wallet(template("mint" = input("top_msg")))]
+    msg: u32,
 }
 
 #[test]
@@ -142,39 +240,183 @@ fn test_simple_struct_schema_with_template() {
         msg: "abc".to_string().try_into().unwrap(),
     };
 
-    encode_decode_tests!(SimpleStructWithTemplate, my_registration, "This is a simple struct, with 1000 tokens, and the following message: \"abc\". End of template!");
-}
+    encode_decode_tests!(
+        SimpleStructWithTemplate,
+        my_registration,
+        "{ tokens: 1000, msg: \"abc\" }"
+    );
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
-#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
-pub enum SimpleEnumWithTemplate {
-    #[cfg_attr(
-        test,
-        sov_wallet(show_as = "This variant has {} tokens, and the following message: {}. End.")
-    )]
-    VariantOne { tokens: u64, msg: SafeString },
-    #[cfg_attr(
-        test,
-        sov_wallet(show_as = "This variant is a tuple with two fields: a string {} an u8 {}.")
-    )]
-    VariantTwo(SafeString, u8),
+    let schema = Schema::of_single_type::<SimpleStructWithTemplate>();
+
+    let transfer_example_encoding = borsh::to_vec(&SimpleStructWithTemplate {
+        tokens: 124,
+        msg: "ababab".to_string().try_into().unwrap(),
+    })
+    .unwrap();
+    let transfer_template_encoding = schema
+        .fill_template_from_json(0, "transfer", "{ \"amount\": 124 }")
+        .unwrap();
+    assert_eq!(transfer_example_encoding, transfer_template_encoding);
+
+    let transfer_2_example_encoding = borsh::to_vec(&SimpleStructWithTemplate {
+        tokens: 19,
+        msg: "aaabb".to_string().try_into().unwrap(),
+    })
+    .unwrap();
+    let transfer_2_template_encoding = schema
+        .fill_template_from_json(0, "transfer_2", "{ \"msg\": \"aaabb\" }")
+        .unwrap();
+    assert_eq!(transfer_2_example_encoding, transfer_2_template_encoding);
 }
 
 #[test]
 fn test_simple_enum_schema_with_template() {
-    let var_one = SimpleEnumWithTemplate::VariantOne {
+    let my_registration = SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
+        tokens: 1000,
+        msg: "abc".to_string().try_into().unwrap(),
+    });
+
+    encode_decode_tests!(
+        SimpleEnumWithTemplate,
+        my_registration,
+        "One { tokens: 1000, msg: \"abc\" }"
+    );
+
+    let schema = Schema::of_single_type::<SimpleEnumWithTemplate>();
+
+    let variant_one_encoding =
+        borsh::to_vec(&SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
+            tokens: 124,
+            msg: "ababab".to_string().try_into().unwrap(),
+        }))
+        .unwrap();
+    let variant_one_template_encoding = schema
+        .fill_template_from_json(0, "transfer", "{ \"amount\": 124 }")
+        .unwrap();
+    assert_eq!(variant_one_encoding, variant_one_template_encoding);
+
+    let variant_two_encoding = borsh::to_vec(&SimpleEnumWithTemplate::Two { msg: 9 }).unwrap();
+    let variant_two_template_encoding = schema
+        .fill_template_from_json(0, "mint_2", "{ \"mint_msg\": 9 }")
+        .unwrap();
+    assert_eq!(variant_two_encoding, variant_two_template_encoding);
+
+    let variant_three_encoding = borsh::to_vec(&SimpleEnumWithTemplate::Three(
+        NestedStructWithNonNestedTemplates {
+            inner: SimpleStructWithTemplate {
+                tokens: 4,
+                msg: "aa".try_into().unwrap(),
+            },
+            inner2: SimpleStructWithTemplate {
+                msg: "ababa".try_into().unwrap(),
+                tokens: 1344,
+            },
+            msg: 43,
+        },
+    ))
+    .unwrap();
+    let variant_three_template_encoding = schema
+        .fill_template_from_json(
+            0,
+            "mint",
+            "{ \"top_msg\": 43, \"inner\": { \"msg\": \"ababa\", \"tokens\": 1344 } }",
+        )
+        .unwrap();
+    assert_eq!(variant_three_encoding, variant_three_template_encoding);
+}
+
+#[test]
+fn test_nested_struct_schema_with_template() {
+    let my_registration = NestedStructWithTemplate {
+        inner: SimpleStructWithTemplate {
+            tokens: 1000,
+            msg: "abc".to_string().try_into().unwrap(),
+        },
+        msg: 19,
+    };
+
+    encode_decode_tests!(
+        NestedStructWithTemplate,
+        my_registration,
+        "{ inner: { tokens: 1000, msg: \"abc\" }, msg: 19 }"
+    );
+
+    let schema = Schema::of_single_type::<NestedStructWithTemplate>();
+
+    let transfer_example_encoding = borsh::to_vec(&NestedStructWithTemplate {
+        inner: SimpleStructWithTemplate {
+            tokens: 124,
+            msg: "ababab".try_into().unwrap(),
+        },
+        msg: 6,
+    })
+    .unwrap();
+    let transfer_template_encoding = schema
+        .fill_template_from_json(0, "transfer", "{ \"amount\": 124 }")
+        .unwrap();
+    assert_eq!(transfer_example_encoding, transfer_template_encoding);
+
+    let transfer_2_example_encoding = borsh::to_vec(&NestedStructWithTemplate {
+        inner: SimpleStructWithTemplate {
+            tokens: 19,
+            msg: "two".try_into().unwrap(),
+        },
+        msg: 93,
+    })
+    .unwrap();
+    let transfer_2_template_encoding = schema
+        .fill_template_from_json(0, "transfer_2", "{ \"msg\": \"two\", \"int_msg\": 93 }")
+        .unwrap();
+    assert_eq!(transfer_2_example_encoding, transfer_2_template_encoding);
+}
+
+#[test]
+fn test_nested_struct_schema_with_non_nested_template() {
+    let my_registration = NestedStructWithNonNestedTemplates {
+        inner: SimpleStructWithTemplate {
+            tokens: 1000,
+            msg: "abc".to_string().try_into().unwrap(),
+        },
+        inner2: SimpleStructWithTemplate {
+            tokens: 1000,
+            msg: "abc".to_string().try_into().unwrap(),
+        },
+        msg: 40203,
+    };
+
+    encode_decode_tests!(NestedStructWithNonNestedTemplates, my_registration, "{ inner: { tokens: 1000, msg: \"abc\" }, inner2: { tokens: 1000, msg: \"abc\" }, msg: 40203 }");
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+pub enum SimpleEnumWithShowAs {
+    #[cfg_attr(
+        test,
+        sov_wallet(show_as = "This variant has {} tokens, and the following message: {}. End.")
+    )]
+    One { tokens: u64, msg: SafeString },
+    #[cfg_attr(
+        test,
+        sov_wallet(show_as = "This variant is a tuple with two fields: a string {} an u8 {}.")
+    )]
+    Two(SafeString, u8),
+}
+
+#[test]
+fn test_simple_enum_schema_with_showas() {
+    let var_one = SimpleEnumWithShowAs::One {
         tokens: 1000,
         msg: "abc".to_string().try_into().unwrap(),
     };
     encode_decode_tests!(
-        SimpleEnumWithTemplate,
+        SimpleEnumWithShowAs,
         var_one,
         "This variant has 1000 tokens, and the following message: \"abc\". End."
     );
 
-    let var_two = SimpleEnumWithTemplate::VariantTwo("def".to_string().try_into().unwrap(), 19);
+    let var_two = SimpleEnumWithShowAs::Two("def".to_string().try_into().unwrap(), 19);
     encode_decode_tests!(
-        SimpleEnumWithTemplate,
+        SimpleEnumWithShowAs,
         var_two,
         "This variant is a tuple with two fields: a string \"def\" an u8 19."
     );

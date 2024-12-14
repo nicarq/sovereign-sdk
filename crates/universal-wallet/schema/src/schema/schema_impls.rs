@@ -18,7 +18,7 @@ mod primitive_type_impls {
         ByteDisplay, IntegerDisplay, IntegerType, NamedField, Struct, Tuple, UnnamedField,
     };
 
-    macro_rules! impl_is_primitive_for_int {
+    macro_rules! impl_for_int {
         ($t:ident) => {
             impl SchemaGenerator for $t {
                 fn scaffold() -> Item<IndexLinking> {
@@ -30,16 +30,16 @@ mod primitive_type_impls {
             }
         };
     }
-    impl_is_primitive_for_int!(u8);
-    impl_is_primitive_for_int!(u16);
-    impl_is_primitive_for_int!(u32);
-    impl_is_primitive_for_int!(u64);
-    impl_is_primitive_for_int!(u128);
-    impl_is_primitive_for_int!(i8);
-    impl_is_primitive_for_int!(i16);
-    impl_is_primitive_for_int!(i32);
-    impl_is_primitive_for_int!(i64);
-    impl_is_primitive_for_int!(i128);
+    impl_for_int!(u8);
+    impl_for_int!(u16);
+    impl_for_int!(u32);
+    impl_for_int!(u64);
+    impl_for_int!(u128);
+    impl_for_int!(i8);
+    impl_for_int!(i16);
+    impl_for_int!(i32);
+    impl_for_int!(i64);
+    impl_for_int!(i128);
 
     impl OverrideSchema for usize {
         type Output = u32;

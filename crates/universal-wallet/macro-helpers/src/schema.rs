@@ -11,6 +11,7 @@ type SynResult<T> = Result<T, syn::Error>;
 use darling::FromMeta;
 
 use super::serde_rename::{parse_serde_rename_attrs, SerdeRename};
+use crate::template_attribute::{InputOrValue, TransactionTemplates};
 
 #[derive(Debug, FromMeta, Default, Clone)]
 #[darling(rename_all = "snake_case")]
@@ -79,6 +80,65 @@ fn struct_child_links(
         .collect::<Vec<_>>()
 }
 
+/// Generates the bulk of the body of `get_child_templates` for a struct type.
+/// Based on the attribute annotations, fields get a direct template constructed for them, either
+/// an input binding or a pre-encoded default value. (In the latter case, this function inserts
+/// code to encode the value based on the string provided in the attribute.) A vector of every
+/// per-field template chunk so defined by the attributes is formed, and inserted alongside a call
+/// to get_child_templates into the `AttributeAndChildTemplateSet` data structure, which can then
+/// be used in further logic to merge the chunks and construct a full template.
+/// A call to `fill_links` is also inserted so that the Link::Placeholder values that get
+/// constructed in the chunk can be filled with proper types from the schema, at schema (and
+/// template) generation time (i.e. at runtime).
+fn struct_child_templates(
+    input: &Fields<InputField>,
+    schema_arg: &Ident,
+    input_name_str: &String,
+    prefix: &Option<syn::TypePath>,
+) -> TokenStream {
+    let child_templates = input.fields.iter().enumerate().filter(|(_, field)| !field.skip).map(|(i, field)| {
+        let ty = field.ty_tokens(); // TODO: have separate possible override here
+        // For every template annotation (will do nothing if there's no attribute)...
+        let templates: Vec<TokenStream> = field.template.template.iter().map(|t| {
+            // build code to construct the template chunk based on the data from the attribute
+            let transaction_template = match t.1 {
+                InputOrValue::Input(input) => quote! {
+                    #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_input(#input.to_string(), #i)
+                },
+                InputOrValue::Value(value) => quote! {
+                    #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_bytes(
+                        ::borsh::to_vec(
+                            &<#ty as ::std::str::FromStr>::from_str(#value).expect(format!("String parsing failed for value: {} while constructing schema template on type {}", #value, #input_name_str).as_str())
+                        ).expect(format!("Borsh-encoding of value {} failed while encoding schema template on type {}", #value, #input_name_str).as_str())
+                    )
+                }
+            };
+            let template_name = t.0;
+            // Return a Vec<(String, TransactionTemplate)> object (upon generated code evaluation)
+            quote! { (#template_name.to_string(), #transaction_template) }
+        }).collect();
+
+        // Finally, collect the results alongside an inserted call to recursively get the field type's own templates into an AttributeAndChildTemplateSet - see that type's
+        // documentation for details
+        quote! {
+            #prefix::sov_universal_wallet::schema::transaction_templates::AttributeAndChildTemplateSet {
+                attribute_templates: #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet::fill_links(
+                    vec![#(#templates),* ],
+                    Self::get_child_links(#schema_arg),
+                ),
+                type_templates: <#ty as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema)
+            }
+        }
+    }).collect::<Vec<_>>();
+
+    quote! {
+        #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet::concatenate_template_sets(
+            vec! [ #(#child_templates),* ],
+            #input_name_str
+        )
+    }
+}
+
 /// Collect the tokens to implement one of the links returned as part of
 /// SchemaGenerator::get_child_links for a single variant of an enum type
 fn enum_variant_child_link(
@@ -89,6 +149,20 @@ fn enum_variant_child_link(
     let ty_generics = generics.split_for_impl().1;
     quote! {
         <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::make_linkable(schema)
+    }
+}
+
+/// Collet the tokens to implement one of the links that will be fed to
+/// TransactionTemplateSet::merge_enum_template_sets() that will make up the enum's own
+/// implementation of get_child_templates
+fn enum_variant_child_templates(
+    type_ident: &Ident,
+    generics: &Generics,
+    prefix: &Option<syn::TypePath>,
+) -> TokenStream {
+    let ty_generics = generics.split_for_impl().1;
+    quote! {
+        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema)
     }
 }
 
@@ -103,6 +177,7 @@ fn extend_where_clause_with_field_bounds(
     });
     add_self_bound_to_where_clause(output);
     for field in fields.iter().filter(|field| !field.skip) {
+        let ty = field.ty_tokens();
         let predicate = if let Some(bounds) = &field.bound {
             if bounds.0.is_empty() {
                 continue;
@@ -111,10 +186,11 @@ fn extend_where_clause_with_field_bounds(
                 #bounds
             }
         } else {
-            let ty = field.ty_tokens();
             generate_where_clause_simple_field_bound(&ty, prefix)
         };
         output.predicates.push(predicate);
+        let template_bounds = generate_where_clause_template_parsing_bound(&field.template, &ty);
+        output.predicates.extend(template_bounds);
     }
     if output.predicates.is_empty() {
         *where_clause = None
@@ -123,6 +199,22 @@ fn extend_where_clause_with_field_bounds(
 
 fn add_self_bound_to_where_clause(clause: &mut WhereClause) {
     clause.predicates.push(syn::parse_quote! { Self: 'static });
+}
+
+fn generate_where_clause_template_parsing_bound(
+    template: &TransactionTemplates,
+    ty_tokens: &TokenStream,
+) -> Vec<WherePredicate> {
+    template
+        .template
+        .iter()
+        .filter_map(|(_, iov)| match iov {
+            InputOrValue::Input(_) => None,
+            InputOrValue::Value(_) => Some(syn::parse_quote! {
+                #ty_tokens: ::core::str::FromStr
+            }),
+        })
+        .collect()
 }
 
 fn generate_where_clause_simple_field_bound(
@@ -135,8 +227,11 @@ fn generate_where_clause_simple_field_bound(
 }
 
 /// Main macro functionality. Implements the SchemaGenerator trait on the given type, by
-/// a) generating a scaffold containing Link::Placeholder links for every child, and
-/// b) collecting the types of every Placeholder child, in order, in make_child_links()
+/// a) generating a scaffold containing Link::Placeholder links for every child,
+/// b) collecting the types of every Placeholder child, in order, in get_child_links(), and
+/// c) collecting any template construction information from attribute annotations (if any) into
+/// get_child_templates()
+///
 /// Schema generation will then traverse the child link types, generate the schema for those and
 /// fill in the Placeholder links from the scaffold in order.
 ///
@@ -156,16 +251,22 @@ fn derive_wallet_field(
         ident, generics, ..
     } = &input;
     let input = Input::from_derive_input(&input)?;
+    let input_name_str = ident.to_string();
     let template_string = input.show_as;
     let template_tokens = quote_str_option_literally(&template_string);
     let serde_rename = input.attrs;
+    let child_templates_arg =
+        Ident::from_string("schema").expect("Creating hardcoded identifier shouldn't fail");
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let mut where_clause = where_clause.cloned();
     let mut virtual_types: Vec<TokenStream> = vec![];
     let mut child_links: Vec<TokenStream> = vec![];
+    let child_templates: TokenStream;
     let container = match &input.data {
         Data::Struct(s) => {
             child_links = struct_child_links(s, &prefix);
+            child_templates =
+                struct_child_templates(s, &child_templates_arg, &input_name_str, &prefix);
             match s.style {
                 Style::Struct => build_struct_type_scaffold(
                     &s.fields,
@@ -199,17 +300,19 @@ fn derive_wallet_field(
                 where_token: Where::default(),
                 predicates: Default::default(),
             });
+            let mut enum_child_templates: Vec<TokenStream> = Default::default();
             let variants = e.iter()
             .map(|variant| {
                 let variant_ident = &variant.ident;
                 let virtual_type_generics = virtual_field_generics(generics.clone(), &variant.fields.fields);
                 let virtual_type_ident = virtual_typename(ident, variant_ident);
-                let variant_template = &variant.show_as;
-                let variant_template_tokens = quote_str_option_literally(variant_template);
+                let variant_showas = &variant.show_as;
+                let variant_showas_tokens = quote_str_option_literally(variant_showas);
                 let value = match &variant.fields.style {
                     Style::Struct => {
-                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_template, &prefix, &macro_name)?;
+                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
                         virtual_types.push(virtual_struct);
+                        enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &prefix));
                         child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                         quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                     },
@@ -218,8 +321,9 @@ fn derive_wallet_field(
                         if variant.fields.fields.len() > 1 && std::env::var("SOV_WALLET_PEDANTIC").is_ok() {
                             return Err(syn::Error::new_spanned(&input.ident, "Tuple structs with multiple entries are not human readable. Please use a named struct instead!"));
                         } else {
-                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_template, &prefix, &macro_name)?;
+                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
                             virtual_types.push(virtual_tuple);
+                            enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &prefix));
                             child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                             quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                         }
@@ -231,12 +335,19 @@ fn derive_wallet_field(
                     #prefix::sov_universal_wallet::ty::EnumVariant {
                         name: stringify!(#variant_ident).to_string(),
                         serde_name: #serde_variant_name.to_string(),
-                        template: #variant_template_tokens,
+                        template: #variant_showas_tokens,
                         value: #value
                 }})
             })
             .collect::<Result<Vec<_>, _>>()?;
             add_self_bound_to_where_clause(where_under_construction);
+
+            child_templates = quote! {
+                #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet::merge_enum_template_sets(
+                    vec! [ #(#enum_child_templates),* ],
+                    #input_name_str
+                )
+            };
 
             let serde_type_name = serde_rename.rename_typename(ident)?;
             quote! {
@@ -252,11 +363,6 @@ fn derive_wallet_field(
             }
         }
     };
-    let child_links = quote! {
-        vec! [
-            #(#child_links),*
-        ]
-    };
 
     let schema = quote! {
         #[automatically_derived]
@@ -266,14 +372,18 @@ fn derive_wallet_field(
             }
 
             fn get_child_links(schema: &mut #prefix::sov_universal_wallet::schema::Schema) -> Vec<#prefix::sov_universal_wallet::schema::Link> {
-                #child_links
+                vec! [ #(#child_links),* ]
+            }
+
+            fn get_child_templates(#child_templates_arg: &mut #prefix::sov_universal_wallet::schema::Schema) -> #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet {
+                #child_templates
             }
         }
 
         #(#virtual_types) *
     };
-    let res = schema.into_token_stream();
-    Ok(res)
+
+    Ok(schema)
 }
 
 /// Take a struct type and return the appropriate scaffold for it. The scaffold is just
@@ -357,15 +467,6 @@ pub fn build_tuple_type_scaffold(
         .iter()
         .filter(|field| !field.skip)
         .collect::<Vec<_>>();
-    // This might be the root cause of the bug we were seeing with HexHash
-    // // Don't add an extra virtual tuple if the definition only has a single field.
-    // // Instead, just return the field schema directly.
-    // if fields.len() == 1 && matches!(skew, MaybeVirtualType::Virtual { .. }) {
-    //     let resolved_value = fields[0].resolve_type(prefix);
-    //     return Ok(quote! {
-    //         #resolved_value
-    //     });
-    // }
 
     let fields = fields
         .iter()
@@ -431,7 +532,7 @@ fn build_virtual_struct(
     where_clause: &mut WhereClause,
     type_name: &Ident,
     type_generics: &Generics,
-    template_string: &Option<String>,
+    showas_string: &Option<String>,
     prefix: &Option<syn::TypePath>,
     macro_name: &TokenStream,
 ) -> Result<TokenStream, syn::Error> {
@@ -447,23 +548,25 @@ fn build_virtual_struct(
         .map(|field| {
             let name = &field.ident;
             let field_type = &field.ty;
-            let field_bounds = field.bound.as_ref().map(|b| {
+            let bounds_attribute = field.bound.as_ref().map(|b| {
                 let tokens = format!("{}", b.to_token_stream());
                 quote! {
                     #[sov_wallet(bound=#tokens)]
                 }
             });
+            let templates = field.template.original.clone();
+            let template_attribute = quote! {#[sov_wallet(#templates)]};
             // TODO: propagate `#[serde(rename)]` attributes to each field here if support for it
             // is required
             quote! {
-                #field_bounds #name: #field_type
+                #template_attribute #bounds_attribute #name: #field_type
             }
         })
         .collect();
 
     // TODO: pass attribute name as argument when creating the derive, instead of hardcoding
     // sov_wallet
-    let template_attribute = match template_string {
+    let showas_attribute = match showas_string {
         Some(template) => quote! {#[sov_wallet(show_as = #template)]},
         None => quote! {},
     };
@@ -474,7 +577,7 @@ fn build_virtual_struct(
         #[allow(non_camel_case_types, dead_code)]
         #[automatically_derived]
         #[derive(#macro_name)]
-        #template_attribute
+        #showas_attribute
         struct #type_name #virt_impl_generics #virt_where_clause {
             #(#struct_fields),*
         }
@@ -510,14 +613,16 @@ fn build_virtual_tuple(
         .iter()
         .map(|field| {
             let field_type = &field.ty;
-            let field_bounds = field.bound.as_ref().map(|b| {
+            let bounds_attribute = field.bound.as_ref().map(|b| {
                 let tokens = format!("{}", b.to_token_stream());
                 quote! {
                     #[sov_wallet(bound=#tokens)]
                 }
             });
+            let templates = field.template.original.clone();
+            let template_attribute = quote! {#[sov_wallet(#templates)]};
             quote! {
-                #field_bounds #field_type
+                #template_attribute #bounds_attribute #field_type
             }
         })
         .collect();
@@ -580,6 +685,8 @@ pub struct InputField {
     pub display: Option<DisplayType>,
     #[darling(default)]
     pub bound: Option<Bounds>,
+    #[darling(default)]
+    pub template: TransactionTemplates,
     #[darling(default)]
     pub hidden: bool,
     #[darling(default, rename = "as_ty")]

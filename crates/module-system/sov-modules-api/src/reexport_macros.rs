@@ -683,6 +683,63 @@ pub mod macros {
     /// assert_eq!(Schema::of_single_type::<Tagged>().display(0, &serialized).unwrap(), r#"{ data: 300000, tag: -5 }"#);
     /// ```
     ///
+    /// ## Attributes: `#[sov_wallet(template({template spec}))]`
+    ///
+    /// Annotates the field for inclusion in a standard template.
+    ///
+    /// Templates specify several input bindings that can be later provided to the schema (by
+    /// name), and the schema will fill the inputs with the correct encoding to output a fully
+    /// encoded target type. In this context, the target can be any of the schema root types.
+    ///
+    /// Fields can be annotated with either an input binding or a pre-defined value (which will be
+    /// hardcoded into the template).
+    ///
+    /// The contents of the template attribute are of the format
+    /// ```ignore
+    /// template("template_one" = {field data}, "template_two" = {metadata}, ...)
+    /// ```
+    /// Where templates are defined (and distinguished) by their string name. The field data, in
+    /// turn, is one of either
+    /// * `input("name")` for an input binding, or
+    /// * `value("data")` for a pre-defined hardcoded value.
+    ///
+    /// If a type defines annotates template attributes on one of its fields, all of its fields
+    /// must have template metadata. Complex types that have their own subfields can be annotated
+    /// at a lower level, and a field of such a type will be considered correctly annotated for the
+    /// template when used in parent types.
+    ///
+    /// As a special rule, in an enum, a template can only be defined on the fields of a single
+    /// variant. It is an error to have template attributes with the same name available from
+    /// multiple variants.
+    ///
+    /// ```rust
+    /// use sov_universal_wallet::schema::Schema;
+    /// use sov_universal_wallet::schema::safe_string::SafeString;
+    /// use sov_modules_api::macros::UniversalWallet;
+    /// #[derive(UniversalWallet, borsh::BorshSerialize)]
+    /// pub enum CallMessage {
+    ///     Transfer {
+    ///         #[sov_wallet(template("transfer" = input("to")))]
+    ///         to: SafeString,
+    ///         coins: Coins,
+    ///     }
+    /// }
+    /// #[derive(UniversalWallet, borsh::BorshSerialize)]
+    /// pub struct Coins {
+    ///     #[sov_wallet(template("transfer" = input("amount")))]
+    ///     pub amount: u64,
+    ///     #[sov_wallet(template("transfer" = value("MY_TOKEN_ID")))]
+    ///     pub token_id: SafeString,
+    /// }
+    ///
+    /// let schema = Schema::of_single_type::<CallMessage>();
+    /// let encoded_call = schema.fill_template_from_json(0, "transfer", r#"{ "to":
+    /// "sov1234_whatever_address", "amount": 2000 }"#).unwrap();
+    ///
+    /// assert_eq!(schema.display(0, &encoded_call).unwrap(), r#"Transfer { to: "sov1234_whatever_address", coins: { amount: 2000, token_id: "MY_TOKEN_ID" } }"#);
+    /// ```
+    ///
+    ///
     /// ## Attributes: `#[sov_wallet(skip)]`
     ///
     /// Causes the field to be excluded from the Schema entirely. This should be used if the field is not present in

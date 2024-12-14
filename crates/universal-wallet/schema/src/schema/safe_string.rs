@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use thiserror::Error;
@@ -101,6 +102,13 @@ impl<const MAX_LEN: usize> TryFrom<String> for SizedSafeString<MAX_LEN> {
             });
         }
         Ok(Self(value))
+    }
+}
+
+impl<const MAX_LEN: usize> FromStr for SizedSafeString<MAX_LEN> {
+    type Err = SchemaStringError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        s.try_into()
     }
 }
 
