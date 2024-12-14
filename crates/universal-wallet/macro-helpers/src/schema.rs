@@ -4,7 +4,10 @@ use darling::{uses_lifetimes, uses_type_params, FromDeriveInput, FromField, From
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::token::{Comma, Where};
-use syn::{DeriveInput, GenericParam, Generics, Ident, WhereClause, WherePredicate};
+use syn::{
+    DeriveInput, GenericParam, Generics, Ident, Type, TypeArray, TypeGroup, TypeParen, TypePtr,
+    TypeReference, TypeSlice, WhereClause, WherePredicate,
+};
 
 type SynResult<T> = Result<T, syn::Error>;
 
@@ -517,7 +520,42 @@ fn virtual_field_generics(input_generics: Generics, fields: &[InputField]) -> Ge
             GenericParam::Const(_) => true,
         })
         .collect();
+    if let Some(clause) = virt_generics.where_clause.as_mut() {
+        clause.predicates = clause
+            .predicates
+            .clone()
+            .into_iter()
+            .filter(|p| match p {
+                WherePredicate::Type(t) => syn_type_ident(&t.bounded_ty)
+                    .map(|t| collected_generics.contains(t))
+                    .unwrap_or(false),
+                WherePredicate::Lifetime(l) => collected_lifetimes.contains(&l.lifetime),
+                _ => false,
+            })
+            .collect();
+    }
     virt_generics
+}
+
+/// Helper for the above. Where-clauses contain `Type` types, but darling's
+/// `declared_type_params()` utility only returns `Ident`s - because that's the main information
+/// available on a `TypeParam`, in fact - so the where-clauses have to be filtered based on the
+/// `Ident`s of included types.
+/// Thus we match on the very general `Type` enum and try to figure out if any where-clause bounds
+/// involve any of the `TypeParam`s we know of; and for `Type`s which don't have a clear Ident we
+/// default to None. This may not be a perfect heuristic but should cover the overwhelming majority
+/// of normal Rust usage.
+fn syn_type_ident(syn_type: &Type) -> Option<&Ident> {
+    match syn_type {
+        Type::Array(TypeArray { elem, .. })
+        | Type::Group(TypeGroup { elem, .. })
+        | Type::Paren(TypeParen { elem, .. })
+        | Type::Ptr(TypePtr { elem, .. })
+        | Type::Reference(TypeReference { elem, .. })
+        | Type::Slice(TypeSlice { elem, .. }) => syn_type_ident(elem),
+        Type::Path(t) => t.path.get_ident(),
+        _ => None,
+    }
 }
 
 /// Build an explicit struct type from the fields inside an enum variant.
@@ -640,9 +678,9 @@ fn build_virtual_tuple(
         #[automatically_derived]
         #[derive(#macro_name)]
         #template_attribute
-        struct #type_name #virt_impl_generics #virt_where_clause (
+        struct #type_name #virt_impl_generics (
             #(#tuple_fields),*
-        );
+        ) #virt_where_clause;
     };
 
     Ok(virtual_tuple)

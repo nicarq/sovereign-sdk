@@ -252,7 +252,6 @@ pub mod third_test_module {
 mod custom_attributes {
     use super::*;
     #[derive(Default, Genesis, DispatchCall, Event, MessageCodec)]
-    #[dispatch_call(derive(sov_modules_api::macros::UniversalWallet))]
     struct Runtime<S: Spec> {
         pub first: first_test_module::FirstTestStruct<S>,
         pub second: second_test_module::SecondTestStruct<S>,
