@@ -133,8 +133,6 @@ mod event;
 mod expand_macro;
 mod manifest;
 mod module_info;
-mod new_types;
-mod offchain;
 mod rest;
 #[cfg(feature = "native")]
 mod rpc;
@@ -145,10 +143,8 @@ use dispatch::genesis::GenesisMacro;
 use dispatch::hooks::HooksMacro;
 use dispatch::message_codec::MessageCodec;
 use event::EventMacro;
-use new_types::address_type_helper;
-use offchain::offchain_generator;
 use proc_macro::TokenStream;
-use syn::{parse_macro_input, DeriveInput, ItemFn};
+use syn::{parse_macro_input, DeriveInput};
 
 // Inputs to the [`config_value`](crate::config_value) proc-macro.
 /// Returns the name of the function that invoked the proc-macro.
@@ -312,18 +308,6 @@ pub fn module_metadata_rest_api(input: TokenStream) -> TokenStream {
 pub fn cli_parser(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     handle_macro_error_and_expand(fn_name!(), cli_parser::derive_cli_wallet("Cmd", input))
-}
-
-#[proc_macro_attribute]
-pub fn address_type(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as DeriveInput);
-    handle_macro_error_and_expand(fn_name!(), address_type_helper(input))
-}
-
-#[proc_macro_attribute]
-pub fn offchain(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    let input = parse_macro_input!(item as ItemFn);
-    handle_macro_error_and_expand(fn_name!(), offchain_generator(input))
 }
 
 fn expand_code(macro_name: &str, input: TokenStream) -> TokenStream {

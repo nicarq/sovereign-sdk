@@ -1,3 +1,5 @@
+## 2024-12-15
+- #2048 removes the `offchain` macro, as well as the outdated modules `sov-nft` (in module-system/module-implementations) and `simple-nft-module` (in the examples directory).
 ## 2024-12-09
 - #2021 removes prometheus tracking from STF runner. Initialization of Prometheus registry is kept for other crates.
 ## 2024-12-06

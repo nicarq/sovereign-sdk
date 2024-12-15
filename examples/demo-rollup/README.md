@@ -111,7 +111,7 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xd2c62826e166ef3a7e27f513de2ee80e621946968e1d1d653c7dfb6af2c64386/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x758b37b896527c20dd0e9b6af780f6e2d98f02a20a9a1be8733d5f600e7e644b/events | jq
 {
   "data": [
     {
@@ -292,7 +292,6 @@ Commands:
   prover-incentives    A subcommand for the `ProverIncentives` module
   accounts             A subcommand for the `Accounts` module
   nonces               A subcommand for the `Nonces` module
-  nft                  A subcommand for the `Nft` module
   chain-state          A subcommand for the `ChainState` module
   blob-storage         A subcommand for the `BlobStorage` module
   paymaster            A subcommand for the `Paymaster` module
@@ -319,7 +318,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x59e94f039764dd879788b124ff85a50bf110911508f1b012c9e843345a1b08c3",
+  "chain_hash": "0x02d883b3293c70a4ea8e6065883248c63f0e45be43e427de20e67049e613ec85",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

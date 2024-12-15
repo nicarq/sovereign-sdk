@@ -13,7 +13,6 @@ pub use sov_chain_state::ChainStateConfig;
 pub use sov_evm::EvmConfig;
 use sov_modules_api::prelude::*;
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-pub use sov_nft::NonFungibleTokenConfig;
 use sov_paymaster::PaymasterConfig;
 use sov_prover_incentives::ProverIncentivesConfig;
 pub use sov_sequencer_registry::SequencerConfig;
@@ -39,8 +38,6 @@ pub struct GenesisPaths {
     pub attester_incentives_genesis_path: PathBuf,
     /// Prover Incentives genesis path.
     pub prover_incentives_genesis_path: PathBuf,
-    /// NFT genesis path.
-    pub nft_path: PathBuf,
     /// EVM genesis path.
     pub evm_genesis_path: PathBuf,
     /// Chain State genesis path.
@@ -63,7 +60,6 @@ impl GenesisPaths {
             accounts_genesis_path: dir.as_ref().join("accounts.json"),
             prover_incentives_genesis_path: dir.as_ref().join("prover_incentives.json"),
             attester_incentives_genesis_path: dir.as_ref().join("attester_incentives.json"),
-            nft_path: dir.as_ref().join("nft.json"),
             evm_genesis_path: dir.as_ref().join("evm.json"),
             chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
             paymaster_genesis_path: dir.as_ref().join("paymaster.json"),
@@ -98,8 +94,6 @@ where
 
     let nonces_config = ();
 
-    let nft_config: NonFungibleTokenConfig = read_genesis_json(&genesis_paths.nft_path)?;
-
     let evm_config: EvmConfig = read_genesis_json(&genesis_paths.evm_genesis_path)?;
 
     let chain_state_config: ChainStateConfig<S> =
@@ -116,7 +110,6 @@ where
         prover_incentives_config,
         accounts_config,
         nonces_config,
-        nft_config,
         chain_state_config,
         blob_storage_config,
         paymaster_config,

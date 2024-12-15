@@ -1492,7 +1492,6 @@ dependencies = [
  "sov-kernels",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
- "sov-nft",
  "sov-nonces",
  "sov-paymaster",
  "sov-prover-incentives",
@@ -5104,18 +5103,6 @@ dependencies = [
  "sov-state",
  "thiserror",
  "tracing",
-]
-
-[[package]]
-name = "sov-nft"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "borsh",
- "schemars",
- "serde",
- "sov-modules-api",
- "sov-state",
 ]
 
 [[package]]

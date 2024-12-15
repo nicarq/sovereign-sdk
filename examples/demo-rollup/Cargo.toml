@@ -25,7 +25,6 @@ sov-kernels = { workspace = true, features = ["native"] }
 sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
-sov-nft = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
 risc0 = { path = "./provers/risc0" }
 sp1 = { path = "./provers/sp1" }
@@ -81,7 +80,6 @@ sov-mock-da = { workspace = true, features = ["arbitrary"] }
 sov-bank = { workspace = true, features = ["native"] }
 sov-sequencer-registry = { workspace = true, features = ["native"] }
 sov-accounts = { workspace = true, features = ["native"] }
-sov-nft = { workspace = true, features = ["native"] }
 sov-api-spec = { workspace = true }
 sov-modules-macros = { workspace = true }
 sov-test-utils = { workspace = true }

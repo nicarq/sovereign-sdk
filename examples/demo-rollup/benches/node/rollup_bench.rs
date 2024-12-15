@@ -21,7 +21,6 @@ use sov_modules_api::{
 };
 use sov_modules_macros::config_value;
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint, TxReceiptContents};
-use sov_nft::NonFungibleTokenConfig;
 use sov_rollup_interface::crypto::PrivateKey;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -153,7 +152,6 @@ fn initialize_rollup(
         prover_incentives,
         accounts,
         nonces,
-        NonFungibleTokenConfig {},
         chain_state,
         blob_storage,
         Default::default(),

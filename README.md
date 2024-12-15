@@ -63,8 +63,7 @@ On top of the module API, we provide a [state storage layer](./crates/module-sys
 and a bunch of helpful utilities for working with stateful transactions. Finally, we provide a set of modules implementing common
 blockchain functionality like `Accounts`, and fungible `Tokens`.
 
-For more information on the Module System, see its [README](./crates/module-system/README.md). You can also find a tutorial on
-implementing and deploying a custom module [here](./examples/simple-nft-module/README.md).
+For more information on the Module System, see its [README](./crates/module-system/README.md).
 
 ### The Full Node
 
@@ -87,7 +86,6 @@ Experience how a simple rollup works by exploring our [`demo-rollup`](./examples
 - #### Using the Module System
 This is the most straightforward way to create a rollup.
 
-To construct a single module, follow our [module building tutorial](./examples/simple-nft-module/README.md).
 To combine multiple modules into a State Transition Function (STF), see the [`demo-stf`](./examples/demo-rollup/stf/README.md) guide.
 - #### By building a custom State Transition Function
 If you want even more control over your rollup's functionality, you can implement a completely custom State Transition Function without using the Module System. Our dedicated tutorial for this approach can be found [here](./examples/demo-simple-stf/README.md).
