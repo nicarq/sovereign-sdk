@@ -363,65 +363,6 @@ pub use sov_modules_macros::ModuleRestApi;
 
 /// Procedural macros to assist with creating new modules.
 pub mod macros {
-    /// Simple convenience macro for adding some common derive macros and
-    /// impls specifically for a NewType wrapping an Address.
-    /// The reason for having this is that we assumes NewTypes for address as a common use case
-    ///
-    /// ## Example
-    /// ```
-    /// use sov_modules_macros::address_type;
-    /// use std::fmt;
-    /// use sov_modules_api::Spec;
-    /// #[address_type]
-    /// pub struct UserAddress;
-    /// ```
-    ///
-    /// This is exactly equivalent to hand-writing
-    ///
-    /// ```
-    /// use std::fmt;
-    /// use sov_modules_api::Spec;
-    /// #[cfg(feature = "native")]
-    /// #[derive(schemars::JsonSchema)]
-    /// #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "UserAddress")]
-    /// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-    /// pub struct UserAddress<S: Spec>(S::Address);
-    ///
-    /// #[cfg(not(feature = "native"))]
-    /// #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-    /// pub struct UserAddress<S: Spec>(S::Address);
-    ///
-    /// impl<S: Spec> UserAddress<S> {
-    ///     /// Public constructor
-    ///     pub fn new(address: &S::Address) -> Self {
-    ///         UserAddress(address.clone())
-    ///     }
-    ///
-    ///     /// Public getter
-    ///     pub fn get_address(&self) -> &S::Address {
-    ///         &self.0
-    ///     }
-    /// }
-    ///
-    /// impl<S: Spec> fmt::Display for UserAddress<S>
-    /// where
-    ///     S::Address: fmt::Display,
-    /// {
-    ///     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    ///         write!(f, "{}", self.0)
-    ///     }
-    /// }
-    ///
-    /// impl<S: Spec> AsRef<[u8]> for UserAddress<S>
-    /// where
-    ///     S::Address: AsRef<[u8]>,
-    /// {
-    ///     fn as_ref(&self) -> &[u8] {
-    ///         self.0.as_ref()
-    ///     }
-    /// }
-    /// ```
-    pub use sov_modules_macros::address_type;
     /// Reads a TOML value from the rollup configuration manifest file and
     /// converts it into a Rust expression.
     ///
@@ -480,36 +421,6 @@ pub mod macros {
     ///   - All generic attributes must own the data, thus have bound `'static`
     #[cfg(feature = "native")]
     pub use sov_modules_macros::expose_rpc;
-    /// The offchain macro is used to annotate functions that should only be executed by the rollup
-    /// when the "offchain" feature flag is passed. The macro produces one of two functions depending on
-    /// the presence flag.
-    /// "offchain" feature enabled: function is present as defined
-    /// "offchain" feature absent: function body is replaced with an empty definition
-    ///
-    /// The idea here is that offchain computation is optionally enabled for a full node and is not
-    /// part of chain state and does not impact consensus, prover or anything else.
-    ///
-    /// ## Example
-    /// ```
-    /// use sov_modules_macros::offchain;
-    /// #[offchain]
-    /// fn redis_insert(count: u64){
-    ///     println!("Inserting {} to redis", count);
-    /// }
-    /// ```
-    ///
-    /// This is exactly equivalent to hand-writing
-    /// ```
-    /// #[cfg(feature = "offchain")]
-    /// fn redis_insert(count: u64){
-    ///     println!("Inserting {} to redis", count);
-    /// }
-    ///
-    /// #[cfg(not(feature = "offchain"))]
-    /// fn redis_insert(count: u64){
-    /// }
-    /// ```
-    pub use sov_modules_macros::offchain;
     /// A wrapper around [`jsonrpsee::proc_macros::rpc`] for modules.
     ///
     /// This proc-macro generates a [`jsonrpsee`] implementation for the underlying

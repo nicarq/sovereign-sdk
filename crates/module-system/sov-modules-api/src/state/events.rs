@@ -6,7 +6,7 @@ use std::any::Any;
 /// and the event itself encapsulated in a boxed trait object.
 ///
 /// # Fields
-/// - `event_key`: A vector of bytes representinexamples/simple-nft-module/README.mdg the unique key of the event.
+/// - `event_key`: A vector of bytes representing the unique key of the event.
 /// - `type_id`: The type identifier of the event, using [`core::any::TypeId`].
 /// - `boxed_event`: The event encapsulated in a box, implementing [`core::any::Any`] and [`core::marker::Send`].
 #[derive(Debug)]

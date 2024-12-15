@@ -26,7 +26,6 @@ sov-blob-storage = { workspace = true }
 sov-evm = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true }
-sov-nft = { workspace = true }
 sov-nonces = { workspace = true }
 sov-paymaster = { workspace = true }
 sov-prover-incentives = { workspace = true }
@@ -52,7 +51,6 @@ sov-evm = { workspace = true, features = ["arbitrary"] }
 
 [features]
 default = []
-offchain = ["demo-stf/offchain", "sov-nft/offchain"]
 native = [
 	"demo-stf/native",
 	"sov-accounts/native",
@@ -66,7 +64,6 @@ native = [
 	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
-	"sov-nft/native",
 	"sov-nonces/native",
 	"sov-prover-incentives/native",
 	"sov-rollup-interface/native",

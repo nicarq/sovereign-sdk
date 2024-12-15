@@ -68,8 +68,6 @@ pub struct Runtime<S: Spec> {
     pub accounts: sov_accounts::Accounts<S>,
     /// The Nonces module.
     pub nonces: sov_nonces::Nonces<S>,
-    /// The NFT module.
-    pub nft: sov_nft::NonFungibleToken<S>,
     /// The Chain state module.
     pub chain_state: sov_chain_state::ChainState<S>,
     /// The Blob storage module.

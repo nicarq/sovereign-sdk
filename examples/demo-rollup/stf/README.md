@@ -15,8 +15,7 @@
 
 # Demo State Transition Function
 
-This package shows how you can combine modules to build a custom state transition function. We provide several module implementations
-for you, and if you want additional functionality you can find a tutorial on writing custom modules [here](../simple-nft-module/README.md).
+This package shows how you can combine modules to build a custom state transition function.
 
 For purposes of this tutorial, the exact choices of modules don't matter at all - the steps to combine modules are identical
 no matter which ones you pick.

@@ -25,7 +25,6 @@
 - sov-prover-incentives
 - sov-chain-state
 - sov-blob-storage
-- sov-nft
 - sov-nonces
 
 # Adapters

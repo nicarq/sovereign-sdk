@@ -1,6 +1,0 @@
-{
-  "create_collection": {
-    "name": "Test Collection",
-    "collection_uri": "https://foo.bar/test_collection"
-  }
-}
