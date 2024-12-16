@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use capabilities::mocks::MockKernel;
 use sov_modules_api::*;
-use sov_state::{Prefix, Storage, StorageProof};
+use sov_state::{BorshCodec, Prefix, Storage, StorageProof};
 use sov_test_utils::storage::SimpleStorageManager;
 use unwrap_infallible::UnwrapInfallible;
 
@@ -22,7 +22,7 @@ fn make_user_map_proof(
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
     let storage = storage_manager.create_storage();
     let mut state = StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &kernel);
-    let map = StateMap::new(Prefix::new(vec![0]));
+    let map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
     map.set(&key, &value, &mut state).unwrap_infallible();
 
     let (cache_log, _, witness) = state.freeze();
@@ -54,7 +54,7 @@ fn make_user_value_proof(
     let storage = storage_manager.create_storage();
     let mut state =
         StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &MockKernel::<S>::default());
-    let state_val = StateValue::new(Prefix::new(vec![0]));
+    let state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
     state_val.set(&value, &mut state).unwrap_infallible();
 
     let (cache_log, _, witness) = state.freeze();
@@ -160,7 +160,7 @@ fn test_archival_proof_gen() {
     let mut kernel = MockKernel::<S>::default();
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
-    let state_val = StateValue::new(Prefix::new(vec![0]));
+    let state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     const NUM_ITER: u64 = 10;
 

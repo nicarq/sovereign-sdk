@@ -23,18 +23,6 @@ pub struct VersionedStateValue<V, Codec = BorshCodec> {
     elems: NamespacedStateMap<Kernel, u64, V, Codec>,
 }
 
-impl<V> VersionedStateValue<V>
-where
-    V: BorshSerialize,
-    V: BorshDeserialize,
-{
-    /// Crates a new [`VersionedStateValue`] with the given prefix and the default
-    /// [`StateItemCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
 impl<V, Codec> VersionedStateValue<V, Codec>
 where
     Codec: StateCodec,
@@ -111,7 +99,7 @@ mod tests {
 
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::execution_mode::Native;
-    use sov_state::Prefix;
+    use sov_state::{BorshCodec, Prefix};
     use sov_test_utils::storage::new_finalized_storage;
     use sov_test_utils::MockDaSpec;
     use unwrap_infallible::UnwrapInfallible;
@@ -131,7 +119,7 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<u64>::new(prefix.clone());
+        let value = VersionedStateValue::<u64>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a value in the kernel state during slot 4
         let mut kernel_state = kernel.accessor(&mut state);
@@ -158,7 +146,7 @@ mod tests {
         let mut state = StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new(b"test".to_vec());
-        let value = VersionedStateValue::<u64>::new(prefix.clone());
+        let value = VersionedStateValue::<u64>::with_codec(prefix.clone(), BorshCodec);
 
         // Initialize a versioned value in the kernel state to be available starting at slot 2
 

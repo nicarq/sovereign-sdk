@@ -88,7 +88,7 @@ impl<S: Spec> Bank<S> {
         config: &<Self as Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        let parent_prefix = self.tokens.prefix();
+        let tokens_state_map_prefix = self.tokens.prefix();
         let gas_token_config: TokenConfig<S> = config.gas_token_config.clone().into();
         tracing::debug!(token_id = %config_gas_token_id(), token_name = %gas_token_config.token_name, "Gas token");
         for token_config in std::iter::once(&gas_token_config).chain(config.tokens.iter()) {
@@ -115,7 +115,7 @@ impl<S: Spec> Bank<S> {
                 &address_and_balances,
                 &admins,
                 token_id,
-                parent_prefix,
+                tokens_state_map_prefix,
                 state,
             )?;
 

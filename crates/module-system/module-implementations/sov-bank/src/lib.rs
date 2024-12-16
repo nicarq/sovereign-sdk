@@ -22,6 +22,7 @@ use sov_modules_api::{
     Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateMap, TxState,
 };
+use sov_state::BorshCodec;
 use token::Token;
 /// Specifies an interface to interact with tokens.
 pub use token::{Amount, BurnRate, Coins, TokenId, TokenIdBech32};
@@ -38,6 +39,8 @@ use crate::event::Event;
 pub fn config_gas_token_id() -> TokenId {
     config_value!("GAS_TOKEN_ID")
 }
+
+pub(crate) type C = BorshCodec;
 
 /// Gas configuration for the bank module
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -74,7 +77,7 @@ pub struct Bank<S: Spec> {
 
     /// A mapping of [`TokenId`]s to tokens in the sov-bank.
     #[state]
-    pub(crate) tokens: StateMap<TokenId, Token<S>>,
+    pub(crate) tokens: StateMap<TokenId, Token<S>, C>,
 }
 
 impl<S: Spec> Module for Bank<S> {

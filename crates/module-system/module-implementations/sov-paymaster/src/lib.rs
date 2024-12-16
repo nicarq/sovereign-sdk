@@ -18,8 +18,10 @@ use sov_modules_api::{
 };
 use sov_state::BcsCodec;
 
+pub(crate) type C = BcsCodec;
+
 #[allow(type_alias_bounds)]
-type PayeePolicyMap<S: Spec> = StateMap<S::Address, PayeePolicy<S>>;
+type PayeePolicyMap<S: Spec> = StateMap<S::Address, PayeePolicy<S>, C>;
 
 /// The `Paymaster` module allows a third party to gas on behalf of a user.
 #[derive(Clone, ModuleInfo, ModuleRestApi)]
@@ -31,11 +33,11 @@ pub struct Paymaster<S: Spec> {
 
     /// A mapping from paymaster addresses to their policies.
     #[state]
-    pub payers: StateMap<S::Address, PaymasterPolicy<S, PayeePolicyMap<S>>>,
+    pub payers: StateMap<S::Address, PaymasterPolicy<S, PayeePolicyMap<S>>, C>,
 
     /// Maps the sequencer to the appropriate gas payer.
     #[state]
-    pub sequencer_to_payer: StateMap<<S::Da as DaSpec>::Address, S::Address, BcsCodec>,
+    pub sequencer_to_payer: StateMap<<S::Da as DaSpec>::Address, S::Address, C>,
 
     /// Reference to the Bank module.
     #[module]
@@ -208,16 +210,4 @@ impl<S: Spec> Paymaster<S> {
         policy.authorize_transaction(tx, gas_price)?;
         self.bank.reserve_gas(tx, gas_price, payer, state)
     }
-}
-
-/// Creates a new prefix from an already existing prefix `parent_prefix` and a `token_id`
-/// by extending the parent prefix.
-// TODO: Separate prefix display from prefix creation
-pub(crate) fn prefix_from_address_with_parent<A: std::fmt::Display>(
-    parent_prefix: &sov_state::Prefix,
-    address: &A,
-) -> sov_state::Prefix {
-    let mut prefix = parent_prefix.as_ref().to_vec();
-    prefix.extend_from_slice(format!("{}", address).as_bytes());
-    sov_state::Prefix::new(prefix)
 }

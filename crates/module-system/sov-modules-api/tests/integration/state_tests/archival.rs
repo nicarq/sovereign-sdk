@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::{ApiStateAccessor, StateCheckpoint, StateValue};
-use sov_state::Prefix;
+use sov_state::{BorshCodec, Prefix};
 use sov_test_utils::storage::SimpleStorageManager;
 use unwrap_infallible::UnwrapInfallible;
 
@@ -35,7 +35,7 @@ fn archival_state_updates_correctly() -> Result<(), Infallible> {
     let tmpdir = tempfile::tempdir().unwrap();
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let mut kernel = MockKernel::default();
-    let state_value = StateValue::new(Prefix::new(vec![0]));
+    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     for current_height in 0..100 {
         let storage = storage_manager.create_storage();
