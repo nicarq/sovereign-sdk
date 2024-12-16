@@ -670,6 +670,23 @@ pub mod macros {
     /// assert_eq!(Schema::of_single_type::<File>().display(0, &serialized).unwrap(), r#"{ contents: 0x010203 }"#);
     /// ```
     ///
+    /// /// ## Attributes: `#[sov_wallet(hide_tag)]`
+    ///
+    /// Causes the tag of an enum to be skipped when displaying from its human-readable representation.
+    ///
+    /// ```rust
+    /// use sov_universal_wallet::schema::Schema;
+    /// use sov_modules_api::macros::UniversalWallet;
+    /// #[derive(UniversalWallet, borsh::BorshSerialize)]
+    /// #[sov_wallet(hide_tag)]
+    /// pub enum Example {
+    ///     Hash([u8;32]),
+    ///     Value(u64)
+    /// }
+    /// let serialized = borsh::to_vec(&Example::Value(1)).unwrap();
+    /// assert_eq!(Schema::of_single_type::<Example>().display(0, &serialized).unwrap(), "1");
+    /// ```
+    ///
     /// ## Attributes: `#[sov_wallet(display({encoding}))]`
     ///
     /// Specifies the encoding to use when displaying a byte sequence or integer. The encoding can be one of the following:

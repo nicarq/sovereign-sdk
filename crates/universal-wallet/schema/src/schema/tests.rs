@@ -117,6 +117,23 @@ pub enum TestCall {
     Complex(#[cfg_attr(test, sov_wallet(bound = ""))] Box<Complex>),
 }
 
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+#[serde(rename_all = "snake_case")]
+pub enum SimpleEnum {
+    One(u8),
+    Two(u32),
+}
+
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
+#[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
+#[serde(rename_all = "snake_case")]
+#[sov_wallet(hide_tag)]
+pub enum HideTagEnum {
+    A(u64),
+    B(SimpleEnum),
+}
+
 #[derive(Debug, Hash, Ord, PartialOrd, PartialEq, Eq, Serialize, Deserialize, Clone)]
 #[cfg_attr(test, derive(UniversalWallet, BorshSerialize, BorshDeserialize))]
 pub struct MinimalStruct {
@@ -134,6 +151,15 @@ pub struct MinimalStruct {
 pub struct SimpleStructWithShowAs {
     tokens: u64,
     msg: SafeString,
+}
+
+#[test]
+fn test_hide_tag_enum() {
+    let hide_tag = HideTagEnum::A(0);
+    encode_decode_tests!(HideTagEnum, hide_tag, "0");
+
+    let nested_hide_tag = HideTagEnum::B(SimpleEnum::One(4));
+    encode_decode_tests!(HideTagEnum, nested_hide_tag, "SimpleEnum.One(4)");
 }
 
 #[test]
