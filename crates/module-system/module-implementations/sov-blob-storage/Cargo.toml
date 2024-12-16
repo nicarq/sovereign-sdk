@@ -31,7 +31,7 @@ sov-chain-state = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 strum = { workspace = true }
-sov-blob-storage = { path = ".", features = ["native"] }
+sov-blob-storage = { path = ".", features = ["native", "test-utils"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 sov-test-utils = { workspace = true }
@@ -42,6 +42,7 @@ sov-modules-stf-blueprint = { workspace = true }
 
 [features]
 default = []
+test-utils = []
 native = [
 	"sov-bank/native",
 	"sov-blob-storage/native",

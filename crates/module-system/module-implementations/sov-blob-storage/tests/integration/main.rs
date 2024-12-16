@@ -5,8 +5,8 @@ use sov_modules_api::{BlobDataWithId, BlobReaderTrait, DaSpec, Spec, VersionRead
 use sov_modules_stf_blueprint::{BatchReceipt, Runtime};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::traits::MinimalGenesis;
-use sov_test_utils::runtime::{SlotReceipt, ValueSetter};
-use sov_test_utils::{EncodeCall, TestSequencer, TestUser};
+use sov_test_utils::runtime::{BlobStorage, SlotReceipt, ValueSetter};
+use sov_test_utils::{EncodeCall, TestSequencer, TestSpec, TestUser};
 
 mod helpers_basic_kernel;
 mod helpers_soft_confirmations;
@@ -79,6 +79,21 @@ fn check_virtual_slot_height(
     );
 }
 
+#[derive(Clone, Copy)]
+struct SequenceInfo {
+    id: usize,
+    sequence_number: Option<usize>,
+}
+
+impl SequenceInfo {
+    fn standard(id: usize) -> Self {
+        Self {
+            id,
+            sequence_number: None,
+        }
+    }
+}
+
 /// This helper method asserts that given slots to send and an expected order of receipts, the
 /// [`TestRunner`] will emit the receipts in the expected order. This helper method is
 /// used in [`helpers_basic_kernel::assert_blobs_are_correctly_received_basic_kernel`] and [`helpers_soft_confirmations::assert_blobs_are_correctly_received_soft_confirmation`].
@@ -86,7 +101,7 @@ fn assert_blobs_are_correctly_received_helper<
     RT: Runtime<S, BlobType = BlobDataWithId> + MinimalGenesis<S> + EncodeCall<ValueSetter<S>>,
 >(
     slots_to_send: Vec<RelevantBlobs<MockBlob>>,
-    receive_order: Vec<Vec<usize>>,
+    receive_order: Vec<Vec<SequenceInfo>>,
     expected_virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<RT>,
 ) {
@@ -144,6 +159,9 @@ fn assert_blobs_are_correctly_received_helper<
         })
         .collect::<Vec<_>>();
 
+    for sent_blob_nums in receive_order.iter() {
+        println!("{}", sent_blob_nums.len());
+    }
     // We check that the blobs we received are the ones we sent in the correct order.
     for (received_slot_num, sent_blob_nums) in receive_order.iter().enumerate() {
         assert_eq!(
@@ -158,7 +176,7 @@ fn assert_blobs_are_correctly_received_helper<
 
         for (received_batch_num, sent_blob_num) in sent_blob_nums.iter().enumerate() {
             assert_eq!(
-                sent_slots[*sent_blob_num].0,
+                sent_slots[sent_blob_num.id].0,
                 MockHash(received_slots[received_slot_num][received_batch_num].0),
                 "The blob hash for the blob number {} in the slot {} is not correct.",
                 received_batch_num,
@@ -166,12 +184,21 @@ fn assert_blobs_are_correctly_received_helper<
             );
 
             assert_eq!(
-                sent_slots[*sent_blob_num].1,
+                sent_slots[sent_blob_num.id].1,
                 received_slots[received_slot_num][received_batch_num].1,
                 "The blob sender for the blob number {} in the slot {} is not correct.",
                 received_batch_num,
                 received_slot_num,
             );
+
+            if let Some(sequence_number) = sent_blob_num.sequence_number {
+                runner.query_state(|state| {
+                    assert!(BlobStorage::<TestSpec>::default()
+                        .get_deferred_preferred_sequencer_blob(sequence_number as u64, state)
+                        .unwrap()
+                        .is_none());
+                });
+            }
         }
     }
 }

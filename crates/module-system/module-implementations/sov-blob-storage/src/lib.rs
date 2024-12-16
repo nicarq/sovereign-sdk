@@ -98,6 +98,19 @@ impl<S: Spec> BlobStorage<S> {
             .get_preferred_sequencer(state)
             .unwrap_infallible()
     }
+
+    /// Get the blob with the given sequence number, if it saved.
+    #[cfg(feature = "test-utils")]
+    pub fn get_deferred_preferred_sequencer_blob<
+        R: sov_modules_api::StateReader<sov_state::Kernel>,
+    >(
+        &self,
+        sequence_number: u64,
+        state: &mut R,
+    ) -> Result<Option<PreferredBlobDataWithId>, R::Error> {
+        self.deferred_preferred_sequencer_blobs
+            .get(&sequence_number, state)
+    }
 }
 
 /// Empty module implementation
