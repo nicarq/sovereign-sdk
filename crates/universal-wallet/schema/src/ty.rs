@@ -171,6 +171,8 @@ pub struct Enum<L: LinkingScheme> {
     pub type_name: String,
     pub serde_type_name: String,
     pub variants: Vec<EnumVariant<L>>,
+    /// Whether this enum is "hide_tag"ged, meaning that the variant tags shouldn't be displayed.
+    pub hide_tag: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, BorshSerialize, BorshDeserialize)]

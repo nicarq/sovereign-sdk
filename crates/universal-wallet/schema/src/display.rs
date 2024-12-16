@@ -92,8 +92,8 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
 
 /// In case an enum variant contains nested trivial tuples, propagate the virtual-ness transitively
 /// to the actual content
-fn tuple_is_enum_contents(context: &Context) -> bool {
-    context.parent_type == ParentType::Enum
+fn tuple_displays_as_enum_contents(context: &Context) -> bool {
+    context.parent_type == ParentType::Enum(IsHideTag::No)
         || context.parent_type == ParentType::Tuple(IsVirtual::Yes, IsTrivial::Yes)
 }
 
@@ -124,7 +124,8 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
             .resolve_or_err(&tuple.fields[0].value)
             .map_or(false, |v| v.is_primitive());
 
-        if tuple.fields.len() == 1 && !(tuple_is_enum_contents(context) && first_child_is_primitive)
+        if tuple.fields.len() == 1
+            && !(tuple_displays_as_enum_contents(context) && first_child_is_primitive)
         {
             ("", "")
         } else {
@@ -134,8 +135,8 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
 
     fn enum_delimiters<L: LinkingScheme>(&mut self, _e: &Enum<L>, context: &Context) -> Delimiters {
         match context.parent_type {
-            ParentType::Tuple(IsVirtual::Yes, IsTrivial::Yes)
-            | ParentType::Enum
+            ParentType::Tuple(_, IsTrivial::Yes)
+            | ParentType::Enum(_)
             | ParentType::Vec
             | ParentType::Map => (".", ""),
             ParentType::Tuple(_, _) | ParentType::Struct(_) | ParentType::None => ("", ""),
@@ -153,7 +154,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
             | ParentType::Tuple(_, _)
             | ParentType::Vec
             | ParentType::Map => ("{ ", " }"),
-            ParentType::Enum => (" { ", " }"),
+            ParentType::Enum(_) => (" { ", " }"),
         }
     }
 
@@ -245,7 +246,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
             | ParentType::None
             | ParentType::Tuple(_, _)
             | ParentType::Vec
-            | ParentType::Enum
+            | ParentType::Enum(_)
             | ParentType::Map => ("{ ", " }"),
         }
     }
@@ -257,7 +258,7 @@ impl<'a, 'fmt, W> DisplayVisitor<'a, 'fmt, W> {
             | ParentType::Struct(_)
             | ParentType::Tuple(_, _)
             | ParentType::Vec
-            | ParentType::Enum
+            | ParentType::Enum(_)
             | ParentType::Map => ("[", "]"),
         }
     }
@@ -343,12 +344,19 @@ pub enum IsTrivial {
     No,
 }
 
+/// An enum should display its tags
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IsHideTag {
+    Yes,
+    No,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ParentType {
     None,
     Struct(IsVirtual),
     Tuple(IsVirtual, IsTrivial),
-    Enum,
+    Enum(IsHideTag),
     Vec,
     Map,
 }
@@ -417,10 +425,15 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
                     discriminant: self.input[0],
                 })?;
         *self.input = &self.input[1..];
-        if variant.template.is_none() {
+        if variant.template.is_none() && !e.hide_tag {
             write!(self.f, "{}", variant.name)?;
         }
-        context.parent_type = ParentType::Enum;
+        let is_hide_tag = if e.hide_tag {
+            IsHideTag::Yes
+        } else {
+            IsHideTag::No
+        };
+        context.parent_type = ParentType::Enum(is_hide_tag);
         if let Some(maybe_resolved) = &variant.value {
             let inner = schema.resolve_or_err(maybe_resolved)?;
             inner.visit(schema, self, context)?;
@@ -480,7 +493,7 @@ impl<'a, 'fmt, W: Write, L: LinkingScheme> TypeVisitor<L> for DisplayVisitor<'a,
             .unwrap_or_else(|| self.tuple_default_template(t, &context, schema));
         let mut template = template.as_str();
 
-        let is_virtual = if tuple_is_enum_contents(&context) {
+        let is_virtual = if tuple_displays_as_enum_contents(&context) {
             IsVirtual::Yes
         } else {
             IsVirtual::No

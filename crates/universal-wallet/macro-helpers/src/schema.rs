@@ -256,6 +256,7 @@ fn derive_wallet_field(
     let input = Input::from_derive_input(&input)?;
     let input_name_str = ident.to_string();
     let template_string = input.show_as;
+    let hide_tag = input.hide_tag.unwrap_or_default();
     let template_tokens = quote_str_option_literally(&template_string);
     let serde_rename = input.attrs;
     let child_templates_arg =
@@ -267,6 +268,12 @@ fn derive_wallet_field(
     let child_templates: TokenStream;
     let container = match &input.data {
         Data::Struct(s) => {
+            if input.hide_tag.is_some() {
+                return Err(syn::Error::new_spanned(
+                    input.hide_tag,
+                    "Only enums may be marked `hide_tag`",
+                ));
+            }
             child_links = struct_child_links(s, &prefix);
             child_templates =
                 struct_child_templates(s, &child_templates_arg, &input_name_str, &prefix);
@@ -358,6 +365,7 @@ fn derive_wallet_field(
                     #prefix::sov_universal_wallet::ty::Enum {
                         type_name: stringify!(#ident).to_string(),
                         serde_type_name: #serde_type_name.to_string(),
+                        hide_tag: #hide_tag,
                         variants: vec![
                             #(#variants),*
                         ],
@@ -709,6 +717,8 @@ pub struct Input {
     pub attrs: SerdeRename,
     #[darling(default)]
     pub show_as: Option<String>,
+    #[darling(default)]
+    pub hide_tag: Option<bool>,
 }
 
 #[derive(Debug, Clone, FromField)]

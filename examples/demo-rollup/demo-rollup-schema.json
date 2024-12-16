@@ -198,7 +198,8 @@
               "ByIndex": 71
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -260,7 +261,8 @@
               "ByIndex": 14
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -531,7 +533,8 @@
               "ByIndex": 20
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -670,7 +673,8 @@
               "ByIndex": 24
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -771,7 +775,8 @@
               "ByIndex": 29
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -872,7 +877,8 @@
             "template": null,
             "value": null
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -940,7 +946,8 @@
               "ByIndex": 36
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -1008,7 +1015,8 @@
       "Enum": {
         "type_name": "NotInstantiable",
         "serde_type_name": "NotInstantiable",
-        "variants": []
+        "variants": [],
+        "hide_tag": false
       }
     },
     {
@@ -1082,7 +1090,8 @@
               "ByIndex": 61
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -1167,7 +1176,8 @@
             "template": null,
             "value": null
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -1320,7 +1330,8 @@
               "ByIndex": 58
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {
@@ -1478,7 +1489,8 @@
               "ByIndex": 65
             }
           }
-        ]
+        ],
+        "hide_tag": false
       }
     },
     {

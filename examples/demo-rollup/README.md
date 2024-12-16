@@ -111,7 +111,7 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x758b37b896527c20dd0e9b6af780f6e2d98f02a20a9a1be8733d5f600e7e644b/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x999c26d46a3068d202a9f7f7ba9ae40291c22f9e45b9076cfa94745155255891/events | jq
 {
   "data": [
     {
@@ -318,7 +318,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x02d883b3293c70a4ea8e6065883248c63f0e45be43e427de20e67049e613ec85",
+  "chain_hash": "0x5922512f1a1626108e1dcc40c1c834ebf7301a6da8a8928bc9558e9cc7982ef4",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,
