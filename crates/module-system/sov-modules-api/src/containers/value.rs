@@ -42,18 +42,6 @@ pub type KernelStateValue<V, Codec = BorshCodec> = NamespacedStateValue<Kernel, 
 /// JMT.
 pub type AccessoryStateValue<V, Codec = BorshCodec> = NamespacedStateValue<Accessory, V, Codec>;
 
-// Implement a new function that assumes the BorshCodec
-impl<N: CompileTimeNamespace, V> NamespacedStateValue<N, V>
-where
-    <BorshCodec as StateCodec>::ValueCodec: StateItemCodec<V>,
-{
-    /// Crates a new [`StateValue`] with the given prefix and the default
-    /// [`crate::StateItemCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
 // Implement all other functions generically over codecs
 impl<N, V, Codec> NamespacedStateValue<N, V, Codec>
 where

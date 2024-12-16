@@ -57,6 +57,17 @@ impl Prefix {
         Self { prefix }
     }
 
+    /// Creates a new prefix by extending an existing one with additional bytes.
+    /// This method is particularly useful for the creation of nested sov containers.
+    ///
+    /// Caution: This method does not validate prefix collisions in the state tree. It is the caller's responsibility to ensure
+    /// that the resulting prefix is unique.
+    pub fn with_parent(parent_prefix: &Self, extra_prefix: &dyn AsRef<[u8]>) -> Self {
+        let mut new_prefix = parent_prefix.as_ref().to_vec();
+        new_prefix.extend_from_slice(extra_prefix.as_ref());
+        Self::new(new_prefix)
+    }
+
     /// Returns the length in bytes of the prefix.
     pub fn len(&self) -> usize {
         self.prefix.len()

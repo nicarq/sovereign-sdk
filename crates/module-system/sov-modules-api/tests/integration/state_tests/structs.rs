@@ -2,7 +2,9 @@ use std::convert::Infallible;
 
 use capabilities::mocks::MockKernel;
 use sov_modules_api::*;
-use sov_state::{ArrayWitness, Prefix, ProverStorage, StateAccesses, Storage, ZkStorage};
+use sov_state::{
+    ArrayWitness, BorshCodec, Prefix, ProverStorage, StateAccesses, Storage, ZkStorage,
+};
 use sov_test_utils::storage::new_finalized_storage;
 use unwrap_infallible::UnwrapInfallible;
 
@@ -32,7 +34,7 @@ impl StateThing for StateValueSet {
     type Value = u32;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_value = StateValue::new(Prefix::new(vec![0]));
+        let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_value.set(&10, state).unwrap_infallible();
         StateValueSet(state_value)
     }
@@ -57,7 +59,7 @@ impl StateThing for StateVecSet {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec
             .set_all(vec![10, 20, 30, 40, 50, 60], state)
             .unwrap_infallible();
@@ -84,7 +86,7 @@ impl StateThing for StateVecPush {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec.set_all(vec![10], state).unwrap_infallible();
         StateVecPush(state_vec)
     }
@@ -109,7 +111,7 @@ impl StateThing for StateVecRemove {
     type Value = Vec<u32>;
 
     fn create(state: &mut impl InfallibleStateAccessor) -> Self {
-        let state_vec = StateVec::new(Prefix::new(vec![0]));
+        let state_vec = StateVec::with_codec(Prefix::new(vec![0]), BorshCodec);
         state_vec
             .set_all(vec![3u32; 100], state)
             .unwrap_infallible();
@@ -217,7 +219,7 @@ fn test_state_vec_remove() {
 #[test]
 fn test_witness_round_trip() -> Result<(), Infallible> {
     let tempdir = tempfile::tempdir().unwrap();
-    let state_value = StateValue::new(Prefix::new(vec![0]));
+    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tempdir.path());
 

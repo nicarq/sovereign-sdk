@@ -78,14 +78,6 @@ pub type AccessoryStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Access
 /// - a  [`Codec`](`sov_state::StateItemCodec`).
 pub type KernelStateMap<K, V, Codec = BorshCodec> = NamespacedStateMap<Kernel, K, V, Codec>;
 
-impl<N: CompileTimeNamespace, K, V> NamespacedStateMap<N, K, V> {
-    /// Creates a new [`StateMap`] with the given prefix and the default
-    /// [`sov_state::StateItemCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
 impl<N: CompileTimeNamespace, K, V, Codec> NamespacedStateMap<N, K, V, Codec> {
     /// Creates a new [`StateMap`] with the given prefix and [`sov_modules_core::StateItemCodec`].
     pub fn with_codec(prefix: Prefix, codec: Codec) -> Self {

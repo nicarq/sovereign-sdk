@@ -420,14 +420,3 @@ impl<S: Spec> Bank<S> {
             .map(|token| token.total_supply))
     }
 }
-
-/// Creates a new prefix from an already existing prefix `parent_prefix` and a `token_id`
-/// by extending the parent prefix.
-pub(crate) fn prefix_from_address_with_parent(
-    parent_prefix: &sov_state::Prefix,
-    token_id: &TokenId,
-) -> sov_state::Prefix {
-    let mut prefix = parent_prefix.as_ref().to_vec();
-    prefix.extend_from_slice(format!("{}", token_id).as_bytes());
-    sov_state::Prefix::new(prefix)
-}

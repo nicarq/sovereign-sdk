@@ -5,7 +5,7 @@ use sov_modules_api::capabilities::Kernel;
 use sov_modules_api::{
     KernelStateValue, Spec, StateCheckpoint, StateMap, StateValue, VersionedStateValue,
 };
-use sov_state::{Prefix, ProvableNamespace};
+use sov_state::{BorshCodec, Prefix, ProvableNamespace};
 use sov_test_utils::storage::SimpleStorageManager;
 
 use crate::state_tests::{commit_to_storage, StorageSpec, S};
@@ -17,7 +17,7 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
 
-    let state_value = StateValue::new(Prefix::new(vec![0]));
+    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let mut kernel = MockKernel::<S>::default();
 
@@ -64,7 +64,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
 
     let mut kernel = MockKernel::<S>::default();
 
-    let state_value = KernelStateValue::new(Prefix::new(vec![0]));
+    let state_value = KernelStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
     let mut state: StateCheckpoint<<S as Spec>::Storage> =
@@ -110,7 +110,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
 
-    let state_value = StateMap::new(Prefix::new(vec![0]));
+    let state_value = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
     let mut kernel = MockKernel::<S>::default();
 
     // Native execution
@@ -158,7 +158,7 @@ fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
     let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
     let storage = storage_manager.create_storage();
 
-    let state_value = VersionedStateValue::new(Prefix::new(vec![0]));
+    let state_value = VersionedStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     let mut kernel = MockKernel::<S>::default();
 

@@ -56,17 +56,6 @@ pub enum VersionedStateVecError {
 
 type VersionedStateVecResult<V> = Result<V, VersionedStateVecError>;
 
-impl<V> VersionedStateVec<V>
-where
-    BorshCodec: StateItemCodec<V>,
-{
-    /// Crates a new [`crate::StateVec`] with the given prefix and the default
-    /// [`StateItemCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
 impl<V, Codec: Clone> VersionedStateVec<V, Codec>
 where
     Codec: StateCodec,
@@ -374,7 +363,7 @@ mod test {
             StateCheckpoint::new(storage, &kernel);
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
-        let state_vec = VersionedStateVec::<u32>::new(prefix);
+        let state_vec = VersionedStateVec::<u32>::with_codec(prefix, BorshCodec);
 
         // We need to initialize the state vector before we can run any test case.
         state_vec.initialize(&mut kernel.accessor(&mut state));

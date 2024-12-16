@@ -17,8 +17,8 @@ use sov_state::namespaces::User;
 use sov_state::Prefix;
 use thiserror::Error;
 
-use crate::call::prefix_from_address_with_parent;
 use crate::utils::{get_token_id_metered, Payable, TokenHolder, TokenHolderRef};
+use crate::C;
 
 /// Type alias to store an amount of token.
 pub type Amount = u64;
@@ -321,7 +321,7 @@ impl<S: Spec> Token<S> {
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         admins: &[TokenHolderRef<'_, S>],
         originator: &impl Payable<S>,
-        parent_prefix: &Prefix,
+        tokens_state_map_prefix: &Prefix,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<(TokenId, Self)> {
         let token_id = get_token_id_metered::<S>(token_name, originator, state)?;
@@ -331,7 +331,7 @@ impl<S: Spec> Token<S> {
             identities_and_balances,
             admins,
             &token_id,
-            parent_prefix,
+            tokens_state_map_prefix,
             state,
         )?;
         Ok((token_id, token))
@@ -343,12 +343,14 @@ impl<S: Spec> Token<S> {
         identities_and_balances: &[(TokenHolderRef<'_, S>, u64)],
         admins: &[TokenHolderRef<'_, S>],
         token_id: &TokenId,
-        parent_prefix: &Prefix,
+        tokens_state_map_prefix: &Prefix,
         state: &mut impl StateReaderAndWriter<User>,
     ) -> anyhow::Result<Token<S>> {
-        let token_prefix = prefix_from_address_with_parent(parent_prefix, token_id);
-        tracing::debug!(final_prefix = %token_prefix, %token_id, %parent_prefix, "Creating token with state prefix");
-        let balances = sov_modules_api::StateMap::new(token_prefix);
+        // The `token_prefix` does not collide with any other prefix because it is
+        // derived from the unique `tokens_state_map_prefix` combined with the `token_id`.
+        let token_prefix = Prefix::with_parent(tokens_state_map_prefix, token_id.as_bytes());
+        tracing::debug!(final_prefix = %token_prefix, %token_id, %tokens_state_map_prefix, "Creating token with state prefix");
+        let balances = sov_modules_api::StateMap::with_codec(token_prefix.clone(), C::default());
 
         let mut total_supply: Option<u64> = Some(0);
         for (address, balance) in identities_and_balances.iter() {

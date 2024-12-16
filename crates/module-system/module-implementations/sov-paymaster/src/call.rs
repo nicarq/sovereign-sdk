@@ -5,10 +5,10 @@ use schemars::JsonSchema;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::safe_vec::CapacityError;
 use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, StateMap, TxState};
+use sov_state::Prefix;
 
 use crate::{
-    prefix_from_address_with_parent, AuthorizedSequencers, Event, PayeePolicy, PayeePolicyMap,
-    Paymaster, PaymasterPolicy,
+    AuthorizedSequencers, Event, PayeePolicy, PayeePolicyMap, Paymaster, PaymasterPolicy, C,
 };
 
 /// The default length of a [`SafeVec`].
@@ -335,11 +335,13 @@ impl<S: Spec> Paymaster<S> {
             bail!("{} is already registered as a payer. Use `UpdatePolicy` if you wish to change its configuration.", new_payer);
         }
 
-        // Convert the set of payee policies to a statemap
-        let payee_policies = StateMap::new(prefix_from_address_with_parent(
-            self.payers.prefix(),
-            new_payer,
-        ));
+        // Converts the set of payee policies into a state map.
+        // The `payee_policies` state map does not collide with any other state item because its prefix is
+        // derived from the unique `payers` prefix combined with the new payee.
+        let payee_policies = StateMap::with_codec(
+            Prefix::with_parent(self.payers.prefix(), new_payer),
+            C::default(),
+        );
 
         self.emit_event(
             state,

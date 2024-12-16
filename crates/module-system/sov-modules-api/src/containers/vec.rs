@@ -48,18 +48,6 @@ pub type AccessoryStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Accessory
 /// A vector of state values stored in the kernel namespace.
 pub type KernelStateVec<V, Codec = BorshCodec> = NamespacedStateVec<Kernel, V, Codec>;
 
-impl<N, V> NamespacedStateVec<N, V>
-where
-    BorshCodec: StateItemCodec<V>,
-    N: CompileTimeNamespace,
-{
-    /// Crates a new [`StateVec`] with the given prefix and the default
-    /// [`StateItemCodec`] (i.e. [`BorshCodec`]).
-    pub fn new(prefix: Prefix) -> Self {
-        Self::with_codec(prefix, BorshCodec)
-    }
-}
-
 impl<N: CompileTimeNamespace, V, Codec: Clone> NamespacedStateVec<N, V, Codec>
 where
     Codec: StateCodec,
@@ -430,7 +418,7 @@ mod test {
             StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
 
         let prefix = Prefix::new("test".as_bytes().to_vec());
-        let state_vec = StateVec::<u32>::new(prefix);
+        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
 
         for test_case_action in test_cases() {
             check_test_case_action(&state_vec, test_case_action, &mut state);
