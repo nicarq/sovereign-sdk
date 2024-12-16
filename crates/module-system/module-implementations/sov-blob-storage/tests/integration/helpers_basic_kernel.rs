@@ -9,7 +9,8 @@ use sov_test_utils::{
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::{
-    assert_blobs_are_correctly_received_helper, HashMap, SlotConfigInfo, TestData, TestRunner, S,
+    assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, SlotConfigInfo, TestData,
+    TestRunner, S,
 };
 
 pub type BasicRT = BasicBlobStorageRuntime<S>;
@@ -98,6 +99,11 @@ pub fn assert_blobs_are_correctly_received_basic_kernel(
         .iter()
         .map(|blobs_slot_info| build_basic_blobs(blobs_slot_info, &mut nonces))
         .collect::<Vec<_>>();
+
+    let receive_order = receive_order
+        .into_iter()
+        .map(|slot| slot.into_iter().map(SequenceInfo::standard).collect())
+        .collect();
 
     assert_blobs_are_correctly_received_helper(
         slots_to_send,

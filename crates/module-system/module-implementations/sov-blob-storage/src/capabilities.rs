@@ -297,11 +297,11 @@ impl<S: Spec> BlobStorage<S> {
     /// to increment the virtual rollup height by 5 in their next on-chain message.
     ///
     /// During each `slot`, we process all proofs...
-    /// - (If sent by the prferred sequencer) whose sequence number is less than that of the next preferred batch
+    /// - (If sent by the preferred sequencer) whose sequence number is less than that of the next preferred batch
     /// - (If sent by anyone else) which appeared on chain before or during the current *virtual* rollup height
     /// For batches, we select
     /// - The next one sent by the preferred sequencer (if available)
-    /// - Any batches  which appeared on chain before or during the current *virtual* rollup height
+    /// - Any batches which appeared on chain before or during the current *virtual* rollup height
     #[tracing::instrument(skip_all)]
     fn select_blobs_for_preferred_sequencer<'a, 'k, I>(
         &self,
@@ -432,12 +432,12 @@ impl<S: Spec> BlobStorage<S> {
             }
         }
 
-        // If we haven't found a preferred batch yet, through our saved ("deferred") blobs looking for a batch. We'll process any proofs we encounter
-        // along the way in this slot.
+        // If we haven't found a preferred batch yet, iterate through our saved ("deferred") blobs looking for a batch. Assuming we find at least
+        // one preferred batch, we'll also process any proofs we encounter along the way during this slot.
         while next_preferred_batch.is_none() {
             if let Some(next_blob) = self
                 .deferred_preferred_sequencer_blobs
-                .get(&next_sequence_number, state)
+                .remove(&next_sequence_number, state)
                 .unwrap_infallible()
             {
                 next_sequence_number += 1;
@@ -498,6 +498,7 @@ impl<S: Spec> BlobStorage<S> {
                 0
             }
         };
+
         tracing::debug!(
             num_slots_to_advance,
             current_real_slot = state.rollup_height_to_access(),

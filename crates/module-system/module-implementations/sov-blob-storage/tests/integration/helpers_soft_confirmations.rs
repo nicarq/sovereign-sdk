@@ -12,7 +12,8 @@ use sov_test_utils::{
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::{
-    assert_blobs_are_correctly_received_helper, HashMap, SlotConfigInfo, TestData, TestRunner, S,
+    assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, SlotConfigInfo, TestData,
+    TestRunner, S,
 };
 
 pub type SoftConfRT = SoftConfBlobStorageRuntime<S>;
@@ -136,7 +137,7 @@ pub fn build_soft_confirmation_blobs(
 /// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_soft_confirmation(
     sending_order: Vec<Vec<(TestSequencer<S>, SequencerInfo)>>,
-    receive_order: Vec<Vec<usize>>,
+    receive_order: Vec<Vec<SequenceInfo>>,
     virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<SoftConfRT>,
 ) {

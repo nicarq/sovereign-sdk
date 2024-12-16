@@ -5,7 +5,7 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, setup_soft_confirmation_kernel,
     setup_with_registration_soft_confirmation_kernel,
 };
-use crate::{TestData, S};
+use crate::{SequenceInfo, TestData, S};
 
 /// Tests the soft confirmation kernel functionality by executing one batch per slot for the preferred sequencer.
 /// Expected result:
@@ -70,7 +70,20 @@ fn store_and_retrieve_standard_soft_confirmation_kernel() {
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
-        vec![vec![0], vec![1], vec![2]],
+        vec![
+            vec![SequenceInfo {
+                id: 0,
+                sequence_number: Some(0),
+            }],
+            vec![SequenceInfo {
+                id: 1,
+                sequence_number: Some(1),
+            }],
+            vec![SequenceInfo {
+                id: 2,
+                sequence_number: Some(2),
+            }],
+        ],
         vec![1, 1, 1],
         &mut runner,
     );
@@ -136,7 +149,28 @@ fn store_and_retrieve_standard_soft_confirmation_kernel_deferred() {
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
-        vec![vec![0], vec![1], vec![2], vec![3], vec![4]],
+        vec![
+            vec![SequenceInfo {
+                id: 0,
+                sequence_number: Some(0),
+            }],
+            vec![SequenceInfo {
+                id: 1,
+                sequence_number: Some(1),
+            }],
+            vec![SequenceInfo {
+                id: 2,
+                sequence_number: Some(2),
+            }],
+            vec![SequenceInfo {
+                id: 3,
+                sequence_number: Some(3),
+            }],
+            vec![SequenceInfo {
+                id: 4,
+                sequence_number: Some(4),
+            }],
+        ],
         vec![1, 1, 1, 1, 1],
         &mut runner,
     );
@@ -159,7 +193,7 @@ fn non_preferred_sequencer_deferred() {
     let slots = vec![vec![(regular_sequencer.clone(), SequencerInfo::Regular)]];
 
     let mut receive_order = vec![vec![]; (config_deferred_slots_count() - 1) as usize];
-    receive_order.push(vec![0]);
+    receive_order.push(vec![SequenceInfo::standard(0)]);
 
     let mut virtual_slot_heights = vec![0; (config_deferred_slots_count() - 1) as usize];
 
@@ -229,7 +263,31 @@ fn interspace_slots_preferred_non_preferred_sequencer_increase_slots() {
         )],
     ];
 
-    let receive_order = vec![vec![0, 1], vec![2, 4, 5], vec![3], vec![6]];
+    let receive_order = vec![
+        vec![
+            SequenceInfo {
+                id: 0,
+                sequence_number: Some(1),
+            },
+            SequenceInfo::standard(1),
+        ],
+        vec![
+            SequenceInfo {
+                id: 2,
+                sequence_number: Some(2),
+            },
+            SequenceInfo::standard(4),
+            SequenceInfo::standard(5),
+        ],
+        vec![SequenceInfo {
+            id: 3,
+            sequence_number: Some(3),
+        }],
+        vec![SequenceInfo {
+            id: 6,
+            sequence_number: Some(4),
+        }],
+    ];
 
     let virtual_slot_heights_increases = vec![1, 1, 1, 1];
 
@@ -288,12 +346,29 @@ fn interspace_slots_preferred_non_preferred_sequencer_dont_advance_slots() {
         vec![(regular_sequencer.clone(), SequencerInfo::Regular)],
     ];
 
-    let mut receive_order = vec![vec![0, 1], vec![2, 3, 4, 5]];
+    let mut receive_order = vec![
+        vec![
+            SequenceInfo {
+                id: 0,
+                sequence_number: Some(1),
+            },
+            SequenceInfo::standard(1),
+        ],
+        vec![
+            SequenceInfo {
+                id: 2,
+                sequence_number: Some(2),
+            },
+            SequenceInfo::standard(3),
+            SequenceInfo::standard(4),
+            SequenceInfo::standard(5),
+        ],
+    ];
     receive_order.append(&mut vec![
         vec![];
         (config_deferred_slots_count() - 1) as usize
     ]);
-    receive_order.push(vec![6]);
+    receive_order.push(vec![SequenceInfo::standard(6)]);
 
     let mut virtual_slot_heights_increases = vec![1, 1];
     virtual_slot_heights_increases
@@ -340,7 +415,19 @@ fn send_slots_with_high_deferred_slot_adjustment() {
         )],
     ];
 
-    let receive_order = vec![vec![], vec![], vec![], vec![3, 0, 1]];
+    let receive_order = vec![
+        vec![],
+        vec![],
+        vec![],
+        vec![
+            SequenceInfo {
+                id: 3,
+                sequence_number: Some(1),
+            },
+            SequenceInfo::standard(0),
+            SequenceInfo::standard(1),
+        ],
+    ];
 
     let virtual_slot_heights_increases = vec![0, 0, 0, 2];
 
@@ -381,7 +468,13 @@ fn blobs_with_low_sequencer_number_get_dropped() {
         )],
     ];
 
-    let receive_order = vec![vec![0], vec![]];
+    let receive_order = vec![
+        vec![SequenceInfo {
+            id: 0,
+            sequence_number: Some(0),
+        }],
+        vec![],
+    ];
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,
@@ -432,7 +525,22 @@ fn blobs_with_high_sequencer_number_get_deferred() {
         )],
     ];
 
-    let receive_order = vec![vec![], vec![], vec![2], vec![1], vec![0]];
+    let receive_order = vec![
+        vec![],
+        vec![],
+        vec![SequenceInfo {
+            id: 2,
+            sequence_number: Some(0),
+        }],
+        vec![SequenceInfo {
+            id: 1,
+            sequence_number: Some(1),
+        }],
+        vec![SequenceInfo {
+            id: 0,
+            sequence_number: Some(2),
+        }],
+    ];
 
     assert_blobs_are_correctly_received_soft_confirmation(
         slots,

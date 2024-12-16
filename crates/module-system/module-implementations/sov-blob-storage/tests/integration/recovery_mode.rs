@@ -5,7 +5,9 @@ use crate::helpers_soft_confirmations::{
     assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
     setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel, SoftConfRT,
 };
-use crate::{assert_blobs_are_correctly_received_helper, HashMap, TestData, TestRunner};
+use crate::{
+    assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, TestData, TestRunner,
+};
 
 /// Test that when the preferred sequencer is slashed, the virtual rollup height increases by two until
 /// it catches up. For this test to work [`DEFERRED_SLOTS_COUNT`] must be greater than 2.
@@ -84,7 +86,16 @@ fn test_recovery_mode_with_deferred_blobs() {
 
     assert_blobs_are_correctly_received_helper(
         slots_to_send,
-        vec![vec![], vec![], vec![], vec![0, 1, 2]],
+        vec![
+            vec![],
+            vec![],
+            vec![],
+            vec![
+                SequenceInfo::standard(0),
+                SequenceInfo::standard(1),
+                SequenceInfo::standard(2),
+            ],
+        ],
         vec![0, 0, 0, 2],
         &mut runner,
     );
