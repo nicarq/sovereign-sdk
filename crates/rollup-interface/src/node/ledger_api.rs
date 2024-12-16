@@ -2,6 +2,7 @@
 //! via an RPC interface.
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
+use derive_more::derive::Display;
 use futures::stream::BoxStream;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -148,6 +149,31 @@ pub enum QueryMode {
 impl Default for QueryMode {
     fn default() -> Self {
         Self::Standard
+    }
+}
+
+/// [`IncludeChildren`] is used as a query parameter for [`QueryMode`] inside the ledger-api
+#[derive(
+    Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize, Display,
+)]
+#[display("{}", self.children)]
+pub struct IncludeChildren {
+    children: u8,
+}
+
+impl IncludeChildren {
+    fn includes_children(&self) -> bool {
+        self.children != 0
+    }
+}
+
+impl From<IncludeChildren> for QueryMode {
+    fn from(value: IncludeChildren) -> Self {
+        if value.includes_children() {
+            QueryMode::Full
+        } else {
+            QueryMode::Compact
+        }
     }
 }
 

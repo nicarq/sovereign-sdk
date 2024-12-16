@@ -26,8 +26,8 @@ use sov_rest_utils::{
 use sov_rollup_interface::common::{HexHash, HexString};
 use sov_rollup_interface::node::ledger_api::{
     AggregatedProofResponse, BatchIdAndOffset, BatchIdentifier, BatchResponse, EventIdentifier,
-    FinalityStatus, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset, SlotIdentifier,
-    SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
+    FinalityStatus, IncludeChildren, ItemOrHash, LedgerStateProvider, QueryMode, SlotIdAndOffset,
+    SlotIdentifier, SlotResponse, TxIdAndOffset, TxIdentifier, TxResponse,
 };
 use sov_rollup_interface::stf::TxReceiptContents;
 
@@ -584,8 +584,18 @@ where
         })
     }
 
-    async fn subscribe_to_head(State(ledger): State<T>, ws: WebSocketUpgrade) -> impl IntoResponse {
-        ws.on_upgrade(|socket| async move {
+    async fn subscribe_to_head(
+        State(ledger): State<T>,
+        maybe_query: Option<Query<IncludeChildren>>,
+        ws: WebSocketUpgrade,
+    ) -> impl IntoResponse {
+        let query_mode: QueryMode = if let Some(mode) = maybe_query {
+            mode.0.into()
+        } else {
+            QueryMode::Compact
+        };
+
+        ws.on_upgrade(move |socket| async move {
             let subscription = ledger
                 .subscribe_slots()
                 .then(|slot_num| {
@@ -593,8 +603,7 @@ where
                     async move {
                         let Ok(Some(slot)) = ledger
                             .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
-                                slot_num,
-                                QueryMode::Compact,
+                                slot_num, query_mode,
                             )
                             .await
                         else {
@@ -611,9 +620,16 @@ where
 
     async fn subscribe_to_finalized(
         State(ledger): State<T>,
+        maybe_query: Option<Query<IncludeChildren>>,
         ws: WebSocketUpgrade,
     ) -> impl IntoResponse {
-        ws.on_upgrade(|socket| async move {
+        let query_mode: QueryMode = if let Some(mode) = maybe_query {
+            mode.0.into()
+        } else {
+            QueryMode::Compact
+        };
+
+        ws.on_upgrade(move |socket| async move {
             let Ok(last_notified_slot) = ledger.get_latest_finalized_rollup_height().await else {
                 return;
             };
@@ -628,7 +644,7 @@ where
                             let slot_result = match ledger
                                 .get_slot_by_rollup_height::<B, TxReceipt, Event<E>>(
                                     rollup_height,
-                                    QueryMode::Compact,
+                                    query_mode,
                                 )
                                 .await
                             {
@@ -661,27 +677,6 @@ where
 #[derive(Deserialize)]
 struct EventFilter {
     prefix: String,
-}
-
-#[derive(Debug, Copy, Clone, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-struct IncludeChildren {
-    children: u8,
-}
-
-impl IncludeChildren {
-    fn includes_children(&self) -> bool {
-        self.children != 0
-    }
-}
-
-impl From<IncludeChildren> for QueryMode {
-    fn from(value: IncludeChildren) -> Self {
-        if value.includes_children() {
-            QueryMode::Full
-        } else {
-            QueryMode::Compact
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
