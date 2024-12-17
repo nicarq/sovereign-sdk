@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use sov_modules_api::state::TxScratchpad;
 use sov_modules_api::{
-    BatchWithId, Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
-    MaybeExecuted, NoOpControlFlow, ProvisionalSequencerOutcome, Runtime, TxChangeSet,
-    TxControlFlow,
+    Context, DispatchCall, FullyBakedTx, IncrementalBatch, InjectedControlFlow,
+    IterableBatchWithId, MaybeExecuted, NoOpControlFlow, ProvisionalSequencerOutcome, Runtime,
+    TxChangeSet, TxControlFlow,
 };
 use sov_rollup_interface::stf::{TransactionReceipt, TxReceiptContents};
 use tokio::runtime::Handle;
@@ -21,7 +21,7 @@ pub enum MaybeAsync {
     // This is unused because we decided to split execution of kernel blobs into a separate PR.
     // Kernel blobs will be sync.
     #[allow(dead_code)]
-    Sync(BatchWithId),
+    Sync(IterableBatchWithId),
 }
 
 /// The control flow injector for an async batch.
@@ -181,7 +181,7 @@ impl<T: TxReceiptContents, S: Spec> IncrementalBatch<TransactionReceipt<T>, S>
         use MaybeAsync::*;
         match &self.contents {
             Async(_) => None,
-            Sync(batch) => Some(batch.batch.txs.len()),
+            Sync(batch) => Some(batch.batch.len()),
         }
     }
 

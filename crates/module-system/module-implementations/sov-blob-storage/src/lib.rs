@@ -14,7 +14,7 @@ use sov_modules_api::{
 use sov_state::codec::BcsCodec;
 
 type BlobAndSender<S> = (
-    BlobDataWithId<BatchWithId<Vec<FullyBakedTx>>>,
+    BlobDataWithId<BatchWithId>,
     <<S as Spec>::Da as DaSpec>::Address,
 );
 

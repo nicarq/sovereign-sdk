@@ -57,81 +57,38 @@ impl RawTx {
 }
 
 /// Contains raw transactions obtained from the DA blob.
-#[derive(Debug, Clone)]
-pub struct Batch {
-    /// Raw transactions.
-    pub txs: std::vec::IntoIter<FullyBakedTx>,
-}
-
-impl Batch {
-    /// Construct a new batch containing the given txs.
-    pub fn new(txs: Vec<FullyBakedTx>) -> Self {
-        Self {
-            txs: txs.into_iter(),
-        }
-    }
-}
-
-impl<Receipt, S: Spec> IncrementalBatch<Receipt, S> for Batch {
-    type ControlFlow = NoOpControlFlow;
-
-    fn known_remaining_txs(&self) -> Option<usize> {
-        Some(self.txs.len())
-    }
-
-    fn id(&self) -> Option<[u8; 32]> {
-        None
-    }
-}
-
-impl Iterator for Batch {
-    type Item = (FullyBakedTx, NoOpControlFlow);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.txs.next().map(|tx| (tx, NoOpControlFlow))
-    }
-}
 
 /// A Batch with its ID.
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
-pub struct BatchWithId<B = Batch> {
+pub struct BatchWithId {
     /// Batch of transactions.
-    pub batch: B,
+    pub batch: Vec<FullyBakedTx>,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
     pub id: [u8; 32],
 }
 
-impl<B> BatchWithId<B> {
+impl BatchWithId {
     /// Construct a new batch with the given ID.
-    pub fn new(batch: B, id: [u8; 32]) -> Self {
+    pub fn new(batch: Vec<FullyBakedTx>, id: [u8; 32]) -> Self {
         Self { batch, id }
-    }
-}
-
-impl BatchWithId<Vec<FullyBakedTx>> {
-    /// Convert from `BatchWithId<Vec<FullyBakedTx>>` to [`BatchWithId`].
-    pub fn to_iterable(self) -> BatchWithId {
-        BatchWithId {
-            batch: Batch::new(self.batch),
-            id: self.id,
-        }
     }
 }
 
 /// Contains blob data obtained from the DA.
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BlobData<B> {
+pub enum BlobData {
     /// Batch of transactions.
-    Batch(B),
+    Batch(Vec<FullyBakedTx>),
     /// Emergency Registration
     EmergencyRegistration(RawTx),
     /// Aggregated proof posted on the DA.
     Proof(Vec<u8>),
 }
 
-impl<B> BlobData<B> {
+impl BlobData {
     /// Tag the blob with the given ID.
-    pub fn with_id(self, id: [u8; 32]) -> BlobDataWithId<BatchWithId<B>> {
+    pub fn with_id(self, id: [u8; 32]) -> BlobDataWithId<BatchWithId> {
         match self {
             Self::Batch(batch) => BlobDataWithId::Batch(BatchWithId { batch, id }),
             Self::Proof(proof) => BlobDataWithId::Proof { proof, id },
@@ -144,7 +101,7 @@ impl<B> BlobData<B> {
 //
 #[derive(Debug, PartialEq, Clone, BorshDeserialize, BorshSerialize, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum BlobDataWithId<B = BatchWithId> {
+pub enum BlobDataWithId<B = IterableBatchWithId> {
     /// Batch of transactions.
     Batch(B),
     /// Emergency Registration
@@ -281,23 +238,42 @@ impl<R, S: Spec> InjectedControlFlow<R, S> for NoOpControlFlow {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NoOpControlFlow;
 
-impl<Receipt, S: Spec> IncrementalBatch<Receipt, S> for BatchWithId {
+/// A Batch with its ID.
+
+pub struct IterableBatchWithId {
+    /// Batch of transactions.
+    pub batch: std::vec::IntoIter<FullyBakedTx>,
+    /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
+    pub id: [u8; 32],
+}
+
+impl IterableBatchWithId {
+    /// Create a new `IterableBatchWithId` from a `BatchWithId`.
+    pub fn new(batch_with_id: BatchWithId) -> Self {
+        Self {
+            batch: batch_with_id.batch.into_iter(),
+            id: batch_with_id.id,
+        }
+    }
+}
+
+impl Iterator for IterableBatchWithId {
+    type Item = (FullyBakedTx, NoOpControlFlow);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.batch.next().map(|tx| (tx, NoOpControlFlow))
+    }
+}
+
+impl<Receipt, S: Spec> IncrementalBatch<Receipt, S> for IterableBatchWithId {
     type ControlFlow = NoOpControlFlow;
 
     fn known_remaining_txs(&self) -> Option<usize> {
-        Some(self.batch.txs.len())
+        Some(self.batch.len())
     }
 
     fn id(&self) -> Option<[u8; 32]> {
         Some(self.id)
-    }
-}
-
-impl Iterator for BatchWithId {
-    type Item = (FullyBakedTx, NoOpControlFlow);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.batch.next()
     }
 }
 
@@ -317,9 +293,9 @@ pub enum RejectReason {
     },
 }
 
-impl<B> BlobData<B> {
+impl BlobData {
     /// Batch variant constructor.
-    pub fn new_batch(txs: B) -> Self {
+    pub fn new_batch(txs: Vec<FullyBakedTx>) -> Self {
         BlobData::Batch(txs)
     }
 
@@ -331,15 +307,6 @@ impl<B> BlobData<B> {
     /// Proof variant constructor.
     pub fn new_proof(proof: Vec<u8>) -> Self {
         BlobData::Proof(proof)
-    }
-
-    /// Convert the inner `Batch` type to another type
-    pub fn map_batch<Target>(self, f: impl FnOnce(B) -> Target) -> BlobData<Target> {
-        match self {
-            Self::Batch(b) => BlobData::Batch(f(b)),
-            Self::Proof(p) => BlobData::Proof(p),
-            Self::EmergencyRegistration(e) => BlobData::EmergencyRegistration(e),
-        }
     }
 }
 
