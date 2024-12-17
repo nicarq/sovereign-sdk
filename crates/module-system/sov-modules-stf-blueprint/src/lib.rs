@@ -4,7 +4,9 @@ mod stf_blueprint;
 
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{BatchSequencerReceipt, IncrementalBatch, VersionReader};
+use sov_modules_api::{
+    BatchSequencerReceipt, IncrementalBatch, IterableBatchWithId, VersionReader,
+};
 mod proof_processing;
 use sov_rollup_interface::stf::ProofReceipt;
 mod sequencer_mode;
@@ -383,7 +385,7 @@ where
     #[allow(clippy::type_complexity)]
     pub fn run_batches_from_blob_selector(
         &self,
-        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>,
+        blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>,
         state: StateCheckpoint<S::Storage>,
         execution_context: ExecutionContext,
         visible_hash: <<S as Spec>::Storage as Storage>::Root,

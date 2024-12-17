@@ -8,8 +8,8 @@ use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
-    BatchWithId, BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec,
-    VersionReader,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
+    Spec, VersionReader,
 };
 use sov_state::Storage;
 
@@ -54,14 +54,14 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         Ok(self
             .blob_storage
             .select_blobs_as_based_sequencer(current_blobs, state)
-            .map_blobs(|b| b.map_batch(BatchWithId::to_iterable)))
+            .map_blobs(|b| b.map_batch(IterableBatchWithId::new)))
     }
 }
 

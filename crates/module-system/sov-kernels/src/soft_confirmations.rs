@@ -8,7 +8,8 @@ use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::{BlobSelector, Kernel};
 use sov_modules_api::{
-    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, KernelStateAccessor, Spec, VersionReader,
+    BlobDataWithId, BootstrapWorkingSet, DaSpec, Gas, IterableBatchWithId, KernelStateAccessor,
+    Spec, VersionReader,
 };
 use sov_state::Storage;
 
@@ -37,7 +38,7 @@ impl<'b, S: Spec> BlobSelector for SoftConfirmationsKernel<'b, S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, <Self::Spec as Spec>::Storage>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {

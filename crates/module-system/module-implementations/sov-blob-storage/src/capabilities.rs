@@ -5,9 +5,9 @@ use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
-    Batch, BatchWithId, BlobData, BlobReaderTrait, DaSpec, FullyBakedTx,
-    InfallibleKernelStateAccessor, InfallibleStateAccessor, KernelStateAccessor, RawTx, Spec,
-    VersionReader,
+    BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
+    InfallibleKernelStateAccessor, InfallibleStateAccessor, IterableBatchWithId,
+    KernelStateAccessor, RawTx, Spec, VersionReader,
 };
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
@@ -17,9 +17,6 @@ use crate::{
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
     PreferredSequenced, SequenceNumber,
 };
-
-pub(crate) type BlobDataWithId<B = BatchWithId<Vec<FullyBakedTx>>> =
-    sov_modules_api::BlobDataWithId<B>;
 
 /// Why blob can be discarded
 #[derive(Debug)]
@@ -59,7 +56,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -79,7 +76,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> Vec<(BlobDataWithId, <S::Da as DaSpec>::Address)>
+    ) -> Vec<(BlobDataWithId<BatchWithId>, <S::Da as DaSpec>::Address)>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -242,7 +239,7 @@ impl<S: Spec> BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> BlobSelectorOutput<S, BlobDataWithId>
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -467,8 +464,7 @@ impl<S: Spec> BlobStorage<S> {
             .set(&next_sequence_number, state)
             .unwrap_infallible();
         let num_slots_to_advance = if let Some((preferred_batch, id)) = next_preferred_batch {
-            let next_batch =
-                BlobDataWithId::Batch(BatchWithId::new(Batch::new(preferred_batch.data), id));
+            let next_batch = BlobDataWithId::Batch(BatchWithId::new(preferred_batch.data, id));
 
             blobs_to_process.push((next_batch, preferred_sender.clone()));
             tracing::debug!(
@@ -514,11 +510,7 @@ impl<S: Spec> BlobStorage<S> {
                 batches_from_next_slot.len(),
                 slot_to_check
             );
-            blobs_to_process.extend(
-                batches_from_next_slot
-                    .into_iter()
-                    .map(|(b, seq)| (b.map_batch(BatchWithId::to_iterable), seq)),
-            );
+            blobs_to_process.extend(batches_from_next_slot.into_iter());
         }
 
         // Check if we also need the blobs from the current slot. Add them to the set to be processed or store them as appropriate.
@@ -526,11 +518,7 @@ impl<S: Spec> BlobStorage<S> {
             .visible_rollup_height()
             .saturating_add(num_slots_to_advance);
         if next_virtual_height >= state.rollup_height_to_access() {
-            blobs_to_process.extend(
-                new_forced_blobs
-                    .into_iter()
-                    .map(|b| (b.0.map_batch(BatchWithId::to_iterable), b.1)),
-            );
+            blobs_to_process.extend(new_forced_blobs.into_iter().map(|b| (b.0, b.1)));
         } else {
             self.store_batches(state.rollup_height_to_access(), &new_forced_blobs, state);
         }
@@ -587,7 +575,7 @@ impl<S: Spec> BlobStorage<S> {
 impl<S: Spec> BlobSelector for BlobStorage<S> {
     type Spec = S;
 
-    type BlobType = BlobDataWithId<BatchWithId>;
+    type BlobType = BlobDataWithId;
 
     // This implementation returns three categories of blobs:
     // 1. Any blobs sent by the preferred sequencer ("prority blobs")
@@ -597,7 +585,7 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
-    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>>
+    ) -> anyhow::Result<BlobSelectorOutput<S, BlobDataWithId<IterableBatchWithId>>>
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
@@ -606,23 +594,21 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
         if config_deferred_slots_count() == 0 {
             return Ok(self
                 .select_blobs_as_based_sequencer(current_blobs, state)
-                .map_blobs(|b| b.map_batch(BatchWithId::to_iterable)));
+                .map_blobs(|b| b.map_batch(IterableBatchWithId::new)));
         }
 
         // If there's a preferred sequencer, sequence accordingly.
         if let Some(preferred_sender) = self.get_preferred_sequencer(state) {
-            return Ok(self.select_blobs_for_preferred_sequencer(
-                current_blobs,
-                state,
-                &preferred_sender,
-            ));
+            return Ok(self
+                .select_blobs_for_preferred_sequencer(current_blobs, state, &preferred_sender)
+                .map_blobs(|b| b.map_batch(IterableBatchWithId::new)));
         }
 
         // Otherwise, we're configured for a preferred sequencer but one doesn't exist. This usually means that the preferred sequencer was slashed.
         // Entery recovery mode.
         Ok(self
             .select_blobs_in_recovery_mode(current_blobs, state)
-            .map_blobs(|b| b.map_batch(BatchWithId::to_iterable)))
+            .map_blobs(|b| b.map_batch(IterableBatchWithId::new)))
     }
 }
 
