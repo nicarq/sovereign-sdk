@@ -111,7 +111,7 @@ fn log_bench_data(bench_data: BenchData, mode: BenchMode) {
         // Set cycles per block to main counts if in SP1 mode, so that outputs are consistent.
         if let BenchMode::SP1 = mode {
             let main_counts = metric_map.remove("main").unwrap();
-            metric_map.insert("Cycles per block".to_owned(), main_counts);
+            metric_map.insert("cycles_per_block".to_owned(), main_counts);
         };
 
         println!("Number of keys: {}", metric_map.keys().len());
@@ -119,7 +119,7 @@ fn log_bench_data(bench_data: BenchData, mode: BenchMode) {
             println!("- {}", key);
         }
 
-        let total_cycles = metric_map.get("Cycles per block").unwrap().0;
+        let total_cycles = metric_map.get("cycles_per_block").unwrap().0;
         println!("\nBlock stats\n");
         chain_stats(
             bench_data.num_blocks,

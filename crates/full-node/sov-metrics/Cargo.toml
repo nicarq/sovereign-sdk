@@ -21,6 +21,7 @@ schemars = { workspace = true }
 http = "1.0"
 derivative = { workspace = true }
 sov-rollup-interface = { workspace = true }
+sov-cycle-utils = { workspace = true, features = ["native"] }
 
 [dev-dependencies]
 anyhow = { workspace = true }

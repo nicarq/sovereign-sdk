@@ -249,6 +249,9 @@ where
             vm.run(true)
         }
     };
+    sov_metrics::track_metrics(|tracker| {
+        tracker.record_zkvm_metrics();
+    });
     match result {
         Ok(ref proof) => {
             info!(
