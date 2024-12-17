@@ -130,6 +130,26 @@ impl MetricsTracker {
         let timestamp = timestamp();
         self.submit(SovRollupMetric::Http(timestamp, point));
     }
+
+    /// Uses `sov-cycle-tracker` under the hood
+    pub fn record_zkvm_metrics(&self) {
+        let timestamp = timestamp();
+        let hashmap_guard = sov_cycle_utils::METRICS_HASHMAP.lock().unwrap();
+        let metric_map = hashmap_guard.clone();
+        for (k, v) in metric_map.iter() {
+            if k.contains(' ') {
+                tracing::warn!("Metric name contains spaces, skipping: '{}'", k);
+                continue;
+            }
+            self.submit(SovRollupMetric::ZkVm(
+                timestamp,
+                ZkVmMetric {
+                    name: k.to_string(),
+                    avg_cycles_per_call: v.0 / v.1,
+                },
+            ));
+        }
+    }
 }
 
 pub(crate) fn timestamp() -> u128 {
@@ -426,6 +446,22 @@ impl Metric for HttpMetrics {
     }
 }
 
+/// Representation of cycle count for particular call
+pub struct ZkVmMetric {
+    name: String,
+    avg_cycles_per_call: u64,
+}
+
+impl Metric for ZkVmMetric {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_zkvm,name={} avg_cycles_per_call={}",
+            self.name, self.avg_cycles_per_call
+        )
+    }
+}
+
 enum SovRollupMetric {
     RunnerDa(Timestamp, RunnerDaMetrics),
     RunnerCount(Timestamp, RunnerCountMetrics),
@@ -435,6 +471,7 @@ enum SovRollupMetric {
     BatchProcessing(Timestamp, BatchMetrics),
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
     Http(Timestamp, HttpMetrics),
+    ZkVm(Timestamp, ZkVmMetric),
 }
 
 impl Metric for SovRollupMetric {
@@ -469,6 +506,10 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::UserSpaceSlotProcessing(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::ZkVm(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }

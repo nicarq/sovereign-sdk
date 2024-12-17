@@ -48,4 +48,9 @@ lto = true
 opt-level = 3
 
 [features]
-bench = ["sov-celestia-adapter/bench"]
+bench = [
+    "sov-modules-api/bench",
+    "sov-state/bench",
+    "sov-modules-stf-blueprint/bench",
+    "sov-celestia-adapter/bench",
+]

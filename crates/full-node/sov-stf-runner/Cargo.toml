@@ -37,11 +37,11 @@ futures = { workspace = true }
 async-trait = { workspace = true }
 rayon = { workspace = true }
 sov-db = { workspace = true }
-sov-rest-utils = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-metrics = { workspace = true }
 tower-http = { workspace = true, features = ["normalize-path"] }
 tower-layer = "0.3.3"
+sov-cycle-utils = { workspace = true, features = ["native", "risc0"]}
 
 [dev-dependencies]
 backon = { workspace = true }
