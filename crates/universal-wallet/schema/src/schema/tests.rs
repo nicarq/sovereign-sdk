@@ -187,7 +187,7 @@ fn test_simple_struct_schema_with_showas() {
 pub struct SimpleStructWithTemplate {
     #[sov_wallet(template("transfer" = input("amount"), "transfer_2" = value("19")))]
     tokens: u64,
-    #[sov_wallet(template("transfer" = value("ababab"), "transfer_2" = input("msg")))]
+    #[sov_wallet(template("transfer" = value("ababab"), "transfer_2" = input))]
     msg: SafeString,
 }
 
@@ -216,7 +216,7 @@ impl FromStr for SimpleStructWithTemplate {
 pub enum SimpleEnumWithTemplate {
     One(SimpleStructWithTemplate),
     Two {
-        #[sov_wallet(template("mint_2" = input("mint_msg")))]
+        #[sov_wallet(template("mint_2" = input))]
         msg: u8,
     },
     Three(NestedStructWithNonNestedTemplates),
@@ -323,7 +323,7 @@ fn test_simple_enum_schema_with_template() {
 
     let variant_two_encoding = borsh::to_vec(&SimpleEnumWithTemplate::Two { msg: 9 }).unwrap();
     let variant_two_template_encoding = schema
-        .fill_template_from_json(0, "mint_2", "{ \"mint_msg\": 9 }")
+        .fill_template_from_json(0, "mint_2", "{ \"msg\": 9 }")
         .unwrap();
     assert_eq!(variant_two_encoding, variant_two_template_encoding);
 

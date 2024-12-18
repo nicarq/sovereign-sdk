@@ -4,7 +4,7 @@ use darling::{Error, FromMeta, Result};
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use syn::parse::Parser;
-use syn::{Expr, ExprLit, Lit, Meta, Token};
+use syn::{Expr, ExprCall, ExprLit, Lit, Meta, Token};
 
 /// Attributes of the format
 /// `#[sov_wallet(template("transfer" = value("hi"), "other_template" = input("msg")))]`
@@ -18,6 +18,7 @@ pub struct TransactionTemplates {
 
 #[derive(Debug, Clone)]
 pub enum InputOrValue {
+    FieldNameInput,
     Input(String),
     Value(String),
 }
@@ -61,42 +62,63 @@ impl FromMeta for TransactionTemplates {
                         return Err(Error::duplicate_field(&template_name).with_span(&expr));
                     }
 
-                    // RHS is either `input("name binding")` or `value("default value")`
-                    let template_binding = match *expr.right {
-                        Expr::Call(ref c) => Ok(c),
-                        // TODO: support for Path here for `input` - to reuse typename as input name
-                        _ => Err(Error::unexpected_expr_type(&expr.right).with_span(&expr.right)),
-                    }?;
-                    let discriminant = match *template_binding.func {
-                        Expr::Path(ref p) => p.path.get_ident(),
+                    // RHS is either:
+                    //  - `input` to reuse the field name as name, or
+                    //  - `input("name binding")`, or
+                    //  - `value("value")`
+                    let (discriminant, maybe_func) = match *expr.right {
+                        // This unboxing is ugly...
+                        Expr::Call(ref f @ ExprCall { ref func, .. }) => match **func {
+                            Expr::Path(ref p) => {
+                                p.path.get_ident().cloned().map(|i| (i, Some(f.clone())))
+                            }
+                            _ => None,
+                        },
+                        Expr::Path(ref p) => p.path.get_ident().cloned().map(|i| (i, None)),
                         _ => None,
                     }
-                    .ok_or(
-                        Error::unexpected_expr_type(&template_binding.func)
-                            .with_span(&template_binding.func),
-                    )?;
+                    .ok_or(Error::unexpected_expr_type(&expr.right).with_span(&expr.right))?;
 
-                    // And we need exactly one string value between the parentheses
-                    // Also, for some reason, ExprCall.args doesn't have the right span
-                    // information, so we set the errors to the ExprCall itself
-                    match template_binding.args.len().cmp(&1) {
-                        std::cmp::Ordering::Less => {
-                            return Err(Error::too_few_items(1).with_span(&template_binding))
-                        }
-                        std::cmp::Ordering::Greater => {
-                            return Err(Error::too_many_items(1).with_span(&template_binding))
-                        }
-                        _ => (),
-                    };
-                    // TODO: support for Assign values here for `borsh = ""` pre-encoded values
-                    // TODO: support for Path values for `default` to encode a call to Default::default()
-                    let input_or_value = parse_lit_str(template_binding.args[0].clone())?;
+                    if let Some(func) = maybe_func {
+                        // Template binding is call-type: `input("arg")` or `value("arg")`
 
-                    match discriminant.to_string().as_str() {
-                        "input" => ret.insert(template_name, InputOrValue::Input(input_or_value)),
-                        "value" => ret.insert(template_name, InputOrValue::Value(input_or_value)),
-                        s => return Err(Error::unknown_field(s).with_span(discriminant)),
-                    };
+                        // We need exactly one string value between the paranthesis
+                        // Also, for some reason, ExprCall.args doesn't have the right span
+                        // information, so we set the errors to the ExprCall itself
+                        match func.args.len().cmp(&1) {
+                            std::cmp::Ordering::Less => {
+                                return Err(Error::too_few_items(1).with_span(&func))
+                            }
+                            std::cmp::Ordering::Greater => {
+                                return Err(Error::too_many_items(1).with_span(&func))
+                            }
+                            _ => (),
+                        };
+                        // TODO: support for Assign values here for `json = ""` and `hex = ""` pre-encoded values
+                        // TODO: support for Path values for `default` to encode a call to Default::default()
+                        let input_or_value = parse_lit_str(func.args[0].clone())?;
+
+                        match discriminant.to_string().as_str() {
+                            "input" => {
+                                ret.insert(template_name, InputOrValue::Input(input_or_value))
+                            }
+                            "value" => {
+                                ret.insert(template_name, InputOrValue::Value(input_or_value))
+                            }
+                            s => return Err(Error::unknown_field(s).with_span(&discriminant)),
+                        };
+                    } else {
+                        // Template binding is single value
+                        // Only valid value is `input`
+                        match discriminant.to_string().as_str() {
+                            "input" => ret.insert(template_name, InputOrValue::FieldNameInput),
+                            "value" => {
+                                return Err(Error::custom("`value` bindings must specify a value")
+                                    .with_span(&discriminant))
+                            }
+                            s => return Err(Error::unknown_field(s).with_span(&discriminant)),
+                        };
+                    }
 
                     Ok(())
                 }

@@ -98,13 +98,17 @@ fn struct_child_templates(
     schema_arg: &Ident,
     input_name_str: &String,
     prefix: &Option<syn::TypePath>,
-) -> TokenStream {
+) -> Result<TokenStream, darling::Error> {
     let child_templates = input.fields.iter().enumerate().filter(|(_, field)| !field.skip).map(|(i, field)| {
         let ty = field.ty_tokens(); // TODO: have separate possible override here
         // For every template annotation (will do nothing if there's no attribute)...
         let templates: Vec<TokenStream> = field.template.template.iter().map(|t| {
+            let field_name = field.ident.clone().ok_or(darling::Error::custom("`input` bindings with no explicit name can only be used for named fields").with_span(&field.ident))?.to_string();
             // build code to construct the template chunk based on the data from the attribute
             let transaction_template = match t.1 {
+                InputOrValue::FieldNameInput => quote! {
+                    #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_input(#field_name.to_string(), #i)
+                },
                 InputOrValue::Input(input) => quote! {
                     #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_input(#input.to_string(), #i)
                 },
@@ -118,12 +122,12 @@ fn struct_child_templates(
             };
             let template_name = t.0;
             // Return a Vec<(String, TransactionTemplate)> object (upon generated code evaluation)
-            quote! { (#template_name.to_string(), #transaction_template) }
-        }).collect();
+            Ok(quote! { (#template_name.to_string(), #transaction_template) })
+        }).collect::<Result<Vec<_>, darling::Error>>()?;
 
         // Finally, collect the results alongside an inserted call to recursively get the field type's own templates into an AttributeAndChildTemplateSet - see that type's
         // documentation for details
-        quote! {
+        Ok(quote! {
             #prefix::sov_universal_wallet::schema::transaction_templates::AttributeAndChildTemplateSet {
                 attribute_templates: #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet::fill_links(
                     vec![#(#templates),* ],
@@ -131,15 +135,15 @@ fn struct_child_templates(
                 ),
                 type_templates: <#ty as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema)
             }
-        }
-    }).collect::<Vec<_>>();
+        })
+    }).collect::<Result<Vec<_>, darling::Error>>()?;
 
-    quote! {
+    Ok(quote! {
         #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplateSet::concatenate_template_sets(
             vec! [ #(#child_templates),* ],
             #input_name_str
         )
-    }
+    })
 }
 
 /// Collect the tokens to implement one of the links returned as part of
@@ -212,7 +216,7 @@ fn generate_where_clause_template_parsing_bound(
         .template
         .iter()
         .filter_map(|(_, iov)| match iov {
-            InputOrValue::Input(_) => None,
+            InputOrValue::Input(_) | InputOrValue::FieldNameInput => None,
             InputOrValue::Value(_) => Some(syn::parse_quote! {
                 #ty_tokens: ::core::str::FromStr
             }),
@@ -276,7 +280,7 @@ fn derive_wallet_field(
             }
             child_links = struct_child_links(s, &prefix);
             child_templates =
-                struct_child_templates(s, &child_templates_arg, &input_name_str, &prefix);
+                struct_child_templates(s, &child_templates_arg, &input_name_str, &prefix)?;
             match s.style {
                 Style::Struct => build_struct_type_scaffold(
                     &s.fields,

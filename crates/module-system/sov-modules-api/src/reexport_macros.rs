@@ -610,10 +610,16 @@ pub mod macros {
     /// ```
     /// Where templates are defined (and distinguished) by their string name. The field data, in
     /// turn, is one of either
-    /// * `input("name")` for an input binding, or
+    /// * `input` for an input binding on the field name,
+    /// * `input("name")` for an input binding with an arbitrary name, or
     /// * `value("data")` for a pre-defined hardcoded value.
     ///
-    /// If a type defines annotates template attributes on one of its fields, all of its fields
+    /// Note that input names must be unique throughout a single template. For example, it's not
+    /// possible to annotate two identically-named fields (in different structs) with `input` and
+    /// have them be part of the same template; and it is not possible to pass the same string
+    /// twice as part of `input("name")` within the same template.
+    ///
+    /// If a type definition annotates template attributes on one of its fields, all of its fields
     /// must have template metadata. Complex types that have their own subfields can be annotated
     /// at a lower level, and a field of such a type will be considered correctly annotated for the
     /// template when used in parent types.
