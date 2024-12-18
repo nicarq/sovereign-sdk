@@ -41,9 +41,13 @@ sov-mock-da = { workspace = true, features = ["native", "arbitrary"] }
 sov-mock-zkvm = { workspace = true, features = ["native", "arbitrary"] }
 sov-paymaster = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
+sov-rollup-interface = { workspace = true }
+sov-sequencer = { workspace = true }
 sov-test-utils = { workspace = true }
 
+futures = { workspace = true }
 borsh = { workspace = true }
+progenitor-client = { version = "0.8" }
 serde = { workspace = true }
 
 [lints]

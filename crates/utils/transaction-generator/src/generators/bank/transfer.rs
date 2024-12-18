@@ -7,7 +7,7 @@ use super::{
     InternalMessageGenResult,
 };
 use crate::interface::{GeneratedMessage, GeneratorState};
-use crate::{repeatedly, PickRandom};
+use crate::{repeatedly, MessageOutcome, PickRandom};
 
 #[derive(Arbitrary, Clone, Debug)]
 enum InvalidTransferReasons {
@@ -83,7 +83,11 @@ impl<S: Spec> BankMessageGenerator<S> {
             },
         };
 
-        Ok(GeneratedMessage::new(message, from_key, Vec::new()))
+        Ok(GeneratedMessage::new(
+            message,
+            from_key,
+            MessageOutcome::Reverted,
+        ))
     }
 
     /// A transfer can be invalid by:
@@ -149,7 +153,11 @@ impl<S: Spec> BankMessageGenerator<S> {
         // If this is a self-transfer, then it should be a no-op. No balances need to change,
         // and there are no state changes to cache.
         if from_addr == to_addr {
-            return Ok(GeneratedMessage::new(msg, from_key, vec![]));
+            return Ok(GeneratedMessage::new(
+                msg,
+                from_key,
+                MessageOutcome::Successful { changes: vec![] },
+            ));
         }
 
         // Otherwise, account for the balance changes
@@ -158,25 +166,30 @@ impl<S: Spec> BankMessageGenerator<S> {
         // Save back the modified state and compute the changelog
         generator_state.update_account(&to_addr, to_account);
         generator_state.update_account(&from_addr, from_account);
-        let changelog_entries = vec![
-            BankChangeLogEntry::BalanceChanged {
-                address: from_addr.clone(),
-                coins: Coins {
-                    token_id,
-                    amount: remaining_from_balance,
-                },
-            },
-            BankChangeLogEntry::BalanceChanged {
-                address: to_addr,
-                coins: Coins {
-                    token_id,
-                    amount: receiver_balance,
-                },
-            },
-        ];
 
         // Finally, return the generated message
-        Ok(GeneratedMessage::new(msg, from_key, changelog_entries))
+        Ok(GeneratedMessage::new(
+            msg,
+            from_key,
+            MessageOutcome::Successful {
+                changes: vec![
+                    BankChangeLogEntry::BalanceChanged {
+                        address: from_addr.clone(),
+                        coins: Coins {
+                            token_id,
+                            amount: remaining_from_balance,
+                        },
+                    },
+                    BankChangeLogEntry::BalanceChanged {
+                        address: to_addr,
+                        coins: Coins {
+                            token_id,
+                            amount: receiver_balance,
+                        },
+                    },
+                ],
+            },
+        ))
     }
 
     fn get_random_account_with_balance(

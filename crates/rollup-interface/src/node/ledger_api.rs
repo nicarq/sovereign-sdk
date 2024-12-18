@@ -162,6 +162,15 @@ pub struct IncludeChildren {
 }
 
 impl IncludeChildren {
+    /// Creates a new [`IncludeChildren`] struct.
+    pub fn new(include: bool) -> Self {
+        if include {
+            Self { children: 1 }
+        } else {
+            Self { children: 0 }
+        }
+    }
+
     fn includes_children(&self) -> bool {
         self.children != 0
     }

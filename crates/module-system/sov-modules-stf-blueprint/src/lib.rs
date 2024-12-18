@@ -305,6 +305,7 @@ where
             .blob_selector()
             .get_blobs_for_this_slot(all_blobs, &mut kernel)
             .expect("blob selection must succeed, probably serialization failed");
+
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();
 

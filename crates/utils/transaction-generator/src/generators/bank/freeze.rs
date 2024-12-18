@@ -6,7 +6,7 @@ use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenError,
     InternalMessageGenResult,
 };
-use crate::{repeatedly, GeneratedMessage, GeneratorState, PickRandom};
+use crate::{repeatedly, GeneratedMessage, GeneratorState, MessageOutcome, PickRandom};
 
 /// A token freeze can be invalid because...
 ///  - The token doesn't exist
@@ -48,7 +48,9 @@ impl<S: Spec> BankMessageGenerator<S> {
         Ok(GeneratedMessage::new(
             message,
             key,
-            vec![BankChangeLogEntry::TokenFrozen { token_id }],
+            MessageOutcome::Successful {
+                changes: vec![BankChangeLogEntry::TokenFrozen { token_id }],
+            },
         ))
     }
 
@@ -95,7 +97,11 @@ impl<S: Spec> BankMessageGenerator<S> {
 
         let key = acct.private_key.clone();
 
-        Ok(GeneratedMessage::new(message, key, Vec::new()))
+        Ok(GeneratedMessage::new(
+            message,
+            key,
+            MessageOutcome::Reverted,
+        ))
     }
 
     /// Generates an invalid freeze. This is always possible

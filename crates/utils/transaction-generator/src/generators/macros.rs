@@ -73,7 +73,7 @@ macro_rules! impl_harness_module {
                             m.message,
                         ),
                         sender: m.sender,
-                        changes: m.changes.into_iter().map(Into::into).collect(),
+                        outcome: m.outcome.map(Into::into),
                     })
                     .collect())
             }
@@ -101,7 +101,7 @@ macro_rules! impl_harness_module {
                             m.message,
                         ),
                         sender: m.sender,
-                        changes: m.changes.into_iter().map(Into::into).collect(),
+                        outcome: m.outcome.map(Into::into),
                     })
             }
         }

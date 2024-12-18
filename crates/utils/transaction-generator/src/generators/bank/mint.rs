@@ -7,8 +7,8 @@ use super::{
     InternalMessageGenResult,
 };
 use crate::interface::{GeneratedMessage, GeneratorState, PickRandom};
-use crate::repeatedly;
 use crate::state::TokenInfo;
+use crate::{repeatedly, MessageOutcome};
 
 #[derive(Debug, Clone, Arbitrary)]
 enum InvalidMintReasons {
@@ -88,7 +88,11 @@ impl<S: Spec> BankMessageGenerator<S> {
             mint_to_address: S::Address::arbitrary(u)?,
         };
 
-        Ok(GeneratedMessage::new(message, key, Vec::new()))
+        Ok(GeneratedMessage::new(
+            message,
+            key,
+            MessageOutcome::Reverted,
+        ))
     }
 
     /// A mint can be invalid because...
@@ -134,20 +138,25 @@ impl<S: Spec> BankMessageGenerator<S> {
         };
         let mint_change =
             Self::update_state_with_mint(generator_state, token_id, token_info, amount_to_mint, u)?;
-        let changes = vec![
-            BankChangeLogEntry::BalanceChanged {
-                address: recipient_addr.clone(),
-                coins: Coins {
-                    token_id,
-                    amount: recipient_balance,
-                },
-            },
-            mint_change,
-        ];
 
         generator_state.update_account(&recipient_addr, recipient_acct);
 
-        Ok(GeneratedMessage::new(message, key, changes))
+        Ok(GeneratedMessage::new(
+            message,
+            key,
+            MessageOutcome::Successful {
+                changes: vec![
+                    BankChangeLogEntry::BalanceChanged {
+                        address: recipient_addr.clone(),
+                        coins: Coins {
+                            token_id,
+                            amount: recipient_balance,
+                        },
+                    },
+                    mint_change,
+                ],
+            },
+        ))
     }
 
     pub(super) fn update_state_with_mint(

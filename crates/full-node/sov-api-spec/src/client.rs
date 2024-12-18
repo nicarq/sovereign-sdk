@@ -11,6 +11,7 @@ use sov_rollup_interface::zk::aggregated_proof;
 use sov_rollup_interface::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
+use types::AcceptTxResponse;
 pub extern crate tokio_tungstenite;
 
 pub type WsSubscription<T> = Result<BoxStream<'static, anyhow::Result<T>>, WsError>;
@@ -57,20 +58,14 @@ impl Client {
         self.subscribe_to_ws("/ledger/aggregated-proofs/latest/ws")
             .await
     }
-    /// Sends a transaction to the sequencer for immediate publication.
+    /// Sends transactions to the sequencer for immediate publication.
     pub async fn publish_batch_with_serialized_txs<Tx: BorshSerialize>(
         &self,
         txs: &[Tx],
     ) -> Result<types::SubmitBatchReceipt, Error<types::PublishBatchResponse>> {
-        for tx in txs {
-            let tx_bytes =
-                borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
-            let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
-
-            self.accept_tx(&types::AcceptTxBody { body: tx_b64 })
-                .await
-                .map_err(|err| Error::PreHookError(err.to_string()))?;
-        }
+        self.send_txs_to_sequencer(txs)
+            .await
+            .map_err(|err| Error::PreHookError(err.to_string()))?;
 
         let publish_batch_response = self
             .publish_batch(&types::PublishBatchBody {
@@ -78,6 +73,27 @@ impl Client {
             })
             .await?;
         Ok(publish_batch_response.data.clone().unwrap())
+    }
+
+    /// Sends transactions to the sequencer for later publication.
+    pub async fn send_txs_to_sequencer<Tx: BorshSerialize>(
+        &self,
+        txs: &[Tx],
+    ) -> Result<Vec<ResponseValue<AcceptTxResponse>>, Error<types::AcceptTxResponse>> {
+        let mut receipts = Vec::with_capacity(txs.len());
+
+        for tx in txs {
+            let tx_bytes =
+                borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
+            let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
+
+            receipts.push(
+                self.accept_tx(&types::AcceptTxBody { body: tx_b64 })
+                    .await?,
+            );
+        }
+
+        Ok(receipts)
     }
 
     pub async fn subscribe_to_tx_status_updates(
