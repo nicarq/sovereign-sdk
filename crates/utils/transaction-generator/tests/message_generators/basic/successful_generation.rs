@@ -5,11 +5,9 @@ use sov_transaction_generator::generators::basic::{assert_logs_against_state, Ba
 use sov_transaction_generator::interface::MessageValidity;
 use sov_transaction_generator::{Distribution, Percent};
 
-use super::{
-    test_with_modules, GeneratorOutput, ModulesToUse, NumTxsExecuted, TestRuntimeCall,
-    TXS_TO_GENERATE,
-};
+use super::{test_with_modules, GeneratorOutput, ModulesToUse, TXS_TO_GENERATE};
 use crate::basic::RT;
+use crate::{NumTxsExecuted, TestRuntimeCall};
 
 async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) -> NumTxsExecuted {
     let mut transaction_exec_closure =
@@ -26,8 +24,7 @@ async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) 
         modules,
         MessageValidity::as_distribution(Percent::one_hundred()),
         &mut transaction_exec_closure,
-    )
-    .await;
+    );
 
     let _ = runner.setup_rest_api_server().await;
     let config = BasicClientConfig {
@@ -46,7 +43,7 @@ async fn test_successful_generation_helper(modules: Distribution<ModulesToUse>) 
 
     let changes = outputs
         .into_iter()
-        .flat_map(|output| output.changes)
+        .flat_map(|output| output.outcome.unwrap_changes())
         .collect();
 
     assert_logs_against_state(

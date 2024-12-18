@@ -37,6 +37,49 @@ impl MessageValidity {
     }
 }
 
+#[derive(Debug, Clone)]
+/// The outcome expected from the generated message
+pub enum MessageOutcome<E> {
+    /// The message should execute successfully
+    Successful {
+        /// The changes to apply to the state
+        changes: Vec<E>,
+    },
+    /// The message should have reverted
+    Reverted,
+}
+
+impl<E> MessageOutcome<E> {
+    /// Returns true if the outcome is expected to be successful
+    pub fn is_successful(&self) -> bool {
+        matches!(self, MessageOutcome::Successful { .. })
+    }
+
+    /// Returns true if the outcome is expected to be reverted
+    pub fn is_reverted(&self) -> bool {
+        matches!(self, MessageOutcome::Reverted)
+    }
+
+    /// Maps one type of message outcome to another
+    pub fn map<F>(self, map_fn: impl FnMut(E) -> F) -> MessageOutcome<F> {
+        match self {
+            MessageOutcome::Reverted => MessageOutcome::Reverted,
+            MessageOutcome::Successful { changes } => MessageOutcome::Successful {
+                changes: changes.into_iter().map(map_fn).collect(),
+            },
+        }
+    }
+
+    /// Takes the changes from the message outcome. If the expected outcome is reverted,
+    /// returns an empty array
+    pub fn unwrap_changes(self) -> Vec<E> {
+        match self {
+            MessageOutcome::Reverted => vec![],
+            MessageOutcome::Successful { changes } => changes,
+        }
+    }
+}
+
 /// A generated message for a particular module.
 #[derive(Debug, Clone)]
 pub struct GeneratedMessage<S: Spec, M, E> {
@@ -45,7 +88,7 @@ pub struct GeneratedMessage<S: Spec, M, E> {
     /// The private key that should sign the message
     pub sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
     /// A summary of the changes that the transaction will make.
-    pub changes: Vec<E>,
+    pub outcome: MessageOutcome<E>,
 }
 
 impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
@@ -53,12 +96,12 @@ impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
     pub fn new(
         message: M,
         sender: <S::CryptoSpec as CryptoSpec>::PrivateKey,
-        changes: Vec<E>,
+        outcome: MessageOutcome<E>,
     ) -> Self {
         Self {
             message,
             sender,
-            changes,
+            outcome,
         }
     }
 }

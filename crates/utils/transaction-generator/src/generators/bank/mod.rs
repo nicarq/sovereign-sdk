@@ -251,7 +251,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         let GeneratedMessage {
             message,
             sender,
-            changes,
+            outcome,
         } = self
             .generate_valid_create_token_with_creation_rate(
                 Percent::one_hundred(),
@@ -263,7 +263,7 @@ impl<S: Spec> CallMessageGenerator<S> for BankMessageGenerator<S> {
         Ok(vec![GeneratedMessage {
             message,
             sender,
-            changes: changes.into_iter().map(Into::into).collect(),
+            outcome,
         }])
     }
 

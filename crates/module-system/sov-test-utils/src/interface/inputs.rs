@@ -106,7 +106,7 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
                 message,
                 key,
                 details,
-            } => RT::encode_with_standard_auth(Self::sign(
+            } => RT::encode_with_standard_auth(Self::sign_and_serialize(
                 message,
                 key,
                 &RT::CHAIN_HASH,
@@ -126,18 +126,18 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
         Self::PreSigned(RawTx { data: tx })
     }
 
-    /// Sign a message with the given key, generating a `RawTx`
+    /// Sign a message with the given key, generating a [`Transaction`].
     pub fn sign(
         msg: <RT as DispatchCall>::Decodable,
         key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
         chain_hash: &[u8; 32],
         details: TxDetails<S>,
         nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
-    ) -> RawTx {
+    ) -> Transaction<RT, S> {
         let pub_key = key.pub_key();
         let nonce = *nonces.get(&pub_key).unwrap_or(&0);
         nonces.insert(pub_key, nonce + 1);
-        let tx = borsh::to_vec(&Transaction::<RT, S>::new_signed_tx(
+        Transaction::<RT, S>::new_signed_tx(
             &key,
             chain_hash,
             UnsignedTransaction::new(
@@ -148,10 +148,22 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
                 nonce,
                 details.gas_limit,
             ),
-        ))
-        .unwrap();
+        )
+    }
 
-        RawTx { data: tx }
+    /// Sign and borsh-serialize a message with the given key, generating a [`RawTx`]
+    pub fn sign_and_serialize(
+        msg: <RT as DispatchCall>::Decodable,
+        key: <S::CryptoSpec as CryptoSpec>::PrivateKey,
+        chain_hash: &[u8; 32],
+        details: TxDetails<S>,
+        nonces: &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+    ) -> RawTx {
+        let tx = Self::sign(msg, key, chain_hash, details, nonces);
+
+        RawTx {
+            data: borsh::to_vec(&tx).unwrap(),
+        }
     }
 }
 

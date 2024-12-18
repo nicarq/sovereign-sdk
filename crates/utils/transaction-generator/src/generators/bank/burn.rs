@@ -6,7 +6,7 @@ use super::{
     BankAccount, BankChangeLogEntry, BankMessageGenerator, BankTag, InternalMessageGenError,
     InternalMessageGenResult,
 };
-use crate::{GeneratedMessage, GeneratorState, PickRandom, TokenInfo};
+use crate::{GeneratedMessage, GeneratorState, MessageOutcome, PickRandom, TokenInfo};
 
 #[derive(Debug, Clone, Arbitrary)]
 enum InvalidBurnReason {
@@ -68,19 +68,21 @@ impl<S: Spec> BankMessageGenerator<S> {
         Ok(GeneratedMessage {
             message: call_message,
             sender: key,
-            changes: vec![
-                BankChangeLogEntry::BalanceChanged {
-                    address,
-                    coins: Coins {
-                        amount: amount_left,
-                        token_id,
+            outcome: MessageOutcome::Successful {
+                changes: vec![
+                    BankChangeLogEntry::BalanceChanged {
+                        address,
+                        coins: Coins {
+                            amount: amount_left,
+                            token_id,
+                        },
                     },
-                },
-                BankChangeLogEntry::SupplyChanged {
-                    token_id,
-                    total_supply: new_supply,
-                },
-            ],
+                    BankChangeLogEntry::SupplyChanged {
+                        token_id,
+                        total_supply: new_supply,
+                    },
+                ],
+            },
         })
     }
 
@@ -158,7 +160,7 @@ impl<S: Spec> BankMessageGenerator<S> {
         Ok(GeneratedMessage {
             message: call_message,
             sender: acct.private_key.clone(),
-            changes: vec![],
+            outcome: MessageOutcome::Reverted,
         })
     }
 

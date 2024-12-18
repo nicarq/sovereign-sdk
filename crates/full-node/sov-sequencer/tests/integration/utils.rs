@@ -115,7 +115,7 @@ pub fn generate_paymaster_tx(key: TestPrivateKey) -> RawTx {
         gas_limit: Some(TEST_DEFAULT_GAS_LIMIT.into()),
         chain_id: config_value!("CHAIN_ID"),
     };
-    TransactionType::<RT, TestSpec>::sign(
+    TransactionType::<RT, TestSpec>::sign_and_serialize(
         <RT as EncodeCall<Paymaster<TestSpec>>>::to_decodable(message),
         key,
         &<RT as Runtime<TestSpec>>::CHAIN_HASH,

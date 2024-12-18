@@ -1,6 +1,5 @@
 mod data;
 mod rewards;
-
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};

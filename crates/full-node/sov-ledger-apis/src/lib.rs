@@ -648,7 +648,7 @@ where
                                 )
                                 .await
                             {
-                                Ok(Some(slot)) => Ok(slot),
+                                Ok(Some(slot)) => Ok(Slot::<B, TxReceipt, E>::new(slot)),
                                 Ok(None) => Err(anyhow::anyhow!(
                                     "Slot with number {} does not exist",
                                     rollup_height

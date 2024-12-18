@@ -91,13 +91,13 @@ impl<
         let GeneratedMessage {
             message,
             sender,
-            changes,
+            outcome: changes,
         } = module.generate_call_message(u, generator_state, validity)?;
 
         Ok(GeneratedMessage {
             message,
             sender,
-            changes,
+            outcome: changes,
         })
     }
 }

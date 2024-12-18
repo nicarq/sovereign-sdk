@@ -8,7 +8,7 @@ use super::{
 use crate::generators::bank::InternalMessageGenError;
 use crate::interface::{GeneratedMessage, GeneratorState, Taggable};
 use crate::state::TokenInfo;
-use crate::Percent;
+use crate::{MessageOutcome, Percent};
 
 const TOKEN_NAME: &str = "TEST_TOKEN_NAME";
 /// To avoid collisions, we make sure token names have at least 15 characters.
@@ -37,7 +37,7 @@ impl<S: Spec> BankMessageGenerator<S> {
                 admins: Arbitrary::arbitrary(u)?,
             },
             acct.private_key.clone(),
-            Vec::new(),
+            MessageOutcome::Reverted,
         ))
     }
 
@@ -112,13 +112,15 @@ impl<S: Spec> BankMessageGenerator<S> {
                 admins: minters,
             },
             creator_key,
-            vec![
-                BankChangeLogEntry::BalanceChanged {
-                    address: recipient_address,
-                    coins: Coins { token_id, amount },
-                },
-                mint_event,
-            ],
+            MessageOutcome::Successful {
+                changes: vec![
+                    BankChangeLogEntry::BalanceChanged {
+                        address: recipient_address,
+                        coins: Coins { token_id, amount },
+                    },
+                    mint_event,
+                ],
+            },
         ))
     }
 

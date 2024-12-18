@@ -221,7 +221,7 @@ pub trait StateTransitionFunction<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec>: Siz
     type TxReceiptContents: TxReceiptContents;
 
     /// The contents of a batch receipt. This is the data that is persisted in the database
-    type BatchReceiptContents: Serialize + DeserializeOwned + Clone + Send + Sync;
+    type BatchReceiptContents: Serialize + DeserializeOwned + Clone + Send + Sync + Debug;
 
     /// Witness is a data that is produced during actual batch execution
     /// or validated together with proof during verification

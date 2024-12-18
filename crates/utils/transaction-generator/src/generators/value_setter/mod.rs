@@ -14,8 +14,8 @@ use strum::VariantArray;
 use crate::interface::{
     CallMessageGenerator, Distribution, GeneratedMessage, MessageValidity, Percent, Taggable,
 };
-use crate::repeatedly;
 use crate::state::{AccountState, ApplyToState};
+use crate::{repeatedly, MessageOutcome};
 
 mod http;
 
@@ -257,7 +257,9 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 Ok(GeneratedMessage::new(
                     CallMessage::SetValue(value),
                     admin_account.private_key.clone(),
-                    vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
+                    MessageOutcome::Successful {
+                        changes: vec![ValueSetterChangeLogEntry::ValueUpdated { new_value: value }],
+                    },
                 ))
             }
             CallMessageDiscriminants::SetManyValues => {
@@ -271,7 +273,11 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 Ok(GeneratedMessage::new(
                     CallMessage::SetManyValues(values.clone()),
                     admin_account.private_key.clone(),
-                    vec![ValueSetterChangeLogEntry::ManyValuesUpdated { new_values: values }],
+                    MessageOutcome::Successful {
+                        changes: vec![ValueSetterChangeLogEntry::ManyValuesUpdated {
+                            new_values: values,
+                        }],
+                    },
                 ))
             }
         }
@@ -307,7 +313,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 Ok(GeneratedMessage {
                     message,
                     sender: account.private_key,
-                    changes: vec![],
+                    outcome: MessageOutcome::Reverted,
                 })
             }
             CallMessageDiscriminants::SetManyValues => {
@@ -322,7 +328,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
                 Ok(GeneratedMessage {
                     message,
                     sender: account.private_key,
-                    changes: vec![],
+                    outcome: MessageOutcome::Reverted,
                 })
             }
         }
