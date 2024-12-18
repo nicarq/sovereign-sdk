@@ -283,7 +283,7 @@ impl Schema {
     #[cfg(feature = "serde")]
     pub fn fill_template_from_json(
         &self,
-        type_index: usize,
+        root_index: usize,
         template_name: &str,
         input: &str,
     ) -> Result<Vec<u8>, SchemaError> {
@@ -293,8 +293,8 @@ impl Schema {
 
         let template = self
             .templates
-            .get(type_index)
-            .ok_or(SchemaError::InvalidIndex(type_index))?
+            .get(root_index)
+            .ok_or(SchemaError::InvalidIndex(root_index))?
             .0
             .get(template_name)
             .ok_or(SchemaError::UnknownTemplate(template_name.to_string()))?;

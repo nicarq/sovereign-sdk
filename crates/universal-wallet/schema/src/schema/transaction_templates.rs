@@ -262,6 +262,30 @@ impl TransactionTemplateSet {
         final_template_set
     }
 
+    /// Explicitly filter which templates will be part of a given enum variant.
+    /// Only templates whose name is in the list will be set on the variant. Additionally, any
+    /// names in the list NOT present in the templates will cause an error.
+    ///
+    /// Optionally, an override can be set to inherit all templates from the variant (primarily
+    /// intended for use on the `RuntimeCall`, to inherit all templates from every module's
+    /// `CallMessage`). In this case, the filter list is only used for error checking, to
+    /// explicitly enforce that all templates named in it MUST be present.
+    pub fn filter_enum_variant_templates(
+        mut self,
+        filter: Vec<String>,
+        inherit_all: bool,
+        variant_name_for_diagnostics: &'static str,
+    ) -> Self {
+        let mut filter_set: HashSet<String> = HashSet::from_iter(filter);
+        self.0
+            .retain(|name, _| filter_set.remove(name) || inherit_all);
+        if !filter_set.is_empty() {
+            // Unwrap: we know the set isn't empty, so it must have at least one entry
+            panic!("Enum variant {variant_name_for_diagnostics} specified template \"{}\" which was not defined on the variant's fields", filter_set.iter().next().unwrap());
+        }
+        self
+    }
+
     pub fn merge_enum_template_sets(
         template_sets: Vec<TransactionTemplateSet>,
         type_name_for_diagnostics: &'static str,
