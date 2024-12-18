@@ -51,14 +51,14 @@ pub trait Runtime<S: Spec>:
     /// GenesisConfig type.
     type GenesisConfig: Clone + Send + Sync;
 
-    /// GenesisPaths type.
-    type GenesisPaths: Clone + Send + Sync;
+    /// GenesisInput type.
+    type GenesisInput: Clone + Send + Sync;
 
     /// Default RPC methods and Axum router.
     fn endpoints(storage: crate::rest::ApiState<S>) -> RuntimeEndpoints;
 
     /// Reads genesis configs.
-    fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig>;
+    fn genesis_config(input: &Self::GenesisInput) -> anyhow::Result<Self::GenesisConfig>;
 
     /// Gets the operating mode of the runtime (Zk or Optimistic).
     fn operating_mode(genesis: &Self::GenesisConfig) -> OperatingMode;

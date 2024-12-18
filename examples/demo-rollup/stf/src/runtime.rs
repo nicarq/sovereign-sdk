@@ -89,7 +89,7 @@ where
     type GenesisConfig = GenesisConfig<S>;
 
     #[cfg(feature = "native")]
-    type GenesisPaths = GenesisPaths;
+    type GenesisInput = GenesisPaths;
 
     #[cfg(feature = "native")]
     fn endpoints(
@@ -112,8 +112,8 @@ where
     }
 
     #[cfg(feature = "native")]
-    fn genesis_config(genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
-        crate::genesis_config::create_genesis_config(genesis_paths)
+    fn genesis_config(input: &Self::GenesisInput) -> anyhow::Result<Self::GenesisConfig> {
+        crate::genesis_config::create_genesis_config(input)
     }
 
     fn operating_mode(genesis: &Self::GenesisConfig) -> sov_modules_api::OperatingMode {

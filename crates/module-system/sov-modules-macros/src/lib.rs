@@ -176,7 +176,7 @@ pub fn module_info(input: TokenStream) -> TokenStream {
     handle_macro_error_and_expand(fn_name!(), module_info::derive_module_info(input))
 }
 
-#[proc_macro_derive(Genesis)]
+#[proc_macro_derive(Genesis, attributes(genesis))]
 pub fn genesis(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input);
     let genesis_macro = GenesisMacro::new("Genesis");

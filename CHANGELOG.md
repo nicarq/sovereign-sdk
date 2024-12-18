@@ -1,3 +1,5 @@
+## 2024-12-19
+- #2064 Renames `Runtime::GenesisPaths` to `Runtime::GenesisInput`. This field is generic and can be anything, not just a struct with a set of paths.
 ## 2024-12-16
  - #2049 removes `StateItem::new` method to increase safety of the `StateItem` API.
 ## 2024-12-15

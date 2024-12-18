@@ -33,7 +33,7 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
     /// Genesis data will be parsed from files found at the given paths.
     ///
     /// See [`FullNodeBlueprint::create_genesis_config`].
-    Paths(R::GenesisPaths),
+    Paths(R::GenesisInput),
     /// Genesis data provided explicitly using [`GenesisParams`].
     ///
     /// This is most useful when you're automatically generating genesis data
