@@ -207,6 +207,8 @@ utoipa-swagger-ui = { git = "https://github.com/juhaku/utoipa.git", rev = "a985d
     "axum",
 ] }
 unwrap-infallible = "0.1.5"
+# To keep compatiblity with rust 1.79
+home = { version = "=0.5.9" }
 tiny-keccak = "2.0.2"
 tracing = { version = "0.1.40", default-features = false }
 bech32 = { version = "0.11" }
