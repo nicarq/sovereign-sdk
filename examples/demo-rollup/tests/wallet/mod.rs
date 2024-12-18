@@ -8,7 +8,7 @@ use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{PrivateKey, Spec};
+use sov_modules_api::{DispatchCall, PrivateKey, Spec};
 use sov_modules_macros::config_value;
 use sov_test_utils::{
     TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
@@ -40,6 +40,45 @@ fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
         0,
         Some(TEST_DEFAULT_GAS_LIMIT.into()),
     )
+}
+
+#[test]
+fn test_transfer_template() {
+    let expected_call = RuntimeCall::Bank(CallMessage::Transfer {
+        to: <S as Spec>::Address::from_str(
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+        )
+        .unwrap(),
+        coins: Coins {
+            amount: 4342,
+            token_id: TokenId::from_str(
+                "token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks",
+            )
+            .unwrap(),
+        },
+    });
+    let expected_bytes = <Runtime<S> as DispatchCall>::encode(&expected_call);
+
+    let template_input = r#"{
+        "to": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11],
+        "amount": 4342,
+        "token_id": [23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23]
+    }"#;
+    let schema = Schema::of_rollup_types_with_metadata::<
+        u64,
+        Transaction<Runtime<S>, S>,
+        UnsignedTransaction<Runtime<S>, S>,
+        RuntimeCall<S>,
+    >(&4321)
+    .unwrap();
+    let template_transaction = schema
+        .fill_template_from_json(
+            RollupRoots::RuntimeCall as usize,
+            "transfer",
+            template_input,
+        )
+        .unwrap();
+    assert_eq!(template_transaction, expected_bytes);
 }
 
 #[test]

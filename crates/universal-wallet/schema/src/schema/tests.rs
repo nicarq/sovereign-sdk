@@ -214,12 +214,31 @@ impl FromStr for SimpleStructWithTemplate {
     BorshDeserialize,
 )]
 pub enum SimpleEnumWithTemplate {
+    #[sov_wallet(template("transfer_2"))]
     One(SimpleStructWithTemplate),
+    #[sov_wallet(template("mint_2"))]
     Two {
         #[sov_wallet(template("mint_2" = input))]
         msg: u8,
     },
+    #[sov_wallet(template("mint"))]
     Three(NestedStructWithNonNestedTemplates),
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+#[sov_wallet(template_inherit)]
+pub enum SimplerEnumWithTemplate {
+    One(SimpleStructWithTemplate),
 }
 
 #[derive(
@@ -312,12 +331,12 @@ fn test_simple_enum_schema_with_template() {
 
     let variant_one_encoding =
         borsh::to_vec(&SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
-            tokens: 124,
-            msg: "ababab".to_string().try_into().unwrap(),
+            tokens: 19,
+            msg: "bbb".to_string().try_into().unwrap(),
         }))
         .unwrap();
     let variant_one_template_encoding = schema
-        .fill_template_from_json(0, "transfer", "{ \"amount\": 124 }")
+        .fill_template_from_json(0, "transfer_2", "{ \"msg\": \"bbb\" }")
         .unwrap();
     assert_eq!(variant_one_encoding, variant_one_template_encoding);
 

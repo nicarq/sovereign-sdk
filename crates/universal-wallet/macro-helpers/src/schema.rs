@@ -1,12 +1,13 @@
 use darling::ast::{self, Data, Fields, Style};
 use darling::usage::{CollectLifetimes, CollectTypeParams, GenericsExt, Purpose};
+use darling::util::SpannedValue;
 use darling::{uses_lifetimes, uses_type_params, FromDeriveInput, FromField, FromVariant};
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote, ToTokens};
 use syn::token::{Comma, Where};
 use syn::{
-    DeriveInput, GenericParam, Generics, Ident, Type, TypeArray, TypeGroup, TypeParen, TypePtr,
-    TypeReference, TypeSlice, WhereClause, WherePredicate,
+    DeriveInput, GenericParam, Generics, Ident, LitStr, Type, TypeArray, TypeGroup, TypeParen,
+    TypePtr, TypeReference, TypeSlice, WhereClause, WherePredicate,
 };
 
 type SynResult<T> = Result<T, syn::Error>;
@@ -172,11 +173,14 @@ fn enum_variant_child_link(
 fn enum_variant_child_templates(
     type_ident: &Ident,
     generics: &Generics,
+    filter: &Vec<LitStr>,
+    inherit: bool,
     prefix: &Option<syn::TypePath>,
 ) -> TokenStream {
     let ty_generics = generics.split_for_impl().1;
+    let type_name = type_ident.to_string();
     quote! {
-        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema)
+        <#type_ident #ty_generics as #prefix::sov_universal_wallet::schema::SchemaGenerator>::get_child_templates(schema).filter_enum_variant_templates(vec![ #(#filter.to_string()),* ], #inherit, #type_name)
     }
 }
 
@@ -288,6 +292,12 @@ fn derive_wallet_field(
                     "Only enums may be marked `hide_tag`",
                 ));
             }
+            if *input.template_inherit {
+                return Err(syn::Error::new(
+                    input.template_inherit.span(),
+                    "The #[sov_wallet(template_inherit)] attribute can only be used on enums.",
+                ));
+            }
             child_links = struct_child_links(s, &prefix);
             child_templates =
                 struct_child_templates(s, &child_templates_arg, &input_name_str, &prefix)?;
@@ -325,6 +335,7 @@ fn derive_wallet_field(
                 predicates: Default::default(),
             });
             let mut enum_child_templates: Vec<TokenStream> = Default::default();
+            let inherit_variant_templates = *input.template_inherit;
             let variants = e.iter()
             .map(|variant| {
                 let variant_ident = &variant.ident;
@@ -336,7 +347,7 @@ fn derive_wallet_field(
                     Style::Struct => {
                         let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
                         virtual_types.push(virtual_struct);
-                        enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &prefix));
+                        enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
                         child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                         quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                     },
@@ -347,7 +358,7 @@ fn derive_wallet_field(
                         } else {
                             let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
                             virtual_types.push(virtual_tuple);
-                            enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &prefix));
+                            enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
                             child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                             quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                         }
@@ -615,7 +626,11 @@ fn build_virtual_struct(
                 }
             });
             let templates = field.template.original.clone();
-            let template_attribute = quote! {#[sov_wallet(#templates)]};
+            let template_attribute = if !templates.is_empty() {
+                quote! {#[sov_wallet(#templates)]}
+            } else {
+                quote! {}
+            };
             // TODO: propagate `#[serde(rename)]` attributes to each field here if support for it
             // is required
             quote! {
@@ -680,7 +695,11 @@ fn build_virtual_tuple(
                 }
             });
             let templates = field.template.original.clone();
-            let template_attribute = quote! {#[sov_wallet(#templates)]};
+            let template_attribute = if !templates.is_empty() {
+                quote! {#[sov_wallet(#templates)]}
+            } else {
+                quote! {}
+            };
             quote! {
                 #template_attribute #bounds_attribute #field_type
             }
@@ -733,6 +752,19 @@ pub struct Input {
     pub show_as: Option<String>,
     #[darling(default)]
     pub hide_tag: Option<bool>,
+    #[darling(default)]
+    pub template_inherit: SpannedValue<bool>,
+}
+
+#[derive(Debug, Clone, FromVariant)]
+#[darling(attributes(sov_wallet), forward_attrs(doc))]
+pub struct InputVariant {
+    pub ident: Ident,
+    pub fields: ast::Fields<InputField>,
+    #[darling(default)]
+    pub show_as: Option<String>,
+    #[darling(default)]
+    pub template: Vec<LitStr>,
 }
 
 #[derive(Debug, Clone, FromField)]
@@ -800,13 +832,4 @@ impl InputField {
             }
         }
     }
-}
-
-#[derive(Debug, Clone, FromVariant)]
-#[darling(attributes(sov_wallet), forward_attrs(doc))]
-pub struct InputVariant {
-    pub ident: Ident,
-    pub fields: ast::Fields<InputField>,
-    #[darling(default)]
-    pub show_as: Option<String>,
 }

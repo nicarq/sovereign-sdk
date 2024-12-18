@@ -104,14 +104,14 @@ Once a batch is submitted the output should also contain the transaction hashes 
 
 ```text
 Your batch was submitted to the sequencer for publication. Response: "Submitted 1 transactions"
-0: 0x87bafc1273247bcfefffd768ea05a731e9c61fcb1ec56a935b9571c13933e8a2
+0: 0x813e639c23a830242dfe3ebece5e69d9aae9c80478cbb9221fabbfaceebeb203
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x999c26d46a3068d202a9f7f7ba9ae40291c22f9e45b9076cfa94745155255891/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xf3f7ea50983c3e36bc3f22b8556efee639b016a25e17ef3f21189e4c7c85a889/events | jq
 {
   "data": [
     {
@@ -318,7 +318,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x5922512f1a1626108e1dcc40c1c834ebf7301a6da8a8928bc9558e9cc7982ef4",
+  "chain_hash": "0x3b4e3d11eb133fb758f70a84497ae0778d795738820b88829283354f2f0ff7cd",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,

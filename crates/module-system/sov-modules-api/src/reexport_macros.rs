@@ -626,9 +626,18 @@ pub mod macros {
     /// at a lower level, and a field of such a type will be considered correctly annotated for the
     /// template when used in parent types.
     ///
+    /// **Enum annotation:**
     /// As a special rule, in an enum, a template can only be defined on the fields of a single
     /// variant. It is an error to have template attributes with the same name available from
     /// multiple variants.
+    ///
+    /// To prevent unexpected/undesired inheriting of templates causing an error as per above, enum
+    /// variants must be annotated with the following syntax:
+    /// ```ignore
+    /// template("template_name", ...)
+    /// ```
+    /// I.e. specifying a list of names, with no extra data necessary. Only templates explicitly
+    /// named in the variant's own attribute will be available on that attribute.
     ///
     /// ```rust
     /// use sov_universal_wallet::schema::Schema;
@@ -636,6 +645,7 @@ pub mod macros {
     /// use sov_modules_api::macros::UniversalWallet;
     /// #[derive(UniversalWallet, borsh::BorshSerialize)]
     /// pub enum CallMessage {
+    ///     #[sov_wallet(template("transfer"))]
     ///     Transfer {
     ///         #[sov_wallet(template("transfer" = input("to")))]
     ///         to: SafeString,
@@ -657,6 +667,11 @@ pub mod macros {
     /// assert_eq!(schema.display(0, &encoded_call).unwrap(), r#"Transfer { to: "sov1234_whatever_address", coins: { amount: 2000, token_id: "MY_TOKEN_ID" } }"#);
     /// ```
     ///
+    /// ## Attributes: `#[sov_wallet(template_inherit)]`
+    /// Applies to enums only. _Overrides_ the default behaviour, described above, which normally
+    /// makes templates opt-in for enum variants. When `template_inherit` is specified on an enum,
+    /// instead, every enum variant will automatically inherit all templates available on the type
+    /// of that variant.
     ///
     /// ## Attributes: `#[sov_wallet(skip)]`
     ///
