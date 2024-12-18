@@ -185,7 +185,7 @@ fn test_simple_struct_schema_with_showas() {
     BorshDeserialize,
 )]
 pub struct SimpleStructWithTemplate {
-    #[sov_wallet(template("transfer" = input("amount"), "transfer_2" = value("19")))]
+    #[sov_wallet(template("transfer" = input("amount"), "transfer_2" = value(default)))]
     tokens: u64,
     #[sov_wallet(template("transfer" = value("ababab"), "transfer_2" = input))]
     msg: SafeString,
@@ -285,7 +285,7 @@ fn test_simple_struct_schema_with_template() {
     assert_eq!(transfer_example_encoding, transfer_template_encoding);
 
     let transfer_2_example_encoding = borsh::to_vec(&SimpleStructWithTemplate {
-        tokens: 19,
+        tokens: Default::default(),
         msg: "aaabb".to_string().try_into().unwrap(),
     })
     .unwrap();
@@ -384,7 +384,7 @@ fn test_nested_struct_schema_with_template() {
 
     let transfer_2_example_encoding = borsh::to_vec(&NestedStructWithTemplate {
         inner: SimpleStructWithTemplate {
-            tokens: 19,
+            tokens: 0,
             msg: "two".try_into().unwrap(),
         },
         msg: 93,

@@ -115,8 +115,15 @@ fn struct_child_templates(
                 InputOrValue::Value(value) => quote! {
                     #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_bytes(
                         ::borsh::to_vec(
-                            &<#ty as ::std::str::FromStr>::from_str(#value).expect(format!("String parsing failed for value: {} while constructing schema template on type {}", #value, #input_name_str).as_str())
+                            &<#ty as ::core::str::FromStr>::from_str(#value).expect(format!("String parsing failed for value: {} while constructing schema template on type {}", #value, #input_name_str).as_str())
                         ).expect(format!("Borsh-encoding of value {} failed while encoding schema template on type {}", #value, #input_name_str).as_str())
+                    )
+                },
+                InputOrValue::DefaultValue => quote! {
+                    #prefix::sov_universal_wallet::schema::transaction_templates::TransactionTemplate::from_bytes(
+                        ::borsh::to_vec(
+                            &<#ty as ::core::default::Default>::default()
+                        ).expect(format!("Borsh-encoding of default value failed while encoding schema template on type {}", #input_name_str).as_str())
                     )
                 }
             };
@@ -219,6 +226,9 @@ fn generate_where_clause_template_parsing_bound(
             InputOrValue::Input(_) | InputOrValue::FieldNameInput => None,
             InputOrValue::Value(_) => Some(syn::parse_quote! {
                 #ty_tokens: ::core::str::FromStr
+            }),
+            InputOrValue::DefaultValue => Some(syn::parse_quote! {
+                #ty_tokens: ::core::default::Default
             }),
         })
         .collect()

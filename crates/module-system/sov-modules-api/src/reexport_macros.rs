@@ -612,7 +612,9 @@ pub mod macros {
     /// turn, is one of either
     /// * `input` for an input binding on the field name,
     /// * `input("name")` for an input binding with an arbitrary name, or
-    /// * `value("data")` for a pre-defined hardcoded value.
+    /// * `value("data")` for a pre-defined hardcoded value, or
+    /// * `value(default)` to use the type's `std::default::Default::default()` value in the
+    /// template
     ///
     /// Note that input names must be unique throughout a single template. For example, it's not
     /// possible to annotate two identically-named fields (in different structs) with `input` and
