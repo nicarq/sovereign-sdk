@@ -331,7 +331,7 @@ fn test_simple_enum_schema_with_template() {
 
     let variant_one_encoding =
         borsh::to_vec(&SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
-            tokens: 19,
+            tokens: 0,
             msg: "bbb".to_string().try_into().unwrap(),
         }))
         .unwrap();
