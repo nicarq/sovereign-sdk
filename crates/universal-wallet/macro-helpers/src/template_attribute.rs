@@ -21,6 +21,7 @@ pub enum InputOrValue {
     FieldNameInput,
     Input(String),
     Value(String),
+    DefaultValue,
 }
 
 impl FromMeta for TransactionTemplates {
@@ -95,16 +96,13 @@ impl FromMeta for TransactionTemplates {
                             _ => (),
                         };
                         // TODO: support for Assign values here for `json = ""` and `hex = ""` pre-encoded values
-                        // TODO: support for Path values for `default` to encode a call to Default::default()
-                        let input_or_value = parse_lit_str(func.args[0].clone())?;
-
+                        let arg = func.args[0].clone();
                         match discriminant.to_string().as_str() {
                             "input" => {
-                                ret.insert(template_name, InputOrValue::Input(input_or_value))
+                                let input = parse_lit_str(arg)?;
+                                ret.insert(template_name, InputOrValue::Input(input))
                             }
-                            "value" => {
-                                ret.insert(template_name, InputOrValue::Value(input_or_value))
-                            }
+                            "value" => ret.insert(template_name, parse_value(arg)?),
                             s => return Err(Error::unknown_field(s).with_span(&discriminant)),
                         };
                     } else {
@@ -129,5 +127,19 @@ impl FromMeta for TransactionTemplates {
             template: ret,
             original: item.to_token_stream(),
         })
+    }
+}
+
+fn parse_value(e: Expr) -> Result<InputOrValue> {
+    match e {
+        Expr::Lit(ExprLit {
+            lit: Lit::Str(s), ..
+        }) => Ok(InputOrValue::Value(s.value())),
+        Expr::Lit(expr) => Err(Error::unexpected_lit_type(&expr.lit)),
+        Expr::Path(p) if p.path.is_ident("default") => Ok(InputOrValue::DefaultValue),
+        Expr::Path(p) => {
+            Err(Error::unknown_value(p.path.to_token_stream().to_string().as_str()).with_span(&p))
+        }
+        _ => Err(Error::unexpected_expr_type(&e).with_span(&e)),
     }
 }
