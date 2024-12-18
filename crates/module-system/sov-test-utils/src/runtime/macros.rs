@@ -97,7 +97,7 @@ macro_rules! generate_bare_runtime {
 
             type GenesisConfig = <Self as ::sov_modules_api::Genesis>::Config;
 
-            type GenesisPaths = ();
+            type GenesisInput = ();
 
             fn endpoints(api_state: sov_modules_api::rest::ApiState<S>) -> ::sov_modules_api::RuntimeEndpoints {
                 use ::sov_modules_api::prelude::jsonrpsee;
@@ -110,7 +110,7 @@ macro_rules! generate_bare_runtime {
                 }
             }
 
-            fn genesis_config(_genesis_paths: &Self::GenesisPaths) -> anyhow::Result<Self::GenesisConfig> {
+            fn genesis_config(_input: &Self::GenesisInput) -> anyhow::Result<Self::GenesisConfig> {
                 unimplemented!()
             }
 
