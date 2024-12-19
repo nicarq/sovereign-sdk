@@ -76,6 +76,15 @@ mod primitive_type_impls {
         }
     }
 
+    impl SchemaGenerator for () {
+        fn scaffold() -> Item<IndexLinking> {
+            Item::Atom(Primitive::Skip { len: 0 })
+        }
+        fn get_child_links(_schema: &mut Schema) -> Vec<Link> {
+            Vec::new()
+        }
+    }
+
     impl<T: 'static> SchemaGenerator for PhantomData<T> {
         fn scaffold() -> Item<IndexLinking> {
             Item::Atom(Primitive::Skip { len: 0 })

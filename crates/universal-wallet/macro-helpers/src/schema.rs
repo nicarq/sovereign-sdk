@@ -101,7 +101,10 @@ fn struct_child_templates(
     prefix: &Option<syn::TypePath>,
 ) -> Result<TokenStream, darling::Error> {
     let child_templates = input.fields.iter().enumerate().filter(|(_, field)| !field.skip).map(|(i, field)| {
-        let ty = field.ty_tokens(); // TODO: have separate possible override here
+        let ty = match &field.template_override_ty {
+            Some(ty) => ty.to_token_stream(),
+            None => field.ty_tokens(),
+        };
         // For every template annotation (will do nothing if there's no attribute)...
         let templates: Vec<TokenStream> = field.template.template.iter().map(|t| {
             let field_name = field.ident.clone().ok_or(darling::Error::custom("`input` bindings with no explicit name can only be used for named fields").with_span(&field.ident))?.to_string();
@@ -171,7 +174,7 @@ fn enum_variant_child_link(
 /// TransactionTemplateSet::merge_enum_template_sets() that will make up the enum's own
 /// implementation of get_child_templates
 fn enum_variant_child_templates(
-    type_ident: &Ident,
+    type_ident: TokenStream,
     generics: &Generics,
     filter: &Vec<LitStr>,
     inherit: bool,
@@ -345,9 +348,9 @@ fn derive_wallet_field(
                 let variant_showas_tokens = quote_str_option_literally(variant_showas);
                 let value = match &variant.fields.style {
                     Style::Struct => {
-                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
+                        let virtual_struct = build_virtual_struct(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name);
                         virtual_types.push(virtual_struct);
-                        enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
+                        enum_child_templates.push(enum_variant_child_templates(variant.template_ty_tokens(&virtual_type_ident), &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
                         child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                         quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                     },
@@ -356,9 +359,9 @@ fn derive_wallet_field(
                         if variant.fields.fields.len() > 1 && std::env::var("SOV_WALLET_PEDANTIC").is_ok() {
                             return Err(syn::Error::new_spanned(&input.ident, "Tuple structs with multiple entries are not human readable. Please use a named struct instead!"));
                         } else {
-                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name)?;
+                            let virtual_tuple = build_virtual_tuple(&variant.fields.fields, where_under_construction, &virtual_type_ident, &virtual_type_generics, variant_showas, &prefix, &macro_name);
                             virtual_types.push(virtual_tuple);
-                            enum_child_templates.push(enum_variant_child_templates(&virtual_type_ident, &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
+                            enum_child_templates.push(enum_variant_child_templates(variant.template_ty_tokens(&virtual_type_ident), &virtual_type_generics, &variant.template, inherit_variant_templates, &prefix));
                             child_links.push(enum_variant_child_link(&virtual_type_ident, &virtual_type_generics, &prefix));
                             quote!{ Some(#prefix::sov_universal_wallet::schema::Link::Placeholder) }
                         }
@@ -606,7 +609,7 @@ fn build_virtual_struct(
     showas_string: &Option<String>,
     prefix: &Option<syn::TypePath>,
     macro_name: &TokenStream,
-) -> Result<TokenStream, syn::Error> {
+) -> TokenStream {
     let (virt_impl_generics, virt_ty_generics, virt_where_clause) = type_generics.split_for_impl();
     where_clause
         .predicates
@@ -626,18 +629,22 @@ fn build_virtual_struct(
                 }
             });
             let templates = field.template.original.clone();
-            let template_attribute = if !templates.is_empty() {
-                quote! {#[sov_wallet(#templates)]}
-            } else {
+            let template_attribute = if templates.is_empty() {
                 quote! {}
+            } else {
+                quote! {#[sov_wallet(#templates)]}
+            };
+            let template_override_attribute = match &field.template_override_ty {
+                Some(ty) => quote!{#[sov_wallet(template_override_ty = #ty)]},
+                None => quote!{}
             };
             // TODO: propagate `#[serde(rename)]` attributes to each field here if support for it
             // is required
             quote! {
-                #template_attribute #bounds_attribute #name: #field_type
+                #template_attribute #template_override_attribute #bounds_attribute #name: #field_type
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     // TODO: pass attribute name as argument when creating the derive, instead of hardcoding
     // sov_wallet
@@ -658,7 +665,7 @@ fn build_virtual_struct(
         }
     };
 
-    Ok(virtual_struct)
+    virtual_struct
 }
 
 /// Build an explicit tuple struct type from the fields inside an enum variant.
@@ -676,7 +683,7 @@ fn build_virtual_tuple(
     template_string: &Option<String>,
     prefix: &Option<syn::TypePath>,
     macro_name: &TokenStream,
-) -> Result<TokenStream, syn::Error> {
+) -> TokenStream {
     let (virt_impl_generics, virt_ty_generics, virt_where_clause) = type_generics.split_for_impl();
     where_clause
         .predicates
@@ -695,16 +702,20 @@ fn build_virtual_tuple(
                 }
             });
             let templates = field.template.original.clone();
-            let template_attribute = if !templates.is_empty() {
-                quote! {#[sov_wallet(#templates)]}
-            } else {
+            let template_attribute = if templates.is_empty() {
                 quote! {}
+            } else {
+                quote! {#[sov_wallet(#templates)]}
+            };
+            let template_override_attribute = match &field.template_override_ty {
+                Some(ty) => quote! {#[sov_wallet(template_override_ty = #ty)]},
+                None => quote! {},
             };
             quote! {
-                #template_attribute #bounds_attribute #field_type
+                #template_attribute #template_override_attribute #bounds_attribute #field_type
             }
         })
-        .collect();
+        .collect::<Vec<_>>();
 
     // TODO: pass attribute name as argument when creating the derive, instead of hardcoding
     // sov_wallet
@@ -724,7 +735,7 @@ fn build_virtual_tuple(
         ) #virt_where_clause;
     };
 
-    Ok(virtual_tuple)
+    virtual_tuple
 }
 
 fn maybe_generate_field_schema(field: &InputField, prefix: &Option<syn::TypePath>) -> TokenStream {
@@ -756,17 +767,6 @@ pub struct Input {
     pub template_inherit: SpannedValue<bool>,
 }
 
-#[derive(Debug, Clone, FromVariant)]
-#[darling(attributes(sov_wallet), forward_attrs(doc))]
-pub struct InputVariant {
-    pub ident: Ident,
-    pub fields: ast::Fields<InputField>,
-    #[darling(default)]
-    pub show_as: Option<String>,
-    #[darling(default)]
-    pub template: Vec<LitStr>,
-}
-
 #[derive(Debug, Clone, FromField)]
 #[darling(attributes(sov_wallet), forward_attrs(doc, serde))]
 pub struct InputField {
@@ -781,6 +781,8 @@ pub struct InputField {
     pub bound: Option<Bounds>,
     #[darling(default)]
     pub template: TransactionTemplates,
+    #[darling(default)]
+    pub template_override_ty: Option<syn::Type>,
     #[darling(default)]
     pub hidden: bool,
     #[darling(default, rename = "as_ty")]
@@ -830,6 +832,28 @@ impl InputField {
             quote! {
                 <#ty as #crate_prefix::sov_universal_wallet::schema::SchemaGenerator>::make_linkable(schema)
             }
+        }
+    }
+}
+
+#[derive(Debug, Clone, FromVariant)]
+#[darling(attributes(sov_wallet), forward_attrs(doc))]
+pub struct InputVariant {
+    pub ident: Ident,
+    pub fields: ast::Fields<InputField>,
+    #[darling(default)]
+    pub show_as: Option<String>,
+    #[darling(default)]
+    pub template: Vec<LitStr>,
+    #[darling(default)]
+    pub template_override_ty: Option<syn::Type>,
+}
+
+impl InputVariant {
+    pub fn template_ty_tokens(&self, virtual_typename: &Ident) -> TokenStream {
+        match &self.template_override_ty {
+            Some(ty) => ty.to_token_stream(),
+            None => virtual_typename.to_token_stream(),
         }
     }
 }
