@@ -8,7 +8,7 @@ pub use config::MonitoringConfig;
 pub use tracker::{
     init_metrics_tracker, BatchMetrics, BatchOutcome, HttpMetrics, RunnerMetrics,
     SlotProcessingMetrics, TransactionEffect, TransactionProcessingMetrics,
-    UserSpaceSlotProcessingMetrics, ZkVmCycleCount,
+    UserSpaceSlotProcessingMetrics, ZkCircuit, ZkProvingTime, ZkVmCycleCount,
 };
 
 pub(crate) type SerializableMetric = Box<dyn Metric>;
