@@ -1,7 +1,6 @@
 PROJECT_ROOT := $(shell git rev-parse --show-toplevel)
 DOCKER_COMPOSE_DIR := $(PROJECT_ROOT)/docker
 DOCKER_COMPOSE_CFG := $(DOCKER_COMPOSE_DIR)/docker-compose.yml
-CREDENTIALS_DIR := $(PROJECT_ROOT)/examples/celestia-docker/credentials
 
 docker_compose := docker compose -f $(DOCKER_COMPOSE_CFG)
 
@@ -22,10 +21,7 @@ wait-compose-ready:
 	@echo "Waiting for services to finish setup"
 	@$(compose_logs) | awk '/Provisioning finished./ {print;exit}' # exit when encounter this log entry
 
-restart: down up generate_configs
-
-generate_configs: wait-compose-ready
-	@$(DOCKER_COMPOSE_DIR)/generate_configs.sh
+restart: down up
 
 logs:
 	@$(docker_compose) logs -f

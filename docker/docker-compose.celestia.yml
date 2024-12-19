@@ -3,10 +3,10 @@ services:
     image: validator
     hostname: validator
     build:
-      context: .
+      context: ./celestia
       dockerfile: Dockerfile.validator
     healthcheck:
-      # To see healthcheck output:
+      # To see health check output:
       # docker inspect --format "{{json .State.Health }}" docker-validator-1 | jq
       test: ["CMD", "/opt/validator-healthcheck.sh"]
       interval: 10s
@@ -25,12 +25,12 @@ services:
     image: bridge
     hostname: sequencer-0
     build:
-      context: .
+      context: ./celestia
       dockerfile: Dockerfile.bridge
     depends_on:
       - validator
     healthcheck:
-      # To see healthcheck output:
+      # To see health check output:
       # docker inspect --format "{{json .State.Health }}" docker-sequencer-0-1 | jq
       test: ["CMD", "/opt/bridge-healthcheck.sh", "/credentials/bridge-0.jwt"]
       interval: 5s

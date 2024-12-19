@@ -17,13 +17,13 @@ demo_data_2/
 .vscode/settings.json
 .vscode/*
 
-/docker/credentials/*
-!/docker/credentials/bridge-0.addr
-!/docker/credentials/bridge-0.key
-!/docker/credentials/bridge-1.key
-!/docker/credentials/bridge-1.addr
-!/docker/credentials/bridge-2.key
-!/docker/credentials/bridge-2.addr
+/docker/celestia/credentials/*
+!/docker/celestia/credentials/bridge-0.addr
+!/docker/celestia/credentials/bridge-0.key
+!/docker/celestia/credentials/bridge-1.key
+!/docker/celestia/credentials/bridge-1.addr
+!/docker/celestia/bridge-2.key
+!/docker/celestia/credentials/bridge-2.addr
 
 adapters/solana/libyellowstone_grpc_geyser.dylib
 examples/test-data/genesis/benchmark/accounts.json
