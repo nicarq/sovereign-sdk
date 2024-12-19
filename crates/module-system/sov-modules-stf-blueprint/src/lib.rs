@@ -414,6 +414,7 @@ where
     /// Run the provided sequence of batches, updating the user-space rollup state as we go.
     /// Batches can inject control flow, which will be respected by the runner.
     #[allow(clippy::type_complexity)]
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     pub fn apply_batches_in_user_space<B: IncrementalBatch<TransactionReceipt<S>, S>>(
         &self,
         blob_selector_output: BlobSelectorOutput<S, BlobDataWithId<B>>,
