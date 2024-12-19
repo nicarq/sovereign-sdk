@@ -19,7 +19,7 @@ use sov_modules_api::provable_height_tracker::InfiniteHeight;
 use sov_modules_api::{
     FullyBakedTx, ProofSerializer, StateTransitionFunction, StateUpdateInfo, SyncStatus,
 };
-use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{AggregatedProofResponse, LedgerStateProvider};
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
@@ -40,8 +40,7 @@ use tokio::task::JoinHandle;
 
 use crate::helpers::hash_stf::HashStf;
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
 
 pub type S = DefaultStorageSpec<Sha256>;
 type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
@@ -50,7 +49,7 @@ type StorageManager = NativeStorageManager<MockDaSpec, ProverStorage<S>>;
 pub struct TestNode {
     proof_posted_in_da_sub: Receiver<()>,
     agg_proof_saved_in_db_sub: BoxStream<'static, AggregatedProofResponse>,
-    da: Arc<DaServiceWithRetries<MockDaService>>,
+    da: Arc<MockDaService>,
     inner_vm: MockZkvmHost,
     _outer_vm: MockZkvmHost,
     prover_handle: Option<JoinHandle<()>>,
@@ -138,7 +137,7 @@ impl ProofSerializer for DummyProofSerializer {
 
 #[allow(clippy::type_complexity)]
 pub async fn initialize_runner(
-    da_service: Arc<DaServiceWithRetries<MockDaService>>,
+    da_service: Arc<MockDaService>,
     path: &std::path::Path,
     init_variant: MockInitVariant,
     aggregated_proof_block_jump: usize,
@@ -147,13 +146,13 @@ pub async fn initialize_runner(
     StateTransitionRunner<
         HashStf<MockValidityCond>,
         StorageManager,
-        DaServiceWithRetries<MockDaService>,
+        MockDaService,
         MockZkvm,
         MockZkvm,
     >,
     TestNode,
 ) {
-    let rollup_config = rollup_config(da_service.da_service(), path, aggregated_proof_block_jump);
+    let rollup_config = rollup_config(&da_service, path, aggregated_proof_block_jump);
 
     let stf = HashStf::<MockValidityCond>::new();
 
@@ -254,7 +253,7 @@ pub async fn initialize_runner(
         None
     };
 
-    let proof_posted_in_da_sub = da_service.da_service().subscribe_proof_posted();
+    let proof_posted_in_da_sub = da_service.subscribe_proof_posted();
     let agg_proof_saved_in_db_sub: std::pin::Pin<
         Box<dyn Stream<Item = AggregatedProofResponse> + Send>,
     > = ledger_db.subscribe_proof_saved();

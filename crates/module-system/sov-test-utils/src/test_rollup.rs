@@ -13,7 +13,6 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Spec;
 use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
@@ -159,9 +158,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
 
 impl<R> RollupBuilder<R>
 where
-    R: FullNodeBlueprint<Native, DaService = DaServiceWithRetries<StorableMockDaService>>
-        + Default
-        + 'static,
+    R: FullNodeBlueprint<Native, DaService = StorableMockDaService> + Default + 'static,
     R::Spec: Spec<Da = MockDaSpec>,
 {
     /// Creates a new [`TestRollup`] and starts running it in a background Tokio
@@ -317,7 +314,7 @@ pub struct TestRollup<R: FullNodeBlueprint<Native>> {
     ///
     /// You can use it to query DA layer information or directly submit blobs,
     /// bypassing the sequencer.
-    pub da_service: Arc<DaServiceWithRetries<StorableMockDaService>>,
+    pub da_service: Arc<StorableMockDaService>,
     /// We just hold this together with [`TestRollup`] instance, so the directory
     /// is not deleted before we're done.
     pub storage: Arc<tempfile::TempDir>,

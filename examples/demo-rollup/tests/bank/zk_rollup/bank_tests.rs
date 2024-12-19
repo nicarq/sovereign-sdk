@@ -11,7 +11,6 @@ use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::{OperatingMode, SerializedAggregatedProof, Spec, Storage};
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData,
@@ -84,7 +83,7 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
 async fn send_test_bank_txs(
     test_case: TestCase,
     client: &NodeClient,
-    da_service: &DaServiceWithRetries<StorableMockDaService>,
+    da_service: &StorableMockDaService,
     tx_sender: SequencerTxSender,
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
@@ -96,8 +95,7 @@ async fn send_test_bank_txs(
         .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
         .await?;
 
-    let mut aggregated_proofs_posted_to_da_subscription =
-        da_service.da_service().subscribe_proof_posted();
+    let mut aggregated_proofs_posted_to_da_subscription = da_service.subscribe_proof_posted();
 
     let mut aggregated_proof_subscription = client
         .client

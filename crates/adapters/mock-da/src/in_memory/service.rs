@@ -265,7 +265,7 @@ impl DaService for MockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
-    type Error = MaybeRetryable<anyhow::Error>;
+    type Error = anyhow::Error;
     type Fee = MockFee;
 
     /// Gets block at given height
@@ -288,13 +288,12 @@ impl DaService for MockDaService {
         // Locking blocks here, so submissions have to wait
         let blocks = self.blocks.write().await;
         let oldest_available_height = blocks[0].header.height;
-        let index =
-            height
-                .checked_sub(oldest_available_height)
-                .ok_or(MaybeRetryable::Permanent(anyhow::anyhow!(
-                    "Block at height {} is not available anymore",
-                    height
-                )))?;
+        let index = height
+            .checked_sub(oldest_available_height)
+            .ok_or(anyhow::anyhow!(
+                "Block at height {} is not available anymore",
+                height
+            ))?;
 
         Ok(blocks.get(index as usize).unwrap().clone())
     }
@@ -400,9 +399,7 @@ impl DaService for MockDaService {
 
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(proof_blob);
-        self.aggregated_proof_sender
-            .send(())
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+        self.aggregated_proof_sender.send(())?;
 
         Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),

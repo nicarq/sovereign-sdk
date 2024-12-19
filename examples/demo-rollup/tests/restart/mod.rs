@@ -12,7 +12,6 @@ use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::da::BlockHeaderTrait;
-use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, RollupBuilderConfig, TestRollup};
 use tracing::{Event, Level, Subscriber};
@@ -104,15 +103,13 @@ async fn start_stop_empty(
             ..
         } = test_rollup;
 
-        let storable_mock_da = da_service.da_service();
-        let block_producing_handle = storable_mock_da.take_background_join_handle().unwrap();
         drop(da_service);
         tracing::info!("Triggering shutdown....");
         shutdown_sender.send(())?;
         tokio::time::timeout(std::time::Duration::from_secs(5), rollup_task)
             .await
             .context("Joining rollup task failed")???;
-        block_producing_handle.await?;
+
         // // By design, child tasks don't always report back to their parents when they finish shutting down. This is fine
         // // during normal operation, but it means that we can't "await" until every spawned task is shutdown for this test. That makes
         // // the test flaky, since we sometimes try to restart the rollup before we finish shutting it down, causing rocksdb locks to trigger.
@@ -371,7 +368,7 @@ async fn check_with_increasing_stf_infos(
             api_client,
             ..
         } = test_rollup;
-        let da_service_ref = da_service.da_service();
+        let da_service_ref = da_service.clone();
         let mut slot_subscription = api_client.subscribe_slots().await?;
 
         // Produce enough blocks to fill the channel and accommodate slot processing time.

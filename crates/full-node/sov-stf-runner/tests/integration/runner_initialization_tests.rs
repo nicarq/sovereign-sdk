@@ -2,12 +2,10 @@ use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockValidityCond};
 use sov_mock_zkvm::MockZkvm;
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 
 use crate::helpers::hash_stf::HashStf;
 use crate::helpers::runner_init::{initialize_runner, InitVariant};
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn init_and_restart() {
@@ -38,9 +36,7 @@ async fn init_and_restart_inner() {
     let tmpdir = tempfile::tempdir().unwrap();
     let path = tmpdir.path();
 
-    let da_service = Arc::new(DaServiceWithRetries::new_fast(MockDaService::new(
-        MockAddress::new([11u8; 32]),
-    )));
+    let da_service = Arc::new(MockDaService::new(MockAddress::new([11u8; 32])));
 
     let state_root_after_genesis = {
         let (runner, _) = initialize_runner(da_service.clone(), path, init_variant, 1, None).await;

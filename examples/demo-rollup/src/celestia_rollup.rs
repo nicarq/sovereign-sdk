@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use backon::ExponentialBuilder;
 use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::CelestiaService;
@@ -19,7 +18,6 @@ use sov_modules_rollup_blueprint::{
 };
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::SequenceNumberProvider;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -47,7 +45,7 @@ where
 
 #[async_trait]
 impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
-    type DaService = DaServiceWithRetries<CelestiaService>;
+    type DaService = CelestiaService;
 
     type StorageManager = NativeStorageManager<
         CelestiaSpec,
@@ -105,19 +103,14 @@ impl FullNodeBlueprint<Native> for CelestiaDemoRollup<Native> {
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self::DaService {
-        DaServiceWithRetries::with_exponential_backoff(
-            CelestiaService::new(
-                rollup_config.da.clone(),
-                RollupParams {
-                    rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
-                    rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
-                },
-            )
-            .await,
-            // NOTE: Current exponential backoff policy defaults:
-            // jitter: false, factor: 2, min_delay: 1s, max_delay: 60s, max_times: 3,
-            ExponentialBuilder::default(),
+        CelestiaService::new(
+            rollup_config.da.clone(),
+            RollupParams {
+                rollup_batch_namespace: ROLLUP_BATCH_NAMESPACE,
+                rollup_proof_namespace: ROLLUP_PROOF_NAMESPACE,
+            },
         )
+        .await
     }
 
     async fn create_prover_service(

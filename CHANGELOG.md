@@ -1,3 +1,5 @@
+## 2024-12-20
+- #2067 Move the retry logic to CelestiaDaService, and remove the DaServiceWithRetries type.
 ## 2024-12-19
 - #2064 Renames `Runtime::GenesisPaths` to `Runtime::GenesisInput`. This field is generic and can be anything, not just a struct with a set of paths.
 ## 2024-12-16

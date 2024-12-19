@@ -14,7 +14,6 @@ use sov_modules_api::{BlobDataWithId, CryptoSpec, RuntimeEndpoints, Spec, SyncSt
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt};
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::SequenceNumberProvider;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -49,7 +48,7 @@ where
         + HasKernel<S, BlobType = BlobDataWithId>
         + 'static,
 {
-    type DaService = DaServiceWithRetries<StorableMockDaService>;
+    type DaService = StorableMockDaService;
 
     type StorageManager = NativeStorageManager<
         MockDaSpec,
@@ -99,9 +98,7 @@ where
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         shutdown_receiver: tokio::sync::watch::Receiver<()>,
     ) -> Self::DaService {
-        DaServiceWithRetries::new_fast(
-            StorableMockDaService::from_config(rollup_config.da.clone(), shutdown_receiver).await,
-        )
+        StorableMockDaService::from_config(rollup_config.da.clone(), shutdown_receiver).await
     }
 
     async fn create_prover_service(

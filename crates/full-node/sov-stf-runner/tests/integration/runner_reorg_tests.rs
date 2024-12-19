@@ -8,7 +8,7 @@ use sov_mock_da::{
 };
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::{FullyBakedTx, StateTransitionFunction};
-use sov_rollup_interface::node::da::{DaService, DaServiceWithRetries};
+use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::storage::HierarchicalStorageManager;
 use sov_state::storage::NativeStorage;
 use sov_state::{ArrayWitness, ProverStorage, Storage, StorageRoot};
@@ -18,8 +18,7 @@ use tempfile::TempDir;
 use crate::helpers::hash_stf::{HashStf, S};
 use crate::helpers::runner_init::{initialize_runner, InitVariant};
 
-type MockInitVariant =
-    InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, DaServiceWithRetries<MockDaService>>;
+type MockInitVariant = InitVariant<HashStf<MockValidityCond>, MockZkvm, MockZkvm, MockDaService>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_simple_reorg_case() {
@@ -46,20 +45,14 @@ async fn test_simple_reorg_case() {
         batch(vec![15, 15, 15, 15]),
     ];
 
-    let mut da_service = DaServiceWithRetries::new_fast(
-        MockDaService::new(sequencer_address)
-            .with_finality(4)
-            .with_wait_attempts(2),
-    );
+    let mut da_service = MockDaService::new(sequencer_address)
+        .with_finality(4)
+        .with_wait_attempts(2);
 
     let genesis_block = da_service.get_block_at(0).await.unwrap();
 
     let planned_fork = PlannedFork::new(5, 2, fork_blobs.clone());
-    da_service
-        .da_service_mut()
-        .set_planned_fork(planned_fork)
-        .await
-        .unwrap();
+    da_service.set_planned_fork(planned_fork).await.unwrap();
 
     let da_service = Arc::new(da_service);
     for data in main_chain_blobs {
@@ -94,9 +87,7 @@ async fn test_instant_finality_data_stored() {
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
-    let da_service = Arc::new(DaServiceWithRetries::new_fast(
-        MockDaService::new(sequencer_address).with_wait_attempts(2),
-    ));
+    let da_service = Arc::new(MockDaService::new(sequencer_address).with_wait_attempts(2));
 
     let genesis_block = da_service.get_block_at(0).await.unwrap();
     let fee = da_service.estimate_fee(4).await.unwrap();
@@ -139,7 +130,7 @@ async fn test_instant_finality_data_stored() {
 }
 
 async fn check_runner(
-    da_service: Arc<DaServiceWithRetries<MockDaService>>,
+    da_service: Arc<MockDaService>,
     tmpdir: &TempDir,
     init_variant: MockInitVariant,
     expected_state_root: StorageRoot<S>,
