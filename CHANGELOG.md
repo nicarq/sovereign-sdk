@@ -1,6 +1,7 @@
 ## 2024-12-20
 - #2067 Move the retry logic to CelestiaDaService, and remove the DaServiceWithRetries type.
 ## 2024-12-19
+- #2075 Add UniversalWallet derive to the crypto types for Risc0 and SP1 zkvms. Previously the macro was only derived for types in the MockZkvm. This made it impossible to derive the universal schema on the `Transaction<S: Spec>` type with a Spec that used a real zkvm - now fixed.
 - #2064 Renames `Runtime::GenesisPaths` to `Runtime::GenesisInput`. This field is generic and can be anything, not just a struct with a set of paths.
 ## 2024-12-16
  - #2049 removes `StateItem::new` method to increase safety of the `StateItem` API.

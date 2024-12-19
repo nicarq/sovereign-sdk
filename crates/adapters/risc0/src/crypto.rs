@@ -11,6 +11,7 @@ use ed25519_dalek::{
 };
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 use sov_rollup_interface::reexports::schemars::{self, JsonSchema};
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
@@ -152,13 +153,14 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema, UniversalWallet)]
 pub struct Risc0PublicKey {
     #[schemars(
         flatten,
         with = "String",
         length(equal = "ed25519_dalek::PUBLIC_KEY_LENGTH * 2")
     )]
+    #[sov_wallet(as_ty = "[u8; ed25519_dalek::PUBLIC_KEY_LENGTH]")]
     pub(crate) pub_key: DalekPublicKey,
 }
 
@@ -206,7 +208,9 @@ impl BorshSerialize for Risc0PublicKey {
 }
 
 /// An ed25519 signature. Wraps the optimized Risc0 fork of the ed25519-dalek crate.
-#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[derive(
+    PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema, UniversalWallet,
+)]
 pub struct Risc0Signature {
     /// The inner signature.
     #[schemars(
@@ -214,6 +218,7 @@ pub struct Risc0Signature {
         with = "String",
         length(equal = "ed25519_dalek::Signature::BYTE_SIZE * 2")
     )]
+    #[sov_wallet(as_ty = "[u8; ed25519_dalek::Signature::BYTE_SIZE]")]
     pub msg_sig: DalekSignature,
 }
 

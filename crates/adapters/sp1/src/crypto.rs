@@ -9,6 +9,7 @@ use digest::Digest;
 use ed25519_consensus::{Signature, VerificationKey};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 use sov_rollup_interface::reexports::schemars::{self, JsonSchema};
+use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
 /// Defines private key types and operations
 #[cfg(feature = "native")]
@@ -147,13 +148,14 @@ pub mod private_key {
 }
 
 /// The public key of an ed25519 keypair. Wraps the optimized SP1 fork of the ed25519-consensus crate.
-#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug, JsonSchema, UniversalWallet)]
 pub struct SP1PublicKey {
     #[schemars(
         flatten,
         with = "String",
         length(equal = "ed25519_consensus::VerificationKey::LENGTH * 2")
     )]
+    #[sov_wallet(as_ty = "[u8; 32]")] // the LENGTH property doesn't seem to exist
     pub(crate) pub_key: VerificationKey,
 }
 
@@ -201,7 +203,9 @@ impl BorshSerialize for SP1PublicKey {
 }
 
 /// An ed25519 signature. Wraps the optimized SP1 fork of the ed25519-consensus crate.
-#[derive(PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema)]
+#[derive(
+    PartialEq, Eq, Debug, Clone, serde::Serialize, serde::Deserialize, JsonSchema, UniversalWallet,
+)]
 pub struct SP1Signature {
     /// The inner signature.
     #[schemars(
@@ -209,6 +213,7 @@ pub struct SP1Signature {
         with = "String",
         length(equal = "ed25519_consensus::Signature::LENGTH * 2")
     )]
+    #[sov_wallet(as_ty = "[u8; 64]")] // the LENGTH property doesn't seem to exist
     pub msg_sig: Signature,
 }
 
