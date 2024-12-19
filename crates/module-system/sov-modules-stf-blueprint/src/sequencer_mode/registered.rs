@@ -1,3 +1,4 @@
+use borsh::BorshDeserialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
@@ -271,12 +272,12 @@ where
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
+fn deserialize_and_authenticate<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
-    let auth_input = borsh::from_slice(&tx.data).map_err(|e| {
+    let auth_input = deserialize_tx(tx).map_err(|e| {
         fatal_deserialization_error::<PreExecWorkingSet<S, I>, S, _>(
             &tx.data,
             e,
@@ -284,6 +285,11 @@ fn authenticate_with_cycle_count<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
         )
     })?;
     runtime.authenticate(&auth_input, pre_exec_working_set)
+}
+
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+fn deserialize_tx<T: BorshDeserialize>(tx: &FullyBakedTx) -> std::io::Result<T> {
+    borsh::from_slice(&tx.data)
 }
 
 pub struct IncrementalBatchReceipt<S: Spec> {
@@ -515,6 +521,7 @@ struct AuthAndProcessOutput<S: Spec, I: StateProvider<S>> {
     outcome: AuthAndProcessOutcome<S>,
 }
 
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 fn auth_and_process_tx<S, RT, I, C>(
     runtime: &RT,
     mut scratchpad: TxScratchpad<S, I>,
@@ -557,7 +564,7 @@ where
     }
 
     let authentication_result =
-        authenticate_with_cycle_count(runtime, raw_tx, &mut pre_exec_working_set);
+        deserialize_and_authenticate(runtime, raw_tx, &mut pre_exec_working_set);
 
     let gas_used_for_authentication = pre_exec_working_set.gas_info().gas_used;
 

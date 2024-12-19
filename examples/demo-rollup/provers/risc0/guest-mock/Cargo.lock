@@ -3149,6 +3149,7 @@ dependencies = [
  "demo-stf",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "sov-cycle-utils",
  "sov-kernels",
  "sov-mock-da",
  "sov-mock-zkvm",
