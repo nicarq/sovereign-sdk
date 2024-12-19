@@ -235,6 +235,7 @@ fn make_inner_proof<InnerVm>(
 where
     InnerVm: Zkvm + 'static,
 {
+    let proving_start = std::time::Instant::now();
     let result = match config.deref() {
         RollupProverConfig::Skip => Ok(Vec::default()),
         RollupProverConfig::Execute => {
@@ -249,6 +250,15 @@ where
             vm.run(true)
         }
     };
+    sov_metrics::track_metrics(|tracker| {
+        let proving_time = proving_start.elapsed();
+        let is_success = result.is_ok();
+        tracker.track_zk_proving_time(sov_metrics::ZkProvingTime {
+            proving_time,
+            is_success,
+            zk_circuit: sov_metrics::ZkCircuit::Inner,
+        });
+    });
     match result {
         Ok(ref proof) => {
             info!(

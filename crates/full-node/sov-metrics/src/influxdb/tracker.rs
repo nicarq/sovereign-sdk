@@ -131,10 +131,16 @@ impl MetricsTracker {
         self.submit(SovRollupMetric::Http(timestamp, point));
     }
 
-    /// Tracks ZKVM cycles count
+    /// Tracks ZKVM cycles count.
     pub fn track_zkvm_metric(&self, point: ZkVmCycleCount) {
         let timestamp = timestamp();
         self.submit(SovRollupMetric::ZkVm(timestamp, point));
+    }
+
+    /// Wall clock time for proving.
+    pub fn track_zk_proving_time(&self, point: ZkProvingTime) {
+        let timestamp = timestamp();
+        self.submit(SovRollupMetric::ZkProving(timestamp, point));
     }
 }
 
@@ -450,6 +456,35 @@ impl Metric for ZkVmCycleCount {
     }
 }
 
+#[derive(Debug)]
+#[allow(missing_docs)]
+pub enum ZkCircuit {
+    Inner,
+    Outer,
+}
+
+/// How much wall clock time it took to run prover
+pub struct ZkProvingTime {
+    #[allow(missing_docs)]
+    pub proving_time: std::time::Duration,
+    #[allow(missing_docs)]
+    pub is_success: bool,
+    #[allow(missing_docs)]
+    pub zk_circuit: ZkCircuit,
+}
+
+impl Metric for ZkProvingTime {
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "sov_rollup_zkvm_proving,is_success={},circuit={:?} proving_time_ms={}",
+            self.is_success,
+            self.zk_circuit,
+            self.proving_time.as_millis()
+        )
+    }
+}
+
 enum SovRollupMetric {
     RunnerDa(Timestamp, RunnerDaMetrics),
     RunnerCount(Timestamp, RunnerCountMetrics),
@@ -460,6 +495,7 @@ enum SovRollupMetric {
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
     Http(Timestamp, HttpMetrics),
     ZkVm(Timestamp, ZkVmCycleCount),
+    ZkProving(Timestamp, ZkProvingTime),
 }
 
 impl Metric for SovRollupMetric {
@@ -498,6 +534,10 @@ impl Metric for SovRollupMetric {
                 t
             }
             SovRollupMetric::ZkVm(t, m) => {
+                m.serialize_for_telegraf(buffer)?;
+                t
+            }
+            SovRollupMetric::ZkProving(t, m) => {
                 m.serialize_for_telegraf(buffer)?;
                 t
             }

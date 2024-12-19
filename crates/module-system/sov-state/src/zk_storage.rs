@@ -107,6 +107,7 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     type StateUpdate = ();
     type ChangeSet = ();
 
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     fn get<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,
