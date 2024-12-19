@@ -5,7 +5,8 @@ mod stf_blueprint;
 use sequencer_mode::{registered, unregistered};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::{
-    BatchSequencerReceipt, IncrementalBatch, IterableBatchWithId, VersionReader,
+    BatchSequencerReceipt, IncrementalBatch, IterableBatchWithId, KernelStateAccessor,
+    VersionReader,
 };
 mod proof_processing;
 use sov_rollup_interface::stf::ProofReceipt;
@@ -289,22 +290,7 @@ where
             .current_visible_hash( &mut kernel)
             .expect("The current visible hash should be possible to compute at this point because the chain-state should have synchronized. This is a bug. Please report it.");
 
-        let all_blobs = relevant_blobs
-            .batch_blobs
-            .into_iter()
-            .map(BlobOrigin::Batch)
-            .chain(
-                relevant_blobs
-                    .proof_blobs
-                    .into_iter()
-                    .map(BlobOrigin::Proof),
-            );
-
-        let blob_selector_output = self
-            .runtime
-            .blob_selector()
-            .get_blobs_for_this_slot(all_blobs, &mut kernel)
-            .expect("blob selection must succeed, probably serialization failed");
+        let blob_selector_output = self.select_and_validate_blobs(relevant_blobs, &mut kernel);
 
         #[cfg(feature = "native")]
         let blob_selection_time = start_slot.elapsed();
@@ -373,6 +359,39 @@ where
             batch_receipts,
             witness,
         }
+    }
+}
+
+impl<S, RT> StfBlueprint<S, RT>
+where
+    S: Spec,
+    RT: Runtime<S>,
+    RT: HasKernel<S, BlobType = BlobDataWithId>,
+{
+    #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+    fn select_and_validate_blobs<'a, I>(
+        &self,
+        relevant_blobs: RelevantBlobIters<I>,
+        kernel: &mut KernelStateAccessor<<S as Spec>::Storage>,
+    ) -> BlobSelectorOutput<S, BlobDataWithId>
+    where
+        I: IntoIterator<Item = &'a mut <S::Da as DaSpec>::BlobTransaction>,
+    {
+        let all_blobs = relevant_blobs
+            .batch_blobs
+            .into_iter()
+            .map(BlobOrigin::Batch)
+            .chain(
+                relevant_blobs
+                    .proof_blobs
+                    .into_iter()
+                    .map(BlobOrigin::Proof),
+            );
+
+        self.runtime
+            .blob_selector()
+            .get_blobs_for_this_slot(all_blobs, kernel)
+            .expect("blob selection must succeed, probably serialization failed")
     }
 }
 
