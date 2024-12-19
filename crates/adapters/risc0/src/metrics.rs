@@ -24,7 +24,13 @@ fn deserialize_custom(serialized: Bytes) -> anyhow::Result<(String, u64)> {
 /// in the Risc0 VM and invoked whenever a function annotated with the [`risc0-cycle-utils::cycle_tracker`]
 /// macro is invoked.
 pub fn metrics_callback(input: Bytes) -> anyhow::Result<Bytes> {
-    let met_tuple = deserialize_custom(input)?;
-    sov_cycle_utils::increment_metric(met_tuple.0, met_tuple.1);
+    let (metric, cycles_count) = deserialize_custom(input)?;
+    sov_cycle_utils::increment_metric(metric.clone(), cycles_count);
+    sov_metrics::track_metrics(|tracker| {
+        tracker.track_zkvm_metric(sov_metrics::ZkVmCycleCount {
+            name: metric,
+            cycles_count,
+        });
+    });
     Ok(Bytes::new())
 }
