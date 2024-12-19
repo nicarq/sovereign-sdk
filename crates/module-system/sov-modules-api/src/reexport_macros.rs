@@ -673,6 +673,66 @@ pub mod macros {
     /// instead, every enum variant will automatically inherit all templates available on the type
     /// of that variant.
     ///
+    /// ## Attributes: `#[sov_wallet(template_override_ty = "RemoteType")]`
+    ///
+    /// Sets the named type to be the source of inherited template definitions, rather than the
+    /// actual field's type. This is useful when importing crates, such as sov module
+    /// implementations, that define their own `#[sov_wallet(template(...))]` attributes on their
+    /// types that are not relevant for the rollup.
+    ///
+    /// * An easy way to disable any inherited templates from a field's type is to set
+    /// `#[sov_wallet(template_override_ty = "()")]
+    ///
+    /// * To actually replace the templates with your own, build a set of scaffold types that
+    /// mirror the structure of the original, provide the desired `#[sov_wallet(template(...))]`
+    /// attributes and #[derive(UniversalWallet)] on the type; then it can be used as the argument
+    /// to `template_override_ty`
+    ///
+    /// ```rust
+    /// use sov_rollup_interface::sov_universal_wallet::{schema::Schema, UniversalWallet};
+    ///
+    /// /// A foreign module
+    /// mod foreign {
+    ///     use sov_modules_api::macros::UniversalWallet;
+    ///     #[derive(UniversalWallet, borsh::BorshSerialize)]
+    ///     pub struct ForeignData {
+    ///         #[sov_wallet(template("call" = input("hello_world")))]
+    ///         data: u64,
+    ///     }
+    /// }
+    ///
+    /// #[derive(UniversalWallet, borsh::BorshSerialize)]
+    /// pub struct SurrogateDataStruct {
+    ///     #[sov_wallet(template("call" = input("my_data")))]
+    ///     data: u64,
+    /// }
+    ///
+    /// #[derive(UniversalWallet, borsh::BorshSerialize)]
+    /// pub struct CallMessage {
+    ///    #[sov_wallet(template_override_ty = "SurrogateDataStruct")]
+    ///    data: foreign::ForeignData,
+    ///    #[sov_wallet(template("call" = input("extra_data")))]
+    ///    extra_data: u8,
+    /// }
+    ///
+    /// let schema = Schema::of_single_type::<CallMessage>();
+    /// let encoded_call = schema.fill_template_from_json(
+    ///     0,
+    ///     "call",
+    ///     r#"{ "my_data": 12, "extra_data": 8 }"#
+    /// ).unwrap();
+    ///
+    /// assert_eq!(schema.display(0, &encoded_call).unwrap(), r#"{ data: { data: 12 }, extra_data: 8 }"#);
+    ///
+    /// // Without using template_override_ty, the template would've looked like this:
+    /// // let encoded_call = schema.fill_template_from_json(
+    /// //    0,
+    /// //    "call",
+    /// //    r#"{ "foreign_data": 12, "extra_data": 8 }"#
+    /// // ).unwrap();
+    ///
+    /// ```
+    ///
     /// ## Attributes: `#[sov_wallet(skip)]`
     ///
     /// Causes the field to be excluded from the Schema entirely. This should be used if the field is not present in

@@ -338,6 +338,18 @@ impl Schema {
         Ok(output)
     }
 
+    /// Lists all templates available for the given root type.
+    pub fn templates(&self, index: usize) -> Result<Vec<String>, SchemaError> {
+        Ok(self
+            .templates
+            .get(index)
+            .ok_or(SchemaError::InvalidIndex(index))?
+            .0
+            .keys()
+            .cloned()
+            .collect())
+    }
+
     fn add_type_if_absent(&mut self, ty: Ty<IndexLinking>, item_id: ItemId) -> Link {
         if let Some(location) = self.known_types.get(&item_id) {
             return Link::ByIndex(*location);

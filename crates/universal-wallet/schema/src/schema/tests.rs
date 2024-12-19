@@ -252,10 +252,83 @@ pub enum SimplerEnumWithTemplate {
     BorshSerialize,
     BorshDeserialize,
 )]
+pub enum SimpleEnumWithTemplateOverrides {
+    #[sov_wallet(template_override_ty = "SurrogateSimpleStructWithTemplate")]
+    #[sov_wallet(template("mint_a"))]
+    One(SimpleStructWithTemplate),
+    #[sov_wallet(template_override_ty = "()")]
+    Two {
+        #[sov_wallet(template("mint_2" = input("mint_msg")))]
+        msg: u8,
+    },
+    Three(NestedStructWithNonNestedTemplates),
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
 pub struct NestedStructWithTemplate {
     inner: SimpleStructWithTemplate,
     #[sov_wallet(template("transfer" = value("6"), "transfer_2" = input("int_msg")))]
     msg: u8,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct NestedStructWithTemplateOverride {
+    #[sov_wallet(template_override_ty = "()")]
+    inner: SimpleStructWithTemplate,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct SurrogateSimpleStructWithTemplate {
+    #[sov_wallet(template("mint_a" = value("19")))]
+    tokens: u64,
+    #[sov_wallet(template("mint_a" = input("mint_msg")))]
+    msg: SafeString,
+}
+
+#[derive(
+    Debug,
+    PartialEq,
+    Eq,
+    Serialize,
+    Deserialize,
+    Clone,
+    UniversalWallet,
+    BorshSerialize,
+    BorshDeserialize,
+)]
+pub struct NestedStructWithSurrogateTemplateOverride {
+    #[sov_wallet(template_override_ty = "SurrogateSimpleStructWithTemplate")]
+    inner: SimpleStructWithTemplate,
 }
 
 #[derive(
@@ -292,6 +365,7 @@ fn test_simple_struct_schema_with_template() {
     );
 
     let schema = Schema::of_single_type::<SimpleStructWithTemplate>();
+    assert_eq!(schema.templates(0).unwrap(), vec!["transfer", "transfer_2"]);
 
     let transfer_example_encoding = borsh::to_vec(&SimpleStructWithTemplate {
         tokens: 124,
@@ -315,6 +389,43 @@ fn test_simple_struct_schema_with_template() {
 }
 
 #[test]
+fn test_nested_struct_with_template_override() {
+    let schema = Schema::of_single_type::<NestedStructWithTemplateOverride>();
+    assert!(schema.templates(0).unwrap().is_empty());
+}
+
+#[test]
+fn test_nested_struct_with_surrogate_templates() {
+    let my_struct = NestedStructWithSurrogateTemplateOverride {
+        inner: SimpleStructWithTemplate {
+            tokens: 1000,
+            msg: "abc".to_string().try_into().unwrap(),
+        },
+    };
+
+    encode_decode_tests!(
+        NestedStructWithSurrogateTemplateOverride,
+        my_struct,
+        "{ inner: { tokens: 1000, msg: \"abc\" } }"
+    );
+
+    let schema = Schema::of_single_type::<NestedStructWithSurrogateTemplateOverride>();
+    assert_eq!(schema.templates(0).unwrap(), vec!["mint_a"]);
+
+    let mint_example_encoding = borsh::to_vec(&NestedStructWithSurrogateTemplateOverride {
+        inner: SimpleStructWithTemplate {
+            tokens: 19,
+            msg: "hi".to_string().try_into().unwrap(),
+        },
+    })
+    .unwrap();
+    let mint_template_encoding = schema
+        .fill_template_from_json(0, "mint_a", "{ \"mint_msg\": \"hi\" }")
+        .unwrap();
+    assert_eq!(mint_example_encoding, mint_template_encoding);
+}
+
+#[test]
 fn test_simple_enum_schema_with_template() {
     let my_registration = SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
         tokens: 1000,
@@ -328,6 +439,10 @@ fn test_simple_enum_schema_with_template() {
     );
 
     let schema = Schema::of_single_type::<SimpleEnumWithTemplate>();
+    assert_eq!(
+        schema.templates(0).unwrap(),
+        vec!["mint", "mint_2", "transfer_2"]
+    );
 
     let variant_one_encoding =
         borsh::to_vec(&SimpleEnumWithTemplate::One(SimpleStructWithTemplate {
@@ -387,6 +502,7 @@ fn test_nested_struct_schema_with_template() {
     );
 
     let schema = Schema::of_single_type::<NestedStructWithTemplate>();
+    assert_eq!(schema.templates(0).unwrap(), vec!["transfer", "transfer_2"]);
 
     let transfer_example_encoding = borsh::to_vec(&NestedStructWithTemplate {
         inner: SimpleStructWithTemplate {
@@ -416,6 +532,12 @@ fn test_nested_struct_schema_with_template() {
 }
 
 #[test]
+fn test_simple_enum_schema_with_template_overrides() {
+    let schema = Schema::of_single_type::<SimpleEnumWithTemplateOverrides>();
+    assert_eq!(schema.templates(0).unwrap(), vec!["mint_a"]);
+}
+
+#[test]
 fn test_nested_struct_schema_with_non_nested_template() {
     let my_registration = NestedStructWithNonNestedTemplates {
         inner: SimpleStructWithTemplate {
@@ -428,8 +550,10 @@ fn test_nested_struct_schema_with_non_nested_template() {
         },
         msg: 40203,
     };
-
     encode_decode_tests!(NestedStructWithNonNestedTemplates, my_registration, "{ inner: { tokens: 1000, msg: \"abc\" }, inner2: { tokens: 1000, msg: \"abc\" }, msg: 40203 }");
+
+    let schema = Schema::of_single_type::<NestedStructWithNonNestedTemplates>();
+    assert_eq!(schema.templates(0).unwrap(), vec!["mint"]);
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
