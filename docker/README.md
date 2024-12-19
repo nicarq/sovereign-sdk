@@ -1,7 +1,7 @@
-# Local celestia setup
+# Local Celestia setup
 
-It consists of one validator (block maker) and arbitrary number of bridge nodes
-for sequencers (1 by default).
+It consists of one validator (block maker) and an arbitrary number of bridge nodes
+for rollup sequencers (1 by default).
 
 ## Example
 
@@ -10,7 +10,7 @@ for sequencers (1 by default).
 docker compose -f docker/docker-compose.yml up --build --force-recreate -d
 
 # grab the jwt
-CELESTIA_NODE_AUTH_TOKEN="$(cat docker/credentials/bridge-0.jwt)"
+CELESTIA_NODE_AUTH_TOKEN="$(cat docker/celestia/credentials/bridge-0.jwt)"
 
 # check the celestia rpc
 curl -X POST \                                                                           
@@ -24,13 +24,13 @@ curl -X POST \
   }' \
   localhost:26658
 
-# stop the celestia network
+# stop the Celestia network
 docker compose -f docker/docker-compose.yml down
 ```
 
-### Login to github registry
+### Login to GitHub registry
 
-You'll need to be logged in to the github's registry in order to pull celestia images.
+You'll need to be logged in to the github's registry to pull celestia images.
 Follow [this guide](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-with-a-personal-access-token-classic)
 to authorize yourself in github's container registry. (we use original celestia images which they publish in ghcr)
 
