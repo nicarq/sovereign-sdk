@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use sov_mock_da::{MockAddress, MockBlock, MockBlockHeader, MockDaService, MockDaSpec};
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_rollup_interface::zk::aggregated_proof::{
     AggregateProofVerifier, AggregatedProofPublicData, SerializedAggregatedProof,
 };
@@ -147,9 +146,8 @@ async fn spawn(
         genesis_params: vec![1],
     };
 
-    let da_service = Arc::new(DaServiceWithRetries::new_fast(
-        MockDaService::new(MockAddress::new([11u8; 32])).with_wait_attempts(200),
-    ));
+    let da_service =
+        Arc::new(MockDaService::new(MockAddress::new([11u8; 32])).with_wait_attempts(200));
 
     let (mut runner, test_node) = initialize_runner(
         da_service,

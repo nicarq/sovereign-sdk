@@ -7,6 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use backon::ExponentialBuilder;
 use celestia_rpc::prelude::*;
 use celestia_types::blob::Blob as JsonBlob;
 use celestia_types::consts::appconsts::{
@@ -21,7 +22,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
-use sov_rollup_interface::node::da::{DaService, Fee, MaybeRetryable, SubmitBlobReceipt};
+use sov_rollup_interface::node::da::{
+    run_maybe_retryable_async_fn_with_retries, DaService, Fee, MaybeRetryable, SubmitBlobReceipt,
+};
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 use tower::ServiceBuilder;
@@ -77,6 +80,7 @@ pub struct CelestiaService {
     rollup_batch_namespace: Namespace,
     rollup_proof_namespace: Namespace,
     safe_lead_time: Duration,
+    backoff_policy: ExponentialBuilder,
 }
 
 impl CelestiaService {
@@ -86,12 +90,17 @@ impl CelestiaService {
         rollup_proof_namespace: Namespace,
         safe_lead_time: Duration,
     ) -> Self {
+        // NOTE: Current exponential backoff policy defaults:
+        // jitter: false, factor: 2, min_delay: 1s, max_delay: 60s, max_times: 3,
+        let backoff_policy = ExponentialBuilder::default();
+
         Self {
             submit_client: Arc::new(Mutex::new(client.clone())),
             read_client: Arc::new(client),
             rollup_batch_namespace,
             rollup_proof_namespace,
             safe_lead_time,
+            backoff_policy,
         }
     }
 
@@ -246,19 +255,11 @@ impl Fee for CelestiaFee {
         self.gas_limit
     }
 }
-
-#[async_trait]
-impl DaService for CelestiaService {
-    type Spec = CelestiaSpec;
-    type Config = CelestiaConfig;
-    type Verifier = CelestiaVerifier;
-    type FilteredBlock = FilteredCelestiaBlock;
-    type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
-    type Error = MaybeRetryable<BoxError>;
-    type Fee = CelestiaFee;
-
-    #[instrument(skip(self))]
-    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+impl CelestiaService {
+    async fn get_block_at_inner(
+        &self,
+        height: u64,
+    ) -> Result<FilteredCelestiaBlock, MaybeRetryable<anyhow::Error>> {
         let client = &self.read_client;
 
         // Fetch the header and relevant shares via RPC
@@ -307,6 +308,74 @@ impl DaService for CelestiaService {
             .map_err(MaybeRetryable::Permanent)
     }
 
+    async fn get_head_block_header_inner(
+        &self,
+    ) -> Result<CelestiaHeader, MaybeRetryable<anyhow::Error>> {
+        let header = self
+            .read_client
+            .header_network_head()
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+        Ok(CelestiaHeader::from(header))
+    }
+
+    async fn send_transaction_inner(
+        &self,
+        blob: &[u8],
+        fee: CelestiaFee,
+    ) -> Result<SubmitBlobReceipt<TmHash>, MaybeRetryable<anyhow::Error>> {
+        debug!("Submitting batch of transactions to Celestia");
+        self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
+            .await
+            .map_err(MaybeRetryable::Transient)
+    }
+
+    async fn send_proof_inner(
+        &self,
+        aggregated_proof: &[u8],
+        fee: CelestiaFee,
+    ) -> Result<SubmitBlobReceipt<TmHash>, MaybeRetryable<anyhow::Error>> {
+        debug!("Submitting aggregated proof to Celestia");
+        self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
+            .await
+            .map_err(MaybeRetryable::Transient)
+    }
+
+    async fn get_proofs_at_inner(
+        &self,
+        height: u64,
+    ) -> Result<Vec<Vec<u8>>, MaybeRetryable<anyhow::Error>> {
+        self.read_client
+            .blob_get_all(height, &[self.rollup_proof_namespace])
+            .await
+            .map_err(|e| MaybeRetryable::Transient(e.into()))
+            .map(|blobs| match blobs {
+                Some(blobs) => blobs.into_iter().map(|blob| blob.data).collect(),
+                None => vec![],
+            })
+    }
+}
+
+#[async_trait]
+impl DaService for CelestiaService {
+    type Spec = CelestiaSpec;
+    type Config = CelestiaConfig;
+    type Verifier = CelestiaVerifier;
+    type FilteredBlock = FilteredCelestiaBlock;
+    type HeaderStream = BoxStream<'static, Result<CelestiaHeader, Self::Error>>;
+    type Error = BoxError;
+    type Fee = CelestiaFee;
+
+    #[instrument(skip(self))]
+    async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.get_block_at_inner(height),
+            "get_block_at",
+        )
+        .await
+    }
+
     fn safe_lead_time(&self) -> Duration {
         self.safe_lead_time
     }
@@ -325,12 +394,8 @@ impl DaService for CelestiaService {
         Ok(self
             .read_client
             .header_subscribe()
-            .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?
-            .map(|res| {
-                res.map(CelestiaHeader::from)
-                    .map_err(|e| MaybeRetryable::Permanent(e.into()))
-            })
+            .await?
+            .map(|res| res.map(CelestiaHeader::from).map_err(|e| e.into()))
             .boxed())
     }
 
@@ -338,12 +403,12 @@ impl DaService for CelestiaService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as sov_rollup_interface::da::DaSpec>::BlockHeader, Self::Error> {
-        let header = self
-            .read_client
-            .header_network_head()
-            .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
-        Ok(CelestiaHeader::from(header))
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.get_head_block_header_inner(),
+            "get_head_block_header",
+        )
+        .await
     }
 
     fn extract_relevant_blobs(
@@ -404,10 +469,12 @@ impl DaService for CelestiaService {
         blob: &[u8],
         fee: Self::Fee,
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
-        debug!("Submitting batch of transactions to Celestia");
-        self.submit_blob_to_namespace(blob, fee, self.rollup_batch_namespace)
-            .await
-            .map_err(MaybeRetryable::Transient)
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.send_transaction_inner(blob, fee),
+            "send_transaction",
+        )
+        .await
     }
 
     #[instrument(skip(self, aggregated_proof), err)]
@@ -416,22 +483,22 @@ impl DaService for CelestiaService {
         aggregated_proof: &[u8],
         fee: Self::Fee,
     ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
-        debug!("Submitting aggregated proof to Celestia");
-        self.submit_blob_to_namespace(aggregated_proof, fee, self.rollup_proof_namespace)
-            .await
-            .map_err(MaybeRetryable::Transient)
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.send_proof_inner(aggregated_proof, fee),
+            "send_proof",
+        )
+        .await
     }
 
     #[instrument(err)]
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
-        self.read_client
-            .blob_get_all(height, &[self.rollup_proof_namespace])
-            .await
-            .map_err(|e| MaybeRetryable::Transient(e.into()))
-            .map(|blobs| match blobs {
-                Some(blobs) => blobs.into_iter().map(|blob| blob.data).collect(),
-                None => vec![],
-            })
+        run_maybe_retryable_async_fn_with_retries(
+            &self.backoff_policy,
+            || self.get_proofs_at_inner(height),
+            "get_proofs_at",
+        )
+        .await
     }
 
     #[instrument(err)]
@@ -670,7 +737,7 @@ mod tests {
                     .append_header("Content-Type", "application/json")
                     .set_body_json(response_json)
             })
-            .up_to_n_times(1)
+            .up_to_n_times(4)
             .mount(&mock_server)
             .await;
 
@@ -701,7 +768,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/"))
             .respond_with(error_response)
-            .up_to_n_times(1)
+            .up_to_n_times(4)
             .mount(&mock_server)
             .await;
 
@@ -750,7 +817,7 @@ mod tests {
         Mock::given(method("POST"))
             .and(path("/"))
             .respond_with(error_response)
-            .up_to_n_times(1)
+            .up_to_n_times(4)
             .mount(&mock_server)
             .await;
 

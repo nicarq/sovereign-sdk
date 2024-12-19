@@ -44,6 +44,7 @@ tracing = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true }
 tower = { workspace = true, optional = true }
+backon = { workspace = true, optional = true }
 
 [dev-dependencies]
 postcard = { version = "1", features = ["use-std"] }
@@ -64,6 +65,7 @@ risc0-zkvm-platform = { workspace = true }
 [features]
 default = []
 native = [
+    "backon",
     "tendermint/default",
     "dep:celestia-rpc",
     "dep:futures",

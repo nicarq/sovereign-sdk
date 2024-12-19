@@ -5769,6 +5769,7 @@ dependencies = [
  "anyhow",
  "arbitrary",
  "async-trait",
+ "backon",
  "bech32",
  "borsh",
  "celestia-proto",

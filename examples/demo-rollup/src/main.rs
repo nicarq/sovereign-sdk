@@ -12,7 +12,6 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Address;
 use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
-use sov_rollup_interface::node::da::DaServiceWithRetries;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_stf_runner::{from_toml_path, RollupConfig};
 use tracing::debug;
@@ -120,7 +119,7 @@ async fn new_rollup_with_celestia_da(
 ) -> anyhow::Result<Rollup<CelestiaDemoRollup<Native>, Native>> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
-    let rollup_config: RollupConfig<Address<Sha256>, DaServiceWithRetries<CelestiaService>> =
+    let rollup_config: RollupConfig<Address<Sha256>, CelestiaService> =
         from_toml_path(rollup_config_path).with_context(|| {
             format!(
                 "Failed to read rollup configuration from {}",
@@ -144,7 +143,7 @@ async fn new_rollup_with_mock_da(
         "Starting rollup on mock DA"
     );
 
-    let rollup_config: RollupConfig<Address<Sha256>, DaServiceWithRetries<StorableMockDaService>> =
+    let rollup_config: RollupConfig<Address<Sha256>, StorableMockDaService> =
         from_toml_path(rollup_config_path).with_context(|| {
             format!(
                 "Failed to read rollup configuration from {}",

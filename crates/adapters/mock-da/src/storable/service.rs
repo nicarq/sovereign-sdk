@@ -10,7 +10,7 @@ use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs,
 };
-use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
+use sov_rollup_interface::node::da::{DaService, SlotData, SubmitBlobReceipt};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
 use tokio::sync::{broadcast, watch, RwLock};
 use tokio::task::JoinHandle;
@@ -208,17 +208,17 @@ impl DaService for StorableMockDaService {
     type Verifier = MockDaVerifier;
     type FilteredBlock = MockBlock;
     type HeaderStream = BoxStream<'static, Result<MockBlockHeader, Self::Error>>;
-    type Error = MaybeRetryable<anyhow::Error>;
+    type Error = anyhow::Error;
     type Fee = MockFee;
 
     async fn get_block_at(&self, height: u64) -> Result<Self::FilteredBlock, Self::Error> {
         tracing::trace!(%height, "Getting block at");
         if height > u32::MAX as u64 {
-            return Err(MaybeRetryable::Permanent(anyhow::anyhow!(
+            return Err(anyhow::anyhow!(
                 "Height {} is too big for StorableMockDaService. Max is {}",
                 height,
                 u32::MAX
-            )));
+            ));
         }
 
         let height = height as u32;
@@ -227,10 +227,7 @@ impl DaService for StorableMockDaService {
 
         let da_layer = self.da_layer.read().await;
 
-        let block = da_layer
-            .get_block_at(height)
-            .await
-            .map_err(MaybeRetryable::Transient)?;
+        let block = da_layer.get_block_at(height).await?;
         tracing::debug!(block_header = %block.header().display(), "Block retrieved");
         Ok(block)
     }
@@ -243,7 +240,6 @@ impl DaService for StorableMockDaService {
             .await
             .get_last_finalized_block_header()
             .await
-            .map_err(MaybeRetryable::Transient)
     }
 
     async fn subscribe_finalized_header(&self) -> Result<Self::HeaderStream, Self::Error> {
@@ -267,12 +263,7 @@ impl DaService for StorableMockDaService {
     async fn get_head_block_header(
         &self,
     ) -> Result<<Self::Spec as DaSpec>::BlockHeader, Self::Error> {
-        self.da_layer
-            .read()
-            .await
-            .get_head_block_header()
-            .await
-            .map_err(MaybeRetryable::Transient)
+        self.da_layer.read().await.get_head_block_header().await
     }
 
     fn extract_relevant_blobs(
@@ -334,9 +325,7 @@ impl DaService for StorableMockDaService {
                 .await?
         };
 
-        self.aggregated_proof_sender
-            .send(())
-            .map_err(|e| MaybeRetryable::Transient(e.into()))?;
+        self.aggregated_proof_sender.send(())?;
 
         match &self.block_producing {
             BlockProducing::OnBatchSubmit(_) => {

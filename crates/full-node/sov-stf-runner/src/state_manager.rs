@@ -378,7 +378,6 @@ mod tests {
         MockValidityCond, PlannedFork,
     };
     use sov_mock_zkvm::MockZkvm;
-    use sov_rollup_interface::node::da::DaServiceWithRetries;
     use sov_rollup_interface::node::ledger_api::LedgerStateProvider;
     use sov_rollup_interface::stf::StateTransitionFunction;
     use sov_state::{
@@ -387,7 +386,7 @@ mod tests {
 
     use super::*;
     use crate::mock::MockStf;
-    type Da = DaServiceWithRetries<MockDaService>;
+    type Da = MockDaService;
     type Vm = MockZkvm;
     type Stf = MockStf<MockValidityCond>;
     type S = sov_state::DefaultStorageSpec<sha2::Sha256>;
@@ -514,7 +513,6 @@ mod tests {
             ..Default::default()
         };
         let da_service = MockDaService::new(SEQUENCER_ADDRESS);
-        let da_service = DaServiceWithRetries::new_fast(da_service);
 
         process_normal_transition(&mut state_manager, filtered_block, 0, &da_service).await?;
 
@@ -542,7 +540,7 @@ mod tests {
         )
         .await?;
         state_manager.st_info_sender = Some(sender);
-        let da_service = DaServiceWithRetries::new_fast(MockDaService::new(SEQUENCER_ADDRESS));
+        let da_service = MockDaService::new(SEQUENCER_ADDRESS);
 
         let mut state_root = state_manager.get_state_root().clone();
         for height in 1..4 {
@@ -599,7 +597,6 @@ mod tests {
                 vec![vec![11], vec![22], vec![33], vec![44]],
             ))
             .await?;
-        let da_service = DaServiceWithRetries::new_fast(da_service);
 
         let mut state_roots = Vec::with_capacity(last_block as usize);
 
@@ -656,9 +653,7 @@ mod tests {
 
         let chain_length = 5;
         let finality = 3;
-        let da_service = DaServiceWithRetries::new_fast(
-            MockDaService::new(SEQUENCER_ADDRESS).with_finality(finality),
-        );
+        let da_service = MockDaService::new(SEQUENCER_ADDRESS).with_finality(finality);
 
         for height in 1..=chain_length {
             da_service
@@ -682,7 +677,6 @@ mod tests {
                 .send_transaction(&[(height * 10) as u8; 10], MockFee::zero())
                 .await?;
         }
-        let da_service = DaServiceWithRetries::new_fast(da_service);
 
         let alien_block = da_service.get_block_at(chain_length).await?;
 
@@ -699,7 +693,7 @@ mod tests {
     async fn test_save_last_finalized_larger_than_seen_transitions() -> anyhow::Result<()> {
         let tempdir = tempfile::tempdir()?;
         let mut state_manager = setup_state_manager(tempdir.path()).await?;
-        let da_service = DaServiceWithRetries::new_fast(MockDaService::new(SEQUENCER_ADDRESS));
+        let da_service = MockDaService::new(SEQUENCER_ADDRESS);
 
         let chain_length = 5;
         // Fill some seen transitions without finalizing.
