@@ -30,15 +30,9 @@ hex = { workspace = true }
 jmt = { workspace = true }
 sha2 = { workspace = true }
 thiserror = { workspace = true }
-
 sov-cycle-utils = { workspace = true, optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = [
-    "std",
-], optional = true }
-risc0-zkvm-platform = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
 proptest = { workspace = true }
 test-strategy = { workspace = true }
 
@@ -50,10 +44,10 @@ arbitrary = [
     "sov-db?/arbitrary",
     "sov-rollup-interface/arbitrary",
 ]
-bench = ["sov-cycle-utils", "risc0-zkvm", "risc0-zkvm-platform"]
+bench = ["sov-cycle-utils",]
 default = []
 native = [
-	"sov-db",
-	"sov-rollup-interface/native",
-	"sov-cycle-utils?/native"
+    "sov-db",
+    "sov-rollup-interface/native",
+    "sov-cycle-utils?/native"
 ]

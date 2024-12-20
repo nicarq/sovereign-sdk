@@ -28,6 +28,7 @@ use crate::{
 
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
     validated_output: ValidatedAuthOutput<S, R>,

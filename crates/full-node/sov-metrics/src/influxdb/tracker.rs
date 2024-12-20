@@ -132,7 +132,7 @@ impl MetricsTracker {
     }
 
     /// Tracks ZKVM cycles count.
-    pub fn track_zkvm_metric(&self, point: ZkVmCycleCount) {
+    pub fn track_zkvm_metric(&self, point: ZkVmExecutionChunk) {
         let timestamp = timestamp();
         self.submit(SovRollupMetric::ZkVm(timestamp, point));
     }
@@ -438,20 +438,22 @@ impl Metric for HttpMetrics {
     }
 }
 
-/// Representation of cycle count for particular call
-pub struct ZkVmCycleCount {
+/// Representation of cycle count and free heap for a particular chunk of execution inside ZK VM guest.
+pub struct ZkVmExecutionChunk {
     /// Name of the caller site, usually a function or method
     pub name: String,
-    /// Number of ZKVM cycles have been spent on this call.
+    /// A number of ZKVM cycles have been spent on this call.
     pub cycles_count: u64,
+    /// Available bytes on the heap after execution of the block is complete.
+    pub free_heap_bytes: u64,
 }
 
-impl Metric for ZkVmCycleCount {
+impl Metric for ZkVmExecutionChunk {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "sov_rollup_zkvm,name={} cycles_count={}",
-            self.name, self.cycles_count
+            "sov_rollup_zkvm,name={} cycles_count={},free_heap_bytes={}",
+            self.name, self.cycles_count, self.free_heap_bytes
         )
     }
 }
@@ -494,7 +496,7 @@ enum SovRollupMetric {
     BatchProcessing(Timestamp, BatchMetrics),
     TransactionProcessing(Timestamp, TransactionProcessingMetrics),
     Http(Timestamp, HttpMetrics),
-    ZkVm(Timestamp, ZkVmCycleCount),
+    ZkVm(Timestamp, ZkVmExecutionChunk),
     ZkProving(Timestamp, ZkProvingTime),
 }
 
