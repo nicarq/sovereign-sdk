@@ -10,7 +10,7 @@ use sov_rollup_interface::da::{
     BlobReaderTrait, BlockHeaderTrait, DaSpec, RelevantBlobs, RelevantProofs, Time,
 };
 use sov_rollup_interface::node::da::{DaService, MaybeRetryable, SlotData, SubmitBlobReceipt};
-use tokio::sync::{broadcast, Mutex, RwLock};
+use tokio::sync::{broadcast, oneshot, Mutex, RwLock};
 use tokio::time;
 
 use crate::in_memory::fork::PlannedFork;
@@ -357,7 +357,11 @@ impl DaService for MockDaService {
         &self,
         blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
+
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         let mut proof_blobs = Vec::new();
         while let Some(blob) = proof_buffer.pop_front() {
@@ -379,10 +383,13 @@ impl DaService for MockDaService {
             "MockBlock has been saved"
         );
 
-        Ok(SubmitBlobReceipt {
+        let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
             da_transaction_id: blob_hash,
-        })
+        });
+
+        tx.send(res).unwrap();
+        rx
     }
 
     /// Sends proof to the MockDA. The submitted proof is internally buffered and will be included on the MockDA
@@ -391,7 +398,11 @@ impl DaService for MockDaService {
         &self,
         proof: &[u8],
         _fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
+
         tracing::debug!("Proof received. Buffering for later inclusion.");
 
         let proof_blob = self.make_blob(proof.to_vec());
@@ -399,12 +410,15 @@ impl DaService for MockDaService {
 
         let mut proof_buffer = self.aggregated_proof_buffer.lock().await;
         proof_buffer.push_back(proof_blob);
-        self.aggregated_proof_sender.send(())?;
+        self.aggregated_proof_sender.send(()).unwrap();
 
-        Ok(SubmitBlobReceipt {
+        let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
             da_transaction_id: blob_hash,
-        })
+        });
+
+        tx.send(res).unwrap();
+        rx
     }
 
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -476,7 +490,7 @@ mod tests {
         }
     }
 
-    async fn test_push_and_read(finalization: u64, num_blocks: usize) {
+    async fn test_push_and_read(finalization: u64, num_blocks: usize) -> anyhow::Result<()> {
         let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(finalization as _);
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
@@ -487,10 +501,9 @@ mod tests {
             let published_blob: Vec<u8> = vec![i as u8; i + 1];
             let height = i as u64;
 
-            let fee = da.estimate_fee(published_blob.len()).await.unwrap();
-            da.send_transaction(&published_blob, fee).await.unwrap();
-
-            let mut block = da.get_block_at(height).await.unwrap();
+            let fee = da.estimate_fee(published_blob.len()).await?;
+            da.send_transaction(&published_blob, fee).await.await??;
+            let mut block = da.get_block_at(height).await?;
 
             assert_eq!(height, block.header.height());
             assert_eq!(1, block.batch_blobs.len());
@@ -498,7 +511,7 @@ mod tests {
             let retrieved_data = blob.full_data().to_vec();
             assert_eq!(published_blob, retrieved_data);
 
-            let last_finalized_block_response = da.get_last_finalized_block_header().await.unwrap();
+            let last_finalized_block_response = da.get_last_finalized_block_header().await?;
             validate_get_finalized_header_response(
                 height,
                 finalization,
@@ -506,7 +519,7 @@ mod tests {
             );
         }
 
-        let received = collector_handle.await.unwrap();
+        let received = collector_handle.await?;
         let heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
         // When finalization is set to zero, the DA service sends the notification for the Genesis block
         // before we subscribe, so we miss that one.
@@ -514,9 +527,11 @@ mod tests {
         let expected_heights: Vec<u64> =
             (start_height..number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_heights, heights);
+
+        Ok(())
     }
 
-    async fn test_push_many_then_read(finalization: u64, num_blocks: usize) {
+    async fn test_push_many_then_read(finalization: u64, num_blocks: usize) -> anyhow::Result<()> {
         let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(finalization as _);
         da.wait_attempts = 2;
         let number_of_finalized_blocks = num_blocks - finalization as usize;
@@ -529,8 +544,8 @@ mod tests {
         for (i, blob) in blobs.iter().enumerate() {
             let height = (i + 1) as u64;
             // Send transaction should pass
-            let fee = da.estimate_fee(blob.len()).await.unwrap();
-            da.send_transaction(blob, fee).await.unwrap();
+            let fee = da.estimate_fee(blob.len()).await?;
+            da.send_transaction(blob, fee).await.await??;
             let last_finalized_block_response = da.get_last_finalized_block_header().await.unwrap();
             validate_get_finalized_header_response(
                 height,
@@ -538,7 +553,7 @@ mod tests {
                 Ok(last_finalized_block_response),
             );
 
-            let head_block_header = da.get_head_block_header().await.unwrap();
+            let head_block_header = da.get_head_block_header().await?;
             assert_eq!(height, head_block_header.height());
         }
 
@@ -550,19 +565,19 @@ mod tests {
         for (i, blob) in blobs.into_iter().enumerate() {
             let i = (i + 1) as u64;
 
-            let mut fetched_block = da.get_block_at(i).await.unwrap();
+            let mut fetched_block = da.get_block_at(i).await?;
             assert_eq!(i, fetched_block.header().height());
 
-            let last_finalized_header = da.get_last_finalized_block_header().await.unwrap();
+            let last_finalized_header = da.get_last_finalized_block_header().await?;
             assert_eq!(expected_finalized_height, last_finalized_header.height());
 
             assert_eq!(&blob, fetched_block.batch_blobs[0].full_data());
 
-            let head_block_header = da.get_head_block_header().await.unwrap();
+            let head_block_header = da.get_head_block_header().await?;
             assert_eq!(expected_head_height, head_block_header.height());
         }
 
-        let received = collector_handle.await.unwrap();
+        let received = collector_handle.await?;
         let finalized_heights: Vec<u64> = received.iter().map(|h| h.height()).collect();
         // When finalization is set to zero, the DA service sends the notification for the Genesis block
         // before we subscribe, so we miss that one.
@@ -570,6 +585,8 @@ mod tests {
         let expected_finalized_heights: Vec<u64> =
             (start_height..=number_of_finalized_blocks as u64).collect();
         assert_eq!(expected_finalized_heights, finalized_heights);
+
+        Ok(())
     }
 
     mod instant_finality {
@@ -583,12 +600,12 @@ mod tests {
         #[tokio::test(flavor = "multi_thread")]
         /// Pushing a blob and immediately reading it
         async fn flaky_push_pull_single_thread() {
-            test_push_and_read(0, 10).await;
+            test_push_and_read(0, 10).await.unwrap();
         }
 
         #[tokio::test(flavor = "multi_thread")]
         async fn push_many_then_read() {
-            test_push_many_then_read(0, 10).await;
+            test_push_many_then_read(0, 10).await.unwrap();
         }
     }
 
@@ -602,40 +619,40 @@ mod tests {
         // but it sure sounds like it.
         #[tokio::test(flavor = "multi_thread")]
         async fn flaky_push_pull_single_thread() {
-            test_push_and_read(1, 10).await;
-            test_push_and_read(3, 10).await;
-            test_push_and_read(5, 10).await;
+            test_push_and_read(1, 10).await.unwrap();
+            test_push_and_read(3, 10).await.unwrap();
+            test_push_and_read(5, 10).await.unwrap();
         }
 
         #[tokio::test(flavor = "multi_thread")]
         async fn push_many_then_read() {
-            test_push_many_then_read(1, 10).await;
-            test_push_many_then_read(3, 10).await;
-            test_push_many_then_read(5, 10).await;
+            test_push_many_then_read(1, 10).await.unwrap();
+            test_push_many_then_read(3, 10).await.unwrap();
+            test_push_many_then_read(5, 10).await.unwrap();
         }
 
         #[tokio::test(flavor = "multi_thread")]
-        async fn read_multiple_times() {
+        async fn read_multiple_times() -> anyhow::Result<()> {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
 
             // 1 -> 2 -> 3
-            let fee = da.estimate_fee(4).await.unwrap();
+            let fee = da.estimate_fee(4).await?;
 
-            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.await??;
+            da.send_transaction(&[4, 5, 6, 7], fee).await.await??;
+            da.send_transaction(&[8, 9, 0, 1], fee).await.await??;
 
-            let block_1_before = da.get_block_at(1).await.unwrap();
-            let block_2_before = da.get_block_at(2).await.unwrap();
-            let block_3_before = da.get_block_at(3).await.unwrap();
+            let block_1_before = da.get_block_at(1).await?;
+            let block_2_before = da.get_block_at(2).await?;
+            let block_3_before = da.get_block_at(3).await?;
 
             let result = da.get_block_at(4).await;
             assert!(result.is_err());
 
-            let block_1_after = da.get_block_at(1).await.unwrap();
-            let block_2_after = da.get_block_at(2).await.unwrap();
-            let block_3_after = da.get_block_at(3).await.unwrap();
+            let block_1_after = da.get_block_at(1).await?;
+            let block_2_after = da.get_block_at(2).await?;
+            let block_3_after = da.get_block_at(3).await?;
 
             assert_eq!(block_1_before, block_1_after);
             assert_eq!(block_2_before, block_2_after);
@@ -644,6 +661,7 @@ mod tests {
             assert_ne!(block_1_before, block_2_before);
             assert_ne!(block_3_before, block_1_before);
             assert_ne!(block_1_before, block_2_after);
+            Ok(())
         }
     }
 
@@ -652,21 +670,21 @@ mod tests {
         let da = MockDaService::new(MockAddress::new([1; 32]));
         let aggregated_proof_data = vec![1, 2, 3];
         let fee = da.estimate_fee(aggregated_proof_data.len()).await?;
-        da.send_proof(&aggregated_proof_data, fee).await?;
+        da.send_proof(&aggregated_proof_data, fee).await.await??;
 
         let tx_data = vec![1];
         let fee = da.estimate_fee(tx_data.len()).await?;
-        da.send_transaction(&tx_data, fee).await?;
+        da.send_transaction(&tx_data, fee).await.await??;
 
         let proofs = da.get_proofs_at(1).await?;
         assert_eq!(vec![aggregated_proof_data], proofs);
 
         for i in 2..5 {
             let aggregated_proof_data = vec![i];
-            da.send_proof(&aggregated_proof_data, fee).await?;
+            da.send_proof(&aggregated_proof_data, fee).await.await??;
         }
         let tx_data = vec![1];
-        da.send_transaction(&tx_data, fee).await?;
+        da.send_transaction(&tx_data, fee).await.await??;
 
         let proofs = da.get_proofs_at(2).await?;
         assert_eq!(vec![vec![2], vec![3], vec![4]], proofs);
@@ -678,58 +696,59 @@ mod tests {
         use super::*;
 
         #[tokio::test(flavor = "multi_thread")]
-        async fn test_reorg_control_success() {
+        async fn test_reorg_control_success() -> anyhow::Result<()> {
             let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
 
             // 1 -> 2 -> 3.1 -> 4.1
             //      \ -> 3.2 -> 4.2
 
             // 1
-            let fee = da.estimate_fee(4).await.unwrap();
-            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
+            let fee = da.estimate_fee(4).await?;
+            da.send_transaction(&[1, 2, 3, 4], fee).await.await??;
             // 2
-            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
+            da.send_transaction(&[4, 5, 6, 7], fee).await.await??;
             // 3.1
-            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.await??;
             // 4.1
-            da.send_transaction(&[2, 3, 4, 5], fee).await.unwrap();
+            da.send_transaction(&[2, 3, 4, 5], fee).await.await??;
 
-            let _block_1 = da.get_block_at(1).await.unwrap();
-            let block_2 = da.get_block_at(2).await.unwrap();
-            let block_3 = da.get_block_at(3).await.unwrap();
-            let head_before = da.get_head_block_header().await.unwrap();
+            let _block_1 = da.get_block_at(1).await?;
+            let block_2 = da.get_block_at(2).await?;
+            let block_3 = da.get_block_at(3).await?;
+            let head_before = da.get_head_block_header().await?;
 
             // Do reorg
-            da.fork_at(2, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]])
-                .await
-                .unwrap();
+            da.fork_at(2, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]]).await?;
 
-            let block_3_after = da.get_block_at(3).await.unwrap();
+            let block_3_after = da.get_block_at(3).await?;
             assert_ne!(block_3, block_3_after);
 
             assert_eq!(block_2.header().hash(), block_3_after.header().prev_hash());
 
-            let head_after = da.get_head_block_header().await.unwrap();
+            let head_after = da.get_head_block_header().await?;
             assert_ne!(head_before, head_after);
+
+            Ok(())
         }
 
         #[tokio::test(flavor = "multi_thread")]
-        async fn test_attempt_reorg_after_finalized() {
+        async fn test_attempt_reorg_after_finalized() -> anyhow::Result<()> {
             let da = MockDaService::new(MockAddress::new([1; 32])).with_finality(3);
 
             // 1 -> 2 -> 3 -> 4
 
             let fee = da.estimate_fee(4).await.unwrap();
-            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
-            da.send_transaction(&[2, 3, 4, 5], fee).await.unwrap();
+            da.send_transaction(&[1, 2, 3, 4], fee).await.await??;
+            da.send_transaction(&[4, 5, 6, 7], fee).await.await??;
 
-            let block_1_before = da.get_block_at(1).await.unwrap();
-            let block_2_before = da.get_block_at(2).await.unwrap();
-            let block_3_before = da.get_block_at(3).await.unwrap();
-            let block_4_before = da.get_block_at(4).await.unwrap();
-            let finalized_header_before = da.get_last_finalized_block_header().await.unwrap();
+            da.send_transaction(&[8, 9, 0, 1], fee).await.await??;
+            da.send_transaction(&[2, 3, 4, 5], fee).await.await??;
+
+            let block_1_before = da.get_block_at(1).await?;
+            let block_2_before = da.get_block_at(2).await?;
+            let block_3_before = da.get_block_at(3).await?;
+            let block_4_before = da.get_block_at(4).await?;
+            let finalized_header_before = da.get_last_finalized_block_header().await?;
             assert_eq!(&finalized_header_before, block_1_before.header());
 
             // Attempt at finalized header. It will try to overwrite height 2 and 3
@@ -740,11 +759,11 @@ mod tests {
                 result.unwrap_err().to_string()
             );
 
-            let block_1_after = da.get_block_at(1).await.unwrap();
-            let block_2_after = da.get_block_at(2).await.unwrap();
-            let block_3_after = da.get_block_at(3).await.unwrap();
-            let block_4_after = da.get_block_at(4).await.unwrap();
-            let finalized_header_after = da.get_last_finalized_block_header().await.unwrap();
+            let block_1_after = da.get_block_at(1).await?;
+            let block_2_after = da.get_block_at(2).await?;
+            let block_3_after = da.get_block_at(3).await?;
+            let block_4_after = da.get_block_at(4).await?;
+            let finalized_header_after = da.get_last_finalized_block_header().await?;
             assert_eq!(&finalized_header_after, block_1_after.header());
 
             assert_eq!(block_1_before, block_1_after);
@@ -755,71 +774,74 @@ mod tests {
             // Overwriting height 3 and 4 is ok
             let result2 = da.fork_at(2, &[vec![3, 3, 3, 3], vec![4, 4, 4, 4]]).await;
             assert!(result2.is_ok());
-            let block_2_after_reorg = da.get_block_at(2).await.unwrap();
-            let block_3_after_reorg = da.get_block_at(3).await.unwrap();
+            let block_2_after_reorg = da.get_block_at(2).await?;
+            let block_3_after_reorg = da.get_block_at(3).await?;
 
             assert_eq!(block_2_after, block_2_after_reorg);
             assert_ne!(block_3_after, block_3_after_reorg);
+
+            Ok(())
         }
 
         #[tokio::test(flavor = "multi_thread")]
-        async fn test_planned_reorg() {
+        async fn test_planned_reorg() -> anyhow::Result<()> {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
 
             // Planned for will replace blocks at height 3 and 4
             let planned_fork = PlannedFork::new(4, 2, vec![vec![3, 3, 3, 3], vec![4, 4, 4, 4]]);
 
-            da.set_planned_fork(planned_fork).await.unwrap();
+            da.set_planned_fork(planned_fork).await?;
             assert!(da.planned_fork.is_some());
 
-            let fee = da.estimate_fee(4).await.unwrap();
-            da.send_transaction(&[1, 2, 3, 4], fee).await.unwrap();
-            da.send_transaction(&[4, 5, 6, 7], fee).await.unwrap();
-            da.send_transaction(&[8, 9, 0, 1], fee).await.unwrap();
+            let fee = da.estimate_fee(4).await?;
+            da.send_transaction(&[1, 2, 3, 4], fee).await.await??;
+            da.send_transaction(&[4, 5, 6, 7], fee).await.await??;
+            da.send_transaction(&[8, 9, 0, 1], fee).await.await??;
 
-            let block_1_before = da.get_block_at(1).await.unwrap();
-            let block_2_before = da.get_block_at(2).await.unwrap();
+            let block_1_before = da.get_block_at(1).await?;
+            let block_2_before = da.get_block_at(2).await?;
             assert_consecutive_blocks(&block_1_before, &block_2_before);
-            let block_3_before = da.get_block_at(3).await.unwrap();
+            let block_3_before = da.get_block_at(3).await?;
             assert_consecutive_blocks(&block_2_before, &block_3_before);
-            let block_4 = da.get_block_at(4).await.unwrap();
+            let block_4 = da.get_block_at(4).await?;
 
             // Fork is happening!
             assert_ne!(block_3_before.header().hash(), block_4.header().prev_hash());
-            let block_3_after = da.get_block_at(3).await.unwrap();
+            let block_3_after = da.get_block_at(3).await?;
             assert_consecutive_blocks(&block_3_after, &block_4);
             assert_consecutive_blocks(&block_2_before, &block_3_after);
             // Still have it, but it is old
             assert!(da.planned_fork.is_some());
+            Ok(())
         }
 
         #[tokio::test(flavor = "multi_thread")]
-        async fn test_planned_reorg_shorter() {
+        async fn test_planned_reorg_shorter() -> anyhow::Result<()> {
             let mut da = MockDaService::new(MockAddress::new([1; 32])).with_finality(4);
             da.wait_attempts = 2;
             // Planned for will replace blocks at height 3 and 4
             let planned_fork =
                 PlannedFork::new(4, 2, vec![vec![13, 13, 13, 13], vec![14, 14, 14, 14]]);
-            da.set_planned_fork(planned_fork).await.unwrap();
+            da.set_planned_fork(planned_fork).await?;
 
-            let fee = da.estimate_fee(4).await.unwrap();
-            da.send_transaction(&[1, 1, 1, 1], fee).await.unwrap();
-            da.send_transaction(&[2, 2, 2, 2], fee).await.unwrap();
-            da.send_transaction(&[3, 3, 3, 3], fee).await.unwrap();
-            da.send_transaction(&[4, 4, 4, 4], fee).await.unwrap();
-            da.send_transaction(&[5, 5, 5, 5], fee).await.unwrap();
+            let fee = da.estimate_fee(4).await?;
+            da.send_transaction(&[1, 1, 1, 1], fee).await.await??;
+            da.send_transaction(&[2, 2, 2, 2], fee).await.await??;
+            da.send_transaction(&[3, 3, 3, 3], fee).await.await??;
+            da.send_transaction(&[4, 4, 4, 4], fee).await.await??;
+            da.send_transaction(&[5, 5, 5, 5], fee).await.await??;
 
-            let block_1_before = da.get_block_at(1).await.unwrap();
-            let block_2_before = da.get_block_at(2).await.unwrap();
+            let block_1_before = da.get_block_at(1).await?;
+            let block_2_before = da.get_block_at(2).await?;
             assert_consecutive_blocks(&block_1_before, &block_2_before);
-            let block_3_before = da.get_block_at(3).await.unwrap();
+            let block_3_before = da.get_block_at(3).await?;
             assert_consecutive_blocks(&block_2_before, &block_3_before);
             let block_4 = da.get_block_at(4).await.unwrap();
             assert_ne!(block_4.header().prev_hash(), block_3_before.header().hash());
-            let block_1_after = da.get_block_at(1).await.unwrap();
-            let block_2_after = da.get_block_at(2).await.unwrap();
-            let block_3_after = da.get_block_at(3).await.unwrap();
+            let block_1_after = da.get_block_at(1).await?;
+            let block_2_after = da.get_block_at(2).await?;
+            let block_3_after = da.get_block_at(3).await?;
             assert_consecutive_blocks(&block_3_after, &block_4);
             assert_consecutive_blocks(&block_2_after, &block_3_after);
             assert_consecutive_blocks(&block_1_after, &block_2_after);
@@ -829,6 +851,7 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .starts_with("No block at height=5 has been sent in "));
+            Ok(())
         }
     }
 

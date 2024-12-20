@@ -12,7 +12,7 @@ use sov_rollup_interface::da::{
 };
 use sov_rollup_interface::node::da::{DaService, SlotData, SubmitBlobReceipt};
 use sov_rollup_interface::node::{future_or_shutdown, FutureOrShutdownOutput};
-use tokio::sync::{broadcast, watch, RwLock};
+use tokio::sync::{broadcast, oneshot, watch, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::{interval, sleep};
 
@@ -288,32 +288,42 @@ impl DaService for StorableMockDaService {
         &self,
         blob: &[u8],
         _fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
         tracing::debug!(batch = hex::encode(blob), "Submitting a batch");
         let blob_hash = {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_batch(blob, &self.sequencer_da_address)
-                .await?
+                .await
+                .unwrap()
         };
         match &self.block_producing {
             BlockProducing::OnBatchSubmit(_) | BlockProducing::OnAnySubmit(_) => {
                 let mut da_layer = self.da_layer.write().await;
-                da_layer.produce_block().await?;
+                da_layer.produce_block().await.unwrap();
             }
             BlockProducing::Periodic(_) | BlockProducing::Manual => (),
         }
-        Ok(SubmitBlobReceipt {
+        let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
             da_transaction_id: blob_hash,
-        })
+        });
+
+        tx.send(res).unwrap();
+        rx
     }
 
     async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
         _fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
         tracing::debug!(
             blob = hex::encode(aggregated_proof_data),
             "Sending an aggregated proof"
@@ -322,10 +332,11 @@ impl DaService for StorableMockDaService {
             let da_layer = self.da_layer.read().await;
             da_layer
                 .submit_proof(aggregated_proof_data, &self.sequencer_da_address)
-                .await?
+                .await
+                .unwrap()
         };
 
-        self.aggregated_proof_sender.send(())?;
+        self.aggregated_proof_sender.send(()).unwrap();
 
         match &self.block_producing {
             BlockProducing::OnBatchSubmit(_) => {
@@ -333,15 +344,18 @@ impl DaService for StorableMockDaService {
             }
             BlockProducing::OnAnySubmit(_) => {
                 let mut da_layer = self.da_layer.write().await;
-                da_layer.produce_block().await?;
+                da_layer.produce_block().await.unwrap();
             }
             BlockProducing::Periodic(_) | BlockProducing::Manual => (),
         }
 
-        Ok(SubmitBlobReceipt {
+        let res = Ok(SubmitBlobReceipt {
             blob_hash: HexHash::new(blob_hash.0),
             da_transaction_id: blob_hash,
-        })
+        });
+
+        tx.send(res).unwrap();
+        rx
     }
 
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error> {
@@ -435,7 +449,12 @@ mod tests {
                     StorableMockDaService::new(address, this_da_layer, this_block_producing);
                 for (wait, blob) in this_service_blobs {
                     sleep(wait).await;
-                    da_service.send_transaction(&blob, fee).await.unwrap();
+                    da_service
+                        .send_transaction(&blob, fee)
+                        .await
+                        .await
+                        .unwrap()
+                        .unwrap();
                 }
             }));
         }

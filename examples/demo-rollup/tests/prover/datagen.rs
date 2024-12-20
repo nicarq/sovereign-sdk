@@ -50,16 +50,16 @@ pub async fn get_blocks_from_da(mode: BlobBuildingCtx) -> anyhow::Result<Vec<Moc
         );
 
     let blob = create_token_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(&mode);
-    let fee = da_service.estimate_fee(blob.len()).await.unwrap();
-    da_service.send_transaction(&blob, fee).await.unwrap();
-    let block1 = da_service.get_block_at(1).await.unwrap();
+    let fee = da_service.estimate_fee(blob.len()).await?;
+    da_service.send_transaction(&blob, fee).await.await??;
+    let block1 = da_service.get_block_at(1).await?;
     blocks.push(block1);
 
     for i in 0..block_cnt {
         let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(&mode);
-        let fee = da_service.estimate_fee(blob.len()).await.unwrap();
-        da_service.send_transaction(&blob, fee).await.unwrap();
-        let blocki = da_service.get_block_at(2 + i).await.unwrap();
+        let fee = da_service.estimate_fee(blob.len()).await?;
+        da_service.send_transaction(&blob, fee).await.await??;
+        let blocki = da_service.get_block_at(2 + i).await?;
         blocks.push(blocki);
     }
 

@@ -546,7 +546,8 @@ mod tests {
         for height in 1..4 {
             da_service
                 .send_transaction(&[height as u8; 10], MockFee::zero())
-                .await?;
+                .await
+                .await??;
             let filtered_block = da_service.get_block_at(height).await?;
             process_normal_transition(
                 &mut state_manager,
@@ -605,7 +606,8 @@ mod tests {
             let blob_data = [rollup_height as u8; 10];
             da_service
                 .send_transaction(&blob_data, MockFee::zero())
-                .await?;
+                .await
+                .await??;
             let filtered_block = da_service.get_block_at(rollup_height).await?;
             if rollup_height < last_block {
                 process_normal_transition(&mut state_manager, filtered_block, 0, &da_service)
@@ -658,7 +660,8 @@ mod tests {
         for height in 1..=chain_length {
             da_service
                 .send_transaction(&[height as u8; 10], MockFee::zero())
-                .await?;
+                .await
+                .await??;
             let filtered_block = da_service.get_block_at(height).await?;
             let finalized_height = height.saturating_sub(finality as u64);
             process_normal_transition(
@@ -675,7 +678,8 @@ mod tests {
         for height in 1..=chain_length {
             da_service
                 .send_transaction(&[(height * 10) as u8; 10], MockFee::zero())
-                .await?;
+                .await
+                .await??;
         }
 
         let alien_block = da_service.get_block_at(chain_length).await?;
@@ -700,7 +704,8 @@ mod tests {
         for height in 1..chain_length {
             da_service
                 .send_transaction(&[height as u8; 10], MockFee::zero())
-                .await?;
+                .await
+                .await??;
             let filtered_block = da_service.get_block_at(height).await?;
 
             process_normal_transition(&mut state_manager, filtered_block, 0, &da_service).await?;
@@ -714,7 +719,8 @@ mod tests {
         }
         da_service
             .send_transaction(&[chain_length as u8; 10], MockFee::zero())
-            .await?;
+            .await
+            .await??;
         let filtered_block = da_service.get_block_at(chain_length).await?;
 
         process_normal_transition(&mut state_manager, filtered_block, u64::MAX, &da_service)

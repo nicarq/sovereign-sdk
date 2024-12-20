@@ -1,4 +1,5 @@
 ## 2024-12-20
+- #2069 Enable support for sending proofs and batches in parallel. This is a breaking change, requiring SDK consumers to update their code to align with the new API. In most cases, this involves modifying the `da.send_transaction(..).await?` call to `da.send_transaction(..).await.await??`.
 - #2067 Move the retry logic to CelestiaDaService, and remove the DaServiceWithRetries type.
 ## 2024-12-19
 - #2075 Add UniversalWallet derive to the crypto types for Risc0 and SP1 zkvms. Previously the macro was only derived for types in the MockZkvm. This made it impossible to derive the universal schema on the `Transaction<S: Spec>` type with a Spec that used a real zkvm - now fixed.

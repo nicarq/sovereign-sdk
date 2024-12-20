@@ -117,9 +117,18 @@ mod tests {
         let blob_0_1 = vec![0, 0];
         let blob_1_0 = vec![0, 0];
 
-        let _ = da_service_1.send_transaction(&blob_0_0, fee).await?;
-        let _ = da_service_2.send_transaction(&blob_1_0, fee).await?;
-        let _ = da_service_1.send_transaction(&blob_0_1, fee).await?;
+        let _ = da_service_1
+            .send_transaction(&blob_0_0, fee)
+            .await
+            .await??;
+        let _ = da_service_2
+            .send_transaction(&blob_1_0, fee)
+            .await
+            .await??;
+        let _ = da_service_1
+            .send_transaction(&blob_0_1, fee)
+            .await
+            .await??;
 
         {
             let mut layer = da_layer.write().await;
@@ -240,13 +249,13 @@ mod tests {
                     BlobType::Batch => {
                         let batch_idx = batch_indexes.entry(*sender).or_insert(0);
                         let blob = sender.build_blob_data(*batch_idx);
-                        da_service.send_transaction(&blob, fee).await?;
+                        da_service.send_transaction(&blob, fee).await.await??;
                         *batch_idx += 1;
                     }
                     BlobType::Proof => {
                         let proof_idx = proof_indexes.entry(*sender).or_insert(0);
                         let blob = sender.build_blob_data(*proof_idx);
-                        da_service.send_proof(&blob, fee).await?;
+                        da_service.send_proof(&blob, fee).await.await??;
                         *proof_idx += 1;
                     }
                 }

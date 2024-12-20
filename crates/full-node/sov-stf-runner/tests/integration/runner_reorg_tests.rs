@@ -57,7 +57,12 @@ async fn test_simple_reorg_case() {
     let da_service = Arc::new(da_service);
     for data in main_chain_blobs {
         let fee = da_service.estimate_fee(data.len()).await.unwrap();
-        da_service.send_transaction(&data, fee).await.unwrap();
+        da_service
+            .send_transaction(&data, fee)
+            .await
+            .await
+            .unwrap()
+            .unwrap();
     }
 
     let (expected_state_root, _expected_final_root_hash) =
@@ -82,36 +87,36 @@ async fn test_simple_reorg_case() {
 async fn test_several_reorgs() {}
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_instant_finality_data_stored() {
+async fn test_instant_finality_data_stored() -> anyhow::Result<()> {
     let tmp_dir = tempfile::tempdir().unwrap();
     let sequencer_address = MockAddress::new([11u8; 32]);
     let genesis_params = vec![1, 2, 3, 4, 5];
 
     let da_service = Arc::new(MockDaService::new(sequencer_address).with_wait_attempts(2));
 
-    let genesis_block = da_service.get_block_at(0).await.unwrap();
-    let fee = da_service.estimate_fee(4).await.unwrap();
+    let genesis_block = da_service.get_block_at(0).await?;
+    let fee = da_service.estimate_fee(4).await?;
 
     let serialized_blob_1 = batch(vec![1, 1, 1, 1]);
 
     da_service
         .send_transaction(&serialized_blob_1, fee)
         .await
-        .unwrap();
+        .await??;
 
     let serialized_blob_2 = batch(vec![2, 2, 2, 2]);
 
     da_service
         .send_transaction(&serialized_blob_2, fee)
         .await
-        .unwrap();
+        .await??;
 
     let serialized_blob_3 = batch(vec![3, 3, 3, 3]);
 
     da_service
         .send_transaction(&serialized_blob_3, fee)
         .await
-        .unwrap();
+        .await??;
 
     let (expected_state_root, expected_root_hash) = get_expected_execution_hash_from(
         &genesis_params,
@@ -127,6 +132,7 @@ async fn test_instant_finality_data_stored() {
 
     let saved_root_hash = get_saved_root_hash(tmp_dir.path()).unwrap().unwrap();
     assert_eq!(expected_root_hash.unwrap(), saved_root_hash);
+    Ok(())
 }
 
 async fn check_runner(

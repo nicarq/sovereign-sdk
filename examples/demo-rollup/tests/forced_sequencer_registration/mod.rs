@@ -73,7 +73,11 @@ async fn forced_sequencer_registration_test_case(
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
 
-    da_service.send_transaction(&blob, fee).await.unwrap();
+    da_service
+        .send_transaction(&blob, fee)
+        .await
+        .await?
+        .unwrap();
 
     // We are waiting until enough time has passed to ensure that the registration batch is executed.
     sleep(Duration::from_millis(

@@ -7,6 +7,7 @@ use backon::{BackoffBuilder, Retryable};
 use schemars::JsonSchema;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use tokio::sync::oneshot;
 use tracing::error;
 
 use crate::common::HexHash;
@@ -225,20 +226,24 @@ pub trait DaService: Clone + Send + Sync + 'static {
     }
 
     /// Send a transaction directly to the DA layer.
-    /// blob is the serialized and signed transaction.
-    /// Returns transaction id if it was successfully sent.
+    /// This method is infallible: the SubmitBlobReceipt is returned via the `oneshot::Receiver` after the blob is posted to the DA.
     async fn send_transaction(
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    >;
 
     /// Sends a proof to the DA layer.
+    /// This method is infallible: the SubmitBlobReceipt is returned via the `oneshot::Receiver` after the blob is posted to the DA.
     async fn send_proof(
         &self,
         aggregated_proof_data: &[u8],
         fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>;
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    >;
 
     /// Fetches all proofs at a specified block height.
     async fn get_proofs_at(&self, height: u64) -> Result<Vec<Vec<u8>>, Self::Error>;
