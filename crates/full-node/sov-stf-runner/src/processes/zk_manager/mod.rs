@@ -217,7 +217,11 @@ where
 
             let fee = self.da_service.estimate_fee(serialized_proof.len()).await?;
 
-            let receipt = self.da_service.send_proof(&serialized_proof, fee).await?;
+            let receipt = self
+                .da_service
+                .send_proof(&serialized_proof, fee)
+                .await
+                .await?;
 
             tracing::debug!(?receipt, "Aggregated proof has been posted to DA");
 

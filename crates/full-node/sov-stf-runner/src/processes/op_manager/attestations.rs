@@ -106,7 +106,11 @@ where
 
         let fee = self.da_service.estimate_fee(serialized_blob.len()).await?;
 
-        let receipt = self.da_service.send_proof(&serialized_blob, fee).await?;
+        let receipt = self
+            .da_service
+            .send_proof(&serialized_blob, fee)
+            .await
+            .await??;
         tracing::debug!(?receipt, height, "Attestation has been posted to DA");
 
         self.st_info_receiver

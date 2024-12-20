@@ -185,12 +185,15 @@ impl<
             .estimate_fee(serialized_batch.len())
             .await
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
         self.da_service
             .send_transaction(&serialized_batch, fee)
             .await
+            .await
+            .expect("The transaction sender should not fail")
             .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
-        tracing::debug!("ETH Batch has been submitted");
 
+        tracing::debug!("ETH Batch has been submitted");
         self.sequence_number.fetch_add(1, Ordering::SeqCst);
 
         Ok(())

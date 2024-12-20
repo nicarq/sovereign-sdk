@@ -25,7 +25,7 @@ use sov_rollup_interface::da::{DaProof, DaSpec, RelevantBlobs, RelevantProofs};
 use sov_rollup_interface::node::da::{
     run_maybe_retryable_async_fn_with_retries, DaService, Fee, MaybeRetryable, SubmitBlobReceipt,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{oneshot, Mutex};
 use tokio::time::Instant;
 use tower::ServiceBuilder;
 use tracing::{debug, info, instrument, trace};
@@ -319,6 +319,7 @@ impl CelestiaService {
         Ok(CelestiaHeader::from(header))
     }
 
+    #[instrument(skip(self, blob), err)]
     async fn send_transaction_inner(
         &self,
         blob: &[u8],
@@ -330,6 +331,7 @@ impl CelestiaService {
             .map_err(MaybeRetryable::Transient)
     }
 
+    #[instrument(skip(self, aggregated_proof), err)]
     async fn send_proof_inner(
         &self,
         aggregated_proof: &[u8],
@@ -463,32 +465,43 @@ impl DaService for CelestiaService {
         RelevantProofs { proof, batch }
     }
 
-    #[instrument(skip(self, blob), err)]
     async fn send_transaction(
         &self,
         blob: &[u8],
         fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
+
+        let res = run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
             || self.send_transaction_inner(blob, fee),
             "send_transaction",
         )
-        .await
+        .await;
+
+        tx.send(res).unwrap();
+        rx
     }
 
-    #[instrument(skip(self, aggregated_proof), err)]
     async fn send_proof(
         &self,
         aggregated_proof: &[u8],
         fee: Self::Fee,
-    ) -> Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error> {
-        run_maybe_retryable_async_fn_with_retries(
+    ) -> oneshot::Receiver<
+        Result<SubmitBlobReceipt<<Self::Spec as DaSpec>::TransactionId>, Self::Error>,
+    > {
+        let (tx, rx) = oneshot::channel();
+        let res = run_maybe_retryable_async_fn_with_retries(
             &self.backoff_policy,
             || self.send_proof_inner(aggregated_proof, fee),
             "send_proof",
         )
-        .await
+        .await;
+
+        tx.send(res).unwrap();
+        rx
     }
 
     #[instrument(err)]
@@ -707,7 +720,7 @@ mod tests {
             .mount(&mock_server)
             .await;
         let fee = CelestiaFee::estimated(blob.len());
-        da_service.send_transaction(&blob, fee).await?;
+        da_service.send_transaction(&blob, fee).await.await??;
 
         Ok(())
     }
@@ -748,6 +761,7 @@ mod tests {
         let error = da_service
             .send_transaction(&blob, fee)
             .await
+            .await?
             .unwrap_err()
             .to_string();
 
@@ -776,6 +790,7 @@ mod tests {
         let error = da_service
             .send_transaction(&blob, fee)
             .await
+            .await?
             .unwrap_err()
             .to_string();
 
@@ -824,6 +839,7 @@ mod tests {
         let error = da_service
             .send_transaction(&blob, fee)
             .await
+            .await?
             .unwrap_err()
             .to_string();
 
@@ -1050,7 +1066,7 @@ mod tests {
             .await;
 
         let fee = CelestiaFee::estimated(zk_proof.len());
-        da_service.send_proof(&zk_proof, fee).await?;
+        da_service.send_proof(&zk_proof, fee).await.await??;
 
         Ok(())
     }

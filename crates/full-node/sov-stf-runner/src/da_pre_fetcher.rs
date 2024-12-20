@@ -264,30 +264,29 @@ mod tests {
     use super::*;
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn flaky_check_that_all_blocks_are_collected_instant_finality() {
+    async fn flaky_check_that_all_blocks_are_collected_instant_finality() -> anyhow::Result<()> {
         let da_service = StorableMockDaService::new_in_memory(Default::default(), 0).await;
         let blocks_number = 200;
         for i in 1..=blocks_number {
             da_service
                 .send_transaction(&[i; 32], MockFee::zero())
                 .await
-                .unwrap();
+                .await??;
         }
 
         let (sender, mut receiver) = tokio::sync::watch::channel(());
         receiver.mark_unchanged();
 
         let (mut fetcher, handle) =
-            FinalizedBlocksBulkFetcher::new(Arc::new(da_service), 0, 10, receiver)
-                .await
-                .unwrap();
+            FinalizedBlocksBulkFetcher::new(Arc::new(da_service), 0, 10, receiver).await?;
 
         for i in 0..blocks_number {
-            let block = fetcher.get_block_at(i as u64).await.unwrap();
+            let block = fetcher.get_block_at(i as u64).await?;
             assert_eq!(i as u64, block.header().height());
         }
 
-        sender.send(()).unwrap();
-        handle.await.unwrap().unwrap();
+        sender.send(())?;
+        handle.await??;
+        Ok(())
     }
 }

@@ -69,6 +69,8 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
+            .await
+            .unwrap()
             .map(|receipt| receipt.da_transaction_id)
     }
 
@@ -79,6 +81,8 @@ impl TestNode {
         self.da
             .send_transaction(&serialized_batch, MockFee::zero())
             .await
+            .await
+            .unwrap()
             .map(|receipt| receipt.da_transaction_id)
     }
 

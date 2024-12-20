@@ -75,6 +75,8 @@ impl<Ss: SequencerSpec> Inner<Ss> {
             .da_service
             .send_transaction(&serialized_batch, fee)
             .await
+            .await
+            .expect("The transaction sender should not fail")
         {
             Ok(id) => id,
             Err(e) => anyhow::bail!("failed to submit batch: {}", e),
