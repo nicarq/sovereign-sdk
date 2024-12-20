@@ -1,16 +1,16 @@
 use sov_kernels::basic::BasicKernel;
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::{CryptoSpec, Gas, GasSpec, Spec};
+use sov_modules_api::{CryptoSpec, Gas, GasSpec, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{
-    generate_zk_runtime_with_kernel, BatchType, TestSequencer, TEST_DEFAULT_USER_STAKE,
+    generate_zk_runtime_with_kernel, BatchType, TestSequencer, TransactionType,
+    TEST_DEFAULT_USER_STAKE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::{
-    assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, SlotConfigInfo, TestData,
-    TestRunner, S,
+    assert_blobs_are_correctly_received_helper, HashMap, SequenceInfo, TestData, TestRunner, S,
 };
 
 pub type BasicRT = BasicBlobStorageRuntime<S>;
@@ -57,16 +57,22 @@ pub fn setup_basic_kernel() -> (TestData<S>, TestRunner<BasicRT>) {
     )
 }
 
-/// Builds a [`RelevantBlobs`] struct from a list of [`BlobConfigInfo`]s.
-/// This struct populates the batches with simple [`ValueSetter`] messages. One
-/// can specify special sequencer addresses for each batch.
+type SequencerAndBlobSize = (TestSequencer<S>, usize);
+
+/// Builds a [`RelevantBlobs`] struct from a list of sequencer and blob sizes.
 pub fn build_basic_blobs(
-    slots_info: &SlotConfigInfo<TestSequencer<S>>,
+    slots_info: &Vec<SequencerAndBlobSize>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
-    for sequencer in slots_info {
-        batches.push((BatchType(vec![]), sequencer.da_address));
+    for (sequencer, batch_size) in slots_info {
+        batches.push((
+            BatchType(vec![TransactionType::PreSigned(RawTx::new(vec![
+                1;
+                *batch_size
+            ]))]),
+            sequencer.da_address,
+        ));
     }
 
     TestRunner::<BasicRT>::batches_to_blobs(batches, nonces)
@@ -88,7 +94,7 @@ pub fn build_basic_blobs(
 /// The `virtual_slot_heights_increases` parameter indicates the virtual slot heights that we expect to advance.
 /// In the situation above: we would have [1, 1, 0, 0] for the `virtual_slot_heights_increases` parameter.
 pub fn assert_blobs_are_correctly_received_basic_kernel(
-    sending_order: Vec<Vec<TestSequencer<S>>>,
+    sending_order: Vec<Vec<(TestSequencer<S>, usize)>>,
     receive_order: Vec<Vec<usize>>,
     virtual_slot_heights_increases: Vec<u64>,
     runner: &mut TestRunner<BasicRT>,

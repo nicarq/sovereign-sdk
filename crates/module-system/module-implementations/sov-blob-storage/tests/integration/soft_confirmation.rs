@@ -1,9 +1,14 @@
+use std::collections::HashMap;
+use std::env;
+
 use sov_blob_storage::{config_deferred_slots_count, BlobStorage};
+use sov_mock_da::MockBlob;
+use sov_rollup_interface::da::RelevantBlobs;
 use sov_test_utils::SequencerInfo;
 
 use crate::helpers_soft_confirmations::{
-    assert_blobs_are_correctly_received_soft_confirmation, setup_soft_confirmation_kernel,
-    setup_with_registration_soft_confirmation_kernel,
+    assert_blobs_are_correctly_received_soft_confirmation, build_soft_confirmation_blobs,
+    setup_soft_confirmation_kernel, setup_with_registration_soft_confirmation_kernel,
 };
 use crate::{SequenceInfo, TestData, S};
 
@@ -548,4 +553,52 @@ fn blobs_with_high_sequencer_number_get_deferred() {
         vec![0, 0, 1, 1, 1],
         &mut runner,
     );
+}
+
+#[test]
+fn check_blob_selection() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "1000",
+    );
+
+    let (
+        TestData {
+            preferred_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_soft_confirmation_kernel();
+
+    let mut nonces = HashMap::new();
+
+    let slot_to_send = build_soft_confirmation_blobs(
+        &vec![(
+            preferred_sequencer.clone(),
+            SequencerInfo::Preferred {
+                slots_to_advance: 1,
+                sequence_number: 0,
+            },
+        )],
+        &mut nonces,
+        700,
+    );
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+    assert_eq!(result.batch_receipts.len(), 1);
+
+    let slot_to_send = build_soft_confirmation_blobs(
+        &vec![(
+            preferred_sequencer.clone(),
+            SequencerInfo::Preferred {
+                slots_to_advance: 1,
+                sequence_number: 0,
+            },
+        )],
+        &mut nonces,
+        1001,
+    );
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+    assert_eq!(result.batch_receipts.len(), 0);
 }
