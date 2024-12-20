@@ -60,11 +60,6 @@ utoipa = { workspace = true, optional = true }
 utoipa-swagger-ui = { workspace = true, optional = true }
 unwrap-infallible = { workspace = true }
 
-risc0-zkvm = { workspace = true, default-features = false, features = [
-  "std",
-], optional = true }
-risc0-zkvm-platform = { workspace = true, optional = true }
-
 [dev-dependencies]
 sov-risc0-adapter = { workspace = true, features = ["native"] }
 bincode = { workspace = true }
@@ -100,8 +95,6 @@ arbitrary = [
 ]
 bench = [
   "sov-cycle-utils",
-  "risc0-zkvm",
-  "risc0-zkvm-platform",
   "sov-modules-api/bench",
   "sov-state/bench",
   "sov-sequencer-registry/bench",

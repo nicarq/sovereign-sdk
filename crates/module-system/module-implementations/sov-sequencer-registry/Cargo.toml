@@ -28,10 +28,6 @@ schemars = { workspace = true }
 serde = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 sov-cycle-utils = { workspace = true, optional = true }
-risc0-zkvm = { workspace = true, default-features = false, features = [
-	"std",
-], optional = true }
-risc0-zkvm-platform = { workspace = true, optional = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
@@ -47,8 +43,6 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 [features]
 bench = [
 	"sov-cycle-utils",
-	"risc0-zkvm",
-	"risc0-zkvm-platform",
 	"sov-modules-api/bench",
 	"sov-sequencer-registry/bench",
 	"sov-state/bench",
