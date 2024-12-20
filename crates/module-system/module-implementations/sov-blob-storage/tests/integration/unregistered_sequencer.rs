@@ -101,6 +101,7 @@ fn blobs_from_non_registered_sequencers_are_limited_to_set_amount_soft_confirmat
             },
         )],
         &mut nonces,
+        0,
     );
 
     slot_to_send.batch_blobs.append(&mut unregistered_blobs);
@@ -136,7 +137,8 @@ fn blobs_from_non_registered_sequencers_base_sequencing() {
         &mut nonces,
     );
 
-    let mut slot_to_send = build_basic_blobs(&vec![preferred_sequencer.clone(); 4], &mut nonces);
+    let mut slot_to_send =
+        build_basic_blobs(&vec![(preferred_sequencer.clone(), 0); 4], &mut nonces);
 
     slot_to_send.batch_blobs.append(&mut unregistered_blobs);
 

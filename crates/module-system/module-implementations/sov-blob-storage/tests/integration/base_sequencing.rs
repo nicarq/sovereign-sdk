@@ -1,7 +1,12 @@
+use std::collections::HashMap;
+use std::env;
+
 use sov_blob_storage::BlobStorage;
+use sov_mock_da::MockBlob;
+use sov_rollup_interface::da::RelevantBlobs;
 
 use crate::helpers_basic_kernel::{
-    assert_blobs_are_correctly_received_basic_kernel, setup_basic_kernel,
+    assert_blobs_are_correctly_received_basic_kernel, build_basic_blobs, setup_basic_kernel,
 };
 use crate::{TestData, S};
 
@@ -51,9 +56,9 @@ fn store_and_retrieve_standard_basic_kernel() {
     // Create three slots, each containing a batch of blobs.
     // We should receive three receipts in the same order as the blobs were sent.
     let slots = vec![
-        vec![preferred_sequencer.clone(); 3],
-        vec![preferred_sequencer.clone()],
-        vec![preferred_sequencer.clone()],
+        vec![(preferred_sequencer.clone(), 0); 3],
+        vec![(preferred_sequencer.clone(), 0)],
+        vec![(preferred_sequencer.clone(), 0)],
     ];
 
     assert_blobs_are_correctly_received_basic_kernel(
@@ -62,4 +67,72 @@ fn store_and_retrieve_standard_basic_kernel() {
         vec![1, 1, 1],
         &mut runner,
     );
+}
+
+#[test]
+fn check_blob_selection() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "1000",
+    );
+    let (
+        TestData {
+            preferred_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup_basic_kernel();
+
+    let mut nonces = HashMap::new();
+
+    {
+        // Only 2 first slots are included. (Total size less than MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE)
+        let slot_to_send = build_basic_blobs(
+            &vec![
+                (preferred_sequencer.clone(), 220),
+                (preferred_sequencer.clone(), 500),
+                (preferred_sequencer.clone(), 300),
+                (preferred_sequencer.clone(), 220),
+            ],
+            &mut nonces,
+        );
+
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+        assert_eq!(result.batch_receipts.len(), 2);
+    }
+
+    {
+        // First slot bigger than MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE
+        let slot_to_send = build_basic_blobs(
+            &vec![
+                (preferred_sequencer.clone(), 1001),
+                (preferred_sequencer.clone(), 500),
+            ],
+            &mut nonces,
+        );
+
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+        assert_eq!(result.batch_receipts.len(), 0);
+    }
+
+    // Test the edge cases.
+    {
+        let slot_to_send = build_basic_blobs(
+            &vec![
+                (preferred_sequencer.clone(), 1000),
+                (preferred_sequencer.clone(), 500),
+            ],
+            &mut nonces,
+        );
+
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+        assert_eq!(result.batch_receipts.len(), 0);
+    }
+
+    {
+        let slot_to_send = build_basic_blobs(&vec![], &mut nonces);
+
+        let result = runner.execute::<RelevantBlobs<MockBlob>>(slot_to_send);
+        assert_eq!(result.batch_receipts.len(), 0);
+    }
 }

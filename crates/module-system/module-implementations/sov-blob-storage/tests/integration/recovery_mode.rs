@@ -74,7 +74,7 @@ fn test_recovery_mode_with_deferred_blobs() {
 
     let mut slots_to_send = deferred_slots
         .iter()
-        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces))
+        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, 0))
         .collect::<Vec<_>>();
 
     let slashing_slot = TestRunner::<SoftConfRT>::batches_to_blobs(

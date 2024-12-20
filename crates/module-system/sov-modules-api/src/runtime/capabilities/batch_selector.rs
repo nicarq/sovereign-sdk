@@ -1,4 +1,4 @@
-use sov_rollup_interface::da::DaSpec;
+use sov_rollup_interface::da::{BlobReaderTrait, DaSpec};
 
 use crate::{KernelStateAccessor, Spec};
 
@@ -9,6 +9,16 @@ pub enum BlobOrigin<'a, T> {
     Batch(&'a mut T),
     /// The blob is from the "proof" namespace. These blobs contain proofs.
     Proof(&'a mut T),
+}
+
+impl<'a, T: BlobReaderTrait> BlobOrigin<'a, T> {
+    /// Returns the total number of bytes in the blob.
+    pub fn total_len(&self) -> usize {
+        match self {
+            BlobOrigin::Batch(b) => b.total_len(),
+            BlobOrigin::Proof(p) => p.total_len(),
+        }
+    }
 }
 
 /// Output of the [`BlobSelector::get_blobs_for_this_slot`] method from the [`BlobSelector`] trait.

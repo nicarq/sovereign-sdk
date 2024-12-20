@@ -1,13 +1,13 @@
 use sov_kernels::soft_confirmations::SoftConfirmationsKernel;
 use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::macros::config_value;
-use sov_modules_api::{CryptoSpec, Gas, GasMeter, GasSpec, Spec};
+use sov_modules_api::{CryptoSpec, Gas, GasMeter, GasSpec, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_sequencer_registry::SequencerRegistry;
 use sov_test_utils::runtime::genesis::zk::config::HighLevelZkGenesisConfig;
 use sov_test_utils::{
     generate_zk_runtime_with_kernel, AsUser, BatchType, SequencerInfo, SoftConfirmationBlobInfo,
-    TestSequencer, TEST_DEFAULT_USER_STAKE,
+    TestSequencer, TransactionType, TEST_DEFAULT_USER_STAKE,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
@@ -106,12 +106,16 @@ pub fn setup_with_registration_soft_confirmation_kernel() -> (TestData<S>, TestR
 pub fn build_soft_confirmation_blobs(
     slot_info: &SlotConfigInfo<(TestSequencer<S>, SequencerInfo)>,
     nonces: &mut HashMap<<<S as Spec>::CryptoSpec as CryptoSpec>::PublicKey, u64>,
+    batch_size: usize,
 ) -> RelevantBlobs<MockBlob> {
     let mut batches = Vec::new();
 
     for (sequencer, additional_info) in slot_info {
         batches.push(SoftConfirmationBlobInfo {
-            batch_type: BatchType(vec![]),
+            batch_type: BatchType(vec![TransactionType::PreSigned(RawTx::new(vec![
+                1;
+                batch_size
+            ]))]),
             sequencer_address: sequencer.da_address,
             sequencer_info: additional_info.clone(),
         });
@@ -145,7 +149,7 @@ pub fn assert_blobs_are_correctly_received_soft_confirmation(
 
     let slots_to_send = sending_order
         .iter()
-        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces))
+        .map(|blobs_slot_info| build_soft_confirmation_blobs(blobs_slot_info, &mut nonces, 0))
         .collect::<Vec<_>>();
 
     assert_blobs_are_correctly_received_helper(

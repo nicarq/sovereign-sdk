@@ -3,7 +3,6 @@ use std::cmp::Ordering;
 use borsh::BorshDeserialize;
 use sov_modules_api::capabilities::{BlobOrigin, BlobSelectorOutput};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::runtime::capabilities::BlobSelector;
 use sov_modules_api::{
     BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec, FullyBakedTx,
     InfallibleKernelStateAccessor, InfallibleStateAccessor, IterableBatchWithId,
@@ -12,6 +11,7 @@ use sov_modules_api::{
 use sov_sequencer_registry::AllowedSequencerError;
 use tracing::{debug, error, info, warn};
 
+use crate::max_size_checker::take_blobs_with_size_limit;
 use crate::{
     config_deferred_slots_count, config_unregistered_blobs_per_slot, BlobStorage,
     PreferredBatchData, PreferredBlobData, PreferredBlobDataWithId, PreferredProofData,
@@ -52,7 +52,7 @@ impl<S: Spec> BlobStorage<S> {
 
     /// Select the blobs to execute this slot using "based sequencing". In this mode,
     /// blobs are processed in the order that they appear on the DA layer.
-    pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
+    fn select_blobs_as_based_sequencer_inner<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
@@ -253,11 +253,11 @@ impl<S: Spec> BlobStorage<S> {
         {
             // If the virtual slot has caught up to the current slot, we don't need any stored blobs.
             // In this case, we act like a normal "based" rollup
-            0 => return self.select_blobs_as_based_sequencer(current_blobs, state),
+            0 => return self.select_blobs_as_based_sequencer_inner(current_blobs, state),
             // If the virtual slot is only trailing by one, we process one stored slot (to catch up) and
             // then process the new blobs from this slot
             1 => {
-                self.select_blobs_as_based_sequencer(current_blobs, state);
+                self.select_blobs_as_based_sequencer_inner(current_blobs, state);
                 1
             }
             // Otherwise, we need to process two slots from storage  - which means that we need to save the new blobs
@@ -572,16 +572,13 @@ impl<S: Spec> BlobStorage<S> {
     }
 }
 
-impl<S: Spec> BlobSelector for BlobStorage<S> {
-    type Spec = S;
-
-    type BlobType = BlobDataWithId;
-
-    // This implementation returns three categories of blobs:
-    // 1. Any blobs sent by the preferred sequencer ("prority blobs")
-    // 2. Any non-priority blobs which were sent `DEFERRED_SLOTS_COUNT` slots ago ("expiring deferred blobs")
-    // 3. Some additional deferred blobs needed to fill the total requested by the sequencer, if applicable. ("bonus blobs")
-    fn get_blobs_for_this_slot<'a, 'k, I>(
+// The public API of the BlobStorage module.
+impl<S: Spec> BlobStorage<S> {
+    /// This implementation returns three categories of blobs:
+    /// 1. Any blobs sent by the preferred sequencer ("prority blobs")
+    /// 2. Any non-priority blobs which were sent `DEFERRED_SLOTS_COUNT` slots ago ("expiring deferred blobs")
+    /// 3. Some additional deferred blobs needed to fill the total requested by the sequencer, if applicable. ("bonus blobs")
+    pub fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
         state: &mut KernelStateAccessor<'k, S::Storage>,
@@ -589,11 +586,12 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
     where
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
+        let current_blobs = take_blobs_with_size_limit::<_, S>(current_blobs);
         // If `DEFERRED_SLOTS_COUNT` is 0, we treat the rollup as having no preferred sequencer.
         // In this case, we just process blobs in the order that they appeared on the DA layer
         if config_deferred_slots_count() == 0 {
             return Ok(self
-                .select_blobs_as_based_sequencer(current_blobs, state)
+                .select_blobs_as_based_sequencer_inner(current_blobs, state)
                 .map_blobs(|b| b.map_batch(IterableBatchWithId::new)));
         }
 
@@ -609,6 +607,20 @@ impl<S: Spec> BlobSelector for BlobStorage<S> {
         Ok(self
             .select_blobs_in_recovery_mode(current_blobs, state)
             .map_blobs(|b| b.map_batch(IterableBatchWithId::new)))
+    }
+
+    /// Select the blobs to execute this slot using "based sequencing". In this mode,
+    /// blobs are processed in the order that they appear on the DA layer.
+    pub fn select_blobs_as_based_sequencer<'a, 'k, I>(
+        &self,
+        current_blobs: I,
+        state: &mut KernelStateAccessor<'k, S::Storage>,
+    ) -> BlobSelectorOutput<S, BlobDataWithId<BatchWithId>>
+    where
+        I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
+    {
+        let current_blobs = take_blobs_with_size_limit::<_, S>(current_blobs);
+        self.select_blobs_as_based_sequencer_inner(current_blobs, state)
     }
 }
 

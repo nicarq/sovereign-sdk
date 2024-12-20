@@ -28,6 +28,7 @@ sov-state = { workspace = true }
 sov-sequencer-registry = { workspace = true }
 sov-chain-state = { workspace = true }
 
+
 [dev-dependencies]
 tempfile = { workspace = true }
 strum = { workspace = true }
