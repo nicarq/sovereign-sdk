@@ -86,7 +86,7 @@ impl ZkVerifier for SP1Verifier {
 }
 
 /// The SP1 Zkvm.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, schemars::JsonSchema)]
 pub struct SP1;
 
 impl sov_rollup_interface::zk::Zkvm for SP1 {

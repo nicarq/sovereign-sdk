@@ -3356,6 +3356,7 @@ dependencies = [
  "hex",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "schemars",
  "serde",
  "sha2",
  "sov-cycle-utils",

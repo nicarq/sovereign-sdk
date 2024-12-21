@@ -5249,6 +5249,7 @@ dependencies = [
  "digest 0.10.7",
  "ed25519-consensus",
  "hex",
+ "schemars",
  "serde",
  "sha2 0.10.8",
  "sov-rollup-interface",

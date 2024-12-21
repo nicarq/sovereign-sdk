@@ -115,7 +115,7 @@ impl ZkVerifier for Risc0Verifier {
 }
 
 /// The Risc0 Zkvm.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, schemars::JsonSchema)]
 pub struct Risc0;
 
 impl sov_rollup_interface::zk::Zkvm for Risc0 {

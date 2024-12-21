@@ -20,6 +20,7 @@ digest = { workspace = true }
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
 risc0-zkvm-platform = { workspace = true }
 serde = { workspace = true }
+schemars = { workspace = true }
 bytemuck = "1.17.0"
 sov-cycle-utils = { workspace = true, features = ["risc0"], optional = true }
 sov-rollup-interface = { workspace = true }
