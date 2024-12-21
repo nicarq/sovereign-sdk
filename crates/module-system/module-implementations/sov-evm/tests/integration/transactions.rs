@@ -6,8 +6,8 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
 use sov_test_utils::{BatchTestCase, SimpleStorageContract, TransactionType};
 
-use crate::helpers::{setup, S};
-use crate::runtime::RT;
+use crate::helpers::setup;
+use crate::runtime::{RT, S};
 
 #[test]
 fn test_executing_eth_transaction() {

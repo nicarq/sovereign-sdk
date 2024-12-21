@@ -1,6 +1,7 @@
 //! The demo-rollup supports `EVM` and `sov-module` authenticators.
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
+use sov_address::EthereumAddress;
 use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
     calculate_hash, AuthenticationError, AuthenticationOutput, AuthorizationData, FatalError,
@@ -16,7 +17,7 @@ use crate::runtime::{Runtime, RuntimeCall};
 
 impl<S: Spec> TransactionAuthenticator<S> for Runtime<S>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
@@ -60,11 +61,8 @@ where
                 pre_exec_ws,
             ),
             Auth::Evm(tx) => {
-                let (tx_and_raw_hash, auth_data, runtime_call) = sov_evm::authenticate::<
-                    _,
-                    S,
-                    EthereumToRollupAddressConverter,
-                >(tx, pre_exec_ws)?;
+                let (tx_and_raw_hash, auth_data, runtime_call) =
+                    sov_evm::authenticate::<_, S>(tx, pre_exec_ws)?;
                 let call = RuntimeCall::Evm(runtime_call);
 
                 Ok((tx_and_raw_hash, auth_data, call))
@@ -139,29 +137,9 @@ pub enum Auth<Evm = Vec<u8>, Mod = Vec<u8>> {
 
 impl<S: Spec> EthereumAuthenticator<S> for Runtime<S>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx.data)
-    }
-}
-
-/// A converter from an Ethereum address to a rollup address.
-pub struct EthereumToRollupAddressConverter(
-    /// The raw bytes of the ethereum address.
-    pub [u8; 20],
-);
-
-impl From<sov_evm::RethAddress> for EthereumToRollupAddressConverter {
-    fn from(address: sov_evm::RethAddress) -> Self {
-        Self(address.into())
-    }
-}
-
-impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverter {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<sov_modules_api::Address<H>, Self::Error> {
-        anyhow::bail!("Not implemented")
     }
 }

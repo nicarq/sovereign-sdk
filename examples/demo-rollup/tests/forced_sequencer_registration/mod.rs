@@ -7,15 +7,17 @@ use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
-use sov_modules_api::{OperatingMode, RawTx};
+use sov_modules_api::{CryptoSpec, OperatingMode, RawTx, Spec};
 use sov_modules_macros::config_value;
 use sov_rollup_interface::node::da::DaService;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
-use sov_test_utils::{TestPrivateKey, TestSpec};
 use tokio::time::sleep;
 
-use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
+use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
+
+type TestSpec = DemoRollupSpec;
+type TestPrivateKey = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
 
 const MAX_TX_FEE: u64 = 100_000_000;
 const UNREGISTERED_SENDER: MockAddress = MockAddress::new([121; 32]);

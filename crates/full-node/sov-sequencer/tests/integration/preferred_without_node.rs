@@ -26,7 +26,7 @@ use crate::utils::{generate_paymaster_tx, generate_txs};
 #[tokio::test(flavor = "multi_thread")]
 async fn restore_txs_from_seq_db() {
     let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
     let batch_builder_config = PreferredBatchBuilderConfig::default();
@@ -92,7 +92,7 @@ async fn restore_txs_from_seq_db() {
 #[tokio::test(flavor = "multi_thread")]
 async fn not_sequencer_safe_txs_are_restricted() {
     let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
     let sequencer = TestSequencerSetup::<
@@ -135,7 +135,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_safe_txs_from_admins_are_accepted() {
     let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
 
     let sequencer = TestSequencerSetup::<

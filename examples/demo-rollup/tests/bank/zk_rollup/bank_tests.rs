@@ -17,11 +17,12 @@ use sov_rollup_interface::zk::aggregated_proof::{
 };
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::tx_sender::TxSender;
-use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
-use crate::test_helpers::test_genesis_source;
+use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
+
+type TestSpec = DemoRollupSpec;
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::OnBatchSubmit;
 

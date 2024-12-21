@@ -27,14 +27,14 @@ impl<S: Spec> ValueSetter<S> {
 #[cfg(test)]
 mod tests {
     use sov_modules_api::prelude::serde_json;
-    use sov_modules_api::Address;
+    use sov_modules_api::Spec;
     use sov_test_utils::TestSpec;
 
     use crate::ValueSetterConfig;
 
     #[test]
     fn test_config_serialization() {
-        let admin = Address::from([1; 32]);
+        let admin = <TestSpec as Spec>::Address::from([1; 32]);
         let config = ValueSetterConfig::<TestSpec> { admin };
 
         let data = r#"

@@ -259,7 +259,7 @@ pub(crate) fn build_challenge(
     .unwrap();
 
     let challenge: StateTransitionPublicData<
-        _,
+        <S as Spec>::Address,
         MockDaSpec,
         <<S as Spec>::Storage as Storage>::Root,
     > = StateTransitionPublicData {

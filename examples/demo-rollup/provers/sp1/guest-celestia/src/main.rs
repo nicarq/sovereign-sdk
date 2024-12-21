@@ -7,11 +7,12 @@ use demo_stf::StfVerifier;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier};
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_sp1_adapter::guest::SP1Guest;
-use sov_sp1_adapter::SP1;
+use sov_sp1_adapter::{SP1, SP1CryptoSpec};
+use sov_address::MultiAddressEvm;
 use sov_state::ZkStorage;
 
 // The rollup stores its data in the namespace b"sov-test" on Celestia
@@ -21,7 +22,7 @@ const ROLLUP_PROOF_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_PROOF_NAMES
 pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();
-    let stf: StfBlueprint<DefaultSpec<CelestiaSpec, SP1, MockZkvm, Zk>, Runtime<_>> =
+    let stf: StfBlueprint<ConfigurableSpec<CelestiaSpec, SP1, MockZkvm, SP1CryptoSpec, MultiAddressEvm, Zk>, Runtime<_>> =
         StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, SP1, MockZkvm>::new(

@@ -36,6 +36,7 @@ members = [
     "crates/module-system/sov-kernels",
     "crates/module-system/sov-state",
     "crates/module-system/sov-modules-api",
+    "crates/module-system/sov-address",
     "crates/module-system/module-schemas",
     "crates/module-system/sov-test-utils",
     "crates/module-system/module-implementations/sov-accounts",
@@ -123,6 +124,7 @@ sov-attester-incentives = { path = "crates/module-system/module-implementations/
 sov-capabilities = { path = "crates/module-system/sov-capabilities", default-features = false, version = "0.3" }
 sov-kernels = { path = "crates/module-system/sov-kernels", default-features = false, version = "0.3" }
 sov-state = { path = "crates/module-system/sov-state", default-features = false, version = "0.3" }
+sov-address = { path = "crates/module-system/sov-address", default-features = false, version = "0.3" }
 sov-rest-utils = { path = "crates/utils/sov-rest-utils", default-features = false, version = "0.3" }
 sov-metrics = { path = "crates/full-node/sov-metrics", default-features = false, version = "0.3" }
 sov-cli = { path = "crates/module-system/sov-cli", default-features = false, version = "0.3" }
@@ -239,6 +241,7 @@ ethers-providers = { version = "=2.0.14", default-features = false }
 ethers-signers = { version = "=2.0.14", default-features = false }
 ethers-middleware = { version = "=2.0.14", default-features = false }
 # ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9, just couple days after 1.0.4
+alloy-primitives = { version = "=0.7.7", default-features = false }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9", default-features = false }
 reth-rpc-types = { git = "https://github.com/paradigmxyz/reth", rev = "ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9", default-features = false }
 reth-rpc-eth-types = { git = "https://github.com/paradigmxyz/reth", rev = "ea25df7ed3b02c951c1d6ed49cee1ba40728f3f9", default-features = false }

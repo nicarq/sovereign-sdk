@@ -12,21 +12,22 @@ use std::sync::Arc;
 use demo_stf::genesis_config::{create_genesis_config, GenesisPaths};
 use demo_stf::runtime::{GenesisConfig, Runtime};
 use prettytable::Table;
+use sov_address::{EthereumAddress, MultiAddressEvm};
 use sov_db::storage_manager::NativeChangeSet;
 use sov_mock_da::{MockAddress, MockDaService, MockDaSpec};
-use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::WitnessGeneration;
-use sov_modules_api::{CryptoSpecExt, SlotData, Spec, ZkVerifier, Zkvm};
+use sov_modules_api::{CryptoSpec, CryptoSpecExt, SlotData, Spec, ZkVerifier, Zkvm};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
-use sov_risc0_adapter::Risc0;
+use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
 use sov_rollup_interface::zk::{
     StateTransitionWitness, StateTransitionWitnessWithAddress, ZkvmHost,
 };
-use sov_sp1_adapter::SP1;
-use sov_state::Storage;
+use sov_sp1_adapter::{SP1CryptoSpec, SP1};
+use sov_state::{DefaultStorageSpec, MerkleProofSpec, ProverStorage, Storage};
 use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::storage::SimpleStorageManager;
 use tempfile::TempDir;
@@ -34,6 +35,8 @@ use tempfile::TempDir;
 use crate::datagen::{generate_genesis_config, get_bench_blocks};
 
 const DEFAULT_GENESIS_CONFIG_DIR: &str = "../test-data/genesis/benchmark";
+
+type AddressType = MultiAddressEvm;
 
 fn print_cycle_averages(metric_map: HashMap<String, (u64, u64)>) {
     let mut metrics_vec: Vec<(String, (u64, u64))> = metric_map
@@ -79,13 +82,17 @@ fn chain_stats(num_blocks: usize, num_blocks_with_txns: usize, num_txns: usize, 
     table.printstd();
 }
 
-type BenchRisc0Spec = DefaultSpec<MockDaSpec, Risc0, Risc0, WitnessGeneration>;
+type BenchRisc0Spec =
+    ConfigurableSpec<MockDaSpec, Risc0, Risc0, Risc0CryptoSpec, AddressType, WitnessGeneration>;
+type Risc0StorageSpec = DefaultStorageSpec<<Risc0CryptoSpec as CryptoSpec>::Hasher>;
+type BenchRisc0Runtime = Runtime<BenchRisc0Spec>;
+type BenchRisc0STF = StfBlueprint<BenchRisc0Spec, BenchRisc0Runtime>;
 
-type BenchRisc0STF = StfBlueprint<BenchRisc0Spec, Runtime<BenchRisc0Spec>>;
-
-type BenchSP1Spec = DefaultSpec<MockDaSpec, SP1, SP1, WitnessGeneration>;
-
-type BenchSP1STF = StfBlueprint<BenchSP1Spec, Runtime<BenchSP1Spec>>;
+type BenchSP1Spec =
+    ConfigurableSpec<MockDaSpec, SP1, SP1, SP1CryptoSpec, AddressType, WitnessGeneration>;
+type SP1StorageSpec = DefaultStorageSpec<<SP1CryptoSpec as CryptoSpec>::Hasher>;
+type BenchSP1Runtime = Runtime<BenchSP1Spec>;
+type BenchSP1STF = StfBlueprint<BenchSP1Spec, BenchSP1Runtime>;
 
 /// Simple enum to select the test mode.
 enum BenchMode {
@@ -145,7 +152,12 @@ async fn main() -> anyhow::Result<()> {
             )
         })
         .leak();
-    run(BenchRisc0STF::new(), elf, BenchMode::Risc0).await?;
+    run::<Risc0, Risc0, BenchRisc0STF, BenchRisc0Spec, Risc0StorageSpec>(
+        BenchRisc0STF::new(),
+        elf,
+        BenchMode::Risc0,
+    )
+    .await?;
 
     // Clear the global hashmap used for collecting metrics to avoid polluting the SP1 results.
     // Dot it in its own scope to prevent the lock from being held for too long.
@@ -156,29 +168,39 @@ async fn main() -> anyhow::Result<()> {
     }
 
     // Run the SP1 benchmarks
-    run(BenchSP1STF::new(), &sp1::SP1_GUEST_MOCK_ELF, BenchMode::SP1).await?;
+    run::<SP1, SP1, BenchSP1STF, BenchSP1Spec, SP1StorageSpec>(
+        BenchSP1STF::new(),
+        &sp1::SP1_GUEST_MOCK_ELF,
+        BenchMode::SP1,
+    )
+    .await?;
     Ok(())
 }
 
-async fn run<InnerVm: Zkvm, OuterVm: Zkvm, Stf>(
+async fn run<InnerVm: Zkvm, OuterVm: Zkvm, Stf, S, Mps>(
     stf: Stf,
     elf: &'static [u8],
     bench_mode: BenchMode,
 ) -> anyhow::Result<()>
 where
+    S: Spec,
+    Mps: MerkleProofSpec,
+    <S as Spec>::Address: From<EthereumAddress>,
     <InnerVm::Verifier as ZkVerifier>::CryptoSpec: CryptoSpecExt,
     <OuterVm::Verifier as ZkVerifier>::CryptoSpec: CryptoSpecExt,
     InnerVm::Host: ZkvmHost<HostArgs = &'static [u8]>,
-    OuterVm::Host:  ZkvmHost<HostArgs = &'static [u8]>,
+    OuterVm::Host: ZkvmHost<HostArgs = &'static [u8]>,
     Stf: StateTransitionFunction<
-    InnerVm,
-    OuterVm,
-    MockDaSpec,
-    ChangeSet = NativeChangeSet,
-    GenesisParams = GenesisParams<GenesisConfig<DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration>, >>,
-    PreState = <DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage,
-    StateRoot = <<DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration> as Spec>::Storage as Storage>::Root,
->,
+        InnerVm,
+        OuterVm,
+        MockDaSpec,
+        ChangeSet = NativeChangeSet,
+        GenesisParams = GenesisParams<GenesisConfig<S>>,
+        PreState = <S as Spec>::Storage,
+        StateRoot = <<S as Spec>::Storage as Storage>::Root,
+    >,
+    S: Spec<Storage = ProverStorage<Mps>>,
+    <S as Spec>::Address: From<[u8; 32]>,
 {
     let genesis_conf_dir = env::var("GENESIS_CONFIG_DIR").unwrap_or_else(|_| {
         println!("GENESIS_CONFIG_DIR not set, using default");
@@ -198,12 +220,11 @@ where
 
     let mut storage_manager = SimpleStorageManager::new(temp_dir.path());
 
-    generate_genesis_config(genesis_conf_dir.as_str())?;
+    generate_genesis_config::<S>(genesis_conf_dir.as_str())?;
 
     let genesis_config = {
-        let rt_params = create_genesis_config::<
-            DefaultSpec<MockDaSpec, InnerVm, OuterVm, WitnessGeneration>,
-        >(&GenesisPaths::from_dir(genesis_conf_dir.as_str()))?;
+        let rt_params =
+            create_genesis_config::<S>(&GenesisPaths::from_dir(genesis_conf_dir.as_str()))?;
 
         GenesisParams { runtime: rt_params }
     };
@@ -219,7 +240,7 @@ where
     storage_manager.commit(stf_changes);
 
     // TODO: Fix this with genesis logic.
-    let blocks = get_bench_blocks(&sequencer_mode).await?;
+    let blocks = get_bench_blocks::<S>(&sequencer_mode).await?;
 
     for filtered_block in blocks {
         num_blocks += 1;
@@ -274,7 +295,7 @@ where
 
         let data = StateTransitionWitnessWithAddress {
             stf_witness: data,
-            prover_address: MockAddress::default(),
+            prover_address: <S as Spec>::Address::from([0; 32]),
         };
 
         host.add_hint(data);

@@ -5,16 +5,21 @@ use sov_bank::{Coins, TokenId};
 use sov_cli::NodeClient;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::transaction::Transaction;
-use sov_modules_api::{AggregatedProofPublicData, PrivateKey, SafeVec, Spec, Storage};
+use sov_modules_api::{
+    Address, AggregatedProofPublicData, CryptoSpec, PrivateKey, SafeVec, Spec, Storage,
+};
 use sov_rollup_interface::node::ledger_api::FinalityStatus;
 use sov_rollup_interface::zk::aggregated_proof::AggregateProofVerifier;
+use sov_test_utils::default_test_signed_transaction;
 use sov_test_utils::test_rollup::read_private_key;
-use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
 
 use super::TOKEN_NAME;
-use crate::test_helpers::CHAIN_HASH;
+use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
 
-pub type SequencerTxSender = sov_test_utils::tx_sender::SequencerTxSender<Runtime<TestSpec>>;
+type TestSpec = DemoRollupSpec;
+
+pub type SequencerTxSender =
+    sov_test_utils::tx_sender::SequencerTxSender<Runtime<TestSpec>, TestSpec>;
 
 pub(crate) struct TestCase {
     pub(crate) wait_for_aggregated_proof: bool,
@@ -35,7 +40,7 @@ impl TestCase {
 }
 
 pub(crate) fn create_keys_and_addresses() -> (
-    TestPrivateKey,
+    <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     <TestSpec as Spec>::Address,
     TokenId,
     <TestSpec as Spec>::Address,
@@ -46,29 +51,32 @@ pub(crate) fn create_keys_and_addresses() -> (
 
     let token_id = sov_bank::get_token_id::<TestSpec>(TOKEN_NAME, &user_address);
 
-    let recipient_key = TestPrivateKey::generate();
-    let recipient_address: <TestSpec as Spec>::Address = recipient_key.to_address();
+    let recipient_key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
+    let address = recipient_key
+        .pub_key()
+        .to_address::<Address<sha2::Sha256>>();
+    let recipient_address = <TestSpec as Spec>::Address::from(address);
 
     (key, user_address, token_id, recipient_address)
 }
 
 pub(crate) fn build_create_token_tx(
-    key: &TestPrivateKey,
+    key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     nonce: u64,
     initial_balance: u64,
 ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-    let user_address: <TestSpec as Spec>::Address = key.to_address();
+    let user_address = key.pub_key().to_address::<Address<sha2::Sha256>>();
     let msg = RuntimeCall::<TestSpec>::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
         token_name: TOKEN_NAME.try_into().unwrap(),
         initial_balance,
-        mint_to_address: user_address,
+        mint_to_address: user_address.into(),
         admins: SafeVec::new(),
     });
     default_test_signed_transaction(key, &msg, nonce, &CHAIN_HASH)
 }
 
 pub(crate) fn build_transfer_token_tx(
-    key: &TestPrivateKey,
+    key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
     amount: u64,
@@ -83,7 +91,7 @@ pub(crate) fn build_transfer_token_tx(
 
 pub(crate) fn build_multiple_transfers(
     amounts: &[u64],
-    signer_key: &TestPrivateKey,
+    signer_key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     token_id: TokenId,
     recipient: <TestSpec as Spec>::Address,
     start_nonce: u64,

@@ -1119,6 +1119,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-accounts",
+ "sov-address",
  "sov-attester-incentives",
  "sov-bank",
  "sov-blob-storage",
@@ -2833,6 +2834,7 @@ checksum = "0e0cc0f1cf93f4969faf3ea1c7d8a9faed25918d96affa959720823dfe86d4f3"
 dependencies = [
  "rand",
  "secp256k1-sys",
+ "serde",
 ]
 
 [[package]]
@@ -3042,6 +3044,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-address"
+version = "0.3.0"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "borsh",
+ "digest 0.10.7",
+ "hex",
+ "reth-primitives",
+ "schemars",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-attester-incentives"
 version = "0.3.0"
 dependencies = [
@@ -3050,6 +3072,7 @@ dependencies = [
  "derivative",
  "schemars",
  "serde",
+ "sov-address",
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",
@@ -3151,6 +3174,7 @@ dependencies = [
  "demo-stf",
  "risc0-zkvm",
  "risc0-zkvm-platform",
+ "sov-address",
  "sov-cycle-utils",
  "sov-kernels",
  "sov-mock-da",
@@ -3179,6 +3203,7 @@ dependencies = [
  "schemars",
  "serde",
  "sha2",
+ "sov-address",
  "sov-kernels",
  "sov-modules-api",
  "sov-rollup-interface",

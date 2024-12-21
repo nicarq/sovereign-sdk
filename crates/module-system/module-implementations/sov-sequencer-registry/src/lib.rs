@@ -23,7 +23,6 @@ use sov_modules_api::{
     BasicAddress, Context, DaSpec, Error, GenesisState, InfallibleStateAccessor, Module, ModuleId,
     ModuleInfo, ModuleRestApi, Spec, StateAccessor, StateMap, StateReader, StateValue, TxState,
 };
-use sov_state::codec::BcsCodec;
 use sov_state::User;
 use thiserror::Error;
 
@@ -73,14 +72,13 @@ pub struct SequencerRegistry<S: Spec> {
     /// We need to map the DA address to the rollup address because the sequencer interacts with the rollup
     /// through the DA layer.
     #[state]
-    pub(crate) allowed_sequencers:
-        StateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>, BcsCodec>,
+    pub(crate) allowed_sequencers: StateMap<<S::Da as DaSpec>::Address, AllowedSequencer<S>>,
 
     /// Optional preferred sequencer.
     /// If set, batches from this sequencer will be processed first in block,
     /// So this sequencer can guarantee soft confirmation time for transactions
     #[state]
-    pub(crate) preferred_sequencer: StateValue<<S::Da as DaSpec>::Address, BcsCodec>,
+    pub(crate) preferred_sequencer: StateValue<<S::Da as DaSpec>::Address>,
 }
 
 /// A special error type that can be raised when calling a method from the sequencer registry

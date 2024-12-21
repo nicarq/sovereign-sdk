@@ -14,6 +14,7 @@ workspace = true
 
 [dependencies]
 # non-optional dependencies
+sov-address = { workspace = true, features = ["evm"] }
 sov-celestia-adapter = { workspace = true, features = ["native"] }
 sov-mock-da = { workspace = true, features = ["native"] }
 const-rollup-config = { workspace = true }
@@ -61,11 +62,11 @@ sov-state = { workspace = true, features = ["native"] }
 sov-cli = { workspace = true }
 clap = { workspace = true }
 secp256k1 = { workspace = true }
-sha2 = { workspace = true }
 sov-cycle-utils = { workspace = true, optional = true }
 
 [dev-dependencies]
 risc0-zkvm = { workspace = true, default-features = false, features = ["std"] }
+sov-address = { workspace = true, features = ["native", "arbitrary"] }
 sov-risc0-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-sp1-adapter = { workspace = true, features = ["native", "arbitrary"] }
 sov-celestia-adapter = { workspace = true, features = ["native", "arbitrary"] }

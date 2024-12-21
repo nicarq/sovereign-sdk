@@ -36,11 +36,11 @@ sov-test-utils = { workspace = true }
 [features]
 default = []
 arbitrary = [
-    "dep:arbitrary",
-    "sov-accounts/arbitrary",
-    "sov-modules-api/arbitrary",
-    "sov-state/arbitrary",
-    "sov-test-utils/arbitrary",
+	"dep:arbitrary",
+	"sov-accounts/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
 ]
 native = [
 	"sov-accounts/native",

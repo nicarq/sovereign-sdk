@@ -9,7 +9,7 @@ use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService, MockDaSpec};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::WitnessGeneration;
-use sov_modules_api::{OperatingMode, SlotData};
+use sov_modules_api::{OperatingMode, SlotData, Spec};
 use sov_modules_stf_blueprint::{GenesisParams, StfBlueprint};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_risc0_adapter::Risc0;
@@ -28,10 +28,12 @@ use tempfile::TempDir;
 use crate::prover::datagen::get_blocks_from_da;
 use crate::test_helpers::test_genesis_paths;
 
-type DefaultSpec = sov_modules_api::default_spec::DefaultSpec<
+type DefaultSpec = sov_modules_api::configurable_spec::ConfigurableSpec<
     sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0,
     sov_mock_zkvm::MockZkvm,
+    sov_mock_zkvm::MockZkvmCryptoSpec,
+    sov_address::MultiAddressEvm,
     WitnessGeneration,
 >;
 
@@ -134,7 +136,10 @@ async fn test_proof_generation() {
 
         let data = StateTransitionWitnessWithAddress {
             stf_witness: data,
-            prover_address: MockAddress::default(),
+            prover_address: <DefaultSpec as Spec>::Address::try_from(
+                MockAddress::default().as_ref(),
+            )
+            .unwrap(),
         };
 
         host.add_hint(data);

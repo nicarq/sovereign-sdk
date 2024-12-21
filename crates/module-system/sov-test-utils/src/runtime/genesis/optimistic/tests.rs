@@ -3,7 +3,7 @@ use sov_attester_incentives::AttesterIncentivesConfig;
 use sov_bank::{Bank, BankConfig};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    Address, CodeCommitmentFor, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey, Spec,
+    CodeCommitmentFor, DaSpec, EncodeCall, Gas, GasArray, GasSpec, PrivateKey, Spec,
 };
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
@@ -75,7 +75,7 @@ fn run_value_setter_txs_with_assertions(
         TransactionTestAssert<TestOptimisticRuntime<TestSpec>, TestSpec>,
     )>,
 ) {
-    let sequencer_rollup_addr = Address::from(SEQUENCER_ADDR);
+    let sequencer_rollup_addr = <TestSpec as Spec>::Address::from(SEQUENCER_ADDR);
     let admin_pkey = TestPrivateKey::generate();
     let admin_addr = (&admin_pkey.pub_key()).into();
     let genesis_config = create_test_rt_genesis_config(
@@ -199,7 +199,7 @@ generate_optimistic_runtime!(TestRuntime <=);
 
 #[test]
 fn test_rollup_height() {
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate();
+    let genesis_config = HighLevelOptimisticGenesisConfig::<TestSpec>::generate();
     let genesis_config = GenesisConfig::from_minimal_config(genesis_config.clone().into());
 
     let runtime = TestRuntime::default();
@@ -221,7 +221,7 @@ fn test_define_token() {
     let token_0_name = &TestTokenName::new("0".to_string());
     let token_1_name = &TestTokenName::new("MyTestToken".to_string());
 
-    let genesis_config = HighLevelOptimisticGenesisConfig::generate()
+    let genesis_config = HighLevelOptimisticGenesisConfig::<TestSpec>::generate()
         .add_accounts_with_default_balance(1)
         .add_accounts_with_token(token_0_name, true, 2, 100_000)
         .add_accounts_with_token(token_1_name, false, 1, 10);
@@ -434,7 +434,7 @@ fn test_define_token_with_mint() {
 
 #[test]
 fn test_define_genesis_config_additional_accounts_with_default_balance() {
-    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+    let mut genesis_config = HighLevelOptimisticGenesisConfig::<TestSpec>::generate();
 
     // By default we don't have any additional accounts
     assert!(genesis_config.additional_accounts.is_empty());
@@ -450,7 +450,7 @@ fn test_define_genesis_config_additional_accounts_with_default_balance() {
 
 #[test]
 fn test_define_genesis_config_additional_accounts_test_user() {
-    let mut genesis_config = HighLevelOptimisticGenesisConfig::generate();
+    let mut genesis_config = HighLevelOptimisticGenesisConfig::<TestSpec>::generate();
 
     // By default we don't have any additional accounts
     assert!(genesis_config.additional_accounts.is_empty());

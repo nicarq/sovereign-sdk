@@ -162,7 +162,7 @@ async fn test_batch_building_with_out_of_gas_error() {
 #[tokio::test(flavor = "multi_thread")]
 async fn not_sequencer_safe_txs_are_restricted() {
     let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,
@@ -207,7 +207,7 @@ async fn not_sequencer_safe_txs_are_restricted() {
 #[tokio::test(flavor = "multi_thread")]
 async fn sequencer_safe_txs_from_admins_are_accepted() {
     let dir = tempfile::tempdir().unwrap();
-    let sequencer_addr = HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR;
+    let sequencer_addr = HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr();
     let da_service = MockDaService::new(sequencer_addr);
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,

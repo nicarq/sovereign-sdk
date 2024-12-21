@@ -16,6 +16,7 @@ sov-mock-zkvm = { path = "../../../../../crates/adapters/mock-zkvm" }
 const-rollup-config = { path = "../../../../const-rollup-config" }
 sov-celestia-adapter = { path = "../../../../../crates/adapters/celestia" }
 sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api" }
+sov-address = { path = "../../../../../crates/module-system/sov-address" }
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }

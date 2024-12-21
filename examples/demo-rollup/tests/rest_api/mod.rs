@@ -14,10 +14,12 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_rollup_interface::common::HexHash;
+use sov_test_utils::default_test_signed_transaction;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
-use sov_test_utils::{default_test_signed_transaction, TestSpec};
 
-use crate::test_helpers::{test_genesis_source, CHAIN_HASH};
+use crate::test_helpers::{test_genesis_source, DemoRollupSpec, CHAIN_HASH};
+
+type TestSpec = DemoRollupSpec;
 
 #[derive(Debug, Deserialize)]
 struct ValueResponse {
@@ -79,7 +81,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
             1, 2, 3, 4, 5, 6, 7, 8,
         ]));
 
-    let tx = default_test_signed_transaction::<Runtime<TestSpec>>(
+    let tx = default_test_signed_transaction::<Runtime<TestSpec>, TestSpec>(
         &key_and_address.private_key,
         &msg,
         0,

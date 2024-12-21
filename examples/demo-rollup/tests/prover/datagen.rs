@@ -10,10 +10,12 @@ use sov_test_utils::generators::BlobBuildingCtx;
 use sov_test_utils::test_rollup::read_private_key;
 use sov_test_utils::MessageGenerator;
 
-type S = sov_modules_api::default_spec::DefaultSpec<
+type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     sov_mock_da::MockDaSpec,
     sov_risc0_adapter::Risc0,
     sov_mock_zkvm::MockZkvm,
+    sov_risc0_adapter::Risc0CryptoSpec,
+    sov_address::MultiAddressEvm,
     WitnessGeneration,
 >;
 

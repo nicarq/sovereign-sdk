@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use anyhow::Context as _;
-use demo_stf::runtime::EthereumToRollupAddressConverter;
+use sov_address::EthereumAddress;
 use sov_ethereum::{EthRpcConfig, EthereumAuthenticator, GasPriceOracleConfig};
 use sov_modules_api::capabilities::HasKernel;
 use sov_modules_api::rest::StateUpdateReceiver;
@@ -19,7 +19,7 @@ pub(crate) fn register_ethereum<
     methods: &mut jsonrpsee::RpcModule<()>,
 ) -> anyhow::Result<()>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     let eth_rpc_config = {
         let eth_signer = eth_dev_signer();

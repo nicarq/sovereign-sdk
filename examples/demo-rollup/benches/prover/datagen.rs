@@ -4,23 +4,23 @@ use std::io::BufWriter;
 use std::path::Path;
 
 use demo_stf::genesis_config::{AccountConfig, AccountData};
+use sov_address::EthereumAddress;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_demo_rollup::MockDemoRollup;
 use sov_mock_da::{MockAddress, MockBlock, MockDaService};
-use sov_modules_api::execution_mode::Native;
-use sov_modules_api::{CredentialId, PrivateKey, PublicKey, Spec};
+use sov_modules_api::{CredentialId, CryptoSpec, PrivateKey, PublicKey, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::generators::bank::BankMessageGenerator;
 use sov_test_utils::generators::BlobBuildingCtx;
-use sov_test_utils::{MessageGenerator, TestHasher, TestPrivateKey, TestSpec};
-
-type S = <MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Spec;
+use sov_test_utils::MessageGenerator;
 
 const DEFAULT_BLOCKS: u64 = 10;
 const DEFAULT_TXNS_PER_BLOCK: u64 = 100;
 const DEFAULT_NUM_PUB_KEYS: u64 = 1000;
 
-pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
+type TestPrivateKey<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey;
+type TestHasher<S> = <<S as Spec>::CryptoSpec as CryptoSpec>::Hasher;
+
+pub fn generate_genesis_config<S: Spec>(config_dir: &str) -> anyhow::Result<()> {
     let num_pub_keys = match env::var("NUM_PUB_KEYS") {
         Ok(num_pub_keys_str) => num_pub_keys_str.parse::<u64>()?,
         Err(_) => {
@@ -31,18 +31,18 @@ pub fn generate_genesis_config(config_dir: &str) -> anyhow::Result<()> {
 
     let mut accs = vec![];
 
-    let priv_keys = (0..num_pub_keys).map(|_| TestPrivateKey::generate());
+    let priv_keys = (0..num_pub_keys).map(|_| TestPrivateKey::<S>::generate());
 
     for priv_key in priv_keys {
-        let credential_id: CredentialId = priv_key.pub_key().credential_id::<TestHasher>();
-        let account = AccountData::<<TestSpec as Spec>::Address> {
+        let credential_id: CredentialId = priv_key.pub_key().credential_id::<TestHasher<S>>();
+        let account = AccountData::<<S as Spec>::Address> {
             credential_id,
-            address: priv_key.to_address(),
+            address: <S as Spec>::Address::from(&priv_key.pub_key()),
         };
         accs.push(account);
     }
 
-    let config = AccountConfig::<TestSpec> { accounts: accs };
+    let config = AccountConfig::<S> { accounts: accs };
 
     let file = File::create(Path::join(Path::new(config_dir), "accounts.json")).unwrap();
     let data_buf = BufWriter::new(file);
@@ -68,7 +68,11 @@ fn read_and_parse_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> 
     key_and_address
 }
 
-pub async fn get_bench_blocks(seq_mode: &BlobBuildingCtx) -> anyhow::Result<Vec<MockBlock>> {
+pub async fn get_bench_blocks<S: Spec>(seq_mode: &BlobBuildingCtx) -> anyhow::Result<Vec<MockBlock>>
+where
+    <S as Spec>::Address: From<EthereumAddress>,
+    <S as Spec>::Address: From<[u8; 32]>,
+{
     let txns_per_block = match env::var("TXNS_PER_BLOCK") {
         Ok(txns_per_block) => txns_per_block.parse::<u64>()?,
         Err(_) => {
@@ -96,10 +100,7 @@ pub async fn get_bench_blocks(seq_mode: &BlobBuildingCtx) -> anyhow::Result<Vec<
             txns_per_block,
             private_key_and_address.private_key,
         );
-    let blob = create_token_message_gen
-        .create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<
-        Native,
-    >>::Runtime>(seq_mode);
+    let blob = create_token_message_gen.create_blobs::<demo_stf::runtime::Runtime<S>>(seq_mode);
 
     let fee = da_service.estimate_fee(blob.len()).await.unwrap();
     da_service
@@ -112,7 +113,7 @@ pub async fn get_bench_blocks(seq_mode: &BlobBuildingCtx) -> anyhow::Result<Vec<
     blocks.push(block1);
 
     for i in 0..block_cnt {
-        let blob = transfer_message_gen.create_blobs::<<MockDemoRollup<Native> as sov_modules_rollup_blueprint::RollupBlueprint<Native>>::Runtime>(seq_mode );
+        let blob = transfer_message_gen.create_blobs::<demo_stf::runtime::Runtime<S>>(seq_mode);
         let fee = da_service.estimate_fee(blob.len()).await.unwrap();
         da_service
             .send_transaction(&blob, fee)

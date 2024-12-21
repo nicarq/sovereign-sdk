@@ -7,8 +7,8 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::RawTx;
 use sov_test_utils::{SimpleStorageContract, TransactionType};
 
-use crate::helpers::{setup, S};
-use crate::runtime::RT;
+use crate::helpers::setup;
+use crate::runtime::{RT, S};
 
 #[test]
 fn test_invalid_contract_execution() {

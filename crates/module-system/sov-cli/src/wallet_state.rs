@@ -380,7 +380,7 @@ mod pubkey_serde {
 
 #[cfg(test)]
 mod tests {
-    use sov_modules_api::Address;
+    use sov_modules_api::Spec;
 
     use super::*;
 
@@ -398,7 +398,7 @@ mod tests {
 
         assert_eq!(
             KeyIdentifier::<S>::ByAddress {
-                address: Address::from([0; 32])
+                address: <S as Spec>::Address::from([0; 32])
             }
             .to_string(),
             "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn"

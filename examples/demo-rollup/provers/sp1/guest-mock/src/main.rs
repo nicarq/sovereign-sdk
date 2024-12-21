@@ -6,11 +6,12 @@ use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_mock_da::{MockDaSpec, MockDaVerifier};
 pub use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
+use sov_address::MultiAddressEvm;
 use sov_sp1_adapter::guest::SP1Guest;
-use sov_sp1_adapter::SP1;
+use sov_sp1_adapter::{SP1, SP1CryptoSpec};
 use sov_state::ZkStorage;
 
 #[cfg_attr(feature = "bench", sov_cycle_utils::macros::cycle_tracker)]
@@ -18,7 +19,7 @@ pub fn main() {
     let guest = SP1Guest::new();
     let storage = ZkStorage::new();
 
-    let stf: StfBlueprint<DefaultSpec<MockDaSpec, SP1, MockZkvm, Zk>, Runtime<_>> =
+    let stf: StfBlueprint<ConfigurableSpec<MockDaSpec, SP1, MockZkvm, SP1CryptoSpec, MultiAddressEvm,Zk>, Runtime<_>> =
         StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, _, _>::new(stf, MockDaVerifier {});

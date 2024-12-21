@@ -1,6 +1,5 @@
 use sov_modules_api::prelude::*;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
-use sov_modules_api::Address;
 
 use crate::query::Response;
 use crate::CallMessage;
@@ -13,7 +12,7 @@ fn test_response_serialization() {
     let mut addr_array = [0u8; 32];
     addr_array.copy_from_slice(&addr);
     let response = Response::AccountExists::<<S as Spec>::Address> {
-        addr: Address::from(addr_array),
+        addr: <S as Spec>::Address::from(addr_array),
     };
 
     let json = serde_json::to_string(&response).unwrap();
@@ -32,7 +31,7 @@ fn test_response_deserialization() {
     let mut addr_array = [0u8; 32];
     addr_array.copy_from_slice(&expected_addr);
     let expected_response = Response::AccountExists::<<S as Spec>::Address> {
-        addr: Address::from(addr_array),
+        addr: <S as Spec>::Address::from(addr_array),
     };
 
     assert_eq!(response, expected_response);

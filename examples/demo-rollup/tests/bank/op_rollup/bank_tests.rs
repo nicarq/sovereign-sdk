@@ -7,7 +7,6 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::tx_sender::TxSender;
-use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
@@ -49,7 +48,7 @@ async fn send_test_bank_txs(
 ) -> anyhow::Result<()> {
     let (key, user_address, token_id, recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
+        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, &user_address)
         .await?;
 
     const NUM_TRANSFERS: u64 = 10;
