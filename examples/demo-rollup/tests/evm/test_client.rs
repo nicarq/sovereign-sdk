@@ -16,7 +16,11 @@ use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use reth_primitives::Bytes;
 use sov_api_spec::WsSubscription;
 use sov_cli::NodeClient;
-use sov_test_utils::{SimpleStorageContract, TestSpec, TEST_DEFAULT_MAX_FEE};
+use sov_test_utils::{SimpleStorageContract, TEST_DEFAULT_MAX_FEE};
+
+use crate::test_helpers::DemoRollupSpec;
+
+type TestSpec = DemoRollupSpec;
 
 const GAS: u64 = 900000u64;
 

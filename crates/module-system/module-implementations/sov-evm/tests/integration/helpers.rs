@@ -7,11 +7,9 @@ use sov_evm::{AccountData, EvmConfig, RlpEvmTransaction, SpecId};
 use sov_modules_api::{CredentialId, HexHash};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::{TestSpec, TestUser};
+use sov_test_utils::TestUser;
 
-use crate::runtime::{GenesisConfig, TestRuntime, RT};
-
-pub(crate) type S = TestSpec;
+use crate::runtime::{GenesisConfig, TestRuntime, RT, S};
 
 pub(crate) struct EvmAccount(SecretKey);
 

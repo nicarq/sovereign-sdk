@@ -333,7 +333,7 @@ fn encode_call(
     nonce: u64,
     call_message: &<TestRuntime<TestSpec> as DispatchCall>::Decodable,
 ) -> RawTx {
-    let tx = default_test_signed_transaction::<TestRuntime<TestSpec>>(
+    let tx = default_test_signed_transaction::<TestRuntime<TestSpec>, TestSpec>(
         key,
         call_message,
         nonce,

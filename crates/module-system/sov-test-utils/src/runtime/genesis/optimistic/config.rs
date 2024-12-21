@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use sov_accounts::{AccountConfig, AccountData, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::{Bank, BankConfig, TokenConfig};
-use sov_mock_da::MockAddress;
-use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
+use sov_modules_api::{
+    CodeCommitmentFor, CryptoSpec, DaSpec, Gas, GasArray, GasSpec, Genesis, Spec, ZkVerifier, Zkvm,
+};
 use sov_nonces::Nonces;
 use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_sequencer_registry::{SequencerConfig, SequencerRegistry};
@@ -13,7 +14,7 @@ use crate::interface::AsUser;
 use crate::runtime::genesis::TestTokenName;
 use crate::runtime::{BlobStorage, ChainState, ChainStateConfig};
 use crate::{
-    TestAttester, TestChallenger, TestSequencer, TestSpec, TestUser, UserTokenInfo,
+    TestAttester, TestChallenger, TestSequencer, TestUser, UserTokenInfo,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_GAS_TOKEN_NAME,
     TEST_LIGHT_CLIENT_FINALIZED_HEIGHT, TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
@@ -108,15 +109,24 @@ impl<S: Spec> HighLevelOptimisticGenesisConfig<S> {
     }
 }
 
-impl HighLevelOptimisticGenesisConfig<TestSpec> {
+impl<S: Spec> HighLevelOptimisticGenesisConfig<S>
+where
+    S::Address: From<sov_modules_api::Address<<S::CryptoSpec as CryptoSpec>::Hasher>>,
+    <S::Da as DaSpec>::Address: From<[u8; 32]>,
+    <<<S as Spec>::InnerZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,
+    <<<S as Spec>::OuterZkvm as Zkvm>::Verifier as ZkVerifier>::CodeCommitment: Default,
+{
     /// The sequencer address used by [`HighLevelOptimisticGenesisConfig::generate`].
-    pub const SEQUENCER_DA_ADDR: MockAddress = MockAddress::new([172; 32]);
+    pub fn sequencer_da_addr() -> <S::Da as DaSpec>::Address {
+        [172; 32].into()
+    }
+
     /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
     /// and no additional accounts.
     pub fn generate() -> Self {
         // The stake value is doubled to ensure that sequencers can still send batches when gas price fluctuates
-        let user_stake_value = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
-            .value(&TestSpec::initial_base_fee_per_gas())
+        let user_stake_value = <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
+            .value(&S::initial_base_fee_per_gas())
             * 2;
 
         let prover_sequencer = TestUser::generate(user_stake_value * 3 + TEST_DEFAULT_USER_BALANCE);
@@ -133,7 +143,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec> {
 
         let sequencer = TestSequencer {
             user_info: prover_sequencer,
-            da_address: Self::SEQUENCER_DA_ADDR,
+            da_address: Self::sequencer_da_addr(),
             bond: user_stake_value,
         };
 
@@ -165,7 +175,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec> {
     pub fn add_accounts_with_balance(mut self, num_accounts: usize, balance: u64) -> Self {
         for _ in 0..num_accounts {
             self.additional_accounts
-                .push(TestUser::<TestSpec>::generate(balance));
+                .push(TestUser::<S>::generate(balance));
         }
 
         self
@@ -187,25 +197,21 @@ impl HighLevelOptimisticGenesisConfig<TestSpec> {
 
         if with_minter {
             additional_accounts.push(
-                TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(
-                    UserTokenInfo {
-                        token_name: token_name.clone(),
-                        balance: account_initial_balance,
-                        is_minter: true,
-                    },
-                ),
+                TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(UserTokenInfo {
+                    token_name: token_name.clone(),
+                    balance: account_initial_balance,
+                    is_minter: true,
+                }),
             );
         }
 
         for _ in 0..num_accounts {
             additional_accounts.push(
-                TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(
-                    UserTokenInfo {
-                        token_name: token_name.clone(),
-                        balance: account_initial_balance,
-                        is_minter: false,
-                    },
-                ),
+                TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE).add_token_info(UserTokenInfo {
+                    token_name: token_name.clone(),
+                    balance: account_initial_balance,
+                    is_minter: false,
+                }),
             );
         }
 
@@ -213,7 +219,7 @@ impl HighLevelOptimisticGenesisConfig<TestSpec> {
     }
 
     /// Adds additional accounts to the genesis config.
-    pub fn add_accounts(mut self, mut additional_accounts: Vec<TestUser<TestSpec>>) -> Self {
+    pub fn add_accounts(mut self, mut additional_accounts: Vec<TestUser<S>>) -> Self {
         self.additional_accounts.append(&mut additional_accounts);
         self
     }

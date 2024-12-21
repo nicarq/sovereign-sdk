@@ -4,12 +4,11 @@ use std::process::exit;
 use anyhow::Context as _;
 use clap::Parser;
 use demo_stf::genesis_config::GenesisPaths;
-use sha2::Sha256;
+use sov_address::MultiAddressEvm;
 use sov_celestia_adapter::CelestiaService;
 use sov_demo_rollup::{CelestiaDemoRollup, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::Address;
 use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_stf_runner::processes::RollupProverConfig;
@@ -119,7 +118,7 @@ async fn new_rollup_with_celestia_da(
 ) -> anyhow::Result<Rollup<CelestiaDemoRollup<Native>, Native>> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
-    let rollup_config: RollupConfig<Address<Sha256>, CelestiaService> =
+    let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
         from_toml_path(rollup_config_path).with_context(|| {
             format!(
                 "Failed to read rollup configuration from {}",
@@ -143,7 +142,7 @@ async fn new_rollup_with_mock_da(
         "Starting rollup on mock DA"
     );
 
-    let rollup_config: RollupConfig<Address<Sha256>, StorableMockDaService> =
+    let rollup_config: RollupConfig<MultiAddressEvm, StorableMockDaService> =
         from_toml_path(rollup_config_path).with_context(|| {
             format!(
                 "Failed to read rollup configuration from {}",

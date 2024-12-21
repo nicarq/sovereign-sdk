@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use serde::de::DeserializeOwned;
 pub use sov_accounts::{AccountConfig, AccountData};
+use sov_address::EthereumAddress;
 use sov_attester_incentives::AttesterIncentivesConfig;
 pub use sov_bank::{BankConfig, Coins, TokenConfig};
 pub use sov_chain_state::ChainStateConfig;
@@ -19,9 +20,9 @@ pub use sov_sequencer_registry::SequencerConfig;
 pub use sov_state::config::Config as StorageConfig;
 pub use sov_value_setter::ValueSetterConfig;
 
-use crate::runtime::Runtime;
 /// Creates config for a rollup with some default settings, the config is used in demos and tests.
-use crate::runtime::{EthereumToRollupAddressConverter, GenesisConfig};
+use crate::runtime::GenesisConfig;
+use crate::runtime::Runtime;
 
 /// Paths pointing to genesis files.
 #[derive(Clone, Debug)]
@@ -73,7 +74,7 @@ pub fn create_genesis_config<S: Spec>(
     genesis_paths: &GenesisPaths,
 ) -> anyhow::Result<<Runtime<S> as RuntimeTrait<S>>::GenesisConfig>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     let bank_config: BankConfig<S> = read_genesis_json(&genesis_paths.bank_genesis_path)?;
 

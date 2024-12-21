@@ -14,7 +14,8 @@ pub use rt_agnostic_blueprint::RtAgnosticBlueprint;
 use serde::{Deserialize, Serialize};
 pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
-pub use sov_mock_zkvm::MockZkvm;
+pub use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
+use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::transaction::{
     PriorityFeeBips, Transaction, TransactionCallable, TxDetails, UnsignedTransaction,
@@ -54,11 +55,9 @@ pub mod interface;
 
 /// The default test spec. Uses a [`MockZkvm`] for both inner and outer vm verification.
 /// Uses [`sov_mock_zkvm::MockZkvmCryptoSpec`] for cryptographic primitives.
-pub type TestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+pub type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 /// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.
-pub type ZkTestSpec =
-    sov_modules_api::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;
+pub type ZkTestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;
 /// The default address type. This is the [`sov_modules_api::RollupAddress`] type defined by the [`TestSpec`].
 pub type TestAddress = <TestSpec as Spec>::Address;
 /// The default test crypto spec type. This is the [`CryptoSpec`] type defined by the [`TestSpec`].
@@ -137,15 +136,15 @@ pub(crate) fn default_test_tx_details<S: Spec>() -> TxDetails<S> {
 }
 
 /// Creates signed transaction with default test parameters from serializable RuntimeCallMessage.
-pub fn default_test_signed_transaction<T: TransactionCallable>(
-    key: &TestPrivateKey,
+pub fn default_test_signed_transaction<T: TransactionCallable, S: Spec>(
+    key: &<<S as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
     msg: &T::Call,
     nonce: u64,
     chain_hash: &[u8; 32],
-) -> Transaction<T, TestSpec> {
-    let tx_details = default_test_tx_details::<TestSpec>();
+) -> Transaction<T, S> {
+    let tx_details = default_test_tx_details::<S>();
 
-    Transaction::<T, TestSpec>::new_signed_tx(
+    Transaction::<T, S>::new_signed_tx(
         key,
         chain_hash,
         UnsignedTransaction::new(

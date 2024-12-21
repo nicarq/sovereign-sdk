@@ -1,7 +1,11 @@
 use helpers::create_batch;
 use rest_api_load_testing::Requests;
+use sov_demo_rollup::MockDemoRollup;
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::Spec;
-use sov_test_utils::TestSpec;
+use sov_modules_rollup_blueprint::RollupBlueprint;
+
+pub type TestSpec = <MockDemoRollup<Native> as RollupBlueprint<Native>>::Spec;
 
 const PRIVATE_KEYS_FILE: &str = "../../test-data/keys/token_deployer_private_key.json";
 const URL: &str = "http://localhost:12346";
@@ -108,9 +112,12 @@ mod helpers {
     use sov_modules_api::prelude::serde::de::DeserializeOwned;
     use sov_modules_api::rest::utils::ResponseObject;
     use sov_modules_api::transaction::Transaction;
-    use sov_modules_api::{Runtime as RuntimeTrait, SafeVec, Spec};
-    use sov_test_utils::{default_test_signed_transaction, TestPrivateKey, TestSpec};
+    use sov_modules_api::{
+        Address, CryptoSpec, PrivateKey, Runtime as RuntimeTrait, SafeVec, Spec,
+    };
+    use sov_test_utils::default_test_signed_transaction;
 
+    use crate::TestSpec;
     const TOKEN_NAME: &str = "TestToken";
 
     struct Client(sov_api_spec::Client);
@@ -122,9 +129,9 @@ mod helpers {
             Self(client)
         }
 
-        pub async fn send_transactions(
+        pub async fn send_transactions<S: Spec>(
             &self,
-            transactions: &[Transaction<Runtime<TestSpec>, TestSpec>],
+            transactions: &[Transaction<Runtime<S>, S>],
         ) {
             let _submitted_batch_info = self
                 .0
@@ -147,20 +154,25 @@ mod helpers {
     }
 
     fn build_create_token_tx(
-        key: &TestPrivateKey,
+        key: &<<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey,
         nonce: u64,
         initial_balance: u64,
     ) -> Transaction<Runtime<TestSpec>, TestSpec> {
-        let user_address = key.to_address();
+        let user_address = key.pub_key().to_address::<Address<sha2::Sha256>>();
 
         let msg = RuntimeCall::Bank(sov_bank::CallMessage::<TestSpec>::CreateToken {
             token_name: TOKEN_NAME.try_into().unwrap(),
             initial_balance,
-            mint_to_address: user_address,
+            mint_to_address: user_address.into(),
             admins: SafeVec::new(),
         });
 
-        default_test_signed_transaction(key, &msg, nonce, &Runtime::<TestSpec>::CHAIN_HASH)
+        default_test_signed_transaction::<Runtime<TestSpec>, TestSpec>(
+            key,
+            &msg,
+            nonce,
+            &Runtime::<TestSpec>::CHAIN_HASH,
+        )
     }
 
     pub(crate) async fn create_batch(

@@ -26,7 +26,8 @@ pub type RTCall = TestOptimisticRuntimeCall<TestSpec>;
 
 pub async fn new_sequencer() -> TestSequencerSetup<MyBatchBuilder> {
     let dir = tempfile::tempdir().unwrap();
-    let da_service = MockDaService::new(HighLevelOptimisticGenesisConfig::SEQUENCER_DA_ADDR);
+    let da_service =
+        MockDaService::new(HighLevelOptimisticGenesisConfig::<TestSpec>::sequencer_da_addr());
 
     let batch_builder_config = StdBatchBuilderConfig {
         mempool_max_txs_count: None,
@@ -43,7 +44,7 @@ pub fn build_tx(
     nonce: u64,
     call_message: &<RT as DispatchCall>::Decodable,
 ) -> RawTx {
-    let tx = default_test_signed_transaction::<RT>(
+    let tx = default_test_signed_transaction::<RT, TestSpec>(
         &setup.admin_private_key,
         call_message,
         nonce,

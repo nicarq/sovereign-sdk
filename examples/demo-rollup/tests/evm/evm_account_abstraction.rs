@@ -3,11 +3,13 @@ use ethers_core::abi::Address;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, read_private_key};
-use sov_test_utils::{TestSpec, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use super::test_client::TestClient;
 use crate::evm::evm_test_helper::{self};
-use crate::test_helpers::CHAIN_HASH;
+use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
+
+type TestSpec = DemoRollupSpec;
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "This test is currently broken. We need to integrate the EVM module with the soft-confirmation kernel to make it work again. Relevant issue: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1904"]

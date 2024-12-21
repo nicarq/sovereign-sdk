@@ -1,0 +1,76 @@
+[package]
+name = "sov-address"
+description = "Provides an address enum for a rollup's Spec:Address type, supporting both standard Sov SDK and custom VM addresses"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+resolver = "2"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+sov-modules-api = { workspace = true }
+sov-rollup-interface = { workspace = true }
+
+anyhow = { workspace = true }
+arbitrary = { workspace = true, optional = true }
+digest = { workspace = true }
+borsh = { workspace = true, features = ["rc", "bytes"] }
+hex = { workspace = true }
+sha2 = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true}
+schemars = { workspace = true }
+rand = { workspace = true, optional = true }
+proptest = { workspace = true, optional = true }
+thiserror = { workspace = true }
+
+# EVM dependencies
+alloy-primitives = { workspace = true, default-features = false, features = [
+	"rlp",
+], optional = true }
+secp256k1 = { workspace = true, features = ["serde"], optional = true }
+reth-primitives = { workspace = true, optional = true }
+
+[dev-dependencies]
+sov-address = { path = ".", features = ["native"] }
+secp256k1 = { workspace = true, features = ["rand-std"] }
+sov-test-utils = { workspace = true }
+bincode = { workspace = true }
+jsonschema = { workspace = true }
+
+[features]
+default = []
+evm = [
+	"dep:secp256k1",
+	"dep:alloy-primitives",
+	"dep:reth-primitives",
+]
+arbitrary = [
+	"dep:arbitrary",
+	"dep:rand",
+	"dep:proptest",
+	"alloy-primitives/arbitrary",
+	"reth-primitives/arbitrary",
+	"sov-address/arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-rollup-interface/arbitrary",
+	"sov-test-utils/arbitrary"
+]
+native = [
+	"dep:rand",
+	"alloy-primitives/std",
+	"reth-primitives/std",
+	"secp256k1/rand",
+	"secp256k1/global-context",
+	"sov-rollup-interface/native",
+	"sov-address/native",
+	"sov-modules-api/native"
+]

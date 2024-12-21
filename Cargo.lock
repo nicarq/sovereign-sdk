@@ -2427,6 +2427,7 @@ dependencies = [
  "schemars",
  "serde",
  "sov-accounts",
+ "sov-address",
  "sov-attester-incentives",
  "sov-bank",
  "sov-blob-storage",
@@ -9522,6 +9523,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-address"
+version = "0.3.0"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "arbitrary",
+ "bincode",
+ "borsh",
+ "digest 0.10.7",
+ "hex",
+ "jsonschema",
+ "proptest",
+ "rand",
+ "reth-primitives",
+ "schemars",
+ "secp256k1",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "sov-address",
+ "sov-modules-api",
+ "sov-rollup-interface",
+ "sov-test-utils",
+ "thiserror",
+]
+
+[[package]]
 name = "sov-api-spec"
 version = "0.3.0"
 dependencies = [
@@ -9553,6 +9581,7 @@ dependencies = [
  "derivative",
  "schemars",
  "serde",
+ "sov-address",
  "sov-attester-incentives",
  "sov-bank",
  "sov-chain-state",
@@ -9715,6 +9744,7 @@ dependencies = [
  "semver 1.0.23",
  "serde",
  "serde_json",
+ "sov-address",
  "sov-bank",
  "sov-mock-da",
  "sov-modules-api",
@@ -9820,6 +9850,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-accounts",
+ "sov-address",
  "sov-api-spec",
  "sov-bank",
  "sov-blob-storage",
@@ -9861,12 +9892,15 @@ dependencies = [
  "borsh",
  "demo-stf",
  "rest-api-load-testing",
+ "sha2 0.10.8",
  "sov-api-spec",
  "sov-bank",
  "sov-cli",
+ "sov-demo-rollup",
  "sov-mock-da",
  "sov-mock-zkvm",
  "sov-modules-api",
+ "sov-modules-rollup-blueprint",
  "sov-test-utils",
  "tokio",
 ]
@@ -9934,8 +9968,8 @@ dependencies = [
  "schemars",
  "secp256k1",
  "serde",
- "serde_json",
  "sha2 0.10.8",
+ "sov-address",
  "sov-eth-dev-signer",
  "sov-evm",
  "sov-kernels",
@@ -10154,6 +10188,7 @@ dependencies = [
  "quote",
  "schemars",
  "serde",
+ "sov-address",
  "sov-bank",
  "sov-modules-api",
  "sov-modules-macros",
@@ -10615,6 +10650,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sov-accounts",
+ "sov-address",
  "sov-api-spec",
  "sov-attester-incentives",
  "sov-bank",
@@ -10731,6 +10767,7 @@ dependencies = [
  "borsh",
  "schemars",
  "serde",
+ "sov-address",
  "sov-modules-api",
  "sov-state",
  "sov-test-utils",

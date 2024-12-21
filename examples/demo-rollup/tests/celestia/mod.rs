@@ -5,20 +5,21 @@ use std::time::Duration;
 use demo_stf::runtime::{self, Runtime};
 use futures::StreamExt;
 use rand::Rng;
+use sov_address::MultiAddressEvm;
 use sov_celestia_adapter::verifier::CelestiaSpec;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_cli::NodeClient;
-use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
-use sov_risc0_adapter::Risc0;
+use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_test_utils::{TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 
 use crate::test_helpers::CHAIN_HASH;
 
-type S = DefaultSpec<CelestiaSpec, Risc0, Risc0, Native>;
+type S = ConfigurableSpec<CelestiaSpec, Risc0, Risc0, Risc0CryptoSpec, MultiAddressEvm, Native>;
 
 fn generate_dynamic_random_vectors(len_range: Range<usize>) -> Vec<Vec<u8>> {
     let mut rng = rand::thread_rng();

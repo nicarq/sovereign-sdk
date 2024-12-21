@@ -1,5 +1,6 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSigned;
+use sov_address::EthereumAddress;
 use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationOutput, AuthorizationData, FatalError,
     TransactionAuthenticator,
@@ -27,14 +28,13 @@ use crate::{CallMessage, RlpEvmTransaction};
 ///
 /// If the caller does plan to derive rollup addresses from evm addresses, they should be sure that their scheme for doing so is deterministic and
 /// collision resistant. You don't want someone to be able to pick a rollup address that someone else is already using!
-pub fn authenticate<
-    Accessor: ProvableStateReader<User, Spec = S>,
-    S: Spec,
-    EvmToRollupAddressConverter: From<reth_primitives::Address> + TryInto<S::Address>,
->(
+pub fn authenticate<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     raw_tx: &[u8],
     state: &mut Accessor,
-) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError> {
+) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError>
+where
+    S::Address: From<EthereumAddress>,
+{
     // TODO: Charge gas for deserialization & signature check.
 
     let (rlp, tx) = parse_input(raw_tx)
@@ -67,13 +67,12 @@ pub fn authenticate<
         authenticated_tx,
     };
 
-    let signer: EvmToRollupAddressConverter = signer.into();
-
+    let ethereum_address: EthereumAddress = signer.into();
     let auth_data = AuthorizationData {
         nonce,
         credential_id,
         credentials,
-        default_address: signer.try_into().ok(),
+        default_address: Some(ethereum_address.into()),
     };
     let call = CallMessage { rlp };
     Ok((tx_and_raw_hash, auth_data, call))

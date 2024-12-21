@@ -2,10 +2,6 @@ use std::str::FromStr;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
-use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::default_spec::DefaultSpec;
-use sov_modules_api::execution_mode::Native;
 use sov_modules_api::sov_universal_wallet::schema::{RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{DispatchCall, PrivateKey, Spec};
@@ -14,9 +10,9 @@ use sov_test_utils::{
     TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE,
 };
 
-use crate::test_helpers::CHAIN_HASH;
+use crate::test_helpers::{DemoRollupSpec, CHAIN_HASH};
 
-type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
+type S = DemoRollupSpec;
 
 fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
     let msg: RuntimeCall<S> = RuntimeCall::Bank(CallMessage::Mint {
@@ -60,7 +56,7 @@ fn test_transfer_template() {
     let expected_bytes = <Runtime<S> as DispatchCall>::encode(&expected_call);
 
     let template_input = r#"{
-        "to": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11],
+        "to": { "Standard": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11] },
         "amount": 4342,
         "token_id": [23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23]
     }"#;

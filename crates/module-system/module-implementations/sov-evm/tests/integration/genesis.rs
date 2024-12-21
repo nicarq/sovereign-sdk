@@ -9,8 +9,8 @@ use sov_evm::{AccountData, Evm, EvmChainConfig, EvmConfig, SpecId};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 
-use crate::helpers::{setup, S};
-use crate::runtime::{GenesisConfig, TestRuntime, RT};
+use crate::helpers::setup;
+use crate::runtime::{GenesisConfig, RT, S};
 
 #[test]
 fn test_genesis_data() {
@@ -158,5 +158,5 @@ fn basic_setup(cfg: EvmConfig) -> TestRunner<RT, S> {
     let genesis_config = HighLevelOptimisticGenesisConfig::generate();
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), cfg);
 
-    TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default())
+    TestRunner::new_with_genesis(genesis.into_genesis_params(), RT::default())
 }

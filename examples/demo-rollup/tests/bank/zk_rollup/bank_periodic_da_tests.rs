@@ -16,11 +16,12 @@ use sov_state::Storage;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::tx_sender::TxSender;
-use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
-use crate::test_helpers::test_genesis_source;
+use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
+
+type TestSpec = DemoRollupSpec;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {

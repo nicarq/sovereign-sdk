@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 #[cfg(feature = "native")]
 use std::str::FromStr;
 
@@ -14,15 +16,10 @@ use secp256k1::ecdsa::Signature;
 use secp256k1::{Message, PublicKey, SECP256K1};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{BasicAddress, CryptoSpec, RollupAddress};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
-
-/// A spec for EVM rollups.
-pub type EvmSpec<Da, InnerZkvm, OuterZkvm, Mode> =
-    ConfigurableSpec<Da, InnerZkvm, OuterZkvm, EvmCryptoSpec, EthereumAddress, Mode>;
 
 #[derive(
     Debug,
@@ -37,7 +34,13 @@ pub type EvmSpec<Da, InnerZkvm, OuterZkvm, Mode> =
     Deserialize,
     UniversalWallet,
 )]
-#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
+#[cfg_attr(
+    feature = "arbitrary",
+    derive(
+        sov_modules_api::prelude::arbitrary::Arbitrary,
+        sov_modules_api::prelude::proptest_derive::Arbitrary
+    )
+)]
 /// A standard 20 byte Ethereum address with checksum.
 pub struct EthereumAddress(#[sov_wallet(as_ty = "[u8;20]", display = "hex")] pub Address);
 
@@ -84,7 +87,8 @@ impl std::str::FromStr for EthereumAddress {
 
 impl BorshDeserialize for EthereumAddress {
     fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
-        let bytes: [u8; 20] = borsh::from_reader(reader)?;
+        let mut bytes = [0u8; 20];
+        reader.read_exact(&mut bytes)?;
         Ok(Self(bytes.into()))
     }
 }

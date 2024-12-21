@@ -10,8 +10,6 @@ use sov_cli::NodeClient;
 use sov_modules_api::transaction::Transaction;
 use sov_modules_api::{Runtime, Spec};
 
-use crate::TestSpec;
-
 /// Submits transactions to the rollup, either directly or via sequencer.
 #[async_trait]
 pub trait TxSender<S: Spec, R: Runtime<S>> {
@@ -28,16 +26,16 @@ pub trait TxSender<S: Spec, R: Runtime<S>> {
 
 /// Submits transactions to the rollup through a sequencer.
 #[derive(Default)]
-pub struct SequencerTxSender<R: Runtime<TestSpec>> {
-    phantom: PhantomData<R>,
+pub struct SequencerTxSender<R: Runtime<S>, S: Spec> {
+    phantom: PhantomData<(R, S)>,
 }
 
 #[async_trait]
-impl<R: Runtime<TestSpec>> TxSender<TestSpec, R> for SequencerTxSender<R> {
+impl<R: Runtime<S>, S: Spec> TxSender<S, R> for SequencerTxSender<R, S> {
     async fn send_txs(
         &self,
         client: &NodeClient,
-        transactions: &[Transaction<R, TestSpec>],
+        transactions: &[Transaction<R, S>],
     ) -> anyhow::Result<u64> {
         let slot_subscription = client
             .client

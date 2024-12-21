@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use demo_stf::runtime::{EthereumToRollupAddressConverter, Runtime};
+use demo_stf::runtime::Runtime;
+use sov_address::{EthereumAddress, MultiAddressEvm};
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
-use sov_modules_api::default_spec::DefaultSpec;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::{ExecutionMode, Native};
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::{CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
@@ -17,7 +18,7 @@ use sov_modules_rollup_blueprint::{
     FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt, WalletBlueprint,
 };
 use sov_risc0_adapter::host::Risc0Host;
-use sov_risc0_adapter::Risc0;
+use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_sequencer::SequenceNumberProvider;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
@@ -32,12 +33,13 @@ pub struct CelestiaDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
-type CelestiaRollupSpec<M> = DefaultSpec<CelestiaSpec, Risc0, MockZkvm, M>;
+type CelestiaRollupSpec<M> =
+    ConfigurableSpec<CelestiaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, M>;
 
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
     CelestiaRollupSpec<M>: PluggableSpec,
-    EthereumToRollupAddressConverter: TryInto<<CelestiaRollupSpec<M> as Spec>::Address>,
+    <CelestiaRollupSpec<M> as Spec>::Address: From<EthereumAddress>,
 {
     type Spec = CelestiaRollupSpec<M>;
     type Runtime = Runtime<Self::Spec>;

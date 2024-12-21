@@ -2,12 +2,13 @@
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
 use sov_mock_da::{MockDaSpec, MockDaVerifier};
+use sov_address::MultiAddressEvm;
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 pub use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
-use sov_risc0_adapter::Risc0;
+use sov_risc0_adapter::{Risc0, Risc0CryptoSpec};
 use sov_state::ZkStorage;
 
 risc0_zkvm::guest::entry!(main);
@@ -17,7 +18,7 @@ fn cycles_per_block() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
 
-    let stf: StfBlueprint<DefaultSpec<MockDaSpec, Risc0, MockZkvm, Zk>, Runtime<_>> =
+    let stf: StfBlueprint<ConfigurableSpec<MockDaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, Zk>, Runtime<_>> =
         StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, _, _>::new(stf, MockDaVerifier {});

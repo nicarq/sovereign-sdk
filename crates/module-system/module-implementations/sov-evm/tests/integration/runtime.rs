@@ -1,12 +1,18 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use reth_primitives::TransactionSigned;
+use sov_address::{EthereumAddress, MultiAddressEvm};
 use sov_evm::Evm;
 use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::transaction::TransactionWithoutCall;
 use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
+use sov_rollup_interface::execution_mode::Native;
 use sov_state::User;
-use sov_test_utils::{generate_bare_runtime, TestSpec};
+use sov_test_utils::{generate_bare_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
+
+type EvmTestSpec =
+    ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, MockZkvmCryptoSpec, MultiAddressEvm, Native>;
 
 generate_bare_runtime! {
     name: TestRuntime,
@@ -14,7 +20,7 @@ generate_bare_runtime! {
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
-    runtime_trait_impl_bounds: [EthereumToRollupAddressConverter: TryInto<S::Address>],
+    runtime_trait_impl_bounds: [S::Address: From<EthereumAddress>],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }
 
@@ -26,7 +32,7 @@ pub enum Auth<T = sov_modules_api::RawTx, U = sov_modules_api::RawTx> {
 
 impl<S: Spec> TransactionAuthenticator<S> for TestRuntime<S>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
@@ -71,9 +77,7 @@ where
         match tx {
             Auth::Evm(tx) => {
                 let (tx_and_raw_hash, auth_data, runtime_call) =
-                    sov_evm::authenticate::<_, _, EthereumToRollupAddressConverter>(
-                        &tx.data, state,
-                    )?;
+                    sov_evm::authenticate::<_, _>(&tx.data, state)?;
                 let call = TestRuntimeCall::Evm(runtime_call);
 
                 Ok((tx_and_raw_hash, auth_data, call))
@@ -114,31 +118,12 @@ where
 
 impl<S: Spec> sov_evm::EthereumAuthenticator<S> for TestRuntime<S>
 where
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx)
     }
 }
 
-/// A converter from an Ethereum address to a rollup address.
-pub struct EthereumToRollupAddressConverter(
-    /// The raw bytes of the ethereum address.
-    pub [u8; 20],
-);
-
-impl From<sov_evm::RethAddress> for EthereumToRollupAddressConverter {
-    fn from(address: sov_evm::RethAddress) -> Self {
-        Self(address.into())
-    }
-}
-
-impl<H> TryInto<sov_modules_api::Address<H>> for EthereumToRollupAddressConverter {
-    type Error = anyhow::Error;
-
-    fn try_into(self) -> Result<sov_modules_api::Address<H>, Self::Error> {
-        anyhow::bail!("Not implemented")
-    }
-}
-
-pub(crate) type RT = TestRuntime<TestSpec>;
+pub(crate) type S = EvmTestSpec;
+pub(crate) type RT = TestRuntime<EvmTestSpec>;

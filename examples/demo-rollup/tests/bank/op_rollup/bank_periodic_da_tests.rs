@@ -13,11 +13,10 @@ use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
 use sov_test_utils::tx_sender::TxSender;
-use sov_test_utils::TestSpec;
 
 use crate::bank::helpers::*;
 use crate::bank::TOKEN_NAME;
-use crate::test_helpers::test_genesis_source;
+use crate::test_helpers::{test_genesis_source, DemoRollupSpec};
 
 const BLOCK_PRODUCING_CONFIG: BlockProducingConfig = BlockProducingConfig::Periodic;
 const ESTIMATED_BLOCK_PROCESSING_TIME: Duration = Duration::from_millis(100);
@@ -58,7 +57,7 @@ async fn send_test_bank_txs(
 
     let (key, user_address, token_id, _recipient_address) = create_keys_and_addresses();
     let token_id_response = client
-        .get_token_id::<TestSpec>(TOKEN_NAME, &user_address)
+        .get_token_id::<DemoRollupSpec>(TOKEN_NAME, &user_address)
         .await?;
     assert_eq!(token_id, token_id_response);
 

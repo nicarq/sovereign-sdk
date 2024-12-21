@@ -33,6 +33,7 @@
 #[cfg(feature = "native")]
 use std::sync::Arc;
 
+use sov_address::EthereumAddress;
 #[cfg(feature = "native")]
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
@@ -45,7 +46,6 @@ use sov_modules_api::macros::{expose_rpc, CliWallet};
 use sov_modules_api::prelude::*;
 use sov_modules_api::{BlobDataWithId, DispatchCall, Event, Genesis, Hooks, MessageCodec, Spec};
 
-pub use crate::authentication::EthereumToRollupAddressConverter;
 use crate::chain_hash;
 #[cfg(feature = "native")]
 use crate::genesis_config::GenesisPaths;
@@ -82,7 +82,7 @@ pub struct Runtime<S: Spec> {
 impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>
 where
     S: Spec,
-    EthereumToRollupAddressConverter: TryInto<S::Address>,
+    S::Address: From<EthereumAddress>,
 {
     const CHAIN_HASH: [u8; 32] = chain_hash::CHAIN_HASH;
 
