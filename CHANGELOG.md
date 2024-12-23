@@ -1,3 +1,5 @@
+## 2024-12-23
+- #2083 Adds a new `MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE` constant in the constants.toml file. This sets the maximum size of data that can be returned by the blob selector.
 ## 2024-12-20
 - #2069 Enable support for sending proofs and batches in parallel. This is a breaking change, requiring SDK consumers to update their code to align with the new API. In most cases, this involves modifying the `da.send_transaction(..).await?` call to `da.send_transaction(..).await.await??`.
 - #2067 Move the retry logic to CelestiaDaService, and remove the DaServiceWithRetries type.

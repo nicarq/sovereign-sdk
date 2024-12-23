@@ -72,6 +72,11 @@ impl BatchWithId {
     pub fn new(batch: Vec<FullyBakedTx>, id: [u8; 32]) -> Self {
         Self { batch, id }
     }
+
+    /// The size of all the transactions in the batch in bytes.
+    pub fn batch_size(&self) -> usize {
+        self.batch.iter().map(|tx| tx.data.len()).sum()
+    }
 }
 
 /// Contains blob data obtained from the DA.
@@ -118,6 +123,17 @@ pub enum BlobDataWithId<B = IterableBatchWithId> {
         /// The id of the blob on the DA layer
         id: [u8; 32],
     },
+}
+
+impl BlobDataWithId<BatchWithId> {
+    /// The size of the blob in bytes.
+    pub fn blob_size(&self) -> usize {
+        match self {
+            BlobDataWithId::Batch(b) => b.batch_size(),
+            BlobDataWithId::Proof { proof, .. } => proof.len(),
+            BlobDataWithId::EmergencyRegistration { tx, .. } => tx.data.len(),
+        }
+    }
 }
 
 /// The control flow to take after beginning to execute a tx.
