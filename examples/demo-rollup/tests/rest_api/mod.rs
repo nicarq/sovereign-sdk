@@ -8,7 +8,7 @@ use futures::StreamExt;
 use serde::Deserialize;
 use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
@@ -33,6 +33,7 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
         BlockProducingConfig::OnBatchSubmit,
         0,
         0,
+        mock_da_risc0_host_args(),
     )
     .with_standard_batch_builder()
     .start()
@@ -70,6 +71,7 @@ async fn setup() -> anyhow::Result<demo_stf_json_client::Client> {
         BlockProducingConfig::OnBatchSubmit,
         0,
         0,
+        mock_da_risc0_host_args(),
     )
     .start()
     .await?;

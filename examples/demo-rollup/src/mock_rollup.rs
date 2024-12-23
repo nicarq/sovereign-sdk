@@ -29,7 +29,8 @@ pub struct MockDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,
 }
 
-type MockRollupSpec<M> =
+/// The default spec of the rollup
+pub type MockRollupSpec<M> =
     ConfigurableSpec<MockDaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, M>;
 
 impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
@@ -106,24 +107,12 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
 
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
+        prover_config: RollupProverConfig<Risc0>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let inner_vm = if let RollupProverConfig::Skip = prover_config {
-            Risc0Host::new(b"")
-        } else {
-            let elf = std::fs::read(risc0::MOCK_DA_PATH)
-                .unwrap_or_else(|e| {
-                    panic!(
-                        "Could not read guest elf file from `{}`. {}",
-                        risc0::MOCK_DA_PATH,
-                        e
-                    )
-                })
-                .leak();
-            Risc0Host::new(elf)
-        };
+        let (host_args, prover_config_discriminant) = prover_config.split();
+        let inner_vm = Risc0Host::new(*host_args);
 
         let outer_vm = MockZkvmHost::new_non_blocking();
         let da_verifier = Default::default();
@@ -132,7 +121,7 @@ impl FullNodeBlueprint<Native> for MockDemoRollup<Native> {
             inner_vm,
             outer_vm,
             da_verifier,
-            prover_config,
+            prover_config_discriminant,
             CodeCommitment::default(),
             rollup_config.proof_manager.prover_address,
         )

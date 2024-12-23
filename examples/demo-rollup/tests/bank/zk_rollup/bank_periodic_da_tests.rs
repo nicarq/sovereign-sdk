@@ -2,7 +2,7 @@ use anyhow::Context;
 use futures::StreamExt;
 use sov_api_spec::types::AggregatedProof as ApiAggregatedProof;
 use sov_cli::NodeClient;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
 use sov_modules_api::execution_mode::Native;
@@ -35,6 +35,7 @@ async fn flaky_bank_tx_tests_periodic_da() -> anyhow::Result<()> {
         BlockProducingConfig::Periodic,
         test_case.finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;

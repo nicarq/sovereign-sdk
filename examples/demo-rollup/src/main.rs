@@ -6,12 +6,15 @@ use clap::Parser;
 use demo_stf::genesis_config::GenesisPaths;
 use sov_address::MultiAddressEvm;
 use sov_celestia_adapter::CelestiaService;
-use sov_demo_rollup::{CelestiaDemoRollup, MockDemoRollup};
+use sov_demo_rollup::{
+    celestia_risc0_host_args, mock_da_risc0_host_args, CelestiaDemoRollup, MockDemoRollup,
+};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
-use sov_stf_runner::processes::RollupProverConfig;
+use sov_risc0_adapter::Risc0;
+use sov_stf_runner::processes::{RollupProverConfig, RollupProverConfigDiscriminants};
 use sov_stf_runner::{from_toml_path, RollupConfig};
 use tracing::debug;
 
@@ -66,11 +69,16 @@ async fn run() -> anyhow::Result<()> {
 
     let rollup_config_path = args.rollup_config_path.as_str();
 
-    let prover_config = parse_prover_config().expect("Failed to parse prover config");
-    tracing::info!(?prover_config, "Running demo rollup with prover config");
+    let prover_config_disc = parse_prover_config().expect("Failed to parse prover config");
+    tracing::info!(
+        ?prover_config_disc,
+        "Running demo rollup with prover config"
+    );
 
     match args.da_layer {
         SupportedDaLayer::Mock => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config(mock_da_risc0_host_args()));
             let rollup = new_rollup_with_mock_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
@@ -81,6 +89,8 @@ async fn run() -> anyhow::Result<()> {
             rollup.run().await
         }
         SupportedDaLayer::Celestia => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config(celestia_risc0_host_args()));
             let rollup = new_rollup_with_celestia_da(
                 &GenesisPaths::from_dir(&args.genesis_config_dir),
                 rollup_config_path,
@@ -93,7 +103,7 @@ async fn run() -> anyhow::Result<()> {
     }
 }
 
-fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
+fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfigDiscriminants>> {
     if let Some(value) = option_env!("SOV_PROVER_MODE") {
         let config = std::str::FromStr::from_str(value).map_err(|error| {
             tracing::error!(value, ?error, "Unknown `SOV_PROVER_MODE` value; aborting");
@@ -101,7 +111,7 @@ fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
         })?;
         #[cfg(debug_assertions)]
         {
-            if config == RollupProverConfig::Prove {
+            if config == RollupProverConfigDiscriminants::Prove {
                 tracing::warn!(prover_config = ?config, "Given RollupProverConfig might cause slow rollup progression if not compiled in release mode.");
             }
         }
@@ -114,7 +124,7 @@ fn parse_prover_config() -> anyhow::Result<Option<RollupProverConfig>> {
 async fn new_rollup_with_celestia_da(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
-    prover_config: Option<RollupProverConfig>,
+    prover_config: Option<RollupProverConfig<Risc0>>,
 ) -> anyhow::Result<Rollup<CelestiaDemoRollup<Native>, Native>> {
     debug!(config_path = rollup_config_path, "Starting Celestia rollup");
 
@@ -135,7 +145,7 @@ async fn new_rollup_with_celestia_da(
 async fn new_rollup_with_mock_da(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
-    prover_config: Option<RollupProverConfig>,
+    prover_config: Option<RollupProverConfig<Risc0>>,
 ) -> anyhow::Result<Rollup<MockDemoRollup<Native>, Native>> {
     debug!(
         config_path = rollup_config_path,

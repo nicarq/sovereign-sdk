@@ -197,6 +197,7 @@ async fn test_with_modules(
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
         0,
+        Default::default(),
     )
     // We are sending transactions with the basic batch builder here.
     // To use the preferred batch builder, one should use a runtime that implements the soft-confirmation

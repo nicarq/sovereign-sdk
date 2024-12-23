@@ -86,6 +86,7 @@ async fn new_test_rollup(
         BlockProducingConfig::Periodic,
         FINALIZATION_BLOCKS,
         minimum_profit_per_tx,
+        Default::default(),
     )
     .set_config(|c| {
         c.rollup_prover_config = RollupProverConfig::Skip;

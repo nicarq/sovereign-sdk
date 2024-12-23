@@ -6,7 +6,7 @@ use sov_rollup_interface::zk::aggregated_proof::AggregatedProofPublicData;
 use sov_rollup_interface::zk::StateTransitionWitness;
 use sov_stf_runner::processes::{
     ParallelProverService, ProofAggregationStatus, ProofProcessingStatus, ProverService,
-    ProverServiceError, RollupProverConfig, StateTransitionInfo,
+    ProverServiceError, RollupProverConfigDiscriminants, StateTransitionInfo,
 };
 use tokio::time;
 
@@ -315,7 +315,7 @@ fn make_new_prover() -> TestProver {
     let inner_vm = MockZkvmHost::new();
     let outer_vm = MockZkvmHost::new_non_blocking();
 
-    let prover_config = RollupProverConfig::Execute;
+    let prover_config = RollupProverConfigDiscriminants::Execute;
     let da_verifier = MockDaVerifier::default();
     TestProver {
         prover_service: ParallelProverService::new(

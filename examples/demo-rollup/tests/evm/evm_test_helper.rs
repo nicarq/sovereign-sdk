@@ -6,9 +6,10 @@ use ethers_signers::{LocalWallet, Signer};
 use futures::future::join_all;
 use futures::stream::BoxStream;
 use futures::StreamExt;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
+use sov_risc0_adapter::Risc0;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use sov_test_utils::SimpleStorageContract;
@@ -18,7 +19,7 @@ use crate::test_helpers::test_genesis_source;
 
 /// Starts test rollup node.  
 pub(crate) async fn start_node(
-    rollup_prover_config: RollupProverConfig,
+    rollup_prover_config: RollupProverConfig<Risc0>,
     finalization_blocks: u32,
 ) -> TestRollup<MockDemoRollup<Native>> {
     // Don't provide a prover since the EVM is not currently provable
@@ -27,6 +28,7 @@ pub(crate) async fn start_node(
         BlockProducingConfig::OnBatchSubmit,
         finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
     .set_config(|c| {
         c.rollup_prover_config = rollup_prover_config;

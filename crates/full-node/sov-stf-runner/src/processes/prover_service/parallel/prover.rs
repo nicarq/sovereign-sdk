@@ -1,5 +1,4 @@
 use std::marker::PhantomData;
-use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 
 use borsh::BorshSerialize;
@@ -20,7 +19,8 @@ use super::state::{ProverState, ProverStatus};
 use super::{ProverServiceError, Verifier};
 use crate::processes::prover_service::block_proof::BlockProof;
 use crate::processes::{
-    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
+    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfigDiscriminants,
+    StateTransitionInfo,
 };
 
 // A prover that generates proofs in parallel using a thread pool. If the pool is saturated,
@@ -74,7 +74,7 @@ where
     pub(crate) fn start_proving<InnerVm>(
         &self,
         state_transition_info: StateTransitionInfo<StateRoot, Witness, <Da as DaService>::Spec>,
-        config: Arc<RollupProverConfig>,
+        config: RollupProverConfigDiscriminants,
         mut inner_vm: InnerVm::Host,
         verifier: Arc<Verifier<Da>>,
     ) -> Result<
@@ -230,22 +230,22 @@ where
 
 fn make_inner_proof<InnerVm>(
     mut vm: InnerVm::Host,
-    config: Arc<RollupProverConfig>,
+    config: RollupProverConfigDiscriminants,
 ) -> anyhow::Result<Vec<u8>>
 where
     InnerVm: Zkvm + 'static,
 {
     let proving_start = std::time::Instant::now();
-    let result = match config.deref() {
-        RollupProverConfig::Skip => Ok(Vec::default()),
-        RollupProverConfig::Execute => {
+    let result = match config {
+        RollupProverConfigDiscriminants::Skip => Ok(Vec::default()),
+        RollupProverConfigDiscriminants::Execute => {
             info!(
                 "Executing in VM without constructing proof using {}",
                 std::any::type_name::<InnerVm>()
             );
             vm.run(false)
         }
-        RollupProverConfig::Prove => {
+        RollupProverConfigDiscriminants::Prove => {
             info!("Generating proof with {}", std::any::type_name::<InnerVm>());
             vm.run(true)
         }

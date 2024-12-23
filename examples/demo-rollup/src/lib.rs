@@ -14,6 +14,9 @@ pub use celestia_rollup::*;
 
 mod eth;
 
+mod zk;
+pub use zk::*;
+
 /// The rollup stores its data in the namespace b"sov-test" on Celestia
 /// You can change this constant to point your rollup at a different namespace
 pub const ROLLUP_BATCH_NAMESPACE: Namespace = Namespace::const_v0(ROLLUP_BATCH_NAMESPACE_RAW);
