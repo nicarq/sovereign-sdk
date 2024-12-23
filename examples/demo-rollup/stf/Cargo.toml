@@ -36,6 +36,7 @@ sov-state = { workspace = true }
 sov-value-setter = { workspace = true }
 sov-kernels = { workspace = true }
 sov-rollup-apis = { workspace = true, optional = true }
+sov-test-utils = { workspace = true, optional = true }
 strum = { workspace = true }
 
 [dev-dependencies]
@@ -75,4 +76,10 @@ native = [
 	"sov-rollup-apis",
 	"sov-paymaster/native",
 	"sov-address/native"
+]
+
+# We only activate test-utils if we also have native since all our test-code use native by default.
+test-utils = [
+	"native",
+	"sov-test-utils"
 ]

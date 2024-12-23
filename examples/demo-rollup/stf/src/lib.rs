@@ -5,6 +5,8 @@ pub mod authentication;
 #[cfg(feature = "native")]
 pub mod genesis_config;
 pub mod runtime;
+#[cfg(feature = "test-utils")]
+mod test_utils;
 
 mod chain_hash;
 

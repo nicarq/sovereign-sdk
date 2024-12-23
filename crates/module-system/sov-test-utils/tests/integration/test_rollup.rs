@@ -11,7 +11,7 @@ use tempfile::TempDir;
 
 generate_optimistic_runtime!(TestRuntime <=);
 
-type TestBlueprint = RtAgnosticBlueprint<TestRuntime<TestSpec>>;
+type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn flaky_test_rollup_shutdown_works_as_expected() {

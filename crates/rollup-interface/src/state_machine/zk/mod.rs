@@ -85,7 +85,7 @@ pub trait ZkvmHost: Clone + Send + Sync + 'static {
 
     /// Constructs a new `ZkvmHost`.
     #[cfg(feature = "native")]
-    fn from_args(args: Self::HostArgs) -> Self;
+    fn from_args(args: &Self::HostArgs) -> Self;
 
     /// Give the guest a piece of advice non-deterministically
     fn add_hint<T: Serialize>(&mut self, item: T);

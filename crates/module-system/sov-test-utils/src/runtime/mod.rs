@@ -4,7 +4,6 @@ use std::net::{Ipv4Addr, SocketAddr};
 use derive_more::derive::Display;
 use reqwest::Client;
 pub use sov_accounts::Accounts;
-pub use sov_attester_incentives;
 pub use sov_attester_incentives::{
     AttesterIncentives, AttesterIncentivesConfig, CallMessage as AttesterCallMessage,
 };
@@ -36,7 +35,7 @@ use sov_modules_stf_blueprint::{
 };
 pub use sov_modules_stf_blueprint::{GenesisParams, Runtime};
 pub use sov_nonces::Nonces;
-pub use sov_paymaster::{self, Paymaster};
+pub use sov_paymaster::Paymaster;
 pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
@@ -48,6 +47,10 @@ pub use sov_value_setter::{
 };
 pub use tokio::sync::watch::Receiver;
 use tokio::sync::watch::{self};
+pub use {
+    sov_accounts, sov_attester_incentives, sov_bank, sov_blob_storage, sov_paymaster,
+    sov_value_setter,
+};
 
 use crate::storage::SimpleStorageManager;
 use crate::{

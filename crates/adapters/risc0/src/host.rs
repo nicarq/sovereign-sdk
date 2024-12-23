@@ -67,7 +67,7 @@ impl<'a> Risc0Host<'a> {
 impl ZkvmHost for Risc0Host<'static> {
     type HostArgs = &'static [u8];
 
-    fn from_args(args: Self::HostArgs) -> Self {
+    fn from_args(args: &Self::HostArgs) -> Self {
         Self::new(args)
     }
 
