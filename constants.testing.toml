@@ -19,6 +19,12 @@ DEFERRED_SLOTS_COUNT = 5
 # We can't slash misbehaving senders because they aren't a registered sequencer with a stake so
 # this serves as protection against spam.
 UNREGISTERED_BLOBS_PER_SLOT = 5
+# The maximum size of a slot that can be held in the BLOB_STORAGE. 
+# The maximum possible limit is u32::MAX, as in some ZKVMs, usize is equivalent to u32. 
+# However, in practice, the limit should be set to a value orders of magnitude smaller.
+MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE = 8388608 # 8MB
+# The maximum size of data that can be returned by the blob selector. 
+MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE = 50331648 # 48MB
 # Number of gas dimensions
 GAS_DIMENSIONS = { const = 2 }
 # The fixed gas price of checking forced sequencer registration transactions.
@@ -75,10 +81,6 @@ BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 ELASTICITY_MULTIPLIER = 2
 # --- End Gas fee adjustment parameters ---
 
-# The maximum size of a slot that can be held in the BLOB_STORAGE. 
-# The maximum possible limit is u32::MAX, as in some ZKVMs, usize is equivalent to u32. 
-# However, in practice, the limit should be set to a value orders of magnitude smaller.
-MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE = 16777216 # 16MB
 
 
 CONST_TOKEN_ID = { const = { bech32 = "token_1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnfxkwm", type = "MyTokenId" } }
