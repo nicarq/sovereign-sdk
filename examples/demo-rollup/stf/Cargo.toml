@@ -39,22 +39,9 @@ sov-rollup-apis = { workspace = true, optional = true }
 sov-test-utils = { workspace = true, optional = true }
 strum = { workspace = true }
 
-[dev-dependencies]
-demo-stf = { path = ".", features = ["native"] }
-tempfile = { workspace = true }
-rand = { workspace = true }
-sov-test-utils = { workspace = true }
-sov-mock-zkvm = { workspace = true, features = ["arbitrary"] }
-sov-modules-stf-blueprint = { workspace = true, features = ["test-utils"] }
-sov-cli = { workspace = true }
-sov-kernels = { workspace = true, features = ["native"] }
-sov-mock-da = { workspace = true, features = ["arbitrary"] }
-sov-evm = { workspace = true, features = ["arbitrary"] }
-
 [features]
 default = []
 native = [
-	"demo-stf/native",
 	"sov-accounts/native",
 	"sov-attester-incentives/native",
 	"sov-bank/native",
@@ -62,8 +49,6 @@ native = [
 	"sov-chain-state/native",
 	"sov-evm/native",
 	"sov-kernels/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-nonces/native",

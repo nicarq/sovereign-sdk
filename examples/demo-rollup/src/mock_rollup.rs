@@ -23,7 +23,7 @@ use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
 
-/// Rollup with MockDa
+/// Rollup with a [`ConfigurableSpec`] with [`MockDaSpec`] as Da spec, [`Risc0`] inner vm and [`MockZkvm`] for outer vm
 #[derive(Default)]
 pub struct MockDemoRollup<M> {
     phantom: std::marker::PhantomData<M>,

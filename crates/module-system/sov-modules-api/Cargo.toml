@@ -97,7 +97,6 @@ bench = [
   "sov-cycle-utils",
   "sov-modules-api/bench",
   "sov-state/bench",
-  "sov-sequencer-registry/bench",
   "sov-risc0-adapter/bench",
 ]
 native = [
