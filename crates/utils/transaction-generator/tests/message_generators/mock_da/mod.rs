@@ -39,7 +39,7 @@ pub const DEFAULT_FINALIZATION_BLOCKS: u32 = 5;
 pub const DEFAULT_TXS_PER_BATCH: u64 = 10;
 pub const DEFAULT_TIMEOUT: Duration = Duration::new(10, 0);
 
-type RollupBlueprint = RtAgnosticBlueprint<RT>;
+type RollupBlueprint = RtAgnosticBlueprint<S, RT>;
 type TestRollupBuilder = RollupBuilder<RollupBlueprint>;
 
 struct TxBuilder {

@@ -83,7 +83,7 @@ impl sov_rollup_interface::zk::ZkvmHost for MockZkvmHost {
         }))?)
     }
 
-    fn from_args(_args: Self::HostArgs) -> Self {
+    fn from_args(_args: &Self::HostArgs) -> Self {
         Self::default()
     }
 }

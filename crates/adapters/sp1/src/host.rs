@@ -105,7 +105,7 @@ impl ZkvmHost for SP1Host<'static> {
     type HostArgs = &'static [u8];
     type Guest = SP1Guest;
 
-    fn from_args(args: Self::HostArgs) -> Self {
+    fn from_args(args: &Self::HostArgs) -> Self {
         Self::new(args)
     }
 

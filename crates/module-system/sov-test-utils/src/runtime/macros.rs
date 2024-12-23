@@ -78,8 +78,7 @@ macro_rules! generate_bare_runtime {
         }
 
         impl<S: ::sov_modules_api::Spec> GenesisConfig<S>
-        where <<S::InnerZkvm as ::sov_modules_api::Zkvm>::Verifier as ::sov_modules_api::ZkVerifier>::CodeCommitment: Default,
-         <<S::OuterZkvm as ::sov_modules_api::Zkvm>::Verifier  as ::sov_modules_api::ZkVerifier>::CodeCommitment: Default,{
+        {
             #[allow(unused)]
             /// Creates a [`$crate::runtime::GenesisParams`] from a [`GenesisConfig`].
             pub fn into_genesis_params(self) -> $crate::runtime::GenesisParams<Self> {
@@ -110,7 +109,7 @@ macro_rules! generate_bare_runtime {
                 }
             }
 
-            fn genesis_config(_input: &Self::GenesisInput) -> anyhow::Result<Self::GenesisConfig> {
+            fn genesis_config(_input: &Self::GenesisInput) -> ::sov_modules_api::prelude::anyhow::Result<Self::GenesisConfig> {
                 unimplemented!()
             }
 

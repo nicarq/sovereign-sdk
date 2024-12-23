@@ -1,7 +1,7 @@
 use sov_accounts::{AccountConfig, Accounts};
 use sov_attester_incentives::{AttesterIncentives, AttesterIncentivesConfig};
 use sov_bank::Bank;
-use sov_mock_da::MockAddress;
+use sov_mock_da::{MockAddress, MockDaSpec};
 use sov_modules_api::{CodeCommitmentFor, Gas, GasArray, GasSpec, Genesis, Spec};
 use sov_nonces::Nonces;
 use sov_prover_incentives::ProverIncentives;
@@ -72,22 +72,21 @@ impl<S: Spec> HighLevelZkGenesisConfig<S> {
             outer_code_commitment,
         }
     }
-}
-
-impl HighLevelZkGenesisConfig<TestSpec> {
-    /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
-    /// and no additional accounts.
-    pub fn generate() -> Self {
-        Self::generate_with_additional_accounts(0)
-    }
 
     /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
     /// and `num_accounts` additional accounts.
-    pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
+    pub fn generate_with_additional_accounts_and_code_commitments(
+        num_accounts: usize,
+        inner_code_commitment: CodeCommitmentFor<S::InnerZkvm>,
+        outer_code_commitment: CodeCommitmentFor<S::OuterZkvm>,
+    ) -> Self
+    where
+        S: Spec<Da = MockDaSpec>,
+    {
         // Generate with default stake * 2 because the user will be staked as a sequencer and a
         // prover.
-        let default_user_stake_value = <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
-            .value(&TestSpec::initial_base_fee_per_gas());
+        let default_user_stake_value =
+            <S as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE).value(&S::initial_base_fee_per_gas());
 
         let prover_sequencer =
             TestUser::generate(default_user_stake_value * 2 + TEST_DEFAULT_USER_BALANCE);
@@ -105,13 +104,31 @@ impl HighLevelZkGenesisConfig<TestSpec> {
         let mut additional_accounts = Vec::with_capacity(num_accounts);
 
         for _ in 0..num_accounts {
-            additional_accounts.push(TestUser::<TestSpec>::generate(TEST_DEFAULT_USER_BALANCE));
+            additional_accounts.push(TestUser::<S>::generate(TEST_DEFAULT_USER_BALANCE));
         }
 
         Self::with_defaults(
             prover,
             sequencer,
             additional_accounts,
+            inner_code_commitment,
+            outer_code_commitment,
+        )
+    }
+}
+
+impl HighLevelZkGenesisConfig<TestSpec> {
+    /// Generates a new high-level genesis config with random addresses, constant amounts (1_000_000_000 tokens)
+    /// and no additional accounts.
+    pub fn generate() -> Self {
+        Self::generate_with_additional_accounts(0)
+    }
+
+    /// Generates a new high-level genesis config with random addresses and constant amounts (1_000_000_000 tokens)
+    /// and `num_accounts` additional accounts.
+    pub fn generate_with_additional_accounts(num_accounts: usize) -> Self {
+        Self::generate_with_additional_accounts_and_code_commitments(
+            num_accounts,
             Default::default(),
             Default::default(),
         )

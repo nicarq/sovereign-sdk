@@ -5,31 +5,34 @@ use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::MockDaSpec;
-use sov_mock_zkvm::{MockCodeCommitment, MockZkvmHost};
+use sov_mock_zkvm::{MockCodeCommitment, MockZkvm, MockZkvmHost};
 use sov_modules_api::capabilities::{AuthorizationData, HasCapabilities, HasKernel};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::prelude::axum::async_trait;
 use sov_modules_api::rest::{HasRestApi, StateUpdateReceiver};
-use sov_modules_api::{BlobDataWithId, CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier};
+use sov_modules_api::{
+    BlobDataWithId, CryptoSpec, RuntimeEndpoints, Spec, SyncStatus, ZkVerifier, Zkvm,
+};
+use sov_modules_rollup_blueprint::pluggable_traits::PluggableSpec;
 use sov_modules_rollup_blueprint::proof_serializer::SovApiProofSerializer;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, RollupBlueprint, SequencerCreationReceipt};
 use sov_modules_stf_blueprint::Runtime as RuntimeTrait;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_sequencer::SequenceNumberProvider;
 use sov_state::{DefaultStorageSpec, ProverStorage, Storage};
 use sov_stf_runner::processes::{ParallelProverService, ProverService, RollupProverConfig};
 use sov_stf_runner::RollupConfig;
 
-type S = crate::TestSpec;
-
 /// A basic, "vanilla" [`FullNodeBlueprint`] to be used for testing.
 #[derive(Default)]
-pub struct RtAgnosticBlueprint<R> {
-    phantom: PhantomData<R>,
+pub struct RtAgnosticBlueprint<S: Spec, R: RuntimeTrait<S>> {
+    phantom: PhantomData<(S, R)>,
 }
 
-impl<R> RollupBlueprint<Native> for RtAgnosticBlueprint<R>
+impl<S, R> RollupBlueprint<Native> for RtAgnosticBlueprint<S, R>
 where
+    S: Spec + PluggableSpec,
     R: RuntimeTrait<S>
         + HasKernel<S, BlobType = BlobDataWithId>
         + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
@@ -40,8 +43,15 @@ where
 }
 
 #[async_trait]
-impl<R> FullNodeBlueprint<Native> for RtAgnosticBlueprint<R>
+impl<S, R> FullNodeBlueprint<Native> for RtAgnosticBlueprint<S, R>
 where
+    S: Spec<
+            Da = MockDaSpec,
+            OuterZkvm = MockZkvm,
+            Storage = ProverStorage<
+                DefaultStorageSpec<<<S as Spec>::CryptoSpec as CryptoSpec>::Hasher>,
+            >,
+        > + PluggableSpec,
     R: RuntimeTrait<S>
         + HasRestApi<S>
         + HasCapabilities<S, AuthorizationData = AuthorizationData<S>>
@@ -107,7 +117,9 @@ where
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
-        let inner_vm = MockZkvmHost::new_non_blocking();
+        let (host_args, prover_config_disc) = prover_config.split();
+
+        let inner_vm = <S::InnerZkvm as Zkvm>::Host::from_args(&host_args);
         let outer_vm = MockZkvmHost::new_non_blocking();
 
         let da_verifier = Default::default();
@@ -116,9 +128,9 @@ where
             inner_vm,
             outer_vm,
             da_verifier,
-            prover_config.into(),
+            prover_config_disc,
             CodeCommitment::default(),
-            rollup_config.proof_manager.prover_address,
+            rollup_config.proof_manager.prover_address.clone(),
         )
     }
 

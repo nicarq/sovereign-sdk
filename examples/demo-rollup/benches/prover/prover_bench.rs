@@ -244,7 +244,7 @@ where
 
     for filtered_block in blocks {
         num_blocks += 1;
-        let mut host = InnerVm::Host::from_args(elf);
+        let mut host = InnerVm::Host::from_args(&elf);
 
         let height = filtered_block.header().height();
         println!(

@@ -33,7 +33,7 @@ generate_optimistic_runtime_with_kernel!(
     value_setter: ValueSetter<S>
 );
 
-type TestBlueprint = RtAgnosticBlueprint<TestRuntime<TestSpec>>;
+type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
 
 #[derive(Debug, Clone, Arbitrary)]
 enum TestingAction {
