@@ -2,6 +2,9 @@ mod parallel;
 
 mod block_proof;
 
+use std::fmt::Debug;
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use borsh::BorshSerialize;
 pub use parallel::ParallelProverService;
@@ -10,30 +13,31 @@ use serde::Serialize;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::SerializedAggregatedProof;
-use sov_rollup_interface::zk::ZkVerifier;
+use sov_rollup_interface::zk::{ZkVerifier, Zkvm, ZkvmHost};
+use strum::{Display, EnumString};
 use thiserror::Error;
 
 pub use crate::processes::StateTransitionInfo;
 
-/// The possible configurations of the prover with the arguments needed to construct them
-#[derive(PartialEq, Eq, strum::Display)]
-#[strum(serialize_all = "snake_case")]
-pub enum ProverMode<Args> {
+/// The possible configurations of the prover
+// We use arcs for cheap cloning
+#[derive(Clone)]
+pub enum RollupProverConfig<Vm: Zkvm> {
     /// Skip proving.
     Skip,
     /// Run the rollup verifier in a zkVM executor.
-    Execute(Args),
+    Execute(Arc<<Vm::Host as ZkvmHost>::HostArgs>),
     /// Run the rollup verifier and create a SNARK of execution.
-    Prove(Args),
+    Prove(Arc<<Vm::Host as ZkvmHost>::HostArgs>),
 }
 
-/// The possible configurations of the prover
+/// The associated discriminants of [`RollupProverConfig`]. Possible configurations of the prover
 // Note: it's best if all string conversions to and from this type (even
 // `Debug`) use the same casing, to avoid bad UX or confusion around env. vars
 // expected behavior.
-#[derive(PartialEq, Eq, Clone, Copy, strum::EnumString, strum::Display)]
+#[derive(Clone, Copy, PartialEq, Eq, EnumString, Display)]
 #[strum(serialize_all = "snake_case")]
-pub enum RollupProverConfig {
+pub enum RollupProverConfigDiscriminants {
     /// Skip proving.
     Skip,
     /// Run the rollup verifier in a zkVM executor.
@@ -42,18 +46,52 @@ pub enum RollupProverConfig {
     Prove,
 }
 
-impl std::fmt::Debug for RollupProverConfig {
+impl Debug for RollupProverConfigDiscriminants {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self)
+        f.write_str(&self.to_string())
     }
 }
 
-impl<Args> From<&ProverMode<Args>> for RollupProverConfig {
-    fn from(value: &ProverMode<Args>) -> Self {
+impl<Vm: Zkvm> From<RollupProverConfig<Vm>> for RollupProverConfigDiscriminants {
+    fn from(value: RollupProverConfig<Vm>) -> Self {
         match value {
-            ProverMode::Skip => Self::Skip,
-            ProverMode::Execute(_) => Self::Execute,
-            ProverMode::Prove(_) => Self::Prove,
+            RollupProverConfig::Prove(_) => RollupProverConfigDiscriminants::Prove,
+            RollupProverConfig::Execute(_) => RollupProverConfigDiscriminants::Execute,
+            RollupProverConfig::Skip => RollupProverConfigDiscriminants::Skip,
+        }
+    }
+}
+
+impl RollupProverConfigDiscriminants {
+    /// Converts the discriminant into a config
+    pub fn into_config<Vm: Zkvm>(
+        self,
+        host_args: Arc<<Vm::Host as ZkvmHost>::HostArgs>,
+    ) -> RollupProverConfig<Vm> {
+        match self {
+            RollupProverConfigDiscriminants::Skip => RollupProverConfig::Skip,
+            RollupProverConfigDiscriminants::Execute => RollupProverConfig::Execute(host_args),
+            RollupProverConfigDiscriminants::Prove => RollupProverConfig::Prove(host_args),
+        }
+    }
+}
+
+impl<Vm: Zkvm> RollupProverConfig<Vm> {
+    /// Splits the rollup prover config into host arguments and an associated discriminant
+    pub fn split(
+        self,
+    ) -> (
+        Arc<<Vm::Host as ZkvmHost>::HostArgs>,
+        RollupProverConfigDiscriminants,
+    ) {
+        match self {
+            RollupProverConfig::Skip => (Default::default(), RollupProverConfigDiscriminants::Skip),
+            RollupProverConfig::Execute(host_args) => {
+                (host_args, RollupProverConfigDiscriminants::Execute)
+            }
+            RollupProverConfig::Prove(host_args) => {
+                (host_args, RollupProverConfigDiscriminants::Prove)
+            }
         }
     }
 }
@@ -154,15 +192,15 @@ mod tests {
 
     #[test]
     fn prover_config_debug_and_display_are_the_same() {
-        let config = RollupProverConfig::Skip;
+        let config = RollupProverConfigDiscriminants::Skip;
         assert_eq!(format!("{:?}", config), format!("{}", config));
     }
 
     #[test]
     fn prover_config_display_from_str() {
-        let config = RollupProverConfig::Skip;
+        let config = RollupProverConfigDiscriminants::Skip;
         assert_eq!(
-            RollupProverConfig::from_str(&config.to_string()).unwrap(),
+            RollupProverConfigDiscriminants::from_str(&config.to_string()).unwrap(),
             config
         );
     }

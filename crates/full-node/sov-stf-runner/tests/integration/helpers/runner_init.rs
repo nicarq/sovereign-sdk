@@ -28,7 +28,7 @@ use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_state::{DefaultStorageSpec, NativeStorage, ProverStorage};
 use sov_stf_runner::processes::{
-    ParallelProverService, RollupProverConfig, WorkflowProcessManager,
+    ParallelProverService, RollupProverConfigDiscriminants, WorkflowProcessManager,
 };
 use sov_stf_runner::{
     initialize_state, HttpServerConfig, ProofManagerConfig, RollupConfig, RunnerConfig,
@@ -230,7 +230,7 @@ pub async fn initialize_runner(
             inner_vm.clone(),
             outer_vm.clone(),
             verifier,
-            RollupProverConfig::Prove,
+            RollupProverConfigDiscriminants::Prove,
             nb_of_prover_threads.unwrap(),
             Default::default(),
             MockAddress::new([0u8; 32]),

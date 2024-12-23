@@ -1,6 +1,6 @@
 use serde::Deserialize;
 use sov_cli::NodeClient;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::rest::utils::ResponseObject;
@@ -26,6 +26,7 @@ async fn flaky_bank_tx_tests() -> anyhow::Result<()> {
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
     .start()
     .await?;

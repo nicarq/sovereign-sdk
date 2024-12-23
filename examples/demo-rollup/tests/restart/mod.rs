@@ -1,19 +1,19 @@
 //! Tests for shutdown/restart cases.
-
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Context;
 use futures::StreamExt;
 use rand::Rng;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::OperatingMode;
+use sov_risc0_adapter::Risc0;
 use sov_rollup_interface::da::BlockHeaderTrait;
 use sov_stf_runner::processes::RollupProverConfig;
-use sov_test_utils::test_rollup::{RollupBuilder, RollupBuilderConfig, TestRollup};
+use sov_test_utils::test_rollup::{RollupBuilder, TestRollup};
 use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::{registry, Layer};
@@ -57,7 +57,7 @@ impl<'a> tracing::field::Visit for MessageVisitor<'a> {
 async fn start_stop_empty(
     operation_mode: OperatingMode,
     finalization_blocks: u32,
-    rollup_prover_config: RollupProverConfig,
+    rollup_prover_config: RollupProverConfig<Risc0>,
 ) -> anyhow::Result<()> {
     let records = Arc::new(Mutex::new(Vec::new()));
     let collector = LogCollector {
@@ -82,10 +82,11 @@ async fn start_stop_empty(
                 BlockProducingConfig::Periodic,
                 finalization_blocks,
                 0,
+                mock_da_risc0_host_args(),
             )
             .set_config(|c| {
                 c.storage = rollup_storage_dir.clone();
-                c.rollup_prover_config = rollup_prover_config;
+                c.rollup_prover_config = rollup_prover_config.clone();
                 c.aggregated_proof_block_jump = 10;
             })
             .start(),
@@ -200,6 +201,7 @@ async fn test_start_prover_manual() -> anyhow::Result<()> {
         BlockProducingConfig::OnAnySubmit,
         finalization_blocks,
         minimum_fee_per_tx,
+        mock_da_risc0_host_args(),
     )
     .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
@@ -343,8 +345,9 @@ async fn check_with_increasing_stf_infos(
         BlockProducingConfig::Manual,
         finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
-    .set_config(|c: &mut RollupBuilderConfig| {
+    .set_config(|c| {
         c.storage = rollup_storage_dir.clone();
         c.rollup_prover_config = RollupProverConfig::Skip;
         c.aggregated_proof_block_jump = aggregated_proof_jump;

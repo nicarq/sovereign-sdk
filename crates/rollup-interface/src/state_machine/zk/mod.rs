@@ -81,7 +81,7 @@ pub trait ZkvmHost: Clone + Send + Sync + 'static {
 
     /// The required arguments to the constructor - usually either a `Vec<u8>`` or a path to the file containing an `ELF`.
     #[cfg(feature = "native")]
-    type HostArgs: Send + 'static;
+    type HostArgs: Send + Sync + 'static + Default;
 
     /// Constructs a new `ZkvmHost`.
     #[cfg(feature = "native")]

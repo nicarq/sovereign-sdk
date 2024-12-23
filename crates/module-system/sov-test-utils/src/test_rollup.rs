@@ -10,9 +10,10 @@ use sov_cli::NodeClient;
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::Spec;
+use sov_modules_api::{Spec, Zkvm};
 use sov_modules_rollup_blueprint::FullNodeBlueprint;
 use sov_modules_stf_blueprint::{GenesisParams, Runtime};
+use sov_rollup_interface::zk::ZkvmHost;
 use sov_sequencer::batch_builders::preferred::PreferredBatchBuilderConfig;
 use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
 use sov_stf_runner::processes::RollupProverConfig;
@@ -44,13 +45,13 @@ pub enum GenesisSource<S: Spec, R: Runtime<S>> {
 /// Various configuration options for [`RollupBuilder`].
 #[allow(missing_docs)]
 #[derive(Clone)]
-pub struct RollupBuilderConfig {
+pub struct RollupBuilderConfig<S: Spec> {
     pub batch_builder_config: BatchBuilderConfig,
     pub prover_address: String,
     pub aggregated_proof_block_jump: usize,
     pub max_infos_in_db: u64,
     pub max_channel_size: u64,
-    pub rollup_prover_config: RollupProverConfig,
+    pub rollup_prover_config: RollupProverConfig<S::InnerZkvm>,
     /// This is wrapped in an [`Arc`] to enable re-use of the same directory
     /// when dropping a [`TestRollup`] and creating a new one. The pattern
     /// looks something like this:
@@ -73,7 +74,7 @@ pub struct RollupBuilderConfig {
 pub struct RollupBuilder<R: FullNodeBlueprint<Native>> {
     genesis: GenesisSource<R::Spec, R::Runtime>,
     da_config: MockDaConfig,
-    config: RollupBuilderConfig,
+    config: RollupBuilderConfig<R::Spec>,
 }
 
 impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
@@ -84,6 +85,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
         minimum_profit_per_tx: u64,
+        zkvm_host_args: Arc<<<<R::Spec as Spec>::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
     ) -> Self {
         let da_config = MockDaConfig {
             // This will be set later based on the storage path. In case of a bug,
@@ -110,7 +112,9 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
                 }),
                 prover_address: TEST_DEFAULT_PROVER_ADDRESS.to_string(),
                 aggregated_proof_block_jump: 1,
-                rollup_prover_config: get_appropriate_rollup_prover_config(),
+                rollup_prover_config: get_appropriate_rollup_prover_config::<R::Spec>(
+                    zkvm_host_args,
+                ),
                 storage: Arc::new(tempfile::tempdir().unwrap()),
             },
         }
@@ -118,7 +122,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
     }
 
     /// Allows to modify configuration options.
-    pub fn set_config(mut self, config_f: impl FnOnce(&mut RollupBuilderConfig)) -> Self {
+    pub fn set_config(mut self, config_f: impl FnOnce(&mut RollupBuilderConfig<R::Spec>)) -> Self {
         config_f(&mut self.config);
         // Storage path might have changed.
         self.set_da_connection_string()
@@ -285,12 +289,14 @@ pub fn read_private_key<S: Spec>(suffix: &str) -> PrivateKeyAndAddress<S> {
 }
 
 /// Parses [`RollupProverConfig`] from its env. variable.
-pub fn get_appropriate_rollup_prover_config() -> RollupProverConfig {
+pub fn get_appropriate_rollup_prover_config<S: Spec>(
+    host_args: Arc<<<S::InnerZkvm as Zkvm>::Host as ZkvmHost>::HostArgs>,
+) -> RollupProverConfig<S::InnerZkvm> {
     let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_else(|_| "0".to_string());
     if skip_guest_build == "1" {
         RollupProverConfig::Skip
     } else {
-        RollupProverConfig::Execute
+        RollupProverConfig::Execute(host_args)
     }
 }
 

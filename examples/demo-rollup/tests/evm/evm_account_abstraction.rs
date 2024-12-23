@@ -1,5 +1,7 @@
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use ethers_core::abi::Address;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockRollupSpec};
+use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_macros::config_value;
 use sov_test_utils::test_rollup::{get_appropriate_rollup_prover_config, read_private_key};
@@ -16,7 +18,8 @@ type TestSpec = DemoRollupSpec;
 async fn test_evm_account_abstraction() {
     let chain_id = config_value!("CHAIN_ID");
     let finalization_blocks = 0;
-    let rollup_prover_config = get_appropriate_rollup_prover_config();
+    let rollup_prover_config =
+        get_appropriate_rollup_prover_config::<MockRollupSpec<Native>>(mock_da_risc0_host_args());
     // tempdir is held here so it is not removed during test run
     let test_rollup = evm_test_helper::start_node(rollup_prover_config, finalization_blocks).await;
 

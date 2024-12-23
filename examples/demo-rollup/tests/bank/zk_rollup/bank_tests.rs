@@ -5,7 +5,7 @@ use sov_bank::event::Event as BankEvent;
 use sov_bank::utils::TokenHolder;
 use sov_bank::Coins;
 use sov_cli::NodeClient;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::{MockCodeCommitment, MockZkVerifier};
@@ -39,6 +39,7 @@ async fn flaky_bank_tx_tests_instant_finality_using_sequencer_tx_submission() ->
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
     .start()
     .await?;
@@ -66,6 +67,7 @@ async fn flaky_bank_tx_tests_non_instant_finality_using_sequencer_tx_submission(
         BLOCK_PRODUCING_CONFIG,
         test_case.finalization_blocks,
         0,
+        mock_da_risc0_host_args(),
     )
     .start()
     .await?;

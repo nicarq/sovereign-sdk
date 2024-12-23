@@ -12,10 +12,8 @@ use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::zk::aggregated_proof::CodeCommitment;
 use sov_rollup_interface::zk::{Zkvm, ZkvmGuest};
 
-use super::{ProverService, ProverServiceError};
-use crate::processes::{
-    ProofAggregationStatus, ProofProcessingStatus, RollupProverConfig, StateTransitionInfo,
-};
+use super::{ProverService, ProverServiceError, RollupProverConfigDiscriminants};
+use crate::processes::{ProofAggregationStatus, ProofProcessingStatus, StateTransitionInfo};
 pub(crate) struct Verifier<Da>
 where
     Da: DaService,
@@ -35,7 +33,7 @@ where
 {
     inner_vm: InnerVm::Host,
     outer_vm: OuterVm::Host,
-    prover_config: Arc<RollupProverConfig>,
+    prover_config: RollupProverConfigDiscriminants,
 
     prover_state: Prover<Address, StateRoot, Witness, Da>,
 
@@ -59,7 +57,7 @@ where
         inner_vm: InnerVm::Host,
         outer_vm: OuterVm::Host,
         da_verifier: Da::Verifier,
-        config: RollupProverConfig,
+        config: RollupProverConfigDiscriminants,
         num_threads: usize,
         code_commitment: CodeCommitment,
         prover_address: Address,
@@ -69,7 +67,7 @@ where
         Self {
             inner_vm,
             outer_vm,
-            prover_config: Arc::new(config),
+            prover_config: config,
             prover_state: Prover::new(prover_address, num_threads, code_commitment),
             verifier,
         }
@@ -81,7 +79,7 @@ where
         inner_vm: InnerVm::Host,
         outer_vm: OuterVm::Host,
         da_verifier: Da::Verifier,
-        config: RollupProverConfig,
+        config: RollupProverConfigDiscriminants,
         code_commitment: CodeCommitment,
         prover_address: Address,
     ) -> Self {
@@ -136,7 +134,7 @@ where
 
         self.prover_state.start_proving::<InnerVm>(
             state_transition_info,
-            self.prover_config.clone(),
+            self.prover_config,
             inner_vm,
             self.verifier.clone(),
         )

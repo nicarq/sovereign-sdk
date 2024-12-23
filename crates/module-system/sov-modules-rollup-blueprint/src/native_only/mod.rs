@@ -117,7 +117,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
     /// Creates an instance of [`ProverService`].
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
+        prover_config: RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         da_service: &Self::DaService,
     ) -> Self::ProverService;
@@ -151,7 +151,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         &self,
         runtime_genesis_paths: &<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisInput,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        prover_config: Option<RollupProverConfig>,
+        prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
         <Self::Spec as Spec>::Storage: NativeStorage,
@@ -236,7 +236,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
         &self,
         genesis_params: GenesisParams<<Self::Runtime as RuntimeTrait<Self::Spec>>::GenesisConfig>,
         rollup_config: RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
-        prover_config: Option<RollupProverConfig>,
+        prover_config: Option<RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>>,
     ) -> anyhow::Result<Rollup<Self, M>>
     where
         <Self::Spec as Spec>::Storage: NativeStorage,

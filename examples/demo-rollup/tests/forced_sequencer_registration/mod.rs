@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_cli::NodeClient;
-use sov_demo_rollup::MockDemoRollup;
+use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaConfig, MockDaSpec};
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, UnsignedTransaction};
@@ -40,6 +40,7 @@ async fn flaky_test_forced_sequencer_registration() -> anyhow::Result<()> {
         BlockProducingConfig::Periodic,
         1,
         0,
+        mock_da_risc0_host_args(),
     )
     .with_standard_batch_builder()
     .set_config(|c| {

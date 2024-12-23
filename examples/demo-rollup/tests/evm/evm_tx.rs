@@ -1,3 +1,6 @@
+use sov_demo_rollup::{mock_da_risc0_host_args, MockRollupSpec};
+use sov_modules_api::execution_mode::Native;
+use sov_modules_api::Spec;
 use sov_modules_macros::config_value;
 use sov_stf_runner::processes::RollupProverConfig;
 use sov_test_utils::test_rollup::get_appropriate_rollup_prover_config;
@@ -7,7 +10,8 @@ use super::test_client::TestClient;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn evm_tx_tests_instant_finality() -> anyhow::Result<()> {
-    let rollup_prover_config = get_appropriate_rollup_prover_config();
+    let rollup_prover_config =
+        get_appropriate_rollup_prover_config::<MockRollupSpec<Native>>(mock_da_risc0_host_args());
     evm_tx_test(0, rollup_prover_config).await
 }
 
@@ -18,7 +22,7 @@ async fn evm_tx_tests_non_instant_finality() -> anyhow::Result<()> {
 
 async fn evm_tx_test(
     finalization_blocks: u32,
-    rollup_prover_config: RollupProverConfig,
+    rollup_prover_config: RollupProverConfig<<MockRollupSpec<Native> as Spec>::InnerZkvm>,
 ) -> anyhow::Result<()> {
     let chain_id = config_value!("CHAIN_ID");
     // temp_dir is hold here os it is not removed during test run

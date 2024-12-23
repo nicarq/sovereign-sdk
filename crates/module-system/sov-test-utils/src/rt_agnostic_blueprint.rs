@@ -103,7 +103,7 @@ where
 
     async fn create_prover_service(
         &self,
-        prover_config: RollupProverConfig,
+        prover_config: RollupProverConfig<<Self::Spec as Spec>::InnerZkvm>,
         rollup_config: &RollupConfig<<Self::Spec as Spec>::Address, Self::DaService>,
         _da_service: &Self::DaService,
     ) -> Self::ProverService {
@@ -116,7 +116,7 @@ where
             inner_vm,
             outer_vm,
             da_verifier,
-            prover_config,
+            prover_config.into(),
             CodeCommitment::default(),
             rollup_config.proof_manager.prover_address,
         )
