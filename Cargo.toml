@@ -13,6 +13,7 @@ members = [
     "examples/const-rollup-config",
     "examples/demo-simple-stf",
     "examples/demo-rollup",
+    "examples/demo-rollup/sov-benchmarks",
     "examples/demo-rollup/rest-api-load-testing",
     "examples/demo-rollup/stf/demo-stf-json-client",
     # Full Node
@@ -93,7 +94,9 @@ float_arithmetic = "deny"              # Can cause subtle bugs due to different 
 arrayvec = { version = "0.7.6", features = ["serde", "borsh"] }
 console-subscriber = "0.4"
 const-rollup-config = { path = "examples/const-rollup-config", default-features = false, version = "0.3" }
+sov-demo-rollup = { path = "examples/demo-rollup", default-features = false, version = "0.3" }
 demo-stf = { path = "examples/demo-rollup/stf", default-features = false, version = "0.3" }
+sov-benchmarks = { path = "examples/demo-rollup/sov-benchmarks", version = "0.3" }
 demo-stf-json-client = { path = "examples/demo-rollup/stf/demo-stf-json-client", default-features = false, version = "0.3" }
 sov-ethereum = { path = "crates/full-node/sov-ethereum", default-features = false, version = "0.3" }
 sov-celestia-adapter = { path = "crates/adapters/celestia", default-features = false, version = "0.3" }

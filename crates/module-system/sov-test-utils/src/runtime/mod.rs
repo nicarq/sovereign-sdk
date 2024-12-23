@@ -116,6 +116,8 @@ pub struct TestRunner<RT: Runtime<S>, S: Spec> {
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
+    #[allow(unused)]
+    storage_dir: tempfile::TempDir,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::checkpoint_receiver`].
     checkpoint_sender: watch::Sender<StateCheckpoint<S::Storage>>,
@@ -273,6 +275,11 @@ where
         &self.nonces
     }
 
+    /// Returns a mutable reference to the nonces used by the state runner
+    pub fn nonces_mut(&mut self) -> &mut HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64> {
+        &mut self.nonces
+    }
+
     /// Returns the state of the rollup at the visible height.
     fn visible_state(&self) -> ApiStateAccessor<S> {
         let stf_state = self.storage_manager.create_storage();
@@ -420,8 +427,8 @@ where
         let stf = StfBlueprint::<S, RT>::with_runtime(runtime);
 
         // ----- Setup and run genesis ---------
-        let temp_dir = tempfile::tempdir().unwrap();
-        let mut storage_manager = SimpleStorageManager::new(temp_dir.path());
+        let storage_dir = tempfile::tempdir().unwrap();
+        let mut storage_manager = SimpleStorageManager::new(storage_dir.path());
 
         let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
@@ -455,6 +462,7 @@ where
             nonces: HashMap::new(),
             slot_receipts: Vec::new(),
             state_root,
+            storage_dir,
             storage_manager,
             stf,
             axum_server: Default::default(),

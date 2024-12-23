@@ -6519,7 +6519,6 @@ dependencies = [
  "schemars",
  "serde",
  "sov-bank",
- "sov-cycle-utils",
  "sov-modules-api",
  "sov-state",
  "thiserror",

@@ -27,8 +27,10 @@ sov-modules-stf-blueprint = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true }
 demo-stf = { workspace = true, features = ["native"] }
+
 risc0 = { path = "./provers/risc0" }
 sp1 = { path = "./provers/sp1" }
+
 borsh = { workspace = true, features = ["bytes"] }
 async-trait = { workspace = true }
 anyhow = { workspace = true }
@@ -123,37 +125,6 @@ demo-stf = { workspace = true, features = ["native"] }
 default = []
 # Used for using different encoding between host and guest
 bincode = ["risc0/bincode", "sov-risc0-adapter/bincode"]
-bench = [
-    "hex",
-    "risc0/bench",
-    "sp1/bench",
-    "sov-celestia-adapter/bench",
-    "sov-modules-api/bench",
-    "sov-modules-stf-blueprint/bench",
-    "sov-risc0-adapter/bench",
-    "sov-state/bench",
-    "sov-sequencer-registry/bench",
-    "sov-sp1-adapter/bench",
-    "sov-cycle-utils",
-]
-
-[[bench]]
-name = "rollup_bench"
-path = "benches/node/rollup_bench.rs"
-harness = false
-required-features = ["bench"]
-
-[[bench]]
-name = "rollup_coarse_measure"
-path = "benches/node/rollup_coarse_measure.rs"
-harness = false
-required-features = ["bench"]
-
-[[bench]]
-name = "prover_bench"
-path = "benches/prover/prover_bench.rs"
-harness = false
-required-features = ["bench"]
 
 [[bin]]
 name = "sov-cli"

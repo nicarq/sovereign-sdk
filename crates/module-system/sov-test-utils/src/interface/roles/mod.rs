@@ -8,7 +8,7 @@ mod sequencer;
 
 pub use attester_incentives::*;
 pub use prover::{TestProver, TestProverConfig};
-pub use sequencer::{TestSequencer, TestSequencerConfig};
+pub use sequencer::{TestPreferredSequencer, TestSequencer, TestSequencerConfig};
 
 use super::TransactionType;
 use crate::runtime::genesis::TestTokenName;

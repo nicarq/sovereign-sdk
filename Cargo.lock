@@ -2422,8 +2422,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "demo-stf",
- "rand",
  "schemars",
  "serde",
  "sov-accounts",
@@ -2433,11 +2431,8 @@ dependencies = [
  "sov-blob-storage",
  "sov-capabilities",
  "sov-chain-state",
- "sov-cli",
  "sov-evm",
  "sov-kernels",
- "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-nonces",
@@ -2450,7 +2445,6 @@ dependencies = [
  "sov-test-utils",
  "sov-value-setter",
  "strum 0.26.3",
- "tempfile",
 ]
 
 [[package]]
@@ -9623,6 +9617,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-benchmarks"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "criterion",
+ "demo-stf",
+ "hex",
+ "humantime",
+ "prettytable-rs",
+ "risc0",
+ "serde",
+ "sov-address",
+ "sov-celestia-adapter",
+ "sov-cycle-utils",
+ "sov-demo-rollup",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-modules-rollup-blueprint",
+ "sov-modules-stf-blueprint",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "sov-sequencer",
+ "sov-sp1-adapter",
+ "sov-state",
+ "sov-test-utils",
+ "sp1",
+ "strum 0.26.3",
+ "tempfile",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sov-blob-storage"
 version = "0.3.0"
 dependencies = [
@@ -10512,7 +10540,6 @@ dependencies = [
  "serde",
  "sov-bank",
  "sov-chain-state",
- "sov-cycle-utils",
  "sov-mock-da",
  "sov-modules-api",
  "sov-sequencer-registry",

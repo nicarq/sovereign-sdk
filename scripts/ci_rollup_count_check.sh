@@ -2,7 +2,7 @@
 export BLOCKS=10
 export TXNS_PER_BLOCK=10000
 export TPS=1000
-(cd examples/demo-rollup/benches/node && make basic 2>&1) | tee output.log
+(cd examples/demo-rollup/sov-benchmarks/src/node && make basic 2>&1) | tee output.log
 
 output_file="output.log"
 

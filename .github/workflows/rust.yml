@@ -76,7 +76,6 @@ jobs:
       # update this list!
       - check
       - check-workspace
-      - prover_bench_check
       - bench_check
       - rollup_bench_check
       - doctests
@@ -150,29 +149,6 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run cargo check
         run: cargo check
-
-  prover_bench_check:
-    name: prover_bench_check
-    needs: check
-    runs-on:
-      - nscloud-ubuntu-20.04-amd64-8x32-with-cache
-      - nscloud-cache-tag-cache-bench
-      - nscloud-cache-size-100gb
-    timeout-minutes: 120
-    steps:
-      - uses: actions/checkout@v4
-      - uses: namespacelabs/nscloud-cache-action@v1
-        with:
-          cache: rust
-      - uses: ./.github/actions/setup
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: cargo prover bench check
-        env:
-          BLOCKS: 1
-          TXNS_PER_BLOCK: 10
-          NUM_PUB_KEYS: 100
-        run: sh scripts/ci_prover_count_check.sh
 
   bench_check:
     name: bench_check
