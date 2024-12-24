@@ -343,7 +343,7 @@ mod test {
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::codec::BorshCodec;
     use sov_state::Prefix;
-    use sov_test_utils::storage::new_finalized_storage;
+    use sov_test_utils::storage::SimpleStorageManager;
     use sov_test_utils::MockDaSpec;
     use unwrap_infallible::UnwrapInfallible;
 
@@ -356,8 +356,8 @@ mod test {
 
     #[test]
     fn test_state_vec() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_finalized_storage(tmpdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
         let kernel = MockKernel::<TestSpec>::default();
         let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
             StateCheckpoint::new(storage, &kernel);

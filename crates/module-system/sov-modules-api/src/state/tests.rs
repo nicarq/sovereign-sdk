@@ -2,7 +2,7 @@ use sov_mock_zkvm::MockZkvm;
 use sov_modules_macros::config_value;
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::{SlotKey, SlotValue, User};
-use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::MockDaSpec;
 
 use super::traits::{StateReader, StateWriter};
@@ -15,8 +15,8 @@ fn create_working_set(
     remaining_funds: u64,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
 ) -> WorkingSet<S> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage = new_finalized_storage(tmpdir.path());
+    let storage_manager = SimpleStorageManager::new();
+    let storage = storage_manager.create_storage();
     WorkingSet::new_with_gas_meter(storage, remaining_funds, gas_price)
 }
 

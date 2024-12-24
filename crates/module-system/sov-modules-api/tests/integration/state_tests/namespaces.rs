@@ -13,8 +13,7 @@ use crate::state_tests::{commit_to_storage, StorageSpec, S};
 /// Test that the state values with a standard working set get written to the user space
 #[test]
 fn test_state_value_user_namespace() -> Result<(), Infallible> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
     let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
@@ -58,8 +57,7 @@ fn test_state_value_user_namespace() -> Result<(), Infallible> {
 /// Test that the state values with a kernel working set get written to the kernel space
 #[test]
 fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
     let mut kernel = MockKernel::<S>::default();
@@ -106,8 +104,7 @@ fn test_state_value_kernel_namespace() -> Result<(), Infallible> {
 /// Test that the state maps with a standard working set get written to the user space
 #[test]
 fn test_state_map_user_namespace() -> Result<(), Infallible> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
     let state_value = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
@@ -154,8 +151,7 @@ fn test_state_map_user_namespace() -> Result<(), Infallible> {
 /// Test that the kernel state maps with a kernel working set get written to the kernel space
 #[test]
 fn test_versioned_state_value_kernel_namespace() -> Result<(), Infallible> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let storage = storage_manager.create_storage();
 
     let state_value = VersionedStateValue::with_codec(Prefix::new(vec![0]), BorshCodec);

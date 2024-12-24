@@ -18,8 +18,7 @@ fn make_user_map_proof(
     StateMap<u32, u32>,
 ) {
     let kernel = MockKernel::<S>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
     let mut state = StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &kernel);
     let map = StateMap::with_codec(Prefix::new(vec![0]), BorshCodec);
@@ -49,8 +48,7 @@ fn make_user_value_proof(
     StateValue<u32>,
 ) {
     let kernel = MockKernel::<S>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
     let mut state =
         StateCheckpoint::<<S as Spec>::Storage>::new(storage.clone(), &MockKernel::<S>::default());
@@ -158,8 +156,7 @@ mod value {
 #[test]
 fn test_archival_proof_gen() {
     let mut kernel = MockKernel::<S>::default();
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::new();
     let state_val = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     const NUM_ITER: u64 = 10;

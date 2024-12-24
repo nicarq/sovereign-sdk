@@ -32,8 +32,7 @@ fn increase_value_and_commit(
 /// Tests that the archival state is correctly retrieved from the DB and updates to the head state don't interfere
 #[test]
 fn archival_state_updates_correctly() -> Result<(), Infallible> {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
     let mut kernel = MockKernel::default();
     let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
