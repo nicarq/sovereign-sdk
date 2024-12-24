@@ -15,21 +15,32 @@ pub struct SimpleStorageManager<S: MerkleProofSpec> {
     state: Arc<rockbound::DB>,
     accessory: Arc<rockbound::DB>,
     phantom_mp_spec: PhantomData<S>,
+    // Holds ownership of [`Tempdir`] so it is not removed prematurely
+    #[allow(dead_code)]
+    dir: tempfile::TempDir,
+}
+
+impl<S: MerkleProofSpec> Default for SimpleStorageManager<S> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<S: MerkleProofSpec> SimpleStorageManager<S> {
-    /// Initialize new instance in given path.
-    pub fn new(path: impl AsRef<std::path::Path>) -> Self {
+    /// Initialize new instance in temporary folder.
+    pub fn new() -> Self {
+        let dir = tempfile::tempdir().unwrap();
         let state_rocksdb = StateDb::get_rockbound_options()
-            .default_setup_db_in_path(path.as_ref())
+            .default_setup_db_in_path(dir.path())
             .unwrap();
         let accessory_rocksdb = AccessoryDb::get_rockbound_options()
-            .default_setup_db_in_path(path.as_ref())
+            .default_setup_db_in_path(dir.path())
             .unwrap();
         Self {
             state: Arc::new(state_rocksdb),
             accessory: Arc::new(accessory_rocksdb),
             phantom_mp_spec: Default::default(),
+            dir,
         }
     }
 
@@ -53,14 +64,6 @@ impl<S: MerkleProofSpec> SimpleStorageManager<S> {
         self.state.write_schemas(&state_change_set).unwrap();
         self.accessory.write_schemas(&accessory_change_set).unwrap();
     }
-}
-
-/// Creates new [`ProverStorage`] in given path. It does not have any data, except JMT initialization.
-pub fn new_finalized_storage<S: MerkleProofSpec>(
-    path: impl AsRef<std::path::Path>,
-) -> ProverStorage<S> {
-    let storage_manager = SimpleStorageManager::<S>::new(path);
-    storage_manager.create_storage()
 }
 
 /// Storage manager suitable for [`LedgerDb`].

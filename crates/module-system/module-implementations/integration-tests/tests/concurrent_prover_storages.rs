@@ -28,8 +28,7 @@ use sov_test_utils::TestStorageSpec;
 /// For user and kernel states, it also checks that `get_with_proof` data is consistent with what is expected from the normal `get` method.
 /// The test checks root hashes.
 fn concurrent_prover_storages() {
-    let tempdir = tempfile::tempdir().unwrap();
-    let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new(tempdir.path());
+    let mut storage_manager = SimpleStorageManager::<TestStorageSpec>::new();
 
     let the_user_key = SlotKey::from_slice(b"user_key");
     let the_kernel_key = SlotKey::from_slice(b"kernel_key");

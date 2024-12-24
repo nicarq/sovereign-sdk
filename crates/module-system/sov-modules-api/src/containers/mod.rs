@@ -62,10 +62,9 @@ mod test {
 
     #[test]
     fn test_jmt_storage() -> anyhow::Result<()> {
-        let tmpdir = tempfile::tempdir().unwrap();
+        let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
         let tests = create_tests();
         {
-            let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
             let mut kernel = MockKernel::<TestSpec>::default();
             for test in &tests {
                 {
@@ -92,7 +91,6 @@ mod test {
         }
 
         {
-            let storage_manager = SimpleStorageManager::<StorageSpec>::new(tmpdir.path());
             let storage = storage_manager.create_storage();
             for test in tests {
                 assert_eq!(
@@ -107,8 +105,7 @@ mod test {
 
     #[test]
     fn test_restart_lifecycle() -> anyhow::Result<()> {
-        let tempdir = tempfile::tempdir().unwrap();
-        let mut storage_manager = SimpleStorageManager::new(tempdir.path());
+        let mut storage_manager = SimpleStorageManager::new();
         {
             let storage = storage_manager.create_storage();
             assert!(storage.is_empty());

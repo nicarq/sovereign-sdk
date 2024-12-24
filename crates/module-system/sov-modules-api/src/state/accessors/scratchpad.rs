@@ -337,25 +337,24 @@ impl<S: Spec, I: StateProvider<S>> VersionReader for WorkingSet<S, I> {
 
 #[cfg(test)]
 mod tests {
-    use sov_test_utils::storage::new_finalized_storage;
-    use sov_test_utils::{MockDaSpec, MockZkvm};
-
-    use crate::execution_mode::Native;
-    type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
-
     use sov_state::codec::BcsCodec;
     use sov_state::namespaces::User;
     use sov_state::{Kernel, SlotKey, SlotValue};
+    use sov_test_utils::storage::SimpleStorageManager;
+    use sov_test_utils::{MockDaSpec, MockZkvm};
 
     use crate::capabilities::mocks::MockKernel;
     use crate::capabilities::Kernel as _;
+    use crate::execution_mode::Native;
     use crate::{Spec, StateCheckpoint, StateReader, StateWriter, WorkingSet};
+
+    type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
     fn test_workingset_get() {
-        let tempdir = tempfile::tempdir().unwrap();
         let codec = BcsCodec {};
-        let storage = new_finalized_storage(tempdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
 
         let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
         let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);
@@ -373,9 +372,9 @@ mod tests {
 
     #[test]
     fn test_kernel_workingset_get() {
-        let tempdir = tempfile::tempdir().unwrap();
         let codec = BcsCodec {};
-        let storage = new_finalized_storage(tempdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
 
         let prefix = sov_state::Prefix::new(vec![1, 2, 3]);
         let storage_key = SlotKey::new(&prefix, &vec![4, 5, 6], &codec);

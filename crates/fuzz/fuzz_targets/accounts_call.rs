@@ -13,7 +13,7 @@ use sov_modules_api::{
     Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
     StateCheckpoint, WorkingSet,
 };
-use sov_test_utils::storage::new_finalized_storage;
+use sov_test_utils::storage::{SimpleStorageManager};
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;
@@ -42,8 +42,8 @@ fuzz_target!(
 
         let rng = &mut StdRng::from_seed(seed);
         let mut seed = [0u8; 32];
-        let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_finalized_storage(tmpdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
         let mut state =
             StateCheckpoint::<<S as Spec>::Storage>::new(storage, &MockKernel::<S>::default());
 

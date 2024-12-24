@@ -45,7 +45,6 @@ pub use sov_value_setter::{
     CallMessage as ValueSetterCallMessage, Event as ValueSetterEvent, ValueSetter,
     ValueSetterConfig,
 };
-pub use tokio::sync::watch::Receiver;
 use tokio::sync::watch::{self};
 pub use {
     sov_accounts, sov_attester_incentives, sov_bank, sov_blob_storage, sov_paymaster,
@@ -116,8 +115,6 @@ pub struct TestRunner<RT: Runtime<S>, S: Spec> {
     nonces: HashMap<<S::CryptoSpec as CryptoSpec>::PublicKey, u64>,
     slot_receipts: Vec<SlotReceipt<S>>,
     state_root: <S::Storage as Storage>::Root,
-    #[allow(unused)]
-    storage_dir: tempfile::TempDir,
     storage_manager: SimpleStorageManager<DefaultSpecWithHasher<S>>,
     /// A channel to send the storage over. This should be subscribed to the same channel as [`Self::checkpoint_receiver`].
     checkpoint_sender: watch::Sender<StateCheckpoint<S::Storage>>,
@@ -427,8 +424,7 @@ where
         let stf = StfBlueprint::<S, RT>::with_runtime(runtime);
 
         // ----- Setup and run genesis ---------
-        let storage_dir = tempfile::tempdir().unwrap();
-        let mut storage_manager = SimpleStorageManager::new(storage_dir.path());
+        let mut storage_manager = SimpleStorageManager::new();
 
         let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
@@ -436,7 +432,7 @@ where
 
         let stf_state = storage_manager.create_storage();
 
-        let (sender, receiver) = tokio::sync::watch::channel(StateCheckpoint::new(
+        let (sender, receiver) = watch::channel(StateCheckpoint::new(
             stf_state.clone(),
             &stf.runtime().kernel(),
         ));
@@ -462,7 +458,6 @@ where
             nonces: HashMap::new(),
             slot_receipts: Vec::new(),
             state_root,
-            storage_dir,
             storage_manager,
             stf,
             axum_server: Default::default(),

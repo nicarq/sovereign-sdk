@@ -5,7 +5,6 @@ use sov_modules_api::*;
 use sov_state::{
     ArrayWitness, BorshCodec, Prefix, ProverStorage, StateAccesses, Storage, ZkStorage,
 };
-use sov_test_utils::storage::new_finalized_storage;
 use unwrap_infallible::UnwrapInfallible;
 
 use crate::state_tests::*;
@@ -185,8 +184,8 @@ const CONDITIONS: [Condition; 8] = [
 pub fn test_state_thing<S: Spec<Storage = ProverStorage<StorageSpec>>, St: StateThing>(
     conditions: &[Condition],
 ) {
-    let tmpdir = tempfile::tempdir().unwrap();
-    let storage: ProverStorage<StorageSpec> = new_finalized_storage(tmpdir.path());
+    let simple_storage_manager = SimpleStorageManager::new();
+    let storage: ProverStorage<StorageSpec> = simple_storage_manager.create_storage();
     let mut state = StateCheckpoint::<S::Storage>::new(storage, &MockKernel::<S>::default());
     let thing = St::create(&mut state);
     let mut working_set = state.to_working_set_unmetered::<S>();
@@ -218,10 +217,9 @@ fn test_state_vec_remove() {
 
 #[test]
 fn test_witness_round_trip() -> Result<(), Infallible> {
-    let tempdir = tempfile::tempdir().unwrap();
-    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
+    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new();
 
-    let mut storage_manager = SimpleStorageManager::<StorageSpec>::new(tempdir.path());
+    let state_value = StateValue::with_codec(Prefix::new(vec![0]), BorshCodec);
 
     // Native execution
     let witness: ArrayWitness = {

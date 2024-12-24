@@ -100,7 +100,7 @@ mod tests {
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::execution_mode::Native;
     use sov_state::{BorshCodec, Prefix};
-    use sov_test_utils::storage::new_finalized_storage;
+    use sov_test_utils::storage::SimpleStorageManager;
     use sov_test_utils::MockDaSpec;
     use unwrap_infallible::UnwrapInfallible;
 
@@ -112,8 +112,8 @@ mod tests {
 
     #[test]
     fn test_kernel_state_value_as_value() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_finalized_storage(tmpdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
 
         let kernel = MockKernel::<TestSpec>::new(4, 1);
         let mut state = StateCheckpoint::new(storage, &kernel);
@@ -139,8 +139,8 @@ mod tests {
 
     #[test]
     fn test_kernel_state_value_as_map() {
-        let tmpdir = tempfile::tempdir().unwrap();
-        let storage = new_finalized_storage(tmpdir.path());
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
 
         let kernel = MockKernel::<TestSpec>::new(4, 1);
         let mut state = StateCheckpoint::new(storage, &kernel);

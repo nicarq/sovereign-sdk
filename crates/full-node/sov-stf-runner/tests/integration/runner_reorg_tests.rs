@@ -196,9 +196,7 @@ fn get_result_from_blocks(
     genesis_params: &[u8],
     blocks: &[MockBlock],
 ) -> (StorageRoot<S>, Option<<ProverStorage<S> as Storage>::Root>) {
-    let tmpdir = tempfile::tempdir().unwrap();
-
-    let mut storage_manager = SimpleStorageManager::new(tmpdir.path());
+    let mut storage_manager = SimpleStorageManager::new();
     let storage = storage_manager.create_storage();
 
     let stf = HashStf::<MockValidityCond>::new();
