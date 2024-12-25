@@ -555,7 +555,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
         mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
         next_event_number: u64,
     ) -> AcceptTxResult<Z> {
-        let call = match Z::Rt::parse_input(&self.runtime, &baked_tx) {
+        let call = match Z::Rt::decode_serialized_tx(&self.runtime, &baked_tx) {
             Ok((call, _)) => call,
             Err(e) => {
                 return (

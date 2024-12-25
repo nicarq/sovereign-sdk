@@ -18,12 +18,6 @@ use crate::conversions::RlpConversionError;
 use crate::{CallMessage, RlpEvmTransaction};
 
 /// Authenticates a raw evm transaction.
-///
-/// Due to unfortunate limitations of the Rust type system, this function is generic over an `EvmToRollupAddressConverter` which
-/// is required to implement `From<reth_primitives::Address>` and `TryInto<S::Address>`. If the caller wishes to support deriving
-/// rollup addresses from the evm address, their implementation of `EvmToRollupAddressConverter` should always return Some(S::Address).
-/// Otherwise, they should simply return None.
-///
 /// # Security
 ///
 /// If the caller does plan to derive rollup addresses from evm addresses, they should be sure that their scheme for doing so is deterministic and
@@ -37,7 +31,7 @@ where
 {
     // TODO: Charge gas for deserialization & signature check.
 
-    let (rlp, tx) = parse_input(raw_tx)
+    let (rlp, tx) = decode_evm_tx(raw_tx)
         .map_err(|e| fatal_deserialization_error::<Accessor, S, _>(raw_tx, e, state))?;
     let hash = TxHash::new(tx.hash().into());
     let signer = tx.recover_signer().ok_or(AuthenticationError::FatalError(
@@ -79,7 +73,7 @@ where
 }
 
 /// Decode a byte sequence into an EVM transaction without checking the signature
-pub fn parse_input(raw_tx: &[u8]) -> Result<(RlpEvmTransaction, TransactionSigned), FatalError> {
+pub fn decode_evm_tx(raw_tx: &[u8]) -> Result<(RlpEvmTransaction, TransactionSigned), FatalError> {
     let tx_data = RlpEvmTransaction::try_from_slice(raw_tx)
         .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
@@ -103,7 +97,7 @@ pub trait EthereumAuthenticator<S: Spec>: TransactionAuthenticator<S> {
 
     /// Encode a transaction with the Ethereum discriminant for the runtime.
     fn encode_with_ethereum_auth(tx: RawTx) -> FullyBakedTx {
-        <Self as TransactionAuthenticator<S>>::encode_athenticator_input(&Self::add_ethereum_auth(
+        <Self as TransactionAuthenticator<S>>::encode_authenticator_input(&Self::add_ethereum_auth(
             tx,
         ))
     }
