@@ -2,11 +2,11 @@
     "create_token": {
         "token_name": "sov-test-token",
         "initial_balance": 10000,
-        "mint_to_address": "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr",
+        "mint_to_address": "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
         "admins": [
-            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
-            "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr",
-            "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
+            "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
+            "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzsxf35ku"
         ]
     }
 }

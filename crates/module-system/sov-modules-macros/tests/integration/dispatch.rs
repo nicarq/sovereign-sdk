@@ -389,8 +389,8 @@ mod derive_dispatch {
             .unwrap();
         let mut working_set = state.to_working_set_unmetered();
 
-        let sender = <ZkTestSpec as Spec>::Address::from([0; 32]);
-        let sequencer = <ZkTestSpec as Spec>::Address::from([1; 32]);
+        let sender = <ZkTestSpec as Spec>::Address::from([0; 28]);
+        let sequencer = <ZkTestSpec as Spec>::Address::from([1; 28]);
         let sequencer_da = <<ZkTestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
         let context: Context<ZkTestSpec> = Context::new(
             sender,

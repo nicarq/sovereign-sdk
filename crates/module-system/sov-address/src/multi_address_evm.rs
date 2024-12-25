@@ -12,8 +12,8 @@ impl RollupAddress for MultiAddressEvm {}
 // Ethereum addresses are 20 bytes, so when we see a 32 byte array, we can safely
 // assume that this is our Standard address in bytes. The same assumption might
 // not hold for other VM addresses.
-impl From<[u8; 32]> for MultiAddressEvm {
-    fn from(value: [u8; 32]) -> Self {
+impl From<[u8; 28]> for MultiAddressEvm {
+    fn from(value: [u8; 28]) -> Self {
         Self::Standard(SovAddress::from(value))
     }
 }
@@ -35,7 +35,7 @@ impl TryFrom<&[u8]> for MultiAddressEvm {
     type Error = anyhow::Error;
 
     fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
-        if value.len() == 32 {
+        if value.len() == 28 {
             return Ok(Self::Standard(sov_modules_api::Address::try_from(value)?));
         } else if value.len() == 20 {
             return Ok(Self::Vm(EthereumAddress::try_from(value)?));
@@ -105,7 +105,7 @@ mod evm_spec_address_tests {
     fn test_serde_json_multi_address_evm_standard() {
         let address = MultiAddressEvm::Standard(
             sov_modules_api::Address::<Sha256>::from_str(
-                "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
         );
@@ -128,7 +128,7 @@ mod evm_spec_address_tests {
     fn test_bincode_multi_address_evm_standard() {
         let address = MultiAddressEvm::Standard(
             sov_modules_api::Address::<Sha256>::from_str(
-                "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
         );
@@ -174,7 +174,7 @@ mod evm_spec_address_tests {
     fn test_borsh_multi_address_evm_standard() {
         let standard_address = MultiAddressEvm::Standard(
             sov_modules_api::Address::<Sha256>::from_str(
-                "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
             )
             .unwrap(),
         );

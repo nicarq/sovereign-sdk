@@ -2,7 +2,7 @@ use std::convert::Infallible;
 use std::vec;
 
 use serial_test::serial;
-use sov_mock_da::MockAddress;
+use sov_mock_da::{MockAddress, MockBlob};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{BatchSequencerOutcome, FullyBakedTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -128,9 +128,8 @@ fn test_demo_values_in_cache() -> Result<(), Infallible> {
 #[test]
 #[serial]
 fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_register() {
-    let (mut runner, mut users, _) = setup(2);
-    let other_sequencer = users.pop().unwrap();
-    let direct_sequencer = users.pop().unwrap();
+    let (mut runner, mut users, _) = setup(1);
+    let tx_signer = users.pop().unwrap();
 
     let direct_sequencer_da_address = MockAddress::new([121; 32]);
     let other_sequencer_da_address = MockAddress::new([86; 32]);
@@ -140,18 +139,17 @@ fn test_multiple_batches_registering_unregistered_sequencers_allows_both_to_regi
             direct_sequencer_da_address.as_ref().to_vec(),
             other_sequencer_da_address.as_ref().to_vec(),
         ],
-        other_sequencer.private_key.clone(),
+        tx_signer.private_key.clone(),
     );
 
-    let blob1 = new_test_blob_for_direct_registration(
-        txs.remove(0),
-        direct_sequencer.address().as_ref(),
-        [0; 32],
+    let blob1 = MockBlob::new_with_hash(
+        borsh::to_vec(&txs.remove(0)).unwrap(),
+        MockAddress::new([0; 32]),
     );
-    let blob2 = new_test_blob_for_direct_registration(
-        txs.remove(0),
-        other_sequencer.address().as_ref(),
-        [1; 32],
+
+    let blob2 = MockBlob::new_with_hash(
+        borsh::to_vec(&txs.remove(0)).unwrap(),
+        MockAddress::new([0; 32]),
     );
 
     let relevant_blobs = RelevantBlobs {

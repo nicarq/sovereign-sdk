@@ -120,7 +120,7 @@ pub const TEST_GAS_TOKEN_NAME: &str = "TestGasToken";
 
 /// Default [`sov_stf_runner::ProofManagerConfig::prover_address`] value in tests.
 pub const TEST_DEFAULT_PROVER_ADDRESS: &str =
-    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94";
+    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66";
 
 /// Default [`sov_mock_da::MockDaConfig::block_time_ms`] value in tests.
 pub const TEST_DEFAULT_MOCK_DA_BLOCK_TIME_MS: u64 = 100;

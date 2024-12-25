@@ -14,13 +14,13 @@ fn test_create_token() {
         token_name: "my-token".try_into().unwrap(),
         initial_balance: 100_000_000,
         mint_to_address: <S as Spec>::Address::from_str(
-            "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr",
+            "sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a",
         )
         .unwrap(),
         admins: SafeVec::new(),
     };
 
-    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "CreateToken { token_name: \"my-token\", initial_balance: 100000000, mint_to_address: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s2x9gmzs04jvyr, admins: [] }");
+    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "CreateToken { token_name: \"my-token\", initial_balance: 100000000, mint_to_address: sov1x3jtvq0zwhj2ucsc4hqugskvralrulxvf53vwtkred93s85ar2a, admins: [] }");
 }
 
 #[test]
@@ -28,7 +28,7 @@ fn test_transfer() {
     let schema = Schema::of_single_type::<CallMessage<S>>();
     let msg: CallMessage<S> = CallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
         )
         .unwrap(),
         coins: Coins {
@@ -40,5 +40,5 @@ fn test_transfer() {
         },
     };
 
-    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "Transfer to address sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks.");
+    assert_eq!(schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(), "Transfer to address sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks.");
 }

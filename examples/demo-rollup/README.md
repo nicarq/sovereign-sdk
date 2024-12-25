@@ -111,7 +111,7 @@ The transaction hash can be used to query the REST API endpoint to fetch events 
 this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x7d47a4ea7e50e471c0b355abbbc747cca54951260ff11d32e7fecbd4195d96df/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xeb5e6a2d3b614098996674fb26ee5cbbbe946cacc58e0efcac93cfeaa574b470/events | jq
 {
   "data": [
     {
@@ -123,20 +123,20 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x7d47a4ea7e50e471c0b355abbbc747cca
           "token_name": "sov-test-token",
           "coins": {
             "amount": 1000000,
-            "token_id": "token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"
+            "token_id": "token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"
           },
           "mint_to_address": {
-            "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+            "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzsxf35ku"
           },
           "minter": {
-            "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+            "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
           },
           "admins": [
             {
-              "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+              "user": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
             },
             {
-              "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzs4a6wkvqwr57gc"
+              "user": "sov15vspj48hpttzyvxu8kzq5klhvaczcpyxn6z6k0hwpwtzsxf35ku"
             }
           ]
         }
@@ -152,7 +152,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0x7d47a4ea7e50e471c0b355abbbc747cca
 ```
 
 We can see the TokenCreated event which contains the id of the token
-created - `token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42`
+created - `token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc`
 
 ### How to Submit Transactions
 
@@ -310,7 +310,7 @@ Adding the following transaction to batch:
   "tx": {
     "bank": {
       "transfer": {
-        "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+        "to": "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
         "coins": {
           "amount": 200,
           "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"
@@ -318,7 +318,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x3b4e3d11eb133fb758f70a84497ae0778d795738820b88829283354f2f0ff7cd",
+  "chain_hash": "0x414c72c6ec7778c4aa392a72278a42240c2a35249b9478e9a946df96bf1e6969",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": 100000000,
@@ -344,14 +344,14 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94
+$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
 ```
 
 #### 5. Verify the Token Supply
 
 ```bash,test-ci,bashtestmd:compare-output
-$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42/total-supply | jq -c -M
-{"data":{"amount":1000000,"token_id":"token_17zrpsyv06x7wmf2hg878gg5szwurckr3e2u77fvrdmanjhve8r2sj4jy42"},"meta":{}}
+$ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc/total-supply | jq -c -M
+{"data":{"amount":1000000,"token_id":"token_126x5str6mkes6ve8j92cnz579azyqlmrk74l6a4fg4zvd076hdxspqs3pc"},"meta":{}}
 ```
 
 

@@ -75,7 +75,7 @@ mod tests {
 
         let data = r#"
         {
-            "accounts":[{"credential_id":"0xa7f38e6a301da8763eb3ba323e761c76e5122f443604c40cd0c3b74ce5a8495a","address":"sov15lecu63srk58v04nhgeruasuwmj3yt6yxczvgrxscwm5eedgf9dq5w2een"}]
+            "accounts":[{"credential_id":"0xa7f38e6a301da8763eb3ba323e761c76e5122f443604c40cd0c3b74ce5a8495a","address":"sov15lecu63srk58v04nhgeruasuwmj3yt6yxczvgrxscwm5c5lrs86"}]
         }"#;
 
         let parsed_config: AccountConfig<TestSpec> = serde_json::from_str(data).unwrap();

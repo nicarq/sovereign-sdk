@@ -7,17 +7,17 @@ use derivative::Derivative;
 use sha2::digest::typenum::U32;
 use sha2::Digest;
 use sov_modules_macros::config_value_private;
-use sov_rollup_interface::common::HexHash;
+use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::crypto::PublicKey;
 use sov_rollup_interface::{BasicAddress, RollupAddress};
 
-/// Implement type conversions between a `\[u8;32\]` wrapper and a bech32 string representation.
-/// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8; 32]` as
-/// well as `From<\[u8;32\]>` and `AsRef<[u8]>`.
+/// Implement type conversions between a `\[u8;$len\]` wrapper and a bech32 string representation.
+/// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8;$len]` as
+/// well as `From<\[u8;$len\]>` and `AsRef<[u8]>`.
 #[macro_export]
 macro_rules! impl_bech32_conversion {
     // We make this function generic because the Address type will eventually need a generic
-    ($id:ident $( < $generic:ident >)?, $bech32_version:ident, $human_readable_prefix:expr) => {
+    ($id:ident $( < $generic:ident >)?, $bech32_version:ident, $human_readable_prefix:expr, $len:expr) => {
         /// A pre-validated bech32 representation of $id
         #[derive(
             serde::Serialize,
@@ -82,6 +82,20 @@ macro_rules! impl_bech32_conversion {
                         return Err($crate::common::Bech32ParseError::WrongHRP(hrp_string.hrp().to_string()));
                     }
 
+                    // In Bech32, the "data part" is the portion after the HRP (human-readable prefix) and
+                    // separator ('1'), but before the final 6-character checksum. Each Bech32 data character
+                    // represents 5 bits. Thus, to convert from the length of this data part (in 5-bit
+                    // characters) back to bytes, we multiply that length by 5 and then divide by 8. If the
+                    // result is not exactly $len, the address would decode to a different number of bytes
+                    // than expected.
+                    //
+                    // Reference: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+                    let data_len = hrp_string.data_part_ascii_no_checksum().len();
+                    let data_bytes = (data_len * 5 as usize) / 8;
+                    if data_bytes != ($len as usize) {
+                        return Err($crate::common::Bech32ParseError::WrongLength($len, data_bytes));
+                    }
+
                     Ok($bech32_version (
                         s.to_string(),
                     ))
@@ -128,19 +142,19 @@ macro_rules! impl_bech32_conversion {
                         let bech: $bech32_version = serde::Deserialize::deserialize(deserializer)?;
                         Ok($id::from(bech.to_byte_array()))
                     } else {
-                        let bytes = <[u8; 32] as serde::Deserialize>::deserialize(deserializer)?;
+                        let bytes = <[u8; $len] as serde::Deserialize>::deserialize(deserializer)?;
                         Ok(bytes.into())
                     }
                 }
             }
 
             impl $bech32_version {
-                pub(crate) fn to_byte_array(&self) -> [u8; 32] {
+                pub(crate) fn to_byte_array(&self) -> [u8; $len] {
                     let hrp_string = UncheckedHrpstring::new(&self.0)
                         .expect("Bech32 was validated at construction")
                         .remove_checksum::<Bech32m>();
 
-                    let mut addr_bytes = [0u8; 32];
+                    let mut addr_bytes = [0u8; $len];
                     for (l, r) in addr_bytes.iter_mut().zip(hrp_string.byte_iter()) {
                         *l = r;
                     }
@@ -182,10 +196,14 @@ macro_rules! impl_bech32_conversion {
 }
 
 #[macro_export]
-/// Implements a newtype around `\[u8;32\]` which can be displayed in bech32 format with the provided
+/// Implements a newtype around `\[u8;$len\]` which can be displayed in bech32 format with the provided
 /// human readable prefix.
 macro_rules! impl_hash32_type {
     ($id:ident, $bech32_version:ident, $human_readable_prefix:expr) => {
+        $crate::impl_hash32_type!($id, $bech32_version, $human_readable_prefix, 32);
+    };
+
+    ($id:ident, $bech32_version:ident, $human_readable_prefix:expr, $len:expr) => {
         #[derive(
             Clone,
             Copy,
@@ -206,15 +224,15 @@ macro_rules! impl_hash32_type {
         )]
         /// A globally unique identifier.
         pub struct $id(
-            #[sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))] [u8; 32],
+            #[sov_wallet(display(bech32m(prefix = "__impl_hash32_type_prefix()")))] [u8; $len],
         );
 
         const fn __impl_hash32_type_prefix() -> &'static str {
             $human_readable_prefix
         }
 
-        impl From<[u8; 32]> for $id {
-            fn from(inner: [u8; 32]) -> Self {
+        impl From<[u8; $len]> for $id {
+            fn from(inner: [u8; $len]) -> Self {
                 Self(inner)
             }
         }
@@ -229,10 +247,10 @@ macro_rules! impl_hash32_type {
             type Error = anyhow::Error;
 
             fn try_from(id: &'a [u8]) -> Result<Self, Self::Error> {
-                if id.len() != 32 {
-                    anyhow::bail!("Id must be 32 bytes long");
+                if id.len() != $len {
+                    anyhow::bail!("Id must be {} bytes long", $len);
                 }
-                let mut id_bytes = [0u8; 32];
+                let mut id_bytes = [0u8; $len];
                 id_bytes.copy_from_slice(id);
                 Ok(Self(id_bytes))
             }
@@ -240,7 +258,7 @@ macro_rules! impl_hash32_type {
 
         impl $id {
             /// Exposes the inner bytes of $id
-            pub const fn as_bytes(&self) -> &[u8; 32] {
+            pub const fn as_bytes(&self) -> &[u8; $len] {
                 &self.0
             }
 
@@ -256,23 +274,23 @@ macro_rules! impl_hash32_type {
 
             /// Creates a new $id containing the given bytes. This function is needed in addition
             /// to the `From` trait to allow for const conversions
-            pub const fn from_const_slice(addr: [u8; 32]) -> Self {
+            pub const fn from_const_slice(addr: [u8; $len]) -> Self {
                 Self(addr)
             }
         }
 
-        $crate::impl_bech32_conversion!($id, $bech32_version, $human_readable_prefix);
+        $crate::impl_bech32_conversion!($id, $bech32_version, $human_readable_prefix, $len);
     };
 }
 
-impl_bech32_conversion!(Address<H>, AddressBech32, address_prefix());
+impl_bech32_conversion!(Address<H>, AddressBech32, address_prefix(), 28);
 
 /// Module ID representation.
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[derive(Derivative, BorshDeserialize, BorshSerialize)]
 #[derivative(Copy, Hash, PartialEq, Eq, Ord)]
 pub struct Address<H> {
-    addr: [u8; 32],
+    addr: [u8; 28],
     #[derivative(Hash = "ignore", PartialEq = "ignore", Ord = "ignore")]
     phantom: std::marker::PhantomData<H>,
 }
@@ -299,7 +317,7 @@ const fn address_prefix() -> &'static str {
 #[derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)]
 #[allow(dead_code)]
 #[doc(hidden)]
-pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "address_prefix()")))] [u8; 32]);
+pub struct AddressSchema(#[sov_wallet(display(bech32m(prefix = "address_prefix()")))] [u8; 28]);
 
 // We manually implement clone so that we can silence this clippy warning.
 // Derivative has o facility to enable that.
@@ -345,7 +363,7 @@ impl<H> AsRef<[u8]> for Address<H> {
 
 impl<H> Address<H> {
     /// Creates a new address containing the given bytes
-    pub const fn new(addr: [u8; 32]) -> Self {
+    pub const fn new(addr: [u8; 28]) -> Self {
         Self {
             addr,
             phantom: std::marker::PhantomData,
@@ -353,7 +371,7 @@ impl<H> Address<H> {
     }
 
     /// Exposes the inner bytes of the Address
-    pub const fn as_bytes(&self) -> &[u8; 32] {
+    pub const fn as_bytes(&self) -> &[u8; 28] {
         &self.addr
     }
 }
@@ -362,10 +380,10 @@ impl<'a, H> TryFrom<&'a [u8]> for Address<H> {
     type Error = anyhow::Error;
 
     fn try_from(addr: &'a [u8]) -> Result<Self, Self::Error> {
-        if addr.len() != 32 {
-            anyhow::bail!("Address must be 32 bytes long");
+        if addr.len() != 28 {
+            anyhow::bail!("Address must be 28 bytes long");
         }
-        let mut addr_bytes = [0u8; 32];
+        let mut addr_bytes = [0u8; 28];
         addr_bytes.copy_from_slice(addr);
         Ok(Self {
             addr: addr_bytes,
@@ -374,8 +392,8 @@ impl<'a, H> TryFrom<&'a [u8]> for Address<H> {
     }
 }
 
-impl<H> From<[u8; 32]> for Address<H> {
-    fn from(addr: [u8; 32]) -> Self {
+impl<H> From<[u8; 28]> for Address<H> {
+    fn from(addr: [u8; 28]) -> Self {
         Self {
             addr,
             phantom: std::marker::PhantomData,
@@ -383,16 +401,16 @@ impl<H> From<[u8; 32]> for Address<H> {
     }
 }
 
-impl<H> From<HexHash> for Address<H> {
-    fn from(value: HexHash) -> Self {
-        Self::from(value.0)
+impl<H> From<HexString<[u8; 32]>> for Address<H> {
+    fn from(value: HexString<[u8; 32]>) -> Self {
+        Self::try_from(&value.0.as_slice()[0..28]).unwrap()
     }
 }
 
 impl<H> Address<H> {
     /// Creates a new $id containing the given bytes. This function is needed in addition
     /// to the `From` trait to allow for const conversions
-    pub const fn from_const_slice(addr: [u8; 32]) -> Self {
+    pub const fn from_const_slice(addr: [u8; 28]) -> Self {
         Self {
             addr,
             phantom: std::marker::PhantomData,
@@ -429,26 +447,26 @@ mod test {
 
     #[test]
     fn test_address_serialization() {
-        let address = Address::from([11; 32]);
+        let address = Address::from([11; 28]);
         let data: String = serde_json::to_string(&address).unwrap();
         let deserialized_address = serde_json::from_str::<Address<Sha256>>(&data).unwrap();
 
         assert_eq!(address, deserialized_address);
         assert_eq!(
             deserialized_address.to_string(),
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"
         );
     }
 
     #[test]
     fn test_address_schema() {
-        let address: Address<Sha256> = Address::from([11; 32]);
+        let address: Address<Sha256> = Address::from([11; 28]);
         let schema = Schema::of_single_type::<Address<Sha256>>();
         assert_eq!(
             schema
                 .display(0, &borsh::to_vec(&address).unwrap())
                 .unwrap(),
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx"
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"
         );
     }
 
@@ -457,7 +475,15 @@ mod test {
     /// Our addresses should use bech32m only.
     fn test_rejects_non_m_bech32_variant() {
         assert!(Address::<Sha256>::from_str(
-            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqklh0qh"
+            "sov11zy3rx3z4vemc3xgq42aueh0wlugjyv6y24n80zyeqz4tkp42j22"
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn test_rejects_wrong_length() {
+        assert!(Address::<Sha256>::from_str(
+            "sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g2vvnwesa0k6"
         )
         .is_err());
     }
@@ -473,10 +499,9 @@ mod test {
 
         let sov_address = pub_key.to_address::<Address<Sha256>>();
 
-        let expected_addr = Address::<Sha256>::from_str(
-            "sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g2vvnwesa0k6gv",
-        )
-        .unwrap();
+        let expected_addr =
+            Address::<Sha256>::from_str("sov10ay4dyaukwpqnteh2h32l6rfurecsmzu5sl78aj7qzc0g286a0l")
+                .unwrap();
 
         assert_eq!(sov_address, expected_addr);
     }

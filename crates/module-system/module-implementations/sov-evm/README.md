@@ -33,7 +33,7 @@ It needs to have some rollup address generated and placed in `address.json`
   "accounts": [
     {
       "credential_id": "0x000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-      "address": "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"
+      "address": "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3crhxalf"
     }
   ]
 }

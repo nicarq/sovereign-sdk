@@ -398,10 +398,10 @@ mod tests {
 
         assert_eq!(
             KeyIdentifier::<S>::ByAddress {
-                address: <S as Spec>::Address::from([0; 32])
+                address: <S as Spec>::Address::from([0; 28])
             }
             .to_string(),
-            "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq0xu3qn"
+            "sov1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq7xm4r8"
         );
     }
 

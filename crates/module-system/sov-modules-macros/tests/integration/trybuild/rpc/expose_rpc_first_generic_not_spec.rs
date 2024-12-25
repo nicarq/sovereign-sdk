@@ -135,8 +135,8 @@ fn main() {
     let serialized_message =
         <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
     let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
-    let sender = <ZkTestSpec as Spec>::Address::from([11; 32]);
-    let sequencer = <ZkTestSpec as Spec>::Address::from([11; 32]);
+    let sender = <ZkTestSpec as Spec>::Address::from([11; 28]);
+    let sequencer = <ZkTestSpec as Spec>::Address::from([11; 28]);
     let sequencer_da = <<ZkTestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);
     let context = Context::<S>::new(
         sender,

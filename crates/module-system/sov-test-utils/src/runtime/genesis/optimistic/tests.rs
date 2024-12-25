@@ -24,7 +24,8 @@ use crate::{
     TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
-const SEQUENCER_ADDR: [u8; 32] = [42u8; 32];
+const SEQUENCER_ADDR: [u8; 28] = [42u8; 28];
+const SEQUENCER_DA_ADDR: [u8; 32] = [42u8; 32];
 
 #[test]
 // Tests the test setup by running the value setter module and checking if the value was set correctly
@@ -82,7 +83,7 @@ fn run_value_setter_txs_with_assertions(
         admin_addr,
         &[],
         sequencer_rollup_addr,
-        SEQUENCER_ADDR.into(),
+        SEQUENCER_DA_ADDR.into(),
         <TestSpec as Spec>::Gas::from(TEST_DEFAULT_USER_STAKE)
             .value(&TestSpec::initial_base_fee_per_gas()),
         "SovereignToken".to_string(),

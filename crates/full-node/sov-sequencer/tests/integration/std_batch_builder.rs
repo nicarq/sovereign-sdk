@@ -111,8 +111,7 @@ async fn test_batch_building_with_out_of_gas_error() {
 
     // -- Build a transaction which drains the user's wallet --
     let drain_wallet_msg = sov_test_utils::runtime::BankCallMessage::<TestSpec>::Transfer {
-        to: Address::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx")
-            .unwrap(),
+        to: Address::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv").unwrap(),
         coins: Coins {
             amount: TEST_DEFAULT_USER_BALANCE - TEST_DEFAULT_MAX_FEE, // Leave enough tokens to pay gas for the first tx
             token_id: config_gas_token_id(),
