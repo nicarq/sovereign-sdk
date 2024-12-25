@@ -8,13 +8,13 @@ fn test_display_paymaster_call() {
 
     use sov_modules_api::sov_universal_wallet::schema::Schema;
     let msg = PaymasterCallMessage::<S>::SetPayerForSequencer {
-        payer: FromStr::from_str("sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94")
+        payer: FromStr::from_str("sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66")
             .unwrap(),
     };
 
     let schema = Schema::of_single_type::<sov_paymaster::CallMessage<S>>();
     assert_eq!(
         schema.display(0, &borsh::to_vec(&msg).unwrap()).unwrap(),
-        r#"SetPayerForSequencer { payer: sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94 }"#
+        r#"SetPayerForSequencer { payer: sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66 }"#
     );
 }

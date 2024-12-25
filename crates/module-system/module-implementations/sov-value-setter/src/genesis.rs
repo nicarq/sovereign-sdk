@@ -34,12 +34,12 @@ mod tests {
 
     #[test]
     fn test_config_serialization() {
-        let admin = <TestSpec as Spec>::Address::from([1; 32]);
+        let admin = <TestSpec as Spec>::Address::from([1; 28]);
         let config = ValueSetterConfig::<TestSpec> { admin };
 
         let data = r#"
         {
-            "admin":"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqs259tk3"
+            "admin":"sov1qyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszqgpqyqszc740j2"
         }"#;
 
         let parsed_config: ValueSetterConfig<TestSpec> = serde_json::from_str(data).unwrap();

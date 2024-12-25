@@ -323,7 +323,7 @@
             "value": {
               "Immediate": {
                 "ByteArray": {
-                  "len": 32,
+                  "len": 28,
                   "display": {
                     "Bech32m": {
                       "prefix": "sov"

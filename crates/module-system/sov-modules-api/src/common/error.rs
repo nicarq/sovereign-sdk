@@ -9,6 +9,9 @@ pub enum Bech32ParseError {
     /// The provided "Human-Readable Part" is invalid.
     #[error("Wrong HRP: {0}")]
     WrongHRP(String),
+    /// The provided address length is invalid.
+    #[error("Wrong address length. Expected: {0} bytes, got: {1}")]
+    WrongLength(usize, usize),
 }
 
 /// General error type in the Module System.

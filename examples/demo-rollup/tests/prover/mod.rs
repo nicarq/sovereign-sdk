@@ -136,10 +136,7 @@ async fn test_proof_generation() {
 
         let data = StateTransitionWitnessWithAddress {
             stf_witness: data,
-            prover_address: <DefaultSpec as Spec>::Address::try_from(
-                MockAddress::default().as_ref(),
-            )
-            .unwrap(),
+            prover_address: <DefaultSpec as Spec>::Address::try_from([0u8; 28].as_ref()).unwrap(),
         };
 
         host.add_hint(data);

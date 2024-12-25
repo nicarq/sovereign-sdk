@@ -186,7 +186,7 @@ mod tests {
             max_pending_metrics = 2560
             [proof_manager]
             aggregated_proof_block_jump = 22
-            prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"
+            prover_address = "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66"
             max_number_of_transitions_in_db = 1025
             max_number_of_transitions_in_memory = 768
             [sequencer]
@@ -232,7 +232,7 @@ mod tests {
             proof_manager: ProofManagerConfig {
                 aggregated_proof_block_jump: NonZero::new(22).unwrap(),
                 prover_address: Address::from_str(
-                    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
+                    "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66",
                 )
                 .unwrap(),
                 max_number_of_transitions_in_db: NonZero::new(1025).unwrap(),

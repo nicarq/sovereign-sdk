@@ -273,12 +273,13 @@ mod tests {
 
     #[test]
     fn check_hashes_for_token_holders() {
-        let source: [u8; 32] = [0; 32];
+        let module_id_source: [u8; 32] = [0; 32];
+        let address_source: [u8; 28] = [0; 28];
 
-        let module_id = ModuleId::from(source);
+        let module_id = ModuleId::from(module_id_source);
         let module_id_ref: TokenHolderRef<'_, S> = TokenHolderRef::from(&module_id);
 
-        let address = &<S as Spec>::Address::from(source);
+        let address = &<S as Spec>::Address::from(address_source);
         let address_ref: TokenHolderRef<'_, S> = TokenHolderRef::from(&address);
 
         let address_hash = calculate_hash(&address_ref);

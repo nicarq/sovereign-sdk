@@ -19,7 +19,7 @@ use sov_test_utils::{TestHasher, TestPrivateKey};
 type S = sov_test_utils::TestSpec;
 // Check well-formed calls
 fuzz_target!(
-    |input: (u16, [u8; 32], [u8; 32], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
+    |input: (u16, [u8; 32], [u8; 28], [u8; 32], Vec<TestPrivateKey>)| -> Corpus {
         let (iterations, seed, sequencer, sequencer_da, keys) = input;
         if iterations < 1024 {
             // pointless to setup & run a small iterations count

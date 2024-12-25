@@ -147,11 +147,10 @@ mod tests {
 
     #[test]
     fn test_config_serialization() {
-        let sender_address: <TestSpec as Spec>::Address = AddressBech32::from_str(
-            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
-        )
-        .unwrap()
-        .into();
+        let sender_address: <TestSpec as Spec>::Address =
+            AddressBech32::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv")
+                .unwrap()
+                .into();
         let token_id =
             TokenId::from_str("token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7")
                 .unwrap();
@@ -174,15 +173,15 @@ mod tests {
         {
             "gas_token_config": {
                 "token_name":"sov-gas-token",
-                "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",100000000]],
-                "admins":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
+                "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",100000000]],
+                "admins":["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"]
             },
             "tokens":[
                 {
                     "token_name":"sov-demo-token",
                     "token_id": "token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7",
-                    "address_and_balances":[["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",1000]],
-                    "admins":["sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94"]
+                    "address_and_balances":[["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",1000]],
+                    "admins":["sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv"]
                 }
             ]
         }"#;
@@ -194,16 +193,15 @@ mod tests {
 
     #[test]
     fn test_token_id() {
-        let originator: <TestSpec as Spec>::Address = AddressBech32::from_str(
-            "sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7p8jrm4zqrr8r94",
-        )
-        .unwrap()
-        .into();
+        let originator: <TestSpec as Spec>::Address =
+            AddressBech32::from_str("sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv")
+                .unwrap()
+                .into();
 
         let gas_token_id = get_token_id::<TestSpec>("sov-gas-token", &originator);
         assert_eq!(
             gas_token_id,
-            TokenId::from_str("token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7")
+            TokenId::from_str("token_17224ly0utp0le7fqdmufrgjpaup7quqk9tznt4vawd8n545ujx5sfatgxs")
                 .unwrap()
         );
     }

@@ -16,11 +16,11 @@ type TestSignature = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Signature;
 
 #[test]
 fn test_account_bech32m_display() {
-    let expected_addr: Vec<u8> = (1..=32).collect();
+    let expected_addr: Vec<u8> = (1..=28).collect();
     let account = crate::Address::<Sha256>::try_from(expected_addr.as_slice()).unwrap();
     assert_eq!(
         account.to_string(),
-        "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3c8g7rusqqsn6hm"
+        "sov1qypqxpq9qcrsszg2pvxq6rs0zqg3yyc5z5tpwxqergd3crhxalf"
     );
 }
 

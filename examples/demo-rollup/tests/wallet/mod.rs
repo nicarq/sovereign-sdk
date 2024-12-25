@@ -17,7 +17,7 @@ type S = DemoRollupSpec;
 fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
     let msg: RuntimeCall<S> = RuntimeCall::Bank(CallMessage::Mint {
         mint_to_address: <S as Spec>::Address::from_str(
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
         )
         .unwrap(),
         coins: Coins {
@@ -42,7 +42,7 @@ fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
 fn test_transfer_template() {
     let expected_call = RuntimeCall::Bank(CallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx",
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
         )
         .unwrap(),
         coins: Coins {
@@ -56,7 +56,7 @@ fn test_transfer_template() {
     let expected_bytes = <Runtime<S> as DispatchCall>::encode(&expected_call);
 
     let template_input = r#"{
-        "to": { "Standard": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11] },
+        "to": { "Standard": [11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11, 11] },
         "amount": 4342,
         "token_id": [23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23, 23]
     }"#;
@@ -97,7 +97,7 @@ fn test_display_unsigned_tx() {
                 &unsigned_data
             )
             .unwrap(),
-        r#"{ runtime_call: Bank.Mint { coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx }, nonce: 0, details: { max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 } }"#
+        r#"{ runtime_call: Bank.Mint { coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv }, nonce: 0, details: { max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 } }"#
     );
 }
 
@@ -127,6 +127,6 @@ fn test_display_signed_tx() {
                 &signed_data
             )
             .unwrap(),
-        format!("{{ signature: {{ msg_sig: 0x{} }}, pub_key: {{ pub_key: 0x{} }}, runtime_call: Bank.Mint {{ coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9stup8tx }}, nonce: 0, details: {{ max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 }} }}", signature_display, pubkey_display)
+        format!("{{ signature: {{ msg_sig: 0x{} }}, pub_key: {{ pub_key: 0x{} }}, runtime_call: Bank.Mint {{ coins: 10000 coins of token ID token_1zut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzut3w9chzutsuzalks, mint_to_address: sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv }}, nonce: 0, details: {{ max_priority_fee_bips: 0, max_fee: 100000000, gas_limit: [1000000, 1000000], chain_id: 4321 }} }}", signature_display, pubkey_display)
     );
 }
