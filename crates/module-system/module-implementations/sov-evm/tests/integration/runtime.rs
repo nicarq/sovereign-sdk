@@ -42,17 +42,17 @@ where
 
     type Signature = Auth<TransactionSigned, TransactionWithoutCall<S>>;
 
-    fn parse_input(
+    fn decode_serialized_tx(
         &self,
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), sov_modules_api::capabilities::FatalError> {
-        let input: Auth = borsh::from_slice(&tx.data).map_err(|e| {
+        let auth_variant: Auth = borsh::from_slice(&tx.data).map_err(|e| {
             sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
         })?;
 
-        match input {
+        match auth_variant {
             Auth::Evm(raw_tx) => {
-                let (call, tx) = sov_evm::parse_input(&raw_tx.data)?;
+                let (call, tx) = sov_evm::decode_evm_tx(&raw_tx.data)?;
                 Ok((
                     TestRuntimeCall::Evm(sov_evm::CallMessage { rlp: call }),
                     Auth::Evm(tx),
@@ -60,7 +60,7 @@ where
             }
             Auth::Standard(raw_tx) => {
                 let (call, tx) =
-                    sov_modules_api::capabilities::parse_input::<S, Self>(&raw_tx.data)?;
+                    sov_modules_api::capabilities::decode_sov_tx::<S, Self>(&raw_tx.data)?;
                 Ok((call, Auth::Standard(tx)))
             }
         }

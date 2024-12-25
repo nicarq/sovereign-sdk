@@ -82,8 +82,10 @@ pub trait TransactionAuthenticator<S: Spec> {
         AuthenticationError,
     >;
 
-    /// Decode an input into a message and signature
-    fn parse_input(
+    #[cfg(feature = "native")]
+    /// Decode a transaction into a message and signature.
+    /// This method doesn’t charge gas for deserialization, so it’s meant for off-chain code only (hence to the `native` feature).
+    fn decode_serialized_tx(
         &self,
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
@@ -103,13 +105,13 @@ pub trait TransactionAuthenticator<S: Spec> {
     fn add_standard_auth(tx: RawTx) -> Self::Input;
 
     /// Encode the input for the authenticator into a byte array.
-    fn encode_athenticator_input(input: &Self::Input) -> FullyBakedTx {
+    fn encode_authenticator_input(input: &Self::Input) -> FullyBakedTx {
         FullyBakedTx::new(borsh::to_vec(&input).unwrap())
     }
 
     /// Encode a standard transaction for the rollup with information describing how to authenticate it.
     fn encode_with_standard_auth(tx: RawTx) -> FullyBakedTx {
-        Self::encode_athenticator_input(&Self::add_standard_auth(tx))
+        Self::encode_authenticator_input(&Self::add_standard_auth(tx))
     }
 }
 
@@ -293,8 +295,8 @@ pub fn authenticate<
 ) -> Result<AuthenticationOutput<S, D::Decodable, AuthorizationData<S>>, AuthenticationError> {
     let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
-    let (call, tx_info) =
-        parse_input::<S, D>(raw_tx).map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
+    let (call, tx_info) = decode_sov_tx::<S, D>(raw_tx)
+        .map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
     state
         .charge_gas(&Transaction::<D, S>::gas_cost_to_deserialize::<S>(raw_tx))
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
@@ -305,7 +307,7 @@ pub fn authenticate<
 }
 
 /// Decode bytes as a Sovereign SDK transaction, returning the message and tx info.
-pub fn parse_input<S: Spec, D: DispatchCall<Spec = S>>(
+pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx: &[u8],
 ) -> Result<(D::Decodable, TransactionWithoutCall<S>), FatalError> {
     let tx: Transaction<D, S> =

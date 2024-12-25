@@ -199,14 +199,14 @@ macro_rules! impl_standard_runtime_authenticator {
 
             type Signature = ::sov_modules_api::transaction::TransactionWithoutCall<S>;
 
-            fn parse_input(
+            fn decode_serialized_tx(
                 &self,
                 tx: &sov_modules_api::FullyBakedTx,
             ) -> Result<(Self::Decodable, Self::Signature), ::sov_modules_api::capabilities::FatalError> {
                 let tx: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
                     sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
                 })?;
-                ::sov_modules_api::capabilities::parse_input::<_, Self>(&tx.0.data)
+                ::sov_modules_api::capabilities::decode_sov_tx::<_, Self>(&tx.0.data)
             }
 
 

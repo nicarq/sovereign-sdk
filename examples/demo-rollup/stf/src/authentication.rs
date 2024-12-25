@@ -27,23 +27,24 @@ where
 
     type Signature = Auth<TransactionSigned, TransactionWithoutCall<S>>;
 
-    fn parse_input(
+    #[cfg(feature = "native")]
+    fn decode_serialized_tx(
         &self,
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
-        let input: Auth = borsh::from_slice(&tx.data)
+        let auth_variant: Auth = borsh::from_slice(&tx.data)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
-        match input {
+        match auth_variant {
             Auth::Evm(rlp_tx) => {
-                let (call, tx) = sov_evm::parse_input(&rlp_tx)?;
+                let (call, tx) = sov_evm::decode_evm_tx(&rlp_tx)?;
                 Ok((
                     RuntimeCall::Evm(sov_evm::CallMessage { rlp: call }),
                     Auth::Evm(tx),
                 ))
             }
             Auth::Mod(raw_tx) => {
-                let (call, tx) = sov_modules_api::capabilities::parse_input::<_, Self>(&raw_tx)?;
+                let (call, tx) = sov_modules_api::capabilities::decode_sov_tx::<_, Self>(&raw_tx)?;
                 Ok((call, Auth::Mod(tx)))
             }
         }
