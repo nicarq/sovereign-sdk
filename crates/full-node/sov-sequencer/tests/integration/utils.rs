@@ -12,7 +12,7 @@ use sov_test_utils::runtime::sov_paymaster::{
     AuthorizedSequencers, PayeePolicy, PaymasterPolicy, SafeVec,
 };
 use sov_test_utils::runtime::{
-    AuthenticatorInput, Paymaster, Runtime, TestOptimisticRuntime, TestOptimisticRuntimeCall,
+    Paymaster, Runtime, TestOptimisticRuntime, TestOptimisticRuntimeCall,
 };
 use sov_test_utils::sequencer::TestSequencerSetup;
 use sov_test_utils::{
@@ -65,7 +65,6 @@ pub struct GeneratedTx {
     pub tx_hash: TxHash,
     pub tx_object: Transaction<RT, TestSpec>,
     pub raw_tx: RawTx,
-    pub tx_input: AuthenticatorInput,
     pub fully_baked_tx: FullyBakedTx,
 }
 
@@ -84,7 +83,6 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
             <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::Hasher::digest(&raw_tx).into(),
         );
 
-        let tx_input = TestOptimisticRuntime::<TestSpec>::add_standard_auth(raw_tx.clone());
         let fully_baked_tx =
             TestOptimisticRuntime::<TestSpec>::encode_with_standard_auth(raw_tx.clone());
 
@@ -92,7 +90,6 @@ pub fn generate_txs(admin_private_key: TestPrivateKey) -> Vec<GeneratedTx> {
             tx_hash,
             tx_object,
             raw_tx,
-            tx_input,
             fully_baked_tx,
         });
     }

@@ -4,12 +4,12 @@ use serde::{Deserialize, Serialize};
 use sov_address::EthereumAddress;
 use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
-    calculate_hash, AuthenticationError, AuthenticationOutput, AuthorizationData, FatalError,
-    UnregisteredAuthenticationError,
+    calculate_hash, fatal_deserialization_error, AuthenticationError, AuthenticationOutput,
+    AuthorizationData, FatalError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::TransactionWithoutCall;
-use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
+use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_state::User;
 
 use crate::chain_hash::CHAIN_HASH;
@@ -29,18 +29,21 @@ where
 
     fn parse_input(
         &self,
-        tx: &Self::Input,
+        tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError> {
-        match tx {
+        let input: Auth = borsh::from_slice(&tx.data)
+            .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+
+        match input {
             Auth::Evm(rlp_tx) => {
-                let (call, tx) = sov_evm::parse_input(rlp_tx)?;
+                let (call, tx) = sov_evm::parse_input(&rlp_tx)?;
                 Ok((
                     RuntimeCall::Evm(sov_evm::CallMessage { rlp: call }),
                     Auth::Evm(tx),
                 ))
             }
             Auth::Mod(raw_tx) => {
-                let (call, tx) = sov_modules_api::capabilities::parse_input::<_, Self>(raw_tx)?;
+                let (call, tx) = sov_modules_api::capabilities::parse_input::<_, Self>(&raw_tx)?;
                 Ok((call, Auth::Mod(tx)))
             }
         }
@@ -48,21 +51,24 @@ where
 
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        input: &Self::Input,
+        tx: &FullyBakedTx,
         pre_exec_ws: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
     > {
+        let input: Auth = borsh::from_slice(&tx.data)
+            .map_err(|e| fatal_deserialization_error::<_, S, _>(&tx.data, e, pre_exec_ws))?;
+
         match input {
             Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<_, S, Self>(
-                tx,
+                &tx,
                 &CHAIN_HASH,
                 pre_exec_ws,
             ),
             Auth::Evm(tx) => {
                 let (tx_and_raw_hash, auth_data, runtime_call) =
-                    sov_evm::authenticate::<_, S>(tx, pre_exec_ws)?;
+                    sov_evm::authenticate::<_, S>(&tx, pre_exec_ws)?;
                 let call = RuntimeCall::Evm(runtime_call);
 
                 Ok((tx_and_raw_hash, auth_data, call))

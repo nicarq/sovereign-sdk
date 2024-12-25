@@ -158,9 +158,9 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
         tx: Json<AcceptTx>,
     ) -> ApiResult<TxInfo<DaBlobHash<<Ss::Da as DaService>::Spec>>> {
         let raw_tx = RawTx::new(tx.0.body.blob);
-        let tx_input = sequencer.encode_tx(raw_tx);
+        let baked_tx = sequencer.encode_tx(raw_tx);
 
-        let tx_with_hash = match sequencer.accept_tx(tx_input).await {
+        let tx_with_hash = match sequencer.accept_tx(baked_tx).await {
             Ok(tx_hash) => tx_hash,
             Err(AcceptTxError {
                 http_status,

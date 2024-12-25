@@ -75,7 +75,7 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// into an executable message.
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        tx: &Self::Input,
+        tx: &FullyBakedTx,
         state: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
@@ -85,7 +85,7 @@ pub trait TransactionAuthenticator<S: Spec> {
     /// Decode an input into a message and signature
     fn parse_input(
         &self,
-        tx: &Self::Input,
+        tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
 
     /// Authenticates raw transactions that are submitted from unregistered sequencers for the

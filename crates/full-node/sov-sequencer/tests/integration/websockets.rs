@@ -29,7 +29,7 @@ async fn mempool_eviction_event() {
 
     sequencer
         .sequencer
-        .accept_tx(txs[0].tx_input.clone())
+        .accept_tx(txs[0].fully_baked_tx.clone())
         .await
         .unwrap();
 
@@ -43,7 +43,7 @@ async fn mempool_eviction_event() {
     // first one to be evicted.
     sequencer
         .sequencer
-        .accept_tx(txs[1].tx_input.clone())
+        .accept_tx(txs[1].fully_baked_tx.clone())
         .await
         .unwrap();
 

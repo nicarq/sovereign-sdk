@@ -93,6 +93,7 @@ async fn test_accept_tx() {
         })
         .await
         .unwrap();
+
     let mut submitted_block = sequencer.da_service.get_block_at(1).await.unwrap();
     let block_data = submitted_block.batch_blobs[0].full_data();
     let batch = Vec::<FullyBakedTx>::try_from_slice(block_data).unwrap();

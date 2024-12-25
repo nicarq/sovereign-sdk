@@ -1,9 +1,8 @@
-use borsh::BorshDeserialize;
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    fatal_deserialization_error, AuthenticationError, AuthorizeSequencerError, GasEnforcer,
-    SequencerAuthorization, SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
+    AuthenticationError, AuthorizeSequencerError, GasEnforcer, SequencerAuthorization,
+    SequencerRemuneration, TransactionAuthorizer, TryReserveGasError,
 };
 use sov_modules_api::transaction::TransactionConsumption;
 #[cfg(feature = "native")]
@@ -278,19 +277,7 @@ fn deserialize_and_authenticate<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     tx: &FullyBakedTx,
     pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
 ) -> Result<AuthTxOutput<S, R>, AuthenticationError> {
-    let auth_input = deserialize_tx(tx).map_err(|e| {
-        fatal_deserialization_error::<PreExecWorkingSet<S, I>, S, _>(
-            &tx.data,
-            e,
-            pre_exec_working_set,
-        )
-    })?;
-    runtime.authenticate(&auth_input, pre_exec_working_set)
-}
-
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn deserialize_tx<T: BorshDeserialize>(tx: &FullyBakedTx) -> std::io::Result<T> {
-    borsh::from_slice(&tx.data)
+    runtime.authenticate(tx, pre_exec_working_set)
 }
 
 pub struct IncrementalBatchReceipt<S: Spec> {
