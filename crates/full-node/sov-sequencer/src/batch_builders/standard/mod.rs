@@ -118,7 +118,7 @@ where
             tx_scratchpad,
             ctx.gas_price.clone(),
             &self.config.da_address,
-            seqdb_tx.tx_input::<Self>(),
+            &seqdb_tx.fully_baked_tx(),
         );
 
         let (auth_output, gas_meter) = match output_res {
@@ -208,7 +208,6 @@ impl<Z> BatchBuilder for StdBatchBuilder<Z>
 where
     Z: RtAwareBatchBuilderSpec,
 {
-    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
     // The standard, non-preferred sequencer doesn't provide any information as
     // part of transaction confirmations. In the future, it might return
     // authentication gas usage information.
@@ -262,8 +261,8 @@ where
         ))
     }
 
-    fn encode_tx(raw: RawTx) -> Self::TxInput {
-        Z::Rt::add_standard_auth(raw)
+    fn encode_tx(raw: RawTx) -> FullyBakedTx {
+        Z::Rt::encode_with_standard_auth(raw)
     }
 
     fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
@@ -301,18 +300,8 @@ where
 
     async fn accept_tx(
         &mut self,
-        tx_input: Self::TxInput,
+        baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
-        let baked_tx = {
-            FullyBakedTx {
-                data: borsh::to_vec(&tx_input).map_err(|err| AcceptTxError {
-                    http_status: StatusCode::BAD_REQUEST.as_u16(),
-                    title: "Failed to encode transaction".to_string(),
-                    details: err.to_string(),
-                })?,
-            }
-        };
-
         tracing::trace!(
             baked_tx = hex::encode(&baked_tx),
             "`accept_tx` has been called"
@@ -347,7 +336,7 @@ where
                 checkpoint.to_tx_scratchpad(),
                 gas_price,
                 &self.config.da_address,
-                tx_input.clone(),
+                &baked_tx.clone(),
             );
 
             let (auth_output, gas_meter) = match output_res {
@@ -384,7 +373,7 @@ where
             };
 
             {
-                self.mempool.add_new_tx(tx_hash, tx_input);
+                self.mempool.add_new_tx(tx_hash, baked_tx.clone());
                 tracing::trace!(
                     %tx_hash,
                     "Transaction has been added to the mempool"

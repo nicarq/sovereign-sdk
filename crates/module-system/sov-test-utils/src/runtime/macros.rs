@@ -201,15 +201,18 @@ macro_rules! impl_standard_runtime_authenticator {
 
             fn parse_input(
                 &self,
-                tx: &Self::Input,
+                tx: &sov_modules_api::FullyBakedTx,
             ) -> Result<(Self::Decodable, Self::Signature), ::sov_modules_api::capabilities::FatalError> {
+                let tx: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
+                    sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
+                })?;
                 ::sov_modules_api::capabilities::parse_input::<_, Self>(&tx.0.data)
             }
 
 
             fn authenticate<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,
-                tx: &AuthenticatorInput,
+                tx: &sov_modules_api::FullyBakedTx,
                 pre_exec_ws: &mut Accessor,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
@@ -219,8 +222,14 @@ macro_rules! impl_standard_runtime_authenticator {
                 >,
                 ::sov_modules_api::capabilities::AuthenticationError,
             > {
+                let input: AuthenticatorInput = borsh::from_slice(&tx.data).map_err(|e| {
+                    sov_modules_api::capabilities::fatal_deserialization_error::<_, S, _>(
+                        &tx.data, e, pre_exec_ws,
+                    )
+                })?;
+
                 ::sov_modules_api::capabilities::authenticate::<_, S, Self>(
-                    &tx.0.data,
+                    &input.0.data,
                     &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
                     pre_exec_ws,
                 )

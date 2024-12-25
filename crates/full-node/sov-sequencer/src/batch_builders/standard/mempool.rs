@@ -4,7 +4,7 @@ use std::num::NonZero;
 use std::ops::Bound;
 use std::sync::Arc;
 
-use sov_modules_api::Spec;
+use sov_modules_api::{FullyBakedTx, Spec};
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::TxHash;
 use tracing::debug;
@@ -115,13 +115,13 @@ impl<Bb: BatchBuilder> Mempool<Bb> {
         }
     }
 
-    pub fn add_new_tx(&mut self, hash: TxHash, tx_input: Bb::TxInput) -> Arc<SeqDbTx> {
+    pub fn add_new_tx(&mut self, hash: TxHash, baked_tx: FullyBakedTx) -> Arc<SeqDbTx> {
         if let Some(tx) = self.txs_by_hash.get(&hash) {
             // We already have this transaction in the mempool; simply return a
             // reference to it (don't re-add it!).
             tx.clone()
         } else {
-            let tx = Arc::new(SeqDbTx::new::<Bb>(hash, tx_input));
+            let tx = Arc::new(SeqDbTx::new(hash, baked_tx));
             self.add(tx.clone());
             tx
         }

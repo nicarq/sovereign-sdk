@@ -8,7 +8,6 @@ mod sequencer;
 mod spec;
 mod tx_status;
 
-use batch_builders::BatchBuilder;
 pub use config::{BatchBuilderConfig, SequencerConfig};
 pub use sequencer::{SequenceNumberProvider, Sequencer};
 use serde::Serialize;
@@ -34,31 +33,19 @@ pub struct SubmitBatchReceipt<Da: DaSpec> {
 
 /// Extends [`SeqDbTx`] with methods that require [`sov_sequencer`](crate)-specific types.
 pub trait SeqDbTxExtend {
-    /// Creates a new [`SeqDbTx`] from a [`TxHash`] and [`BatchBuilder::TxInput`].
-    fn new<Bb: BatchBuilder>(tx_hash: TxHash, tx_input: Bb::TxInput) -> Self;
+    /// Creates a new [`SeqDbTx`] from a [`TxHash`].
+    fn new(tx_hash: TxHash, baked_tx: FullyBakedTx) -> Self;
 
     /// Returns the fully encoded transaction stored in the [`SeqDbTx`].
     fn fully_baked_tx(&self) -> FullyBakedTx;
-
-    /// Returns the [`BatchBuilder::TxInput`] for the transaction stored in the [`SeqDbTx`].
-    fn tx_input<Bb: BatchBuilder>(&self) -> Bb::TxInput;
 }
 
 impl SeqDbTxExtend for SeqDbTx {
-    fn new<Bb: BatchBuilder>(tx_hash: TxHash, tx_input: Bb::TxInput) -> Self {
-        Self::new_with_tx_bytes(
-            tx_hash,
-            borsh::to_vec(&tx_input).expect("Failed to serialize transaction in SeqDbTx::new"),
-        )
+    fn new(tx_hash: TxHash, baked_tx: FullyBakedTx) -> Self {
+        Self::new_with_tx_bytes(tx_hash, baked_tx.data)
     }
 
     fn fully_baked_tx(&self) -> FullyBakedTx {
         FullyBakedTx::new(self.tx_bytes.clone())
-    }
-
-    fn tx_input<Bb: BatchBuilder>(&self) -> Bb::TxInput {
-        borsh::from_slice(&self.tx_bytes).expect(
-            "Failed to deserialize stored transaction; db data is corrupted or there's a bug",
-        )
     }
 }

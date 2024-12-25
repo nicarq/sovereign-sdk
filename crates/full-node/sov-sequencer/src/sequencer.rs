@@ -4,7 +4,9 @@ use axum::async_trait;
 use sov_db::ledger_db::LedgerDb;
 use sov_db::sequencer_db::{SequenceNumber, SequencerDb};
 use sov_modules_api::rest::{ApiState, StateUpdateReceiver};
-use sov_modules_api::{DaSyncState, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo};
+use sov_modules_api::{
+    DaSyncState, FullyBakedTx, RawTx, RuntimeEventResponse, Spec, StateUpdateInfo,
+};
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::ledger_api::{
@@ -71,6 +73,7 @@ impl<Ss: SequencerSpec> Inner<Ss> {
                 e
             ),
         };
+
         let submit_blob_receipt = match self
             .da_service
             .send_transaction(&serialized_batch, fee)
@@ -217,7 +220,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     /// [`BatchBuilder::build_next_batch`].
     pub async fn submit_batch(
         &self,
-        txs: Vec<<Ss::BatchBuilder as BatchBuilder>::TxInput>,
+        txs: Vec<FullyBakedTx>,
     ) -> anyhow::Result<SubmitBatchReceipt<<Ss::Da as DaService>::Spec>> {
         let mut batch_builder = self.batch_builder().await;
 
@@ -227,7 +230,7 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
 
             match &result {
                 Ok(accepted) => {
-                    let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx);
+                    let stored_tx = SeqDbTx::new(accepted.tx_hash, tx);
 
                     if let Err(e) = self.sequencer_db.insert(&stored_tx).await {
                         error!(%e, "Database error. Failed to add transaction to batch");
@@ -255,21 +258,20 @@ impl<Ss: SequencerSpec> Sequencer<Ss> {
     ///
     /// TODO(@neysofu): this method should be replaced an API endpoint -aware
     /// approach, so that multiple transaction formats can be supported.
-    pub fn encode_tx(&self, raw: RawTx) -> <Ss::BatchBuilder as BatchBuilder>::TxInput {
+    pub fn encode_tx(&self, raw: RawTx) -> FullyBakedTx {
         Ss::BatchBuilder::encode_tx(raw)
     }
 
     /// See [`BatchBuilder::accept_tx`].
     pub async fn accept_tx(
         &self,
-        tx_input: <Ss::BatchBuilder as BatchBuilder>::TxInput,
+        baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<<Ss::BatchBuilder as BatchBuilder>::Confirmation>, AcceptTxError> {
         let mut batch_builder = self.batch_builder().await;
 
-        let tx_bytes = borsh::to_vec(&tx_input).expect("Failed to serialize transaction");
-        tracing::info!(tx = hex::encode(&tx_bytes), "Accepting transaction");
-        let accepted = batch_builder.accept_tx(tx_input.clone()).await?;
-        let stored_tx = SeqDbTx::new::<Ss::BatchBuilder>(accepted.tx_hash, tx_input);
+        tracing::info!(tx = hex::encode(&baked_tx.data), "Accepting transaction");
+        let accepted = batch_builder.accept_tx(baked_tx.clone()).await?;
+        let stored_tx = SeqDbTx::new(accepted.tx_hash, baked_tx);
 
         self.sequencer_db.insert(&stored_tx).await.map_err(|e| {
             error!(%e, "Database error. Failed to accept transaction");

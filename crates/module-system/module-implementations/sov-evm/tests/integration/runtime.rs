@@ -6,7 +6,7 @@ use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator}
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::transaction::TransactionWithoutCall;
-use sov_modules_api::{DispatchCall, ProvableStateReader, RawTx, Spec};
+use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_rollup_interface::execution_mode::Native;
 use sov_state::User;
 use sov_test_utils::{generate_bare_runtime, MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
@@ -44,9 +44,13 @@ where
 
     fn parse_input(
         &self,
-        tx: &Self::Input,
+        tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), sov_modules_api::capabilities::FatalError> {
-        match tx {
+        let input: Auth = borsh::from_slice(&tx.data).map_err(|e| {
+            sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
+        })?;
+
+        match input {
             Auth::Evm(raw_tx) => {
                 let (call, tx) = sov_evm::parse_input(&raw_tx.data)?;
                 Ok((
@@ -64,7 +68,7 @@ where
 
     fn authenticate<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        tx: &Self::Input,
+        tx: &FullyBakedTx,
         state: &mut Accessor,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<
@@ -74,7 +78,13 @@ where
         >,
         sov_modules_api::capabilities::AuthenticationError,
     > {
-        match tx {
+        let input: Auth = borsh::from_slice(&tx.data).map_err(|e| {
+            sov_modules_api::capabilities::fatal_deserialization_error::<_, S, _>(
+                &tx.data, e, state,
+            )
+        })?;
+
+        match input {
             Auth::Evm(tx) => {
                 let (tx_and_raw_hash, auth_data, runtime_call) =
                     sov_evm::authenticate::<_, _>(&tx.data, state)?;

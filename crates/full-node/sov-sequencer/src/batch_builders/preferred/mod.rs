@@ -115,11 +115,11 @@ impl<Z: RtAwareBatchBuilderSpec> PreferredBatchBuilder<Z> {
             .expect("Absent checkpoint; this is a bug, please report it");
 
         for seqdb_tx in txs {
-            let tx_input = seqdb_tx.tx_input::<Self>();
+            let baked_tx = seqdb_tx.fully_baked_tx();
 
             let (new_checkpoint, response) = self
                 .acceptor
-                .tx_confirmation(tx_input, checkpoint, self.next_event_number)
+                .tx_confirmation(baked_tx, checkpoint, self.next_event_number)
                 .await;
 
             checkpoint = new_checkpoint;
@@ -172,7 +172,6 @@ pub struct PreferredBatchBuilderConfig {
 
 #[async_trait]
 impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
-    type TxInput = <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input;
     type Confirmation = Confirmation<Z>;
     type Batch = PreferredBatchData;
     type Config = PreferredBatchBuilderConfig;
@@ -286,9 +285,9 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     "Re-applying state changes for the soft-confirmed transaction"
                 );
 
-                let tx_input = borsh::from_slice(&tx.fully_baked_tx.data)
+                let baked_tx = borsh::from_slice(&tx.fully_baked_tx.data)
                     .expect("Failed to deserialize transaction");
-                if let Err(error) = self.accept_tx(tx_input).await {
+                if let Err(error) = self.accept_tx(baked_tx).await {
                     warn!(
                         ?error,
                         "Transaction was soft-confirmed but failed to be re-applied"
@@ -303,13 +302,13 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         }
     }
 
-    fn encode_tx(raw: RawTx) -> Self::TxInput {
-        Z::Rt::add_standard_auth(raw)
+    fn encode_tx(raw: RawTx) -> FullyBakedTx {
+        Z::Rt::encode_with_standard_auth(raw)
     }
 
     async fn accept_tx(
         &mut self,
-        tx_input: Self::TxInput,
+        baked_tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError> {
         let old_checkpoint = self
             .checkpoint
@@ -318,10 +317,9 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
 
         let (new_checkpoint, response) = self
             .acceptor
-            .tx_confirmation(tx_input, old_checkpoint, self.next_event_number)
+            .tx_confirmation(baked_tx, old_checkpoint, self.next_event_number)
             .await;
         self.checkpoint = Some(new_checkpoint);
-
         if let Ok(ref ok) = response {
             self.next_event_number += ok.confirmation.events.len() as u64;
 
@@ -553,11 +551,11 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
 
     async fn tx_confirmation(
         &mut self,
-        tx_input: <Z::Rt as TransactionAuthenticator<Z::Spec>>::Input,
+        baked_tx: FullyBakedTx,
         mut checkpoint: StateCheckpoint<<Z::Spec as Spec>::Storage>,
         next_event_number: u64,
     ) -> AcceptTxResult<Z> {
-        let call = match Z::Rt::parse_input(&self.runtime, &tx_input) {
+        let call = match Z::Rt::parse_input(&self.runtime, &baked_tx) {
             Ok((call, _)) => call,
             Err(e) => {
                 return (
@@ -570,7 +568,6 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                 );
             }
         };
-        let baked_tx = Z::Rt::encode_athenticator_input(&tx_input);
 
         // Send the transaction for execution
         if let Err(TrySendError::Full(_)) = self.tx_sender.try_send(baked_tx.clone()) {
@@ -596,7 +593,7 @@ impl<Z: RtAwareBatchBuilderSpec> TxAcceptor<Z> {
                 // (recall that the sequencer must have enough take to cover all N authentication attempts in order to submit a batch of size N).
                 // In that case, this check will fail repeatedly in a short time window. However, the sequencer is only allowed to submit 1 batch
                 // per slot. In that case, the "correct" solution is to raise the required fees per transaction and plow the profits into increasing
-                // the sequencer's stake. 
+                // the sequencer's stake.
                 // Finally, there's one small edge case where the sequencer isn't staked enough to cover even a single tx. In that case, we should
                 // probably throw an error on startup.
                 RejectReason::SequencerOutOfGas =>  {

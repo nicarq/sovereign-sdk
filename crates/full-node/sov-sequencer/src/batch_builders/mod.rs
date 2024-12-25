@@ -60,8 +60,6 @@ where
 /// assembling them into batches.
 #[async_trait]
 pub trait BatchBuilder: Sized + Send + Sync + 'static {
-    /// See [`sov_modules_api::capabilities::TransactionAuthenticator::Input`].
-    type TxInput: borsh::BorshSerialize + borsh::BorshDeserialize + Clone + Send + Sync + 'static;
     /// What data is returned to clients when a transaction is accepted.
     type Confirmation: SequencerConfirmation + serde::Serialize + Send + Sync + 'static;
     /// The batch type that will be serialized and sent to the DA layer.
@@ -72,10 +70,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     type Spec: Spec;
 
     /// Encodes the transaction into the format accepted by [`BatchBuilder::accept_tx`].
-    //
-    // TODO(@neysofu): in the future, different sequencer endpoints will encode
-    // transactions differently to support multiple transaction types.
-    fn encode_tx(raw: RawTx) -> Self::TxInput;
+    fn encode_tx(raw: RawTx) -> FullyBakedTx;
 
     /// Returns an [`ApiState`] subscribed to updates of the batch builder's state.
     fn api_state(&self) -> ApiState<Self::Spec>;
@@ -108,7 +103,7 @@ pub trait BatchBuilder: Sized + Send + Sync + 'static {
     /// Can return an error if transaction is invalid or mempool is full.
     async fn accept_tx(
         &mut self,
-        tx: Self::TxInput,
+        tx: FullyBakedTx,
     ) -> Result<AcceptedTx<Self::Confirmation>, AcceptTxError>;
 
     /// Builds a new batch out of transactions in mempool.
@@ -262,7 +257,7 @@ fn tx_auth<S, Rt, I>(
     mut tx_scratchpad: TxScratchpad<S, I>,
     gas_price: <S::Gas as Gas>::Price,
     sequencer_address: &<S::Da as DaSpec>::Address,
-    input: <Rt as TransactionAuthenticator<S>>::Input,
+    baked_tx: &FullyBakedTx,
 ) -> AuthRes<S, Rt, I>
 where
     S: Spec,
@@ -286,7 +281,7 @@ where
 
     let mut pre_exec_ws = tx_scratchpad.to_pre_exec_working_set(gas_meter);
 
-    let auth_res = match runtime.authenticate(&input, &mut pre_exec_ws) {
+    let auth_res = match runtime.authenticate(baked_tx, &mut pre_exec_ws) {
         Ok(ok) => ok,
         Err(err) => {
             let tx_scratchpad = pre_exec_ws.to_scratchpad_and_gas_meter().0;

@@ -1,6 +1,7 @@
 ## 2024-12-25
+- **Breaking Change** #2091 Changes the `TransactionAuthenticator` trait. Now the `parse_input & authenticate`  methods accept `FullyBakedTx`.
+This is a breaking change for the consumers of the SDK.
 - **Breaking Change** 2089 Changes standard address length to 28 bytes. All rollup addresses (previously 32 bytes long) are now standardized to 28 bytes. This includes typed addresses, Bech32 string representations, default addresses in test data, and configuration files referencing addresses. This was done so that our rollups can support VMs such as EVM, SVM, MoveVM natively alongside standard modules.
-
 ## 2024-12-23
 - #2083 Adds a new `MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE` constant in the constants.toml file. This sets the maximum size of data that can be returned by the blob selector.
 ## 2024-12-20
