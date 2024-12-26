@@ -2,7 +2,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, MultiAddressEvm};
 use sov_evm::Evm;
-use sov_modules_api::capabilities::{AuthorizationData, TransactionAuthenticator};
+use sov_modules_api::capabilities::{
+    AuthorizationData, BatchFromUnregisteredSequencer, TransactionAuthenticator,
+};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::runtime::Runtime;
 use sov_modules_api::transaction::TransactionWithoutCall;
@@ -108,7 +110,7 @@ where
 
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        _tx: &Self::Input,
+        _batch: &BatchFromUnregisteredSequencer,
         _state: &mut Accessor,
     ) -> Result<
         sov_modules_api::capabilities::AuthenticationOutput<

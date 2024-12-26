@@ -237,7 +237,7 @@ macro_rules! impl_standard_runtime_authenticator {
 
             fn authenticate_unregistered<Accessor: ::sov_modules_api::ProvableStateReader<::sov_state::User, Spec = S>>(
                 &self,
-                tx: &AuthenticatorInput,
+                batch: &sov_modules_api::capabilities::BatchFromUnregisteredSequencer,
                 pre_exec_ws: &mut Accessor,
             ) -> ::core::result::Result<
                 ::sov_modules_api::capabilities::AuthenticationOutput<
@@ -252,7 +252,7 @@ macro_rules! impl_standard_runtime_authenticator {
                     S,
                     Self
                 >(
-                    &tx.0.data,
+                    &batch.tx.data,
                     &<$runtime as $crate::runtime::Runtime<S>>::CHAIN_HASH,
                     pre_exec_ws
                 ) .map_err(|e| match e {

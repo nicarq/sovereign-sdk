@@ -52,6 +52,14 @@ pub fn config_chain_id() -> u64 {
     config_value_private!("CHAIN_ID")
 }
 
+/// A batch sent by an unregistered sequencer contains only one transaction.
+pub struct BatchFromUnregisteredSequencer {
+    /// The transaction.
+    pub tx: RawTx,
+    /// Id of the batch.
+    pub id: [u8; 32],
+}
+
 /// Authenticates raw transactions, ensuring that the *claimed* sender really did sign off on the transaction. Note that
 /// simply *authenticating* a transaction does not guarantee that it will actually be executed. That decision is
 /// made by the [`TransactionAuthorizer`]
@@ -90,11 +98,11 @@ pub trait TransactionAuthenticator<S: Spec> {
         tx: &FullyBakedTx,
     ) -> Result<(Self::Decodable, Self::Signature), FatalError>;
 
-    /// Authenticates raw transactions that are submitted from unregistered sequencers for the
+    /// Authenticates raw transaction that is submitted from unregistered sequencers for the
     /// purpose of forced registration (circumventing censorship by currently registered sequencers).
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        tx: &Self::Input,
+        batch: &BatchFromUnregisteredSequencer,
         state: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,

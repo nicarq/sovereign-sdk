@@ -1,4 +1,6 @@
 ## 2024-12-25
+- **Breaking Change** #2093 Changes the signature of 
+`TransactionAuthenticator::authenticate_unregistered` method. Now the method takes `BatchFromUnregisteredSequencer` instead of `Self::Input` as an argument.
 - **Breaking Change** #2092 Renames `TransactionAuthenticator::parse_input` to `TransactionAuthenticator::decode_serialized_tx`
 - **Breaking Change** #2091 Changes the `TransactionAuthenticator` trait. Now the `parse_input & authenticate`  methods accept `FullyBakedTx`.
 This is a breaking change for the consumers of the SDK.

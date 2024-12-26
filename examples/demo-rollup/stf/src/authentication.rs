@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use sov_address::EthereumAddress;
 use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
-    calculate_hash, fatal_deserialization_error, AuthenticationError, AuthenticationOutput,
-    AuthorizationData, FatalError, UnregisteredAuthenticationError,
+    fatal_deserialization_error, AuthenticationError, AuthenticationOutput, AuthorizationData,
+    BatchFromUnregisteredSequencer, FatalError, UnregisteredAuthenticationError,
 };
 use sov_modules_api::runtime::capabilities::TransactionAuthenticator;
 use sov_modules_api::transaction::TransactionWithoutCall;
@@ -79,27 +79,15 @@ where
 
     fn authenticate_unregistered<Accessor: ProvableStateReader<User, Spec = S>>(
         &self,
-        input: &Self::Input,
+        batch: &BatchFromUnregisteredSequencer,
         pre_exec_ws: &mut Accessor,
     ) -> Result<
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         UnregisteredAuthenticationError,
     > {
-        let contents = match input {
-            Auth::Mod(tx) => tx,
-            Auth::Evm(tx) => {
-                let fallback_hash = calculate_hash::<_, S>(tx, pre_exec_ws)
-                    .map_err(|err| UnregisteredAuthenticationError::OutOfGas(err.to_string()))?;
-                return Err(UnregisteredAuthenticationError::FatalError(
-                    FatalError::Other("Invalid authenticator".to_string()),
-                    fallback_hash,
-                ))?;
-            }
-        };
-
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(
-                contents,
+                &batch.tx.data,
                 &CHAIN_HASH,
                 pre_exec_ws,
             )
