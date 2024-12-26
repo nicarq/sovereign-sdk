@@ -1,15 +1,13 @@
 use std::io;
 
-use borsh::BorshDeserialize;
 use digest::consts::U32;
 use digest::Digest;
 use serde::de::DeserializeOwned;
-use sov_modules_macros::config_value_private;
 use sov_rollup_interface::crypto::{SigVerificationError, Signature};
 use thiserror::Error;
 
-use crate::gas::traits::{Gas, GasMeter, GasMeteringError};
-use crate::GasSpec;
+use crate::gas::traits::{Gas, GasArray, GasMeter, GasMeteringError};
+use crate::{GasSpec, Spec};
 
 /// A metered hasher that charges gas for each operation.
 /// This data structure should be used in the module system to charge gas when hashing data.
@@ -148,11 +146,11 @@ impl<GU: Gas, Sign: Signature> MeteredSignature<GU, Sign> {
 
         meter
             .charge_gas(total_gas_cost)
-            .map_err(|e| MeteredSigVerificationError::GasError(e))?;
+            .map_err(MeteredSigVerificationError::GasError)?;
 
         self.inner
             .verify(pub_key, msg)
-            .map_err(|e| MeteredSigVerificationError::BadSignature(e))
+            .map_err(MeteredSigVerificationError::BadSignature)
     }
 }
 
@@ -167,33 +165,25 @@ pub enum MeteredBorshDeserializeError<GU: Gas> {
     IOError(io::Error),
 }
 
-/// A wrapper around [`BorshDeserialize`] that charges gas for deserialization.
-pub trait MeteredBorshDeserialize<GU: Gas>: BorshDeserialize {
-    /// The default amount of gas to charge for each byte of struct to deserialize with borsh.
-    fn default_gas_to_charge_per_byte_borsh_serialization() -> [u64; 2] {
-        config_value_private!("DEFAULT_GAS_TO_CHARGE_PER_BYTE_BORSH_DESERIALIZATION")
-    }
-
+/// Charges gas for deserialization.
+pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     /// Computes the cost to deserialize the given buffer, in Gas.
-    fn gas_cost_to_deserialize<Spec: GasSpec<Gas = GU>>(buf: &[u8]) -> GU {
-        let mut deserialization_cost = Spec::gas_to_charge_per_byte_borsh_deserialization();
+    fn gas_cost_to_deserialize(buf: &[u8]) -> <S as GasSpec>::Gas {
+        let mut deserialization_cost = S::gas_to_charge_per_byte_borsh_deserialization();
         deserialization_cost.scalar_product(buf.len() as u64);
         deserialization_cost
     }
 
-    /// Deserializes a value from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
+    /// Deserializes a type from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
     /// amount of gas for each byte of the struct to deserialize.
-    fn deserialize<Spec: GasSpec<Gas = GU>>(
+    fn deserialize(
         buf: &mut &[u8],
-        meter: &mut impl GasMeter<GU>,
-    ) -> Result<Self, MeteredBorshDeserializeError<GU>> {
-        meter
-            .charge_gas(&Self::gas_cost_to_deserialize::<Spec>(buf))
-            .map_err(|e| MeteredBorshDeserializeError::GasError(e))?;
+        meter: &mut impl GasMeter<<S as GasSpec>::Gas>,
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
 
-        <Self as BorshDeserialize>::deserialize(buf)
-            .map_err(|e| MeteredBorshDeserializeError::IOError(e))
-    }
+    #[cfg(feature = "native")]
+    /// Deserialized a type without charging gas.
+    fn deserialize_without_charging_gas(
+        buf: &mut &[u8],
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
 }
-
-impl<T: BorshDeserialize, GU: Gas> MeteredBorshDeserialize<GU> for T {}

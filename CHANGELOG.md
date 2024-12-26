@@ -1,4 +1,5 @@
 ## 2024-12-26
+- **Breaking Change** #2095 The `Transaction` type no longer implements `borsh::BorshSerialize`. Transaction is now deserializable only via the `MeteredBorshDeserialize` trait.
 - #2094 Move `DispatchCall::decode_call` method to `Runtime`. This is not a breaking change since the method was not used outside of the sequencer.
 ## 2024-12-25
 - **Breaking Change** #2093 Changes the signature of 
