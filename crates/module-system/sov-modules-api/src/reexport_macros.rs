@@ -61,19 +61,6 @@
 /// #     borsh::to_vec(decodable).unwrap()
 /// # }
 /// #
-/// # /// Decodes serialized call message
-/// # fn decode_call(
-/// #     serialized_message: &[u8],
-/// #     meter: &mut impl sov_modules_api::GasMeter<<Self::Spec as Spec>::Gas>,
-/// # ) -> Result<Self::Decodable, sov_modules_api::MeteredBorshDeserializeError<<Self::Spec as Spec>::Gas>> {
-/// #   return ::core::result::Result::Err(::sov_modules_api::MeteredBorshDeserializeError::IOError(
-/// #     ::std::io::Error::new(
-/// #       ::std::io::ErrorKind::Other,
-/// #     "the provided message contains dangling data",
-/// #     )
-/// #   )
-/// #   )
-/// # }
 /// #
 /// # fn dispatch_call<I: sov_modules_api::StateProvider<S>>(
 /// #     &self,

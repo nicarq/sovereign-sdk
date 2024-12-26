@@ -2,8 +2,9 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
 use sov_modules_api::{
-    Context, DaSpec, DispatchCall, EncodeCall, Error, Event, ExecutionContext, Genesis,
-    MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState, WorkingSet,
+    decode_borsh_serialized_message, Context, DaSpec, DispatchCall, EncodeCall, Error, Event,
+    ExecutionContext, Genesis, MessageCodec, Module, ModuleInfo, Spec, StateValue, TxState,
+    WorkingSet,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::{TestSpec, ZkTestSpec};
@@ -407,7 +408,10 @@ mod derive_dispatch {
             let serialized_message = <RT as EncodeCall<
                 first_test_module::FirstTestStruct<ZkTestSpec>,
             >>::encode_call(message);
-            let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+            let module = decode_borsh_serialized_message::<<RT as DispatchCall>::Decodable>(
+                &serialized_message,
+            )
+            .unwrap();
 
             assert_eq!(runtime.module_id(&module), runtime.first.id());
             runtime
@@ -429,7 +433,10 @@ mod derive_dispatch {
             let serialized_message = <RT as EncodeCall<
                 second_test_module::SecondTestStruct<ZkTestSpec>,
             >>::encode_call(message);
-            let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+            let module = decode_borsh_serialized_message::<<RT as DispatchCall>::Decodable>(
+                &serialized_message,
+            )
+            .unwrap();
 
             assert_eq!(runtime.module_id(&module), runtime.second.id());
 

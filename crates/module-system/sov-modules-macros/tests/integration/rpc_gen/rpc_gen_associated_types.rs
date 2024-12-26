@@ -3,8 +3,9 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::macros::{expose_rpc, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    ApiStateAccessor, Context, DaSpec, DispatchCall, EncodeCall, Error, ExecutionContext, Genesis,
-    MessageCodec, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateValue, TxState,
+    decode_borsh_serialized_message, ApiStateAccessor, Context, DaSpec, DispatchCall, EncodeCall,
+    Error, ExecutionContext, Genesis, MessageCodec, Module, ModuleId, ModuleInfo, Spec,
+    StateCheckpoint, StateValue, TxState,
 };
 use sov_state::ZkStorage;
 use sov_test_utils::ZkTestSpec;
@@ -141,7 +142,9 @@ fn associated_types() {
     let message: u32 = 33;
     let serialized_message =
         <RT as EncodeCall<my_module::QueryModule<S, u32>>>::encode_call(message);
-    let module = RT::decode_call(&serialized_message, &mut working_set).unwrap();
+    let module =
+        decode_borsh_serialized_message::<<RT as DispatchCall>::Decodable>(&serialized_message)
+            .unwrap();
     let sender = <S as Spec>::Address::from([11; 28]);
     let sequencer = <S as Spec>::Address::from([12; 28]);
     let sequencer_da = <<ZkTestSpec as Spec>::Da as DaSpec>::Address::new([0; 32]);

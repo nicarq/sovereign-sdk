@@ -8,7 +8,7 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::rest::StateUpdateReceiver;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, ExecutionContext, Gas, Spec, StateCheckpoint, VersionReader, WorkingSet,
+    DaSpec, ExecutionContext, Gas, Spec, StateCheckpoint, VersionReader, WorkingSet,
 };
 use sov_modules_stf_blueprint::{apply_tx, ApplyTxResult, Runtime};
 use sov_rollup_interface::common::HexString;
@@ -81,11 +81,8 @@ where
 
         let mut scratchpad = state.to_tx_scratchpad();
 
-        let decoded_call_message = RT::decode_call(
-            &transaction.encoded_call_message,
-            &mut BasicGasMeter::new(u64::MAX, gas_price.clone()),
-        )
-        .map_err(|e| anyhow::anyhow!("Unable to deserialize call message: {e}"))?;
+        let decoded_call_message = RT::decode_call(&transaction.encoded_call_message)
+            .map_err(|e| anyhow::anyhow!("Unable to deserialize call message: {e}"))?;
 
         let ctx = runtime.transaction_authorizer().resolve_context(
             &auth_data,
