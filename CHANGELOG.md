@@ -1,3 +1,5 @@
+## 2024-12-26
+- #2094 Move `DispatchCall::decode_call` method to `Runtime`. This is not a breaking change since the method was not used outside of the sequencer.
 ## 2024-12-25
 - **Breaking Change** #2093 Changes the signature of 
 `TransactionAuthenticator::authenticate_unregistered` method. Now the method takes `BatchFromUnregisteredSequencer` instead of `Self::Input` as an argument.

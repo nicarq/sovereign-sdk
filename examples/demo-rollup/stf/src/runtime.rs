@@ -25,11 +25,6 @@
 //!     The `Module` interface defines a `call` method which accepts a module-defined type and triggers the specific `module logic.`
 //!     In general, the point of a call is to change the module state, but if the call throws an error,
 //!     no module specific state is updated (the transaction is reverted).
-//!
-//! `#[derive(MessageCodec)` adds deserialization capabilities to the `Runtime` (implements `decode_call` method).
-//! `Runtime::decode_call` accepts serialized call message and returns a type that implements the `DispatchCall` trait.
-//!  The `DispatchCall` implementation (derived by a macro) forwards the message to the appropriate module and executes its `call` method.
-
 #[cfg(feature = "native")]
 use std::sync::Arc;
 

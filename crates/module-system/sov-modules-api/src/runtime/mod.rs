@@ -1,6 +1,9 @@
 //! Module system runtime types and traits
 pub mod capabilities;
 
+#[cfg(feature = "native")]
+use std::io;
+
 use borsh::{BorshDeserialize, BorshSerialize};
 use capabilities::{HasCapabilities, HasKernel, TransactionAuthenticator};
 use serde::{Deserialize, Serialize};
@@ -62,6 +65,30 @@ pub trait Runtime<S: Spec>:
 
     /// Gets the operating mode of the runtime (Zk or Optimistic).
     fn operating_mode(genesis: &Self::GenesisConfig) -> OperatingMode;
+
+    /// Decodes serialized call message.
+    fn decode_call(
+        serialized_message: &[u8],
+    ) -> Result<<Self as DispatchCall>::Decodable, io::Error> {
+        decode_borsh_serialized_message::<<Self as DispatchCall>::Decodable>(serialized_message)
+    }
+}
+
+#[cfg(feature = "native")]
+/// Decodes borsh serialized message.
+pub fn decode_borsh_serialized_message<T: borsh::BorshDeserialize>(
+    mut serialized_message: &[u8],
+) -> Result<T, io::Error> {
+    let res = T::deserialize(&mut serialized_message)?;
+
+    if !serialized_message.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "the provided message contains dangling data",
+        ));
+    }
+
+    Ok(res)
 }
 
 #[cfg(not(feature = "native"))]

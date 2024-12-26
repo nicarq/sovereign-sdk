@@ -77,20 +77,6 @@ impl<'a> StructDef<'a> {
                     ::borsh::to_vec(msg).expect("Serialization to vec is infallible")
                 }
 
-                fn decode_call(mut serialized_message: &[u8], meter: &mut impl ::sov_modules_api::GasMeter<<Self::Spec as ::sov_modules_api::Spec>::Gas>)
-                    -> ::core::result::Result<Self::Decodable, ::sov_modules_api::MeteredBorshDeserializeError<<Self::Spec as ::sov_modules_api::Spec>::Gas>> {
-                    let c = <#call_enum #ty_generics as ::sov_modules_api::MeteredBorshDeserialize<_>>::deserialize::<Self::Spec>(&mut serialized_message, meter)?;
-                    if !serialized_message.is_empty() {
-                        return ::core::result::Result::Err(::sov_modules_api::MeteredBorshDeserializeError::IOError(
-                            ::std::io::Error::new(
-                                ::std::io::ErrorKind::Other,
-                                "the provided message contains dangling data",
-                            )
-                        )
-                        );
-                    }
-                    ::core::result::Result::Ok(c)
-                }
 
                 fn dispatch_call<I: ::sov_modules_api::StateProvider<Self::Spec>>(
                     &self,
