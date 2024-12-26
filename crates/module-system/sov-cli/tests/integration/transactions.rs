@@ -1,13 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use borsh::BorshDeserialize;
 use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{CryptoSpec, DispatchCall, PrivateKey, Spec};
+use sov_modules_api::{CryptoSpec, DispatchCall, MeteredBorshDeserialize, PrivateKey, Spec};
 use sov_test_utils::runtime::{
     Runtime as RuntimeTrait, RuntimeSubcommand as TestRuntimeSubcommand, TestOptimisticRuntime,
     TestOptimisticRuntimeCall,
@@ -90,7 +89,9 @@ fn transaction_is_serialized_correctly() {
     let chain_hash = <Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH;
 
     for (i, tx) in txs.into_iter().enumerate() {
-        let tx = Transaction::<Runtime, TestSpec>::try_from_slice(&tx).unwrap();
+        let tx =
+            Transaction::<Runtime, TestSpec>::deserialize_without_charging_gas(&mut tx.as_slice())
+                .unwrap();
         let tx_p = Transaction::<Runtime, TestSpec>::new_signed_tx(
             &key,
             &chain_hash,
@@ -189,7 +190,7 @@ fn transaction_signed_properly_from_file() {
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
 
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::try_from_slice(&raw_signed_tx).unwrap();
+        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -237,7 +238,7 @@ fn transaction_signed_properly_from_json_string() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::try_from_slice(&raw_signed_tx).unwrap();
+        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -298,7 +299,7 @@ fn transaction_signed_by_account_nickname() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::try_from_slice(&raw_signed_tx).unwrap();
+        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -348,9 +349,9 @@ fn transaction_outputs_json() {
         serde_json::Value::String(s) => s,
         _ => panic!("Should be string at signed_tx"),
     };
-    let raw_signed_tx = hex::decode(&hex_tx[2..]).unwrap();
+    let mut raw_signed_tx: &[u8] = &hex::decode(&hex_tx[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::try_from_slice(&raw_signed_tx).unwrap();
+        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,

@@ -11,12 +11,12 @@ use sov_test_utils::MockDaSpec;
 use crate::default_spec::DefaultSpec;
 use crate::gas::GasArray;
 use crate::{
-    Gas, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    MeteredSigVerificationError, MeteredSignature, Spec, StateCheckpoint, WorkingSet,
+    Gas, GasMeter, GasPrice, GasUnit, MeteredBorshDeserialize, MeteredBorshDeserializeError,
+    MeteredHasher, MeteredSigVerificationError, MeteredSignature, Spec, StateCheckpoint,
+    WorkingSet,
 };
 type S = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
-// OOO
 fn create_working_set(
     remaining_funds: u64,
     gas_price: &<<S as Spec>::Gas as Gas>::Price,
@@ -198,6 +198,27 @@ pub struct BorshTestStruct {
     pub field2: u32,
 }
 
+impl MeteredBorshDeserialize<S> for BorshTestStruct {
+    fn deserialize(
+        buf: &mut &[u8],
+        meter: &mut impl GasMeter<<S as Spec>::Gas>,
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as Spec>::Gas>> {
+        meter
+            .charge_gas(&Self::gas_cost_to_deserialize(buf))
+            .map_err(MeteredBorshDeserializeError::GasError)?;
+
+        <Self as borsh::BorshDeserialize>::deserialize(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
+
+    fn deserialize_without_charging_gas(
+        buf: &mut &[u8],
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as Spec>::Gas>> {
+        <Self as borsh::BorshDeserialize>::deserialize(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
+}
+
 #[test]
 fn test_metered_deserializer() {
     let data = BorshTestStruct {
@@ -205,9 +226,8 @@ fn test_metered_deserializer() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
-        GasUnit<2>,
-    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_to_charge_for_deserialization =
+        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data);
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
@@ -215,7 +235,7 @@ fn test_metered_deserializer() {
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
     let deserialized_data =
-            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize::<S>(
+            <BorshTestStruct as MeteredBorshDeserialize::<S>>::deserialize(
                 &mut serialized_data.as_slice(),
                 &mut ws,
             )
@@ -234,9 +254,8 @@ fn test_metered_deserializer_not_enough_gas() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
-        GasUnit<2>,
-    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_to_charge_for_deserialization =
+        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data);
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price) - 1;
@@ -244,7 +263,7 @@ fn test_metered_deserializer_not_enough_gas() {
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
     let deserialized_err =
-            <BorshTestStruct as MeteredBorshDeserialize::<GasUnit<2>>>::deserialize::<S>(
+            <BorshTestStruct as MeteredBorshDeserialize::<S>>::deserialize(
                 &mut serialized_data.as_slice(),
                 &mut ws,
             )
@@ -263,21 +282,19 @@ fn test_metered_deserializer_invalid_data() {
         field2: 2,
     };
     let serialized_data = borsh::to_vec(&data).unwrap();
-    let gas_to_charge_for_deserialization = <BorshTestStruct as MeteredBorshDeserialize<
-        GasUnit<2>,
-    >>::gas_cost_to_deserialize::<S>(&serialized_data);
+    let gas_to_charge_for_deserialization =
+        <BorshTestStruct as MeteredBorshDeserialize<S>>::gas_cost_to_deserialize(&serialized_data);
     let gas_price = GasPrice::<2>::from([1, 1]);
 
     let remaining_funds = gas_to_charge_for_deserialization.value(&gas_price);
 
     let mut ws = create_working_set(remaining_funds, &gas_price);
 
-    let deserialize_err =
-        <BorshTestStruct as MeteredBorshDeserialize<GasUnit<2>>>::deserialize::<S>(
-            &mut &serialized_data[1..],
-            &mut ws,
-        )
-        .expect_err("Deserialization should fail because the data is invalid");
+    let deserialize_err = <BorshTestStruct as MeteredBorshDeserialize<S>>::deserialize(
+        &mut &serialized_data[1..],
+        &mut ws,
+    )
+    .expect_err("Deserialization should fail because the data is invalid");
 
     assert!(
         matches!(deserialize_err, MeteredBorshDeserializeError::IOError(..)),

@@ -1,6 +1,7 @@
 mod data;
 mod rewards;
 use std::fmt::Debug;
+use std::io;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 pub use data::{AuthenticatedTransactionData, Credentials, PriorityFeeBips, TxDetails};
@@ -17,8 +18,8 @@ use sov_rollup_interface::TxHash;
 use thiserror::Error;
 
 use crate::{
-    DispatchCall, Gas, GasMeter, GasMeteringError, MeteredSigVerificationError, MeteredSignature,
-    Spec,
+    DispatchCall, Gas, GasMeter, GasMeteringError, GasSpec, MeteredBorshDeserialize,
+    MeteredBorshDeserializeError, MeteredSigVerificationError, MeteredSignature, Spec,
 };
 
 #[cfg(test)]
@@ -41,15 +42,16 @@ impl<D: DispatchCall> TransactionCallable for D {
 #[derive(
     derive_more::Debug, // derive_more uses the correct bound of TransactionCallable::RuntimeCall
     Clone,
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
 )]
-#[serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")]
 #[cfg_attr(
     feature = "native",
-    derive(sov_rollup_interface::sov_universal_wallet::UniversalWallet)
+    derive(
+        sov_rollup_interface::sov_universal_wallet::UniversalWallet,
+        serde::Serialize,
+        serde::Deserialize,
+        borsh::BorshSerialize,
+    ),
+    serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")
 )]
 pub struct Transaction<R: TransactionCallable, S: Spec> {
     /// The signature of the transaction.
@@ -62,6 +64,48 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
     pub nonce: u64,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
+}
+
+impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
+    fn deserialize_without_charging_gas_inner(buf: &mut &[u8]) -> Result<Self, io::Error> {
+        let signature =
+            <<S::CryptoSpec as CryptoSpec>::Signature as BorshDeserialize>::deserialize(buf)?;
+        let pub_key =
+            <<S::CryptoSpec as CryptoSpec>::PublicKey as BorshDeserialize>::deserialize(buf)?;
+        let runtime_call = <R::Call>::deserialize(buf)?;
+        let nonce = <u64 as BorshDeserialize>::deserialize(buf)?;
+        let details = <TxDetails<S> as BorshDeserialize>::deserialize(buf)?;
+
+        Ok(Self {
+            signature,
+            pub_key,
+            runtime_call,
+            nonce,
+            details,
+        })
+    }
+}
+
+impl<R: TransactionCallable, S: Spec> MeteredBorshDeserialize<S> for Transaction<R, S> {
+    fn deserialize(
+        buf: &mut &[u8],
+        meter: &mut impl GasMeter<<S as GasSpec>::Gas>,
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
+        meter
+            .charge_gas(&Self::gas_cost_to_deserialize(buf))
+            .map_err(MeteredBorshDeserializeError::GasError)?;
+
+        Transaction::<R, S>::deserialize_without_charging_gas_inner(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
+
+    #[cfg(feature = "native")]
+    fn deserialize_without_charging_gas(
+        buf: &mut &[u8],
+    ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
+        Transaction::<R, S>::deserialize_without_charging_gas_inner(buf)
+            .map_err(MeteredBorshDeserializeError::IOError)
+    }
 }
 
 // Unfortunately built-in Rust derives for Eq and PartialEq use a bound of `TransactionCallable:
