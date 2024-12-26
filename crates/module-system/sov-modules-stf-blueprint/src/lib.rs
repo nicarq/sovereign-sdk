@@ -22,8 +22,8 @@ pub use sequencer_mode::registered::{process_tx, PreExecError};
 #[cfg(all(target_os = "zkvm", feature = "bench"))]
 use sov_cycle_utils::macros::cycle_tracker;
 use sov_modules_api::capabilities::{
-    BlobOrigin, BlobSelector, BlobSelectorOutput, ChainState, HasKernel, Kernel,
-    TransactionAuthenticator,
+    BatchFromUnregisteredSequencer, BlobOrigin, BlobSelector, BlobSelectorOutput, ChainState,
+    HasKernel, Kernel, TransactionAuthenticator,
 };
 use sov_modules_api::hooks::{KernelSlotHooks, SlotHooks};
 use sov_modules_api::transaction::TransactionConsumption;
@@ -41,8 +41,6 @@ use sov_state::{Storage, StorageProof};
 pub use stf_blueprint::StfBlueprint;
 use thiserror::Error;
 use tracing::info;
-
-use crate::unregistered::BatchWithSingleTx;
 
 /// The contents of the receipt for a skipped transaction
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -531,10 +529,7 @@ where
                     let (batch_receipt, next_checkpoint) = unregistered::apply_batch::<S, RT>(
                         &self.runtime,
                         state,
-                        BatchWithSingleTx {
-                            auth_input: RT::add_standard_auth(tx),
-                            id,
-                        },
+                        BatchFromUnregisteredSequencer { tx, id },
                         blob_idx,
                         sender,
                         &gas_price,
