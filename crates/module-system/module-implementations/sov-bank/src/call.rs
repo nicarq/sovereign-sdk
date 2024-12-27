@@ -5,7 +5,7 @@ use sov_modules_api::{
     Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader, TxState,
 };
 use sov_state::User;
-use strum::{EnumDiscriminants, EnumIs, VariantArray};
+use strum::{EnumDiscriminants, EnumIs, EnumIter, VariantArray};
 
 use crate::event::Event;
 use crate::utils::{Payable, TokenHolderRef};
@@ -31,7 +31,7 @@ pub const MAX_ADMINS: usize = 20;
 )]
 #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
-#[strum_discriminants(derive(VariantArray, EnumIs))]
+#[strum_discriminants(derive(VariantArray, EnumIs, EnumIter))]
 pub enum CallMessage<S: Spec> {
     /// Creates a new token with the specified name and initial balance.
     CreateToken {

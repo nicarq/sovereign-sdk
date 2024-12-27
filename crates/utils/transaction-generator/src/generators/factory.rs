@@ -55,7 +55,7 @@ impl<
     /// Generate call messages needed to properly setup the generator.
     #[allow(clippy::type_complexity)]
     pub fn generate_setup_messages(
-        &mut self,
+        &self,
         modules: &Vec<
             Arc<dyn HarnessModule<S, RT, Tag, ChangelogEntry, ClientConfig, BonusAcctData>>,
         >,

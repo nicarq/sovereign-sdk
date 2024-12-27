@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use derivative::Derivative;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::Spec;
 
 use super::bank::harness_interface::BankHarness;
@@ -36,7 +37,7 @@ pub enum BasicTag {
 }
 
 /// The set of change log entries supported by the [`BasicCallMessageFactory`].
-#[derive(Clone, Debug, derive_more::From, PartialEq)]
+#[derive(Clone, Debug, derive_more::From, PartialEq, Deserialize, Serialize)]
 pub enum BasicChangeLogEntry<S: Spec> {
     /// Changes from the bank module
     Bank(BankChangeLogEntry<S>),
