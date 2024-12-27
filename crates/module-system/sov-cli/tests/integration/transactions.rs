@@ -90,8 +90,7 @@ fn transaction_is_serialized_correctly() {
 
     for (i, tx) in txs.into_iter().enumerate() {
         let tx =
-            Transaction::<Runtime, TestSpec>::deserialize_without_charging_gas(&mut tx.as_slice())
-                .unwrap();
+            Transaction::<Runtime, TestSpec>::unmetered_deserialize(&mut tx.as_slice()).unwrap();
         let tx_p = Transaction::<Runtime, TestSpec>::new_signed_tx(
             &key,
             &chain_hash,
@@ -190,7 +189,7 @@ fn transaction_signed_properly_from_file() {
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
 
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
+        Transaction::unmetered_deserialize(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -238,7 +237,7 @@ fn transaction_signed_properly_from_json_string() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
+        Transaction::unmetered_deserialize(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -299,7 +298,7 @@ fn transaction_signed_by_account_nickname() {
 
     let raw_signed_tx = hex::decode(&last_line[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx.as_slice()).unwrap();
+        Transaction::unmetered_deserialize(&mut raw_signed_tx.as_slice()).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -351,7 +350,7 @@ fn transaction_outputs_json() {
     };
     let mut raw_signed_tx: &[u8] = &hex::decode(&hex_tx[2..]).unwrap();
     let signed_tx: Transaction<Runtime, TestSpec> =
-        Transaction::deserialize_without_charging_gas(&mut raw_signed_tx).unwrap();
+        Transaction::unmetered_deserialize(&mut raw_signed_tx).unwrap();
     signed_tx
         .verify(
             &<Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,

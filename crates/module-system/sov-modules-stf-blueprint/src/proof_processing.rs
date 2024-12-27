@@ -1,6 +1,5 @@
 use std::marker::PhantomData;
 
-use borsh::BorshDeserialize;
 use sov_modules_api::capabilities::{
     AuthorizeSequencerError, GasEnforcer, ProofProcessor, SequencerAuthorization,
     SequencerRemuneration, TryReserveGasError,
@@ -8,9 +7,9 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, Gas, GasMeter, InvalidProofError, PreExecWorkingSet, ProofOutcome,
-    ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint, StateProvider, TxScratchpad,
-    WorkingSet,
+    BasicGasMeter, DaSpec, Gas, GasMeter, InvalidProofError, MeteredBorshDeserialize,
+    PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint,
+    StateProvider, TxScratchpad, WorkingSet,
 };
 use sov_state::{Storage, StorageProof};
 
@@ -45,7 +44,7 @@ where
     let max_auth_cost = max_pre_exec_check_gas.value(gas_price);
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
-    let (sequencer_rollup_address, pre_exec_working_set) =
+    let (sequencer_rollup_address, mut pre_exec_working_set) =
         match workflow.authorize_sequencer(gas_price, max_auth_cost, state.to_tx_scratchpad()) {
             WorkflowResult::Proceed(pre_exec_working_set) => pre_exec_working_set,
             WorkflowResult::EarlyReturn(out, state) => {
@@ -54,7 +53,10 @@ where
             }
         };
 
-    match SerializeProofWithDetails::<S>::try_from_slice(&raw_proof) {
+    match SerializeProofWithDetails::<S>::deserialize(
+        &mut raw_proof.as_slice(),
+        &mut pre_exec_working_set,
+    ) {
         Ok(proof_with_details) => {
             // Reserve gas for the proof verification.
             let mut working_set = match workflow.try_reserve_gas(
