@@ -183,7 +183,7 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
 
     #[cfg(feature = "native")]
     /// Deserialized a type without charging gas.
-    fn deserialize_without_charging_gas(
+    fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
 }

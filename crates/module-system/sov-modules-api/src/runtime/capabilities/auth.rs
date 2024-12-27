@@ -328,10 +328,8 @@ pub fn authenticate<
 pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
     mut raw_tx: &[u8],
 ) -> Result<(D::Decodable, crate::transaction::TransactionWithoutCall<S>), FatalError> {
-    let tx = <Transaction<D, S> as MeteredBorshDeserialize<S>>::deserialize_without_charging_gas(
-        &mut raw_tx,
-    )
-    .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+    let tx = <Transaction<D, S> as MeteredBorshDeserialize<S>>::unmetered_deserialize(&mut raw_tx)
+        .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
     let (tx, call) = tx.split();
     Ok((call, tx))

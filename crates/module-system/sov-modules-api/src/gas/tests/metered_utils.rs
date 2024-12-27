@@ -211,7 +211,7 @@ impl MeteredBorshDeserialize<S> for BorshTestStruct {
             .map_err(MeteredBorshDeserializeError::IOError)
     }
 
-    fn deserialize_without_charging_gas(
+    fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as Spec>::Gas>> {
         <Self as borsh::BorshDeserialize>::deserialize(buf)

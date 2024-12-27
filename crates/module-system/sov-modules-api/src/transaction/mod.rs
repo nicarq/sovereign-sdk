@@ -67,7 +67,7 @@ pub struct Transaction<R: TransactionCallable, S: Spec> {
 }
 
 impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
-    fn deserialize_without_charging_gas_inner(buf: &mut &[u8]) -> Result<Self, io::Error> {
+    fn unmetered_deserialize_inner(buf: &mut &[u8]) -> Result<Self, io::Error> {
         let signature =
             <<S::CryptoSpec as CryptoSpec>::Signature as BorshDeserialize>::deserialize(buf)?;
         let pub_key =
@@ -95,15 +95,15 @@ impl<R: TransactionCallable, S: Spec> MeteredBorshDeserialize<S> for Transaction
             .charge_gas(&Self::gas_cost_to_deserialize(buf))
             .map_err(MeteredBorshDeserializeError::GasError)?;
 
-        Transaction::<R, S>::deserialize_without_charging_gas_inner(buf)
+        Transaction::<R, S>::unmetered_deserialize_inner(buf)
             .map_err(MeteredBorshDeserializeError::IOError)
     }
 
     #[cfg(feature = "native")]
-    fn deserialize_without_charging_gas(
+    fn unmetered_deserialize(
         buf: &mut &[u8],
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>> {
-        Transaction::<R, S>::deserialize_without_charging_gas_inner(buf)
+        Transaction::<R, S>::unmetered_deserialize_inner(buf)
             .map_err(MeteredBorshDeserializeError::IOError)
     }
 }
