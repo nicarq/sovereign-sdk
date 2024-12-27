@@ -285,9 +285,7 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
                     "Re-applying state changes for the soft-confirmed transaction"
                 );
 
-                let baked_tx = borsh::from_slice(&tx.fully_baked_tx.data)
-                    .expect("Failed to deserialize transaction");
-                if let Err(error) = self.accept_tx(baked_tx).await {
+                if let Err(error) = self.accept_tx(tx.fully_baked_tx.clone()).await {
                     warn!(
                         ?error,
                         "Transaction was soft-confirmed but failed to be re-applied"
