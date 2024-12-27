@@ -63,6 +63,7 @@ sov-modules-api = { workspace = true, features = ["test-utils"] }
 sov-rollup-interface = { workspace = true }
 sov-api-spec = { workspace = true }
 sov-test-utils = { workspace = true }
+sov-paymaster = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-mock-zkvm = { workspace = true, features = ["native"] }
 sov-db = { workspace = true }

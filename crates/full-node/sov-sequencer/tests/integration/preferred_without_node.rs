@@ -16,12 +16,18 @@ use sov_sequencer::batch_builders::preferred::{
 use sov_sequencer::batch_builders::BatchBuilder;
 use sov_sequencer::{SeqDbTxExtend, SequencerConfig};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::TestOptimisticRuntime;
 use sov_test_utils::sequencer::TestSequencerSetup;
-use sov_test_utils::TestSpec;
+use sov_test_utils::{generate_optimistic_runtime_with_kernel, TestSpec};
 use tokio::sync::watch;
 
 use crate::utils::{generate_paymaster_tx, generate_txs};
+
+generate_optimistic_runtime_with_kernel!(
+    TestOptimisticRuntime <=
+    kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
+    value_setter: sov_value_setter::ValueSetter<S>,
+    paymaster: sov_paymaster::Paymaster<S>
+);
 
 #[tokio::test(flavor = "multi_thread")]
 async fn restore_txs_from_seq_db() {

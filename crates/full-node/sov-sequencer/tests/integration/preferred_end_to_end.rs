@@ -343,3 +343,44 @@ fn encode_call(
 
     RawTx::new(borsh::to_vec(&tx).unwrap())
 }
+
+mod tests_with_basic_kernel {
+    use sov_mock_da::BlockProducingConfig;
+    use sov_modules_stf_blueprint::GenesisParams;
+    use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder};
+    use sov_test_utils::RtAgnosticBlueprint;
+
+    use super::{
+        generate_optimistic_runtime_with_kernel, HighLevelOptimisticGenesisConfig, TestSpec,
+    };
+    generate_optimistic_runtime_with_kernel!(
+        RtWithBasicKernel <=
+        kernel_type: sov_kernels::basic::BasicKernel<'a, S>,
+    );
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[should_panic(
+        expected = "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations."
+    )]
+    async fn preferred_sequencer_panics_with_basic_kernel() {
+        let genesis_config = HighLevelOptimisticGenesisConfig::generate();
+        let genesis_params = GenesisParams {
+            runtime: GenesisConfig::from_minimal_config(genesis_config.into()),
+        };
+
+        RollupBuilder::<RtAgnosticBlueprint<TestSpec, RtWithBasicKernel<TestSpec>>>::new(
+            GenesisSource::CustomParams(genesis_params),
+            BlockProducingConfig::Periodic,
+            0,
+            0,
+            Default::default(),
+        )
+        .set_config(|conf| {
+            conf.batch_builder_config =
+                sov_sequencer::BatchBuilderConfig::Preferred(Default::default());
+        })
+        .start()
+        .await
+        .unwrap();
+    }
+}

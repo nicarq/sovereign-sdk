@@ -50,6 +50,8 @@ impl<'b, S: Spec> BlobSelector for BasicKernel<'b, S> {
 
     type BlobType = BlobDataWithId;
 
+    const ACCEPTS_PREFERRED_BATCHES: bool = false;
+
     fn get_blobs_for_this_slot<'a, 'k, I>(
         &self,
         current_blobs: I,
