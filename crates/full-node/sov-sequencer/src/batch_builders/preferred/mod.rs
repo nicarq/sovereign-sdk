@@ -9,7 +9,9 @@ use schemars::JsonSchema;
 use serde_with::serde_as;
 use sov_blob_storage::PreferredBatchData;
 use sov_db::sequencer_db::SeqDbTx;
-use sov_modules_api::capabilities::{BlobSelectorOutput, HasKernel, TransactionAuthenticator};
+use sov_modules_api::capabilities::{
+    BlobSelector, BlobSelectorOutput, HasKernel, TransactionAuthenticator,
+};
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
     BlobDataWithId, DaSpec, ExecutionContext, FullyBakedTx, NestedEnumUtils, RawTx, RejectReason,
@@ -170,6 +172,13 @@ pub struct PreferredBatchBuilderConfig {
     pub minimum_profit_per_tx: u64,
 }
 
+/// A helper function to allow recovering an associated consant from an *instance* of a type
+/// when the type itself is unknown. This is useful when a function returns `impl Trait` and we
+/// want to get an associated item from that trait implementation.
+fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
+    B::ACCEPTS_PREFERRED_BATCHES
+}
+
 #[async_trait]
 impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
     type Confirmation = Confirmation<Z>;
@@ -184,6 +193,9 @@ impl<Z: RtAwareBatchBuilderSpec> BatchBuilder for PreferredBatchBuilder<Z> {
         config: &SequencerConfig<<Z::Spec as Spec>::Da, <Z::Spec as Spec>::Address, Self::Config>,
     ) -> anyhow::Result<(Self, Option<JoinHandle<()>>)> {
         let runtime: Z::Rt = Default::default();
+        let blob_selector = runtime.blob_selector();
+
+        assert!(accepts_preferred_batches(blob_selector), "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations.");
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
             latest_state_update.storage.clone(),
             &runtime.kernel(),

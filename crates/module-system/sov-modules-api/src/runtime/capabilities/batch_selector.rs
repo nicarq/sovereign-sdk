@@ -55,6 +55,9 @@ pub trait BlobSelector {
     /// The type of batch returned by the selector
     type BlobType;
 
+    /// Whether the kernel accepts "preferred" batches in a special format.
+    const ACCEPTS_PREFERRED_BATCHES: bool;
+
     /// Returns a vector of blobs that should be processed in the current slot.
     #[allow(clippy::type_complexity)]
     fn get_blobs_for_this_slot<'a, 'k, I>(

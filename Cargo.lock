@@ -10514,6 +10514,7 @@ dependencies = [
  "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
+ "sov-paymaster",
  "sov-rest-utils",
  "sov-rollup-interface",
  "sov-state",
