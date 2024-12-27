@@ -35,6 +35,9 @@ pub const DEFAULT_TIMEOUT: Duration = Duration::new(10, 0);
 /// Node benchmarking utilities
 pub mod node;
 
+/// Benchmark transaction generator. Stores the transactions generated in benchmark files.
+pub mod generator;
+
 /// [`ConfigurableSpec`] with [`MockDaSpec`] and a custom inner vm
 pub type BenchSpec<Vm> = ConfigurableSpec<
     MockDaSpec,

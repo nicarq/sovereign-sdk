@@ -180,7 +180,7 @@ fn setup_harness(
         .map(|(_, module_to_use)| module_to_use.select(&bank_harness, &value_setter_harness))
         .collect();
 
-    let mut factory = BasicCallMessageFactory::<S, RT>::new();
+    let factory = BasicCallMessageFactory::<S, RT>::new();
 
     // Synchronizes the state with the value setter module
     let mut state: State<S, BasicTag> = State::with_account_and_tags(

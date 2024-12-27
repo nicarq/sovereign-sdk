@@ -50,6 +50,7 @@ pub struct TokenInfo {
 
 /// A struct that tracks the global state used by the transaction generator. Tracks accounts by address
 /// and maintains a secondary index using the `tags` provided by the module.
+#[derive(Clone)]
 pub struct State<S: Spec, Tag, T = ()> {
     pub(crate) accounts: IndexMap<S::Address, AccountState<S, T>>,
     pub(crate) tags: HashMap<Tag, IndexSet<S::Address>>,

@@ -3,10 +3,12 @@ mod rng;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
+
 pub mod traits;
 use derive_more::derive::AsRef;
 use derive_more::{Add, Mul};
 pub use rng::*;
+use serde::{Deserialize, Serialize};
 use sov_bank::TokenId;
 use sov_modules_api::prelude::arbitrary::{self, Arbitrary};
 use sov_modules_api::{CryptoSpec, PrivateKey, Spec};
@@ -16,7 +18,7 @@ use super::state::ApplyToState;
 use crate::state::{AccountState, State, TokenInfo};
 
 /// Whether a generated message should be valid or invalid.
-#[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq)]
+#[derive(strum::EnumIs, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 pub enum MessageValidity {
     #[allow(missing_docs)]
     Valid,
@@ -37,7 +39,7 @@ impl MessageValidity {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 /// The outcome expected from the generated message
 pub enum MessageOutcome<E> {
     /// The message should execute successfully
@@ -81,7 +83,7 @@ impl<E> MessageOutcome<E> {
 }
 
 /// A generated message for a particular module.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GeneratedMessage<S: Spec, M, E> {
     /// The generated call message
     pub message: M,
@@ -124,7 +126,21 @@ impl<S: Spec, M, E> GeneratedMessage<S, M, E> {
 ///     }
 /// }
 /// ```
-#[derive(PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash, Debug, Add, Mul, AsRef)]
+#[derive(
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Clone,
+    Copy,
+    Hash,
+    Debug,
+    Add,
+    Mul,
+    AsRef,
+    Serialize,
+    Deserialize,
+)]
 pub struct Percent(u8);
 
 impl std::ops::Sub for Percent {
@@ -187,7 +203,7 @@ impl PartialEq<u8> for Percent {
 /// Distribution::new(vec![3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
 /// Distribution::new(vec![3, 1, 6]); // Assigns 30%, 10%, and 60% probabilities to each of three possibilities
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Distribution<T = ()> {
     weights_and_values: Vec<(Percent, T)>,
 }

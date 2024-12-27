@@ -1,6 +1,7 @@
 //! Implements call message generation for the [`sov_bank::Bank`] module.
 use std::marker::PhantomData;
 
+use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, CallMessage, CallMessageDiscriminants, Coins, TokenId};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
@@ -173,7 +174,7 @@ impl<S: Spec> BankMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the bank message generator.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum BankChangeLogEntry<S: Spec> {
     /// The balance of an address changed
     BalanceChanged {

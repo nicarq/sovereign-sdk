@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use http::HttpValueSetterClient;
+use serde::{Deserialize, Serialize};
 use sov_modules_api::prelude::arbitrary;
 use sov_modules_api::prelude::arbitrary::Arbitrary;
 use sov_modules_api::prelude::axum::async_trait;
@@ -92,7 +93,7 @@ impl<S: Spec> ValueSetterMessageGenerator<S> {
 }
 
 /// A complete description of any possible state change created by the [`ValueSetterMessageGenerator`].
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum ValueSetterChangeLogEntry {
     /// The single value was updated
     ValueUpdated {
