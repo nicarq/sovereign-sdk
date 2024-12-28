@@ -7,7 +7,7 @@ use sov_rollup_interface::crypto::Signature;
 use sov_rollup_interface::da::DaSpec;
 use sov_rollup_interface::optimistic::Attestation;
 use sov_rollup_interface::zk::{CryptoSpec, StateTransitionPublicData, Zkvm};
-use sov_rollup_interface::RollupAddress;
+use sov_rollup_interface::BasicAddress;
 use sov_state::{Storage, StorageProof, Witness};
 
 use crate::gas::Gas;
@@ -45,13 +45,13 @@ pub trait Spec:
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(feature = "native")]
-    type Address: RollupAddress
+    type Address: BasicAddress
         + Sync
         + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// The Address type used on the rollup. Typically calculated as the hash of a public key.
     #[cfg(not(feature = "native"))]
-    type Address: RollupAddress + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
+    type Address: BasicAddress + for<'a> From<&'a <Self::CryptoSpec as CryptoSpec>::PublicKey>;
 
     /// Authenticated state storage used by the rollup. Typically some variant of a merkle-patricia trie.
     #[cfg(not(feature = "native"))]

@@ -58,7 +58,7 @@ pub mod interface;
 pub type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 /// The default test spec for ZK. Uses a [`MockZkvm`] for both inner and outer vm verification.
 pub type ZkTestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Zk>;
-/// The default address type. This is the [`sov_modules_api::RollupAddress`] type defined by the [`TestSpec`].
+/// The default address type. This is the [`sov_modules_api::BasicAddress`] type defined by the [`TestSpec`].
 pub type TestAddress = <TestSpec as Spec>::Address;
 /// The default test crypto spec type. This is the [`CryptoSpec`] type defined by the [`TestSpec`].
 pub type TestCryptoSpec = <TestSpec as Spec>::CryptoSpec;

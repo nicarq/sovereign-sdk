@@ -1,6 +1,6 @@
 mod errors;
 pub use errors::*;
-use sov_rollup_interface::{BasicAddress, RollupAddress as SovRollupAddress};
+use sov_rollup_interface::BasicAddress;
 use sov_state::User;
 
 use crate::{StateAccessor, StateWriter, TxState};
@@ -10,7 +10,7 @@ pub trait StakeRegistration {
     /// The primary address, which can be either the DA address or the Rollup address, depending on the use case.
     type PrimaryAddress: BasicAddress;
     /// Address on the rollup.
-    type RollupAddress: SovRollupAddress;
+    type RollupAddress: BasicAddress;
     /// Custom module error type. This allows handling module specific errors in the library logic.
     type CustomError;
     /// The associated spec type.

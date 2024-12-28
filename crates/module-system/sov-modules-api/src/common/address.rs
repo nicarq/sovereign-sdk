@@ -9,7 +9,7 @@ use sha2::Digest;
 use sov_modules_macros::config_value_private;
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::crypto::PublicKey;
-use sov_rollup_interface::{BasicAddress, RollupAddress};
+use sov_rollup_interface::BasicAddress;
 
 /// Implement type conversions between a `\[u8;$len\]` wrapper and a bech32 string representation.
 /// This implementation assumes that the wrapper implents a `fn as_bytes(&self) -> &[u8;$len]` as
@@ -432,7 +432,6 @@ impl<'a, H> Arbitrary<'a> for Address<H> {
 }
 
 impl<H: Send + Sync + 'static> BasicAddress for Address<H> {}
-impl<H: Send + Sync + 'static> RollupAddress for Address<H> {}
 
 #[cfg(test)]
 mod test {

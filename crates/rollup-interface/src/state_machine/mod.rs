@@ -123,9 +123,6 @@ pub trait BasicAddress:
 {
 }
 
-/// An address used inside rollup
-pub trait RollupAddress: BasicAddress {}
-
 /// Implement the `arbitrary::Arbitrary` trait when the `arbitrary` feature is enabled.
 #[cfg(feature = "arbitrary")]
 pub trait MaybeArbitrary: for<'a> arbitrary::Arbitrary<'a> {}
