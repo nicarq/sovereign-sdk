@@ -4,7 +4,7 @@ use std::io::{BufWriter, Write};
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sov_address::EthereumAddress;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::arbitrary::Unstructured;
 use sov_modules_api::prelude::{arbitrary, serde_json};
 use sov_modules_api::Spec;
@@ -59,7 +59,7 @@ pub struct Benchmark<S: Spec> {
 
 impl<S: Spec> Benchmark<S>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
     S: Serialize + DeserializeOwned,
 {
     /// Generates the benchmark messages for a given batch.

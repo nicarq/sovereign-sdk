@@ -21,6 +21,130 @@ use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{BasicAddress, CryptoSpec, RollupAddress};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 
+use crate::{MultiAddress, Not28Bytes};
+
+pub type MultiAddressEvm = MultiAddress<EthereumAddress>;
+
+impl BasicAddress for EthereumAddress {}
+impl RollupAddress for EthereumAddress {}
+impl Not28Bytes for EthereumAddress {}
+
+#[cfg(test)]
+mod evm_spec_address_tests {
+    use std::str::FromStr;
+
+    use borsh::{BorshDeserialize, BorshSerialize};
+    use sha2::Sha256;
+    use sov_modules_api::configurable_spec::ConfigurableSpec;
+    use sov_modules_api::execution_mode::Native;
+    use sov_modules_api::Spec;
+    use sov_test_utils::{MockDaSpec, MockZkvm, MockZkvmCryptoSpec};
+
+    use super::*;
+    type S = ConfigurableSpec<
+        MockDaSpec,
+        MockZkvm,
+        MockZkvm,
+        MockZkvmCryptoSpec,
+        MultiAddressEvm,
+        Native,
+    >;
+
+    #[test]
+    fn test_serde_json_multi_address_evm_vm() {
+        let address = MultiAddressEvm::Vm(
+            EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap(),
+        );
+        let serialized = serde_json::to_string(&address).unwrap();
+        let deserialized: MultiAddressEvm = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+    }
+
+    #[test]
+    fn test_serde_json_multi_address_evm_standard() {
+        let address = MultiAddressEvm::Standard(
+            sov_modules_api::Address::<Sha256>::from_str(
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
+            )
+            .unwrap(),
+        );
+        let serialized = serde_json::to_string(&address).unwrap();
+        let deserialized: MultiAddressEvm = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+    }
+
+    #[test]
+    fn test_bincode_multi_address_evm_vm() {
+        let address = MultiAddressEvm::Vm(
+            EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap(),
+        );
+        let serialized = bincode::serialize(&address).unwrap();
+        let deserialized: MultiAddressEvm = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+    }
+
+    #[test]
+    fn test_bincode_multi_address_evm_standard() {
+        let address = MultiAddressEvm::Standard(
+            sov_modules_api::Address::<Sha256>::from_str(
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
+            )
+            .unwrap(),
+        );
+        let serialized = bincode::serialize(&address).unwrap();
+        let deserialized: MultiAddressEvm = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(address, deserialized);
+    }
+
+    #[test]
+    fn test_borsh_allowed_sequencer() {
+        #[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq)]
+        pub struct TypeWithFieldAfterAddress<S: Spec> {
+            address: S::Address,
+            variable: u64,
+        }
+
+        let allowed_sequencer = TypeWithFieldAfterAddress {
+            address: MultiAddressEvm::Vm(
+                EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap(),
+            ),
+            variable: 90000000000,
+        };
+        let mut serialized: Vec<u8> = Vec::new();
+        BorshSerialize::serialize(&allowed_sequencer, &mut serialized).unwrap();
+        let deserialized: TypeWithFieldAfterAddress<S> =
+            BorshDeserialize::try_from_slice(&serialized).unwrap();
+        assert_eq!(allowed_sequencer, deserialized);
+    }
+
+    #[test]
+    fn test_borsh_multi_address_evm_vm() {
+        let spec_address = MultiAddressEvm::Vm(
+            EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap(),
+        );
+        let mut spec_address_bytes: Vec<u8> = Vec::new();
+        BorshSerialize::serialize(&spec_address, &mut spec_address_bytes).unwrap();
+        let deserialized: MultiAddressEvm =
+            BorshDeserialize::try_from_slice(spec_address_bytes.as_slice()).unwrap();
+        assert_eq!(spec_address, deserialized);
+    }
+
+    #[test]
+    fn test_borsh_multi_address_evm_standard() {
+        let standard_address = MultiAddressEvm::Standard(
+            sov_modules_api::Address::<Sha256>::from_str(
+                "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
+            )
+            .unwrap(),
+        );
+        let mut spec_address_bytes: Vec<u8> = Vec::new();
+        BorshSerialize::serialize(&standard_address, &mut spec_address_bytes).unwrap();
+        let deserialized: MultiAddressEvm =
+            BorshDeserialize::try_from_slice(spec_address_bytes.as_slice()).unwrap();
+        assert_eq!(standard_address, deserialized);
+    }
+}
+
 #[derive(
     Debug,
     Clone,
@@ -43,9 +167,6 @@ use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 )]
 /// A standard 20 byte Ethereum address with checksum.
 pub struct EthereumAddress(#[sov_wallet(as_ty = "[u8;20]", display = "hex")] pub Address);
-
-impl BasicAddress for EthereumAddress {}
-impl RollupAddress for EthereumAddress {}
 
 impl<'a> From<&'a EthereumPublicKey> for EthereumAddress {
     fn from(value: &'a EthereumPublicKey) -> Self {
@@ -461,7 +582,6 @@ impl<'de> serde::Deserialize<'de> for EthereumPublicKey {
 }
 
 #[cfg(test)]
-#[cfg(feature = "native")]
 mod tests {
     use sov_rollup_interface::crypto::PrivateKey;
 
@@ -580,7 +700,6 @@ impl TryFrom<&PublicKeyHex> for EthereumPublicKey {
 }
 
 #[cfg(test)]
-#[cfg(feature = "native")]
 mod hex_tests {
     use sov_rollup_interface::crypto::PrivateKey;
 

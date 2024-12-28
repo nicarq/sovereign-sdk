@@ -1,20 +1,16 @@
 #[cfg(feature = "evm")]
 mod ethereum_address;
-#[cfg(feature = "evm")]
-mod multi_address_evm;
 
 use std::str::FromStr;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 #[cfg(feature = "evm")]
-pub use ethereum_address::EthereumAddress;
-#[cfg(feature = "evm")]
-pub use multi_address_evm::MultiAddressEvm;
+pub use ethereum_address::{EthereumAddress, MultiAddressEvm};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::Sha256;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::Address;
+use sov_modules_api::{address_prefix, Address, BasicAddress, RollupAddress};
 
 /// A generic VM-compatible address enum, enabling supporting for both Sov SDK standard SHA-256 derived addresses and VM-specific addresses.
 #[derive(
@@ -40,15 +36,20 @@ pub enum MultiAddress<VmAddress> {
     Vm(VmAddress),
 }
 
+impl<
+        VmAddress: Not28Bytes + BasicAddress + RollupAddress + core::str::FromStr<Err: Into<anyhow::Error>>,
+    > BasicAddress for MultiAddress<VmAddress>
+{
+}
+impl<
+        VmAddress: Not28Bytes + BasicAddress + RollupAddress + core::str::FromStr<Err: Into<anyhow::Error>>,
+    > RollupAddress for MultiAddress<VmAddress>
+{
+}
+
 impl<VmAddress> From<sov_modules_api::AddressBech32> for MultiAddress<VmAddress> {
     fn from(value: sov_modules_api::AddressBech32) -> Self {
         Self::Standard(value.into())
-    }
-}
-
-impl<VmAddress> From<Address<Sha256>> for MultiAddress<VmAddress> {
-    fn from(value: Address<Sha256>) -> Self {
-        Self::Standard(value)
     }
 }
 
@@ -72,7 +73,7 @@ impl<VmAddress: std::fmt::Display> std::fmt::Display for MultiAddress<VmAddress>
 }
 
 #[derive(Serialize, Deserialize)]
-pub(crate) enum DeSerHelper<VmAddress> {
+enum DeSerHelper<VmAddress> {
     Standard(Address<Sha256>),
     Vm(VmAddress),
 }
@@ -117,4 +118,65 @@ where
             }
         }
     }
+}
+
+impl<VmAddress> From<[u8; 28]> for MultiAddress<VmAddress> {
+    fn from(value: [u8; 28]) -> Self {
+        Self::Standard(Address::from(value))
+    }
+}
+
+impl<VmAddress: AsRef<[u8]>> AsRef<[u8]> for MultiAddress<VmAddress> {
+    fn as_ref(&self) -> &[u8] {
+        match self {
+            MultiAddress::Standard(addr) => addr.as_ref(),
+            MultiAddress::Vm(addr) => addr.as_ref(),
+        }
+    }
+}
+
+impl<VmAddress: for<'a> TryFrom<&'a [u8], Error = anyhow::Error>> TryFrom<&[u8]>
+    for MultiAddress<VmAddress>
+{
+    type Error = anyhow::Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        if bytes.len() == 28 {
+            Ok(Self::Standard(sov_modules_api::Address::try_from(bytes)?))
+        } else {
+            Ok(Self::Vm(VmAddress::try_from(bytes)?))
+        }
+    }
+}
+
+impl<VmAddress: core::str::FromStr<Err: Into<anyhow::Error>>> std::str::FromStr
+    for MultiAddress<VmAddress>
+{
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with(address_prefix()) {
+            let std_addr = sov_modules_api::Address::from_str(s)?;
+            Ok(MultiAddress::Standard(std_addr))
+        } else {
+            let vm_addr = VmAddress::from_str(s).map_err(|e| anyhow::anyhow!(e))?;
+            Ok(MultiAddress::Vm(vm_addr))
+        }
+    }
+}
+
+impl<VmAddress> FromVmAddress<VmAddress> for MultiAddress<VmAddress> {
+    fn from_vm_address(value: VmAddress) -> Self {
+        Self::Vm(value)
+    }
+}
+
+impl<VmAddress> From<Address<Sha256>> for MultiAddress<VmAddress> {
+    fn from(value: Address<Sha256>) -> Self {
+        Self::Standard(value)
+    }
+}
+pub trait Not28Bytes {}
+pub trait FromVmAddress<VmAddress> {
+    fn from_vm_address(value: VmAddress) -> Self;
 }

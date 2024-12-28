@@ -1,7 +1,7 @@
 //! The demo-rollup supports `EVM` and `sov-module` authenticators.
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
-use sov_address::EthereumAddress;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::{EthereumAuthenticator, TransactionSigned};
 use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationError, AuthenticationOutput, AuthorizationData,
@@ -17,7 +17,7 @@ use crate::runtime::{Runtime, RuntimeCall};
 
 impl<S: Spec> TransactionAuthenticator<S> for Runtime<S>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
@@ -132,7 +132,7 @@ pub enum Auth<Evm = Vec<u8>, Mod = Vec<u8>> {
 
 impl<S: Spec> EthereumAuthenticator<S> for Runtime<S>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx.data)

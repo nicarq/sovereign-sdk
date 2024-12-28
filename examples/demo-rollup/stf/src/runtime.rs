@@ -28,7 +28,7 @@
 #[cfg(feature = "native")]
 use std::sync::Arc;
 
-use sov_address::EthereumAddress;
+use sov_address::{EthereumAddress, FromVmAddress};
 #[cfg(feature = "native")]
 pub use sov_attester_incentives::BondingProofServiceImpl;
 use sov_capabilities::StandardProvenRollupCapabilities as StandardCapabilities;
@@ -77,7 +77,7 @@ pub struct Runtime<S: Spec> {
 impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>
 where
     S: Spec,
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     const CHAIN_HASH: [u8; 32] = chain_hash::CHAIN_HASH;
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use demo_stf::runtime::Runtime;
-use sov_address::{EthereumAddress, MultiAddressEvm};
+use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_db::ledger_db::LedgerDb;
 use sov_db::storage_manager::NativeStorageManager;
 use sov_mock_da::storable::service::StorableMockDaService;
@@ -36,7 +36,7 @@ pub type MockRollupSpec<M> =
 impl<M: ExecutionMode> RollupBlueprint<M> for MockDemoRollup<M>
 where
     MockRollupSpec<M>: PluggableSpec,
-    <MockRollupSpec<M> as Spec>::Address: From<EthereumAddress>,
+    <MockRollupSpec<M> as Spec>::Address: FromVmAddress<EthereumAddress>,
 {
     type Spec = MockRollupSpec<M>;
     type Runtime = Runtime<Self::Spec>;
