@@ -273,7 +273,7 @@ macro_rules! impl_hash32_type {
             }
 
             /// Creates a new $id containing the given bytes. This function is needed in addition
-            /// to the `From` trait to allow for const conversions
+            /// to the `From` trait to allow for const conversion
             pub const fn from_const_slice(addr: [u8; $len]) -> Self {
                 Self(addr)
             }
@@ -310,7 +310,8 @@ impl<H: 'static> sov_rollup_interface::sov_universal_wallet::schema::OverrideSch
     type Output = AddressSchema;
 }
 
-const fn address_prefix() -> &'static str {
+/// Address prefix
+pub const fn address_prefix() -> &'static str {
     config_value_private!("ADDRESS_PREFIX")
 }
 

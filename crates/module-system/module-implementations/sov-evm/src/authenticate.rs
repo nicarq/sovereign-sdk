@@ -1,6 +1,6 @@
 use borsh::BorshDeserialize;
 use reth_primitives::TransactionSigned;
-use sov_address::EthereumAddress;
+use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::capabilities::{
     fatal_deserialization_error, AuthenticationOutput, AuthorizationData, FatalError,
     TransactionAuthenticator,
@@ -27,7 +27,7 @@ pub fn authenticate<Accessor: ProvableStateReader<User, Spec = S>, S: Spec>(
     state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, CallMessage, AuthorizationData<S>>, AuthenticationError>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     // TODO: Charge gas for deserialization & signature check.
 
@@ -66,7 +66,7 @@ where
         nonce,
         credential_id,
         credentials,
-        default_address: Some(ethereum_address.into()),
+        default_address: Some(S::Address::from_vm_address(ethereum_address)),
     };
     let call = CallMessage { rlp };
     Ok((tx_and_raw_hash, auth_data, call))

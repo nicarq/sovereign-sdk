@@ -43,7 +43,7 @@ sov-paymaster = { workspace = true, features = ["native"] }
 sov-state = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true }
 sov-sequencer = { workspace = true }
-sov-test-utils = { workspace = true }
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 
 futures = { workspace = true }
 borsh = { workspace = true }

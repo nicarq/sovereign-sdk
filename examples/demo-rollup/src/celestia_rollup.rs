@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use demo_stf::runtime::Runtime;
-use sov_address::{EthereumAddress, MultiAddressEvm};
+use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier, RollupParams};
 use sov_celestia_adapter::CelestiaService;
 use sov_db::ledger_db::LedgerDb;
@@ -39,7 +39,7 @@ type CelestiaRollupSpec<M> =
 impl<M: ExecutionMode> RollupBlueprint<M> for CelestiaDemoRollup<M>
 where
     CelestiaRollupSpec<M>: PluggableSpec,
-    <CelestiaRollupSpec<M> as Spec>::Address: From<EthereumAddress>,
+    <CelestiaRollupSpec<M> as Spec>::Address: FromVmAddress<EthereumAddress>,
 {
     type Spec = CelestiaRollupSpec<M>;
     type Runtime = Runtime<Self::Spec>;

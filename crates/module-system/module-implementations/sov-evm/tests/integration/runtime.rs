@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use reth_primitives::TransactionSigned;
-use sov_address::{EthereumAddress, MultiAddressEvm};
+use sov_address::{EthereumAddress, FromVmAddress, MultiAddressEvm};
 use sov_evm::Evm;
 use sov_modules_api::capabilities::{
     AuthorizationData, BatchFromUnregisteredSequencer, TransactionAuthenticator,
@@ -22,7 +22,7 @@ generate_bare_runtime! {
     operating_mode:OperatingMode::Zk,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S>,
     gas_enforcer: bank: sov_test_utils::runtime::Bank<S>,
-    runtime_trait_impl_bounds: [S::Address: From<EthereumAddress>],
+    runtime_trait_impl_bounds: [S::Address: FromVmAddress<EthereumAddress>],
     kernel_type: sov_kernels::basic::BasicKernel<'a, S>
 }
 
@@ -34,7 +34,7 @@ pub enum Auth<T = sov_modules_api::RawTx, U = sov_modules_api::RawTx> {
 
 impl<S: Spec> TransactionAuthenticator<S> for TestRuntime<S>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     type Decodable = <Self as DispatchCall>::Decodable;
 
@@ -130,7 +130,7 @@ where
 
 impl<S: Spec> sov_evm::EthereumAuthenticator<S> for TestRuntime<S>
 where
-    S::Address: From<EthereumAddress>,
+    S::Address: FromVmAddress<EthereumAddress>,
 {
     fn add_ethereum_auth(tx: RawTx) -> <Self as TransactionAuthenticator<S>>::Input {
         Auth::Evm(tx)
