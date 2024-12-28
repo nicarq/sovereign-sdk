@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
-use sov_rollup_interface::{BasicAddress, RollupAddress};
+use sov_rollup_interface::BasicAddress;
 
 /// Sequencer DA address used in tests.
 pub const MOCK_SEQUENCER_DA_ADDRESS: [u8; 32] = [0u8; 32];
@@ -128,7 +128,6 @@ impl std::fmt::Display for MockAddress {
 }
 
 impl BasicAddress for MockAddress {}
-impl RollupAddress for MockAddress {}
 
 #[cfg(test)]
 mod tests {

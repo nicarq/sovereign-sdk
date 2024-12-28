@@ -2,7 +2,7 @@
 
 #![allow(unused_imports)]
 
-use sov_modules_api::{ModuleId, ModuleInfo, RollupAddress, Spec};
+use sov_modules_api::{BasicAddress, ModuleId, ModuleInfo, Spec};
 
 #[derive(ModuleInfo)]
 struct TestModule<S: Spec> {

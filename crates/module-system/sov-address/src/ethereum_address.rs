@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{BasicAddress, CryptoSpec, RollupAddress};
+use sov_modules_api::{BasicAddress, CryptoSpec};
 use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 
 use crate::{MultiAddress, Not28Bytes};
@@ -26,7 +26,6 @@ use crate::{MultiAddress, Not28Bytes};
 pub type MultiAddressEvm = MultiAddress<EthereumAddress>;
 
 impl BasicAddress for EthereumAddress {}
-impl RollupAddress for EthereumAddress {}
 impl Not28Bytes for EthereumAddress {}
 
 #[cfg(test)]

@@ -10,7 +10,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use sha2::Sha256;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{address_prefix, Address, BasicAddress, RollupAddress};
+use sov_modules_api::{address_prefix, Address, BasicAddress};
 
 /// A generic VM-compatible address enum, enabling supporting for both Sov SDK standard SHA-256 derived addresses and VM-specific addresses.
 #[derive(
@@ -36,14 +36,8 @@ pub enum MultiAddress<VmAddress> {
     Vm(VmAddress),
 }
 
-impl<
-        VmAddress: Not28Bytes + BasicAddress + RollupAddress + core::str::FromStr<Err: Into<anyhow::Error>>,
-    > BasicAddress for MultiAddress<VmAddress>
-{
-}
-impl<
-        VmAddress: Not28Bytes + BasicAddress + RollupAddress + core::str::FromStr<Err: Into<anyhow::Error>>,
-    > RollupAddress for MultiAddress<VmAddress>
+impl<VmAddress: Not28Bytes + BasicAddress + core::str::FromStr<Err: Into<anyhow::Error>>>
+    BasicAddress for MultiAddress<VmAddress>
 {
 }
 

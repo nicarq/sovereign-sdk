@@ -5,7 +5,7 @@ use sov_rollup_interface::da::DaSpec;
 #[cfg(feature = "native")]
 use sov_rollup_interface::execution_mode::{Native, WitnessGeneration};
 use sov_rollup_interface::zk::{CryptoSpec as CryptoSpecT, Zkvm};
-use sov_rollup_interface::{execution_mode, RollupAddress};
+use sov_rollup_interface::{execution_mode, BasicAddress};
 use sov_state::{ArrayWitness, DefaultStorageSpec};
 
 use crate::higher_kinded_types::{Generic, HigherKindedHelper};
@@ -88,7 +88,7 @@ impl<
         InnerZkvm: Zkvm,
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
-        Address: RollupAddress,
+        Address: BasicAddress,
     > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, WitnessGeneration>
 where
     for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,
@@ -114,7 +114,7 @@ impl<
         InnerZkvm: Zkvm,
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
-        Address: RollupAddress,
+        Address: BasicAddress,
     > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, Native>
 where
     for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,
@@ -141,7 +141,7 @@ impl<
         InnerZkvm: Zkvm,
         OuterZkvm: Zkvm,
         CryptoSpec: CryptoSpecExt,
-        Address: RollupAddress,
+        Address: BasicAddress,
     > Spec for ConfigurableSpec<Da, InnerZkvm, OuterZkvm, CryptoSpec, Address, execution_mode::Zk>
 where
     for<'a> Address: From<&'a <CryptoSpec as CryptoSpecT>::PublicKey>,

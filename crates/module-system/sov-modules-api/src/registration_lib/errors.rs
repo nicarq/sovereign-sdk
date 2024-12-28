@@ -1,10 +1,10 @@
-use sov_rollup_interface::{BasicAddress, RollupAddress as SovRollupAddress};
+use sov_rollup_interface::BasicAddress;
 use thiserror::Error;
 
 /// Errors that can be raised by the `Registry` library.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum RegistrationError<
-    RollupAddress: SovRollupAddress,
+    RollupAddress: BasicAddress,
     NotRegAddress: BasicAddress,
     AccessorError,
     CustomError,
