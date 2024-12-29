@@ -95,6 +95,9 @@ resources:
       sync_status:
         methods:
           retrieve: get /rollup/sync-status
+      schema:
+        methods:
+          retrieve: get /rollup/schema
 targets:
   node:
     production_repo: Sovereign-Labs/sovereign-sdk-client-js

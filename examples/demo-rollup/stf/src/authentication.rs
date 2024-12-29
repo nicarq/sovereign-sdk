@@ -12,7 +12,6 @@ use sov_modules_api::transaction::TransactionWithoutCall;
 use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Spec};
 use sov_state::User;
 
-use crate::chain_hash::CHAIN_HASH;
 use crate::runtime::{Runtime, RuntimeCall};
 
 impl<S: Spec> TransactionAuthenticator<S> for Runtime<S>
@@ -64,7 +63,7 @@ where
         match input {
             Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<_, S, Self>(
                 &tx,
-                &CHAIN_HASH,
+                &<Runtime<S> as sov_modules_stf_blueprint::Runtime<S>>::CHAIN_HASH,
                 pre_exec_ws,
             ),
             Auth::Evm(tx) => {
@@ -88,7 +87,7 @@ where
         let (tx_and_raw_hash, auth_data, runtime_call) =
             sov_modules_api::capabilities::authenticate::<_, S, Runtime<S>>(
                 &batch.tx.data,
-                &CHAIN_HASH,
+                &<Runtime<S> as sov_modules_stf_blueprint::Runtime<S>>::CHAIN_HASH,
                 pre_exec_ws,
             )
             .map_err(|e| match e {

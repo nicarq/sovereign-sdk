@@ -8,8 +8,6 @@ pub mod runtime;
 #[cfg(feature = "test-utils")]
 mod test_utils;
 
-mod chain_hash;
-
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_rollup_interface::stf::StateTransitionVerifier;
 
