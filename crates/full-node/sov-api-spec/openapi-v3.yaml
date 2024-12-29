@@ -340,6 +340,22 @@ paths:
                       $ref: "#/components/schemas/ApiError"
                 required:
                   - meta
+  /rollup/schema:
+    get:
+      summary: Get schema
+      description: >
+        Returns the current schema used by the rollup.
+
+        This information can be used by web3 SDK and external tools as a description to serialize objects
+        as well as determine if the version of the rollup has changed.
+      operationId: rollup_schema
+      tags:
+        - Rollup
+      responses:
+        "200":
+          $ref: "#/components/responses/Schema"
+        "400":
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/addresses/{address}/dedup:
     get:
       summary: Deduplicate an address
@@ -562,6 +578,19 @@ components:
               - data
     Dedup:
       description: Successfully calculated dedup details for the provided address.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                $ref: "#/components/schemas/AnyJsonValue"
+              meta:
+                $ref: "#/components/schemas/AnyJsonValue"
+            required:
+              - meta
+    Schema:
+      description: Schema of the rollup.
       content:
         application/json:
           schema:

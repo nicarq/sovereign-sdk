@@ -20,6 +20,8 @@ mod client_interface;
 /// Provides the `dedup` endpoint functionality.
 pub mod dedup;
 mod default_provider;
+/// Provides the `schema` endpoint functionality.
+pub mod schema;
 
 pub use default_provider::DefaultRollupStateProvider;
 
