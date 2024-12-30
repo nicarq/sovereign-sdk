@@ -84,6 +84,7 @@ impl<S: Spec> BlobStorage<S> {
 
         let mut unregistered_blobs = 0;
         for (idx, item) in current_blobs.into_iter().enumerate() {
+            println!("BS1- {}", idx);
             tracing::trace!(idx, "Processing blob");
             match item {
                 BlobOrigin::Proof(blob) => {
@@ -640,6 +641,7 @@ impl<S: Spec> BlobStorage<S> {
         I: IntoIterator<Item = BlobOrigin<'a, <S::Da as DaSpec>::BlobTransaction>>,
     {
         let current_blobs = take_blobs_with_size_limit::<_, S>(current_blobs);
+
         self.select_blobs_as_based_sequencer_inner(current_blobs, state)
     }
 }

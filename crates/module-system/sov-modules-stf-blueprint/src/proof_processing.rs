@@ -7,7 +7,7 @@ use sov_modules_api::capabilities::{
 use sov_modules_api::proof_metadata::{ProofType, SerializeProofWithDetails};
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, Gas, GasMeter, InvalidProofError, MeteredBorshDeserialize,
+    BasicGasMeter, DaSpec, Gas, GasMeter, GasSpec, InvalidProofError, MeteredBorshDeserialize,
     PreExecWorkingSet, ProofOutcome, ProofReceipt, ProofReceiptContents, Spec, StateCheckpoint,
     StateProvider, TxScratchpad, WorkingSet,
 };
@@ -40,7 +40,7 @@ where
 
     // We're currently penalizing the sequencer too much, but this is acceptable.
     // Once we measure the cost of deserialization, we can provide a more accurate value.
-    let max_pre_exec_check_gas = runtime.gas_enforcer().max_tx_check_costs();
+    let max_pre_exec_check_gas = <S as GasSpec>::max_tx_check_costs();
     let max_auth_cost = max_pre_exec_check_gas.value(gas_price);
 
     // Check if the sequencer is bonded, and create `pre_exec_working_set`.
@@ -52,6 +52,17 @@ where
                 return (out, state);
             }
         };
+
+    // This represents the cost incurred by the sequencer solely for accepting the proof. It includes the cost of:
+    // - refund_remaining_gas
+    // - reward_sequencer
+    // etc
+    let tx_precessing_costs = <S as GasSpec>::process_tx_pre_exec_checks_gas();
+
+    // It is ok to panic here because we asserter that the sequencer has enough funds to pay for the tx processing costs.
+    pre_exec_working_set
+        .charge_gas(&tx_precessing_costs)
+        .expect("The rollup is misconfigured: MAX_SEQUENCER_EXEC_GAS_PER_TX: {max_pre_exec_check_gas} must be greater than PROCESS_TX_PRE_EXEC_GAS: {tx_precessing_costs}.");
 
     match SerializeProofWithDetails::<S>::deserialize(
         &mut raw_proof.as_slice(),

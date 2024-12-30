@@ -63,6 +63,8 @@ DEFAULT_FIXED_GAS_TO_CHARGE_PER_SIGNATURE_VERIFICATION = [100, 100]
 # --- End Gas parameters to specify how to charge gas for signature verification ---
 # Maximum amount of gas the sequencer can pay for the tx execution ---
 MAX_SEQUENCER_EXEC_GAS_PER_TX = [100000, 100000]
+# Maximum amount of gas the unregistered sequencer can pay for the tx execution ---
+MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX = [50000, 50000]
 # Gas parameters to specify tx pre execution costs ---
 PROCESS_TX_PRE_EXEC_GAS = [0, 0]
 # The cost of deserializing a message using Borsh

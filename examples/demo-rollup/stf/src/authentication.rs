@@ -57,10 +57,12 @@ where
         AuthenticationOutput<S, Self::Decodable, Self::AuthorizationData>,
         AuthenticationError,
     > {
+        // We don't charge for the deserialization of the Auth enum because variant.
         let input: Auth = borsh::from_slice(&tx.data)
             .map_err(|e| fatal_deserialization_error::<_, S, _>(&tx.data, e, pre_exec_ws))?;
 
         match input {
+            // Here we charge for deserialization and signature verification.
             Auth::Mod(tx) => sov_modules_api::capabilities::authenticate::<_, S, Self>(
                 &tx,
                 &<Runtime<S> as sov_modules_stf_blueprint::Runtime<S>>::CHAIN_HASH,

@@ -6,8 +6,7 @@ use sov_modules_api::capabilities::{
 };
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext, Gas,
-    GasArray, GasInfo, GasMeter, PreExecWorkingSet, Rewards, Spec, StateProvider, TxScratchpad,
-    WorkingSet,
+    GasArray, GasInfo, GasMeter, GasSpec, Rewards, Spec, StateProvider, TxScratchpad, WorkingSet,
 };
 use tracing::{debug, warn};
 
@@ -140,6 +139,7 @@ pub fn process_unauthorized_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
 }
 
 #[allow(clippy::type_complexity)]
+#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     meter: BasicGasMeter<S::Gas>,
@@ -151,22 +151,13 @@ pub(crate) fn authenticate_unregistered_tx<S: Spec, R: Runtime<S>, I: StateProvi
 ) {
     let mut pre_exec_working_set = scratchpad.to_pre_exec_working_set(meter);
 
-    let res = authenticate_unregistered_with_cycle_count(runtime, batch, &mut pre_exec_working_set);
+    let res = runtime.authenticate_unregistered(batch, &mut pre_exec_working_set);
     let (scratchpad, gas_meter) = pre_exec_working_set.to_scratchpad_and_gas_meter();
 
     match res {
         Err(e) => (Err(e), scratchpad),
         Ok(ok) => (Ok((ok, gas_meter.gas_info())), scratchpad),
     }
-}
-
-#[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
-fn authenticate_unregistered_with_cycle_count<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
-    runtime: &R,
-    batch: &BatchFromUnregisteredSequencer,
-    pre_exec_working_set: &mut PreExecWorkingSet<S, I>,
-) -> Result<AuthTxOutput<S, R>, UnregisteredAuthenticationError> {
-    runtime.authenticate_unregistered(batch, pre_exec_working_set)
 }
 
 #[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
@@ -203,7 +194,11 @@ where
         "Verifying & executing transactions"
     );
 
-    let max_auth_cost = runtime.gas_enforcer().max_tx_check_costs().value(gas_price);
+    // We need to be cautious about potential DoS attacks. When receiving an emergency registration, we cannot immediately determine if the sequencer registration will succeed.
+    // A malicious actor could exploit this mechanism to attack the rollup, for instance, by sending large transactions that are costly to deserialize from an address with no funds on the rollup.
+    // To mitigate this, we initialize the gas meter with just enough gas to process a valid transaction. If the transaction is too big, we quickly run out of gas.
+    // Additionally, we rate-limit (during blob selection) the number of forced registrations to further reduce the effectiveness of such attacks.
+    let max_auth_cost = <S as GasSpec>::max_unregistered_tx_check_costs().value(gas_price);
     let meter = BasicGasMeter::new(max_auth_cost, gas_price.clone());
 
     let authentication_result = authenticate_unregistered_tx(runtime, meter, &batch, scratchpad);
@@ -231,12 +226,27 @@ where
             )
         }
 
-        (Err(UnregisteredAuthenticationError::OutOfGas(err)), _) => {
-            // It is safe to panic here because we have already confirmed that the gas is sufficient to authenticate the transaction.
-            panic!(
-                "The impossible happened: the sequencer ran out of gas {}.",
-                err
-            )
+        (Err(UnregisteredAuthenticationError::OutOfGas(reason)), scratchpad) => {
+            let err_str = format!("Not enough gas to authenticate a transaction: {}", reason);
+
+            warn!(
+                error = %reason,
+                "Not enough gas to authenticate the batch",
+            );
+
+            return (
+                BatchReceipt {
+                    batch_hash: batch.id,
+                    tx_receipts: vec![],
+                    inner: BatchSequencerReceipt {
+                        da_address: sequencer_da_address,
+                        gas_price: gas_price.clone(),
+                        gas_used: S::Gas::zero(),
+                        outcome: BatchSequencerOutcome::Ignored(err_str),
+                    },
+                },
+                scratchpad.revert(),
+            );
         }
     };
 

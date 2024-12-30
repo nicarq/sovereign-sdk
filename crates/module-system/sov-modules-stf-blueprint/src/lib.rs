@@ -481,6 +481,7 @@ where
         let mut total_gas = S::Gas::zero();
         #[cfg(feature = "native")]
         let blob_processing_start = std::time::Instant::now();
+
         // TODO: Inject closure to report state changes here
         for (blob_idx, (blob, sender)) in
             blob_selector_output.selected_blobs.into_iter().enumerate()
