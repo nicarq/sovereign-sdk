@@ -1,6 +1,22 @@
 .PHONY: help
 
-EXTRA_DIRS := crates/fuzz examples/demo-rollup/provers/risc0/guest-mock examples/demo-rollup/provers/risc0/guest-celestia examples/demo-rollup/provers/sp1/guest-mock examples/demo-rollup/provers/sp1/guest-celestia
+# Only do check
+CHECK_ONLY_DIRS := crates/fuzz \
+              examples/demo-rollup/provers/risc0/guest-mock \
+              examples/demo-rollup/provers/risc0/guest-celestia \
+              examples/demo-rollup/provers/sp1/guest-mock \
+              examples/demo-rollup/provers/sp1/guest-celestia \
+              examples/demo-rollup/stf \
+              examples/demo-rollup/stf/demo-stf-json-client \
+              examples/demo-simple-stf \
+              examples/const-rollup-config \
+# Also do tests
+TEST_DIRS := examples/demo-rollup \
+             examples/demo-simple-stf
+# Also do bench
+BENCH_DIRS := examples/demo-rollup/sov-benchmarks
+
+ALL_DIRS := $(CHECK_ONLY_DIRS) $(TEST_DIRS) $(BENCH_DIRS)
 
 # We run `cargo hack` with the `--partition 1/1` by default, but overrides allow
 # CI to parallelize checks.
@@ -31,7 +47,7 @@ total-clean: clean
 total-clean:
 	$(MAKE) -C examples/demo-rollup clean;
 	$(MAKE) -C examples/demo-rollup clean-wallet;
-	@for dir in $(EXTRA_DIRS); do \
+	@for dir in $(ALL_DIRS); do \
     	echo "Running cargo clean in $$dir"; \
     	(cargo clean --manifest-path "$$dir/Cargo.toml"); \
     done;
@@ -47,6 +63,20 @@ test:  ## Runs test suite using next test
 test-default-features:  ## Runs test suite using default features
 	@cargo nextest run --no-fail-fast --workspace --status-level skip
 
+test-all: test
+test-all:  ## Runs test for all crates in the repo, even those excluded from workspace
+	@for dir in $(TEST_DIRS); do \
+		echo "Running test in $$dir"; \
+		(cargo nextest run --no-fail-fast --all-features --status-level skip --manifest-path "$$dir/Cargo.toml"); \
+	done;
+
+bench-all:
+	@cargo bench;
+	@for dir in $(BECH_DIRS); do \
+		echo "Running bench in $$dir"; \
+		(cargo bench --manifest-path "$$dir/Cargo.toml"); \
+	done;
+
 install-dev-tools:  ## Installs all necessary cargo helpers
 install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	rustup update nightly
@@ -57,7 +87,7 @@ install-dev-tools: install-risc0-toolchain install-sp1-toolchain
 	cargo install cargo-llvm-cov
 	cargo install cargo-hack
 	cargo install cargo-udeps
-	cargo install cargo-deny
+	cargo install cargo-deny@0.16.1 --locked  # compatibility with rust 1.79
 	cargo install flaky-finder
 	cargo install cargo-nextest --locked
 	cargo install zepter
@@ -89,18 +119,30 @@ lint:  ## cargo check and clippy. Skip clippy on guest code since it's not suppo
 	$(MAKE) check-fuzz
 	$(MAKE) clippy
 
+lint-all: lint
+	@for dir in $(ALL_DIRS); do \
+		echo "Running lint in $$dir"; \
+		(cargo +nightly fmt --all --check --manifest-path "$$dir/Cargo.toml"); \
+		(cargo check --all-targets --all-features --manifest-path "$$dir/Cargo.toml"); \
+		(SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features --manifest-path "$$dir/Cargo.toml" -- -A clippy::too_many_arguments); \
+	done;
+
 clippy:
 	SKIP_GUEST_BUILD=1 cargo clippy --all-targets --all-features -- -A clippy::too_many_arguments
 
 cargo-deny-check-licenses:
 	cargo deny check licenses
+	@for dir in $(ALL_DIRS); do \
+		echo "Running license check in $$dir"; \
+		(cargo deny --manifest-path "$$dir/Cargo.toml" check --config $(CURDIR)/deny.toml licenses ); \
+	done;
 
 cargo-deny-check:   ## Runs a global cargo-deny check, not just the licenses.
 	cargo deny check --hide-inclusion-graph
 
 extra-check:   ## cargo check in non attached crates
 	cargo check
-	@for dir in $(EXTRA_DIRS); do \
+	@for dir in $(CHECK_ONLY_DIRS); do \
 		echo "Running cargo check in $$dir"; \
 		(cargo check --manifest-path "$$dir/Cargo.toml"); \
 	done
@@ -155,4 +197,4 @@ doctest:
 	cargo test --workspace --doc --all-features
 
 mini-ci: ## Runs multiple checks that can most often fail CI as a single command: lint, test, and doctest.
-mini-ci: lint test doctest docs-generate
+mini-ci: lint-all test-all doctest docs-generate

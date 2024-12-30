@@ -102,7 +102,7 @@ Now run the demo-rollup full node, as shown below. You will see it consuming blo
 
 ```sh,test-ci,bashtestmd:long-running,bashtestmd:wait-until=rpc_address
 # Make sure you're still in the examples/demo-rollup directory and `make build` has been executed before
-$ ../../target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
+$ ./target/debug/sov-demo-rollup --da-layer celestia --rollup-config-path demo_rollup_config.toml --genesis-config-dir ../test-data/genesis/demo/celestia
 2024-03-05T14:42:21.332792Z  INFO sov_demo_rollup: Running demo rollup with prover config prover_config=Skip
 2024-03-05T14:42:21.332955Z DEBUG sov_demo_rollup: Starting Celestia rollup config_path="demo_rollup_config.toml"
 2024-03-05T14:42:21.333147Z DEBUG sov_stf_runner::config: Parsing config file size_in_bytes=1238 contents="[da]\n# The JWT used to authenticate with the celestia light client. Instructions for generating this token can be found in the README\ncelestia_rpc_auth_token = \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJBbGxvdyI6WyJwdWJsaWMiLCJyZWFkIiwid3JpdGUiLCJhZG1pbiJdfQ.xFFGFMlIAkJ5_9dJR1GIwujpfr1tuISDvNr6cDR8wnY\"\n# The address of the *trusted* Celestia light client to interact with\ncelestia_rpc_address = \"http://127.0.0.1:26658\"\n# The largest response the rollup will accept from the Celestia node. Defaults to 100 MB\nmax_celestia_response_body_size = 104_857_600\n# The maximum time to wait for a response to an RPC query against Celestia node. Defaults to 60 seconds.\ncelestia_rpc_timeout_seconds = 60\n\n[storage]\n# The path to the rollup's data directory. Paths that do not begin with `/` are interpreted as relative paths.\npath = \"demo_data\"\n\n# We define the rollup's genesis to occur at block number `genesis_height`. The rollup will ignore\n# any blocks before this height, and any blobs at this height will not be processed\n[runner]\ngenesis_height = 3\nda_polling_interval_ms = 10000\n\n[runner.rpc_config]\n# the host and port to bind the rpc server for\nbind_host = \"127.0.0.1\"\nbind_port = 12345\n\n[proof_manager]\naggregated_proof_block_jump = 1\n"
@@ -154,7 +154,7 @@ You'll need the `sov-cli` binary in order to create transactions. Build it with 
 ```bash,test-ci,bashtestmd:compare-output
 # Make sure you're still in `examples/demo-rollup` and `make build` has been executed previously
 $ make check-sov-cli
-$ ./../../target/debug/sov-cli --help
+$ ./target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
 Commands:
@@ -257,7 +257,7 @@ Note: we're able to make a `Transfer` call here because we already created the t
 To generate transactions, you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./../../target/debug/sov-cli transactions import from-file -h
+$ ./target/debug/sov-cli transactions import from-file -h
 Import a transaction from a JSON file at the provided path
 
 Usage: sov-cli transactions import from-file <COMMAND>
@@ -282,7 +282,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./../../target/debug/sov-cli transactions import from-file bank --chain-id 4321 --max-fee 100000000 --path ../test-data/requests/transfer.json
+$ ./target/debug/sov-cli transactions import from-file bank --chain-id 4321 --max-fee 100000000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {

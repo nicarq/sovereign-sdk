@@ -16,18 +16,18 @@ workspace = true
 
 [dependencies]
 jsonrpsee = { workspace = true, features = [
-  "macros",
-  "server",
+    "macros",
+    "server",
 ], optional = true }
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
 axum = { workspace = true, optional = true }
 async-trait = { workspace = true, optional = true }
 derive_more = { workspace = true, default-features = true, features = [
-  "deref",
-  "debug",
-  "display",
-  "into",
+    "deref",
+    "debug",
+    "display",
+    "into",
 ] }
 serde_yaml = { workspace = true, optional = true }
 sov-rest-utils = { workspace = true, optional = true }
@@ -61,7 +61,6 @@ utoipa-swagger-ui = { workspace = true, optional = true }
 unwrap-infallible = { workspace = true }
 
 [dev-dependencies]
-sov-risc0-adapter = { workspace = true, features = ["native"] }
 bincode = { workspace = true }
 tempfile = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
@@ -77,50 +76,47 @@ openapiv3 = "2.0.0"
 
 [features]
 arbitrary = [
-  "dep:arbitrary",
-  "dep:proptest",
-  "dep:proptest-derive",
-  "proptest/default",
-  "sov-db?/arbitrary",
-  "sov-mock-zkvm/arbitrary",
-  "sov-modules-api/arbitrary",
-  "sov-rest-utils/arbitrary",
-  "sov-rollup-interface/arbitrary",
-  "sov-state/arbitrary",
-  "sov-sequencer-registry/arbitrary",
-  "sov-test-utils/arbitrary",
-  "sov-risc0-adapter/arbitrary",
-  "sov-mock-da/arbitrary",
-  "sov-bank/arbitrary",
+    "dep:arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "proptest/default",
+    "sov-db?/arbitrary",
+    "sov-mock-zkvm/arbitrary",
+    "sov-modules-api/arbitrary",
+    "sov-rest-utils/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-state/arbitrary",
+    "sov-sequencer-registry/arbitrary",
+    "sov-test-utils/arbitrary",
+    "sov-mock-da/arbitrary",
+    "sov-bank/arbitrary",
 ]
 bench = [
-  "sov-cycle-utils",
-  "sov-modules-api/bench",
-  "sov-state/bench",
-  "sov-risc0-adapter/bench",
+    "sov-cycle-utils",
+    "sov-modules-api/bench",
+    "sov-state/bench",
 ]
 native = [
-	"async-trait",
-	"axum",
-	"clap",
-	"jsonrpsee",
-	"heck",
-	"serde_yaml",
-	"sov-bank/native",
-	"sov-db",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-modules-api/native",
-	"sov-modules-macros/native",
-	"sov-rest-utils",
-	"sov-rollup-interface/native",
-	"sov-state/native",
-	"tokio",
-	"utoipa",
-	"utoipa-swagger-ui",
-	"sov-sequencer-registry/native",
-	"sov-risc0-adapter/native",
-	"sov-cycle-utils?/native",
+    "async-trait",
+    "axum",
+    "clap",
+    "jsonrpsee",
+    "heck",
+    "serde_yaml",
+    "sov-bank/native",
+    "sov-db",
+    "sov-mock-da/native",
+    "sov-mock-zkvm/native",
+    "sov-modules-api/native",
+    "sov-modules-macros/native",
+    "sov-rest-utils",
+    "sov-rollup-interface/native",
+    "sov-state/native",
+    "tokio",
+    "utoipa",
+    "utoipa-swagger-ui",
+    "sov-sequencer-registry/native",
+    "sov-cycle-utils?/native",
 ]
 test-utils = ["dep:tracing-test"]
 evm = []

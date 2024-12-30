@@ -4,8 +4,6 @@ version = "0.3.0"
 edition = "2021"
 resolver = "2"
 
-[workspace]
-
 [dependencies]
 anyhow = "1.0.86"
 sp1-zkvm = { version = "3.0.0" }

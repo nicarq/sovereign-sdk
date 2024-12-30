@@ -439,7 +439,7 @@ mod test {
     use core::str::FromStr;
 
     use sha2::Sha256;
-    use sov_risc0_adapter::crypto::Risc0PublicKey;
+    use sov_mock_zkvm::crypto::Ed25519PublicKey;
     use sov_rollup_interface::crypto::PublicKeyHex;
     use sov_universal_wallet::schema::Schema;
 
@@ -495,7 +495,7 @@ mod test {
                 .try_into()
                 .unwrap();
 
-        let pub_key = Risc0PublicKey::try_from(&pub_key_hex).unwrap();
+        let pub_key = Ed25519PublicKey::try_from(&pub_key_hex).unwrap();
 
         let sov_address = pub_key.to_address::<Address<Sha256>>();
 

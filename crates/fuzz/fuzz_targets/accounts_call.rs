@@ -13,7 +13,7 @@ use sov_modules_api::{
     Context, CredentialId, DaSpec, ExecutionContext, Module, PrivateKey, PublicKey, Spec,
     StateCheckpoint, WorkingSet,
 };
-use sov_test_utils::storage::{SimpleStorageManager};
+use sov_test_utils::storage::SimpleStorageManager;
 use sov_test_utils::{TestHasher, TestPrivateKey};
 
 type S = sov_test_utils::TestSpec;

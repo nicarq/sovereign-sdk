@@ -6,7 +6,7 @@ CREDENTIALS_DIR := $(DOCKER_COMPOSE_DIR)/celesita/credentials
 DOCKER_COMPOSE := docker compose -f $(DOCKER_COMPOSE_DIR)/docker-compose.yml --profile monitoring
 
 TEST_PRIVATE_KEY_PATH := $(PROJECT_ROOT)/examples/test-data/keys/minter_private_key.json
-SOV_CLI_REL_PATH := $(PROJECT_ROOT)/target/debug/sov-cli
+SOV_CLI_REL_PATH := $(PROJECT_ROOT)/examples/demo-rollup/target/debug/sov-cli
 
 P2P_NETWORK := private
 KEY_NAME := bridge-0

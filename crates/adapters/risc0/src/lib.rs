@@ -119,8 +119,8 @@ impl ZkVerifier for Risc0Verifier {
 pub struct Risc0;
 
 impl sov_rollup_interface::zk::Zkvm for Risc0 {
-    type Guest = crate::guest::Risc0Guest;
     type Verifier = Risc0Verifier;
+    type Guest = crate::guest::Risc0Guest;
 
     #[cfg(feature = "native")]
     type Host = crate::host::Risc0Host<'static>;

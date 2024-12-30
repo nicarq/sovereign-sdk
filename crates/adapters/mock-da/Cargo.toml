@@ -28,8 +28,8 @@ serde_json = { workspace = true }
 hex = { workspace = true, features = ["serde"] }
 sha2 = { workspace = true }
 tokio = { workspace = true, optional = true, features = [
-	"test-util",
-	"macros",
+    "test-util",
+    "macros",
 ] }
 futures = { workspace = true, optional = true, features = ["std"] }
 tracing = { workspace = true }
@@ -37,24 +37,28 @@ sov-rollup-interface = { workspace = true }
 
 # For storable service
 sea-orm = { version = "0.12", features = [
-	"sqlx-sqlite",
-	"runtime-tokio-rustls",
-	"macros",
-	"with-chrono",
+    "sqlx-sqlite",
+    "runtime-tokio-rustls",
+    "macros",
+    "with-chrono",
 ], default-features = false, optional = true }
 chrono = { workspace = true, optional = true }
+# Needed to prevent ` use of unstable library feature 'error_in_core'` with our rust version
+# Can be attempted to remove when sea-orm upgraded beyond 1 or rust toolchain is updated.
+idna = { version = "1.0.3", default-features = false, features = ["std"] }
+url = { version = "2.5.4", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 bincode = { workspace = true }
 futures = { workspace = true }
 serde_json = { workspace = true }
 sov-mock-da = { path = ".", features = ["native", "arbitrary"] }
-sov-test-utils = { workspace = true, features = ["arbitrary"]}
+sov-test-utils = { workspace = true, features = ["arbitrary"] }
 tempfile = { workspace = true }
 tokio = { workspace = true, features = [
-	"test-util",
-	"macros",
-	"rt-multi-thread",
+    "test-util",
+    "macros",
+    "rt-multi-thread",
 ] }
 rand = { workspace = true }
 testcontainers = { version = "0.21", features = ["blocking"] }
@@ -63,20 +67,20 @@ testcontainers-modules = { version = "0.9", features = ["postgres"] }
 [features]
 default = []
 arbitrary = [
-	"dep:arbitrary",
-	"chrono?/arbitrary",
-	"dep:proptest",
-	"dep:proptest-derive",
-	"sov-mock-da/arbitrary",
-	"sov-rollup-interface/arbitrary",
-	"sov-test-utils/arbitrary"
+    "dep:arbitrary",
+    "chrono?/arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "sov-mock-da/arbitrary",
+    "sov-rollup-interface/arbitrary",
+    "sov-test-utils/arbitrary"
 ]
 native = [
-	"dep:chrono",
-	"dep:futures",
-	"dep:sea-orm",
-	"dep:tokio",
-	"sov-mock-da/native",
-	"sov-rollup-interface/native",
+    "dep:chrono",
+    "dep:futures",
+    "dep:sea-orm",
+    "dep:tokio",
+    "sov-mock-da/native",
+    "sov-rollup-interface/native",
 ]
 postgres = ["native", "sea-orm/sqlx-postgres"]
