@@ -166,7 +166,7 @@ You'll need the `sov-cli` binary in order to create transactions. Build it with 
 ```bash,test-ci,bashtestmd:compare-output
 # Make sure you're still in `examples/demo-rollup`
 $ SKIP_GUEST_BUILD=1 cargo build --bin sov-cli
-$ ./../../target/debug/sov-cli --help
+$ ./target/debug/sov-cli --help
 Usage: sov-cli <COMMAND>
 
 Commands:
@@ -279,7 +279,7 @@ using `make test-create-token`.
 To generate transactions you can use the `transactions import from-file` subcommand, as shown below:
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./../../target/debug/sov-cli transactions import from-file -h
+$ ./target/debug/sov-cli transactions import from-file -h
 Import a transaction from a JSON file at the provided path
 
 Usage: sov-cli transactions import from-file <COMMAND>
@@ -304,7 +304,7 @@ Options:
 Let's go ahead and import the transaction into the wallet
 
 ```bash,test-ci,bashtestmd:compare-output
-$ ./../../target/debug/sov-cli transactions import from-file bank --max-fee 100000000 --path ../test-data/requests/transfer.json
+$ ./target/debug/sov-cli transactions import from-file bank --max-fee 100000000 --path ../test-data/requests/transfer.json
 Adding the following transaction to batch:
 {
   "tx": {
@@ -344,7 +344,7 @@ this
 batch, you can import them now. Finally, let's submit your transaction to the rollup.
 
 ```bash,test-ci
-$ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
+$ ./target/debug/sov-cli node submit-batch --wait-for-processing by-address sov1l6n2cku82yfqld30lanm2nfw43n2auc8clw7r5u5m6s7qhzze66
 ```
 
 #### 5. Verify the Token Supply

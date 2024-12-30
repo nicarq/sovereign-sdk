@@ -1,70 +1,84 @@
 [package]
 name = "demo-stf"
-version = { workspace = true }
-edition = { workspace = true }
-resolver = "2"
-authors = { workspace = true }
-license = { workspace = true }
-homepage = "sovereign.xyz"
+version = "0.3.0"
+edition = "2021"
+authors = ["Sovereign Labs <info@sovereign.xyz>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://www.sovereign.xyz"
 publish = false
 
-[lints]
-workspace = true
+[lints.rust]
+dead_code = "deny"
+non_ascii_idents = "deny"
+
+[lints.clippy]
+debug_assert_with_mut_call = "deny"
+inefficient_to_string = "deny"
+map_flatten = "deny"
+manual_ok_or = "deny"
+doc_link_with_quotes = "deny"
+match_same_arms = "deny"
+semicolon_if_nothing_returned = "deny"
+float_arithmetic = "deny"              # Can cause subtle bugs due to different behavior between native and zkVM execution.
 
 [dependencies]
-anyhow = { workspace = true }
-borsh = { workspace = true }
-serde = { workspace = true }
-schemars = { workspace = true }
+anyhow = { version = "1.0.86" }
+borsh = { version = "1", features = ["derive"] }
+serde = { version = "1.0.208", default-features = false, features = ["alloc", "derive"] }
+alloy-chains = "=0.1.27"
+alloy-primitives = "=0.7.7"
+strum = { version = "0.26.3", features = ["derive"] }
 
-sov-accounts = { workspace = true }
-sov-address = { workspace = true, features = ["evm"] }
-sov-attester-incentives = { workspace = true }
-sov-bank = { workspace = true }
-sov-capabilities = { workspace = true }
-sov-chain-state = { workspace = true }
-sov-blob-storage = { workspace = true }
-sov-evm = { workspace = true }
-sov-modules-api = { workspace = true }
-sov-modules-stf-blueprint = { workspace = true }
-sov-nonces = { workspace = true }
-sov-paymaster = { workspace = true }
-sov-prover-incentives = { workspace = true }
-sov-rollup-interface = { workspace = true }
-sov-sequencer-registry = { workspace = true }
-sov-state = { workspace = true }
-sov-value-setter = { workspace = true }
-sov-kernels = { workspace = true }
-sov-rollup-apis = { workspace = true, optional = true }
-sov-test-utils = { workspace = true, optional = true }
-strum = { workspace = true }
+sov-accounts = { path = "../../../crates/module-system/module-implementations/sov-accounts", default-features = false }
+sov-address = { path = "../../../crates/module-system/sov-address", default-features = false, features = ["evm"] }
+sov-attester-incentives = { path = "../../../crates/module-system/module-implementations/sov-attester-incentives", default-features = false }
+sov-bank = { path = "../../../crates/module-system/module-implementations/sov-bank", default-features = false }
+sov-capabilities = { path = "../../../crates/module-system/sov-capabilities", default-features = false }
+sov-chain-state = { path = "../../../crates/module-system/module-implementations/sov-chain-state", default-features = false }
+sov-blob-storage = { path = "../../../crates/module-system/module-implementations/sov-blob-storage", default-features = false }
+sov-evm = { path = "../../../crates/module-system/module-implementations/sov-evm", default-features = false }
+sov-modules-api = { path = "../../../crates/module-system/sov-modules-api", default-features = false }
+sov-modules-stf-blueprint = { path = "../../../crates/module-system/sov-modules-stf-blueprint", default-features = false }
+sov-nonces = { path = "../../../crates/module-system/module-implementations/sov-nonces", default-features = false }
+sov-paymaster = { path = "../../../crates/module-system/module-implementations/sov-paymaster", default-features = false }
+sov-prover-incentives = { path = "../../../crates/module-system/module-implementations/sov-prover-incentives", default-features = false }
+sov-rollup-interface = { path = "../../../crates/rollup-interface", default-features = false }
+sov-sequencer-registry = { path = "../../../crates/module-system/module-implementations/sov-sequencer-registry", default-features = false }
+sov-state = { path = "../../../crates/module-system/sov-state", default-features = false }
+sov-value-setter = { path = "../../../crates/module-system/module-implementations/sov-value-setter", default-features = false }
+sov-kernels = { path = "../../../crates/module-system/sov-kernels", default-features = false }
+sov-rollup-apis = { path = "../../../crates/full-node/sov-rollup-apis", optional = true, default-features = false }
+sov-test-utils = { path = "../../../crates/module-system/sov-test-utils", optional = true, default-features = false }
+# To prevent `use of unstable library feature 'error_in_core'`
+idna = { version = "1.0.3", default-features = false, features = ["std"] }
+url = { version = "2.5.4", default-features = false, features = ["std"] }
 
 [features]
 default = []
 native = [
-	"sov-accounts/native",
-	"sov-attester-incentives/native",
-	"sov-bank/native",
-	"sov-capabilities/native",
-	"sov-chain-state/native",
-	"sov-evm/native",
-	"sov-kernels/native",
-	"sov-modules-api/native",
-	"sov-modules-stf-blueprint/native",
-	"sov-nonces/native",
-	"sov-prover-incentives/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer-registry/native",
-	"sov-state/native",
-	"sov-value-setter/native",
-	"sov-blob-storage/native",
-	"sov-rollup-apis",
-	"sov-paymaster/native",
-	"sov-address/native"
+    "sov-accounts/native",
+    "sov-attester-incentives/native",
+    "sov-bank/native",
+    "sov-capabilities/native",
+    "sov-chain-state/native",
+    "sov-evm/native",
+    "sov-kernels/native",
+    "sov-modules-api/native",
+    "sov-modules-stf-blueprint/native",
+    "sov-nonces/native",
+    "sov-prover-incentives/native",
+    "sov-rollup-interface/native",
+    "sov-sequencer-registry/native",
+    "sov-state/native",
+    "sov-value-setter/native",
+    "sov-blob-storage/native",
+    "sov-rollup-apis",
+    "sov-paymaster/native",
+    "sov-address/native",
 ]
 
 # We only activate test-utils if we also have native since all our test-code use native by default.
 test-utils = [
-	"native",
-	"sov-test-utils"
+    "native",
+    "sov-test-utils",
 ]

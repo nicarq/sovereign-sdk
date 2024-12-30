@@ -9,13 +9,6 @@ members = [
     "crates/adapters/celestia",
     "crates/adapters/mock-da",
     "crates/adapters/mock-zkvm",
-    # Examples
-    "examples/const-rollup-config",
-    "examples/demo-simple-stf",
-    "examples/demo-rollup",
-    "examples/demo-rollup/sov-benchmarks",
-    "examples/demo-rollup/rest-api-load-testing",
-    "examples/demo-rollup/stf/demo-stf-json-client",
     # Full Node
     "crates/full-node/sov-db",
     "crates/full-node/sov-sequencer",
@@ -62,6 +55,16 @@ members = [
     "crates/utils/workspace-hack",
 ]
 
+exclude = [
+    # Examples
+    "examples/const-rollup-config",
+    "examples/demo-simple-stf",
+    "examples/demo-rollup",
+    "examples/demo-rollup/sov-benchmarks",
+    "examples/demo-rollup/rest-api-load-testing",
+    "examples/demo-rollup/stf/demo-stf-json-client",
+]
+
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
@@ -93,11 +96,6 @@ float_arithmetic = "deny"              # Can cause subtle bugs due to different 
 # Workspace packages
 arrayvec = { version = "0.7.6", features = ["serde", "borsh"] }
 console-subscriber = "0.4"
-const-rollup-config = { path = "examples/const-rollup-config", default-features = false, version = "0.3" }
-sov-demo-rollup = { path = "examples/demo-rollup", default-features = false, version = "0.3" }
-demo-stf = { path = "examples/demo-rollup/stf", default-features = false, version = "0.3" }
-sov-benchmarks = { path = "examples/demo-rollup/sov-benchmarks", version = "0.3" }
-demo-stf-json-client = { path = "examples/demo-rollup/stf/demo-stf-json-client", default-features = false, version = "0.3" }
 sov-ethereum = { path = "crates/full-node/sov-ethereum", default-features = false, version = "0.3" }
 sov-celestia-adapter = { path = "crates/adapters/celestia", default-features = false, version = "0.3" }
 sov-mock-da = { path = "crates/adapters/mock-da", default-features = false, version = "0.3" }
@@ -137,7 +135,6 @@ sov-modules-macros = { path = "crates/module-system/sov-modules-macros", default
 sov-modules-stf-blueprint = { path = "crates/module-system/sov-modules-stf-blueprint", default-features = false, version = "0.3" }
 sov-test-utils = { path = "crates/module-system/sov-test-utils", default-features = false, version = "0.3" }
 sov-db = { path = "crates/full-node/sov-db", default-features = false, version = "0.3" }
-sov-test-harness = { path = "crates/utils/test-harness" }
 rest-api-load-testing = { path = "crates/utils/rest-api-load-testing" }
 sov-universal-wallet = { path = "crates/universal-wallet/schema" }
 sov-universal-wallet-macros = { path = "crates/universal-wallet/macros" }
@@ -203,6 +200,7 @@ thiserror = "1.0.64"
 tower = { version = "0.4", default-features = false }
 tower-http = "0.5"
 tower-request-id = "0.3"
+tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18" } # There's hardly any reason to disable its default features.
 tracing-test = { version = "0.2.5", features = [
     "no-env-filter",
@@ -216,7 +214,6 @@ unwrap-infallible = "0.1.5"
 # To keep compatiblity with rust 1.79
 home = { version = "=0.5.9" }
 tiny-keccak = "2.0.2"
-tracing = { version = "0.1.40", default-features = false }
 bech32 = { version = "0.11" }
 derive_more = { version = "1.0", default-features = false, features = ["std"] }
 clap = { version = "4.5.16", features = ["derive"] }

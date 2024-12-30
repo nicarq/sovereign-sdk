@@ -5,11 +5,11 @@
 use const_rollup_config::{ROLLUP_BATCH_NAMESPACE_RAW, ROLLUP_PROOF_NAMESPACE_RAW};
 use demo_stf::runtime::Runtime;
 use demo_stf::StfVerifier;
+use sov_address::MultiAddressEvm;
 use sov_celestia_adapter::types::Namespace;
 use sov_celestia_adapter::verifier::{CelestiaSpec, CelestiaVerifier};
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_address::MultiAddressEvm;
 use sov_modules_api::execution_mode::Zk;
 use sov_modules_stf_blueprint::StfBlueprint;
 use sov_risc0_adapter::guest::Risc0Guest;
@@ -25,8 +25,10 @@ risc0_zkvm::guest::entry!(main);
 pub fn main() {
     let guest = Risc0Guest::new();
     let storage = ZkStorage::new();
-    let stf: StfBlueprint<ConfigurableSpec<CelestiaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, Zk>, Runtime<_>> =
-        StfBlueprint::new();
+    let stf: StfBlueprint<
+        ConfigurableSpec<CelestiaSpec, Risc0, MockZkvm, Risc0CryptoSpec, MultiAddressEvm, Zk>,
+        Runtime<_>,
+    > = StfBlueprint::new();
 
     let stf_verifier = StfVerifier::<_, _, _, _, _>::new(
         stf,

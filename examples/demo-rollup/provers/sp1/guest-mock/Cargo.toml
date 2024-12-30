@@ -5,8 +5,6 @@ license = "Sovereign Labs Community Software License"
 edition = "2021"
 resolver = "2"
 
-[workspace]
-
 [dependencies]
 anyhow = { version = "1.0.95" }
 sp1-zkvm = { version = "3.0.0" }
