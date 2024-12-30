@@ -1,3 +1,5 @@
+use std::env;
+
 use helpers::*;
 use serial_test::serial;
 use sov_attester_incentives::AttesterIncentives;
@@ -147,6 +149,89 @@ fn execute_seq_registration_failure_test() {
         TxStatus::Reverted,
     ];
     check_unreg_txs(tx_statuses, priority_fee_bips);
+}
+
+// Execute a blob that is too expensive to deserialize.
+#[test]
+#[serial]
+fn blob_too_expensive_tests() {
+    // Set the max amount of gas to be spent on a single blob to a very small value
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_UNREGISTERED_SEQUENCER_EXEC_GAS_PER_TX",
+        "[1,1]",
+    );
+
+    let (mut runner, _, _) = setup(1);
+
+    let blob = make_blob(
+        RawTx {
+            data: vec![1, 2, 3],
+        },
+        MockAddress::new([22; 32]),
+    );
+    let unregistered_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
+    let batch_receipt = &result.batch_receipts[0];
+
+    assert!(batch_receipt.tx_receipts.is_empty());
+}
+
+// Execute a blob that is too big to be processed.
+#[test]
+#[serial]
+fn blob_test_max_slot_size() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_SLOT_SIZE_IN_BLOB_STORAGE",
+        "1",
+    );
+
+    let (mut runner, _, _) = setup(1);
+
+    let blob = make_blob(
+        RawTx {
+            data: vec![1, 2, 3],
+        },
+        MockAddress::new([22; 32]),
+    );
+    let unregistered_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
+    // The blob was to big to be deserialized, so it should be rejected.
+    assert!(result.batch_receipts.is_empty());
+}
+
+// Execute a blob that is too big to be returned by the blob storage.
+#[test]
+#[serial]
+fn blob_test_max_allowed_data_size() {
+    env::set_var(
+        "SOV_SDK_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
+        "1",
+    );
+
+    let (mut runner, _, _) = setup(1);
+
+    let blob = make_blob(
+        RawTx {
+            data: vec![1, 2, 3],
+        },
+        MockAddress::new([22; 32]),
+    );
+    let unregistered_blobs = RelevantBlobs {
+        proof_blobs: Default::default(),
+        batch_blobs: vec![blob],
+    };
+
+    let result = runner.execute::<RelevantBlobs<MockBlob>>(unregistered_blobs);
+    // The blob was to big to be deserialized, so it should be rejected.
+    assert!(result.batch_receipts.is_empty());
 }
 
 mod helpers {
@@ -328,7 +413,10 @@ mod helpers {
         RawTx { data: tx_data }
     }
 
-    fn make_blob(raw_tx: RawTx, da_address: <<S as Spec>::Da as DaSpec>::Address) -> MockBlob {
+    pub(crate) fn make_blob(
+        raw_tx: RawTx,
+        da_address: <<S as Spec>::Da as DaSpec>::Address,
+    ) -> MockBlob {
         let tx_blob = borsh::to_vec(&raw_tx).unwrap();
         MockBlob::new_with_hash(tx_blob, da_address)
     }

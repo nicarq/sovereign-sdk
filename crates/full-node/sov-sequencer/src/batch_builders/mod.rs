@@ -10,14 +10,14 @@ use axum::http::StatusCode;
 use borsh::BorshSerialize;
 use sov_db::sequencer_db::SeqDbTx;
 use sov_modules_api::capabilities::{
-    AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, GasEnforcer, HasCapabilities,
+    AuthenticationOutput, AuthorizationData, AuthorizeSequencerError, HasCapabilities,
     SequencerAuthorization, TransactionAuthenticator,
 };
 use sov_modules_api::rest::ApiState;
 use sov_modules_api::{
-    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, NestedEnumUtils,
-    RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider, StateUpdateInfo,
-    TxScratchpad,
+    BasicGasMeter, DaSpec, DispatchCall, EventModuleName, FullyBakedTx, Gas, GasSpec,
+    NestedEnumUtils, RawTx, RuntimeEventProcessor, RuntimeEventResponse, Spec, StateProvider,
+    StateUpdateInfo, TxScratchpad,
 };
 use sov_modules_stf_blueprint::{PreExecError, Runtime};
 use sov_rollup_interface::node::DaSyncState;
@@ -264,10 +264,7 @@ where
     Rt: Runtime<S>,
     I: StateProvider<S>,
 {
-    let max_auth_cost = runtime
-        .gas_enforcer()
-        .max_tx_check_costs()
-        .value(&gas_price);
+    let max_auth_cost = <S as GasSpec>::max_tx_check_costs().value(&gas_price);
     let gas_meter: BasicGasMeter<S::Gas> = match runtime
         .sequencer_authorization()
         .authorize_sequencer(sequencer_address, max_auth_cost, &mut tx_scratchpad)

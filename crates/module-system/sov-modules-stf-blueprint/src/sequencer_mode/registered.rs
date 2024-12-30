@@ -9,7 +9,7 @@ use sov_modules_api::transaction::TransactionConsumption;
 use sov_modules_api::NestedEnumUtils;
 use sov_modules_api::{
     BasicGasMeter, BatchSequencerOutcome, BatchSequencerReceipt, DaSpec, ExecutionContext,
-    FullyBakedTx, Gas, GasArray, GasMeter, IncrementalBatch, InjectedControlFlow,
+    FullyBakedTx, Gas, GasArray, GasMeter, GasSpec, IncrementalBatch, InjectedControlFlow,
     PreExecWorkingSet, ProvisionalSequencerOutcome, Rewards, Spec, StateCheckpoint, StateProvider,
     TxControlFlow, TxScratchpad, WorkingSet,
 };
@@ -353,9 +353,7 @@ where
     // we revert the *entire* batch. If this were to happen during real execution, this would
     // creates work for the prover without a corresponding gas payment, which could
     // become a DOS vector.
-    let conservative_max_sequencer_gas_costs = match runtime
-        .gas_enforcer()
-        .max_tx_check_costs()
+    let conservative_max_sequencer_gas_costs = match <S as GasSpec>::max_tx_check_costs()
         .value(gas_price)
         // We multiply the min gas cost by the number of items in the batch, if known. If the number is unknwon
         // (because the batch is still being built) we require enough gas for at least 1 tx
@@ -404,7 +402,7 @@ where
 
     for (idx, (raw_tx, injected_control_flow)) in batch_with_id.enumerate() {
         let gas_meter = BasicGasMeter::new(
-            runtime.gas_enforcer().max_tx_check_costs().value(gas_price),
+            <S as GasSpec>::max_tx_check_costs().value(gas_price),
             gas_price.clone(),
         );
         let AuthAndProcessOutput {
@@ -535,7 +533,7 @@ where
     // This can only fail when the number of transactions was *not* known up front (i.e. in the sequencer).
     // if the number of txs was known up front, we've already reserved sufficient gas during the pre-execution gsetp.
     if let Err(e) =
-        pre_exec_working_set.charge_gas(&runtime.gas_enforcer().process_tx_pre_exec_checks_gas())
+        pre_exec_working_set.charge_gas(&<S as GasSpec>::process_tx_pre_exec_checks_gas())
     {
         assert!(execution_context.is_sequencer(), "Attempted to run pre-execution checks without reserving sufficient gas. This is a bug! Please report it.");
         let gas_used = pre_exec_working_set.gas_info().gas_used;
