@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 #[cfg(feature = "native")]
 use anyhow::ensure;
@@ -105,6 +106,7 @@ where
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<K>,
     Codec::ValueCodec: StateItemCodec<V>,
+    K: FromStr + std::fmt::Display,
 {
     fn slot_key<Kq>(&self, key: &Kq) -> SlotKey
     where
@@ -151,27 +153,28 @@ where
     /// using your chosen codec.
     ///
     /// ```
-    /// use sov_modules_api::{Spec, Context, StateMap, WorkingSet, StateAccessorError};
+    /// use sov_modules_api::{Spec, Context, HexString, StateMap, WorkingSet, StateAccessorError};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: &[u8], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
+    /// fn foo<S: Spec>(map: StateMap<HexString, u64>, key: &[u8], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
     /// {
-    ///     // We perform the `get` with a slice, and not the `Vec`. it is so because `Vec` borrows
-    ///     // `[T]`.
+    ///     // We perform the `get` with a slice, and not a owned `HexString`. This works because a `HexString` is just
+    ///     // a wrapper around `Vec<u8>` that implements `Display` and `FromStr` - so we can encode any byte slice
+    ///     // like a HexString.
     ///     map.get(key, state)
     /// }
     /// ```
     ///
     /// If the map's key type does not implement [`EncodeLike`] for your desired
     /// target type, you'll have to convert the key to something else. An
-    /// example of this would be "slicing" an array to use in [`Vec`]-keyed
+    /// example of this would be "slicing" an array to use in [`sov_modules_api::HexString`]-keyed
     /// maps:
     ///
     /// ```
-    /// use sov_modules_api::{Spec, Context, StateMap, WorkingSet, StateAccessorError};
+    /// use sov_modules_api::{Spec, Context, HexString, StateMap, WorkingSet, StateAccessorError};
     ///
-    /// fn foo<S: Spec>(map: StateMap<Vec<u8>, u64>, key: [u8; 32], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
+    /// fn foo<S: Spec>(map: StateMap<HexString, u64>, key: [u8; 32], state: &mut WorkingSet<S>) -> Result<Option<u64>, StateAccessorError<S::Gas>>
     /// {
-    ///     map.get(&key[..], state)
+    ///     map.get(key.as_ref(), state)
     /// }
     /// ```
     pub fn get<Kq, Reader>(&self, key: &Kq, state: &mut Reader) -> Result<Option<V>, Reader::Error>
@@ -272,6 +275,7 @@ where
     Codec: StateCodec,
     Codec::ValueCodec: StateItemCodec<V>,
     Codec::KeyCodec: StateItemCodec<K>,
+    K: FromStr + std::fmt::Display,
 {
     pub fn get_with_proof<Kq, W>(
         &self,
@@ -328,7 +332,7 @@ where {
 #[cfg(feature = "arbitrary")]
 impl<'a, N, K, V, Codec> NamespacedStateMap<N, K, V, Codec>
 where
-    K: arbitrary::Arbitrary<'a>,
+    K: arbitrary::Arbitrary<'a> + FromStr + std::fmt::Display,
     V: arbitrary::Arbitrary<'a>,
     Codec: sov_state::StateCodec,
     Codec::KeyCodec: sov_state::StateItemCodec<K>,

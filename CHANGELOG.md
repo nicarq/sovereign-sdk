@@ -1,3 +1,6 @@
+## 2024-12-30
+- #2110 adds `Display` and `FromStr` bounds on the keys of `StateMap`s
+
 ## 2024-12-26
 - **Breaking Change** #2095 The `Transaction` type no longer implements `borsh::BorshSerialize`. Transaction is now deserializable only via the `MeteredBorshDeserialize` trait.
 - #2094 Move `DispatchCall::decode_call` method to `Runtime`. This is not a breaking change since the method was not used outside of the sequencer.

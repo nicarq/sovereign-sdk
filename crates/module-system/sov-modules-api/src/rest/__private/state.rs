@@ -12,7 +12,9 @@
 //!    [`StateItemRestApiExists`].se std::marker::PhantomData;
 
 use std::convert::Infallible;
+use std::fmt::Display;
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use axum::extract::{FromRequestParts, State};
 use axum::routing::get;
@@ -203,7 +205,7 @@ where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
-    K: Serialize + serde::de::DeserializeOwned,
+    K: Serialize + serde::de::DeserializeOwned + FromStr + Display,
     V: Serialize,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<K>,
@@ -313,7 +315,7 @@ where
     N: CompileTimeNamespace,
     M: ModuleSendSync,
     ApiStateAccessor<M::Spec>: StateReader<N, Error = Infallible>,
-    K: Serialize + serde::de::DeserializeOwned + Clone + Send + Sync + 'static,
+    K: Display + FromStr + Serialize + serde::de::DeserializeOwned + Clone + Send + Sync + 'static,
     V: Serialize + Clone + Send + Sync + 'static,
     Codec: StateCodec,
     Codec::KeyCodec: StateItemCodec<K>,

@@ -1,4 +1,5 @@
 use std::hash::Hash;
+use std::str::FromStr;
 
 use borsh::BorshDeserialize;
 use sov_modules_api::digest::Digest;
@@ -101,6 +102,20 @@ pub enum TokenHolder<S: Spec> {
     Module(ModuleId),
     /// A programmatically generated holder.
     Derived(DerivedHolder),
+}
+
+impl<S: Spec> FromStr for TokenHolder<S> {
+    type Err = anyhow::Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with(ModuleId::bech32_prefix()) {
+            return Ok(Self::Module(ModuleId::from_str(s)?));
+        } else if s.starts_with(DerivedHolder::bech32_prefix()) {
+            return Ok(Self::Derived(DerivedHolder::from_str(s)?));
+        }
+        Ok(Self::User(
+            S::Address::from_str(s).map_err(|e| anyhow::Error::from_boxed(e.into()))?,
+        ))
+    }
 }
 
 impl<Sp: Spec> serde::Serialize for TokenHolder<Sp> {

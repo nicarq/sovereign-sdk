@@ -8,6 +8,7 @@ use core::fmt;
 
 pub use bcs_codec::BcsCodec;
 pub use borsh_codec::BorshCodec;
+use sov_rollup_interface::common::HexString;
 pub use split_codec::SplitCodec;
 
 /// A trait for types that can serialize and deserialize values for storage
@@ -15,7 +16,7 @@ pub use split_codec::SplitCodec;
 pub trait StateItemCodec<V>: StateItemEncoder<V> + StateItemDecoder<V> {}
 
 /// A trait for types that can serialize values into storage.
-pub trait StateItemEncoder<V> {
+pub trait StateItemEncoder<V: ?Sized> {
     /// Serializes a value into a bytes vector.
     ///
     /// This method **must** not panic as all instances of the value type are
@@ -92,6 +93,12 @@ where
     C: StateItemCodec<T>,
 {
     fn encode_like(&self, borrowed: &T) -> Vec<u8> {
+        self.encode(borrowed)
+    }
+}
+
+impl EncodeLike<[u8], HexString> for BorshCodec {
+    fn encode_like(&self, borrowed: &[u8]) -> Vec<u8> {
         self.encode(borrowed)
     }
 }

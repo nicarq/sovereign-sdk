@@ -11,7 +11,7 @@ pub struct BorshCodec;
 
 impl<V> StateItemEncoder<V> for BorshCodec
 where
-    V: BorshSerialize,
+    V: BorshSerialize + ?Sized,
 {
     fn encode(&self, value: &V) -> Vec<u8> {
         borsh::to_vec(value).expect("Failed to serialize value")
