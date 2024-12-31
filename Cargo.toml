@@ -2,11 +2,6 @@
 resolver = "2"
 members = [
     "crates/rollup-interface",
-    # TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/498
-    # "adapters/avail",
-    "crates/adapters/risc0",
-    "crates/adapters/sp1",
-    "crates/adapters/celestia",
     "crates/adapters/mock-da",
     "crates/adapters/mock-zkvm",
     # Full Node
@@ -63,6 +58,12 @@ exclude = [
     "examples/demo-rollup/sov-benchmarks",
     "examples/demo-rollup/rest-api-load-testing",
     "examples/demo-rollup/stf/demo-stf-json-client",
+    # Adapters
+    # TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/498
+    "crates/adapters/avail",
+    "crates/adapters/celestia",
+    "crates/adapters/risc0",
+    "crates/adapters/sp1",
 ]
 
 [workspace.package]
@@ -93,11 +94,7 @@ float_arithmetic = "deny"              # Can cause subtle bugs due to different 
 #map_err_ignore = "warn"
 #doc_markdown = "warn"
 [workspace.dependencies]
-# Workspace packages
-arrayvec = { version = "0.7.6", features = ["serde", "borsh"] }
-console-subscriber = "0.4"
 sov-ethereum = { path = "crates/full-node/sov-ethereum", default-features = false, version = "0.3" }
-sov-celestia-adapter = { path = "crates/adapters/celestia", default-features = false, version = "0.3" }
 sov-mock-da = { path = "crates/adapters/mock-da", default-features = false, version = "0.3" }
 sov-mock-zkvm = { path = "crates/adapters/mock-zkvm", default-features = false, version = "0.3" }
 sov-bank = { path = "crates/module-system/module-implementations/sov-bank", default-features = false, version = "0.3" }
@@ -117,8 +114,6 @@ sov-eth-dev-signer = { path = "crates/full-node/sov-eth-dev-signer", default-fea
 sov-modules-api = { path = "crates/module-system/sov-modules-api", default-features = false, version = "0.3" }
 sov-nonces = { path = "crates/module-system/module-implementations/sov-nonces", default-features = false, version = "0.3" }
 sov-paymaster = { path = "crates/module-system/module-implementations/sov-paymaster", default-features = false, version = "0.3" }
-sov-risc0-adapter = { path = "crates/adapters/risc0", default-features = false, version = "0.3" }
-sov-sp1-adapter = { path = "crates/adapters/sp1", default-features = false, version = "0.3" }
 sov-rollup-interface = { path = "crates/rollup-interface", default-features = false, version = "0.3" }
 sov-stf-runner = { path = "crates/full-node/sov-stf-runner", default-features = false, version = "0.3" }
 sov-attester-incentives = { path = "crates/module-system/module-implementations/sov-attester-incentives", default-features = false, version = "0.3" }
@@ -145,8 +140,11 @@ reltester = { git = "https://github.com/sovereign-labs/reltester.git", rev = "d6
 rockbound = { git = "https://github.com/sovereign-Labs/rockbound", rev = "4ff4c7c6b302107c3189a0438c14d481c0134b96" }
 nmt-rs = { version = "0.2.3", features = ["serde", "borsh"] }
 # External dependencies
-async-trait = "0.1.81"
 anyhow = { version = "1.0.86" }
+async-trait = "0.1.81"
+arrayvec = { version = "0.7.6", features = ["serde", "borsh"] }
+console-subscriber = "0.4"
+
 axum = { version = "0.7.9", default-features = false }
 axum-server = { version = "0.6", features = ["tls-rustls"] }
 arbitrary = { version = "1.3.2", features = ["derive"] }
@@ -192,9 +190,6 @@ serde_yaml = { version = "0.9", default-features = false }
 serde_with = { version = "3.9", features = ["schemars_0_8"] }
 sha2 = { version = "0.10.8", default-features = false }
 strum = { version = "0.26.3", features = ["derive"] }
-sp1-lib = { version = "3.0.0" }
-sp1-sdk = { version = "3.0.0", default-features = false }
-sp1-zkvm = { version = "3.0.0" }
 syn = { version = "2.0" }
 thiserror = "1.0.64"
 tower = { version = "0.4", default-features = false }
@@ -227,11 +222,9 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1.10", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.
 lazy_static = "1.5.0"
 num_cpus = "1.16"
+# These:
 risc0-zkvm = { version = "1.2", default-features = false }
 risc0-zkvm-platform = "1.2"
-risc0-zkp = "1.2"
-risc0-circuit-rv32im = "1.2"
-risc0-build = "1.2"
 sov-cycle-utils = { git = "https://github.com/Sovereign-Labs/risc0-cycle-macros.git", rev = "7c3995c0a517465f28f915e9da22f54960198503" }
 
 # EVM dependencies

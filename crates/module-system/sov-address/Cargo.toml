@@ -8,7 +8,6 @@ license = { workspace = true }
 repository = { workspace = true }
 
 version = { workspace = true }
-readme = "README.md"
 resolver = "2"
 publish = false
 
@@ -57,8 +56,8 @@ arbitrary = [
 	"dep:arbitrary",
 	"dep:rand",
 	"dep:proptest",
-	"alloy-primitives/arbitrary",
-	"reth-primitives/arbitrary",
+	"alloy-primitives?/arbitrary",
+	"reth-primitives?/arbitrary",
 	"sov-address/arbitrary",
 	"sov-modules-api/arbitrary",
 	"sov-rollup-interface/arbitrary",
@@ -66,10 +65,10 @@ arbitrary = [
 ]
 native = [
 	"dep:rand",
-	"alloy-primitives/std",
-	"reth-primitives/std",
-	"secp256k1/rand",
-	"secp256k1/global-context",
+	"alloy-primitives?/std",
+	"reth-primitives?/std",
+	"secp256k1?/rand",
+	"secp256k1?/global-context",
 	"sov-rollup-interface/native",
 	"sov-address/native",
 	"sov-modules-api/native"

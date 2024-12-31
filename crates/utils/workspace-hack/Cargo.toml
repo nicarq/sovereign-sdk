@@ -10,9 +10,6 @@ repository.workspace = true
 
 [dependencies]
 sov-mock-da = { workspace = true, features = ["arbitrary", "native"] }
-sov-celestia-adapter = { workspace = true, features = ["arbitrary", "native"] }
-sov-risc0-adapter = { workspace = true, features = ["arbitrary", "native"] }
-sov-sp1-adapter = { workspace = true, features = ["arbitrary", "native"] }
 sov-mock-zkvm = { workspace = true, features = ["arbitrary", "native"] }
 sov-evm = { workspace = true, features = ["arbitrary", "native"] }
 

@@ -143,8 +143,7 @@ mod tests {
     use std::str::FromStr;
 
     use sha2::Sha256;
-    use sov_celestia_adapter::verifier::address::CelestiaAddress;
-    use sov_celestia_adapter::CelestiaService;
+    use sov_mock_da::{MockAddress, MockDaService};
     use sov_modules_api::Address;
     use sov_sequencer::batch_builders::standard::StdBatchBuilderConfig;
     use sov_sequencer::{BatchBuilderConfig, SequencerConfig};
@@ -162,10 +161,10 @@ mod tests {
     fn test_correct_config() {
         let config = r#"
             [da]
-            celestia_rpc_auth_token = "SECRET_RPC_TOKEN"
-            celestia_rpc_address = "http://localhost:11111/"
-            max_celestia_response_body_size = 980
-            safe_lead_time_ms = 10
+            connection_string = "sqlite:///tmp/mockda.sqlite?mode=rwc"
+            sender_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+            block_producing = "periodic"
+            block_time_ms = 1_000
             [storage]
             path = "/tmp"
             [runner]
@@ -191,13 +190,13 @@ mod tests {
             max_number_of_transitions_in_memory = 768
             [sequencer]
             max_allowed_blocks_behind = 5
-            da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
+            da_address = "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
             [sequencer.standard]
         "#;
 
         let config_file = create_config_from(config);
 
-        let config: RollupConfig<Address<Sha256>, CelestiaService> =
+        let config: RollupConfig<Address<Sha256>, MockDaService> =
             from_toml_path(config_file.path()).unwrap();
 
         let expected = RollupConfig {
@@ -219,12 +218,12 @@ mod tests {
                 concurrent_sync_tasks: Some(18),
             },
 
-            da: sov_celestia_adapter::CelestiaConfig {
-                celestia_rpc_auth_token: "SECRET_RPC_TOKEN".to_string(),
-                celestia_rpc_address: "http://localhost:11111/".into(),
-                max_celestia_response_body_size: NonZero::new(980).unwrap(),
-                celestia_rpc_timeout_seconds: NonZero::new(60).unwrap(),
-                safe_lead_time_ms: 10,
+            da: sov_mock_da::MockDaConfig {
+                connection_string: "sqlite:///tmp/mockda.sqlite?mode=rwc".to_string(),
+                sender_address: MockAddress::new([15; 32]),
+                finalization_blocks: 0,
+                block_producing: sov_mock_da::BlockProducingConfig::Periodic,
+                block_time_ms: 1000,
             },
             storage: StorageConfig {
                 path: PathBuf::from("/tmp"),
@@ -243,8 +242,8 @@ mod tests {
                 admin_addresses: vec![],
                 max_allowed_blocks_behind: 5,
                 dropped_tx_ttl_secs: 60,
-                da_address: CelestiaAddress::from_str(
-                    "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s",
+                da_address: MockAddress::from_str(
+                    "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
                 )
                 .unwrap(),
                 batch_builder: BatchBuilderConfig::Standard(StdBatchBuilderConfig {

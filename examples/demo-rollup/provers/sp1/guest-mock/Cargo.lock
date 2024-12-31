@@ -4987,8 +4987,6 @@ dependencies = [
  "anyhow",
  "bincode",
  "borsh",
- "bytemuck",
- "cfg-if",
  "digest 0.10.7",
  "ed25519-consensus",
  "hex",
@@ -4999,8 +4997,6 @@ dependencies = [
  "sp1-lib 3.0.0",
  "sp1-sdk",
  "sp1-zkvm",
- "thiserror",
- "tracing",
 ]
 
 [[package]]

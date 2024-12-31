@@ -1,6 +1,6 @@
 /// Definition of a fork that will be executed by [`crate::MockDaService`] at a
 /// specified height.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PlannedFork {
     pub(crate) trigger_at_height: u64,
     pub(crate) fork_height: u64,
