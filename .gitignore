@@ -25,7 +25,6 @@ demo_data_2/
 !/docker/celestia/bridge-2.key
 !/docker/celestia/credentials/bridge-2.addr
 
-adapters/solana/libyellowstone_grpc_geyser.dylib
 examples/test-data/genesis/benchmark/accounts.json
 examples/demo-rollup/demo_rollup_config.toml
 examples/demo-rollup/demo_rollup_config_1.toml
