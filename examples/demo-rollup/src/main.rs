@@ -49,7 +49,8 @@ enum SupportedDaLayer {
 
 #[tokio::main]
 async fn main() {
-    initialize_logging();
+    // Keep for preventing a opentelemtry export shutdown
+    let _guard = initialize_logging();
 
     match run().await {
         Ok(_) => {

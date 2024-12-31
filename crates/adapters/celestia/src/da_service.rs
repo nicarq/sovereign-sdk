@@ -104,6 +104,7 @@ impl CelestiaService {
         }
     }
 
+    #[instrument(skip(self, blob, namespace))]
     async fn submit_blob_to_namespace(
         &self,
         blob: &[u8],

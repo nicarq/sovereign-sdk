@@ -131,6 +131,7 @@ where
     /// it should be updated after the call of this method.
     /// If a given block continues in the current fork, it is simply returned to the caller.
     /// If reorg happened, it will return block following the last seen transition.
+    #[tracing::instrument(skip_all)]
     pub(crate) async fn prepare_storage(
         &mut self,
         mut filtered_block: Da::FilteredBlock,

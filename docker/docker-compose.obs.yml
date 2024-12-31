@@ -11,7 +11,7 @@ services:
     networks:
       - monitoring-network
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:11.4.0
     container_name: grafana
     ports:
       - "3000:3000"
@@ -24,13 +24,24 @@ services:
     networks:
       - monitoring-network
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.3.2
     container_name: loki
     ports:
       - "3100:3100"
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring-network
+  tempo:
+    image: grafana/tempo:2.6.1
+    container_name: tempo
+    ports:
+      - "3200:3200"   # Tempo's query port
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./grafana-tempo/tempo.yaml:/etc/tempo.yaml:ro
+      - ./grafana-tempo/data:/tmp/tempo
     networks:
       - monitoring-network
   influxdb:
@@ -67,5 +78,23 @@ services:
       - HOST_ETC=/host/etc
     networks:
       - monitoring-network
+  grafana-alloy:
+    image: grafana/alloy:v1.5.1
+    container_name: grafana-alloy
+    ports:
+      - "3101:3101"
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./grafana-alloy/config.local.alloy:/etc/alloy/config.alloy
+      - ./grafana-alloy/storage:/var/lib/alloy/data
+    networks:
+      - monitoring-network
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:3101
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+
 networks:
   monitoring-network:

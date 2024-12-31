@@ -1,0 +1,52 @@
+logging {
+  level  = "debug"
+  format = "logfmt"
+}
+
+// Receivers
+otelcol.receiver.otlp "otlp_receiver" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    logs    = [otelcol.processor.batch.default.input]
+    traces  = [otelcol.processor.batch.default.input]
+  }
+}
+
+otelcol.processor.batch "default" {
+  output {
+    logs    = [otelcol.exporter.loki.default.input]
+    traces  = [otelcol.exporter.otlp.tempo.input]
+  }
+}
+
+// Exporters
+
+// Tempo
+otelcol.exporter.otlp "tempo" {
+  client {
+    endpoint = "tempo:4317"
+    tls {
+      insecure = true
+    }
+  }
+}
+
+// OTLP -> Loki
+otelcol.exporter.loki "default" {
+  forward_to = [
+    // loki.write.grafanacloud.receiver,
+    loki.write.local.receiver,
+  ]
+}
+
+loki.write "local" {
+  endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+    }
+}

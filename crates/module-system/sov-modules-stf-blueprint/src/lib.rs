@@ -151,6 +151,7 @@ where
     /// Compute the new state root and change set after running a batch.
     #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
     #[cfg(feature = "native")]
+    #[tracing::instrument(skip_all, name = "StfBlueprint::materialize_slot")]
     pub fn materialize_slot(
         &self,
         should_execute_slot_hooks: bool,
@@ -248,6 +249,14 @@ where
         (genesis_hash, change_set)
     }
 
+    #[cfg_attr(
+        feature = "native",
+        tracing::instrument(
+            name = "StfBlueprint::apply_slot",
+            skip_all
+            fields(context = ?execution_context, da_height = slot_header.height())
+        )
+    )]
     fn apply_slot<'a, I>(
         &self,
         pre_state_root: &Self::StateRoot,

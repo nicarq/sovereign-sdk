@@ -27,6 +27,7 @@ use crate::{
 
 /// Executes the entire transaction lifecycle.
 #[allow(clippy::result_large_err, clippy::too_many_arguments)]
+#[cfg_attr(feature = "native", tracing::instrument(skip_all, name = "StfBlueprint::process_tx", fields(height = height, context = ?execution_context)))]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub fn process_tx<S, R, I, C>(
     runtime: &R,
@@ -272,6 +273,10 @@ where
 }
 
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
+#[cfg_attr(
+    feature = "native",
+    tracing::instrument(skip_all, name = "StfBlueprint::authenticate")
+)]
 fn deserialize_and_authenticate<S: Spec, R: Runtime<S>, I: StateProvider<S>>(
     runtime: &R,
     tx: &FullyBakedTx,
@@ -295,7 +300,7 @@ impl<S: Spec> IncrementalBatchReceipt<S> {
     }
 }
 
-#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch")]
+#[tracing::instrument(skip_all, name = "StfBlueprint::apply_batch", fields(rollup_height = height, context = ?execution_context))]
 #[allow(clippy::too_many_arguments)]
 #[cfg_attr(all(target_os = "zkvm", feature = "bench"), cycle_tracker)]
 pub(crate) fn apply_batch<S, RT, B>(
