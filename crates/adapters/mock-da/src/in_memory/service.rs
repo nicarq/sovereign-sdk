@@ -27,7 +27,7 @@ const DEFAULT_WAIT_ATTEMPTS: u64 = 100;
 ///
 /// The height of the first submitted block is 1.
 /// Submitted blocks are kept indefinitely in memory.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MockDaService {
     sequencer_da_address: MockAddress,
     aggregated_proof_buffer: Arc<Mutex<VecDeque<MockBlob>>>,

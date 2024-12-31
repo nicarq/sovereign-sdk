@@ -12,7 +12,10 @@ CHECK_ONLY_DIRS := crates/fuzz \
               examples/const-rollup-config \
 # Also do tests
 TEST_DIRS := examples/demo-rollup \
-             examples/demo-simple-stf
+             examples/demo-simple-stf \
+             crates/adapters/celestia \
+             crates/adapters/risc0 \
+             crates/adapters/sp1
 # Also do bench
 BENCH_DIRS := examples/demo-rollup/sov-benchmarks
 
