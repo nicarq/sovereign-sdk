@@ -31,6 +31,8 @@ where
         + serde::de::DeserializeOwned
         + Send
         + Sync
+        + std::str::FromStr
+        + std::fmt::Display
         + 'static,
 {
     #[id]
@@ -74,6 +76,8 @@ where
         + borsh::BorshDeserialize
         + serde::Serialize
         + serde::de::DeserializeOwned
+        + std::str::FromStr
+        + std::fmt::Display
         + Send
         + Sync
         + 'static,
