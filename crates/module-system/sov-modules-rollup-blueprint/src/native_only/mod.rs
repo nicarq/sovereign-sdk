@@ -1,6 +1,7 @@
 mod endpoints;
 pub mod logging;
 pub mod proof_serializer;
+mod telemetry;
 mod wallet;
 
 use std::marker::PhantomData;

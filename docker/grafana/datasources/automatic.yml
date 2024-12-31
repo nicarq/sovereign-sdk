@@ -37,8 +37,24 @@ datasources:
       token: sovereign
   - name: Loki
     type: loki
+    orgId: 1
     access: proxy
     url: http://loki:3100
     jsonData:
       maxLines: 1000
+  - name: Tempo
+    type: tempo
+    access: proxy
+    orgId: 1
+    url: http://tempo:3200
+    isDefault: false
+    version: 1
+    editable: false
+    jsonData:
+      tracesToLogs:
+        datasourceUid: Loki
+        tags:
+          - cluster
+          - namespace
+          - pod
 

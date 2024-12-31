@@ -1,0 +1,120 @@
+//! Module for spans and other [OpenTelemetry](https://opentelemetry.io/) related things.
+//! Based on <https://github.com/tokio-rs/tracing-opentelemetry/blob/293d206b2b02686d5b2b0166c072425feed94950/examples/opentelemetry-otlp.rs>
+//! and <https://github.com/open-telemetry/opentelemetry-rust/blob/9cf7a40b217cf8f30bf9cf867148342eebd8fe78/opentelemetry-otlp/examples/basic-otlp/src/main.rs>
+
+use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::KeyValue;
+use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
+use opentelemetry_otlp::LogExporter;
+use opentelemetry_sdk::logs::{Logger, LoggerProvider};
+use opentelemetry_sdk::trace::{RandomIdGenerator, Sampler, Tracer, TracerProvider};
+use opentelemetry_sdk::{runtime, Resource};
+use opentelemetry_semantic_conventions::attribute::{
+    DEPLOYMENT_ENVIRONMENT_NAME, SERVICE_NAME, SERVICE_VERSION,
+};
+use opentelemetry_semantic_conventions::SCHEMA_URL;
+use tracing::Subscriber;
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::registry::LookupSpan;
+
+/// Controls shutdown of providers
+pub struct OtelGuard {
+    pub(crate) tracer_provider: TracerProvider,
+    pub(crate) logger_provider: LoggerProvider,
+}
+
+impl OtelGuard {
+    /// Configuration is done via environment variables
+    ///
+    pub fn new() -> anyhow::Result<Self> {
+        let tracer_provider = init_tracer_provider()?;
+        let logger_provider = init_logger_provider()?;
+        Ok(Self {
+            tracer_provider,
+            logger_provider,
+        })
+    }
+
+    /// Export **logs** into OpenTelemetry provider
+    pub fn otel_logging_layer(&self) -> OpenTelemetryTracingBridge<LoggerProvider, Logger> {
+        OpenTelemetryTracingBridge::new(&self.logger_provider)
+    }
+
+    /// Export **traces, aka spans** into OpenTelemetry provider.
+    pub fn otel_tracing_layer<S>(&self) -> OpenTelemetryLayer<S, Tracer>
+    where
+        S: Subscriber + for<'span> LookupSpan<'span>,
+    {
+        let tracer = self.tracer_provider.tracer("tracing-otel-subscriber");
+        OpenTelemetryLayer::new(tracer)
+    }
+}
+
+impl Drop for OtelGuard {
+    fn drop(&mut self) {
+        if let Err(err) = self.tracer_provider.shutdown() {
+            eprintln!("{err:?}");
+        }
+        if let Err(err) = self.logger_provider.shutdown() {
+            eprintln!("{err:?}");
+        }
+    }
+}
+
+// Create a Resource that captures information about the entity for which telemetry is recorded.
+fn resource() -> Resource {
+    let env_name = std::env::var("SOV_ENVIRONMENT_NAME").unwrap_or("develop".into());
+    Resource::from_schema_url(
+        [
+            KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
+            KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
+            KeyValue::new(DEPLOYMENT_ENVIRONMENT_NAME, env_name),
+        ],
+        SCHEMA_URL,
+    )
+}
+
+fn init_logger_provider() -> anyhow::Result<LoggerProvider> {
+    let exporter = LogExporter::builder().with_tonic().build()?;
+
+    Ok(LoggerProvider::builder()
+        .with_resource(resource())
+        .with_batch_exporter(exporter, runtime::Tokio)
+        .build())
+}
+
+// Construct TracerProvider for OpenTelemetryLayer
+fn init_tracer_provider() -> anyhow::Result<TracerProvider> {
+    let exporter_builder = opentelemetry_otlp::SpanExporter::builder().with_tonic();
+
+    let trace_exporter = exporter_builder.build()?;
+
+    Ok(TracerProvider::builder()
+        // Customize sampling strategy
+        .with_sampler(Sampler::ParentBased(Box::new(Sampler::TraceIdRatioBased(
+            1.0,
+        ))))
+        // If export trace to AWS X-Ray, you can use XrayIdGenerator
+        .with_id_generator(RandomIdGenerator::default())
+        .with_resource(resource())
+        .with_batch_exporter(trace_exporter, runtime::Tokio)
+        .build())
+}
+
+/// Helper function to ensure if open telemetry exporter should be enabled.
+pub(crate) fn should_init_otlp() -> bool {
+    let env_vars = [
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+        "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+    ];
+
+    if env_vars.iter().any(|&var| std::env::var(var).is_ok()) {
+        return true;
+    }
+    match std::env::var("SOV_OTEL_ENABLED") {
+        Ok(val) if val == "1" => true,
+        Ok(_) | Err(_) => false,
+    }
+}

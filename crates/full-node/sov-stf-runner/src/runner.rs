@@ -405,6 +405,7 @@ where
         Ok(())
     }
 
+    #[tracing::instrument(skip(self))]
     async fn process_next_slot(
         &mut self,
         mut next_da_height: NextDaHeightToProcess,
