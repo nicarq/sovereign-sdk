@@ -7215,6 +7215,7 @@ dependencies = [
  "sov-rollup-interface",
  "sov-test-utils",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -7641,6 +7642,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]

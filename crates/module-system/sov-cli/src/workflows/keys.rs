@@ -92,7 +92,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                         }
                     };
                     if wallet_state.addresses.get_address(&identifier).is_some() {
-                        println!(
+                        tracing::info!(
                             "A key with identifier {} already exists. Skipping import!",
                             identifier
                         );
@@ -102,19 +102,21 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                 wallet_state
                     .addresses
                     .add(address.clone(), nickname, public_key, path)?;
-                println!("Imported key pair. address: {}", address);
+                tracing::info!("Imported key pair. address: {}", address);
             }
             KeyWorkflow::Show { identifier } => {
                 let addr = wallet_state.addresses.get_address(&identifier);
+                // keep this as println, because it is consumed by external command line tools.
                 println!("{}", serde_json::to_string_pretty(&addr)?);
             }
             KeyWorkflow::List => {
+                // keep this as println, because it is consumed by external command line tools.
                 println!("{}", serde_json::to_string_pretty(&wallet_state.addresses)?);
             }
             KeyWorkflow::Activate { identifier } => {
                 if let Some(active) = wallet_state.addresses.default_address() {
                     if active.matches(&identifier) {
-                        println!("Key '{}' is already active", identifier);
+                        tracing::warn!(%identifier, "Key is already active");
                         return Ok(());
                     }
                 }
@@ -124,7 +126,7 @@ impl<S: sov_modules_api::Spec> KeyWorkflow<S> {
                     .ok_or_else(|| {
                         anyhow::anyhow!("Could not find key with identifier {}", identifier)
                     })?;
-                println!("Activated key {}", identifier);
+                tracing::info!(%identifier, "Activated key");
             }
             KeyWorkflow::GenerateIfMissing { nickname } => {
                 if wallet_state.addresses.default_address().is_none() {
@@ -168,12 +170,12 @@ where
     wallet_state
         .addresses
         .add(address.clone(), nickname, public_key, key_path.clone())?;
-    println!(
-        "Generated key pair with address: {}. Saving to {}",
-        address,
-        key_path.display()
+    tracing::info!(
+        %address,
+        path = %key_path.display(),
+        "Generated key pair with address and saving to path",
     );
-    // If this fails, caller should not save errored wallet state
+    // If this fails, caller should not save the errored wallet state
     std::fs::write(&key_path, serialized_key)?;
     Ok(())
 }

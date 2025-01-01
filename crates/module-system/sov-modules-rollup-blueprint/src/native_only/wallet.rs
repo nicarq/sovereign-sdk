@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use async_trait::async_trait;
 use borsh::{BorshDeserialize, BorshSerialize};
 use sov_cli::wallet_state::WalletState;
@@ -9,6 +11,9 @@ use sov_modules_api::clap::Parser;
 use sov_modules_api::cli::{CliFrontEnd, CliTxImportArg, JsonStringArg};
 use sov_modules_api::execution_mode::ExecutionMode;
 use sov_modules_api::{CliWallet, DispatchCall, Spec};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::{fmt, EnvFilter, Layer};
 
 use crate::{FullNodeBlueprint, RollupBlueprint};
 
@@ -68,6 +73,10 @@ where
             Error = std::convert::Infallible,
         >,
     {
+        let rust_log = std::env::var("RUST_LOG").unwrap_or("info".to_string());
+        tracing_subscriber::registry()
+            .with(fmt::layer().with_filter(EnvFilter::from_str(&rust_log)?))
+            .init();
         let app_dir = wallet_dir()?;
 
         std::fs::create_dir_all(app_dir.as_ref())?;

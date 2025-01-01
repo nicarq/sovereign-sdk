@@ -6152,6 +6152,7 @@ dependencies = [
  "sov-modules-stf-blueprint",
  "sov-node-client",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
@@ -6427,6 +6428,7 @@ dependencies = [
  "sov-bank",
  "sov-modules-api",
  "sov-rollup-interface",
+ "tracing",
 ]
 
 [[package]]
