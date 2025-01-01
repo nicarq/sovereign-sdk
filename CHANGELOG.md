@@ -1,4 +1,5 @@
 ## 2025-01-01
+- #2130 Extends `SKIP_GUEST_BUILD` variable usage. Please checkout PR if you need to port this functionality to your setup.
 - #2125 Upgrades tokio to 1.42 to fix bug https://github.com/tokio-rs/tokio/issues/6839
 ## 2024-12-30
 - #2110 adds `Display` and `FromStr` bounds on the keys of `StateMap`s
