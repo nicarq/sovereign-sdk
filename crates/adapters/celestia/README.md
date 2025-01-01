@@ -1,21 +1,27 @@
-# Jupiter
+# Sov-celestia-adapter
 
-Jupiter is a _research-only_ adapter making Celestia compatible with the Sovereign SDK. None of its code is
-suitable for production use. It contains known security flaws and numerous inefficiencies.
+sov-celestia-adapter is a _research-only_ adapter making Celestia compatible with the Sovereign SDK. 
+None of its code is suitable for production use. 
+It contains known security flaws and numerous inefficiencies.
 
 ## Celestia Integration
 
-The current version of Jupiter runs against Celestia-node version `v0.11.0-rc15`.
-This is the version used on the `arabica` and `mocha` testnets as of Oct 16, 2023.
+The current version of sov-celestia-adapter runs against celestia-node version `v0.20.4`.
+This is the version used on the `arabica` and `mocha` testnets as of Dec 29, 2024.
+Please use official Celestia documentation to set up a node, 
+for example, [how to run a light node](https://docs.celestia.org/how-to-guides/light-node)
+
 
 ## Warning
 
-Jupiter is a research prototype. It contains known vulnerabilities and should not be used in production under any
-circumstances.
+sov-celestia-adapter a research prototype. 
+It contains known vulnerabilities and should not be used in production under any circumstances.
 
 ## How it Works
 
-All of Jupiter boils down to two trait implementations: [`DaVerifier`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/state_machine/da.rs#L36) and [`DaService`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/node/services/da.rs#L13).
+All of sov-celestia-adapter boils down to two trait implementations: 
+ - [`DaVerifier`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/state_machine/da.rs#L36)
+ - [`DaService`](https://github.com/Sovereign-Labs/sovereign-sdk/blob/8388dc2176940bc6a909076e5ed43feb5a87bf7a/sdk/src/node/services/da.rs#L13).
 
 ### The DaVerifier Trait
 
@@ -39,14 +45,14 @@ This maximizes your odds of being compatible with new zk proof systems as they b
 it's worth noting that some Rust-compatible SNARKs (including Risc0) support limited versions of `std`. If you only care
 about compatibility with these proof systems, then `no_std` isn't a requirement.
 
-**Jupiter's DA Verifier**
+**sov-celestia-adapter's DA Verifier**
 
-Blobs submitted to Celestia are processed and composed into the `ExtendedDataSquare`. Submitting the blobs to the Celestia
-results in two different additions in the data square.
+Blobs submitted to Celestia are processed and composed into the `ExtendedDataSquare`. 
+Submitting the blobs to the Celestia results in two different additions in the data square.
 
-First, the cosmos `Tx` is created which contains the `MsgPayForBlobs`
-message. This message contains the address of the `signer`, namespaces of all the blobs included and their commitments.
-This cosmos transaction is then appended to other transactions appearing in given block. All the transactions are then
+First, the cosmos `Tx` is created which contains the `MsgPayForBlobs` message. 
+This message contains the address of the `signer`, namespaces of all the blobs included and their commitments.
+This cosmos transaction is then appended to other transactions appearing in a given block. All the transactions are then
 splitted into [`Compact Shares`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#transaction-shares)
 and included in the data square under the [`PAY_FOR_BLOB_NAMESPACE`](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/namespace.md).
 
@@ -61,7 +67,7 @@ Those can be later compared with the computed row roots from the NMT proofs.
 
 #### Checking _completeness_ of the data
 
-In order to acquire the data for a given block, the `share.GetSharesByNamespace` RPC call is used. In return, celestia-node
+In order to acquire the data for a given block, the [`share.GetNamespaceData`](https://node-rpc-docs.celestia.org/?version=v0.20.4#share.GetNamespaceData) RPC call is used. In return, celestia-node
 provides all the shares for the given namespace (rollup's namespace) together with the proofs. The shares are returned as a
 list of rows, in order, each row having only the relevant shares and the proof of inclusion of those shares or a single empty
 row and the proof of absence of rollup's data.
@@ -71,7 +77,7 @@ Checking _completeness_ of the data in celestia is done by verifying that the na
 are respectively lower and higher than rollup's namespace. This can be done using [`NmtProof::verify_complete_namespace`](https://github.com/Sovereign-Labs/nmt-rs/blob/master/src/nmt_proof.rs#L38)
 for each row in data square that hold's rollup's data. Merkle roots computed using the proofs should be equal to the roots
 obtained from the `DataAvailabilityHeader` header of this block.
-As for the empty blocks (not containing rollup's data) we get an empty row with an absence proof, the same logic
+As for the empty blocks (not containing rollup's data), we get an empty row with an absence proof, the same logic
 applies for proving that there is no rollup's data.
 
 #### Checking _correctness_ of the data
@@ -83,11 +89,12 @@ all of the data from a special reserved namespace on Celestia which contains the
 with the current block. The transactions are serialized using `protobuf` and encoded into data square in
 [compact share format](https://github.com/celestiaorg/celestia-app/blob/main/specs/src/specs/shares.md#transaction-shares).
 
-In order to prove that, we use a proofs called `EtxProof` which consist of the merkle proofs for all the shares contaniing transaction
+In order to prove that, we use a proofs called `EtxProof` which consist of the merkle proofs for all the shares containing transaction
 as well the offset to the beginning of the cosmos transaction in first of those shares.
 
-To venify them, we first iterate over rollup's blobs re-created from _completeness_ verification. We associate each blob
-with its `EtxProof`. Then we verify that the etx proof holds the contiguous range of shares and verify the merkle proofs
+To verify them, we first iterate over rollup's blobs re-created from _completeness_ verification. 
+We associate each blob with its `EtxProof`. 
+Then we verify that the etx proof holds the contiguous range of shares and verify the merkle proofs
 of it's shares with corresponding row_roots from `DataAvailabilityHeader`.
 If that process succeeds, we can extract the cosmos transaction data from the given proof. We need to check if the
 transaction offset provided in proof is indeed a start of a new transaction, and then we extract transaction data from
@@ -106,7 +113,7 @@ If all proofs and all blobs were verified successfully, that means the data is c
 ### The DaService Trait
 
 The `DaService` trait is slightly more complicated than the `DaVerifier`. Thankfully, it exists entirely outside of the
-rollup's state machine - so it never has to be proven in zk. This means that its performance is less critical, and that
+rollup's state machine - so it never has to be proven in ZK context. This means that its performance is less critical, and that
 upgrading it in response to a vulnerability is much easier.
 
 The job of the `DaService` is to allow the Sovereign SDK's node software to communicate with a DA layer. It has two related
@@ -115,15 +122,15 @@ available. The second is to process that data into the form expected by the `DaV
 provide data in JSON format via RPC - but, parsing JSON in a zk-SNARK would be horribly inefficient. So, the `DaService`
 is responsible for both querying the RPC service and transforming its responses into a more useful format.
 
-**Jupiter's DA Service**
-Jupiter's DA service currently communicates with a local Celestia node via JSON-RPC. Each time a Celestia block is
-created, the DA service makes a series of RPC requests to obtain all of the relevant share data. Then, it packages
-that data into the format expected by the DA verifier and returns.
+**sov-celestia-adapter's DA Service**
+sov-celestia-adapter's DA service currently communicates with a local Celestia node via JSON-RPC. 
+Each time a Celestia block is created, 
+the DA service makes a series of RPC requests to obtain all of the relevant share data. 
+Then, it packages that data into the format expected by the DA verifier and returns.
 
 ## License
 
-Licensed under the [Apache License, Version
-2.0](./LICENSE).
+Licensed under the [Apache License, Version 2.0](../../../LICENSE).
 
 Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in this repository by you, as defined in the Apache-2.0 license, shall be
