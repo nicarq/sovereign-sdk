@@ -58,7 +58,7 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 sha2 = { version = "0.10.8", default-features = false }
 
 thiserror = "1.0.64"
-tokio = { version = "1.40", default-features = false, optional = true, features = ["sync"] }
+tokio = { version = "1.42", default-features = false, optional = true, features = ["sync"] }
 tower = { version = "0.4", default-features = false, optional = true }
 tracing = { version = "0.1.40", default-features = false }
 
@@ -72,7 +72,7 @@ sov-celestia-adapter = { path = ".", features = ["native", "arbitrary"] }
 sov-test-utils = { path = "../../module-system/sov-test-utils", features = ["arbitrary"] }
 wiremock = "0.6"
 test-strategy = "0.4.0"
-tokio = { version = "1.40", default-features = false, features = [
+tokio = { version = "1.42", default-features = false, features = [
     "test-util",
     "macros",
     "rt-multi-thread",
@@ -106,12 +106,3 @@ arbitrary = [
     "sov-rollup-interface/arbitrary",
     "sov-test-utils/arbitrary"
 ]
-
-
-
-[patch.crates-io]
-# Fixes an issue where watch::Receiver::changed would never yield. This caused breakages in
-# tests, but could also silently lead to blocking the runtime yielding abysmal performance.
-# https://github.com/tokio-rs/tokio/issues/6839.
-# This fix should be released in 1.41
-tokio = { git = "https://github.com/tokio-rs/tokio.git", rev = "21df16d7595880247642c4fb38f1c365a49de75b" }
