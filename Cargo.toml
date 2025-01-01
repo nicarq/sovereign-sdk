@@ -217,7 +217,7 @@ jsonrpsee = { version = "0.24" }
 schemars = { version = "0.8.21", features = ["derive"] }
 tempfile = "3.12"
 test-strategy = "0.4.0"
-tokio = { version = "1.40", default-features = false }
+tokio = { version = "1.42", default-features = false }
 tokio-stream = { version = "0.1", features = ["sync"] }
 uuid = { version = "1.10", default-features = false } # v1.9 is important because it guarantees monotic UUIDv7 generation: https://github.com/uuid-rs/uuid/releases/tag/1.9.0.
 lazy_static = "1.5.0"
@@ -264,10 +264,3 @@ opt-level = 1
 [profile.release-with-opt-level-0]
 inherits = "release"
 opt-level = 0
-
-[patch.crates-io]
-# Fixes an issue where watch::Receiver::changed would never yield. This caused breakages in 
-# tests, but could also silently lead to blocking the runtime yielding abysmal performance.
-# https://github.com/tokio-rs/tokio/issues/6839.
-# This fix should be released in 1.41
-tokio = { git = "https://github.com/tokio-rs/tokio.git", rev = "21df16d7595880247642c4fb38f1c365a49de75b" }
