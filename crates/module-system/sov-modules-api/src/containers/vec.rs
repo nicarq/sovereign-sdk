@@ -411,6 +411,27 @@ mod test {
     type TestSpec = crate::default_spec::DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
     #[test]
+    // FIXME: this test should not panic. This is a repro for <https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2121>.
+    #[should_panic]
+    fn double_ended_iterator_is_broken() {
+        let storage_manager = SimpleStorageManager::new();
+        let storage = storage_manager.create_storage();
+        let mut state: StateCheckpoint<<TestSpec as Spec>::Storage> =
+            StateCheckpoint::new(storage, &MockKernel::<TestSpec>::default());
+
+        let prefix = Prefix::new("test".as_bytes().to_vec());
+        let state_vec = StateVec::<u32>::with_codec(prefix, BorshCodec);
+
+        // Only one element in the vec
+        state_vec.push(&0, &mut state).unwrap();
+
+        let mut iter = state_vec.iter(&mut state).unwrap();
+        assert_eq!(iter.next_back(), Some(Ok(0)));
+        // The first and only element was "consumed" already by `.next_back()`.
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
     fn test_state_vec() {
         let storage_manager = SimpleStorageManager::new();
         let storage = storage_manager.create_storage();
