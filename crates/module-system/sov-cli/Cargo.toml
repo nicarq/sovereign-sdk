@@ -32,9 +32,10 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 reqwest = { workspace = true, features = ["json"] }
 sov-node-client = { workspace = true }
+tracing = { workspace = true }
 
 [dev-dependencies]
-sov-address = {workspace = true}
+sov-address = { workspace = true }
 tempfile = { workspace = true }
 sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }

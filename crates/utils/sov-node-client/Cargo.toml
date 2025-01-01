@@ -19,7 +19,7 @@ sov-api-spec = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
 sov-rollup-interface = { workspace = true, features = ["native"] }
 sov-modules-api = { workspace = true, features = ["native"] }
-
+tracing = { workspace = true }
 
 [lints]
 workspace = true

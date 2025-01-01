@@ -220,19 +220,16 @@ impl NodeClient {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Response data was empty"))?;
 
-        println!(
-            "Your batch was submitted to the sequencer for publication. Response: {:?}",
-            response_data
+        tracing::info!(
+            reponse = ?response_data,
+            "Your batch was submitted to the sequencer for publication.",
         );
 
         if wait_for_processing {
             // We pick the first tx hash of the batch, any would work.
             let tx_hash_to_wait = response_data.tx_hashes[0].clone();
             let max_waiting_time = Duration::from_secs(300);
-            println!(
-                "Going to wait for batch to be processed, up to {:?}",
-                max_waiting_time
-            );
+            tracing::info!(?max_waiting_time, "Going to wait for batch to be processed");
             let start_wait = Instant::now();
 
             let mut subscription = self
@@ -245,7 +242,7 @@ impl NodeClient {
                     if tx_info.status == types::TxStatus::Processed
                         || tx_info.status == types::TxStatus::Finalized
                     {
-                        println!("Rollup has processed the submitted batch!");
+                        tracing::info!("Rollup has processed the submitted batch!");
                         return Ok(());
                     }
                 }

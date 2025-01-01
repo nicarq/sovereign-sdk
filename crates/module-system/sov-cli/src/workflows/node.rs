@@ -72,11 +72,12 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
         Tx: DispatchCall,
         Tx::Decodable: Serialize + DeserializeOwned,
     {
+        tracing::info!("Executing node workflow");
         if let Self::SetUrl { url } = self {
             Url::parse(url).map_err(|e| anyhow::anyhow!("Failed to parse API URL: {:?}", e))?;
             let prev_url = wallet_state.rest_api_url.clone();
             wallet_state.rest_api_url = Some(url.clone());
-            println!("Set REST API URL from {:?} to {}", prev_url, url);
+            tracing::info!(?prev_url, url, "Set REST API URL");
             return Ok(());
         }
 
@@ -99,7 +100,11 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                 let nonce = api_client
                     .get_nonce_for_public_key::<S>(&account.pub_key)
                     .await?;
-                println!("Nonce for account {} is {}", account.address, nonce);
+                tracing::info!(
+                    account = %account.address,
+                    nonce,
+                    "Nonce for account received"
+                );
             }
             NodeWorkflows::FindTokenId {
                 token_name,
@@ -108,16 +113,18 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                 let token_id = api_client
                     .get_token_id::<S>(token_name, deployer_address)
                     .await?;
-                println!("Id of token {} is {}", token_name, token_id);
+                tracing::info!(%token_name, %token_id, "Id of token is received");
             }
             NodeWorkflows::GetBalance { account, token_id } => {
                 let account = wallet_state.resolve_account(account.as_ref())?;
                 let balance = api_client
                     .get_balance::<S>(&account.address, token_id, None)
                     .await?;
-                println!(
+                tracing::info!(
                     "Balance of token {} for account {} is {}",
-                    token_id, account.address, balance
+                    token_id,
+                    account.address,
+                    balance
                 );
 
                 return Ok(());
@@ -146,7 +153,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                 for (i, tx) in txs.iter().enumerate() {
                     let tx_hash =
                         TxHash::new(<S::CryptoSpec as CryptoSpec>::Hasher::digest(tx).into());
-                    println!("Submitting tx: {}: {}", i, tx_hash);
+                    tracing::info!(index = i, %tx_hash, "Submitting tx");
                 }
 
                 api_client.publish_batch(txs, *wait_for_processing).await?;
